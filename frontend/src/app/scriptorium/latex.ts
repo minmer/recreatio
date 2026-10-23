@@ -13,11 +13,11 @@
  * die Angaben stehen fertig formatiert darin.
  */
 
-import { blocksOf, commentsAbout, type Cell } from '../library/comment';
+import { blocksKeyOf, blocksOf, type Cell } from '../library/blocks';
 import { bibliography, citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from '../library/libraryCite';
 import { typeLines } from './textTypes';
 import { ids, isSource, markupsOf, outline, ownTitle, refTarget, str, textTypeName, type LibEntry, type Lookup } from '../library/libraryKinds';
-import { parseInline, parseMarkup, plainText, walkBlocks, type Block, type Inline } from '../library/libraryMarkup';
+import { parseInline, parseMarkup, walkBlocks, type Block, type Inline } from '../library/libraryMarkup';
 import { planOf, type PlanPoint } from './sermon';
 
 /** Was in LaTeX eine Bedeutung hat, entschärft — und die Typografie, die TeX selbst nicht errät. */
@@ -105,10 +105,11 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
       case 'hr': out.push('\\begin{center}*\\quad*\\quad*\\end{center}'); break;
       case 'embed': {
         const quote = refTarget(ctx.look, b.key);
-        /* 2026-10-22 — ein Komentarz steht mit seinen Bausteinen da; einer, der sich (über andere) selbst einbettet, nur einmal. */
-        if (quote?.kind === 'comment') {
+        /* 2026-10-22 — eine Aussage steht mit ihren Bausteinen da; eine, die sich (über andere) selbst einbettet, nur einmal. 2026-10-23: jeder Eintrag mit Feld blocks. */
+        const key = quote === undefined ? null : blocksKeyOf(quote, ctx.look);
+        if (quote !== undefined && key !== null) {
           if (ctx.path?.has(quote.id) === true) break;
-          out.push(commentLatex(quote, { ...ctx, path: new Set([...(ctx.path ?? []), quote.id]) }, depth));
+          out.push(statementLatex(quote, key, { ...ctx, path: new Set([...(ctx.path ?? []), quote.id]) }, depth));
           break;
         }
         if (quote === undefined || quote.kind !== 'quote') { out.push('% odwołanie niedostępne'); break; }
@@ -131,15 +132,15 @@ function blocks(list: readonly Block[], ctx: Ctx, depth: 0 | 1): string {
   return out.join('\n\n');
 }
 
-/** Eine Zelle eines Komentarza: Text im Zapis, Verweise als ihr Name mit Stelle. */
+/** Eine Zelle einer Aussage: Text im Zapis, Verweise als ihr Name mit Stelle. */
 function cellLatex(cell: Cell, ctx: Ctx): string {
   return cell.map((run) => ('ref' in run ? latexEscape(refLabel(run.ref, run.locator ?? '', ctx.look)) : inlines(parseInline(run.text), ctx))).join('');
 }
 
-/** Ein Komentarz: Absätze, Listen, eine Tabelle (tabular, jede Spalte gleich breit). */
-function commentLatex(comment: LibEntry, ctx: Ctx, depth: 0 | 1): string {
+/** Eine Aussage: Absätze, Listen, eine Tabelle (tabular, jede Spalte gleich breit). */
+function statementLatex(entry: LibEntry, key: string, ctx: Ctx, depth: 0 | 1): string {
   const out: string[] = [];
-  for (const block of blocksOf(comment.data)) {
+  for (const block of blocksOf(entry.data, key)) {
     if (block.type === 'paragraph') { out.push(blocks(parseMarkup(block.text), ctx, depth)); continue; }
     if (block.type === 'table') {
       const width = Math.max(1, block.columns.length, ...block.rows.map((r) => r.length));
@@ -306,19 +307,13 @@ export function projectToLatex(project: LibEntry, look: Lookup, options: { autho
 /**
  * 2026-10-21 — NUR DER PLAN, für die Kanzel: eine Seite in grösserer Schrift,
  * ohne Titelseite — Titel, Tag und Lesungen oben, die Punkte, die Zitate in
- * vollem Wortlaut, die Quellen klein am Ende. Mit `comments` stehen die
- * Komentarze über einen Punkt kursiv darunter (soweit dieser Leser sie liest —
- * es ist das eigene Blatt).
+ * vollem Wortlaut, die Quellen klein am Ende. (2026-10-23: die Komentarze an
+ * den Punkten sind fort — Komentarze sind Einträge in Nauka.)
  */
-export function planToLatex(entry: LibEntry, look: Lookup, options: { comments?: boolean } = {}): string {
+export function planToLatex(entry: LibEntry, look: Lookup): string {
   const d = entry.data;
   const ctx: Ctx = { look, state: newCiteState(), works: [] };
-  const all = options.comments === true ? look.readable?.() ?? [] : [];
-  const points = planOf(d).map((p) => {
-    const said = commentsAbout(entry.id, all, p.id).flatMap((c) => blocksOf(c.data))
-      .map((b) => (b.type === 'paragraph' ? plainText(b.text) : '')).filter((s) => s.trim() !== '').join(' ');
-    return said === '' ? p : { ...p, text: `${p.text}\n*(${said.replace(/[*_]/g, '')})*` };
-  });
+  const points = planOf(d);
   return [
     PREAMBLE('article').replace('[11pt,a4paper', '[14pt,a4paper').replace('{article}', '{extarticle}'),
     '\\usepackage[margin=2cm]{geometry}',

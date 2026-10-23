@@ -6,7 +6,8 @@ import { type AnswerSpec, type Fragment, type Item, type PromptPart, type Templa
 import { GAP_RULE, TEXT_RULE, readDateAnswer, readRule } from './check';
 import { type NodeKind, type Port, paletteOf } from './graph';
 import { type DatePrecision, type Entity, type GeoPoint, type MediaRef, dateKey, fieldOf, labelOf, plainOf, readDate, readNumber, valueText, valuesOf } from './schema';
-import { blockPlain, blocksOf, subjectsOf, thesisOf, type CommentBlock } from '../library/comment';
+import { blockPlain, thesisOf, type CommentBlock } from '../library/blocks';
+import { entityAbout, entityBlocks } from './statements';
 import { guessKind, kindById } from '../core/quantities';
 
 /** Was an einem Eingang ankam — alle Kanten, alle Stücke, in einer Liste. */
@@ -38,7 +39,7 @@ function readField(ctx: TemplateContext, entities: readonly Entity[], key: strin
       if (field.type === 'ref' && typeof v.value === 'string') out.push({ text, entity: v.value, state: v.state });
       else if (field.type === 'media' && isObject(v.value)) out.push({ text, media: v.value as unknown as MediaRef, state: v.state });
       else if (field.type === 'markup' && typeof v.value === 'string') out.push({ text: plainOf(v.value), value: v.value, state: v.state });
-      /* 2026-10-22 — die Bausteine eines Komentarza: einer je Stück (Absatz, Liste, Tabelle). */
+      /* 2026-10-22 — die Bausteine einer Aussage: einer je Stück (Absatz, Liste, Tabelle). */
       else if (field.type === 'blocks' && Array.isArray(v.value)) for (const block of v.value as readonly CommentBlock[]) out.push({ text: blockPlain(block, refName(ctx)), state: v.state });
       else out.push({ text, value: v.value, state: v.state });
     }
@@ -53,7 +54,10 @@ const FIELD: Kind = {
   run: ({ config, inputs, ctx }) => ({ values: readField(ctx, sourcesOf(ctx, itemsAt(inputs, 'of')), str(config.key)) })
 };
 
-/* -- 2026-10-22: Aussagen (Komentarze) — Teza, Stücke, Tabelle, Gegenstände ------------------------- */
+/* -- 2026-10-22: Aussagen — Teza, Stücke, Tabelle, Gegenstände ------------------------------------
+ * 2026-10-23 — jeder Eintrag, dessen Rodzaj ein Feld `blocks` hat (`statements.ts`), nicht mehr nur
+ * der Komentarz der Bibliothek. Die Teza ist der erste Satz des ersten Absatzes seines ersten Feldes
+ * `blocks`; „worüber" sind die Werte seiner Verweisfelder (mit Stelle). */
 
 /** Wie ein Verweis in einer Zelle heisst: bei der Schrift die Stelle allein („Łk 1,35"), sonst der Name mit der Stelle. */
 const refName = (ctx: TemplateContext) => (ref: string, locator: string): string => {
@@ -64,21 +68,21 @@ const refName = (ctx: TemplateContext) => (ref: string, locator: string): string
 };
 
 const STATEMENT_THESIS: Kind = {
-  type: 'statement.thesis', label: 'Teza komentarza', group: 'Komentarz',
-  says: 'Pierwsze zdanie komentarza — jego teza (tego wpisu albo komentarzy, które przychodzą z lewej).',
-  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('text', 'Teza')] }),
-  run: ({ inputs, ctx }) => ({ text: sourcesOf(ctx, itemsAt(inputs, 'of')).map((e) => ({ text: thesisOf(e.data), entity: e.id })).filter((i) => i.text !== '') })
+  type: 'statement.thesis', label: 'Teza', group: 'Wypowiedź',
+  says: 'Pierwsze zdanie treści w blokach — teza (tego wpisu albo wpisów, które przychodzą z lewej; każdy rodzaj z polem „Treść w blokach”).',
+  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('text', 'Teza')] }),
+  run: ({ inputs, ctx }) => ({ text: sourcesOf(ctx, itemsAt(inputs, 'of')).map((e) => ({ text: thesisOf(entityBlocks(e, ctx.look)), entity: e.id })).filter((i) => i.text !== '') })
 };
 
 const STATEMENT_PART: Kind = {
-  type: 'statement.part', label: 'Część komentarza', group: 'Komentarz',
-  says: 'Stück numer n (1, 2, …): akapit jako tekst, lista — każdy punkt osobno, tabela — każdy wiersz („Łk 1,35 — Dz 1,8"). Puste: wszystkie akapity.',
-  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('values', 'Części')] }),
+  type: 'statement.part', label: 'Część treści', group: 'Wypowiedź',
+  says: 'Blok numer n (1, 2, …) treści w blokach: akapit jako tekst, lista — każdy punkt osobno, tabela — każdy wiersz („Łk 1,35 — Dz 1,8"). Puste: wszystkie akapity.',
+  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('values', 'Części')] }),
   run: ({ config, inputs, ctx }) => {
     const n = Math.round(num(config.n, 0));
     const out: Item[] = [];
     for (const e of sourcesOf(ctx, itemsAt(inputs, 'of'))) {
-      const blocks = blocksOf(e.data);
+      const blocks = entityBlocks(e, ctx.look);
       const chosen = n > 0 ? blocks.slice(n - 1, n) : blocks.filter((b) => b.type === 'paragraph');
       for (const block of chosen) {
         if (block.type === 'paragraph') out.push({ text: blockPlain(block, refName(ctx)) });
@@ -91,9 +95,9 @@ const STATEMENT_PART: Kind = {
 };
 
 const STATEMENT_TABLE: Kind = {
-  type: 'statement.table', label: 'Tabela komentarza', group: 'Komentarz',
-  says: 'Wiersze tabeli komentarza jako dwie strony: kolumna A po lewej, kolumna B po prawej (te same miejsca tworzą parę) — do „dopasowania par" albo pytań o kolumnę.',
-  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('left', 'Kolumna A'), port('right', 'Kolumna B')] }),
+  type: 'statement.table', label: 'Tabela z treści', group: 'Wypowiedź',
+  says: 'Wiersze tabeli z treści w blokach jako dwie strony: kolumna A po lewej, kolumna B po prawej (te same miejsca tworzą parę) — do „dopasowania par" albo pytań o kolumnę.',
+  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('left', 'Kolumna A'), port('right', 'Kolumna B')] }),
   run: ({ config, inputs, ctx }) => {
     const a = Math.max(1, Math.round(num(config.left, 1))) - 1;
     const b = Math.max(1, Math.round(num(config.right, 2))) - 1;
@@ -101,7 +105,7 @@ const STATEMENT_TABLE: Kind = {
     const left: Item[] = [];
     const right: Item[] = [];
     for (const e of sourcesOf(ctx, itemsAt(inputs, 'of'))) {
-      const table = blocksOf(e.data).filter((x): x is Extract<CommentBlock, { type: 'table' }> => x.type === 'table')[which - 1];
+      const table = entityBlocks(e, ctx.look).filter((x): x is Extract<CommentBlock, { type: 'table' }> => x.type === 'table')[which - 1];
       if (table === undefined) continue;
       for (const row of table.rows) {
         const l = row[a] === undefined ? '' : blockPlain({ type: 'unordered', items: [row[a]!] }, refName(ctx));
@@ -116,11 +120,11 @@ const STATEMENT_TABLE: Kind = {
 };
 
 const STATEMENT_SUBJECTS: Kind = {
-  type: 'statement.subjects', label: 'O czym jest komentarz', group: 'Komentarz',
-  says: 'Wpisy, o których jest komentarz — z miejscem (np. „Łk 1,35").',
-  ports: () => ({ inputs: [port('of', 'Z komentarzy', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
+  type: 'statement.subjects', label: 'O czym jest', group: 'Wypowiedź',
+  says: 'Wpisy, na które wskazują pola-odwołania wypowiedzi (np. „O czym”) — z miejscem (np. „Łk 1,35").',
+  ports: () => ({ inputs: [port('of', 'Z wpisów', 'items', true)], outputs: [port('entities', 'Wpisy')] }),
   run: ({ inputs, ctx }) => ({
-    entities: sourcesOf(ctx, itemsAt(inputs, 'of')).flatMap((e) => subjectsOf(e.data).map((s) => ({ text: refName(ctx)(s.ref, s.locator), entity: s.ref })))
+    entities: sourcesOf(ctx, itemsAt(inputs, 'of')).flatMap((e) => entityAbout(e, ctx.look).map((s) => ({ text: refName(ctx)(s.ref, s.locator), entity: s.ref })))
   })
 };
 

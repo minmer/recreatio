@@ -23,7 +23,6 @@ import { useEffect, useState } from 'react';
 
 import { areaReader, type AreaReader } from '../areas/areaRead';
 import { fromBase64Url } from '../core/crypto';
-import { blockRefs, blocksOf } from './comment';
 import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, type OpenRead } from './library';
 import { fieldRefs, type LibEntry } from './libraryKinds';
 import { refsOf } from './refIndex';
@@ -106,8 +105,8 @@ const asked = new Set<string>();
 async function reach(store: LibraryStore): Promise<void> {
   const missing = new Set<string>();
   for (const entry of store.all()) {
-    /* 2026-10-22 (Schritt 11) — auch was der Zapis nennt (ein Słowo, ein Widok einer Baza): `refsOf` liest Felder, Zapis und Plan. */
-    for (const ref of [...fieldRefs(entry), ...blockRefs(blocksOf(entry.data)).map((r) => r.ref), ...refsOf(entry, () => undefined).map((r) => r.target)]) {
+    /* 2026-10-22 (Schritt 11) — auch was der Zapis nennt (ein Słowo, ein Widok einer Baza): `refsOf` liest Felder, Zapis, Plan und die Zellen von Bausteinen. */
+    for (const ref of [...fieldRefs(entry), ...refsOf(entry, () => undefined).map((r) => r.target)]) {
       if (!asked.has(ref) && store.get(ref) === undefined) missing.add(ref);
     }
   }

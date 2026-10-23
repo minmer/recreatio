@@ -1334,3 +1334,109 @@ the owner's explicit, confirmed deletions.
 3. "+ Wygłoszenie" → "Zapisz". The text lists the delivery.
 4. A page → module "Tekst ze skryptorium" → choose the Scriptorium and the text. If the area is public, a visitor
    sees it.
+
+## P4 — Cogita without built-in content schemas
+
+**Built**
+- **A statement is any entry whose kind has a field of the new type `blocks`** ("Treść w blokach": paragraphs, lists,
+  tables with real references). There is no built-in kind for it any more. The rules live in one place for Nauka,
+  the Scriptorium and pages (`library/blocks.ts`, renamed from `comment.ts`; `library/statement.ts`;
+  `cogita/statements.ts`):
+  - the thesis is the first sentence of the first paragraph of the first `blocks` field; it names the entry;
+  - a thesis ending in "?" makes the entry a question; it is answered as soon as another readable statement points
+    at it;
+  - the badge Informacja / Interpretacja is computed only from what the statement points at: its cells, the
+    references in its paragraphs and its reference fields (such as "O czym"). Only sources of the Library →
+    Informacja; another statement, or no source at all → Interpretacja. "A table makes an interpretation" is gone;
+  - nothing of this is stored.
+- **Editing**: `blocks` is a field type in the Cogita schema editor. The entity editor edits it with the block editor
+  (moved out of `library/CommentForm.tsx`, now `library/BlocksEditor.tsx`). A reference in a cell picks any entry of
+  the base or a source of a library. Under the field: the thesis and whether it is a question; above the fields: the
+  computed marks.
+- **Cards**: the nodes Teza, Część treści, Tabela z treści and O czym jest work on any kind with a `blocks` field;
+  "O czym jest" reads the entry's reference fields with their places. The presets "Teza: o czym → teza" and "Tabela z
+  treści: dopasuj pary" are offered for every such kind, whatever its name.
+- **Pickers** that asked for "komentarz albo wiedza" (a flow line's "co mówi", the node "Wyjaśnienie", "Z wpisu")
+  now name the placeholder `@blocks`, which becomes the statement kinds of the base. A flow shows any entry with a
+  `blocks` field whole.
+- **Templates are files** in `templates/cogita/`, imported like any schema (Schemat → "Schemat jako JSON" → Import);
+  nothing of them is in the frontend:
+  - `komentarz.json` — the kind Komentarz: `about` "O czym" (references with a place, several, to any kind in any
+    store the base reads) and `content` "Treść" (`blocks`), named by `{content}` (its thesis); with the card
+    templates "Teza" and "Tabela z treści";
+  - `slownik.json` — the former ready schema Słownik, written from the same presets;
+  - `psalterz.json` — moved from `cogita/starts/`.
+- **"Stare wpisy" in Nauka** (a tab, shown only while there are any): entries of the gone built-ins `knowledge`
+  (also entries with no kind at all, which used to count as Wiedza) and `comment`, and saved changes of those
+  built-ins. List, select, delete — the Library's own list. Only these named kinds count: an entry whose kind lives in
+  a source this account cannot read right now is not "old". A saved change of a gone built-in no longer turns into a
+  nameless kind of its own.
+- **Proposals** (Zaproponuj): a reader proposes a question or an entry of a statement kind of the base (the text
+  becomes its first paragraph, the chosen entry its first reference field). An old "Wiedza" proposal can only be
+  rejected.
+- **Views**: "+ here" in a cell makes a statement as an entry of the base; a text goes to a Scriptorium the base
+  draws on (before P3 it went to a library).
+- **AI descriptions** (`courseDescription`, `aiPrompt`): the `blocks` type with an example (a comment about Łk 1,35
+  with a table), statements on any `blocks` kind, the template files, no knowledge or comment kinds. The prompt
+  "wypowiedzi" replaces "wiedza"; when the base has no statement kind yet, the prompt brings the Komentarz kind along.
+
+**What stays built in, and why**
+- `question` (Pytanie): cards, sessions, flows, proposals and the page module "Pytanie" ask it, and its fields are
+  the answer forms the checker knows (text, number with units, choice, pairs, code, a drawing…). It is offered as
+  "+ Pytanie" in Wpisy, no longer as a "ready kind" in the schema.
+- `work`, `quote`, `person` (Library) and `text`, `delivery`, `project` (Scriptorium): kinds of the other parts.
+  References, templates and revisions over library material read their fields; they are not content schemas of a
+  base.
+- `topic`: until P5, which removes topics.
+
+**Removed, and why**
+- The built-in kinds Wiedza (`knowledge`) and the library's Komentarz (`comment`); the schema menu "Gotowy: Temat /
+  Wiedza / Pytanie" (`missingBuiltins`, `addBuiltin`) and "Gotowy schemat — Słownik / Psałterz"
+  (`cogita/schemaStarts.ts`, `cogita/starts/`). Decision 2: a base has only the kinds its owner writes or imports.
+- `library/CommentForm.tsx`: statements are written in the entity editor.
+- Comments at the points of a plan, and on the pulpit sheet; "Komentarze (n)" under a quote. A statement says in its
+  own fields what it is about; the relations box ("Powiązania") shows everything that points at an entry.
+
+**Checks**
+- All check scripts and both builds pass; Api.Tests 472. The style ratchet is locked at `wk-hint` 566 (one shared
+  element for a field's description in the entity editor).
+- `app-cogita-check` (426):
+  - the Komentarz kind from the file;
+  - which kinds are statement kinds, and the `@blocks` placeholder;
+  - what a statement is about;
+  - cards from the file's own templates, which equal the presets;
+  - no knowledge or comment built-ins, and a change of one is no kind;
+  - which entries are "Stare wpisy";
+  - sources and views rewritten with own kinds; a text made in a cell goes to the Scriptorium;
+  - the three template files import.
+- `app-library-check`:
+  - statements as entries of a base: roles from references (a table alone no longer makes an interpretation; "O
+    czym" counts), the marks, the reference index, embedding in a text with the cycle guard;
+  - no statements at plan points.
+- `komentarz-api.mjs` (LocalDB): a library with the Bible, a base drawing on it, an old Wiedza entry and an old change
+  of the built-in. Without `UI_IMPORT=1` it also imports `komentarz.json` and reads the kind back from the service.
+- `komentarz-browser.mjs` (headless Edge, built app), the step's test, 17 checks:
+  - Schemat offers only "+ Rodzaj";
+  - `komentarz.json` is imported in the UI (the plan: one kind, two templates, no warning);
+  - a comment is written in the UI: "O czym" = the Bible at Łk 1,35; a paragraph; a table whose cells point at
+    Łk 1,35 and Dz 1,8;
+  - the editor names the thesis and marks it Informacja; it is saved, and the places and the table come back from
+    the service; the list names it by its thesis;
+  - Nauka counts two cards and makes "Powtórka codzienna"; the thesis card asks "Co mówi ta wypowiedź o: Łk 1,35?"
+    and shows the thesis; the table card pairs Łk 1,35 – Dz 1,8 and Maryja – Apostołowie and is judged right;
+  - "Stare wpisy" lists the old Wiedza entry and the old change, and not the comment;
+  - no console errors.
+
+**Owner must run**
+- No migration. Deploy the website.
+- In a base that used Wiedza or library comments: import `templates/cogita/komentarz.json`. Old entries are under
+  "Stare wpisy" (in Nauka and in the Library); review them and delete them (test data, no migration).
+
+**Test in the browser**
+1. Nauka → a base → Więcej → Schemat → "Schemat jako JSON — kopia do innej bazy wiedzy" → Import → "Wczytaj plik…"
+   → `templates/cogita/komentarz.json` → "Importuj schemat".
+2. Wpisy → "+ Wpis" (kind Komentarz). "O czym" → "+ wartość" → search "Biblia" → place "Łk 1,35". Treść → "+ Akapit":
+   "Duch Święty zstępuje dwa razy. …"; "+ Tabela": in a cell "+ odwołanie" → the Bible → "Łk 1,35", next cell
+   "Dz 1,8" → "Zapisz". The entry is named by its first sentence and marked Informacja.
+3. Nauka → "Utwórz „Powtórkę codzienną” ze wszystkich kart" → the card "Co mówi ta wypowiedź o: Łk 1,35?" →
+   "Pokaż odpowiedź" shows the thesis.

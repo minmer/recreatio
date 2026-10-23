@@ -13,7 +13,9 @@ import { loadReports, type Report } from './learn';
 import { fieldsOf, valuesOf } from './schema';
 import { linkedOf } from './store';
 import { EntityPicker, entityName, originPath, useAsync, useBusy, useCtx } from './ui';
-import { isQuestion, statementTokens, thesisProblem, THESIS_LIMIT } from '../library/comment';
+import { blockMarkups, blockRefs, isQuestion, thesisProblem, THESIS_LIMIT } from '../library/blocks';
+import { citedKeys } from '../library/libraryMarkup';
+import { blocksField, entityAbout, entityBlocks } from './statements';
 import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -32,7 +34,7 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
       || (lib.isOwn(t.id) && (answers === undefined || valuesOf(t, answers).length === 0) && lib.taggedWith(t.id).size === 0);
   });
 
-  const stale = [...lib.ofKind('knowledge'), ...lib.ofKind('topic')].filter((e) => lib.isOwn(e.id)).filter((e) => {
+  const stale = lib.ofKind('topic').filter((e) => lib.isOwn(e.id)).filter((e) => {
     const entry = lib.entry(e.id);
     const checked = isObject(entry?.data._checked) ? entry!.data._checked as Record<string, string> : {};
     return linkedOf(e, look).some((token) => {
@@ -43,15 +45,20 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   });
 
   /*
-    2026-10-22 — AUSSAGEN (Komentarze der Bibliotheken, aus denen diese Baza
-    schöpft): eine Teza, die fehlt oder zu lang ist (Entscheidung 1), und
-    Fragen, auf die noch keine Aussage zeigt (Entscheidung 2).
+    2026-10-22 — AUSSAGEN: eine Teza, die fehlt oder zu lang ist
+    (Entscheidung 1), und Fragen, auf die noch keine Aussage zeigt
+    (Entscheidung 2). 2026-10-23 — jeder Eintrag dieser Baza (und ihrer
+    Quellen), dessen Rodzaj ein Feld `blocks` hat.
   */
-  const statements = lib.material('comment');
-  const thesisTodo = statements.filter((e) => thesisProblem(e.data) !== null);
+  const statements = lib.entities().filter((e) => blocksField(e, look) !== undefined);
+  const thesisTodo = statements.filter((e) => thesisProblem(entityBlocks(e, look)) !== null);
   const answered = new Set<string>();
-  for (const s of statements) for (const token of statementTokens(s.data)) { const id = lib.resolve(token); if (id !== undefined && id !== s.id) answered.add(id); }
-  const openQuestions = statements.filter((e) => isQuestion(e.data) && !answered.has(e.id));
+  for (const s of statements) {
+    const blocks = entityBlocks(s, look);
+    const tokens = [...blockRefs(blocks).map((r) => r.ref), ...citedKeys(...blockMarkups(blocks)), ...entityAbout(s, look).map((a) => a.ref)];
+    for (const token of tokens) { const id = lib.resolve(token); if (id !== undefined && id !== s.id) answered.add(id); }
+  }
+  const openQuestions = statements.filter((e) => isQuestion(entityBlocks(e, look)) && !answered.has(e.id));
   const pathOf = (id: string) => { const from = lib.origin(id); return from === undefined ? '#' : originPath(from, id, 'wpisy'); };
 
   const reports = useAsync(me === null || !writes ? null : async () => {
@@ -81,16 +88,16 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
       </section>
       <section className="cg-card">
         <h3>Pytania bez odpowiedzi ({openQuestions.length})</h3>
-        {openQuestions.length === 0 ? <span className="cg-muted">Na każde pytanie odpowiada jakiś komentarz.</span>
+        {openQuestions.length === 0 ? <span className="cg-muted">Na każde pytanie odpowiada jakaś wypowiedź.</span>
           : <ul>{openQuestions.slice(0, 60).map((e) => <li key={e.id}><a className="cg-ref" href={pathOf(e.id)}>{lib.label(e).slice(0, 160)}</a></li>)}</ul>}
       </section>
       <section className="cg-card">
-        <h3>Komentarze bez dobrej tezy ({thesisTodo.length})</h3>
-        {thesisTodo.length === 0 ? <span className="cg-muted">Każdy komentarz zaczyna się od krótkiego zdania — tezy.</span>
+        <h3>Wypowiedzi bez dobrej tezy ({thesisTodo.length})</h3>
+        {thesisTodo.length === 0 ? <span className="cg-muted">Każda wypowiedź (treść w blokach) zaczyna się od krótkiego zdania — tezy.</span>
           : <ul>{thesisTodo.slice(0, 60).map((e) => (
             <li key={e.id}>
               <a className="cg-ref" href={pathOf(e.id)}>{lib.label(e).slice(0, 120)}</a>
-              <span className="cg-muted"> — {thesisProblem(e.data) === 'missing' ? 'nie zaczyna się od zdania' : `pierwsze zdanie ma ponad ${THESIS_LIMIT} znaków`}</span>
+              <span className="cg-muted"> — {thesisProblem(entityBlocks(e, look)) === 'missing' ? 'nie zaczyna się od zdania' : `pierwsze zdanie ma ponad ${THESIS_LIMIT} znaków`}</span>
             </li>
           ))}</ul>}
       </section>

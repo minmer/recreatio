@@ -16,7 +16,8 @@ import { givenValuesText, solutionText } from './interactive';
 import { fieldText, fieldsOf, labelOf, type Entity } from './schema';
 import type { CogitaLibrary } from './store';
 import { Markup, MediaView, percent } from './ui';
-import { CommentCard } from '../library/markupView';
+import { StatementCard } from '../library/markupView';
+import { blocksField } from './statements';
 
 /* -- Die Frage ----------------------------------------------------------------------- */
 
@@ -302,26 +303,20 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   );
 }
 
-/** Ein Eintrag in Kürze: sein Etikett und, was er sagt — Wissen ganz, andere Felder in Worten. */
+/** Ein Eintrag in Kürze: sein Etikett und, was er sagt — eine Aussage ganz, andere Felder in Worten. */
 export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; entity: Entity; onEntity?: (id: string) => void }) {
   const look = lib.look;
-  const fields = fieldsOf(entity, look).filter((f) => f.type !== 'ref' && f.type !== 'media').slice(0, 4);
-  const knowledge = entity.kinds.includes('knowledge');
-  /* 2026-10-22 — ein Komentarz erklärt mit seinen Bausteinen (dieselbe Zeichnung wie in der Bibliothek). */
-  const statement = entity.kinds.includes('comment') ? lib.entry(entity.id) : undefined;
-  if (statement !== undefined) return <div className="cg-card"><CommentCard comment={statement} look={lib.markupLook} prefix={`cg${entity.id.slice(0, 8)}-`} /></div>;
+  const fields = fieldsOf(entity, look).filter((f) => f.type !== 'ref' && f.type !== 'media' && f.type !== 'blocks').slice(0, 4);
+  /* 2026-10-22 — eine Aussage erklärt mit ihren Bausteinen (dieselbe Zeichnung wie im Skryptorium); 2026-10-23: jeder Eintrag mit Feld blocks. */
+  const statement = blocksField(entity, look) === undefined ? undefined : lib.entry(entity.id);
+  if (statement !== undefined) return <div className="cg-card"><StatementCard entry={statement} look={lib.markupLook} prefix={`cg${entity.id.slice(0, 8)}-`} about /></div>;
   return (
     <div className="cg-card">
-      {knowledge ? <Markup text={String(entity.data.text ?? '')} onEntity={onEntity} lib={lib} />
-        : (
-          <>
-            <strong>{onEntity === undefined ? labelOf(entity, look) : <button type="button" className="cg-ref" onClick={() => onEntity(entity.id)}>{labelOf(entity, look)}</button>}</strong>
-            {fields.map((f) => {
-              const text = fieldText(entity, f, look);
-              return text === '' ? null : <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={String(entity.data[f.key] ?? '')} lib={lib} /> : text}</span>;
-            })}
-          </>
-        )}
+      <strong>{onEntity === undefined ? labelOf(entity, look) : <button type="button" className="cg-ref" onClick={() => onEntity(entity.id)}>{labelOf(entity, look)}</button>}</strong>
+      {fields.map((f) => {
+        const text = fieldText(entity, f, look);
+        return text === '' ? null : <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={String(entity.data[f.key] ?? '')} lib={lib} /> : text}</span>;
+      })}
     </div>
   );
 }

@@ -25,6 +25,10 @@ import { loadedStores } from '../library/libraryStore';
 import { referenceIndex } from '../library/refIndex';
 import { hitHref, hitTitle, isBooksStore, whereText } from '../library/refLabels';
 import { Loading } from '../ui/Loading';
+import { BlocksEditor } from '../library/BlocksEditor';
+import { blockData, blocksIn, isQuestion, THESIS_LIMIT, thesisOf, thesisProblem } from '../library/blocks';
+import { StatementMarks } from '../library/markupView';
+import { blocksField } from './statements';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isEnvelope = (raw: unknown): raw is Record<string, unknown> =>
@@ -39,7 +43,9 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
 }) {
   const { lib, writes, me } = useCtx();
   const existing = entityId === null ? undefined : lib.entity(entityId);
-  const [kinds, setKinds] = useState<readonly string[]>(existing?.kinds ?? newKinds ?? ['knowledge']);
+  /* 2026-10-23 — ohne eingebaute Inhalte: ein neuer Eintrag beginnt beim ersten eigenen Rodzaj (sonst als Pytanie, das bleibt eingebaut). */
+  const fallback = lib.kinds[0]?.id ?? 'question';
+  const [kinds, setKinds] = useState<readonly string[]>(existing?.kinds ?? newKinds ?? [fallback]);
   const [data, setData] = useState<Record<string, unknown>>({ ...(existing?.data ?? {}) });
   const [dirty, setDirty] = useState(false);
   const { busy, failed, run } = useBusy();
@@ -47,7 +53,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
 
   useEffect(() => {
     if (dirty) return;
-    setKinds(existing?.kinds ?? newKinds ?? ['knowledge']);
+    setKinds(existing?.kinds ?? newKinds ?? [fallback]);
     setData({ ...(existing?.data ?? {}) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId, existing === undefined ? '' : JSON.stringify(existing)]);
@@ -75,7 +81,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
   });
 
   const entry = entityId === null ? undefined : lib.entry(entityId);
-  const knowledgeLike = kinds.includes('knowledge') || kinds.includes('topic');
+  const knowledgeLike = kinds.includes('topic');
   const checked = isObject(entry?.data._checked) ? entry!.data._checked as Record<string, string> : {};
   const changedLinks = existing === undefined ? [] : linkedOf(existing, look).map((t) => lib.resolve(t)).filter((id): id is string => id !== undefined)
     .filter((id) => { const at = lib.entry(id)?.updatedAt; return at !== undefined && (checked[id] === undefined || checked[id] < at); });
@@ -90,6 +96,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
           </span>
         </div>
         <KindsRow kinds={kinds} writes={writes} onChange={(k) => { setKinds(k); setDirty(true); }} />
+        {/* 2026-10-23 — eine Aussage (ein Rodzaj mit Feld blocks): Informacja oder Interpretacja, Frage — gerechnet aus dem, worauf sie gerade zeigt. */}
+        {blocksField(draft, look) !== undefined && <StatementMarks entry={{ id: entityId ?? 'new', kind: 'entity', data: { ...data, _kinds: [...kinds] } }} look={lib.markupLook} author />}
         {fields.map((field) => (
           <FieldEditor key={field.key} field={field} raw={data[field.key]} writes={writes} onChange={(v) => change(field.key, v)} onOpen={onOpen} />
         ))}
@@ -170,11 +178,10 @@ export function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: F
   const label = <span>{field.label}<span className="cg-muted"> — {FIELD_TYPE_LABEL[field.type]}{field.unit ? `, ${field.unit}` : ''}{kind !== undefined ? ` (${kindById(kind)?.label ?? kind})` : ''}</span></span>;
 
   if (field.type === 'outline') {
-    return <div className="wk-field">{label}<span className="wk-hint">Plan projektu edytuje się w Bibliotece ({Array.isArray(raw) ? raw.length : 0} pozycji).</span></div>;
+    return <div className="wk-field">{label}<span className="wk-hint">Plan projektu edytuje się w Skryptorium ({Array.isArray(raw) ? raw.length : 0} pozycji).</span></div>;
   }
-  if (field.type === 'blocks') {
-    return <div className="wk-field">{label}<span className="cg-muted">Treść komentarza pisze się w Bibliotece ({Array.isArray(raw) ? raw.length : 0} części).</span></div>;
-  }
+  /* 2026-10-23 — Treść w blokach: Absätze, Listen, Tabellen mit echten Verweisen — die Teza ist der erste Satz. */
+  if (field.type === 'blocks') return <BlocksField field={field} raw={raw} writes={writes} onChange={onChange} label={label} />;
 
   if (many !== null) {
     return (
@@ -191,7 +198,7 @@ export function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: F
           </div>
         ))}
         {writes && <button type="button" className="wk-link-btn" onClick={() => onChange([...many, field.uncertain ? { value: '', state: 'known' } : ''])}>+ wartość</button>}
-        {field.says !== undefined && <span className="wk-hint">{field.says}</span>}
+        <Says field={field} />
       </fieldset>
     );
   }
@@ -200,10 +207,13 @@ export function FieldEditor({ field, raw, writes, onChange, onOpen }: { field: F
     <div className="wk-field">
       {label}
       <OneValue field={field} raw={raw} writes={writes} onChange={onChange} onOpen={onOpen} />
-      {field.says !== undefined && <span className="wk-hint">{field.says}</span>}
+      <Says field={field} />
     </div>
   );
 }
+
+/** Was ein Feld sagt (sein `says`) — unter dem Feld. */
+const Says = ({ field }: { field: FieldDef }) => (field.says === undefined ? null : <span className="wk-hint">{field.says}</span>);
 
 /** 2026-10-22 (Schritt 11) — die Stelle eines Verweises mit Stelle: „Ps 110", „s. 23"; gelesen, wenn das Ziel eine Bibel ist. */
 function PlaceInput({ field, target, locator, writes, onChange }: { field: FieldDef; target: unknown; locator: string; writes: boolean; onChange: (locator: string | undefined) => void }) {
@@ -451,8 +461,8 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
   const links = lib.backlinks(entity.id);
   /*
     2026-10-22 — dazu, was nicht über ein Verweisfeld zeigt (`library/refIndex.ts`):
-    [[Wort|@…]] in einem Wissen, Powtórki, Przebiegi, Widoki, Zbiory, Texte und
-    Komentarze der Bibliotheken — aus allem, was dieser Tab offen hat.
+    [[Wort|@…]] in einem Zapis, Powtórki, Przebiegi, Widoki, Zbiory, Texte des
+    Skryptorium und Aussagen (Felder blocks) — aus allem, was dieser Tab offen hat.
   */
   const viaField = new Set(links.map((l) => l.from));
   const more = new Map<string, { hit: ReturnType<typeof moreHits>[number]; places: string[] }>();
@@ -561,3 +571,28 @@ function History({ entityId, onRestored }: { entityId: string; onRestored: () =>
   );
 }
 
+/**
+ * 2026-10-23 — EIN FELD `blocks`: was ein Eintrag sagt, in Bausteinen
+ * (`library/BlocksEditor.tsx`); ein Verweis in einer Zelle wählt einen
+ * Eintrag dieser Baza oder eine Quelle der Bibliothek. Darunter, was daraus
+ * gerechnet wird: die Teza (der erste Satz) und ob sie eine Frage ist.
+ */
+function BlocksField({ field, raw, writes, onChange, label }: { field: FieldDef; raw: unknown; writes: boolean; onChange: (v: unknown) => void; label: ReactNode }) {
+  const { lib } = useCtx();
+  const blocks = blocksIn(raw, true);
+  const thesis = thesisOf(blocks);
+  const problem = thesisProblem(blocks);
+  return (
+    <fieldset className="cg" data-blocks-field={field.key}>
+      <legend>{label}</legend>
+      <BlocksEditor blocks={blocks} readOnly={!writes}
+        onChange={(next) => onChange(next.length === 0 ? undefined : next.map(blockData))}
+        shown={(ref) => { const e = lib.entity(ref); return { text: e === undefined ? '[odwołanie niedostępne]' : entityName(lib, ref), readable: e !== undefined }; }}
+        Picker={({ onPick }) => <EntityPicker lib={lib} refs value={null} placeholder="Szukaj wpisu (Pismo, cytat, inna wypowiedź…)" onPick={(id) => { if (id !== null) onPick(id); }} />} />
+      <p className="lib-cm-lede">Teza (pierwsze zdanie): {thesis === '' ? '—' : `„${thesis}”`}{isQuestion(blocks) ? ' — to pytanie; odpowiedzią będzie wypowiedź, która się do niego odwoła.' : ''}</p>
+      {problem === 'missing' && blocks.length > 0 && <p className="wk-warn">Zacznij od zdania, które mówi najważniejsze — to teza (nazwa wpisu, pierwsza strona karty w nauce).</p>}
+      {problem === 'long' && <p className="wk-warn">Pierwsze zdanie ma ponad {THESIS_LIMIT} znaków — skróć tezę, rozwinięcie zostaw na dalsze zdania.</p>}
+      <Says field={field} />
+    </fieldset>
+  );
+}

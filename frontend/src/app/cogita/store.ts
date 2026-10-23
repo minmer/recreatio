@@ -25,7 +25,7 @@ import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from 
 import { refsOf } from '../library/refIndex';
 import { cardsOf, questionCard, readTemplate, templatesFor, topicCard, type Template } from './cards';
 import { type Card } from './cardBasics';
-import { baseKind, DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
+import { DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, type DocKind } from './kinds';
 import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
@@ -608,18 +608,6 @@ export class CogitaLibrary {
   async remove(id: string): Promise<void> {
     this.ownOnly(id);
     return this.store.remove(id);
-  }
-
-  /** Die eingebauten Rodzaje, die hier (noch) nicht stehen — zum Hinzufügen. */
-  missingBuiltins(): KindDef[] {
-    /* 2026-10-22 — „Wiedza" nicht mehr: Aussagen sind Komentarze einer Bibliothek (Schritt 6). */
-    return ['topic', 'question'].filter((id) => !this.kinds.some((k) => k.id === id)).map((id) => baseKind(id)).filter((k): k is KindDef => k !== undefined);
-  }
-
-  /** Einen eingebauten Rodzaj hinzufügen — er steht dann da, auch ohne Einträge. */
-  async addBuiltin(id: string): Promise<void> {
-    const kind = baseKind(id);
-    if (kind !== undefined) await this.saveKind(kind);
   }
 
   /** 2026-10-18 — was es heisst, diesen Rodzaj zu entfernen (`kindRemoval.ts`). */

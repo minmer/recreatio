@@ -7,8 +7,9 @@
  *      Texten, Komentarzen oder Themen wird abgewiesen, mit dem Ort, wohin sie gehört.
  *   2. Der Zapis: Überschriften, Absätze, Listen, Zitate, eingebettete Zitate,
  *      Verweise mit Stellen, eigene Fussnoten, Links, Escapes.
- *  2e. Aussagen (2026-10-22, Schritt 6): Teza = erster Satz (Abkürzungen), Frage,
- *      Rolle (Informacja / Interpretacja), die Marken.
+ *  2e. Aussagen (2026-10-22, Schritt 6; 2026-10-23 jeder Rodzaj mit Feld blocks):
+ *      Teza = erster Satz (Abkürzungen), Frage, Rolle (Informacja / Interpretacja —
+ *      aus den Verweisen, eine Tabelle allein zählt nicht), die Marken.
  *  2g. Alte Kopien einer Baza (2026-10-23 direkt in „Kto czyta"): zurückziehen,
  *      Abschriften nur ohne Verlust heraus, wiederholbar.
  *  2h. Ausgemusterte Bausteine: nicht in der Palette, zeichnen weiter, sagen womit
@@ -25,16 +26,16 @@
  *      nichts; LaTeX, Planzeilen, der Baustein „Tekst" und Cogita ebenso.
  *   3. Die Angaben: Buch, Kapitel, Artikel, Dokument, Pismo Święte, Netz —
  *      voll, „dz. cyt.", „Tamże", Bibliografie.
- *   4. Komentarze (2026-10-22): Bausteine mit echten Verweisen, Einbetten mit
- *      Kreisschutz, unlesbare Ziele ohne Titel. (Seit 2026-10-23 nicht mehr im
- *      Format der Bibliothek — Schritt 4 macht sie zu einer Art in Cogita.)
+ *   4. Aussagen in Texten (2026-10-23: Einträge einer Baza, deren Rodzaj ein Feld
+ *      blocks hat — der Komentarz aus templates/cogita/komentarz.json): Bausteine mit
+ *      echten Verweisen, Einbetten mit Kreisschutz, unlesbare Ziele ohne Titel.
  *   5. Der Text, gezeichnet: Fussnoten in Reihenfolge, Quellen darunter.
  *   6. Bücher: ISBN, Strichcode (ZXing), Katalog (MARC, ONIX), eigene Nummer,
  *      Zitate eines Buches (Format, Polecenie, Plan, Import, Export).
  *   7. Kazania (2026-10-21): der Plan (Lesen, Nummern, Einfügen), Wygłoszenia
  *      (was gesagt wurde, Zeiten, Links an die Stelle), Aspekte der Themen,
- *      die Zeichnung mit gewähltem Wygłoszenie und den Komentarzen an den
- *      Punkten, LaTeX, das Polecenie, JSON ins offene Formular, das Archiv
+ *      die Zeichnung mit gewähltem Wygłoszenie (Aussagen stehen nicht mehr an
+ *      den Punkten), LaTeX, das Polecenie, JSON ins offene Formular, das Archiv
  *      (Zeilen, Filter samt Oberthemen, Zahlen — im Browser gerechnet).
  */
 import { build } from 'esbuild';
@@ -51,7 +52,8 @@ await writeFile(entry, `
 export * from '${app}library/libraryKinds';
 export * from '${app}library/libraryMarkup';
 export * from '${app}library/libraryCite';
-export * from '${app}library/comment';
+export * from '${app}library/blocks';
+export * from '${app}library/statement';
 export { planLibraryImport, exportLibrary, libraryDescription, kindsDoc, LIBRARY_FORMAT, LIBRARY_SPEC, LIBRARY_VERSION, MARKUP_DOC } from '${app}library/libraryJson';
 export { QuoteFigure } from '${app}library/LibraryText';
 export { TextArticle } from '${app}scriptorium/TextArticle';
@@ -213,11 +215,8 @@ try {
     const stored = m.storedMarkup('text', sermon.data, L1);
     assert.equal(stored.body, `A [@${W.id}, s. 1].`);
     assert.equal(stored.plan[0].text, `Punkt [@${W.id}]`, 'plan points are text too');
-    const comment = { subjects: [{ ref: W.id }], blocks: [{ type: 'paragraph', text: 'Por. [@ratz].' }, { type: 'table', columns: ['A'], rows: [[[{ text: 'zob. [@ratz]' }, { ref: W.id }]]] }] };
-    const storedComment = m.storedMarkup('comment', comment, L1);
-    assert.equal(storedComment.blocks[0].text, `Por. [@${W.id}].`);
-    assert.equal(storedComment.blocks[1].rows[0][0][0].text, `zob. [@${W.id}]`, 'text runs in table cells too');
-    assert.deepEqual(storedComment.blocks[1].rows[0][0][1], { ref: W.id }, 'real refs stay refs');
+    const comment = { subjects: [{ ref: W.id }], blocks: [{ type: 'paragraph', text: 'Por. [@ratz].' }] };
+    assert.equal(m.storedMarkup('comment', comment, L1), comment, '2026-10-23: a kind the library no longer keeps is stored as it is (comments are entries of a knowledge base)');
     assert.equal(m.storedMarkup('text', { body: 'bez odwołań' }, L1).body, 'bez odwołań');
 
     /* Die Taste ändert sich: der gespeicherte Text zeigt weiter auf denselben Eintrag. */
@@ -252,8 +251,10 @@ try {
   {
     const W = { id: 'w1', kind: 'work', key: 'ratz', data: { workType: 'book', title: 'Jezus z Nazaretu' } };
     const T = { id: 't1', kind: 'text', key: 'inny', data: { title: 'Chleb życia', date: '2026-08-02' } };
-    const C = { id: 'c1', kind: 'comment', key: 'kom', data: { subjects: [{ ref: 'w1' }], blocks: [{ type: 'paragraph', text: 'Uwaga.' }] } };
-    const L = { ...look([W, T, C]), readable: () => [W, T, C] };
+    /* 2026-10-23 — eine Aussage: ein Eintrag einer Baza, dessen Rodzaj ein Feld blocks hat. */
+    const KK = { id: 'kk', kind: 'kind', data: { name: 'Komentarz', label: '{content}', fields: [{ key: 'about', label: 'O czym', type: 'ref', multi: true, locator: true }, { key: 'content', label: 'Treść', type: 'blocks' }] } };
+    const C = { id: 'c1', kind: 'entity', key: 'kom', data: { _kinds: ['kk'], about: ['w1'], content: [{ type: 'paragraph', text: 'Uwaga.' }] } };
+    const L = { ...look([W, T, C, KK]), readable: () => [W, T, C] };
     const inl = m.parseInline('Zob. [[ten tekst|@inny]] i [[ukryty|@tajny]].');
     assert.deepEqual(inl.filter((i) => i.t === 'ref').map((i) => i.key), ['inny', 'tajny'], '[[Wort|@klucz]] is a reference with its own words');
     assert.deepEqual(m.citedKeys('A [[x|@inny]] [@ratz]'), ['inny', 'ratz'], 'base links count as references (backlinks see them)');
@@ -265,7 +266,7 @@ try {
     assert.equal(notes.length, 1, 'one footnote: only the work');
     assert.ok(notes[0].includes('Jezus z Nazaretu') && !notes[0].includes('Chleb'), 'the own text is not in the footnote');
     assert.ok(html.includes('(zob. <span class="lib-own-ref">Chleb życia</span>)'), 'an own text cited in a bracket: „(zob. its title)" in the line');
-    assert.ok(!html.includes('Zob. komentarz'), 'a comment is never a footnote');
+    assert.ok(!html.includes('Zob. komentarz') && html.includes('(zob. <span class="lib-own-ref">Uwaga.</span>)'), 'a statement is never a footnote: a link named by its thesis');
     assert.ok(html.includes('<span class="lib-own-ref">ten tekst</span>'), '[[…|@…]] shows its own words');
     assert.ok(html.includes('<span class="lib-own-ref is-unreadable">ukryty</span>') && !html.includes('tajny'), 'an unreadable target: its words, no link, nothing about the target');
     const linked = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry, look: L, hrefOf: (e) => `#/x/${e.id}` }));
@@ -344,8 +345,8 @@ try {
     assert.deepEqual(refs({ text: 'x', work: [BT.id], locator: 'Dz 1,14' }), [[BT.id, 'Dz 1,14', 'work', '']], 'a quote: its work at its place');
     assert.deepEqual(refs({ body: 'A [@bt, Dz 1,14]. B [[słowo|@kom]].', plan: [{ id: 'p1', text: 'Punkt [@bt, Dz 1,8]' }] }),
       [[BT.id, 'Dz 1,14', 'body', ''], ['k1', '', 'body', ''], [BT.id, 'Dz 1,8', 'plan', 'p1']], 'markup with places; a plan point says which point');
-    assert.deepEqual(refs({ subjects: [{ ref: BT.id, locator: 'Dz 1,12-14' }], blocks: [{ type: 'table', columns: ['a'], rows: [[[{ text: 'zob.' }, { ref: BT.id, locator: 'Łk 1,35' }]]] }] }),
-      [[BT.id, 'Dz 1,12-14', 'subjects', ''], [BT.id, 'Łk 1,35', 'blocks', '']], 'a comment: what it is about, what its cells name');
+    assert.deepEqual(refs({ about: [{ value: BT.id, locator: 'Dz 1,12-14' }], content: [{ type: 'table', columns: ['a'], rows: [[[{ text: 'zob.' }, { ref: BT.id, locator: 'Łk 1,35' }]]] }] }),
+      [[BT.id, 'Dz 1,12-14', 'about', ''], [BT.id, 'Łk 1,35', 'content', '']], 'a statement (any kind with a blocks field): what it is about, what its cells name');
     assert.deepEqual(refs({ born: { value: '1999', state: 'disputed', source: { work: BT.id, locator: 'Dz 1,14' } }, _kinds: ['00000000-0000-4000-8000-00000000000f'] }),
       [[BT.id, 'Dz 1,14', 'born', '']], 'Cogita: the source of an uncertain value; bookkeeping (_kinds) does not count');
     assert.deepEqual(refs({ name: 'Powtórka', graph: { nodes: [{ id: 'n1', config: { list: ['k1', 'x', BT.id] } }] } }).map((r) => r[0]), [BT.id], 'a document: every id in it');
@@ -354,28 +355,28 @@ try {
     /* Das Verzeichnis über zwei Bibliotheken und eine Baza wiedzy — Schlüssel gelten zuerst im eigenen Speicher. */
     const store = (libraryId, entries, books = true) => ({ libraryId, revision: 1, books, all: () => entries, ownByKey: (k) => entries.find((e) => e.key === k) });
     const text = { id: 't1', kind: 'text', key: 'kaz', data: { title: 'Kazanie', body: 'Wstęp [@bt, Dz 1,14].', plan: [{ id: 'p9', text: 'Modlitwa [@bt, Acts 1:14]' }] } };
-    const comment = { id: 'c1', kind: 'comment', key: 'kom', data: { subjects: [{ ref: BT.id, locator: 'Dz 1,12-14' }], blocks: [{ type: 'paragraph', text: 'Trwali jednomyślnie.' }] } };
+    const comment = { id: 'c1', kind: 'entity', key: 'kom', data: { _kinds: ['kk'], about: [{ value: BT.id, locator: 'Dz 1,12-14' }], content: [{ type: 'paragraph', text: 'Trwali jednomyślnie.' }] } };
     const far = { id: 'qx', kind: 'quote', key: 'qx', data: { text: 'Inny', work: [BT.id], locator: 'Dz 1,15' } };
     const latin = { id: 'qv', kind: 'quote', key: 'qv', data: { text: 'Hi omnes erant perseverantes', work: [VG.id], locator: 'Act 1,14' } };
     const E1 = '00000000-0000-4000-8000-0000000000e1';
     const E2 = '00000000-0000-4000-8000-0000000000e2';
-    const knowledge = { id: E1, kind: 'entity', data: { _kinds: ['knowledge'], text: 'Apostołowie trwali na modlitwie [@bt, Dz 1,14] z [[Maryją|@maryja]].' } };
+    const knowledge = { id: E1, kind: 'entity', data: { _kinds: ['kk'], content: [{ type: 'paragraph', text: 'Apostołowie trwali na modlitwie [@bt, Dz 1,14] z [[Maryją|@maryja]].' }] } };
     const maryja = { id: E2, kind: 'entity', key: 'maryja', data: { _kinds: ['person'], name: 'Maryja' } };
     const revision = { id: 'r1', kind: 'revision', data: { name: 'Dzieje', graph: { nodes: [{ id: 'n', config: { list: [E1, E2] } }] } } };
     const merge = { id: 'm1', kind: 'merge', data: { from: E2, to: E1 } };
     const E3 = '00000000-0000-4000-8000-0000000000e3';
     const psalmIn = { id: E3, kind: 'entity', data: { _kinds: ['psalm'], miejsce: { value: BT.id, locator: 'Dz 1,13-14' } } };
-    const A = store('lib-a', [BT, ...quotes, text, comment, far]);
+    const A = store('lib-a', [BT, ...quotes, text, far]);
     const B = store('lib-b', [VG, latin]);
-    const K = store('base-k', [knowledge, maryja, revision, merge, psalmIn], false);
+    const K = store('base-k', [comment, knowledge, maryja, revision, merge, psalmIn], false);
     const index = m.referenceIndex([A, B, K], (s) => s.books);
-    assert.deepEqual(index.to(E2).map((h) => h.from.id).sort(), [E1, 'r1'], 'a base entry: a knowledge text links it, a revision uses it — the merge does not count');
-    assert.ok(index.to(BT.id).some((h) => h.from.id === E1 && h.ref.locator === 'Dz 1,14'), 'a knowledge base citing a library Bible (key resolved through the libraries)');
+    assert.deepEqual(index.to(E2).map((h) => h.from.id).sort(), [E1, 'r1'], 'a base entry: a statement links it, a revision uses it — the merge does not count');
+    assert.ok(index.to(BT.id).some((h) => h.from.id === E1 && h.ref.locator === 'Dz 1,14'), 'a statement in a knowledge base citing a library Bible (key resolved through the libraries)');
     assert.equal(m.referenceIndex([A, B, K], (s) => s.books), index, 'unchanged stores: the same index');
 
     const found = m.passageHits(index, m.parseBible('Dz 1:14'));
     const who = found.map((f) => [f.hit.from.id, f.hit.ref.field, f.hit.ref.at ?? '', f.work.id === VG.id ? 'Vg' : 'BT']);
-    assert.deepEqual(new Set(who.map((w) => w[0])), new Set(['q14', 't1', 'c1', E1, 'qv', E3]), 'Dz 1:14 finds the quote, the sermon (body and plan point), the comment (Dz 1,12-14), the knowledge entry, the Latin quote and (Schritt 11) a base entry whose field has the place — not Dz 1,15');
+    assert.deepEqual(new Set(who.map((w) => w[0])), new Set(['q14', 't1', 'c1', E1, 'qv', E3]), 'Dz 1:14 finds the quote, the sermon (body and plan point), the comment (its "O czym": Dz 1,12-14), the statement citing it, the Latin quote and (Schritt 11) a base entry whose field has the place — not Dz 1,15');
     assert.ok(who.some((w) => w[0] === 't1' && w[1] === 'plan' && w[2] === 'p9'), 'the plan point is named');
     assert.ok(who.some((w) => w[0] === 'qv' && w[3] === 'Vg'), 'in another edition of the Scripture too');
     assert.deepEqual(m.passageHits(index, []), [], 'nothing typed, nothing found');
@@ -397,25 +398,33 @@ try {
     assert.equal(m.firstSentence('Czy Duch zstępuje dwa razy? Tak.'), 'Czy Duch zstępuje dwa razy?');
     assert.equal(m.firstSentence('Duch **zstępuje** [@bt, Łk 1,35]. Potem.'), 'Duch zstępuje.', 'markup and citations do not count');
     assert.equal(m.firstSentence('Bez kropki na końcu'), 'Bez kropki na końcu');
-    const para = (text) => ({ blocks: [{ type: 'paragraph', text }] });
-    assert.equal(m.thesisOf({ blocks: [{ type: 'table', columns: ['a'], rows: [] }, { type: 'paragraph', text: 'A.' }] }), '', 'a statement must begin with a sentence');
-    assert.deepEqual([m.thesisProblem(para('Krótko.')), m.thesisProblem(para(`${'x'.repeat(201)}.`)), m.thesisProblem({ blocks: [] })], [null, 'long', 'missing']);
+    const para = (text) => [{ type: 'paragraph', text }];
+    assert.equal(m.thesisOf([{ type: 'table', columns: ['a'], rows: [] }, { type: 'paragraph', text: 'A.' }]), '', 'a statement must begin with a sentence');
+    assert.deepEqual([m.thesisProblem(para('Krótko.')), m.thesisProblem(para(`${'x'.repeat(201)}.`)), m.thesisProblem([])], [null, 'long', 'missing']);
     assert.ok(m.isQuestion(para('Dlaczego dwa razy? Bo…')) && !m.isQuestion(para('Dwa razy. Czemu?')), 'a question is a statement whose FIRST sentence asks');
-    const kinds = { bt: 'work', q1: 'quote', c9: 'comment' };
-    const role = (data) => m.statementRole(data, (t) => kinds[t]);
+    /* 2026-10-23 — eine Aussage ist ein Eintrag, dessen Rodzaj ein Feld blocks hat (hier der Komentarz der Vorlage). */
+    const KK = { id: 'kk', kind: 'kind', data: { name: 'Komentarz', label: '{content}', fields: [{ key: 'about', label: 'O czym', type: 'ref', multi: true, locator: true }, { key: 'content', label: 'Treść', type: 'blocks' }] } };
+    const st = (id, content, about) => ({ id, kind: 'entity', key: id, data: { _kinds: ['kk'], content, ...(about === undefined ? {} : { about }) } });
+    const BTW = { id: 'bt', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Biblia' } };
+    const RL = look([KK, BTW, st('c9', para('Inna wypowiedź.'))]);
+    const role = (content, about) => m.statementRole(st('s', content, about), RL);
     assert.equal(role(para('Łukasz pisze o mocy Najwyższego [@bt, Łk 1,35].')), 'information', 'a source cited: information');
     assert.equal(role(para('Moim zdaniem to ten sam obłok.')), 'interpretation', 'nothing cited: interpretation');
     assert.equal(role(para('Jak w [@c9], tu też [@bt, Dz 1,8].')), 'interpretation', 'built on another statement: interpretation');
-    assert.equal(role({ blocks: [{ type: 'paragraph', text: 'Porównanie [@bt].' }, { type: 'table', columns: ['a', 'b'], rows: [] }] }), 'interpretation', 'a table compares: interpretation');
+    assert.equal(role([{ type: 'paragraph', text: 'Porównanie [@bt].' }, { type: 'table', columns: ['a', 'b'], rows: [] }]), 'information', '2026-10-23: a table alone does not make an interpretation');
+    assert.equal(role(para('Tak mówi Pismo.'), [{ value: 'bt', locator: 'Łk 1,35' }]), 'information', 'what it is about counts: a place in the Bible in its "O czym"');
+    assert.equal(m.statementOf(BTW, RL), null, 'a source is no statement');
+    assert.equal(m.statementOf(st('x', para('A.')), look([])), null, 'nor an entry whose kind this reader cannot see');
     assert.equal(m.blocksMarkup([{ type: 'table', columns: ['Łk', 'Dz'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]]] }]), '- [[Łk 1,35|@bt]] — [[Dz 1,8|@bt]]', 'a table row as markup links');
 
     /* Die Marken: eine Frage, auf die eine andere Aussage zeigt, ist beantwortet. */
-    const Q = { id: 'cq', kind: 'comment', key: 'cq', data: para('Dlaczego Duch zstępuje dwa razy? Szukam.') };
-    const A1 = { id: 'ca', kind: 'comment', key: 'ca', data: { subjects: [{ ref: 'cq' }], blocks: [{ type: 'paragraph', text: 'Bo Kościół rodzi się jak Chrystus.' }] } };
-    const marks = (entries) => m.renderToStaticMarkup(m.createElement(m.StatementMarks, { comment: Q, look: { ...look(entries), readable: () => entries }, author: true }));
-    assert.ok(marks([Q]).includes('Pytanie otwarte') && marks([Q, A1]).includes('Pytanie — jest odpowiedź'), 'open until another statement points at it');
+    const Q = st('cq', para('Dlaczego Duch zstępuje dwa razy? Szukam.'));
+    const A1 = st('ca', para('Bo Kościół rodzi się jak Chrystus.'), ['cq']);
+    const marks = (entries) => m.renderToStaticMarkup(m.createElement(m.StatementMarks, { entry: Q, look: { ...look([KK, ...entries]), readable: () => entries }, author: true }));
+    assert.ok(marks([Q]).includes('Pytanie otwarte') && marks([Q, A1]).includes('Pytanie — jest odpowiedź'), 'open until another statement points at it (here: through its "O czym")');
     assert.ok(marks([Q]).includes('Interpretacja') && !marks([Q]).includes('Brak tezy'));
-    assert.ok(m.courseDescription().includes('"statement.thesis"') && m.courseDescription().includes('"kinds": ["comment"]'), 'the Cogita description shows statement templates');
+    assert.ok(m.courseDescription().includes('"statement.thesis"') && m.courseDescription().includes('"blocks" (treść w blokach)') && !m.courseDescription().includes('"kinds": ["comment"]') && !m.courseDescription().includes('"kinds": ["knowledge"]'), 'the Cogita description shows statements on any kind with a blocks field — no comment or knowledge kinds');
+    assert.ok(m.courseDescription().includes('templates/cogita/komentarz.json'), '… and where the ready Komentarz is');
   }
   /* -- 2f. Die Beschreibung von Cogita (Schritt 12): Przebieg aus einer Präsentation, Erzähler, der Schritt „scene". */
   assert.ok(['"presentation": "parafia/droga"', '"narrators"', 'krok "scene"', '"b0"'].every((one) => m.courseDescription().includes(one)), 'the Cogita description shows presentation flows, narrators and the scene step');
@@ -602,25 +611,25 @@ try {
   assert.equal(m.originOf(lib.get('q'), lib), 'J. Ratzinger, Jezus z Nazaretu, s. 168');
   ok('citations: book, chapter, article, document, Bible, web; full, dz. cyt., Tamże; bibliography');
 
-  /* -- 4. Komentarze und Bereiche ------------------------------------------------------------- */
+  /* -- 4. Aussagen in Texten und Bereiche (2026-10-23: Einträge einer Baza mit Feld blocks) ------------ */
   {
     /* Bausteine: duldsam gelesen, ein blosser String ist Text, Verweise sind echte Verweise. */
-    const blocks = m.blocksOf({ blocks: [
+    const blocks = m.blocksIn([
       'Prosa',
       { type: 'table', columns: ['Łk', 'Dz'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]], ['zstąpi na ciebie', 'zstąpi na was']] },
       { type: 'ordered', items: ['najpierw', [{ text: 'potem ' }, { ref: 'q' }]] },
       { type: 'heading', text: 'nie ma takiego bloku' },
       { type: 'paragraph', text: '   ' }
-    ] });
+    ]);
     assert.deepEqual(blocks.map((x) => x.type), ['paragraph', 'table', 'ordered'], 'four block types only; empty and unknown blocks fall away');
     assert.deepEqual(blocks[1].rows[1], [[{ text: 'zstąpi na ciebie' }], [{ text: 'zstąpi na was' }]], 'a plain string in a cell is text');
     assert.deepEqual(m.blockRefs(blocks), [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'bt', locator: 'Dz 1,8' }, { ref: 'q', locator: '' }]);
-    assert.equal(m.blocksOf({ blocks: [{ type: 'paragraph', text: '' }] }, 'blocks', true).length, 1, 'the editor keeps an empty block');
-    const c1 = { id: 'c1', kind: 'comment', key: 'paralela', data: { subjects: [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'sermon', point: 'p1' }], blocks: blocks.map(m.blockData) } };
-    assert.deepEqual(m.pairedWith('bt', 'Dz 1,8', [c1]).map((p) => p.locator), ['Łk 1,35'], 'what Dz 1,8 was set beside, in the same row');
-    assert.deepEqual(m.commentsAbout('sermon', [c1], 'p1').map((c) => c.id), ['c1'], 'a comment about a point of a plan');
-    assert.deepEqual(m.commentsAbout('sermon', [c1], '').map((c) => c.id), [], '… is not one about the whole text');
-    assert.deepEqual(m.fieldRefs(c1).sort(), ['bt', 'q', 'sermon'], 'subjects and cell refs are references (backlinks, reach)');
+    assert.equal(m.blocksIn([{ type: 'paragraph', text: '' }], true).length, 1, 'the editor keeps an empty block');
+    const KK = { id: 'kk', kind: 'kind', data: { name: 'Komentarz', label: '{content}', fields: [{ key: 'about', label: 'O czym', type: 'ref', multi: true, locator: true }, { key: 'content', label: 'Treść', type: 'blocks' }] } };
+    const c1 = { id: 'c1', kind: 'entity', key: 'paralela', data: { _kinds: ['kk'], about: [{ value: 'sermon', locator: '' }], content: blocks.map(m.blockData) } };
+    const L4 = look([KK, c1]);
+    assert.equal(m.blocksKeyOf(c1, L4), 'content', 'the blocks field is found through the kind of the entry, under any key');
+    assert.deepEqual(m.statementTokens(c1, L4).sort(), ['bt', 'q', 'sermon'], 'what a statement points at: its cells, its markup and its reference fields');
 
     const shelf = [
       { id: 'bt', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Pismo Święte', siglum: 'BT' } },
@@ -634,25 +643,24 @@ try {
 
     /* Gezeichnet: eingebettet, mit Tabelle; ein Kreis wird erkannt; ein unlesbares Ziel bleibt ohne Titel. */
     const ring = [
-      ...shelf,
-      { id: 'c2', kind: 'comment', key: 'c2', data: { subjects: [{ ref: 'q' }], blocks: [{ type: 'paragraph', text: 'Dwa [@bt, J 1,1].\n\n![@c3]' }, { type: 'table', columns: ['Tu', 'Tam'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'tajny' }]]] }] } },
-      { id: 'c3', kind: 'comment', key: 'c3', data: { subjects: [{ ref: 'c2' }], blocks: [{ type: 'paragraph', text: 'Trzy.\n\n![@c2]' }] } }
+      ...shelf, KK,
+      { id: 'c2', kind: 'entity', key: 'c2', data: { _kinds: ['kk'], about: ['q'], content: [{ type: 'paragraph', text: 'Dwa [@bt, J 1,1].\n\n![@c3]' }, { type: 'table', columns: ['Tu', 'Tam'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'tajny' }]]] }] } },
+      { id: 'c3', kind: 'entity', key: 'c3', data: { _kinds: ['kk'], about: ['c2'], content: [{ type: 'paragraph', text: 'Trzy.\n\n![@c2]' }] } }
     ];
     const R = { ...look(ring), readable: () => ring };
     const sermon = { id: 's', kind: 'text', data: { title: 'K', body: 'Wstęp [@c2].\n\n![@c2]\n\n![@tajny-klucz]' } };
     const html = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: R }));
-    assert.ok(html.includes('<table class="lib-table">') && html.includes('Łk 1,35'), 'an embedded comment brings its table; a Bible ref shows its place');
-    assert.ok(html.includes('Trzy.') && html.includes('[komentarz osadza sam siebie]'), 'c2 → c3 → c2: the cycle stops');
-    assert.ok(!html.includes('Zob. komentarz') && html.includes('class="lib-own-ref"'), 'a comment cited in the text is a link, never a footnote (2026-10-22)');
+    assert.ok(html.includes('<table class="lib-table">') && html.includes('Łk 1,35'), 'an embedded statement brings its table; a Bible ref shows its place');
+    assert.ok(html.includes('Trzy.') && html.includes('[wypowiedź osadza samą siebie]'), 'c2 → c3 → c2: the cycle stops');
+    assert.ok(!html.includes('Zob. komentarz') && html.includes('class="lib-own-ref"'), 'a statement cited in the text is a link, never a footnote (2026-10-22)');
     assert.equal((html.match(/\[odwołanie niedostępne\]/g) ?? []).length, 2, 'an unreadable cell ref and an unreadable embed say only that');
     assert.ok(!html.includes('tajny'), '… and nothing about the target, not even its key');
-    assert.ok(/J 1,1/.test(html.slice(html.indexOf('Przypisy'))), 'a footnote inside an embedded comment is counted with the text');
-    const quoteHtml = m.renderToStaticMarkup(m.createElement(m.QuoteFigure, { entry: ring[1], look: R }));
-    assert.ok(quoteHtml.includes('Komentarze (1)'), 'comments about a quote are reachable where it is shown');
-    assert.ok(m.textToLatex(sermon, R).includes('\\begin{tabular}'), 'LaTeX: a comment table is a tabular');
-
+    assert.ok(/J 1,1/.test(html.slice(html.indexOf('Przypisy'))), 'a footnote inside an embedded statement is counted with the text');
+    const quoteHtml = m.renderToStaticMarkup(m.createElement(m.QuoteFigure, { entry: shelf[1], look: R }));
+    assert.ok(quoteHtml.includes('Modlitwa jest rozmową.') && !quoteHtml.includes('Komentarze ('), 'a quote is drawn alone — what speaks about it is in its relations (backlinks)');
+    assert.ok(m.textToLatex(sermon, R).includes('\\begin{tabular}'), 'LaTeX: a statement table is a tabular');
   }
-  ok('comments: four blocks with real refs, embed + cycle guard, unreadable refs');
+  ok('statements in texts: four blocks with real refs, found through the kind, embed + cycle guard, unreadable refs');
 
   /* -- 5. Der Text, gezeichnet ------------------------------------------------------------------- */
   const sermon = { id: 'sermon', kind: 'text', key: 'sermon', data: {
@@ -901,8 +909,7 @@ try {
         added: [{ text: 'Zaproszenie na adorację', at: '12:50', after: 'p4' }]
       }),
       E('d2', 'delivery', { texts: ['sermon'], date: '2024-06-01' }),
-      E('d3', 'delivery', { texts: ['sermon'], date: '2025-12-01' }),
-      E('cp1', 'comment', { subjects: [{ ref: 'sermon', point: 'p1' }], blocks: [{ type: 'paragraph', text: 'Krótko — bez nazwisk' }] })
+      E('d3', 'delivery', { texts: ['sermon'], date: '2025-12-01' })
     ];
     /* Wie der Speicher: wer zeigt worauf (Felder und Zapis). */
     const lookB = (list) => {
@@ -936,7 +943,7 @@ try {
     assert.ok(!plain.includes('lib-mark '), 'no marks while no delivery is chosen');
     const notes = [...plain.matchAll(/<li id="fn-(\d+)">(.*?)<\/li>/g)].map((x) => x[2].replace(/<[^>]+>/g, ''));
     assert.ok(notes[0].startsWith('J 6,35 (BT)') && notes[1].startsWith('J. Ratzinger, Jezus z Nazaretu'), `footnotes count the plan first, then the text (${notes.join(' | ')})`);
-    assert.ok(plain.includes('Komentarze (1)') && plain.includes('Krótko — bez nazwisk'), 'a comment about a point stands at its point');
+    assert.ok(!plain.includes('Komentarze ('), '2026-10-23: no statements at the points — a statement says in its own fields what it is about');
     const marks = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: sermon, look: L, delivery: 'd1' }));
     assert.ok(marks.includes('lib-mark is-said') && marks.includes('lib-mark is-short') && marks.includes('lib-mark is-skipped'), 'the chosen delivery marks the plan');
     assert.ok(marks.includes('▶ 0:40') && marks.includes('Bez całego cytatu'), 'times you can jump to, and what was different');
@@ -947,9 +954,8 @@ try {
     const tex = m.textToLatex(sermon, L);
     assert.ok(tex.includes('\\section*{Plan}') && tex.includes('\\begin{enumerate}') && tex.includes('\\item Głód') && tex.includes('\\footnote{J 6,35 (BT).}'), 'LaTeX: the plan as a numbered list with its footnotes');
     assert.equal((tex.match(/\\begin\{enumerate\}/g) ?? []).length, (tex.match(/\\end\{enumerate\}/g) ?? []).length, 'LaTeX: every list is closed');
-    const pulpit = m.planToLatex(sermon, L, { comments: true });
-    assert.ok(pulpit.includes('{extarticle}') && pulpit.includes('14pt') && pulpit.includes('Krótko --- bez nazwisk'), 'the pulpit sheet: large, with the comments at the points');
-    assert.ok(!m.planToLatex(sermon, L).includes('bez nazwisk'), 'without comments when not asked');
+    const pulpit = m.planToLatex(sermon, L);
+    assert.ok(pulpit.includes('{extarticle}') && pulpit.includes('14pt') && pulpit.includes('Głód'), 'the pulpit sheet: large, the plan alone');
 
     /* Das Polecenie für den eigenen Chat — und die Antwort ins offene Formular. */
     const prompt = m.deliveryPrompt(L.get('d1'), L);
@@ -995,7 +1001,7 @@ try {
     assert.deepEqual(m.choose(['t-adwent', 't-nadzieja'], 't-adwent', keyOf, false), ['t-nadzieja'], 'the same value again removes it');
     assert.deepEqual(m.choose(['t-adwent'], 't-nadzieja', keyOf, true), ['t-nadzieja'], 'an older service takes one filter');
     assert.deepEqual(['Tabela', 'drzewo', 'list', ''].map(m.layoutOf), ['table', 'tree', 'list', 'list']);
-    ok('sermons: plan (depth, numbers, paste), times and links, aspects, marks and comments on the plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts');
+    ok('sermons: plan (depth, numbers, paste), times and links, aspects, marks on the plan, LaTeX, prompts, JSON into the form, archive rows, filters and counts');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

@@ -1,7 +1,7 @@
 /**
  * COGITA — EINEN RODZAJ ENTFERNEN (COGITA.md §2.1), 2026-10-18, auf Wunsch:
- * jeder Rodzaj lässt sich entfernen, auch ein eingebauter (Temat, Wiedza,
- * Pytanie) — samt dem, was an ihm hängt, und dem, was auf ihn zeigt. Vorher
+ * jeder Rodzaj lässt sich entfernen, auch ein eingebauter (Temat, Pytanie;
+ * Wiedza gibt es seit 2026-10-23 nicht mehr) — samt dem, was an ihm hängt, und dem, was auf ihn zeigt. Vorher
  * wird ausgerechnet und gesagt, was alles geht:
  *
  * <code>

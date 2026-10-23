@@ -26,7 +26,7 @@
  */
 
 import { locatorKey } from './bible';
-import { blockMarkups, blockRefs, blocksOf, commentTitle } from './comment';
+import { blockMarkups, blockRefs, blocksOf, blocksTitle, statementBlocks } from './blocks';
 import { mapRefTokens } from './libraryMarkup';
 
 export type EntryData = Record<string, unknown>;
@@ -521,12 +521,12 @@ const PROJECT: LibKind = {
   }
 };
 
-/* -- ÜBERGANG (2026-10-23): Thema und Komentarz, nur noch für Cogita ------------------------
- * Die Bibliothek bietet beide nicht mehr an (weder Reiter noch Format); ihre
- * alten Einträge stehen unter „Stare wpisy". Cogita baut aus ihnen noch zwei
- * eingebaute Arten — der Komentarz wird dort in Schritt 4 eine eigene Art mit
- * einem Feld `blocks`, das Thema fällt in Schritt 5 ganz weg. Dann gehen sie
- * auch hier. */
+/* -- ÜBERGANG (2026-10-23): das Thema, nur noch für Cogita ------------------------------------
+ * Die Bibliothek bietet es nicht mehr an (weder Reiter noch Format); alte
+ * Einträge stehen unter „Stare wpisy". Cogita baut daraus noch eine eingebaute
+ * Art — sie fällt in Schritt 5 ganz weg, dann geht sie auch hier. Den
+ * Komentarz gibt es seit Schritt 4 nicht mehr: er ist ein eigener Rodzaj in
+ * Nauka mit einem Feld `blocks` (`templates/cogita/komentarz.json`). */
 
 const TOPIC: LibKind = {
   kind: 'topic',
@@ -544,30 +544,6 @@ const TOPIC: LibKind = {
   title: (data) => str(data, 'name').trim() || 'Temat',
   sort: (entry) => str(entry.data, 'name').toLowerCase(),
   example: { key: 'modlitwa', data: { name: 'Modlitwa', description: 'Rozmowa z Bogiem.' } }
-};
-
-const SUBJECT_ITEM: readonly LibField[] = [
-  { key: 'ref', label: 'O czym', type: 'ref', to: ['work', 'quote', 'person', 'text', 'delivery', 'project', 'comment'], says: 'Wpis, którego dotyczy — kennung albo "@klucz"' },
-  { key: 'locator', label: 'Miejsce', type: 'line', says: 'Gdzie w nim: "s. 23", "J 3,16"', hint: 'J 3,16 · s. 23' },
-  { key: 'point', label: 'Punkt planu', type: 'line', says: 'Przy tekście: "id" punktu jego planu' }
-];
-
-const COMMENT: LibKind = {
-  kind: 'comment',
-  label: 'Komentarz',
-  plural: 'Komentarze',
-  says: 'Własne przemyślenia o źródłach i innych wpisach (stary rodzaj — teraz własny rodzaj w Nauce).',
-  keyed: true,
-  fields: [
-    { key: 'subjects', label: 'O czym', type: 'items', item: SUBJECT_ITEM, says: 'O czym jest komentarz: lista { "ref", "locator", "point" }' },
-    { key: 'blocks', label: 'Treść', type: 'blocks', says: 'Treść jako bloki: paragraph, ordered, unordered, table' }
-  ],
-  title: (data, look) => commentTitle(data, (id) => {
-    const target = look.get(id);
-    return target === undefined ? undefined : kindOf(target.kind)?.title(target.data, look);
-  }),
-  sort: (entry, look) => (COMMENT.title(entry.data, look)).toLowerCase().slice(0, 64),
-  example: { key: 'komentarz', data: { subjects: [], blocks: [{ type: 'paragraph', text: 'Teza.' }] } }
 };
 
 /* -- Rodzaje tekstów (2026-10-23): eigene Felder eines Textes ------------------------------------
@@ -614,8 +590,8 @@ export const LIBRARY_KINDS: readonly LibKind[] = [WORK, QUOTE, PERSON];
 /** Das Skryptorium (2026-10-23): das Schreiben — Texte, Wygłoszenia, Projekte und die eigenen Rodzaje tekstów. */
 export const WRITING_KINDS: readonly LibKind[] = [TEXT, DELIVERY, PROJECT, TEXT_TYPE];
 
-/** Nur für Cogita, bis Schritt 4/5 (oben). */
-export const COGITA_LEGACY_KINDS: readonly LibKind[] = [TOPIC, COMMENT];
+/** Nur für Cogita, bis Schritt 5 (oben). */
+export const COGITA_LEGACY_KINDS: readonly LibKind[] = [TOPIC];
 
 /** Alle Arten, die diese Fassung kennt — gelesen, zitiert und gezeigt wird über die Teile hinweg. */
 export const KINDS: readonly LibKind[] = [...WRITING_KINDS, ...LIBRARY_KINDS, ...COGITA_LEGACY_KINDS];
@@ -636,6 +612,9 @@ export function entryTitle(entry: LibEntry, look: Lookup): string {
     const value = str(entry.data, key).trim();
     if (value !== '') return value.length > 80 ? `${value.slice(0, 79)}…` : value;
   }
+  /* 2026-10-23 — eine Aussage (ein Rodzaj mit Feld `blocks`, z. B. ein Komentarz): ihre Teza. */
+  const said = blocksTitle(statementBlocks(entry, look));
+  if (said !== '') return said;
   return entry.kind;
 }
 

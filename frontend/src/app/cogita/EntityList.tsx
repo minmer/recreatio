@@ -128,7 +128,9 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
         <span className="cg-subtabs">
           {(['table', 'tree', 'matrix', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{{ table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', canvas: 'Płótno' }[m]}</button>)}
         </span>
-        {writes && <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(kind?.id ?? lib.kinds[0]?.id ?? 'knowledge')}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
+        {writes && <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(kind?.id ?? lib.kinds[0]?.id ?? 'question')}>+ Wpis{kind === undefined ? '' : `: ${kind.name}`}</button>}
+        {/* 2026-10-23 — Pytanie bleibt eingebaut (Karten, Sitzungen, Abläufe stellen es); angeboten wird es hier, nicht als „gotowy rodzaj". */}
+        {writes && kind?.id !== 'question' && <button type="button" className="wk-link-btn" onClick={() => onNew('question')}>+ Pytanie</button>}
         {writes && (
           <MenuButton label="Dodaj wiele naraz — formularzem" text="Wiele naraz" icon="list"
             items={[

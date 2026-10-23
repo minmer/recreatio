@@ -6,18 +6,21 @@
  *
  * Der Editor eines Rodzaj selbst steht seit 2026-10-23 in `KindForm.tsx` — das
  * Skryptorium beschreibt seine Rodzaje tekstów mit demselben.
+ *
+ * 2026-10-23 — KEINE FERTIGEN INHALTE MEHR im Menü (Temat, Wiedza, Pytanie,
+ * „Gotowy schemat"): ein Rodzaj ist leer und eigen, oder er kommt als JSON —
+ * die Vorlagen liegen als Dateien in `templates/cogita/*.json` (Komentarz,
+ * Słownik, Psałterz) und werden hier unten importiert.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 
 import { ask, toast } from '../ui/dialogs';
 import { JsonPanel } from '../ui/JsonPanel';
-import { MenuButton } from '../ui/Menu';
 import { WorkspaceError } from '../core/session';
 import { nodeLabel, readAddForm } from './addForm';
 import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
-import { SCHEMA_STARTS, type SchemaStart } from './schemaStarts';
 import { isBaseKind, TOPIC_LEARNING } from './kinds';
 import { problemsOf, type KindDef } from './schema';
 import { KindForm } from './KindForm';
@@ -37,16 +40,6 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
     onChoose(null);
   };
   const [removing, setRemoving] = useState<string | null>(null);
-  /* 2026-10-22 (Schritt 11) — ein gotowy schemat: derselbe Import wie eine JSON-Datei, mit dem Plan als Rückfrage. */
-  const addStart = (start: SchemaStart) => void run(async () => {
-    const plan = planImport(lib, start.doc());
-    if ('error' in plan) throw new Error(plan.error);
-    const yes = await ask({ title: `Dodać schemat „${start.label}”?`, body: start.says, list: [...plan.lines, ...plan.warnings], confirm: 'Dodaj schemat' });
-    if (!yes) return;
-    const done = await applyImport(lib, plan, setRemoving);
-    setRemoving(null);
-    toast(done.lines.join(' ') || 'Dodano schemat.');
-  }).finally(() => setRemoving(null));
   /*
     2026-10-18 — JEDEN RODZAJ USUNĄĆ, auch einen eingebauten: erst ausrechnen,
     was alles mitgeht (Einträge, Verweise, Felder, Szablony, Formularze, Zbiory
@@ -82,7 +75,7 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
         {writes && (
           <JsonPanel
             summary="Schemat jako JSON — kopia do innej bazy wiedzy"
-            lead={<>Rodzaje z ich szablonami kart i formularzami dodawania jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło.</>}
+            lead={<>Rodzaje z ich szablonami kart i formularzami dodawania jako jeden dokument. Import tworzy niezależną kopię: zmiany tutaj nie zmieniają bazy, z której przyszła [B12]. Żeby korzystać z rodzajów innej bazy bez kopiowania, dodaj ją w Ustawieniach jako źródło. Gotowe schematy (Komentarz, Słownik, Psałterz) to pliki <code>templates/cogita/*.json</code> w repozytorium — importuje się je tutaj.</>}
             fileName={`schemat-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
             exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
             description={() => courseDescription(lib)}
@@ -100,14 +93,10 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
         <div className="cg-row-between">
           <h3>Rodzaje</h3>
           {writes && (
-            <MenuButton label="Dodaj rodzaj" text="Rodzaj" icon="plus" items={[
-              { label: 'Pusty — własne pola', onSelect: create },
-              ...lib.missingBuiltins().map((k) => ({ label: `Gotowy: ${k.name}`, onSelect: () => void run(async () => { await lib.addBuiltin(k.id); onChoose(k.id); }) })),
-              ...SCHEMA_STARTS.map((start) => ({ label: `Gotowy schemat — ${start.label}`, onSelect: () => addStart(start) }))
-            ]} />
+            <button type="button" className="wk-btn" onClick={create}>+ Rodzaj</button>
           )}
         </div>
-        {lib.kinds.length === 0 && <p className="cg-muted">Ta baza wiedzy nie ma jeszcze rodzajów. Dodaj pusty albo gotowy (Temat, Wiedza, Pytanie) — albo zaimportuj schemat jako JSON.</p>}
+        {lib.kinds.length === 0 && <p className="cg-muted">Ta baza wiedzy nie ma jeszcze rodzajów. Dodaj własny — albo zaimportuj schemat jako JSON (np. gotowy Komentarz z <code>templates/cogita/komentarz.json</code>).</p>}
         <ul className="lib-list">
           {lib.kinds.map((k) => (
             <li key={k.id}>

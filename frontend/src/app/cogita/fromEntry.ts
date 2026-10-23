@@ -1,7 +1,7 @@
 /**
  * EINE POWTÓRKA AUS EINEM KAZANIE (2026-10-22, Schritt 11) — aus der
- * Bibliothek heraus: die Karten dessen, worauf der Text verweist (seine Cytaty,
- * Komentarze, die Słowa eines Słownik, die Stellen seines Plans), über den
+ * Skryptorium heraus: die Karten dessen, worauf der Text verweist (seine Cytaty,
+ * Aussagen, die Słowa eines Słownik, die Stellen seines Plans), über den
  * Schritt „Z wpisu" (`source.from`), den Widoki und Powtórki teilen.
  *
  * Die Powtórka lebt in einer Baza wiedzy, die diese Bibliothek als Quelle

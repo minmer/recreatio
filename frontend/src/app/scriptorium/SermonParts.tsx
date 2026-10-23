@@ -20,7 +20,7 @@ import { Fragment, useMemo, type MutableRefObject } from 'react';
 
 import { str, type LibEntry, type Lookup } from '../library/libraryKinds';
 import { parseMarkup, type Block } from '../library/libraryMarkup';
-import { Blocks, CommentsOn, countNotes, NoteList, type Notes } from '../library/markupView';
+import { Blocks, countNotes, NoteList, type Notes } from '../library/markupView';
 import {
   addedOf, countsLine, coverageCounts, coverageIndex, coverageOf, mediaFile, pointKindLabel, pointLine, pointNumbers,
   secondsOf, stateLabel, timeText, type AddedItem, type CoverageItem, type PlanPoint
@@ -83,9 +83,7 @@ function Added({ item, look, onSeek }: { item: AddedItem; look: Lookup; onSeek?:
 
 /* -- Der Plan ---------------------------------------------------------------------------------- */
 
-export function PlanSection({ textId, points, look, notes, prefix, delivery, onSeek }: {
-  /** 2026-10-22 — der Text: die Komentarze über einen Punkt stehen an ihm. */
-  textId: string;
+export function PlanSection({ points, look, notes, prefix, delivery, onSeek }: {
   points: readonly ParsedPoint[];
   look: Lookup;
   notes: Notes;
@@ -120,7 +118,6 @@ export function PlanSection({ textId, points, look, notes, prefix, delivery, onS
                   {point.kind !== 'thought' && point.kind !== 'quote' && <span className="lib-point-kind">{pointKindLabel(point.kind)}</span>}
                   <Blocks blocks={blocks} look={look} notes={notes} prefix={prefix} />
                   {coverage !== null && <Mark item={mark} onSeek={onSeek} />}
-                  <CommentsOn id={textId} point={point.id} look={look} prefix={`${prefix}p${point.id}-`} folded />
                 </div>
               </li>
               {(after.get(point.id) ?? []).map((item, i) => <Added key={`${point.id}-a${i}`} item={item} look={look} onSeek={onSeek} />)}

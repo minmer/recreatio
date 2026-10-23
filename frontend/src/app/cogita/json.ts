@@ -5,7 +5,7 @@
  * <code>
  *   recreatio.cogita.course     alles: Schema, Vorlagen, Einträge, Wiederholungen, Abläufe, Zbiory, Wygląd, Zasady, Wartości
  *   recreatio.cogita.schema     Rodzaje, ihre Kartenvorlagen und Formularze dodawania — als unabhängige Kopie für eine andere Bibliothek [B12]
- *   recreatio.cogita.entities   Einträge (auch Wiedza und Pytania)
+ *   recreatio.cogita.entities   Einträge (auch Aussagen — Rodzaje mit Feld blocks — und Pytania)
  *   recreatio.cogita.flow       ein Ablauf MIT dem, was er zeigt [F34]
  * </code>
  *
@@ -30,6 +30,7 @@ import { FIELD_TYPE_LABEL, FIELD_TYPES, readKind, type Entity, type KindDef } fr
 import type { CogitaLibrary } from './store';
 import { readView, viewJson } from './views';
 import { quantitiesDescription } from '../core/quantities';
+import { THESIS_LIMIT } from '../library/blocks';
 
 export const COURSE_FORMAT = 'recreatio.cogita.course';
 export const SCHEMA_FORMAT = 'recreatio.cogita.schema';
@@ -387,7 +388,8 @@ const formsSection = (): string => `"forms" — formularze dodawania (należą d
 /** Was ein Rodzaj im JSON ist. */
 const kindsSection = (): string => `"kinds" — rodzaje:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
-  "builtin" — zmiana wbudowanego rodzaju (person, work, quote, topic, text, project, knowledge, question),
+  "builtin" — zmiana wbudowanego rodzaju (person, work, quote — z biblioteki; text, delivery, project — ze skryptorium; question; topic);
+    innych wbudowanych treści nie ma: rodzaje pisze właściciel bazy albo importuje gotowy schemat (niżej)
   "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "media", "rangeOf", "says"}]
   "quantity" (liczba) — jaka wielkość (identyfikator z QUDT, np. "Torque", "Mass"); wtedy wartość wpisuje się w dowolnej jednostce tej wielkości, a zapisuje tak, jak wpisano, razem z SI:
     {"value": 1.5, "unit": "KiloN", "si": 1500} ("unit" — identyfikator jednostki z QUDT: "N", "KiloN", "N-M", "J", "KiloGM", "DEG_C" …; liczba bez jednostki — w jednostce pola);
@@ -399,7 +401,12 @@ const kindsSection = (): string => `"kinds" — rodzaje:
   "to" (odwołanie) — na jakie rodzaje wskazuje: ["@ref rodzaju z tego dokumentu", "Nazwa rodzaju", "topic"]; puste — na dowolne
   "locator": true (odwołanie z miejscem) — każda wartość to {"value": "@dzielo", "locator": "Ps 110"}: psalm to Biblia z biblioteki + miejsce, hasło to leksykon + „s. 23"; miejsca w Piśmie aplikacja czyta (Ps 110 · Łk 1,46-55) i po nich szuka; tekstu Biblii się nie przechowuje
     np. {"key": "miejsce", "label": "Miejsce w Piśmie", "type": "ref", "to": ["work"], "locator": true}, a we wpisie: "miejsce": {"value": "@bt", "locator": "Ps 110,1-7"}
-  gotowe schematy (Schemat → „+ Rodzaj" → Gotowy schemat): Słownik (Język, Słowo, Tłumaczenie, Synonimy, Antonimy — z szablonami „Słówka") i Psałterz (psalm z miejscem w Piśmie, miejsca brewiarza)
+  "blocks" (treść w blokach) — lista bloków: {"type": "paragraph", "text": "zapis"} | {"type": "ordered"|"unordered", "items": [komórka, …]} | {"type": "table", "columns": ["nagłówek", …], "rows": [[komórka, …], …]};
+    komórka to lista kawałków: {"text": "…"} albo {"ref": "@wpis", "locator": "Łk 1,35"} — prawdziwe odwołanie (do wpisu tej bazy, innej bazy albo źródła biblioteki), z miejscem albo bez
+    każdy rodzaj z polem "blocks" jest rodzajem WYPOWIEDZI (np. Komentarz): teza = pierwsze zdanie pierwszego akapitu (najwyżej ${THESIS_LIMIT} znaków) — nazwa wpisu i pierwsza strona karty;
+    teza zakończona „?” czyni wpis pytaniem — odpowiedzią jest wypowiedź, która się do niego odwołuje; „informacja” (odwołuje się tylko do źródeł biblioteki) albo „interpretacja” (do innej wypowiedzi albo do żadnego źródła) liczy się z odwołań i nie zapisuje się
+  gotowe schematy to pliki w repozytorium, importowane jak każdy schemat (Schemat → „Schemat jako JSON” → Import): templates/cogita/komentarz.json (Komentarz: „O czym” — odwołania z miejscem do dowolnego wpisu, „Treść” — bloki; z szablonami kart „Teza” i „Tabela z treści”),
+    templates/cogita/slownik.json (Język, Słowo, Tłumaczenie, Synonimy, Antonimy — z szablonami „Słówka”), templates/cogita/psalterz.json (psalm z miejscem w Piśmie, miejsca brewiarza)
   typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}`;
 
 /** 2026-10-19 — neben dem JSON eines Formulars: nur, was ihn betrifft. */
@@ -427,7 +434,7 @@ export function courseDescription(lib?: CogitaLibrary): string {
 Formaty:
   "${COURSE_FORMAT}" — cały kurs: rodzaje, wpisy, szablony kart, powtórki, przebiegi, zbiory, wygląd, zasady, wartości
   "${SCHEMA_FORMAT}" — rodzaje z ich szablonami kart i formularzami dodawania (niezależna kopia do innej bazy wiedzy)
-  "${ENTITIES_FORMAT}" — same wpisy (także wiedza i pytania)
+  "${ENTITIES_FORMAT}" — same wpisy (także wypowiedzi i pytania)
   "${FLOW_FORMAT}" — przebieg razem z tym, co pokazuje
 
 Wspólne:
@@ -443,20 +450,21 @@ ${kindsSection()}
   data: "1999", "1999-05", "1999-05-03", "-1000" (przed Chr.); zakres: {"segments": [{"from": 992, "to": 1000}]}
 
 "entities" — wpisy: {"ref", "kinds": ["person", "Postać"], "data": {pole: wartość}}
-  wiedza: "kinds": ["knowledge"], "data": {"text": "Dawid był [[królem|@izrael]]…", "tags": ["historyczna"], "about": ["@dawid"]}
-    od 2026-10-22 nowe stwierdzenia zapisuj jako komentarze w bibliotece, z której korzysta baza (format "recreatio/library", rodzaj "comment": teza w pierwszym zdaniu, źródło jako przypis); "knowledge" zostaje dla istniejących wpisów
+  wypowiedź — wpis rodzaju z polem "blocks", np. komentarz z templates/cogita/komentarz.json:
+    "kinds": ["Komentarz"], "data": {"about": [{"value": "@bt", "locator": "Łk 1,35"}], "content": [{"type": "paragraph", "text": "Duch Święty zstępuje na Maryję jak na Apostołów. Łukasz opisuje oba wydarzenia tymi samymi słowami."}, {"type": "table", "columns": ["Zwiastowanie", "Pięćdziesiątnica"], "rows": [[[{"ref": "@bt", "locator": "Łk 1,35"}], [{"ref": "@bt", "locator": "Dz 1,8"}]]]}]}
+    rodzaju „wiedza” ("knowledge") już nie ma — stare takie wpisy stoją w Nauce pod „Stare wpisy”
     tematy: tematy biblioteki-źródła ("topic", oś = temat z "aspect": "yes", wartości to jego podtematy); pola nauki tematu ("answers", "entity", "level", "landmark", "dimension", "open") to rozszerzenie: {"builtin": "topic", "fields": [{"key": "level", "label": "Głębokość", "type": "number"}, …]} w "kinds"; perspektywy to oś „Perspektywy” — wpis dostaje temat w polu "topics"; powtórka „temat" bierze wszystko, co wskazuje na temat lub jego podtematy
-    karty z komentarzy: szablon z "kinds": ["comment"] i węzłami "statement.thesis" (teza), "statement.part" ({"n": 2} — drugi kawałek; puste: akapity), "statement.table" ({"table": 1, "left": 1, "right": 2} — pary z kolumn), "statement.subjects" (o czym, z miejscem)
-    zapis tekstu (ten sam co w Bibliotece): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
+    karty z wypowiedzi: szablon z "kinds": ["@rodzaj z polem blocks"] i węzłami "statement.thesis" (teza), "statement.part" ({"n": 2} — drugi kawałek; puste: akapity), "statement.table" ({"table": 1, "left": 1, "right": 2} — pary z kolumn), "statement.subjects" (o czym: wartości pól-odwołań, z miejscem)
+    zapis tekstu w akapicie i w polach "markup" (ten sam co w Skryptorium): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
     [[słowo|@wpis]] — link do wpisu (tej bazy, innej bazy albo biblioteki) z tymi słowami; nigdy przypis;
-    [@dzielo, s. 23] — źródło: dzieło, cytat, osoba z biblioteki staje się przypisem; ten sam zapis na wpis wiedzy, temat czy tekst daje w tekście link „(zob. etykieta)”
+    [@dzielo, s. 23] — źródło: dzieło, cytat, osoba z biblioteki staje się przypisem; ten sam zapis na wypowiedź, temat czy tekst daje w tekście link „(zob. etykieta)”
   pytanie: "kinds": ["question"], "data": {"form": "text|number|date|one|many|truefalse|order|match|gap|flash|code|point|interactive", "prompt", "answers", "options", "correct", …}
     "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, world, elements — jako tekst JSON),
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
 
 "templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}}
-  szablon może dotyczyć rodzaju z biblioteki, z której korzysta ta baza ("quote", "work", "text", "comment", "project", "delivery", "person"): wtedy karty powstają z jej wpisów, np. {"name": "Miejsce cytatu", "kinds": ["quote"], "direction": "locator", "graph": …}
+  szablon może dotyczyć rodzaju z biblioteki ("quote", "work", "person") albo ze skryptorium ("text", "delivery", "project"), z których korzysta ta baza: wtedy karty powstają z ich wpisów, np. {"name": "Miejsce cytatu", "kinds": ["quote"], "direction": "locator", "graph": …}
 "revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
   także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę
   źródło „rodzaj z biblioteki": {"type": "source.kind", "config": {"kind": "quote", "from": "<identyfikator biblioteki>"}} — "from" puste: z tej bazy i ze wszystkich źródeł
@@ -466,13 +474,13 @@ ${kindsSection()}
   przebieg z prezentacji (jedna opowieść, nie kopia): {"name": "Droga", "look": "scenes", "presentation": "parafia/droga", "narrators": […]} — bez własnego "graph": jego mapą jest storyboard strony (sceny, przejścia, pytania, warunki, wartości — "story" w JSON strony); w Nauce gra tę prezentację, a odpowiedzi, wartości i miejsce, w którym ktoś skończył, liczą się w tej bazie (to samo miejsce co na stronie); zobaczy ją tylko ten, kto może zobaczyć stronę
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
 "views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}}
-  na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text"/"comment" z biblioteki, "from"} | "source.collection" {"collection": "@zbiór"} | "source.topic" {"topic": "@temat", "depth": 9} | "source.list" {"ids": ["@wpis"]};
-  także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, komentarze, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
+  na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text" ze skryptorium, "from"} | "source.collection" {"collection": "@zbiór"} | "source.topic" {"topic": "@temat", "depth": 9} | "source.list" {"ids": ["@wpis"]};
+  także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, wypowiedzi, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"} i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "topic", "axis": "@oś (temat-aspekt; jego podtematy to wartości)"}
   kolumna "#axis:@oś" — wartości osi, do których należy wpis
   np. {"name": "Postacie według okresu", "mode": "tree", "steps": [{"type": "source.kind", "config": {"kind": "@postac"}}], "group": {"by": "topic", "axis": "@okres"}}
-  np. macierz 20 × 12: {"name": "Tajemnice × okresy", "mode": "matrix", "steps": [{"type": "source.kind", "config": {"kind": "text"}}, {"type": "source.kind", "config": {"kind": "comment"}}], "matrix": {"rows": {"by": "topic", "axis": "@tajemnice"}, "cols": {"by": "topic", "axis": "@okresy"}}}
+  np. macierz 20 × 12: {"name": "Tajemnice × okresy", "mode": "matrix", "steps": [{"type": "source.kind", "config": {"kind": "text"}}, {"type": "source.kind", "config": {"kind": "@komentarz"}}], "matrix": {"rows": {"by": "topic", "axis": "@tajemnice"}, "cols": {"by": "topic", "axis": "@okresy"}}}
   na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa"} — pole macierzy i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu
 ${formsSection()}
 ${kinds}`;
@@ -482,12 +490,14 @@ ${kinds}`;
  * DER AUFTRAG FÜR DIE EIGENE KI [P13] — zum Kopieren: was sie tun soll, das
  * Format, die Rodzaje dieser Bibliothek, und der Text, aus dem sie schöpft.
  */
-export function aiPrompt(lib: CogitaLibrary, what: 'entities' | 'knowledge' | 'questions' | 'flow' | 'schema', source: string): string {
+export function aiPrompt(lib: CogitaLibrary, what: 'entities' | 'statements' | 'questions' | 'flow' | 'schema', source: string): string {
+  /* 2026-10-23 — Aussagen statt „Wiedza": Einträge eines Rodzaj mit Feld blocks; fehlt er, bringt das Dokument den Komentarz mit. */
+  const said = lib.kinds.filter((k) => k.fields.some((f) => f.type === 'blocks')).map((k) => `"${k.name}"`);
   const task = {
     entities: 'Wypisz z tekstu osoby, miejsca, dzieła i inne rzeczy jako wpisy.',
-    knowledge: 'Rozbij tekst na pojedyncze stwierdzenia wiedzy (rodzaj "knowledge"); słowa, które są wpisami, oznacz [[słowo|@ref]].',
+    statements: `Rozbij tekst na wypowiedzi — wpisy rodzaju z polem "blocks" (${said.length > 0 ? `w tej bazie: ${said.join(', ')}` : 'w tej bazie jeszcze go nie ma: dodaj w "kinds" {"ref": "@komentarz", "name": "Komentarz", "label": "{content}", "fields": [{"key": "about", "label": "O czym", "type": "ref", "multi": true, "locator": true}, {"key": "content", "label": "Treść", "type": "blocks"}]}'}). Każda zaczyna się od tezy — jednego krótkiego zdania; dalej akapity, listy, tabele; odwołania do wpisów jako {"ref": "@…", "locator": "…"} w komórkach albo [[słowo|@ref]] w akapicie.`,
     questions: 'Ułóż z tekstu pytania sprawdzające (rodzaj "question") w różnych formach odpowiedzi.',
-    flow: `Ułóż przebieg (format ${FLOW_FORMAT}): kroki pokazujące wiedzę i pytania; wszystkie teksty to wpisy wiedzy, a nie tekst przebiegu.`,
+    flow: `Ułóż przebieg (format ${FLOW_FORMAT}): kroki pokazujące wypowiedzi i pytania; wszystkie teksty to wypowiedzi (wpisy z polem "blocks"), a nie tekst przebiegu.`,
     schema: 'Zaproponuj rodzaje (kinds) z polami, które opiszą takie wpisy.'
   }[what];
   return `${task}

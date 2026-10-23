@@ -47,7 +47,7 @@ export function LatexBox({ store, entry }: { store: LibraryStore; entry: LibEntr
       </div>
       {entry.kind === 'text' && planOf(entry.data).length > 0 && (
         <div className="wk-actions">
-          <button type="button" className="wk-btn wk-btn-line" onClick={() => void saveBlob(new Blob([planToLatex(entry, store, { comments: true })], { type: 'application/x-tex' }), latexFileName(entry, '-plan'))}>
+          <button type="button" className="wk-btn wk-btn-line" onClick={() => void saveBlob(new Blob([planToLatex(entry, store)], { type: 'application/x-tex' }), latexFileName(entry, '-plan'))}>
             Plan na ambonę (.tex)
           </button>
         </div>

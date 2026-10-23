@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'schemaStarts'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, SS] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -623,27 +623,55 @@ truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.
   check('… a revision knows where they come from', lib5.revisionContext(made5.cards, () => [], 0).from('q-1'), 'lib');
 }
 {
-  /* 2026-10-22 — Aussagen (Komentarze): Teza als Name, Bausteine lesbar, Karten aus Teza und Tabelle. */
-  const COMMENT = KD.baseKind('comment');
+  /*
+    2026-10-23 — AUSSAGEN: jeder Rodzaj mit Feld `blocks` — hier der Komentarz
+    aus templates/cogita/komentarz.json (keine eingebaute Art mehr). Teza als
+    Name, Bausteine lesbar, Karten aus den Szablony der Datei.
+  */
+  const komentarz = JSON.parse(await readFile('../templates/cogita/komentarz.json', 'utf8'));
+  const KOM = kind('k-kom', komentarz.kinds[0]);
+  check('the Komentarz template: "O czym" (references with a place, to any kind) and "Treść" (blocks)',
+    KOM.fields.map((f) => [f.key, f.type, f.multi, f.locator === true, (f.to ?? []).length]), [['about', 'ref', true, true, 0], ['content', 'blocks', false, false, 0]]);
   const BT = e('bt', ['k-work'], { title: 'Biblia', year: 1965, workType: 'bible' });
-  const c1 = e('c1', ['comment'], {
-    subjects: [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'bt', locator: 'Dz 1,8' }],
-    blocks: [{ type: 'paragraph', text: 'Duch Święty zstępuje dwa razy. Najpierw na Maryję, potem na Kościół.' },
+  const c1 = e('c1', ['k-kom'], {
+    about: [{ value: 'bt', locator: 'Łk 1,35' }, { value: 'bt', locator: 'Dz 1,8' }],
+    content: [{ type: 'paragraph', text: 'Duch Święty zstępuje dwa razy. Najpierw na Maryję, potem na Kościół.' },
       { type: 'table', columns: ['Łukasz', 'Dzieje'], rows: [[[{ ref: 'bt', locator: 'Łk 1,35' }], [{ ref: 'bt', locator: 'Dz 1,8' }]], [[{ text: 'Maryja' }], [{ text: 'Apostołowie' }]]] }]
   });
-  const look6 = S.lookupOf([...KINDS, COMMENT], [...ENTITIES, BT, c1]);
-  check('a comment is named by its thesis', S.labelOf(c1, look6), 'Duch Święty zstępuje dwa razy.');
-  check('its blocks are one value of the blocks type', S.valuesOf(c1, COMMENT.fields.find((f) => f.key === 'blocks')).map((v) => v.value.length), [2]);
+  const look6 = S.lookupOf([...KINDS, KOM], [...ENTITIES, BT, c1]);
+  check('a statement is named by its thesis', S.labelOf(c1, look6), 'Duch Święty zstępuje dwa razy.');
+  check('its blocks are one value of the blocks type', S.valuesOf(c1, KOM.fields.find((f) => f.key === 'content')).map((v) => v.value.length), [2]);
+  check('a kind with a blocks field is a statement kind, others are not', [STM.isStatementKind(KOM), STM.isStatementKind(WORK)], [true, false]);
+  check('… the placeholder "@blocks" of a picker becomes the statement kinds of the base', STM.resolveKinds(['k-work', STM.STATEMENT_KINDS], [...KINDS, KOM]), ['k-work', 'k-kom']);
+  check('… what it is about: its reference fields, with the place', STM.entityAbout(c1, look6), [{ ref: 'bt', locator: 'Łk 1,35' }, { ref: 'bt', locator: 'Dz 1,8' }]);
   const ctx6 = (entity) => ({ look: look6, entity, pool: () => [], seed: 's' });
-  const thesisCards = (await Cards.cardsOf(Cards.readTemplate('t-thesis', P.TEMPLATE_PRESETS.find((x) => x.id === 'thesis').make('comment')), ctx6(c1))).cards;
-  check('thesis card: the front names what it is about (Bible places)', thesisCards[0]?.prompt.map((p) => p.text).join(' '), 'Co mówi komentarz o: Łk 1,35; Dz 1,8?');
-  check('… the back is the thesis, the comment explains', [thesisCards[0]?.answer.back, thesisCards[0]?.explain], [['Duch Święty zstępuje dwa razy.'], ['c1']]);
-  const tableCards = (await Cards.cardsOf(Cards.readTemplate('t-table', P.TEMPLATE_PRESETS.find((x) => x.id === 'statement-table').make('comment')), ctx6(c1))).cards;
+  const fileTemplate = (i) => Cards.readTemplate(`t-${i}`, { ...komentarz.templates[i], kinds: ['k-kom'] });
+  const thesisCards = (await Cards.cardsOf(fileTemplate(0), ctx6(c1))).cards;
+  check('thesis card (the file’s template): the front names what it is about (Bible places)', thesisCards[0]?.prompt.map((p) => p.text).join(' '), 'Co mówi ta wypowiedź o: Łk 1,35; Dz 1,8?');
+  check('… the back is the thesis, the statement explains', [thesisCards[0]?.answer.back, thesisCards[0]?.explain], [['Duch Święty zstępuje dwa razy.'], ['c1']]);
+  const tableCards = (await Cards.cardsOf(fileTemplate(1), ctx6(c1))).cards;
   check('table card: pairs from two columns', [tableCards[0]?.answer.form, [...tableCards[0]?.answer.left ?? []].sort(), [...tableCards[0]?.answer.right ?? []].sort()], ['match', ['Maryja', 'Łk 1,35'], ['Apostołowie', 'Dz 1,8']]);
-  const noAbout = e('c2', ['comment'], { blocks: [{ type: 'paragraph', text: 'Bez przedmiotu.' }] });
-  check('… a comment about nothing gives no thesis card', (await Cards.cardsOf(Cards.readTemplate('t-thesis', P.TEMPLATE_PRESETS.find((x) => x.id === 'thesis').make('comment')), ctx6(noAbout))).cards.length, 0);
-  check('the statement presets are offered for comments only', P.TEMPLATE_PRESETS.filter((x) => x.kinds !== undefined).map((x) => [x.id, x.kinds]), [['thesis', ['comment']], ['statement-table', ['comment']]]);
-  check('the library kinds come from the library (comment yes, topic no)', [ST.BOOK_KINDS.has('comment'), ST.BOOK_KINDS.has('quote'), ST.BOOK_KINDS.has('topic')], [true, true, false]);
+  const noAbout = e('c2', ['k-kom'], { content: [{ type: 'paragraph', text: 'Bez przedmiotu.' }] });
+  check('… a statement about nothing gives no thesis card', (await Cards.cardsOf(fileTemplate(0), ctx6(noAbout))).cards.length, 0);
+  check('the templates in the file are the presets (same nodes, same wires)',
+    [0, 1].map((i) => komentarz.templates[i].graph.nodes.map((x) => x.type).join()),
+    ['thesis', 'statement-table'].map((id) => P.TEMPLATE_PRESETS.find((x) => x.id === id).make('@komentarz').graph.nodes.map((x) => x.type).join()));
+  check('the statement presets are offered for every kind with a blocks field, under any name', [P.TEMPLATE_PRESETS.filter((x) => x.statements === true).map((x) => x.id), P.TEMPLATE_PRESETS.filter((x) => x.kinds !== undefined).length], [['thesis', 'statement-table'], 0]);
+  check('the library kinds come from the Library and the Scriptorium (no comment, no topic)', [ST.BOOK_KINDS.has('comment'), ST.BOOK_KINDS.has('quote'), ST.BOOK_KINDS.has('text'), ST.BOOK_KINDS.has('topic')], [false, true, true, false]);
+  check('no built-in content kinds: knowledge and comment are gone, the question stays', [KD.isBaseKind('knowledge'), KD.isBaseKind('comment'), KD.isBaseKind('question')], [false, false, true]);
+  check('… a saved change of a gone built-in is no kind of its own', KD.kindDefs([{ id: 'o', kind: 'kind', data: { builtin: 'knowledge', name: 'Wiedza', label: '{text}', fields: [] } }]).some((k) => k.name === 'Wiedza'), false);
+  const oldOnes = [
+    { id: 'x1', kind: 'entity', data: { _kinds: ['knowledge'], text: 'Stare.' } },
+    { id: 'x2', kind: 'entity', data: { text: 'Bez rodzaju.' } },
+    { id: 'x3', kind: 'kind', data: { builtin: 'knowledge', name: 'Wiedza' } },
+    { id: 'x4', kind: 'entity', data: { _kinds: ['k-kom'], content: [] } },
+    { id: 'x5', kind: 'entity', data: { _kinds: ['k-elsewhere'] } },
+    { id: 'x6', kind: 'kind', data: { builtin: 'question', name: 'Pytanie' } }
+  ];
+  const known6 = (id) => (id === 'k-kom' ? KOM : undefined);
+  check('„Stare wpisy" in a base: knowledge (also without kinds) and changes of gone built-ins — not a kind it merely cannot read now',
+    oldOnes.filter((x) => OLD.isOldInBase(x, known6)).map((x) => x.id), ['x1', 'x2', 'x3']);
+  check('… named after what they were', oldOnes.slice(0, 3).map(OLD.oldInBaseLabel), ['Wiedza', 'Wiedza', 'Rodzaj (zmiana wbudowanego): Wiedza']);
 }
 {
   /* 2026-10-22 (Schritt 7) — ein Themensystem: Themen der Bibliothek, das Thema folgt den Rückverweisen, die Felder des Lernens sind eine Erweiterung. */
@@ -653,14 +681,15 @@ truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.
   const light = { id: U('a002'), kind: 'topic', key: 'swiatla', data: { name: 'Tajemnice światła', parent: [U('a001')] } };
   const cana = { id: U('a003'), kind: 'topic', key: 'kana', data: { name: 'Cud w Kanie', parent: [U('a002')] } };
   const sermon = { id: U('b001'), kind: 'text', data: { title: 'Kana', topics: [U('a003')] } };
-  const statement = { id: U('b002'), kind: 'comment', data: { blocks: [{ type: 'paragraph', text: 'Maryja prowadzi do Syna.' }], topics: [U('a003')] } };
+  /* 2026-10-23 — ein Komentarz ist keine Art der Bibliothek mehr: ein zweiter Text an seiner Stelle. */
+  const statement = { id: U('b002'), kind: 'text', data: { title: 'Kana — rozważanie', topics: [U('a003')] } };
   const other = { id: U('b003'), kind: 'text', data: { title: 'Inne', topics: [U('a001')] } };
   const question = { id: U('b004'), kind: 'entity', data: { _kinds: ['question'], form: 'text', prompt: 'Gdzie był pierwszy cud?', answers: ['w Kanie'], about: [U('a003')] } };
   const lib7 = new ST.CogitaLibrary(fake('base', [question]), false);
   lib7.setSources([{ store: fake('lib', [root, light, cana, sermon, statement, other]), kind: 'books', name: 'Biblioteka' }]);
   check('the topics of a source library are this base\'s topics', lib7.topics().map((t) => t.id).sort(), [U('a001'), U('a002'), U('a003')]);
   const under = lib7.topicTree(U('a002'), 9);
-  truth('a topic subtree picks up sermons, statements and questions tagged there (backlinks)', [U('a002'), U('a003'), U('b001'), U('b002'), U('b004')].every((id) => under.has(id)), [...under]);
+  truth('a topic subtree picks up texts and questions tagged there (backlinks)', [U('a002'), U('a003'), U('b001'), U('b002'), U('b004')].every((id) => under.has(id)), [...under]);
   check('… not what is tagged above it', under.has(U('b003')), false);
   check('… and depth limits the subtopics', lib7.topicTree(U('a001'), 0).has(U('a003')), false);
   check('what points at a topic', [...lib7.taggedWith(U('a003'))].sort(), [U('b001'), U('b002'), U('b004')]);
@@ -1151,15 +1180,17 @@ check('goals and lines follow the one logic', [
     return store;
   };
   const entity = (id, kinds, data) => ({ id, kind: 'entity', data: { _kinds: kinds, ...data } });
+  /* 2026-10-23 — „Wiedza" ist fort: der eigene Eintrag ist eine Notatka (eigener Rodzaj), die Änderung einer eingebauten Art trifft das Pytanie. */
   const own = fake('A', 'area-a', [
-    entity('k1', ['knowledge'], { text: 'Inwokacja otwiera [[Pana Tadeusza|@mick]].', source: 'w1' }),
+    { id: 'kA', kind: 'kind', data: { name: 'Notatka', label: '{text}', fields: [{ key: 'text', label: 'Tekst', type: 'markup' }, { key: 'source', label: 'Źródło', type: 'ref', to: ['work'] }] } },
+    entity('k1', ['kA'], { text: 'Inwokacja otwiera [[Pana Tadeusza|@mick]].', source: 'w1' }),
     { id: 'r1', kind: 'revision', data: { name: 'Codzienna', graph: { nodes: [], edges: [] } } },
-    { id: 'o1', kind: 'kind', data: { builtin: 'knowledge', name: 'Wiedza A', label: '{text}', fields: [] } },
+    { id: 'o1', kind: 'kind', data: { builtin: 'question', name: 'Pytanie A', label: '{prompt}', fields: [] } },
     { id: 's1', kind: 'settings', data: { sources: [{ id: 'B', kind: 'knowledge', name: 'Parafia' }, { id: 'L', kind: 'books', name: 'Książki' }, { id: 'B', kind: 'knowledge' }, { kind: 'books' }] } }
   ]);
   const reused = fake('B', 'area-b', [
     { id: 'kB', kind: 'kind', data: { name: 'Postać', label: '{name}', fields: [{ key: 'name', label: 'Imię', type: 'line' }] } },
-    { id: 'oB', kind: 'kind', data: { builtin: 'knowledge', name: 'Wiedza B', label: '{text}', fields: [] } },
+    { id: 'oB', kind: 'kind', data: { builtin: 'question', name: 'Pytanie B', label: '{prompt}', fields: [] } },
     entity('e2', ['kB'], { name: 'Jacek Soplica' }),
     entity('q2', ['question'], { form: 'text', prompt: 'Kto wygłosił spowiedź?', answers: ['Jacek Soplica'] }),
     { id: 'rB', kind: 'revision', data: { name: 'Postacie', graph: { nodes: [], edges: [] } } },
@@ -1182,7 +1213,7 @@ check('goals and lines follow the one logic', [
   check('… but its books are there to point at', [lib.entity('w1')?.kinds, lib.label(lib.entity('w1'))], [['work'], 'Pan Tadeusz']);
   check('books are not content of the base', [lib.ofKind('work').length, lib.ofKind('kB').map((e) => e.id)], [0, ['e2']]);
   check('the kinds to build with leave out the libraries’ kinds; as targets of a reference they are there', [lib.kinds.some((k) => k.id === 'work'), lib.kinds.some((k) => k.id === 'kB'), lib.refKinds.some((k) => k.id === 'work')], [false, true, true]);
-  check('the base’s own change of a built-in kind wins over the source’s', lib.kind('knowledge').name, 'Wiedza A');
+  check('the base’s own change of a built-in kind wins over the source’s', lib.kind('question').name, 'Pytanie A');
   check('revisions of a reused base are here too; settings stay its own', [lib.docs('revision').map((e) => e.id).sort(), lib.docs('settings').map((e) => e.id)], [['r1', 'rB'], ['s1']]);
   check('a citation key of a library resolves', lib.resolve('mick'), 'w1');
   check('where things come from', [lib.origin('k1').own, lib.origin('e2').name, lib.origin('w1').kind, lib.isOwn('e2')], [true, 'Parafia', 'books', false]);
@@ -1192,7 +1223,7 @@ check('goals and lines follow the one logic', [
   /* 2026-10-22 (Schritt 8) — was ein Seitenbaustein aus der Baza selbst wählen kann (keine „veröffentlichten" mehr). */
   check('a page module picks revisions of the base and of its sources', PB.baseChoices(lib, ['revision']).map((c) => [c.id, c.label]), [['r1', 'Codzienna'], ['rB', 'Postacie']]);
   check('… entries (own and reused), and a library kind from the books it draws on', [PB.baseChoices(lib, ['entity']).map((c) => c.id).sort(), PB.baseChoices(lib, ['work']).map((c) => c.label)], [['e2', 'k1', 'q2'], ['Pan Tadeusz']]);
-  check('the page’s own choice of an entry: own entries only, one kind by its name in any case', [PB.entityChoices(lib, '').map((c) => c.id), PB.entityChoices(lib, 'WIEDZA A').map((c) => c.id), PB.entityChoices(lib, 'Postać').map((c) => c.id)], [['k1'], ['k1'], []]);
+  check('the page’s own choice of an entry: own entries only, one kind by its name in any case', [PB.entityChoices(lib, '').map((c) => c.id), PB.entityChoices(lib, 'NOTATKA').map((c) => c.id), PB.entityChoices(lib, 'Postać').map((c) => c.id)], [['k1'], ['k1'], []]);
   const cards = (await lib.cards('kb')).cards;
   truth('a reused base’s question becomes a card here', cards.some((c) => c.question === 'q2'), cards.map((c) => c.question));
 
@@ -1202,12 +1233,12 @@ check('goals and lines follow the one logic', [
   let removed = '';
   await lib.remove('w1').catch((e) => { removed = e.message; });
   truth('… and a library’s book is not removed from here', removed.includes('Książki') && books.get('w1') !== undefined, removed);
-  await lib.saveEntity({ id: 'k1', kinds: ['knowledge'], data: { text: 'Zmienione.' } });
+  await lib.saveEntity({ id: 'k1', kinds: ['kA'], data: { text: 'Zmienione.' } });
   check('the base’s own entries are written to its own store', own.saved.map((e) => e.id), ['k1']);
 
   /* 2026-10-17 — viele auf einmal (Formularze dodawania), und ein Formularz im JSON des Schemas. */
   for (const store of [own, reused]) store.saveMany = async (inputs) => { const saved = []; for (const one of inputs) saved.push(await store.save(one)); return { saved, failed: [] }; };
-  const many = await lib.saveMany([{ id: 'm1', kinds: ['kB'], data: { name: 'Telimena' } }, { id: 'k1', kinds: ['knowledge'], data: { text: 'Znowu zmienione.' } }]);
+  const many = await lib.saveMany([{ id: 'm1', kinds: ['kB'], data: { name: 'Telimena' } }, { id: 'k1', kinds: ['kA'], data: { text: 'Znowu zmienione.' } }]);
   check('saving many: a new one under its given id, an own one changed in place', [many.saved, own.get('m1')?.kind, own.get('m1')?.data._kinds, own.get('k1')?.data.text], [2, 'entity', ['kB'], 'Znowu zmienione.']);
   let refusedMany = '';
   await lib.saveMany([{ id: 'e2', kinds: ['kB'], data: { name: 'x' } }]).catch((e) => { refusedMany = e.message; });
@@ -1239,7 +1270,7 @@ check('goals and lines follow the one logic', [
   check('a form as JSON: the schema format, the form, its kind as a reference (a source kind is not copied)',
     [oneForm.format, oneForm.forms.map((f) => [f.ref, f.graph.nodes[0].config.kind]), oneForm.kinds], ['recreatio.cogita.schema', [['@af1', '@kB']], []]);
   check('a form import needs a form', 'error' in Js.planFormImport(lib2, { format: 'recreatio.cogita.schema', version: 1, kinds: [] }), true);
-  const skipped = Js.planFormImport(lib2, { ...oneForm, entities: [{ ref: '@x', kinds: ['knowledge'], data: { text: 'x' } }] });
+  const skipped = Js.planFormImport(lib2, { ...oneForm, entities: [{ ref: '@x', kinds: ['question'], data: { prompt: 'x' } }] });
   truth('… and leaves out what does not belong to forms, saying so', skipped.entities.length === 0 && skipped.warnings.some((w) => w.includes('entities')), skipped.warnings);
 
   const brew = JSON.parse(await readFile('scripts/fixtures/brewiarz.json', 'utf8'));
@@ -1390,9 +1421,12 @@ check('goals and lines follow the one logic', [
   B(tZwykly, 'topic', { name: 'Okres zwykły', parent: [tOkres], order: 3 });
   B(txt1, 'text', { title: 'Kazanie o obietnicy', date: '2026-12-01', topics: [tAdw, tObiet], plan: [{ id: 'p1', text: 'Wstęp', depth: 0 }] });
   B(txt2, 'text', { title: 'Kazanie o królestwie', date: '2026-03-01', topics: [tPost, tKrol] });
-  B(cm1, 'comment', { blocks: [{ type: 'paragraph', text: 'Obietnica dojrzewa w czasie.' }], subjects: [], topics: [tAdw, tObiet] });
-  lib.setSources([{ store: books, kind: 'books', name: 'Kazania' }]);
-  const both = VW.readView({ name: 'Kazania i komentarze', mode: 'matrix', steps: [step('source.kind', { kind: 'text' }), step('source.kind', { kind: 'comment' })], matrix: { rows: { by: 'topic', axis: tOs }, cols: { by: 'topic', axis: tOkres } } });
+  /* 2026-10-23 — eine Aussage ist ein Eintrag der Baza (ein Rodzaj mit Feld blocks), kein Komentarz der Bibliothek. */
+  const kS = 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1';
+  map.set(kS, { id: kS, kind: 'kind', data: { name: 'Komentarz', label: '{content}', fields: [{ key: 'tematy', label: 'Tematy', type: 'ref', multi: true, to: ['topic'] }, { key: 'content', label: 'Treść', type: 'blocks' }] } });
+  E(cm1, [kS], { content: [{ type: 'paragraph', text: 'Obietnica dojrzewa w czasie.' }], tematy: [tAdw, tObiet] });
+  lib.setSources([{ store: books, kind: 'writing', name: 'Kazania' }]);
+  const both = VW.readView({ name: 'Kazania i komentarze', mode: 'matrix', steps: [step('source.kind', { kind: 'text' }), step('source.kind', { kind: kS })], matrix: { rows: { by: 'topic', axis: tOs }, cols: { by: 'topic', axis: tOkres } } });
   const bothList = VW.viewList(lib, both);
   check('two sources at the start count together: sermons and statements', bothList.map((e) => lib.label(e)).sort(), [lib.label(lib.entity(cm1)), 'Kazanie o królestwie', 'Kazanie o obietnicy'].sort());
   truth('a source after a step starts anew', names([step('source.kind', { kind: kP }), step('filter.rule', { rule: { op: 'and', items: [] } }), step('source.list', { ids: [daw] })]).join() === 'Dawid');
@@ -1410,12 +1444,14 @@ check('goals and lines follow the one logic', [
 
   const here = VA.contextOf([{ grouping: { by: 'topic', axis: tOs }, group: mx.rows[0] }, { grouping: { by: 'topic', axis: tOkres }, group: mx.cols[1] }]);
   check('a cell’s context: both topics, in words', [here.topics, here.words], [[tObiet, tPost], ['Obietnica', 'Wielki Post']]);
-  const madeComment = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: 'comment' })] }), here);
-  check('a statement created in a cell goes to the library, with both topics', [madeComment.inLibrary, madeComment.libraryId, bmap.get(madeComment.id)?.kind, bmap.get(madeComment.id)?.data.topics], [true, 'B', 'comment', [tObiet, tPost]]);
+  const madeComment = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: kS })] }), here);
+  check('a statement created in a cell is an entry of the base, with both topics', [madeComment.inLibrary, map.get(madeComment.id)?.data._kinds, map.get(madeComment.id)?.data.tematy], [false, [kS], [tObiet, tPost]]);
+  const sermonHere = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: 'text' })] }), here);
+  check('… a text created there goes to the scriptorium the base draws on', [sermonHere.inLibrary, sermonHere.libraryId, bmap.get(sermonHere.id)?.kind], [true, 'B', 'text']);
   const field = VA.contextOf([{ grouping: { by: 'field', field: 'era' }, group: { key: 't:krolowie', label: 'królowie', ids: [] } }]);
   const madePerson = await VA.createHere(lib, VW.readView({ steps: [step('source.kind', { kind: kP })] }), field);
   check('an entry of the base created in a group gets the group’s value', [madePerson.inLibrary, map.get(madePerson.id)?.data.era], [false, 'królowie']);
-  check('a quote goes into a plan embedded, anything else as a link with its name', [VA.pointFor('quote', 'q', 'x'), VA.pointFor('comment', 'c', 'O [obietnicy] | czasie')], [{ text: '![@q]', kind: 'quote' }, { text: '[[O obietnicy czasie|@c]]', kind: 'thought' }]);
+  check('a quote goes into a plan embedded, anything else as a link with its name', [VA.pointFor('quote', 'q', 'x'), VA.pointFor(kS, 'c', 'O [obietnicy] | czasie')], [{ text: '![@q]', kind: 'quote' }, { text: '[[O obietnicy czasie|@c]]', kind: 'thought' }]);
   const added = await VA.addToPlan(lib, txt1, [cm1, daw]);
   const newPlan = bmap.get(txt1).data.plan;
   /* ══ 2026-10-22 (Schritt 11) — ein Verweis mit Stelle, „Z wpisu", die gotowe schematy ══ */
@@ -1437,14 +1473,19 @@ check('goals and lines follow the one logic', [
   const fromPlan = (await R.planOf(G.readGraph(FE.fromEntryGraph(txt1)), lib.revisionContext(cards, () => [], Date.now()))).plan;
   check('a revision from a sermon: "Z wpisu" → the cards of what it points at', fromPlan.cards.map((c) => c.entity), [daw]);
 
-  const dict = SS.dictionaryDoc();
+  /* 2026-10-23 — die gotowe schematy sind Dateien: templates/cogita/*.json (nichts mehr im Frontend). */
+  const dict = JSON.parse(await readFile('../templates/cogita/slownik.json', 'utf8'));
   const freshStore = { libraryId: 'D', areaId: 'area-d', revision: 1, loaded: true, all: () => [], get: () => undefined, byKey: () => undefined, save: async (x) => x, subscribe: () => () => undefined };
   const planned11 = Js.planImport(new So.CogitaLibrary(freshStore, true), dict);
   truth('the dictionary start imports: five kinds, four templates, no warning', !('error' in planned11) && planned11.kinds.length === 5 && planned11.docs.filter((d) => d.kind === 'template').length === 4 && planned11.warnings.length === 0, 'error' in planned11 ? planned11.error : planned11.warnings);
   const wordKind = planned11.kinds.find((k) => k.def.name === 'Słowo');
   const langKind = planned11.kinds.find((k) => k.def.name === 'Język');
   check('… a word points at its language (the reference resolved inside the document)', wordKind.def.fields.find((f) => f.key === 'jezyk').to, [langKind.id]);
-  const psalter = Js.planImport(new So.CogitaLibrary(freshStore, true), SS.SCHEMA_STARTS.find((x) => x.id === 'psalterz').doc());
+  const psalter = Js.planImport(new So.CogitaLibrary(freshStore, true), JSON.parse(await readFile('../templates/cogita/psalterz.json', 'utf8')));
+  const komentarz = Js.planImport(new So.CogitaLibrary(freshStore, true), JSON.parse(await readFile('../templates/cogita/komentarz.json', 'utf8')));
+  truth('the comment template imports: one kind with a blocks field, two templates on it, no warning', !('error' in komentarz) && komentarz.kinds.length === 1 && komentarz.kinds[0].def.fields.some((f) => f.type === 'blocks')
+    && komentarz.docs.filter((d) => d.kind === 'template').every((d) => JSON.stringify(d.data.kinds) === JSON.stringify([komentarz.kinds[0].id])) && komentarz.docs.filter((d) => d.kind === 'template').length === 2 && komentarz.warnings.length === 0,
+    'error' in komentarz ? komentarz.error : komentarz.warnings);
   truth('the psalter start imports with a place in the Scripture', !('error' in psalter) && psalter.kinds.some((k) => k.def.fields.some((f) => f.key === 'miejsce' && f.locator === true && (f.to ?? []).includes('work'))), 'error' in psalter ? psalter.error : '');
   check('add to plan: new points at the end, the old ones stay, ids stay unique', [added, newPlan.length, newPlan[0].id, newPlan[1].text, new Set(newPlan.map((x) => x.id)).size], [2, 3, 'p1', `[[${lib.label(lib.entity(cm1)).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim()}|@${cm1}]]`, 3]);
 }

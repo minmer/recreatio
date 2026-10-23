@@ -33,7 +33,8 @@ import { fieldsOf, type Entity } from '../../cogita/schema';
 import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync } from '../../cogita/ui';
 import { cellKey, cellText, readView, viewColumns, viewGroups, viewList, viewMatrix, type ListMode } from '../../cogita/views';
-import { CommentCard } from '../../library/markupView';
+import { StatementCard } from '../../library/markupView';
+import { blocksField } from '../../cogita/statements';
 import { later } from '../../ui/later';
 import { Loading } from '../../ui/Loading';
 import type { ViewConfig } from './view';
@@ -58,16 +59,17 @@ export function modeOf(asked: string, saved: string): PageMode {
 const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', matrix: 'macierz', map: 'mapa' };
 const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa' };
 
-/** Ein Eintrag, aufgeklappt: ein Komentarz mit seinen Bausteinen, ein Kazanie ganz, alles andere als Karte. */
+/** Ein Eintrag, aufgeklappt: eine Aussage mit ihren Bausteinen, ein Kazanie ganz, alles andere als Karte. */
 function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
   lib: CogitaLibrary; id: string; ctx: PartContext; scope: string; delivery: string | null; onDelivery: (d: string | null) => void;
 }) {
   const entry = lib.entry(id);
   const entity = lib.entity(id);
   if (entry === undefined || entity === undefined) return <p className="wk-card-muted">Tego wpisu tu nie ma.</p>;
-  if (entry.kind === 'comment') return <div className="cg-card"><CommentCard comment={entry} look={lib.markupLook} prefix={`v${scope}-`} /></div>;
+  if (blocksField(entity, lib.look) !== undefined) return <div className="cg-card"><StatementCard entry={entry} look={lib.markupLook} prefix={`v${scope}-`} about /></div>;
   const home = lib.origin(id);
-  if (entry.kind === 'text' && home !== undefined && home.kind === 'books') {
+  /* 2026-10-23 — ein Kazanie liegt im Skryptorium (früher in der Bibliothek). */
+  if (entry.kind === 'text' && home !== undefined && (home.kind === 'writing' || home.kind === 'books')) {
     return <WritingCard library={home.libraryId} entryId={id} size={ctx.size} whole prefix={`v${scope}-`} delivery={delivery} onDelivery={onDelivery} />;
   }
   return <div className="cg-card"><EntityView entity={publicEntity(lib, entity)} /></div>;

@@ -27,6 +27,7 @@ import { RuleEditor } from './RuleEditor';
 import { readRule as readQuery } from './selection';
 import { areaKeys, newestKey } from '../chat/chat';
 import type { MediaRef } from './schema';
+import { resolveKinds } from './statements';
 
 interface NodeData {
   readonly label: string;
@@ -431,7 +432,8 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       );
     }
     case 'entity':
-      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={field.kinds} refs={field.kinds?.some((k) => BOOK_KINDS.has(k) || k === 'topic') === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
+      /* 2026-10-23 — „@blocks" steht für die Rodzaje mit Feld blocks dieser Baza (Aussagen). */
+      return <div className="wk-field">{label}<EntityPicker lib={lib} kinds={resolveKinds(field.kinds, lib.refKinds)} refs={field.kinds?.some((k) => BOOK_KINDS.has(k) || k === 'topic') === true} value={typeof value === 'string' && value !== '' ? value : null} onPick={(id) => onSet(id ?? undefined)} /></div>;
     case 'collection':
       return (
         <label className="wk-field">{label}

@@ -18,6 +18,8 @@
  *   propozycje    Vorschläge von Lesenden
  *   ustawienia    wohin die Antworten gehen, Motivation, Abhängigkeiten, Werte, Regeln, Aussehen
  *   json          der Kurs als JSON, und der Auftrag für die eigene KI
+ *   stare         2026-10-23 — Einträge der Rodzaje, die es nicht mehr gibt (Wiedza, Komentarz):
+ *                 durchsehen und löschen; der Reiter steht nur da, solange es welche gibt
  * </code>
  *
  * Wer nur liest, sieht die Werkzeuge der Autoren nicht [L2]: Lernen, Abläufe,
@@ -60,6 +62,8 @@ import { CogitaContext, ForeignOnly, useAsync, useBusy, useCogita, useCtx, type 
 import type { Card } from './cardBasics';
 import { MenuButton } from '../ui/Menu';
 import { Icon } from '../ui/icons';
+import { OldEntries, oldEntriesOf } from '../library/OldEntries';
+import { isOldInBase, oldInBaseLabel } from './oldInBase';
 
 const AUTHOR_TABS = [
   ['nauka', 'Nauka'], ['wpisy', 'Wpisy'], ['schemat', 'Schemat'], ['karty', 'Szablony kart'], ['powtorki', 'Powtórki'],
@@ -100,7 +104,10 @@ function Hub({ trail }: { trail: readonly string[] }) {
   const { lib, writes, me, href } = useCtx();
   const holder = useMemo(() => (me === null ? null : holderOfMe(me)), [me]);
   const { learner } = useLearner(lib, holder);
-  const tabs = writes ? AUTHOR_TABS : READER_TABS;
+  const known = useCallback((_kind: string, entry: Parameters<typeof isOldInBase>[0]) => !isOldInBase(entry, (id) => lib.kind(id)), [lib]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const old = useMemo(() => (writes ? oldEntriesOf(lib.store, known).length : 0), [writes, lib.store, lib.revision, known]);
+  const tabs: readonly (readonly [string, string])[] = writes ? (old > 0 || trail[0] === 'stare' ? [...AUTHOR_TABS, ['stare', `Stare wpisy (${old})`]] : AUTHOR_TABS) : READER_TABS;
   const tab = tabs.some(([slug]) => slug === trail[0]) ? trail[0]! : 'nauka';
   const go = (...tail: string[]) => { window.location.hash = href(...tail); };
   const cards = useAsync(() => lib.cards('learn').then((r) => r.cards), [lib.revision]);
@@ -139,6 +146,8 @@ function Hub({ trail }: { trail: readonly string[] }) {
       {tab === 'zaproponuj' && <Propose />}
       {tab === 'ustawienia' && <CogitaSettings />}
       {tab === 'json' && <CogitaJson />}
+      {tab === 'stare' && <OldEntries store={lib.store} known={known} writes={writes} labelOf={oldInBaseLabel}
+        where="Rodzajów „Wiedza” i „Komentarz” w Nauce już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json)." />}
     </div>
   );
 }
@@ -208,7 +217,7 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
     return <AddFormRun formId={trail[1] ?? null} onClose={() => go('wpisy')} onOpen={(id) => go('wpisy', id)} onEdit={(id) => go('schemat', 'formularz', id)} />;
   }
   if (trail[0] === 'nowy') {
-    return <EntityEditor entityId={null} newKinds={trail[1] === undefined ? [lib.kinds[0]?.id ?? 'knowledge'] : [trail[1]]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />;
+    return <EntityEditor entityId={null} newKinds={trail[1] === undefined ? [lib.kinds[0]?.id ?? 'question'] : [trail[1]]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />;
   }
   if (trail[0] !== undefined && trail[0] !== 'widok' && lib.entity(trail[0]) !== undefined) {
     return (

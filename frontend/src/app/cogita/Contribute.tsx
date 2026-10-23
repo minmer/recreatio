@@ -5,13 +5,22 @@
  * eigenes Vertrauen. Alle anderen schreiben Erklärungen, Erweiterungen und
  * Fragen in eine BIBLIOTHEK FÜR VORSCHLÄGE (in einem Bereich, in dem sie
  * schreiben dürfen); ein Autor nimmt sie an, dann gehen sie in den Kurs.
+ *
+ * 2026-10-23 — vorgeschlagen wird ein Pytanie (bleibt eingebaut) oder ein
+ * Eintrag eines Rodzaj dieser Baza mit Feld `blocks` (z. B. ein Komentarz):
+ * der Text wird sein erster Absatz, der gewählte Eintrag sein erstes
+ * Verweisfeld („O czym"). „Wiedza" gibt es nicht mehr; alte Vorschläge dieser
+ * Art lassen sich nur noch ablehnen.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 
 import { loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { storeOf, useLibraryStore } from '../library/libraryStore';
+import { blocksIn, blocksMarkup } from '../library/blocks';
 import { entityOf } from './kinds';
+import type { KindDef } from './schema';
+import { isStatementKind } from './statements';
 import { EntityPicker, Markup, entityName, useBusy, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
 
@@ -28,11 +37,29 @@ function useContributionLibrary(): OpenLibrary | null | undefined {
   return found;
 }
 
-/** Für Lesende: einen Vorschlag schreiben — zu einem Eintrag, als Wissen oder Frage. */
+/** Die Daten eines vorgeschlagenen Eintrags: der Text als erster Absatz (oder als Frage), der Eintrag im ersten Verweisfeld. */
+function proposalData(kind: KindDef | undefined, text: string, answer: string, about: string | null): Record<string, unknown> {
+  if (kind === undefined || kind.id === 'question') {
+    return { prompt: text, answers: answer.split('\n').map((x) => x.trim()).filter(Boolean), form: 'text', ...(about === null ? {} : { about: [about] }) };
+  }
+  const blocks = kind.fields.find((f) => f.type === 'blocks');
+  const ref = kind.fields.find((f) => f.type === 'ref');
+  return {
+    ...(blocks === undefined ? {} : { [blocks.key]: [{ type: 'paragraph', text }] }),
+    ...(ref === undefined || about === null ? {} : { [ref.key]: ref.multi ? [about] : about })
+  };
+}
+
+/** Für Lesende: einen Vorschlag schreiben — zu einem Eintrag, als Pytanie oder als Wypowiedź (ein Rodzaj mit Feld blocks). */
 export function Propose({ about, onDone }: { about?: string; onDone?: () => void }) {
   const { lib, me } = useCtx();
   const target = useContributionLibrary();
-  const [kind, setKind] = useState<'knowledge' | 'question'>('knowledge');
+  const choices = useMemo(() => [...lib.kinds.filter(isStatementKind), ...lib.refKinds.filter((k) => k.id === 'question')],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lib, lib.revision]);
+  const [picked, setKind] = useState<string>('');
+  const kind = choices.find((k) => k.id === picked) ?? choices[0];
+  const asks = kind === undefined || kind.id === 'question';
   const [text, setText] = useState('');
   const [answer, setAnswer] = useState('');
   const [entity, setEntity] = useState<string | null>(about ?? null);
@@ -45,17 +72,18 @@ export function Propose({ about, onDone }: { about?: string; onDone?: () => void
       const store = storeOf(me.ring, target);
       await store.sync();
       await store.save({ kind: 'entity', data: {
-        _kinds: [kind], ...(kind === 'knowledge' ? { text } : { prompt: text, answers: answer.split('\n').map((x) => x.trim()).filter(Boolean), form: 'text' }),
-        ...(entity === null ? {} : { about: [entity] }), _for: lib.libraryId, _proposedAt: new Date().toISOString()
+        _kinds: [kind?.id ?? 'question'], ...proposalData(kind, text, answer, entity), _for: lib.libraryId, _proposedAt: new Date().toISOString()
       } });
       setText(''); setAnswer(''); setSaid('Dziękujemy — autor zobaczy propozycję.'); onDone?.();
     }); }}>
       <div className="cg-row">
-        <select value={kind} onChange={(e) => setKind(e.target.value as 'knowledge' | 'question')}><option value="knowledge">wyjaśnienie (wiedza)</option><option value="question">pytanie</option></select>
+        <select value={kind?.id ?? 'question'} onChange={(e) => setKind(e.target.value)}>
+          {choices.map((k) => <option key={k.id} value={k.id}>{k.id === 'question' ? 'pytanie' : k.name.toLowerCase()}</option>)}
+        </select>
         <EntityPicker lib={lib} value={entity} onPick={setEntity} placeholder="do którego wpisu?" />
       </div>
-      <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={kind === 'knowledge' ? 'Co warto wiedzieć?' : 'Treść pytania'} required />
-      {kind === 'question' && <textarea rows={2} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Poprawne odpowiedzi, każda w wierszu" />}
+      <textarea rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={asks ? 'Treść pytania' : 'Co warto wiedzieć? Pierwsze zdanie to teza.'} required />
+      {asks && <textarea rows={2} value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Poprawne odpowiedzi, każda w wierszu" />}
       <button type="submit" className="wk-btn" disabled={busy || text.trim() === ''}>Zaproponuj</button>
       {failed !== null && <p className="wk-error">{failed}</p>}
       {said !== null && <p className="wk-hint">{said}</p>}
@@ -79,18 +107,23 @@ export function Contributions() {
     <div className="cg">
       {proposals.length === 0 ? <p className="wk-empty">Nie ma nowych propozycji.</p> : proposals.map((p) => {
         const entity = entityOf(p);
-        const about = Array.isArray(p.data.about) ? String(p.data.about[0] ?? '') : '';
+        const kind = entity === null ? undefined : lib.kind(entity.kinds[0] ?? '');
+        const blocks = kind?.fields.find((f) => f.type === 'blocks');
+        const refKey = kind?.id === 'question' ? 'about' : kind?.fields.find((f) => f.type === 'ref')?.key ?? 'about';
+        const first = p.data[refKey];
+        const about = Array.isArray(first) ? String(first[0] ?? '') : typeof first === 'string' ? first : '';
         return (
           <div key={p.id} className="cg-card">
-            <span className="cg-muted">{entity?.kinds.includes('question') ? 'Pytanie' : 'Wiedza'}{about !== '' ? ` · do „${entityName(lib, about)}"` : ''} · {typeof p.data._proposedAt === 'string' ? new Date(p.data._proposedAt).toLocaleDateString('pl-PL') : ''}</span>
-            <Markup text={String(p.data.text ?? p.data.prompt ?? '')} />
+            <span className="cg-muted">{kind === undefined ? 'Wiedza (dawny rodzaj — tylko do odrzucenia)' : kind.name}{about !== '' ? ` · do „${entityName(lib, about)}"` : ''} · {typeof p.data._proposedAt === 'string' ? new Date(p.data._proposedAt).toLocaleDateString('pl-PL') : ''}</span>
+            <Markup text={blocks === undefined ? String(p.data.text ?? p.data.prompt ?? '') : blocksMarkup(blocksIn(p.data[blocks.key]))} />
             {Array.isArray(p.data.answers) && <span className="cg-muted">Odpowiedzi: {(p.data.answers as unknown[]).join(', ')}</span>}
             <div className="cg-row">
-              <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
+              <button type="button" className="wk-btn" disabled={busy || kind === undefined || entity === null} onClick={() => void run(async () => {
+                if (kind === undefined || entity === null) return;
                 const data: Record<string, unknown> = {};
                 for (const [k, v] of Object.entries(p.data)) if (!k.startsWith('_')) data[k] = v;
                 /* 2026-10-23 — die Bibliothek hält nur Quellen: was angenommen wird, bleibt in dieser Baza. */
-                await lib.saveEntity({ kinds: entity?.kinds ?? ['knowledge'], data });
+                await lib.saveEntity({ kinds: entity.kinds, data });
                 await store.save({ id: p.id, kind: p.kind, data: { ...p.data, _acceptedAt: new Date().toISOString() } });
               })}>Przyjmij do kursu</button>
               <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => store.remove(p.id))}>Odrzuć</button>

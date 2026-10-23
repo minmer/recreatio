@@ -1,0 +1,1031 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Słownik",
+  "kinds": [
+    {
+      "ref": "@jezyk",
+      "name": "Język",
+      "label": "{nazwa}",
+      "fields": [
+        {
+          "key": "nazwa",
+          "label": "Nazwa",
+          "type": "line"
+        },
+        {
+          "key": "kod",
+          "label": "Kod (np. pl, en, la)",
+          "type": "line"
+        }
+      ]
+    },
+    {
+      "ref": "@slowo",
+      "name": "Słowo",
+      "label": "{tekst}",
+      "tells": "jezyk",
+      "fields": [
+        {
+          "key": "tekst",
+          "label": "Słowo",
+          "type": "line"
+        },
+        {
+          "key": "jezyk",
+          "label": "Język",
+          "type": "ref",
+          "to": [
+            "@jezyk"
+          ]
+        },
+        {
+          "key": "uwagi",
+          "label": "Uwagi (rodzaj, odmiana, wymowa)",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "ref": "@tlumaczenie",
+      "name": "Tłumaczenie",
+      "label": "{slowa}",
+      "fields": [
+        {
+          "key": "slowa",
+          "label": "Słowa",
+          "type": "ref",
+          "multi": true,
+          "to": [
+            "@slowo"
+          ],
+          "says": "Słowa w różnych językach, które znaczą to samo"
+        },
+        {
+          "key": "kontekst",
+          "label": "W jakim znaczeniu",
+          "type": "line"
+        }
+      ]
+    },
+    {
+      "ref": "@synonimy",
+      "name": "Synonimy",
+      "label": "{slowa}",
+      "fields": [
+        {
+          "key": "slowa",
+          "label": "Słowa",
+          "type": "ref",
+          "multi": true,
+          "to": [
+            "@slowo"
+          ],
+          "says": "Słowa jednego języka o tym samym znaczeniu"
+        }
+      ]
+    },
+    {
+      "ref": "@antonimy",
+      "name": "Antonimy",
+      "label": "{slowa}",
+      "fields": [
+        {
+          "key": "slowa",
+          "label": "Słowa",
+          "type": "ref",
+          "multi": true,
+          "to": [
+            "@slowo"
+          ],
+          "says": "Słowa o przeciwnym znaczeniu"
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "name": "Słowa: z języka na język",
+      "kinds": [
+        "@tlumaczenie"
+      ],
+      "direction": "slowa:jezyki",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n28",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "slowa"
+            }
+          },
+          {
+            "id": "n29",
+            "type": "field",
+            "x": 230,
+            "y": 200,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n30",
+            "type": "unique",
+            "x": 460,
+            "y": 200,
+            "config": {}
+          },
+          {
+            "id": "n31",
+            "type": "each",
+            "x": 690,
+            "y": 200,
+            "config": {}
+          },
+          {
+            "id": "n32",
+            "type": "filter",
+            "x": 690,
+            "y": 0,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n33",
+            "type": "field",
+            "x": 920,
+            "y": 260,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n34",
+            "type": "unique",
+            "x": 1150,
+            "y": 260,
+            "config": {}
+          },
+          {
+            "id": "n35",
+            "type": "pattern",
+            "x": 1150,
+            "y": 0,
+            "config": {
+              "text": "{0} → {1}: {2}",
+              "inputs": 3
+            }
+          },
+          {
+            "id": "n36",
+            "type": "prompt",
+            "x": 1380,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n37",
+            "type": "answer.text",
+            "x": 1380,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n38",
+            "type": "card",
+            "x": 1610,
+            "y": 60,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e39",
+            "from": "n28",
+            "out": "values",
+            "to": "n29",
+            "in": "of"
+          },
+          {
+            "id": "e40",
+            "from": "n29",
+            "out": "values",
+            "to": "n30",
+            "in": "items"
+          },
+          {
+            "id": "e41",
+            "from": "n30",
+            "out": "items",
+            "to": "n31",
+            "in": "items"
+          },
+          {
+            "id": "e42",
+            "from": "n28",
+            "out": "values",
+            "to": "n32",
+            "in": "items"
+          },
+          {
+            "id": "e43",
+            "from": "n31",
+            "out": "item",
+            "to": "n32",
+            "in": "like"
+          },
+          {
+            "id": "e44",
+            "from": "n32",
+            "out": "rest",
+            "to": "n33",
+            "in": "of"
+          },
+          {
+            "id": "e45",
+            "from": "n33",
+            "out": "values",
+            "to": "n34",
+            "in": "items"
+          },
+          {
+            "id": "e46",
+            "from": "n31",
+            "out": "item",
+            "to": "n35",
+            "in": "p0"
+          },
+          {
+            "id": "e47",
+            "from": "n34",
+            "out": "items",
+            "to": "n35",
+            "in": "p1"
+          },
+          {
+            "id": "e48",
+            "from": "n32",
+            "out": "kept",
+            "to": "n35",
+            "in": "p2"
+          },
+          {
+            "id": "e49",
+            "from": "n35",
+            "out": "text",
+            "to": "n36",
+            "in": "parts"
+          },
+          {
+            "id": "e50",
+            "from": "n32",
+            "out": "rest",
+            "to": "n37",
+            "in": "expected"
+          },
+          {
+            "id": "e51",
+            "from": "n36",
+            "out": "prompt",
+            "to": "n38",
+            "in": "prompt"
+          },
+          {
+            "id": "e52",
+            "from": "n37",
+            "out": "answer",
+            "to": "n38",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Połącz w pary",
+      "kinds": [
+        "@tlumaczenie"
+      ],
+      "direction": "slowa:pary",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n53",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n54",
+            "type": "field",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "key": "slowa"
+            }
+          },
+          {
+            "id": "n55",
+            "type": "field",
+            "x": 460,
+            "y": 0,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n56",
+            "type": "unique",
+            "x": 690,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n57",
+            "type": "pick",
+            "x": 920,
+            "y": 0,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "n58",
+            "type": "when",
+            "x": 1150,
+            "y": 150,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n59",
+            "type": "entries",
+            "x": 0,
+            "y": 300,
+            "config": {
+              "kind": "@tlumaczenie",
+              "self": true,
+              "count": 12
+            }
+          },
+          {
+            "id": "n60",
+            "type": "pairs",
+            "x": 1150,
+            "y": 300,
+            "config": {
+              "key": "slowa",
+              "by": "jezyk",
+              "count": 5
+            }
+          },
+          {
+            "id": "n61",
+            "type": "pattern",
+            "x": 1150,
+            "y": 0,
+            "config": {
+              "text": "Połącz w pary: {0} — {1}",
+              "inputs": 2
+            }
+          },
+          {
+            "id": "n62",
+            "type": "prompt",
+            "x": 1380,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n63",
+            "type": "answer.match",
+            "x": 1380,
+            "y": 300,
+            "config": {}
+          },
+          {
+            "id": "n64",
+            "type": "card",
+            "x": 1610,
+            "y": 150,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e65",
+            "from": "n53",
+            "out": "entities",
+            "to": "n54",
+            "in": "of"
+          },
+          {
+            "id": "e66",
+            "from": "n54",
+            "out": "values",
+            "to": "n55",
+            "in": "of"
+          },
+          {
+            "id": "e67",
+            "from": "n55",
+            "out": "values",
+            "to": "n56",
+            "in": "items"
+          },
+          {
+            "id": "e68",
+            "from": "n56",
+            "out": "items",
+            "to": "n57",
+            "in": "items"
+          },
+          {
+            "id": "e69",
+            "from": "n57",
+            "out": "rest",
+            "to": "n58",
+            "in": "items"
+          },
+          {
+            "id": "e70",
+            "from": "n53",
+            "out": "entities",
+            "to": "n60",
+            "in": "items"
+          },
+          {
+            "id": "e71",
+            "from": "n59",
+            "out": "entities",
+            "to": "n60",
+            "in": "items"
+          },
+          {
+            "id": "e72",
+            "from": "n57",
+            "out": "chosen",
+            "to": "n60",
+            "in": "left"
+          },
+          {
+            "id": "e73",
+            "from": "n57",
+            "out": "rest",
+            "to": "n60",
+            "in": "right"
+          },
+          {
+            "id": "e74",
+            "from": "n60",
+            "out": "left",
+            "to": "n63",
+            "in": "left"
+          },
+          {
+            "id": "e75",
+            "from": "n60",
+            "out": "right",
+            "to": "n63",
+            "in": "right"
+          },
+          {
+            "id": "e76",
+            "from": "n57",
+            "out": "chosen",
+            "to": "n61",
+            "in": "p0"
+          },
+          {
+            "id": "e77",
+            "from": "n57",
+            "out": "rest",
+            "to": "n61",
+            "in": "p1"
+          },
+          {
+            "id": "e78",
+            "from": "n61",
+            "out": "text",
+            "to": "n62",
+            "in": "parts"
+          },
+          {
+            "id": "e79",
+            "from": "n62",
+            "out": "prompt",
+            "to": "n64",
+            "in": "prompt"
+          },
+          {
+            "id": "e80",
+            "from": "n63",
+            "out": "answer",
+            "to": "n64",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Jaki to język?",
+      "kinds": [
+        "@slowo"
+      ],
+      "direction": "jezyk:jaki-jezyk",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n81",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n82",
+            "type": "field",
+            "x": 0,
+            "y": 150,
+            "config": {
+              "key": "tekst"
+            }
+          },
+          {
+            "id": "n83",
+            "type": "entries",
+            "x": 230,
+            "y": 150,
+            "config": {
+              "kind": "@slowo",
+              "key": "tekst"
+            }
+          },
+          {
+            "id": "n84",
+            "type": "pick",
+            "x": 460,
+            "y": 300,
+            "config": {
+              "position": "first"
+            }
+          },
+          {
+            "id": "n85",
+            "type": "filter",
+            "x": 690,
+            "y": 300,
+            "config": {}
+          },
+          {
+            "id": "n86",
+            "type": "when",
+            "x": 920,
+            "y": 300,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n87",
+            "type": "field",
+            "x": 460,
+            "y": 150,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n88",
+            "type": "unique",
+            "x": 690,
+            "y": 150,
+            "config": {}
+          },
+          {
+            "id": "n93",
+            "type": "entries",
+            "x": 230,
+            "y": 450,
+            "config": {
+              "kind": "@slowo"
+            }
+          },
+          {
+            "id": "n94",
+            "type": "field",
+            "x": 460,
+            "y": 450,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n95",
+            "type": "unique",
+            "x": 690,
+            "y": 450,
+            "config": {}
+          },
+          {
+            "id": "n89",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Jaki to język: „{0}”? Zaznacz wszystkie, w których istnieje.",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n90",
+            "type": "prompt",
+            "x": 920,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n91",
+            "type": "answer.many",
+            "x": 920,
+            "y": 150,
+            "config": {}
+          },
+          {
+            "id": "n92",
+            "type": "card",
+            "x": 1150,
+            "y": 75,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e96",
+            "from": "n81",
+            "out": "entities",
+            "to": "n85",
+            "in": "items"
+          },
+          {
+            "id": "e97",
+            "from": "n82",
+            "out": "values",
+            "to": "n83",
+            "in": "like"
+          },
+          {
+            "id": "e98",
+            "from": "n83",
+            "out": "entities",
+            "to": "n84",
+            "in": "items"
+          },
+          {
+            "id": "e99",
+            "from": "n84",
+            "out": "chosen",
+            "to": "n85",
+            "in": "like"
+          },
+          {
+            "id": "e100",
+            "from": "n85",
+            "out": "kept",
+            "to": "n86",
+            "in": "items"
+          },
+          {
+            "id": "e101",
+            "from": "n83",
+            "out": "entities",
+            "to": "n87",
+            "in": "of"
+          },
+          {
+            "id": "e102",
+            "from": "n87",
+            "out": "values",
+            "to": "n88",
+            "in": "items"
+          },
+          {
+            "id": "e103",
+            "from": "n88",
+            "out": "items",
+            "to": "n91",
+            "in": "expected"
+          },
+          {
+            "id": "e104",
+            "from": "n93",
+            "out": "entities",
+            "to": "n94",
+            "in": "of"
+          },
+          {
+            "id": "e105",
+            "from": "n94",
+            "out": "values",
+            "to": "n95",
+            "in": "items"
+          },
+          {
+            "id": "e106",
+            "from": "n95",
+            "out": "items",
+            "to": "n91",
+            "in": "distractors"
+          },
+          {
+            "id": "e107",
+            "from": "n82",
+            "out": "values",
+            "to": "n89",
+            "in": "p0"
+          },
+          {
+            "id": "e108",
+            "from": "n89",
+            "out": "text",
+            "to": "n90",
+            "in": "parts"
+          },
+          {
+            "id": "e109",
+            "from": "n90",
+            "out": "prompt",
+            "to": "n92",
+            "in": "prompt"
+          },
+          {
+            "id": "e110",
+            "from": "n91",
+            "out": "answer",
+            "to": "n92",
+            "in": "answer"
+          },
+          {
+            "id": "e111",
+            "from": "n83",
+            "out": "entities",
+            "to": "n92",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Przetłumacz słowo",
+      "kinds": [
+        "@slowo"
+      ],
+      "direction": "slowa:wpisz",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n112",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n113",
+            "type": "field",
+            "x": 0,
+            "y": 150,
+            "config": {
+              "key": "tekst"
+            }
+          },
+          {
+            "id": "n114",
+            "type": "field",
+            "x": 0,
+            "y": 300,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n115",
+            "type": "entries",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "kind": "@tlumaczenie",
+              "key": "slowa"
+            }
+          },
+          {
+            "id": "n116",
+            "type": "field",
+            "x": 460,
+            "y": 0,
+            "config": {
+              "key": "slowa"
+            }
+          },
+          {
+            "id": "n117",
+            "type": "filter",
+            "x": 690,
+            "y": 0,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n118",
+            "type": "field",
+            "x": 920,
+            "y": 150,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n119",
+            "type": "unique",
+            "x": 1150,
+            "y": 150,
+            "config": {}
+          },
+          {
+            "id": "n120",
+            "type": "each",
+            "x": 1380,
+            "y": 150,
+            "config": {}
+          },
+          {
+            "id": "n121",
+            "type": "filter",
+            "x": 1610,
+            "y": 150,
+            "config": {
+              "key": "jezyk"
+            }
+          },
+          {
+            "id": "n122",
+            "type": "pattern",
+            "x": 1610,
+            "y": 0,
+            "config": {
+              "text": "{0} ({1}) → {2}",
+              "inputs": 3
+            }
+          },
+          {
+            "id": "n123",
+            "type": "prompt",
+            "x": 1840,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n124",
+            "type": "answer.text",
+            "x": 1840,
+            "y": 150,
+            "config": {}
+          },
+          {
+            "id": "n125",
+            "type": "card",
+            "x": 2070,
+            "y": 75,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e126",
+            "from": "n112",
+            "out": "entities",
+            "to": "n115",
+            "in": "like"
+          },
+          {
+            "id": "e127",
+            "from": "n115",
+            "out": "entities",
+            "to": "n116",
+            "in": "of"
+          },
+          {
+            "id": "e128",
+            "from": "n116",
+            "out": "values",
+            "to": "n117",
+            "in": "items"
+          },
+          {
+            "id": "e129",
+            "from": "n114",
+            "out": "values",
+            "to": "n117",
+            "in": "like"
+          },
+          {
+            "id": "e130",
+            "from": "n117",
+            "out": "rest",
+            "to": "n118",
+            "in": "of"
+          },
+          {
+            "id": "e131",
+            "from": "n118",
+            "out": "values",
+            "to": "n119",
+            "in": "items"
+          },
+          {
+            "id": "e132",
+            "from": "n119",
+            "out": "items",
+            "to": "n120",
+            "in": "items"
+          },
+          {
+            "id": "e133",
+            "from": "n117",
+            "out": "rest",
+            "to": "n121",
+            "in": "items"
+          },
+          {
+            "id": "e134",
+            "from": "n120",
+            "out": "item",
+            "to": "n121",
+            "in": "like"
+          },
+          {
+            "id": "e135",
+            "from": "n121",
+            "out": "kept",
+            "to": "n124",
+            "in": "expected"
+          },
+          {
+            "id": "e136",
+            "from": "n113",
+            "out": "values",
+            "to": "n122",
+            "in": "p0"
+          },
+          {
+            "id": "e137",
+            "from": "n114",
+            "out": "values",
+            "to": "n122",
+            "in": "p1"
+          },
+          {
+            "id": "e138",
+            "from": "n120",
+            "out": "item",
+            "to": "n122",
+            "in": "p2"
+          },
+          {
+            "id": "e139",
+            "from": "n122",
+            "out": "text",
+            "to": "n123",
+            "in": "parts"
+          },
+          {
+            "id": "e140",
+            "from": "n123",
+            "out": "prompt",
+            "to": "n125",
+            "in": "prompt"
+          },
+          {
+            "id": "e141",
+            "from": "n124",
+            "out": "answer",
+            "to": "n125",
+            "in": "answer"
+          },
+          {
+            "id": "e142",
+            "from": "n115",
+            "out": "entities",
+            "to": "n125",
+            "in": "explain"
+          }
+        ]
+      }
+    }
+  ]
+}

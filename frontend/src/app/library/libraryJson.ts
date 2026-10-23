@@ -25,7 +25,7 @@
  */
 
 import { newId } from '../core/ids';
-import { blockData, blockOf, type CommentBlock, type Run } from './comment';
+import { blockData, blockOf, type CommentBlock, type Run } from './blocks';
 import { isUuid } from './library';
 import { mapRefTokens } from './libraryMarkup';
 import { kindOf, LIBRARY_KINDS, outline, slug, type EntryData, type LibEntry, type LibField, type LibKind, ALIASES, aliasesOf, mapMarkups, shownMarkup, type Lookup } from './libraryKinds';

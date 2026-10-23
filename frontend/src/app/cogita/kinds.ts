@@ -1,18 +1,28 @@
 /**
  * COGITA — DAS SCHEMA EINER BIBLIOTHEK, wie es in ihr liegt (COGITA.md §2.2).
  *
- * <b>Die sechs eingebauten Arten sind der Anfang</b> [B1]: Osoba, Źródło,
- * Cytat, Temat, Tekst, Projekt — aus `libraryKinds.ts`, dort weiter mit
- * Fussnoten, Veröffentlichung, ISBN und LaTeX. Hier werden sie zu Arten wie
- * jede andere: mit Feldern, einem Muster für das Etikett und ROLLEN, an denen
- * die eingebauten Werkzeuge ihre Felder erkennen. Wer sie ändert (eine
- * Beschriftung, ein Feld mehr), legt einen Eintrag der Art `kind` mit
- * `builtin` an; die Felder der eingebauten Art bleiben dabei immer, weil die
- * Werkzeuge der Bibliothek sie brauchen.
+ * <b>2026-10-23 — KEINE EINGEBAUTEN INHALTE.</b> Was eine Baza an Rodzajen hat,
+ * schreibt ihr Besitzer (oder holt er als Vorlage: `templates/cogita/*.json` —
+ * Komentarz, Słownik, Psałterz). Eingebaut bleibt nur, was der Motor braucht,
+ * und was eine Baza aus den anderen Teilen LESEN muss:
  *
- * <b>Die Systemarten des Motors</b> [C1]: `knowledge` (ein Satz Wissen in
- * Auszeichnung), `question` (eine von Hand geschriebene Frage) — und `topic`
- * und `text` sind die eingebauten, mit den Feldern, die das Wissen braucht.
+ * <code>
+ *   question                 eine von Hand geschriebene Frage — Karten, Sitzungen,
+ *                            Abläufe und Vorschläge stellen sie (bleibt eingebaut)
+ *   work · quote · person    die Quellen der Bibliothek: Verweise, Szablony und
+ *                            Powtórki über Bibliotheken lesen ihre Felder
+ *   text · delivery · project  die Texte des Skryptorium (als Quelle einer Baza)
+ *   topic                    nur noch bis Schritt 5 (Themen fallen ganz weg)
+ * </code>
+ *
+ * `knowledge` (ein Satz Wissen) und der Komentarz der Bibliothek sind fort:
+ * eine Aussage ist jetzt jeder Eintrag eines Rodzaj mit Feld `blocks`
+ * (`statements.ts`). Alte Einträge der Art `knowledge` stehen unter „Stare wpisy".
+ *
+ * Die Arten der anderen Teile kommen aus `libraryKinds.ts`; hier werden sie zu
+ * Arten wie jede andere: mit Feldern, einem Muster für das Etikett und ROLLEN,
+ * an denen die eingebauten Werkzeuge ihre Felder erkennen. Wer sie ändert,
+ * legt einen Eintrag der Art `kind` mit `builtin` an; ihre Felder bleiben.
  *
  * <b>Wie es gespeichert liegt</b> (was der Dienst sieht [B20]):
  *
@@ -35,6 +45,9 @@ import { QUANTITY_KINDS } from '../core/quantities';
 
 /** Die Art im Klartext für jeden Eintrag, der keine eingebaute ist. */
 export const ENTITY = 'entity';
+
+/** 2026-10-23 — der frühere eingebaute „Wiedza": kein Rodzaj mehr, nur noch das Merkmal alter Einträge. */
+export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
 export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform'] as const;
@@ -67,7 +80,7 @@ const TYPE_OF: Record<LibFieldType, FieldType> = {
   items: 'list',
   /* 2026-10-23 — die Felder eines Rodzaj tekstu (Skryptorium); keine eingebaute Art von Nauka hat sie. */
   fields: 'list',
-  /* 2026-10-22 — die Bausteine eines Komentarza: hier nur zum Lesen, für Szablony lesbar (`blocks`, Schritt 6). */
+  /* 2026-10-22 — Bausteine (`blocks`): seit 2026-10-23 ein Feldtyp von Nauka wie jeder andere. */
   blocks: 'blocks'
 };
 
@@ -94,9 +107,7 @@ const PATTERNS: Record<string, { label: string; tells?: string }> = {
   topic: { label: '{name}', tells: 'parent' },
   text: { label: '{title}', tells: 'date' },
   project: { label: '{title}', tells: 'projectType' },
-  delivery: { label: '{date} {occasion}', tells: 'place' },
-  /* 2026-10-22 — ein Komentarz heisst nach seiner Teza (dem ersten Satz). */
-  comment: { label: '{blocks}' }
+  delivery: { label: '{date} {occasion}', tells: 'place' }
 };
 
 const field = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef =>
@@ -108,7 +119,7 @@ const field = (key: string, label: string, type: FieldType, more: Partial<FieldD
  * zusätzlich zu Name, Beschreibung und Oberthema der Bibliothek.
  */
 const TOPIC_MORE: readonly FieldDef[] = [
-  field('answers', 'Odpowiedzi', 'ref', { multi: true, to: ['comment', 'knowledge', 'text', 'quote'], inverse: 'odpowiada na', says: 'Komentarze, teksty i cytaty, które odpowiadają na ten temat (pytanie)' }),
+  field('answers', 'Odpowiedzi', 'ref', { multi: true, to: ['text', 'quote'], inverse: 'odpowiada na', says: 'Teksty, cytaty i wypowiedzi, które odpowiadają na ten temat (pytanie)' }),
   field('entity', 'Dotyczy', 'ref', { inverse: 'tematy', says: 'Wpis, o którym jest ten temat (np. osoba)' }),
   field('level', 'Głębokość', 'number', { says: 'Jak głęboko sięga (1 — podstawy, 2, 3 … — dalej)' }),
   field('landmark', 'Próg', 'bool', { says: 'Pojęcie progowe: bez niego dalej się nie da (tak/nie)' }),
@@ -144,22 +155,6 @@ function builtin(id: string): KindDef {
     ...(id === 'topic' ? { system: 'topic' as const } : id === 'text' ? { system: 'text' as const } : {})
   };
 }
-
-/** Ein Satz Wissen [C3, C8]: Auszeichnung mit Verweisen `[[Księgi Samuela|@samuel]]`, Perspektiven, Quelle. */
-export const KNOWLEDGE: KindDef = {
-  id: 'knowledge',
-  name: 'Wiedza',
-  label: '{text}',
-  tells: 'tags',
-  system: 'knowledge',
-  fields: [
-    field('text', 'Stwierdzenie', 'markup', { role: 'text', says: 'Jedno stwierdzenie; słowa mogą wskazywać wpisy: [[Księgi Samuela|@samuel]]' }),
-    field('tags', 'Perspektywy', 'list', { says: 'Perspektywy z listy bazy wiedzy (np. historyczna, duchowa)' }),
-    field('about', 'O czym', 'ref', { multi: true, inverse: 'wiedza', says: 'Wpisy, których dotyczy (poza tymi w tekście)' }),
-    field('source', 'Źródło', 'ref', { to: ['work'], role: 'work', says: 'Dzieło, z którego pochodzi — odwołanie' }),
-    field('locator', 'Miejsce w źródle', 'line', { role: 'locator', says: 'Gdzie w źródle: "s. 23", "J 3,16"' })
-  ]
-};
 
 /** Eine von Hand geschriebene Frage [C4, D1] — die Felder, die `questionCard` liest. */
 export const QUESTION: KindDef = {
@@ -203,15 +198,14 @@ export const QUESTION: KindDef = {
     field('drawing', 'Rysunek (JSON)', 'text', { says: 'Rysunek do poruszania — ten sam JSON co w module „Animacja” strony: vars, sim, controls, rules (z "goal": true — cel), world (rzeczy do budowania, np. waga), elements (interactive)' }),
     field('goal', 'Cel (wyrażenie)', 'line', { says: 'Kiedy odpowiedź jest dobra, np. "abs(x - cel) < 0.5 && y <= 0" — liczone w symulacji do końca; puste: reguły rysunku z "goal": true (interactive)' }),
     field('solution', 'Rozwiązanie', 'line', { says: 'Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" albo własności rzeczy "w2.pos = 5" — pokazywane po złej odpowiedzi; puste: "task.solve" rysunku (interactive)' }),
-    field('explain', 'Wyjaśnienie', 'ref', { multi: true, says: 'Wiedza i wpisy pokazywane po odpowiedzi' }),
+    field('explain', 'Wyjaśnienie', 'ref', { multi: true, says: 'Wpisy pokazywane po odpowiedzi (np. wypowiedź z treścią w blokach)' }),
     field('about', 'O czym', 'ref', { multi: true, inverse: 'pytania', says: 'Wpisy, których dotyczy pytanie' })
   ]
 };
 
 /** In dieser Reihenfolge stehen sie in Listen. */
 const BASE: readonly KindDef[] = [
-  ...['person', 'work', 'quote', 'topic', 'text', 'delivery', 'comment', 'project'].map(builtin),
-  KNOWLEDGE,
+  ...['person', 'work', 'quote', 'topic', 'text', 'delivery', 'project'].map(builtin),
   QUESTION
 ];
 
@@ -252,7 +246,8 @@ export function kindDefs(entries: Iterable<LibEntry>): KindDef[] {
     const builtinId = typeof entry.data.builtin === 'string' ? entry.data.builtin : null;
     const base = builtinId === null ? undefined : BASE_BY_ID.get(builtinId);
     if (base !== undefined) overrides.set(base.id, overridden(base, readKind(base.id, entry.data)));
-    else own.push(readKind(entry.id, entry.data));
+    /* 2026-10-23 — die Änderung eines eingebauten Rodzaj, den es nicht mehr gibt (Wiedza, Komentarz): kein eigener Rodzaj — sie steht unter „Stare wpisy". */
+    else if (builtinId === null) own.push(readKind(entry.id, entry.data));
   }
   /* Die Felder des Lernens: wo die Baza sie dazugenommen hat (eine Änderung des Themas) — oder wo Themen sie schon tragen. */
   const topic = (k: KindDef): KindDef => (!learning ? k : { ...k, fields: [...k.fields, ...TOPIC_MORE.filter((m) => !k.fields.some((f) => f.key === m.key))] });
@@ -311,7 +306,8 @@ export function fieldData(data: Readonly<Record<string, unknown>>): Record<strin
 export function entityOf(entry: LibEntry): Entity | null {
   if (entry.kind === ENTITY) {
     const kinds = strings(entry.data._kinds);
-    return { id: entry.id, kinds: kinds.length === 0 ? ['knowledge'] : kinds, data: fieldData(entry.data) };
+    /* 2026-10-23 — ein Eintrag ohne Arten war ein „Wiedza"; den Rodzaj gibt es nicht mehr (er steht unter „Stare wpisy"). */
+    return { id: entry.id, kinds: kinds.length === 0 ? [LEGACY_KNOWLEDGE] : kinds, data: fieldData(entry.data) };
   }
   if (LIBRARY_KIND_IDS.has(entry.kind)) {
     const more = strings(entry.data._kinds).filter((k) => k !== entry.kind);

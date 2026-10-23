@@ -65,7 +65,7 @@ export function lensTargets(lens: CogitaLibrary): { id: string; name: string }[]
   const out: { id: string; name: string }[] = [];
   for (const kind of lens.refKinds) {
     if (['work', 'quote', 'person'].includes(kind.id)) { out.push({ id: kind.id, name: `${kind.name} (Biblioteka)` }); continue; }
-    if (kind.system !== undefined || ['topic', 'text', 'delivery', 'comment', 'project'].includes(kind.id)) continue;
+    if (kind.system !== undefined || ['topic', 'text', 'delivery', 'project'].includes(kind.id)) continue;
     const from = lens.origin(kind.id);
     const base = from === undefined ? undefined : bases.get(from.libraryId);
     out.push({ id: kind.id, name: base === undefined ? kind.name : `${kind.name} (${base})` });

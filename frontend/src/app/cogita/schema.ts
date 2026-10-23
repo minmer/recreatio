@@ -26,15 +26,21 @@
  */
 
 import { plainText } from '../library/libraryMarkup';
-import { blocksOf, firstSentence, type CommentBlock } from '../library/comment';
+import { blocksIn, blocksTitle, type CommentBlock } from '../library/blocks';
 import { formatBible, parseBible } from '../library/bible';
 import { findUnit, fromSI, guessKind, kindById, measures, quantityText, siUnitOf, toSI, unitById, type Unit } from '../core/quantities';
 
 /* -- Wörterbücher ------------------------------------------------------------------ */
 
-export const FIELD_TYPES = ['line', 'text', 'markup', 'number', 'date', 'bool', 'choice', 'ref', 'media', 'url', 'list', 'geo', 'range'] as const;
-/** `outline` (Zarys eines Projekts) und `blocks` (die Bausteine eines Komentarza, 2026-10-22) gehören den Arten der Bibliothek — gelesen, nie angeboten. */
-export type FieldType = (typeof FIELD_TYPES)[number] | 'outline' | 'blocks';
+/*
+ * 2026-10-23 — `blocks` (Treść w blokach: Absätze, Listen, Tabellen mit echten
+ * Verweisen, `library/blocks.ts`) ist ein Typ wie jeder andere: ein Rodzaj mit
+ * einem solchen Feld ist eine AUSSAGE (Teza, Frage, Informacja/Interpretacja),
+ * etwa der Komentarz aus `templates/cogita/komentarz.json`.
+ */
+export const FIELD_TYPES = ['line', 'text', 'markup', 'blocks', 'number', 'date', 'bool', 'choice', 'ref', 'media', 'url', 'list', 'geo', 'range'] as const;
+/** `outline` (Zarys eines Projekts) gehört den Arten des Skryptorium — gelesen, nie angeboten. */
+export type FieldType = (typeof FIELD_TYPES)[number] | 'outline';
 
 export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   line: 'Wiersz tekstu',
@@ -51,7 +57,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   geo: 'Miejsce na mapie',
   range: 'Zakres z kilku odcinków',
   outline: 'Plan (nagłówki i teksty)',
-  blocks: 'Treść komentarza (akapity, listy, tabele)'
+  blocks: 'Treść w blokach (akapity, listy, tabele)'
 };
 
 /**
@@ -59,7 +65,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
  * Überschriften und Texten). Angeboten wird es nicht — gelesen schon, damit
  * der Plan eines Buches beim Umzug in das Schema nicht verloren geht.
  */
-const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outline', 'blocks']);
+const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outline']);
 
 export const VALUE_STATES = ['known', 'approximate', 'disputed', 'unknown', 'na', 'pending'] as const;
 export type ValueState = (typeof VALUE_STATES)[number];
@@ -176,7 +182,7 @@ export interface FieldDef {
  * Die Systemarten, die der Motor versteht [C1]. Sie sind fest; Felder darf
  * man ihnen trotzdem hinzufügen.
  */
-export const SYSTEM_KINDS = ['knowledge', 'text', 'topic', 'question'] as const;
+export const SYSTEM_KINDS = ['text', 'topic', 'question'] as const;
 export type SystemKind = (typeof SYSTEM_KINDS)[number];
 
 export interface KindDef {
@@ -621,7 +627,7 @@ export function readTyped(field: FieldDef, raw: unknown): FieldValue | undefined
       return range === null ? undefined : range;
     }
     case 'blocks': {
-      const blocks = blocksOf({ blocks: raw });
+      const blocks = blocksIn(raw);
       return blocks.length === 0 ? undefined : blocks;
     }
     case 'outline': {
@@ -831,11 +837,8 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'geo': return isObject(value) && 'lat' in value ? `${(value as GeoPoint).lat}, ${(value as GeoPoint).lon}` : '';
     case 'range': return isObject(value) && 'segments' in value ? rangeText(value as RangeValue, field.rangeOf ?? 'number') : '';
     case 'outline': return Array.isArray(value) ? `${value.length} poz.` : '';
-    /* Eine Aussage heisst nach ihrer Teza (dem ersten Satz). */
-    case 'blocks': {
-      const first = Array.isArray(value) ? (value as readonly CommentBlock[])[0] : undefined;
-      return first?.type === 'paragraph' ? firstSentence(first.text) : first === undefined ? '' : 'Komentarz';
-    }
+    /* Eine Aussage heisst nach ihrer Teza (dem ersten Satz) — sonst nach dem Anfang ihrer Liste oder Tabelle. */
+    case 'blocks': return blocksTitle(blocksIn(value));
   }
 }
 

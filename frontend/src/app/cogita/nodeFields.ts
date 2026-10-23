@@ -8,6 +8,7 @@ import { ANSWER_FORM_LABEL, ANSWER_FORMS } from './check';
 import { MODE_LABEL, MODES } from './revision';
 import { LEVEL_LABEL } from './knowness';
 import { QUANTITY_KINDS } from '../core/quantities';
+import { STATEMENT_KINDS } from './statements';
 
 /** 2026-10-23 (Schritt 13) — die Grössen zur Wahl (leer: nur die Zahl). */
 export const QUANTITY_OPTIONS: readonly { value: string; label: string }[] = [{ value: '', label: '— bez wielkości —' }, ...QUANTITY_KINDS.map((k) => ({ value: k.id, label: k.label }))];
@@ -108,7 +109,7 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   'source.topic': [f('topic', 'Temat', 'entity', { kinds: ['topic'] }), f('depth', 'Głębokość', 'number')],
   'source.list': [f('ids', 'Wpisy albo pytania', 'lines', { hint: 'identyfikatory, jeden w wierszu' })],
   /* 2026-10-22 (Schritt 11) — z kazania (albo innego wpisu): to, na co wskazuje. */
-  'source.from': [f('entry', 'Wpis (np. kazanie)', 'entity', { kinds: ['text', 'comment', 'project'] })],
+  'source.from': [f('entry', 'Wpis (np. kazanie)', 'entity', { kinds: ['text', 'project', STATEMENT_KINDS] })],
   filter: [f('templates', 'Tylko szablony', 'templates'), f('directions', 'Tylko kierunki', 'lines'), f('forms', 'Tylko formy', 'forms'), f('levels', 'Tylko stany', 'levels'), f('dueOnly', 'Tylko te, na które przyszła pora', 'bool')],
   /* 2026-10-22 (Schritt 9) — dieselben Schritte wie ein Widok (`selection.ts`). */
   follow: [f('field', 'Po którym polu', 'field', { hint: 'puste: po wszystkich odwołaniach' }), f('back', 'Wstecz: do tego, co wskazuje na te wpisy', 'bool')],
@@ -141,9 +142,9 @@ const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
   subflow: [f('flow', 'Przebieg', 'flow')],
   each: [f('collection', 'Zbiór', 'collection'), f('kind', 'albo rodzaj', 'kind'), f('flow', 'Przebieg dla każdego', 'flow')],
   prerequisite: [f('of', 'Co trzeba znać', 'entity'), f('threshold', 'Od jakiej znajomości', 'number')],
-  expand: [f('of', 'Pojęcie', 'entity'), f('explain', 'Wyjaśnienie (komentarz albo wiedza)', 'entity', { kinds: ['comment', 'knowledge'] }), f('threshold', 'Kto zna od', 'number')],
+  expand: [f('of', 'Pojęcie', 'entity'), f('explain', 'Wyjaśnienie (wypowiedź — treść w blokach)', 'entity', { kinds: [STATEMENT_KINDS] }), f('threshold', 'Kto zna od', 'number')],
   opening: [TITLE, f('mode', 'Otwarcie', 'select', { options: opts([['discovery', 'odkrywanie — najpierw pytanie'], ['recall', 'przypomnienie — najpierw treść']]) }), f('of', 'Czego dotyczy', 'entity')],
-  line: [f('character', 'Postać', 'entity'), f('of', 'Co mówi (komentarz albo wiedza)', 'entity', { kinds: ['comment', 'knowledge'] }), f('mood', 'Nastrój', 'text'), f('condition', 'Tylko gdy', 'condition')],
+  line: [f('character', 'Postać', 'entity'), f('of', 'Co mówi (wypowiedź — treść w blokach)', 'entity', { kinds: [STATEMENT_KINDS] }), f('mood', 'Nastrój', 'text'), f('condition', 'Tylko gdy', 'condition')],
   handoff: [f('flow', 'Do przebiegu', 'flow')],
   /* 2026-10-22 (Schritt 12) — eine Szene einer Präsentation (ihre Ausgänge kommen aus dem Storyboard). */
   scene: [TITLE, f('page', 'Strona z prezentacją (adres)', 'text'), f('scene', 'Scena (klucz)', 'text')],

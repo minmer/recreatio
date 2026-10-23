@@ -14,7 +14,7 @@ import { useCtx } from './ui';
 
 export function CogitaJson() {
   const { lib, name, writes } = useCtx();
-  const [what, setWhat] = useState<'entities' | 'knowledge' | 'questions' | 'flow' | 'schema'>('knowledge');
+  const [what, setWhat] = useState<'entities' | 'statements' | 'questions' | 'flow' | 'schema'>('statements');
   const [source, setSource] = useState('');
   const [copied, setCopied] = useState(false);
   const [flow, setFlow] = useState(lib.docs('flow')[0]?.id ?? '');
@@ -24,7 +24,7 @@ export function CogitaJson() {
     <div className="cg">
       <JsonPanel
         summary="Kurs jako JSON — eksport i import"
-        lead={<>Rodzaje, wpisy (także wiedza i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import zmienia istniejące w miejscu i dodaje nowe; niczego nie usuwa.</>}
+        lead={<>Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import zmienia istniejące w miejscu i dodaje nowe; niczego nie usuwa.</>}
         fileName={`kurs-${file}.json`}
         exportDoc={() => exportCourse(lib, name)}
         description={() => courseDescription(lib)}
@@ -63,7 +63,7 @@ export function CogitaJson() {
           <p className="wk-hint">Aplikacja nie wysyła niczego do AI. Skopiuj polecenie do własnego czatu, a odpowiedź (JSON) wklej wyżej w „Import" — zobaczysz, co powstanie, zanim cokolwiek się zapisze.</p>
           <div className="cg-row">
             <select value={what} onChange={(e) => setWhat(e.target.value as typeof what)}>
-              <option value="knowledge">wiedza (zdania z odwołaniami)</option>
+              <option value="statements">wypowiedzi (teza i treść w blokach)</option>
               <option value="entities">wpisy (osoby, miejsca, dzieła…)</option>
               <option value="questions">pytania</option>
               <option value="flow">przebieg z treścią</option>

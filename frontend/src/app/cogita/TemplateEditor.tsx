@@ -13,6 +13,7 @@ import { TEMPLATE_PALETTE } from './cardPalette';
 import { evaluate, graphJson, type Graph } from './graph';
 import { GraphEditor, type FieldKey } from './GraphEditor';
 import { presetChoice, presetField, TEMPLATE_PRESETS } from './presets';
+import { isStatementKind } from './statements';
 import { BOOK_KINDS } from './store';
 import { EntityPicker, ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
@@ -43,7 +44,7 @@ export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null
 function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
   /* Zuerst eine eigene Art, die keine der Bibliotheken ist — die Bibliotheken stehen darunter (2026-10-22: auch ihr Stoff gibt Karten). */
-  const [kind, setKind] = useState(lib.materialKinds.find((k) => !BOOK_KINDS.has(k.id) && k.id !== 'topic')?.id ?? lib.materialKinds[0]?.id ?? 'knowledge');
+  const [kind, setKind] = useState(lib.materialKinds.find((k) => !BOOK_KINDS.has(k.id) && k.id !== 'topic')?.id ?? lib.materialKinds[0]?.id ?? 'question');
   const [preset, setPreset] = useState('ask');
   const [field, setField] = useState('');
   const [second, setSecond] = useState('');
@@ -64,7 +65,7 @@ function NewTemplate({ onMade }: { onMade: (id: string) => void }) {
         </label>
         <label className="wk-field"><span>Początek</span>
           <select value={preset} onChange={(e) => { setPreset(e.target.value); setField(''); setSecond(''); setBack(''); }}>
-            {TEMPLATE_PRESETS.filter((x) => x.kinds === undefined || x.kinds.includes(kind)).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            {TEMPLATE_PRESETS.filter((x) => (x.statements === true ? isStatementKind(lib.refKinds.find((k) => k.id === kind) ?? { fields: [] }) : x.kinds === undefined || x.kinds.includes(kind))).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
             <option value="empty">Pusty graf</option>
           </select>
         </label>

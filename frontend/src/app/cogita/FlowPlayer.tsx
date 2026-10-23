@@ -314,12 +314,12 @@ function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
   );
 }
 
-/** Ein Eintrag im Ablauf: Wissen ganz, andere mit ihren Feldern und Bildern. */
+/** Ein Eintrag im Ablauf: eine Aussage ganz, andere mit ihren Feldern und Bildern. */
 export function EntityView({ entity }: { entity: PublicEntity | null }) {
   if (entity === null) return <p className="wk-hint">(tego wpisu tu nie ma)</p>;
-  /* 2026-10-22 — ein Komentarz (seine Bausteine als Zapis) wie ein Wissen: ganz. */
-  const text = entity.fields.find((f) => (f.key === 'text' && f.type === 'markup') || f.type === 'blocks');
-  if (((entity.kindIds ?? []).includes('knowledge') || (entity.kindIds ?? []).includes('comment')) && text !== undefined) return <Markup text={text.text} />;
+  /* 2026-10-22 — eine Aussage (ihre Bausteine als Zapis): ganz. 2026-10-23: jeder Eintrag mit Feld blocks. */
+  const text = entity.fields.find((f) => f.type === 'blocks');
+  if (text !== undefined) return <Markup text={text.text} />;
   return (
     <div className="cg">
       <h3>{entity.label}</h3>

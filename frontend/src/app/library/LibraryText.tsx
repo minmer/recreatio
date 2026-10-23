@@ -20,17 +20,16 @@
 
 import { originOf } from './libraryCite';
 import { str, type LibEntry, type Lookup } from './libraryKinds';
-import { CommentsOn, QuoteBody } from './markupView';
+import { QuoteBody } from './markupView';
 
-/** Ein Zitat mit Herkunft und den Komentarzen über es — in der Sammlung, in der Bibliothek. */
-export function QuoteFigure({ entry, look, full = true }: { entry: LibEntry; look: Lookup; full?: boolean }) {
+/** Ein Zitat mit Herkunft — in der Sammlung, in der Bibliothek. (2026-10-23: Komentarze über ein Zitat stehen in Nauka; „Powiązania" nennt sie.) */
+export function QuoteFigure({ entry, look }: { entry: LibEntry; look: Lookup; full?: boolean }) {
   const d = entry.data;
   return (
     <figure className="lib-quote">
       <blockquote><QuoteBody text={str(d, 'text')} /></blockquote>
       {str(d, 'translation') !== '' && <p className="lib-embed-translation">{str(d, 'translation')}</p>}
       <figcaption>— {originOf(entry, look)}</figcaption>
-      {full && <CommentsOn id={entry.id} look={look} prefix={`q${entry.id.slice(0, 8)}-`} folded />}
     </figure>
   );
 }

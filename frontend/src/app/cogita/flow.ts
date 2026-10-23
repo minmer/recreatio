@@ -63,7 +63,7 @@ export const STEP_LABEL: Record<StepType, string> = {
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
 export const STEP_SAYS: Record<StepType, string> = {
-  show: 'Pokazuje wpis, wiedzę albo temat ("of"), albo plik ("media"); "title" — nagłówek ekranu.',
+  show: 'Pokazuje wpis, wypowiedź albo temat ("of"), albo plik ("media"); "title" — nagłówek ekranu.',
   question: 'Zadaje pytanie ("of": pytanie albo klucz karty); wyjścia "right" i "wrong".',
   choice: 'Daje wybór: "options" [{"label", "condition"?}]; wyjście "o0", "o1", … dla każdej możliwości.',
   condition: 'Sprawdza warunek ("condition" — jedna logika); wyjścia "yes" i "no".',
@@ -76,7 +76,7 @@ export const STEP_SAYS: Record<StepType, string> = {
   prerequisite: 'Kto zna "of" (od progu "threshold", domyślnie 1), idzie dalej "known"; inaczej "explain".',
   expand: 'Wyjaśnia pojęcie "of" na miejscu, gdy jeszcze go nie zna; potem "next".',
   opening: 'Otwarcie ("mode": "discovery" — najpierw pytanie, "recall" — najpierw przypomnienie); "next".',
-  line: 'Postać ("character") mówi zdanie ("of": wiedza); "mood" — nastrój; "next".',
+  line: 'Postać ("character") mówi zdanie ("of": wypowiedź — wpis z polem „Treść w blokach”); "mood" — nastrój; "next".',
   handoff: 'Przekazuje do innego przebiegu ("flow") — tamten zaczyna się od początku.',
   scene: 'Scena prezentacji ("page" — adres strony, "scene" — klucz sceny, "title"); wyjście "next", przy pytaniu na scenie "right" i "wrong", przyciski "b0", "b1", … ("buttons": [{"exit", "label", "target"}]).',
   end: 'Koniec przebiegu.',

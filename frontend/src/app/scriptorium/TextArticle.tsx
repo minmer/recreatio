@@ -21,7 +21,8 @@ import { ids, ownTitle, str, textTypeName, type LibEntry, type Lookup } from '..
 import { viewPath } from '../routes';
 import { parseMarkup } from '../library/libraryMarkup';
 import { QuoteFigure } from '../library/LibraryText';
-import { Blocks, CommentCard, CommentsOn, countNotes, MarkupLinks, NoteList, Segs } from '../library/markupView';
+import { blocksKeyOf } from '../library/blocks';
+import { Blocks, countNotes, MarkupLinks, NoteList, Segs, StatementCard } from '../library/markupView';
 import { deliveriesOf, mediaFile, planOf, timeLink } from './sermon';
 import { DeliveriesSection, MediaPlayer, PlanSection } from './SermonParts';
 import { typeLines } from './textTypes';
@@ -116,7 +117,7 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
       <DeliveriesSection deliveries={deliveries} chosen={chosen} onChoose={choose} plan={plan.map((p) => p.point)} look={look} prefix={prefix} media={media} />
 
       {plan.length > 0 && (
-        <PlanSection textId={entry.id} points={plan} look={look} notes={notes} prefix={prefix} delivery={chosen} onSeek={playable || linkable !== undefined ? seek : undefined} />
+        <PlanSection points={plan} look={look} notes={notes} prefix={prefix} delivery={chosen} onSeek={playable || linkable !== undefined ? seek : undefined} />
       )}
 
       {plan.length > 0 && body.length > 0 ? (
@@ -135,8 +136,6 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
 
       <NoteList notes={notes} prefix={prefix} />
 
-      {!compact && <CommentsOn id={entry.id} point="" look={look} prefix={`${prefix}tc-`} title="Komentarze do tekstu" folded />}
-
       {!compact && sources.length > 0 && (
         <section className="lib-sources">
           <h3 className="lib-section">Źródła</h3>
@@ -144,7 +143,6 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
             {sources.map(({ work, segs }) => (
               <li key={work.id}>
                 <Segs segs={segs} />
-                <CommentsOn id={work.id} look={look} prefix={`${prefix}w${work.id.slice(0, 8)}-`} folded />
               </li>
             ))}
           </ul>
@@ -165,14 +163,16 @@ export function TextArticle({ entry, look, prefix = '', heading = 'h2', hrefOf, 
  */
 export function OpenedEntry({ entry, look, prefix, onClose }: { entry: LibEntry; look: Lookup; prefix: string; onClose: () => void }) {
   const said = str(entry.data, 'description') || str(entry.data, 'summary') || str(entry.data, 'note');
+  /* 2026-10-23 — eine Aussage: jeder Eintrag, dessen Rodzaj ein Feld blocks hat (z. B. ein Komentarz in Nauka). */
+  const statement = blocksKeyOf(entry, look) !== null;
   return (
     <aside className="lib-opened" aria-label={ownTitle(entry, look)}>
       <p className="lib-opened-bar">
-        <span className="lib-section">{entry.kind === 'comment' ? 'Komentarz' : entry.kind === 'text' ? 'Tekst' : entry.kind === 'quote' ? 'Cytat' : 'Wpis'}</span>
+        <span className="lib-section">{statement ? 'Wypowiedź' : entry.kind === 'text' ? 'Tekst' : entry.kind === 'quote' ? 'Cytat' : 'Wpis'}</span>
         <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
       </p>
       {entry.kind === 'text' ? <TextArticle entry={entry} look={look} prefix={prefix} heading="h3" compact />
-        : entry.kind === 'comment' ? <CommentCard comment={entry} look={look} prefix={prefix} about />
+        : statement ? <StatementCard entry={entry} look={look} prefix={prefix} about />
         : entry.kind === 'quote' ? <QuoteFigure entry={entry} look={look} />
         : entry.kind === 'entity' ? <BaseEntry entry={entry} look={look} />
         : (

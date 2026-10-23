@@ -13,7 +13,7 @@
  * Bibliothek — der, aus der der Widok schöpft, oder der, die das Thema hält.
  */
 
-import { itemsOf, type EntryData } from '../library/libraryKinds';
+import { itemsOf, WRITING_KINDS, type EntryData } from '../library/libraryKinds';
 import type { LibraryStore } from '../library/libraryStore';
 import { newPointId } from '../scriptorium/sermon';
 import type { Group, Grouping } from './selection';
@@ -57,21 +57,23 @@ const storeIn = (lib: CogitaLibrary, libraryId: string | undefined): LibraryStor
 
 /**
  * EIN NEUER EINTRAG MIT ZUSAMMENHANG. Eine Art der Baza: hier, die Themen im
- * ersten Verweisfeld auf Tematy. Eine Art der Bibliothek: in der Bibliothek der
- * Quelle („Skąd"), sonst in der, die das erste Thema hält, sonst in der ersten.
+ * ersten Verweisfeld auf Tematy. Eine Art der Bibliothek (Quellen) oder des
+ * Skryptorium (Texte): dort, in der Quelle des Widoku („Skąd"), sonst in der,
+ * die das erste Thema hält, sonst in der ersten dieser Art.
+ * 2026-10-23 — ein Komentarz ist ein Rodzaj dieser Baza (Feld `blocks`), keine Art der Bibliothek mehr.
  */
 export async function createHere(lib: CogitaLibrary, view: ViewDoc, here: HereContext): Promise<{ libraryId: string; id: string; inLibrary: boolean }> {
   const kindId = here.kind ?? kindOfView(view);
   if (kindId === null) throw new Error('Ten widok nie ma jednego rodzaju — wybierz rodzaj w „Wybór i grupy".');
   if (BOOK_KINDS.has(kindId)) {
     const from = view.steps.find((s) => s.type === 'source.kind' && s.config.kind === kindId)?.config.from;
-    const books = lib.sourceList().filter((s) => s.kind === 'books');
+    const home = WRITING_KINDS.some((k) => k.kind === kindId) ? 'writing' : 'books';
+    const books = lib.sourceList().filter((s) => s.kind === home);
     const target = typeof from === 'string' && from !== '' ? from
       : here.topics.map((t) => lib.origin(t)?.libraryId).find((id) => books.some((b) => b.store.libraryId === id)) ?? books[0]?.store.libraryId;
     const store = storeIn(lib, target);
-    if (store === undefined || target === undefined) throw new Error('Ta baza nie korzysta z żadnej biblioteki — dodaj ją w Ustawieniach (Źródła).');
-    const data: EntryData = kindId === 'comment' ? { blocks: [], subjects: [], topics: [...here.topics], ...here.fields }
-      : kindId === 'text' ? { title: 'Nowy tekst', topics: [...here.topics], ...here.fields }
+    if (store === undefined || target === undefined) throw new Error(home === 'writing' ? 'Ta baza nie korzysta z żadnego skryptorium — dodaj je w Ustawieniach (Źródła).' : 'Ta baza nie korzysta z żadnej biblioteki — dodaj ją w Ustawieniach (Źródła).');
+    const data: EntryData = kindId === 'text' ? { title: 'Nowy tekst', topics: [...here.topics], ...here.fields }
       : { topics: [...here.topics], ...here.fields };
     const saved = await store.save({ kind: kindId, data });
     return { libraryId: target, id: saved.id, inLibrary: true };
@@ -95,7 +97,7 @@ export function pointFor(kind: string | undefined, id: string, label: string): {
 export async function addToPlan(lib: CogitaLibrary, textId: string, ids: readonly string[]): Promise<number> {
   const store = storeIn(lib, lib.origin(textId)?.libraryId);
   const text = store?.get(textId);
-  if (store === undefined || text === undefined || text.kind !== 'text') throw new Error('Nie ma takiego tekstu w bibliotekach tej bazy.');
+  if (store === undefined || text === undefined || text.kind !== 'text') throw new Error('Nie ma takiego tekstu w skryptoriach tej bazy.');
   const plan = itemsOf(text.data, 'plan');
   const taken = new Set(plan.map((p) => String(p.id ?? '')));
   const points = ids.map((id) => {

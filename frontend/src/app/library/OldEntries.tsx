@@ -8,43 +8,26 @@
 import { useMemo } from 'react';
 
 import { PickBar, PickBox, usePicked } from './EntryPick';
-import { str, type LibEntry } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
+import { oldKindLabel, oldTitle } from './oldKinds';
 
-/** Jak nazywały się rodzaje, których już nie ma. */
-const OLD_KINDS: Readonly<Record<string, string>> = {
-  text: 'Tekst', delivery: 'Wygłoszenie', project: 'Projekt', comment: 'Komentarz', topic: 'Temat', knowledge: 'Wiedza', texttype: 'Rodzaj tekstu'
-};
+export { oldKindLabel, oldTitle } from './oldKinds';
 
-export const oldKindLabel = (kind: string): string => OLD_KINDS[kind] ?? kind;
+/**
+ * Wpisy tej biblioteki, których rodzaju ta wersja nie zna. `known` dostaje
+ * rodzaj wpisu i sam wpis (w Nauce rozstrzygają jego rodzaje w `_kinds`).
+ */
+export const oldEntriesOf = (store: LibraryStore, known: (kind: string, entry: Entry) => boolean): Entry[] =>
+  store.all().filter((e) => !known(e.kind, e));
 
-/** Nazwa starego wpisu — z tego, co ma w danych. */
-export function oldTitle(entry: LibEntry): string {
-  const clip = (value: string) => (value.length > 90 ? `${value.slice(0, 89)}…` : value);
-  for (const key of ['title', 'name', 'nazwa', 'text', 'tekst', 'occasion', 'date']) {
-    const value = str(entry.data, key).replace(/\s+/g, ' ').trim();
-    if (value !== '') return clip(value);
-  }
-  /* Ein alter Komentarz: der erste Absatz seiner Bausteine. */
-  const blocks = Array.isArray(entry.data.blocks) ? entry.data.blocks : [];
-  for (const block of blocks) {
-    const text = typeof block === 'object' && block !== null && typeof (block as { text?: unknown }).text === 'string' ? (block as { text: string }).text : '';
-    const plain = text.replace(/\[@[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
-    if (plain !== '') return clip(plain);
-  }
-  return '(bez nazwy)';
-}
-
-/** Wpisy tej biblioteki, których rodzaju ta wersja nie zna. */
-export const oldEntriesOf = (store: LibraryStore, known: (kind: string) => boolean): Entry[] =>
-  store.all().filter((e) => !known(e.kind));
-
-export function OldEntries({ store, known, writes, where }: {
+export function OldEntries({ store, known, writes, where, labelOf }: {
   store: LibraryStore;
-  known: (kind: string) => boolean;
+  known: (kind: string, entry: Entry) => boolean;
   writes: boolean;
   /** Gdzie te treści są teraz (zdanie pod nagłówkiem). */
   where: string;
+  /** Jak nazwać rodzaj starego wpisu (domyślnie: po jego rodzaju w bibliotece). */
+  labelOf?: (entry: Entry) => string;
 }) {
   const { picked, toggle, set } = usePicked();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +43,7 @@ export function OldEntries({ store, known, writes, where }: {
             <li key={entry.id} className="has-pick">
               {writes && <PickBox checked={picked.has(entry.id)} label={oldTitle(entry)} onToggle={() => toggle(entry.id)} />}
               <span className="lib-row">
-                <span className="lib-row-title">{oldTitle(entry)} <span className="lib-badge is-implicit">{oldKindLabel(entry.kind)}</span></span>
+                <span className="lib-row-title">{oldTitle(entry)} <span className="lib-badge is-implicit">{labelOf === undefined ? oldKindLabel(entry.kind) : labelOf(entry)}</span></span>
                 <span className="lib-row-meta">zmieniony {entry.updatedAt.slice(0, 10)}</span>
               </span>
             </li>

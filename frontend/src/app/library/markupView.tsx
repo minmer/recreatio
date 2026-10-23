@@ -9,7 +9,8 @@
 
 import { createContext, Fragment, useContext, useMemo, type MouseEvent, type ReactNode } from 'react';
 
-import { blocksOf, commentsAbout, isQuestion, statementRole, statementTokens, subjectsOf, thesisProblem, THESIS_LIMIT } from './comment';
+import { blocksKeyOf, blocksOf, THESIS_LIMIT } from './blocks';
+import { aboutLine, answersTo, statementOf, statementRole } from './statement';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
@@ -86,19 +87,20 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup): 
   const works: LibEntry[] = [];
   const state: CiteState = newCiteState();
 
-  /* 2026-10-22 — ein eingebetteter Komentarz zählt mit, wo er steht; einer, der sich selbst (über andere) einbettet, nur einmal. */
+  /* 2026-10-22 — eine eingebettete Aussage zählt mit, wo sie steht; eine, die sich selbst (über andere) einbettet, nur einmal. 2026-10-23: jeder Eintrag mit Feld blocks. */
   const onBlock = (path: ReadonlySet<string>) => (b: Block) => {
     if (b.t !== 'embed') return;
     const target = refTarget(look, b.key);
-    if (target?.kind === 'comment') {
-      if (!path.has(target.id)) walkComment(target, new Set([...path, target.id]));
+    const key = target === undefined ? null : blocksKeyOf(target, look);
+    if (target !== undefined && key !== null) {
+      if (!path.has(target.id)) walkStatement(target, key, new Set([...path, target.id]));
       return;
     }
     const work = workBehind(target, look);
     if (work !== undefined) works.push(work);
   };
-  const walkComment = (comment: LibEntry, path: ReadonlySet<string>) => {
-    for (const block of parsedComment(comment)) {
+  const walkStatement = (entry: LibEntry, key: string, path: ReadonlySet<string>) => {
+    for (const block of parsedStatement(entry, key)) {
       if (block.type === 'paragraph') { walkBlocks(block.blocks, onBlock(path), onInline); continue; }
       for (const run of (block.type === 'table' ? block.rows.flat() : block.items).flat()) {
         if (run.t === 'text') walkInline(run.c, onInline);
@@ -135,7 +137,7 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup): 
   return { numbers, list, works };
 }
 
-/* -- Komentarze (2026-10-22) --------------------------------------------------------------- */
+/* -- Aussagen (2026-10-22; seit 2026-10-23 jeder Eintrag mit Feld `blocks`) ------------------------ */
 
 type ParsedRun = { readonly t: 'text'; readonly c: readonly Inline[] } | { readonly t: 'ref'; readonly ref: string; readonly locator: string };
 type ParsedBlock =
@@ -144,19 +146,22 @@ type ParsedBlock =
   | { readonly type: 'table'; readonly columns: readonly string[]; readonly rows: readonly (readonly (readonly ParsedRun[])[])[] };
 
 /* Gelesen EINMAL je Fassung: die Fussnoten hängen an genau diesen Bäumen (Zählen und Zeichnen sehen dieselben). */
-const parsed = new WeakMap<LibEntry, ParsedBlock[]>();
+const parsed = new WeakMap<LibEntry, { key: string; blocks: ParsedBlock[] }>();
 
-function parsedComment(comment: LibEntry): ParsedBlock[] {
-  let found = parsed.get(comment);
-  if (found === undefined) {
+function parsedStatement(entry: LibEntry, key: string): ParsedBlock[] {
+  let found = parsed.get(entry);
+  if (found === undefined || found.key !== key) {
     const cell = (runs: readonly ({ text: string } | { ref: string; locator?: string })[]): ParsedRun[] =>
       runs.map((run) => ('ref' in run ? { t: 'ref', ref: run.ref, locator: run.locator ?? '' } : { t: 'text', c: parseInline(run.text) }));
-    found = blocksOf(comment.data).map((block): ParsedBlock => (block.type === 'paragraph' ? { type: 'paragraph', blocks: parseMarkup(block.text) }
-      : block.type === 'table' ? { type: 'table', columns: block.columns, rows: block.rows.map((row) => row.map(cell)) }
-      : { type: block.type, items: block.items.map(cell) }));
-    parsed.set(comment, found);
+    found = {
+      key,
+      blocks: blocksOf(entry.data, key).map((block): ParsedBlock => (block.type === 'paragraph' ? { type: 'paragraph', blocks: parseMarkup(block.text) }
+        : block.type === 'table' ? { type: 'table', columns: block.columns, rows: block.rows.map((row) => row.map(cell)) }
+        : { type: block.type, items: block.items.map(cell) }))
+    };
+    parsed.set(entry, found);
   }
-  return found;
+  return found.blocks;
 }
 
 function Runs({ runs, look, notes, prefix }: { runs: readonly ParsedRun[]; look: Lookup; notes: Notes | null; prefix: string }) {
@@ -173,14 +178,16 @@ function Runs({ runs, look, notes, prefix }: { runs: readonly ParsedRun[]; look:
   );
 }
 
-/** Die Bausteine eines Komentarza: Absätze, Listen, eine Tabelle. `path`: wer schon eingebettet ist (gegen Kreise). */
-export function CommentBody({ comment, look, notes, prefix, path = new Set() }: {
-  comment: LibEntry; look: Lookup; notes: Notes | null; prefix: string; path?: ReadonlySet<string>;
+/** Die Bausteine einer Aussage: Absätze, Listen, eine Tabelle. `path`: wer schon eingebettet ist (gegen Kreise). */
+export function StatementBody({ entry, look, notes, prefix, path = new Set() }: {
+  entry: LibEntry; look: Lookup; notes: Notes | null; prefix: string; path?: ReadonlySet<string>;
 }) {
-  const inner = new Set([...path, comment.id]);
+  const key = blocksKeyOf(entry, look);
+  if (key === null) return null;
+  const inner = new Set([...path, entry.id]);
   return (
     <>
-      {parsedComment(comment).map((block, i) => {
+      {parsedStatement(entry, key).map((block, i) => {
         if (block.type === 'paragraph') return <Blocks key={i} blocks={block.blocks} look={look} notes={notes} prefix={prefix} path={inner} />;
         if (block.type === 'table') {
           return (
@@ -199,87 +206,51 @@ export function CommentBody({ comment, look, notes, prefix, path = new Set() }: 
   );
 }
 
-/** Worüber ein Komentarz ist — „o: Łk 1,35; Dz 1,8". */
-export function aboutLine(comment: LibEntry, look: Lookup): string {
-  return subjectsOf(comment.data).map((s) => refLabel(s.ref, s.locator, look)).join('; ');
-}
-
-/** Die Komentarze über einen Eintrag (und einen Punkt seines Plans), soweit dieser Leser sie lesen darf. */
-export function commentsOn(id: string, look: Lookup, point?: string): LibEntry[] {
-  return commentsAbout(id, look.readable?.() ?? [], point);
-}
-
 /**
- * 2026-10-22 — WAS EINE AUSSAGE IST, GERECHNET (`comment.ts`): Informacja oder
- * Interpretacja, eine Frage (offen oder beantwortet — beantwortet, sobald eine
- * andere lesbare Aussage auf sie zeigt); für den, der schreibt (`author`),
- * dazu eine Teza, die fehlt oder zu lang ist.
+ * 2026-10-22 — WAS EINE AUSSAGE IST, GERECHNET (`statement.ts`): Informacja
+ * oder Interpretacja, eine Frage (offen oder beantwortet — beantwortet, sobald
+ * eine andere lesbare Aussage auf sie zeigt); für den, der schreibt
+ * (`author`), dazu eine Teza, die fehlt oder zu lang ist.
  */
-export function StatementMarks({ comment, look, author = false }: { comment: LibEntry; look: Lookup; author?: boolean }) {
-  const kindOf = (token: string) => refTarget(look, token)?.kind;
-  const role = statementRole(comment.data, kindOf);
-  const question = isQuestion(comment.data);
-  const answered = question && (look.readable?.() ?? []).some((e) => e.id !== comment.id && e.kind === 'comment'
-    && statementTokens(e.data).some((t) => refTarget(look, t)?.id === comment.id));
-  const problem = author ? thesisProblem(comment.data) : null;
+export function StatementMarks({ entry, look, author = false }: { entry: LibEntry; look: Lookup; author?: boolean }) {
+  const statement = statementOf(entry, look);
+  if (statement === null) return null;
+  const role = statementRole(entry, look);
+  const answered = statement.question && answersTo(entry, look).length > 0;
+  const problem = author ? statement.problem : null;
   return (
     <p className="lib-stmts">
       <span className={`lib-stmt ${role === 'information' ? 'is-info' : 'is-interp'}`}
-        title={role === 'information' ? 'Zdaje sprawę ze źródła: cytuje dzieło, cytat albo osobę i nie opiera się na innym komentarzu.' : 'Własna myśl, porównanie albo synteza — nie samo źródło.'}>
+        title={role === 'information' ? 'Zdaje sprawę ze źródła: wskazuje dzieło, cytat albo osobę z Biblioteki i nie opiera się na innej wypowiedzi.' : 'Własna myśl, porównanie albo synteza — opiera się na innej wypowiedzi albo nie wskazuje żadnego źródła.'}>
         {role === 'information' ? 'Informacja' : 'Interpretacja'}
       </span>
-      {question && <span className={`lib-stmt is-question${answered ? '' : ' is-open'}`}>{answered ? 'Pytanie — jest odpowiedź' : 'Pytanie otwarte'}</span>}
-      {problem === 'missing' && <span className="lib-stmt is-warn">Brak tezy: komentarz nie zaczyna się od zdania</span>}
+      {statement.question && <span className={`lib-stmt is-question${answered ? '' : ' is-open'}`}>{answered ? 'Pytanie — jest odpowiedź' : 'Pytanie otwarte'}</span>}
+      {problem === 'missing' && <span className="lib-stmt is-warn">Brak tezy: treść nie zaczyna się od zdania</span>}
       {problem === 'long' && <span className="lib-stmt is-warn">Teza dłuższa niż {THESIS_LIMIT} znaków</span>}
     </p>
   );
 }
 
 /**
- * EIN KOMENTARZ FÜR SICH — unter einem Zitat, einem Werk, einem Punkt des
- * Plans: mit eigenen Fussnoten (eigener Präfix), damit er die Zählung des
- * Textes nicht stört.
+ * EINE AUSSAGE FÜR SICH — mit eigenen Fussnoten (eigener Präfix), damit sie
+ * die Zählung eines Textes nicht stört; `about`: worüber sie ist.
  */
-export function CommentCard({ comment, look, prefix, about = false }: { comment: LibEntry; look: Lookup; prefix: string; about?: boolean }) {
-  const own = `${prefix}c${comment.id.slice(0, 8)}-`;
+export function StatementCard({ entry, look, prefix, about = false }: { entry: LibEntry; look: Lookup; prefix: string; about?: boolean }) {
+  const own = `${prefix}c${entry.id.slice(0, 8)}-`;
+  const key = blocksKeyOf(entry, look);
   const notes = useMemo(() => {
-    const blocks = parsedComment(comment).flatMap((b) => (b.type === 'paragraph' ? [b.blocks] : []));
+    const blocks = key === null ? [] : parsedStatement(entry, key).flatMap((b) => (b.type === 'paragraph' ? [b.blocks] : []));
     return countNotes(blocks, look);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comment, look, look.revision]);
+  }, [entry, key, look, look.revision]);
+  const said = about ? aboutLine(entry, look) : '';
   return (
     <aside className="lib-comment">
-      <StatementMarks comment={comment} look={look} />
-      {about && <p className="lib-comment-about">o: {aboutLine(comment, look)}</p>}
-      <CommentBody comment={comment} look={look} notes={notes} prefix={own} />
+      <StatementMarks entry={entry} look={look} />
+      {said !== '' && <p className="lib-comment-about">o: {said}</p>}
+      <StatementBody entry={entry} look={look} notes={notes} prefix={own} />
       <NoteList notes={notes} prefix={own} />
     </aside>
-  );
-}
-
-/**
- * Die Komentarze über einen Eintrag als Abschnitt — leer, wenn keiner da (oder
- * lesbar) ist. `point`: '' — nur die über den ganzen Eintrag, sonst die über
- * diesen Punkt. `folded`: zugeklappt, mit der Zahl.
- */
-export function CommentsOn({ id, look, prefix, point, title = 'Komentarze', folded = false }: {
-  id: string; look: Lookup; prefix: string; point?: string; title?: string; folded?: boolean;
-}) {
-  const found = commentsOn(id, look, point);
-  if (found.length === 0) return null;
-  if (folded) {
-    return (
-      <details className="lib-comments is-folded">
-        <summary>{title} ({found.length})</summary>
-        {found.map((c) => <CommentCard key={c.id} comment={c} look={look} prefix={prefix} />)}
-      </details>
-    );
-  }
-  return (
-    <section className="lib-comments">
-      <h4 className="lib-comments-head">{title}</h4>
-      {found.map((c) => <CommentCard key={c.id} comment={c} look={look} prefix={prefix} />)}
-    </section>
   );
 }
 
@@ -358,13 +329,14 @@ export function Blocks({ blocks, look, notes, prefix, path = new Set() }: { bloc
           case 'embed': {
             const quote = refTarget(look, b.key);
             if (quote === undefined) return <p key={i} className="lib-missing">{UNREADABLE}</p>;
-            if (quote.kind === 'comment') {
-              if (path.has(quote.id)) return <p key={i} className="lib-missing">[komentarz osadza sam siebie]</p>;
-              return <aside key={i} className="lib-comment is-embedded"><CommentBody comment={quote} look={look} notes={notes} prefix={prefix} path={path} /></aside>;
+            /* 2026-10-23 — jede Aussage (ein Eintrag mit Feld blocks, z. B. ein Komentarz): ihre Bausteine, mit Tabellen. */
+            if (blocksKeyOf(quote, look) !== null) {
+              if (path.has(quote.id)) return <p key={i} className="lib-missing">[wypowiedź osadza samą siebie]</p>;
+              return <aside key={i} className="lib-comment is-embedded"><StatementBody entry={quote} look={look} notes={notes} prefix={prefix} path={path} /></aside>;
             }
             /* 2026-10-22 (Schritt 11) — ein Widok einer Baza wiedzy: was er jetzt wählt („wszystkie psalmy jutrzni niedzielnej"). */
             if (quote.kind === 'view') return <LiveView key={i} viewId={quote.id} libraryId={(quote as { libraryId?: string }).libraryId ?? ''} />;
-            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat, komentarz ani widok.</p>;
+            if (quote.kind !== 'quote') return <p key={i} className="lib-missing">„{b.key}” to nie cytat, wypowiedź (treść w blokach) ani widok.</p>;
             const origin = originOf(quote, look);
             const where = b.locator !== '' ? b.locator : '';
             return (

@@ -1,0 +1,255 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Komentarz",
+  "kinds": [
+    {
+      "ref": "@komentarz",
+      "name": "Komentarz",
+      "label": "{content}",
+      "fields": [
+        {
+          "key": "about",
+          "label": "O czym",
+          "type": "ref",
+          "multi": true,
+          "locator": true,
+          "says": "Czego dotyczy komentarz: werset Pisma (dzieło z biblioteki i miejsce, np. „Łk 1,35”), cytat, osoba, inny wpis — dowolny rodzaj, z tej bazy, z bibliotek i baz, z których korzysta"
+        },
+        {
+          "key": "content",
+          "label": "Treść",
+          "type": "blocks",
+          "says": "Pierwsze zdanie pierwszego akapitu to teza (nazwa wpisu i pierwsza strona karty). Dalej akapity, listy i tabele z odwołaniami. Teza zakończona „?” czyni wpis pytaniem — odpowiedzią jest wypowiedź, która się do niego odwoła."
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "name": "Teza",
+      "kinds": [
+        "@komentarz"
+      ],
+      "direction": "o czym→teza",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "statement.subjects",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n2",
+            "type": "when",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pattern",
+            "x": 460,
+            "y": 0,
+            "config": {
+              "text": "Co mówi ta wypowiedź o: {0}?",
+              "inputs": 1,
+              "joiner": "; "
+            }
+          },
+          {
+            "id": "n4",
+            "type": "prompt",
+            "x": 690,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n5",
+            "type": "statement.thesis",
+            "x": 0,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n6",
+            "type": "answer.flash",
+            "x": 690,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "entity",
+            "x": 460,
+            "y": 280,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "card",
+            "x": 920,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e9",
+            "from": "n1",
+            "out": "entities",
+            "to": "n2",
+            "in": "items"
+          },
+          {
+            "id": "e10",
+            "from": "n2",
+            "out": "items",
+            "to": "n3",
+            "in": "p0"
+          },
+          {
+            "id": "e11",
+            "from": "n3",
+            "out": "text",
+            "to": "n4",
+            "in": "parts"
+          },
+          {
+            "id": "e12",
+            "from": "n5",
+            "out": "text",
+            "to": "n6",
+            "in": "back"
+          },
+          {
+            "id": "e13",
+            "from": "n4",
+            "out": "prompt",
+            "to": "n8",
+            "in": "prompt"
+          },
+          {
+            "id": "e14",
+            "from": "n6",
+            "out": "answer",
+            "to": "n8",
+            "in": "answer"
+          },
+          {
+            "id": "e15",
+            "from": "n7",
+            "out": "entities",
+            "to": "n8",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tabela z treści",
+      "kinds": [
+        "@komentarz"
+      ],
+      "direction": "pary",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n16",
+            "type": "statement.thesis",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n17",
+            "type": "prompt",
+            "x": 230,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n18",
+            "type": "statement.table",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "table": 1,
+              "left": 1,
+              "right": 2
+            }
+          },
+          {
+            "id": "n19",
+            "type": "answer.match",
+            "x": 230,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n20",
+            "type": "entity",
+            "x": 230,
+            "y": 300,
+            "config": {}
+          },
+          {
+            "id": "n21",
+            "type": "card",
+            "x": 460,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e22",
+            "from": "n16",
+            "out": "text",
+            "to": "n17",
+            "in": "parts"
+          },
+          {
+            "id": "e23",
+            "from": "n18",
+            "out": "left",
+            "to": "n19",
+            "in": "left"
+          },
+          {
+            "id": "e24",
+            "from": "n18",
+            "out": "right",
+            "to": "n19",
+            "in": "right"
+          },
+          {
+            "id": "e25",
+            "from": "n17",
+            "out": "prompt",
+            "to": "n21",
+            "in": "prompt"
+          },
+          {
+            "id": "e26",
+            "from": "n19",
+            "out": "answer",
+            "to": "n21",
+            "in": "answer"
+          },
+          {
+            "id": "e27",
+            "from": "n20",
+            "out": "entities",
+            "to": "n21",
+            "in": "explain"
+          }
+        ]
+      }
+    }
+  ]
+}
