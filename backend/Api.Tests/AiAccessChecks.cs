@@ -94,6 +94,13 @@ internal static class AiAccessChecks
         check(cut.StartsWith('…') && cut.Contains("Głód, którego chleb nie syci") && cut.Length <= 280, "a snippet around the first find, on word boundaries, links show only their words");
         check(AiAccess.Snippet("Krótko.", AiAccess.Terms("nic")) == "Krótko." && AiAccess.Snippet("", []) == "", "a short text is its own snippet");
 
+        /* Dieselben Antworten als Seite: Adressen werden Links, Text bleibt Text. */
+        using (var page = JsonDocument.Parse("""{"title":"<b>x</b>","url":"https://api.recreatio.pl/ai/T/entry/1","howTo":["GET https://api.recreatio.pl/ai/T/search?q=<słowa> — opis."]}"""))
+        {
+            var html = AiAccess.Html(page.RootElement, "/ai/T");
+            check(html.Contains("<a href=\"https://api.recreatio.pl/ai/T/entry/1\">") && html.Contains("&lt;b&gt;x&lt;/b&gt;") && !html.Contains("<b>x")
+                && !html.Contains("search?q=\">"), "as a page: every address is a real link, text is escaped, a template is no link");
+        }
         /* Entpacken mit Obergrenze. */
         var packed = Gzip(new byte[1_000_000]);
         check(AiAccess.Gunzip(Gzip("{\"v\":1}"u8.ToArray())).Length == 7 && Fails(() => AiAccess.Gunzip(packed, 10_000)), "unpacking stops at its limit (no gzip bomb)");

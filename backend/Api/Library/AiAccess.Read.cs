@@ -56,12 +56,14 @@ public static partial class AiAccess
 
     private static void MapRead(WebApplication app)
     {
-        app.MapGet("/ai/{token}", GuideAsync);
-        app.MapGet("/ai/{token}/search", SearchAsync);
-        app.MapGet("/ai/{token}/search/{*q}", SearchPathAsync);
-        app.MapGet("/ai/{token}/entry/{entry}", EntryAsync);
-        app.MapGet("/ai/{token}/kinds", KindsAsync);
-        app.MapGet("/ai/{token}/openapi.json", OpenApiAsync);
+        /* 2026-10-24 — GET und HEAD: manche Abrufwerkzeuge fragen erst mit HEAD (vorher 405). */
+        string[] read = ["GET", "HEAD"];
+        app.MapMethods("/ai/{token}", read, GuideAsync);
+        app.MapMethods("/ai/{token}/search", read, SearchAsync);
+        app.MapMethods("/ai/{token}/search/{*q}", read, SearchPathAsync);
+        app.MapMethods("/ai/{token}/entry/{entry}", read, EntryAsync);
+        app.MapMethods("/ai/{token}/kinds", read, KindsAsync);
+        app.MapMethods("/ai/{token}/openapi.json", read, OpenApiAsync);
     }
 
     /* -- Die Abschrift, wie der Dienst sie liest --------------------------------------------- */
@@ -194,7 +196,7 @@ public static partial class AiAccess
                     foreach (var one in e.EnumerateArray()) Walk(one, depth + 1);
                     break;
                 case JsonValueKind.Object:
-                    foreach (var p in e.EnumerateObject()) if (!p.Name.StartsWith('_')) Walk(p.Value, depth + 1);
+                    foreach (var p in e.EnumerateObject()) if (!p.Name.StartsWith('_') && p.Name is not "type" and not "id") Walk(p.Value, depth + 1);
                     break;
             }
         }
@@ -385,10 +387,95 @@ public static partial class AiAccess
     {
         ctx.Response.StatusCode = status;
         ctx.Response.Headers.CacheControl = "no-store";
-        ctx.Response.Headers["X-Robots-Tag"] = "noindex, nofollow";
+        /* noindex: ein Link, der irgendwo auftaucht, kommt in keine Suche. Kein nofollow: der Assistent soll den Links folgen. */
+        ctx.Response.Headers["X-Robots-Tag"] = "noindex";
         ctx.Response.Headers.XContentTypeOptions = "nosniff";
+        if (WantsHtml(ctx.Request))
+        {
+            var html = Html(JsonSerializer.SerializeToElement(body, Out), ctx.Request.Path.Value ?? "");
+            ctx.Response.ContentType = "text/html; charset=utf-8";
+            ctx.Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'";
+            return HttpMethods.IsHead(ctx.Request.Method) ? Task.CompletedTask : ctx.Response.WriteAsync(html, ctx.RequestAborted);
+        }
+        if (HttpMethods.IsHead(ctx.Request.Method)) { ctx.Response.ContentType = "application/json; charset=utf-8"; return Task.CompletedTask; }
         return ctx.Response.WriteAsJsonAsync(body, Out, "application/json; charset=utf-8", ctx.RequestAborted);
     }
+
+    /*
+     * 2026-10-24 — DIESELBEN ANTWORTEN ALS SEITE. Abrufwerkzeuge eines Assistenten (ChatGPT im Netz)
+     * öffnen nur Adressen, die wörtlich in einer schon gelesenen Seite als Link standen; eine Adresse
+     * aus einer Vorlage („/search?q=<słowa>") bauen sie nicht. Wer HTML verlangt (Browser, solche
+     * Werkzeuge), bekommt deshalb dieselben Daten als Seite, jede Adresse als echter Link — Teile,
+     * Seiten der Liste, jeder Eintrag, seine Verweise und Rückverweise. JSON bleibt die Vorgabe
+     * (Accept: application/json, ?format=json; ChatGPT-Aktionen); ?format=html erzwingt die Seite.
+     */
+    public static bool WantsHtml(HttpRequest request)
+    {
+        var format = request.Query["format"].ToString();
+        if (format == "json") return false;
+        if (format == "html") return true;
+        if (request.Path.Value?.EndsWith("/openapi.json", StringComparison.Ordinal) == true) return false;
+        var accept = request.Headers.Accept.ToString();
+        return accept.Contains("text/html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Ein JSON-Wert als einfache Seite: Felder als Liste, Adressen als Links (HTML-sicher).</summary>
+    public static string Html(JsonElement root, string path)
+    {
+        var sb = new StringBuilder();
+        sb.Append("<!doctype html><html lang=\"pl\"><head><meta charset=\"utf-8\"><title>REcreatio — dostęp dla AI</title>")
+          .Append("<style>body{font:15px/1.45 system-ui,sans-serif;max-width:60rem;margin:1rem auto;padding:0 1rem}dl{margin:.2rem 0 .2rem 1rem}dt{font-weight:600}dd{margin:0 0 .3rem 1rem}li{margin:.15rem 0}</style></head><body>")
+          .Append("<p>Ta sama odpowiedź jako JSON: <a href=\"").Append(Enc(path)).Append("?format=json\">").Append(Enc(path)).Append("?format=json</a></p>");
+        void Value(JsonElement e, int depth)
+        {
+            if (depth > 14) { sb.Append('…'); return; }
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    sb.Append("<dl>");
+                    foreach (var p in e.EnumerateObject())
+                    {
+                        if (p.Value.ValueKind == JsonValueKind.Null) continue;
+                        sb.Append("<dt>").Append(Enc(p.Name)).Append("</dt><dd>");
+                        Value(p.Value, depth + 1);
+                        sb.Append("</dd>");
+                    }
+                    sb.Append("</dl>");
+                    break;
+                case JsonValueKind.Array:
+                    sb.Append("<ol>");
+                    foreach (var one in e.EnumerateArray()) { sb.Append("<li>"); Value(one, depth + 1); sb.Append("</li>"); }
+                    sb.Append("</ol>");
+                    break;
+                case JsonValueKind.String:
+                    Text(e.GetString() ?? "");
+                    break;
+                default:
+                    sb.Append(Enc(e.GetRawText()));
+                    break;
+            }
+        }
+        /* Jede http(s)-Adresse im Text wird ein Link (ohne Platzhalter wie <słowa>). */
+        void Text(string text)
+        {
+            var at = 0;
+            foreach (Match m in UrlPattern.Matches(text))
+            {
+                sb.Append(Enc(text[at..m.Index]).Replace("\n", "<br>"));
+                var url = m.Value.TrimEnd('.', ',', ';', ')');
+                /* Eine Vorlage („…/entry/<id>") ist kein Link — sie stünde als toter Link da. */
+                if (m.Index + url.Length < text.Length && text[m.Index + url.Length] == '<') continue;
+                sb.Append("<a href=\"").Append(Enc(url)).Append("\">").Append(Enc(url)).Append("</a>");
+                at = m.Index + url.Length;
+            }
+            sb.Append(Enc(text[at..]).Replace("\n", "<br>"));
+        }
+        Value(root, 0);
+        return sb.Append("</body></html>").ToString();
+    }
+
+    private static readonly Regex UrlPattern = new(@"https?://[^\s<>""']+", RegexOptions.CultureInvariant);
+    private static string Enc(string text) => System.Net.WebUtility.HtmlEncode(text);
 
     private static Task Gone(HttpContext ctx) =>
         Say(ctx, StatusCodes.Status404NotFound, new { error = "Ten link dostępu dla AI nie działa — nie ma go, wygasł albo został wyłączony." });
@@ -612,11 +699,15 @@ public static partial class AiAccess
                 "W tekstach [@klucz, s. 23] to odwołanie do wpisu o tym kluczu (otwórz /entry/<klucz>), [[słowa|@klucz]] to link do wpisu, ^[…] to przypis."
             },
             notes,
-            examples = new
+            /* Gotowe adresy do kliknięcia — narzędzia, które nie składają adresów same, idą stąd dalej. */
+            start = new
             {
-                search = $"{o.Base}/search?q=chleb",
-                browseLibrary = $"{o.Base}/search?part=books",
-                kinds = $"{o.Base}/kinds"
+                kinds = $"{o.Base}/kinds",
+                everything = $"{o.Base}/search?limit={MaxLimit}",
+                parts = o.Parts.Select(p => $"{o.Base}/search?part={Ids.ToText(p.LibraryId)}&limit={MaxLimit}"),
+                kindsOfEntries = o.Parts.SelectMany(p => p.Items.Select(i => i.KindName)).Distinct().Select(k => $"{o.Base}/search?kind={Uri.EscapeDataString(k)}&limit={MaxLimit}"),
+                openapi = $"{o.Base}/openapi.json",
+                asJson = $"{o.Base}?format=json"
             }
         });
     }

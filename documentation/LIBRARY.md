@@ -276,6 +276,7 @@ area, and nothing of other areas), chooses how long it lasts (a week, a month, t
 - **Who:** leaders make, show again, extend, change the collections and delete; writers refresh; every member sees
   that a link exists, what it shows and how often it was used. The link works only while its creator still leads the
   area. Deleting it stops it at once and removes its snapshots.
+- **For web-reading assistants** (2026-10-24): a client that asks for HTML (`Accept: text/html`, as browsers and ChatGPT's web tool do, or `?format=html`) gets the same answers as a page where every address is a real link — the guide links the kinds, every collection, every kind of entry and the full list; list pages link each entry and the next page; entries link what they cite and what cites them. Such tools open only links they have seen, not addresses built from a template. JSON stays the default (`?format=json`, ChatGPT actions). `HEAD` is answered too.
 - **How it stays sealed:** ARCHITECTURE.md → Keys → AI access.
 
 ## How the Scriptorium and Cogita build on this

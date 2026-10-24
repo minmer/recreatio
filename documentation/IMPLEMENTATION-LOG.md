@@ -1674,3 +1674,24 @@ gaining a general way to read sealed content.
   the panel says that the AI link is not available now.
 - Making a link: an area → Dostęp → "Dostęp dla AI" → tick the collections → "Utwórz link dla AI". Paste the link into
   the assistant's chat ("Przeczytaj <link> i znajdź …"), or add `<link>/openapi.json` as a ChatGPT action.
+
+## AI2 — The link for web-reading assistants (2026-10-24)
+
+**Found** (tested from outside against the live link): the guide, `/kinds`, `/search` and `/search/<words>` all
+answer 200 with JSON, also for the ChatGPT-User agent; no redirects, no bot block, no robots.txt. What failed:
+`HEAD` got 405, and ChatGPT's web tool opens only URLs it has already seen as links — the guide gave templates
+(`/search?q=<słowa>`) inside JSON text, which it neither builds nor follows. The DNS errors came from the other
+tool's sandbox, not from the service.
+
+**Changed** (`AiAccess.Read.cs`, no new endpoints, the same data):
+- GET and HEAD on every `/ai` route.
+- Content negotiation: `Accept: text/html` or `?format=html` gives the same answer as a page with real links
+  (templates are not linked); JSON stays the default, `?format=json` forces it (ChatGPT actions use JSON).
+- The guide has `start` links: the kinds, everything, each collection, each kind of entry.
+- `X-Robots-Tag: noindex` without `nofollow`; snippets no longer show block types ("paragraph").
+
+**Checks:** Api.Tests 504; LocalDB drive 47; a links-only crawl (HTML, ChatGPT-User agent) from the one link
+reaches the kinds, all 10 entries, refs and backlinks.
+
+**Not verifiable from here:** ChatGPT's own browsing. The most reliable way is a Custom GPT with an Action that
+imports `<link>/openapi.json`; plain chat browsing should work through the HTML links once the API is deployed.
