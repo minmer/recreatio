@@ -71,7 +71,7 @@ Rodzaje, od których zwykle się zaczyna (najgłębiej) do tych na wierzchu:
   Kolory warstw mogą być nazwami: "ground", "accent", "ink", "muted" — wtedy idą za kolorami slajdów. "seed" — ta sama liczba daje ten sam obraz za każdym razem; "motion" — ruch warstwy (niżej: Ruch), "[]" — stoi.
 
 Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkowe:
-  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "fade" (przenika), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej), "dissolve" (rozmycie: poprzedni gaśnie, rozmywa się i opada o 12 px, ten wyostrza się, unosząc — jak pokaz Cogita). Idzie za przewijaniem, nie za zegarem
+  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "flow" (przepływ: treść jedzie w górę razem z przewijaniem i jednocześnie się przenika — poprzedni odjeżdża w górę i gaśnie, ten wjeżdża od dołu i się pojawia; z tłem wspólnym warstwy płyną pod nią wolniej, każda swoim tempem), "fade" (przenika w miejscu: treść stoi), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej), "dissolve" (rozmycie: poprzedni gaśnie, rozmywa się i opada o 12 px, ten wyostrza się, unosząc — jak pokaz Cogita). Idzie za przewijaniem, nie za zegarem
   "enter" — jak pojawia się treść: "none", "rise", "fade", "zoom", "left", "right"
   "colors" — własne kolory slajdu, przechodzą płynnie między slajdami: { "accent", "ink", "ground", "muted" } ("#rrggbb"; pominięty — jak strona)
   "stage" — moduł NIE ma własnego slajdu: stoi nad wszystkimi i przy zmianie slajdu przesuwa się na swoje miejsce na następnym:

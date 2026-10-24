@@ -92,6 +92,8 @@ export const calmer = (kind: Transition, reduced: boolean): Transition =>
 function incoming(kind: Transition, t: number): Motion {
   const e = ease(t);
   switch (kind) {
+    /* 2026-10-24 — nicht festgehalten: er fährt mit der Bahn herauf und erscheint dabei. */
+    case 'flow': return { ...STILL, opacity: e };
     case 'fade': return { ...STILL, pin: true, opacity: e };
     case 'cover': return STILL;
     case 'reveal': return { ...STILL, pin: true };
@@ -105,6 +107,8 @@ function incoming(kind: Transition, t: number): Motion {
 function outgoing(kind: Transition, t: number): Motion {
   const e = ease(t);
   switch (kind) {
+    /* 2026-10-24 — der gehende fährt mit der Bahn hinaus und blendet dabei aus. */
+    case 'flow': return { ...STILL, opacity: 1 - e };
     case 'fade': return { ...STILL, pin: true };
     case 'cover': return { ...STILL, pin: true, scale: 1 - 0.06 * e, dim: 0.45 * e };
     case 'reveal': return { ...STILL, above: true };

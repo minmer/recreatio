@@ -112,6 +112,13 @@ try {
     assert.ok(close(into.lift, 6) && close(outof.lift, 6) && close(into.blur, 1) && close(outof.blur, 1), 'the one rises, the other sinks, both blurred');
     assert.equal(m.motionOf(frames, 1, half, 800, ['scroll', 'dissolve'], true).blur, 0, 'less motion: a plain fade');
 
+    /* 2026-10-24 — Przepływ: beide fahren mit der Bahn (nicht festgehalten) und blenden dabei über. */
+    const flowIn = m.motionOf(frames, 1, half, 800, ['scroll', 'flow']);
+    const flowOut = m.motionOf(frames, 0, half, 800, ['scroll', 'flow']);
+    assert.ok(!flowIn.pin && !flowOut.pin, 'flow: both move up with the track');
+    assert.ok(close(flowIn.opacity, 0.5) && close(flowOut.opacity, 0.5), 'flow: and cross half way');
+    assert.ok(m.motionOf(frames, 1, half, 800, ['scroll', 'flow'], true).pin, 'flow, less motion: a plain fade in place');
+
     /* Plätze: auf einem hohen Schirm andere, eine Grenze in rem, die mitgleitet. */
     const places = new Map([[0, { x: 70, y: 50, w: 44, scale: 1.08, rotate: 0, opacity: 1, max: 32.5, tall: { x: 30, y: 15, w: 50 } }], [1, { x: 16, y: 50, w: 44, scale: 0.5, rotate: 0, opacity: 0.82, max: 32.5 }]]);
     assert.equal(m.frameAt(places, 0, true).x, 30, 'tall: its own place');
@@ -198,7 +205,7 @@ try {
     assert.deepEqual(again.parts.map((p) => p.layout.slide), plan.parts.map((p) => p.layout.slide), 'export → import changes nothing');
 
     const words = m.pageDescription();
-    for (const key of ['"deck" — ', '"dissolve"', '"motion" — ', '"layout" — ', '"with" — ', '"kind": "mesh"', '"kind": "waves"', '"kind": "haze"', '"kind": "glow"', '"kind": "vignette"', '## Ruch', '"tall" — inne wartości']) {
+    for (const key of ['"deck" — ', '"dissolve"', '"flow" (przepływ', '"motion" — ', '"layout" — ', '"with" — ', '"kind": "mesh"', '"kind": "waves"', '"kind": "haze"', '"kind": "glow"', '"kind": "vignette"', '## Ruch', '"tall" — inne wartości']) {
       assert.ok(words.includes(key), `the description explains ${key}`);
     }
     const bad = m.planImport({ ...doc, deck: { ...doc.deck, nav: 'wiggle', backdrop: [{ kind: 'nebula' }] }, modules: [{ kind: 'text', slide: { label: 'x', layers: [], motion: 'shake' }, config: { body: 'x' } }] }, empty, m.DEFAULT_IMPORT);

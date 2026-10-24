@@ -27,11 +27,13 @@ import { type Layer, layersJson, num, readLayers, record, str, within } from './
  * nicht aus einer Uhr: wer langsam zieht, sieht das Ablösen langsam, wer
  * zurückzieht, sieht es rückwärts (`slideMotion.ts`).
  */
-export const TRANSITIONS = ['scroll', 'fade', 'cover', 'reveal', 'zoom', 'side', 'dissolve'] as const;
+export const TRANSITIONS = ['scroll', 'flow', 'fade', 'cover', 'reveal', 'zoom', 'side', 'dissolve'] as const;
 export type Transition = (typeof TRANSITIONS)[number];
 
 export const TRANSITION_LABEL: Record<Transition, string> = {
   scroll: 'Przewinięcie — wjeżdża od dołu, jak kartka (zwykłe)',
+  /* 2026-10-24 — Wunsch des Nutzers: der Vordergrund fährt hinauf UND blendet über (nicht nur das eine oder das andere). */
+  flow: 'Przepływ — jedzie w górę razem z przewijaniem i przenika się z poprzednim',
   fade: 'Przenikanie — poprzedni stoi, ten pojawia się na nim',
   cover: 'Nakrycie — ten wjeżdża na poprzedni, który stoi i przygasa',
   reveal: 'Odsłonięcie — poprzedni odjeżdża w górę i odsłania ten',
