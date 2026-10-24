@@ -17,7 +17,7 @@
 import { newId } from '../core/ids';
 import { plural } from '../core/plural';
 import { kindsDoc, LIBRARY_FORMAT, LIBRARY_VERSION, planLibraryImport, type ImportBase, type LibraryImportPlan } from './libraryJson';
-import { kindOf, type LibEntry } from './libraryKinds';
+import { kindOf, workTitle, type LibEntry } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
 import { SCHEMES, schemeOf, workScheme, type SchemeId } from './locations';
 import {
@@ -171,7 +171,7 @@ export function planWorkWithText(
   const text = hasText ? previewPortions(work, textManifest(work.id), docs) : { lines: [], warnings: ['Dokument nie ma tekstu ("portions" albo "portion" i "blocks") — zapisze się tylko dzieło.'] };
   if ('error' in text) return text;
 
-  const title = kindOf('work')!.title(work.data, base as never);
+  const title = workTitle(work.data);
   const isNew = base.get(work.id) === undefined;
   return {
     library,
@@ -255,7 +255,7 @@ ${JSON.stringify(WORK_WITH_TEXT_EXAMPLE, null, 2)}
 
 /** Der Auftrag für die eigene KI: Werk + Text aus einer Datei (PDF, Scan). */
 export function workWithTextPrompt(): string {
-  return `Przekształć załączone źródło (PDF, skan albo plik z książką lub artykułem) w JEDEN dokument JSON do importu w Bibliotece Recreatio: opis dzieła (dane bibliograficne ze strony tytułowej albo nagłówka artykułu), jego autorów i — jeśli to artykuł albo rozdział — czasopismo lub książkę, w której jest, oraz cały tekst podzielony na części.
+  return `Przekształć załączone źródło (PDF, skan albo plik z książką lub artykułem) w JEDEN dokument JSON do importu w Bibliotece Recreatio: opis dzieła (dane bibliograficzne ze strony tytułowej albo nagłówka artykułu), jego autorów i — jeśli to artykuł albo rozdział — czasopismo lub książkę, w której jest, oraz cały tekst podzielony na części.
 
 Przepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz. Jeśli całość nie zmieści się w jednej odpowiedzi, w pierwszej daj "work", "entries" i pierwsze części, a w następnych — "work": "@klucz-dzieła" i kolejne części.
 
