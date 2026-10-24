@@ -1213,6 +1213,21 @@ try {
     const wdesc = I.workWithTextPrompt();
     assert.ok(wdesc.includes('"entries"') && wdesc.includes('"workType"') && wdesc.includes('"container"') && wdesc.includes('kowalski2020') && wdesc.includes('Nie wymyślaj tekstu'), 'the work-with-text prompt: work fields, entries, the full example, the rule against inventing');
     assert.match(m.planLibraryImport(ex, empty).error, /Dzieło z tekstem/, 'the library JSON import sends a source text to its own import');
+
+    /* The AI link / MCP: a library's snapshot carries the full texts stored in it — readable, with places and pages. */
+    const W = { id: '00000000-0000-4000-8000-00000000ab02', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Biblia Tysiąclecia' } };
+    const bplan = S.planSourceImport(S.SOURCE_EXAMPLES.bible, { work: W });
+    const manifestEntry = { id: 'tx9', kind: 'sourcetext', data: S.nextManifest(undefined, W.id, bplan, 'pp9') };
+    const libStore = { libraryId: 'LT', all: () => [W, manifestEntry] };
+    const withT = m.snapshotDoc([{ store: libStore, kind: 'books', name: 'Biblioteka', texts: [{ entry: manifestEntry, parts: [{ id: 'pp9', data: S.partData('tx9', W.id, bplan) }] }] }], 'LT', 'now');
+    const t0 = withT.texts?.[0];
+    assert.deepEqual([t0?.work, t0?.workTitle, t0?.workKey, t0?.scheme, t0?.parts[0].key, t0?.parts[0].blocks.length], [W.id, 'Biblia Tysiąclecia', 'bt', 'bible', 'J', 4], 'the snapshot carries the text with its work (title only inside the link)');
+    assert.deepEqual(t0.parts[0].blocks.map((b) => b.at), ['J 21', 'J 21', 'J 21,15', 'J 21,16'], 'every block knows its place (the heading without one inherits it)');
+    const pagesSnap = m.snapshotDoc([{ store: { libraryId: 'LP', all: () => [] }, kind: 'books', name: 'B', texts: [{ entry: { id: 'tp', kind: 'sourcetext', data: { work: 'w-x', scheme: 'pages', parts: [{ id: 'pq', key: 'rozdz-1', label: 'R1', order: 1 }] } }, parts: [{ id: 'pq', data: S.partData('tp', 'w-x', S.planSourceImport(S.SOURCE_EXAMPLES.pages, { work: { id: 'w-x', kind: 'work', key: 'ratzinger2007', data: { workType: 'book', title: 'X' } } })) }] }] }], 'LP', 'now');
+    const pb = pagesSnap.texts[0].parts[0].blocks;
+    assert.ok(pb[2].text.includes('[s. 34]') && pb[2].text.includes('[^1]') && pb[3].text.includes('nieczytelne[?]') && pb[3].text.includes('[…]') && pagesSnap.texts[0].workTitle === undefined && JSON.stringify(pb[2].pages) === '[33,34]',
+      'marks made readable ([s. 34], [^1], word[?], […]), pages per block; a work outside the link keeps no title');
+    assert.ok(m.snapshotDoc([{ store: libStore, kind: 'books', name: 'B', texts: [{ entry: manifestEntry, parts: [] }] }], 'LT', 'now', false).textsOmitted === true, 'too large: the snapshot says the texts are left out');
     ok('a work with its full text in one document: new or known work (no doubles), its author and journal, the text in portions; whole texts and how to split them described');
   }
 } finally {

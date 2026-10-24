@@ -38,7 +38,8 @@ public static class AiMcp
         "Recreatio: read-only access to the Library (sources), Scriptorium (own texts) and knowledge bases (Cogita) the user authorized. " +
         "Start with list_collections, read entry types with get_schema, find entries with search_entries (all words; a short reference like \"J 21\" matches as a phrase), " +
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
-        "Cite entries by title and url; never invent entries. Content is mostly Polish.";
+        "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", or part by part) and search_text. " +
+        "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish.";
 
     public static void AddServices(IServiceCollection services)
     {
@@ -127,7 +128,7 @@ public sealed class AiMcpTools
     /* -- Ergebnisse ---------------------------------------------------------------------------- */
 
     public sealed record KindCount(string Kind, string Name, int Entries);
-    public sealed record CollectionInfo(string Id, string Part, string PartName, string Name, string Area, int Entries, string? SnapshotMadeAt, bool Ready, IReadOnlyList<KindCount> Kinds);
+    public sealed record CollectionInfo(string Id, string Part, string PartName, string Name, string Area, int Entries, string? SnapshotMadeAt, bool Ready, IReadOnlyList<KindCount> Kinds, int Texts);
     public sealed record CollectionsResult(IReadOnlyList<CollectionInfo> Collections, string AccessExpiresAt, string Note);
     public sealed record CollectionSchema(string Id, string Name, string Part, string Area, JsonArray Kinds);
     public sealed record SchemaResult(IReadOnlyList<CollectionSchema> Collections);
@@ -137,7 +138,19 @@ public sealed class AiMcpTools
     public sealed record EntryResult(
         string Id, string Title, string Kind, string KindId, IReadOnlyList<string> Kinds, string? Type, string? Key, string? Tell,
         string Collection, string CollectionId, string Part, string Area, string? UpdatedAt, string Url,
-        JsonObject Data, JsonArray Schema, IReadOnlyList<LinkInfo> Links, IReadOnlyList<LinkInfo> LinkedFrom, string Text);
+        JsonObject Data, JsonArray Schema, IReadOnlyList<LinkInfo> Links, IReadOnlyList<LinkInfo> LinkedFrom, string Text,
+        IReadOnlyList<TextRef> FullTexts);
+    /* 2026-10-24 — vollständige Texte der Werke. */
+    public sealed record TextRef(string TextId, string Collection, int Parts, int Words);
+    public sealed record TextPartInfo(string Key, string Label, double Order, string? First, string? Last, string? Pages, int Blocks, int Words);
+    public sealed record TextInfo(string TextId, string WorkId, string WorkTitle, string? WorkKey, string Collection, string CollectionId, string Area, string Scheme, int Words, IReadOnlyList<TextPartInfo> Parts, string Url);
+    public sealed record TextsResult(IReadOnlyList<TextInfo> Texts, string? Note);
+    public sealed record TextBlockInfo(int Index, string Type, string? Loc, string? Place, string? Pages, string Text);
+    public sealed record TextReadResult(
+        string TextId, string WorkId, string WorkTitle, string Part, string PartLabel, string? Locator, bool Found,
+        int? FirstBlock, int? LastBlock, int? NextStart, IReadOnlyList<TextBlockInfo> Blocks, string Text, string? Note, string Url);
+    public sealed record TextHit(string TextId, string WorkId, string WorkTitle, string Part, string PartLabel, int Block, string? Place, string? Pages, string Snippet, string Url);
+    public sealed record TextSearchResult(string Query, int Total, int Offset, int Limit, int? NextOffset, IReadOnlyList<TextHit> Results, string? Note);
     public sealed record RelatedNode(string Id, string Title, string Kind, string? Type, string Collection, string Url, int Depth, string? Text, JsonObject? Data);
     public sealed record RelatedEdge(string From, string To, string Field, string? Locator);
     public sealed record RelatedResult(string Root, IReadOnlyList<RelatedNode> Nodes, IReadOnlyList<RelatedEdge> Edges, int OutsideReferences, bool Truncated);
@@ -212,11 +225,11 @@ public sealed class AiMcpTools
         using var o = await OpenAsync(http, db, config, cancellationToken);
         var collections = o.Parts.Select(p => new CollectionInfo(
                 Ids.ToText(p.LibraryId), p.Part, AiAccess.PartLabel(p.Part), p.Name, p.AreaName, p.Items.Count, p.MadeAt, true,
-                p.Items.GroupBy(i => (i.Kind, i.KindName)).Select(g => new KindCount(g.Key.Kind, g.Key.KindName, g.Count())).OrderByDescending(k => k.Entries).ToList()))
-            .Concat(o.Missing.Select(m => new CollectionInfo(Ids.ToText(m.Library), m.Part, AiAccess.PartLabel(m.Part), AiAccess.PartLabel(m.Part), m.Area, 0, null, false, [])))
+                p.Items.GroupBy(i => (i.Kind, i.KindName)).Select(g => new KindCount(g.Key.Kind, g.Key.KindName, g.Count())).OrderByDescending(k => k.Entries).ToList(), p.Texts.Count))
+            .Concat(o.Missing.Select(m => new CollectionInfo(Ids.ToText(m.Library), m.Part, AiAccess.PartLabel(m.Part), AiAccess.PartLabel(m.Part), m.Area, 0, null, false, [], 0)))
             .ToList();
         return new CollectionsResult(collections, o.Expires.ToString("O"),
-            "Ready = false: the collection's snapshot is not built yet (it appears when someone who writes in the area opens Recreatio). Its entries are not missing, only not yet readable here.");
+            "Ready = false: the collection's snapshot is not built yet (it appears when someone who writes in the area opens Recreatio). Its entries are not missing, only not yet readable here. Texts = full texts of works stored in the collection (read them with list_texts / read_text).");
     }
 
     [McpServerTool(Name = "get_schema", Title = "Rodzaje wpisów", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -273,7 +286,8 @@ public sealed class AiMcpTools
             ObjectOf(item.Data), SchemaOf(item),
             o.LinksOf(item).Select(l => LinkOf(o, l)).ToList(),
             o.Backlinks(item).Take(100).Select(b => new LinkInfo(b.Link.Field, b.From.Id, b.From.Title, b.From.KindName, b.Link.Locator, false, o.Url(b.From))).ToList(),
-            AiAccess.Render(item, o));
+            AiAccess.Render(item, o),
+            o.Texts.Where(t => t.Work == item.Id).Select(t => new TextRef(t.Id, t.From.Name, t.Parts.Count, t.Parts.Sum(x => x.Words))).ToList());
     }
 
     [McpServerTool(Name = "get_related", Title = "Powiązane wpisy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -336,6 +350,114 @@ public sealed class AiMcpTools
             AiAccess.Render(item, o), includeData ? ObjectOf(item.Data) : null);
     }
 
+    /* -- 2026-10-24: die vollständigen Texte der Werke ------------------------------------------------- */
+
+    private const int MaxTextBlocks = 200;
+
+    private static string PagesText(int? from, int? to) => from is null ? "" : to is null || to == from ? $"s. {from}" : $"s. {from}–{to}";
+    private static string? PagesOf(int[]? pages) => pages is { Length: 2 } ? PagesText(pages[0], pages[1]) : null;
+
+    /// <summary>Wo der Czytnik der App den Text (an dieser Stelle) aufschlägt — nur für den, der die Bibliothek liest.</summary>
+    private static string ReaderUrl(IConfiguration config, AiAccess.TextDoc text, string? place = null) =>
+        $"{AppOrigin(config)}/#/workspace/library/{Ids.ToText(text.From.LibraryId)}/{text.Work}/tekst{(string.IsNullOrWhiteSpace(place) ? "" : "/" + Uri.EscapeDataString(place))}";
+
+    private static AiAccess.TextDoc FindText(AiAccess.Opened o, string text) =>
+        o.Text(text) ?? throw new McpException($"not_found: w udostępnionych zbiorach nie ma pełnego tekstu „{text}” (podaj id tekstu albo id / klucz dzieła). Zobacz list_texts.");
+
+    private static TextBlockInfo BlockOf(AiAccess.TextBlock b) => new(b.Index, b.Type, b.Loc, b.At, b.PageFrom is null ? null : PagesText(b.PageFrom, b.PageTo), b.Text);
+
+    [McpServerTool(Name = "list_texts", Title = "Pełne teksty", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("List the full texts of works in the authorized collections (a book, an article, the Bible, a Church document…): the work, how places are written in it (scheme: pages, bible, numbered, aquinas, decimal, sections, outline), and its parts with their first and last place and pages. A work entry (get_entry) also names its full texts. Filter by collection or work (id or citation key).")]
+    public static async Task<TextsResult> ListTexts(
+        IHttpContextAccessor http, Db db, IConfiguration config,
+        [Description("Collection id or name; empty for all.")] string? collection = null,
+        [Description("Work id or citation key; empty for all.")] string? work = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var o = await OpenAsync(http, db, config, cancellationToken);
+        var texts = o.Texts.Where(t => string.IsNullOrWhiteSpace(collection)
+                || string.Equals(Ids.ToText(t.From.LibraryId), collection.Trim(), StringComparison.OrdinalIgnoreCase) || AiAccess.Fold(t.From.Name) == AiAccess.Fold(collection))
+            .Where(t => string.IsNullOrWhiteSpace(work) || o.Text(work) == t || t.Work == work.Trim().ToLowerInvariant())
+            .Select(t => new TextInfo(t.Id, t.Work, o.WorkTitle(t), t.WorkKey ?? o.Get(t.Work)?.Key, t.From.Name, Ids.ToText(t.From.LibraryId), t.From.AreaName, t.Scheme,
+                t.Parts.Sum(p => p.Words),
+                t.Parts.Select(p => new TextPartInfo(p.Key, p.Label, p.Order, p.First, p.Last, PagesOf(p.Pages), p.Blocks.Count, p.Words)).ToList(),
+                ReaderUrl(config, t)))
+            .ToList();
+        var omitted = o.Parts.Where(p => p.TextsOmitted).Select(p => p.Name).ToList();
+        return new TextsResult(texts, omitted.Count == 0 ? null : $"Full texts of {string.Join(", ", omitted)} were too large for the snapshot and are not readable here.");
+    }
+
+    [McpServerTool(Name = "read_text", Title = "Czytaj tekst", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Read a full text exactly as transcribed. Either by place (locator) — written as in the work: \"J 21,15\", a whole unit \"J 21\", a range \"J 21,15-17\" or \"I, q. 2, a. 3 - I, q. 2, a. 3, ad 1\", \"nr 24\", \"2.0121\", \"§ 43\", or pages \"s. 45-47\" — or part by part (part key from list_texts, start block, limit). Each block carries its place (place), its own number (loc) and pages; [s. 46] marks a page break, [^3] a footnote reference, word[?] an uncertain reading, […] a gap. Page with nextStart.")]
+    public static async Task<TextReadResult> ReadText(
+        IHttpContextAccessor http, Db db, IConfiguration config,
+        [Description("Text id, or the work's id or citation key.")] string text,
+        [Description("A place in the work, e.g. J 21,15-17, nr 24, s. 45. Empty to read a part from a block.")] string? locator = null,
+        [Description("Part key (from list_texts); with a locator it limits the search to this part.")] string? part = null,
+        [Description("First block to read when reading part by part (default 0).")] int start = 0,
+        [Description("Blocks to return, 1–200 (default 40).")] int limit = 40,
+        CancellationToken cancellationToken = default)
+    {
+        using var o = await OpenAsync(http, db, config, cancellationToken);
+        var t = FindText(o, text);
+        limit = Math.Clamp(limit, 1, MaxTextBlocks);
+        var parts = string.IsNullOrWhiteSpace(part) ? t.Parts : t.Parts.Where(p => string.Equals(p.Key, part.Trim(), StringComparison.OrdinalIgnoreCase) || AiAccess.Fold(p.Label) == AiAccess.Fold(part)).ToList();
+        if (parts.Count == 0) throw new McpException($"not_found: ten tekst nie ma części „{part}”. Części: {string.Join(", ", t.Parts.Select(p => p.Key))}.");
+        if (!string.IsNullOrWhiteSpace(locator))
+        {
+            foreach (var p in parts)
+            {
+                if (AiAccess.Locate(p, locator, t.Scheme) is not (int first, int last)) continue;
+                var end = Math.Min(last, first + MaxTextBlocks - 1);
+                var shown = p.Blocks.Skip(first).Take(end - first + 1).ToList();
+                return new TextReadResult(t.Id, t.Work, o.WorkTitle(t), p.Key, p.Label, locator.Trim(), true, first, end, end < last ? end + 1 : null,
+                    shown.Select(BlockOf).ToList(), AiAccess.RenderBlocks(shown),
+                    end < last ? $"The place spans {last - first + 1} blocks; read on with part=\"{p.Key}\" and start={end + 1}." : null,
+                    ReaderUrl(config, t, locator.Trim()));
+            }
+            return new TextReadResult(t.Id, t.Work, o.WorkTitle(t), "", "", locator.Trim(), false, null, null, null, [], "",
+                $"The place „{locator}” is not in this text. Places are written as in the text; its parts: {string.Join("; ", t.Parts.Select(p => $"{p.Key} ({p.Label}): {p.First ?? "?"} – {p.Last ?? "?"}{(PagesOf(p.Pages) is string pg ? ", " + pg : "")}"))}. Try a whole unit, pages, or search_text.",
+                ReaderUrl(config, t));
+        }
+        var at = parts[0];
+        start = Math.Clamp(start, 0, Math.Max(0, at.Blocks.Count - 1));
+        var page = at.Blocks.Skip(start).Take(limit).ToList();
+        var next = start + page.Count < at.Blocks.Count ? start + page.Count : (int?)null;
+        var following = next is null ? t.Parts.SkipWhile(p => p != at).Skip(1).FirstOrDefault() : null;
+        return new TextReadResult(t.Id, t.Work, o.WorkTitle(t), at.Key, at.Label, null, true, page.Count == 0 ? null : start, page.Count == 0 ? null : start + page.Count - 1, next,
+            page.Select(BlockOf).ToList(), AiAccess.RenderBlocks(page),
+            next is null ? following is null ? "End of the text." : $"End of this part; the next part is „{following.Key}” ({following.Label})." : null,
+            ReaderUrl(config, t, page.FirstOrDefault(b => b.At is not null)?.At));
+    }
+
+    [McpServerTool(Name = "search_text", Title = "Szukaj w tekstach", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Search the words of full texts (all words must occur in one block; case and Polish letters do not matter; blocks where the words stand together come first). Returns the place, pages and a snippet of each block; read around it with read_text (locator = place). Optionally only one text (text id or work id / key) or one collection.")]
+    public static async Task<TextSearchResult> SearchText(
+        IHttpContextAccessor http, Db db, IConfiguration config,
+        [Description("Words to find.")] string query,
+        [Description("Text id or work id / citation key; empty for all texts.")] string? text = null,
+        [Description("Collection id or name; empty for all.")] string? collection = null,
+        [Description("Results per page, 1–50 (default 20).")] int limit = 20,
+        [Description("How many results to skip.")] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        using var o = await OpenAsync(http, db, config, cancellationToken);
+        limit = Math.Clamp(limit, 1, 50);
+        offset = Math.Max(0, offset);
+        var scope = string.IsNullOrWhiteSpace(text) ? o.Texts : [FindText(o, text)];
+        if (!string.IsNullOrWhiteSpace(collection))
+            scope = scope.Where(t => string.Equals(Ids.ToText(t.From.LibraryId), collection.Trim(), StringComparison.OrdinalIgnoreCase) || AiAccess.Fold(t.From.Name) == AiAccess.Fold(collection));
+        var found = AiAccess.SearchTexts(scope, query);
+        var terms = AiAccess.Terms(query);
+        var page = found.Skip(offset).Take(limit).Select(f => new TextHit(f.Text.Id, f.Text.Work, o.WorkTitle(f.Text), f.Part.Key, f.Part.Label, f.Block.Index, f.Block.At,
+            f.Block.PageFrom is null ? null : PagesText(f.Block.PageFrom, f.Block.PageTo), AiAccess.Snippet(f.Block.Text, terms), ReaderUrl(config, f.Text, f.Block.At))).ToList();
+        return new TextSearchResult(query.Trim(), found.Count, offset, limit, offset + limit < found.Count ? offset + limit : null, page,
+            o.Texts.Any() ? null : "The authorized collections hold no full texts.");
+    }
+
+    /// <summary>Ein Treffer im Text für die Standardsuche: <c>text:&lt;tekst&gt;:&lt;teil&gt;:&lt;block&gt;</c>.</summary>
+    private static string TextHitId(AiAccess.TextDoc t, AiAccess.TextPart p, AiAccess.TextBlock b) => $"text:{t.Id}:{p.Key}:{b.Index}";
+
     /* -- Die Standardwerkzeuge für Recherche und Firmenwissen in ChatGPT ------------------------------- */
 
     [McpServerTool(Name = "search", Title = "Szukaj (standard)", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -347,7 +469,11 @@ public sealed class AiMcpTools
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
         var (found, _) = AiAccess.Find(o.Items, query, null, null);
-        return new DocHits(found.Take(20).Select(i => new DocHit(i.Id, $"{i.Title} ({i.KindName}, {i.From.Name})", o.Url(i))).ToList());
+        var hits = found.Take(20).Select(i => new DocHit(i.Id, $"{i.Title} ({i.KindName}, {i.From.Name})", o.Url(i))).ToList();
+        /* 2026-10-24 — und Stellen der vollständigen Texte (fetch liest die ganze Einheit). */
+        foreach (var f in AiAccess.SearchTexts(o.Texts, query).Take(Math.Max(5, 20 - hits.Count)))
+            hits.Add(new DocHit(TextHitId(f.Text, f.Part, f.Block), $"{o.WorkTitle(f.Text)}{(f.Block.At is null ? "" : ", " + f.Block.At)} (pełny tekst)", ReaderUrl(config, f.Text, f.Block.At)));
+        return new DocHits(hits);
     }
 
     [McpServerTool(Name = "fetch", Title = "Pobierz wpis (standard)", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -358,6 +484,7 @@ public sealed class AiMcpTools
         CancellationToken cancellationToken = default)
     {
         using var o = await OpenAsync(http, db, config, cancellationToken);
+        if (id.StartsWith("text:", StringComparison.Ordinal)) return FetchPassage(o, config, id);
         var item = Find(o, id);
         var metadata = new Dictionary<string, string>
         {
@@ -370,5 +497,23 @@ public sealed class AiMcpTools
         if (item.Key is not null) metadata["key"] = item.Key;
         if (item.UpdatedAt is not null) metadata["updatedAt"] = item.UpdatedAt;
         return new Document(item.Id, item.Title, AiAccess.Render(item, o), o.Url(item), metadata);
+    }
+
+    /// <summary>Ein Treffer im Text, ganz: die Einheit seiner Stelle (oder die Blöcke um ihn), mit Werk und Stelle.</summary>
+    private static Document FetchPassage(AiAccess.Opened o, IConfiguration config, string id)
+    {
+        var bits = id.Split(':');
+        if (bits.Length != 4 || !int.TryParse(bits[3], out var index)) throw new McpException($"not_found: nieczytelny identyfikator „{id}”.");
+        var t = FindText(o, bits[1]);
+        var p = t.Parts.FirstOrDefault(x => x.Key == bits[2]) ?? throw new McpException($"not_found: nie ma części „{bits[2]}”.");
+        if (index < 0 || index >= p.Blocks.Count) throw new McpException($"not_found: nie ma bloku {index}.");
+        var block = p.Blocks[index];
+        var unit = block.At is null ? null : AiAccess.Locate(p, block.At, t.Scheme);
+        var (first, last) = unit is (int a, int b) && b - a < 60 ? (a, b) : (Math.Max(0, index - 3), Math.Min(p.Blocks.Count - 1, index + 3));
+        var shown = p.Blocks.Skip(first).Take(last - first + 1).ToList();
+        var metadata = new Dictionary<string, string> { ["work"] = o.WorkTitle(t), ["part"] = p.Label, ["collection"] = t.From.Name, ["kind"] = "pełny tekst" };
+        if (block.At is not null) metadata["place"] = block.At;
+        if (block.PageFrom is not null) metadata["pages"] = PagesText(block.PageFrom, block.PageTo);
+        return new Document(id, $"{o.WorkTitle(t)}{(block.At is null ? "" : ", " + block.At)}", AiAccess.RenderBlocks(shown), ReaderUrl(config, t, block.At), metadata);
     }
 }

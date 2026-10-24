@@ -186,7 +186,7 @@ by the **scheme** of its work (the work field "Układ miejsc", else from its kin
 **A source text** is stored like everything else, sealed under its area's key, in **any library one may write** —
 not necessarily the work's. So the work can stand in a public library and its text in a private one; whoever reads
 only the work's library sees the work and its quotes, never the text (not in footnotes, search, JSON, the AI link,
-embeds or pages). Two kinds, neither listed among the sources:
+embeds or pages). The AI link and MCP read a text only through the collection it is stored in (below). Two kinds, neither listed among the sources:
 
 | kind | holds | sync |
 |---|---|---|
@@ -208,6 +208,20 @@ places, page order, notes without references and the reverse, size ≤ 3.5 MB pe
 **Portions without duplicates:** a portion with the same `portion.key` replaces itself, the same portion again writes
 nothing ("bez zmian"), another key covering the same places is flagged. The part is saved before the directory, so a
 directory never points at a missing part. Export gives the whole text back as documents.
+
+**A whole text in one document** (2026-10-24): instead of `portion` + `blocks`, a document may carry
+`"portions": [{ "portion": {…}, "blocks": [ … ] }, …]` — the whole text, or a list of documents. The description
+says how to split a source (books of the Bible, chapters, a short article as one part), that end notes go into the part
+they belong to, and how to continue in the next reply without breaking a part.
+
+**A work and its text in one import** ("Dzieło z tekstem (JSON)" in Źródła, `sourceImport.ts`): `"work"` is an object
+(`{ "key", "data": { workType, title, authors: ["@…"], container: "@…", … } }`), `"entries"` the persons and the
+journal or book it names (library entries, `@key` references), then the text in `portions`. The work and its entries
+go through the library import (a known key is completed, not doubled; the work takes the text's scheme when its kind
+would not give it), then the text goes into the chosen library (also a private one); the work page opens with
+"Czytaj". The same document again changes nothing new. In the box on a work page, such a document is accepted if its
+work is this one (its fields are left alone); the library JSON import sends a source-text document to these two
+places.
 
 **Where it shows** (`SourceBox.tsx`, `SourceReader.tsx`, `SourceJump.tsx`):
 
@@ -353,7 +367,17 @@ area, and nothing of other areas), chooses how long it lasts (a week, a month, t
 - **For web-reading assistants** (2026-10-24): a client that asks for HTML (`Accept: text/html`, as browsers and ChatGPT's web tool do, or `?format=html`) gets the same answers as a page where every address is a real link — the guide links the kinds, every collection, every kind of entry and the full list; list pages link each entry and the next page; entries link what they cite and what cites them. Such tools open only links they have seen, not addresses built from a template. JSON stays the default (`?format=json`, ChatGPT actions). `HEAD` is answered too.
 - **As an MCP server** (0127): ChatGPT and other MCP assistants connect once to `https://api.recreatio.pl/mcp` with
   OAuth and pick these links on a consent page; then they search, read and follow references through tools
-  ([MCP.md](MCP.md)).
+  ([MCP.md](MCP.md)), and read full texts (`list_texts`, `read_text` by place, `search_text`).
+- **Full texts** (2026-10-24): a library's snapshot carries the texts stored in it — blocks with their place (own and
+  inherited, written the app's way), pages and readable marks (`aiSnapshot.ts` `snapshotTexts`; the parts are fetched
+  for it). A text in a library the link does not hold never appears. Over ~30 MB packed, the snapshot is made without
+  texts and says so.
+- **Following the area** (0128): a link can show the whole area — "Cały obszar — także zbiory, które dojdą później",
+  the default for new links and for links made on the consent page. A library, Scriptorium or base created later
+  becomes part of it at once (the service adds it when the collection is created, when links are listed and when a
+  link is read), and the browser that created it builds its first snapshot. Links made before 0128 that held every
+  collection their area had at the time follow it from then on; the others keep their choice. Switch it under
+  Dostęp dla AI → Zbiory.
 - **How it stays sealed:** ARCHITECTURE.md → Keys → AI access.
 
 ## How the Scriptorium and Cogita build on this

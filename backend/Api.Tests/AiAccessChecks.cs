@@ -142,6 +142,40 @@ internal static class AiAccessChecks
         check(Aad.FieldName(Field.AiOAuthCode) == "ai_oauth_code" && AiOAuth.CodeAad(id).Text == "ai:oauth:01a16af6-5a94-718f-b8b5-abdb3ab6918b:ai_oauth_code:1"
             && Crypto.InfoAiOAuthCode(id) == "recreatio:v1:ai-oauth-code:01a16af6-5a94-718f-b8b5-abdb3ab6918b", "OAuth: the code's seal is bound to its grant");
 
+        /* 2026-10-24 — vollständige Texte in der Abschrift: lesen, eine Stelle finden, suchen. */
+        var textSnap = """
+            { "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab6918c", "name": "Pismo", "entries": [],
+              "texts": [ { "id": "T1", "work": "W1", "workTitle": "Biblia Tysiąclecia", "workKey": "bt", "scheme": "bible",
+                "parts": [ { "key": "J", "label": "Ewangelia według św. Jana", "order": 43, "first": "J 21", "last": "J 21,17", "pages": [100, 101],
+                  "blocks": [
+                    { "type": "heading", "level": 1, "loc": "J 21", "at": "J 21", "text": "Rozdział 21" },
+                    { "type": "heading", "level": 2, "at": "J 21", "text": "Jezus nad jeziorem" },
+                    { "type": "paragraph", "loc": "J 21,15", "at": "J 21,15", "pages": [100, 100], "text": "Szymonie, synu Jana, czy miłujesz Mnie?" },
+                    { "type": "paragraph", "loc": "J 21,16", "at": "J 21,16", "pages": [100, 101], "text": "I drugi raz [s. 101] powiedział do niego." },
+                    { "type": "paragraph", "loc": "J 21,17", "at": "J 21,17", "pages": [101, 101], "text": "Po raz trzeci: czy kochasz Mnie?" }
+                  ] } ] } ] }
+            """;
+        using (var textDoc = JsonDocument.Parse(textSnap))
+        {
+            var tsnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab6918c"), "books", textDoc.RootElement)!;
+            var text = tsnap.Texts.Single();
+            var part = text.Parts.Single();
+            check(text.Id == "t1" && text.Work == "w1" && text.WorkTitle == "Biblia Tysiąclecia" && part.Blocks.Count == 5 && part.Pages is [100, 101] && part.Blocks[3].PageTo == 101,
+                "texts: a snapshot's full texts are read with work, parts, places and pages");
+            check(AiAccess.Locate(part, "J 21,16", "bible") == (3, 3) && AiAccess.Locate(part, "j 21:16", "bible") == (3, 3) && AiAccess.Locate(part, "J 21", "bible") == (0, 4),
+                "texts: a verse, written any way; a chapter is the whole unit (its headings too)");
+            check(AiAccess.Locate(part, "J 21,15-16", "bible") == (2, 3) && AiAccess.Locate(part, "J 21,15–J 21,17", "bible") == (2, 4) && AiAccess.Locate(part, "J", "bible") == (0, 4),
+                "texts: ranges (the end as a number or a place) and a whole book");
+            check(AiAccess.Locate(part, "s. 101", "bible") == (3, 4) && AiAccess.Locate(part, "J 20,1", "bible") is null && AiAccess.Locate(part, "J 2", "bible") is null,
+                "texts: pages; a place that is not there is not guessed (J 2 is not J 21)");
+            check(AiAccess.PlaceMatches("2.0121", "2.01", "decimal") && AiAccess.PlaceMatches("I, q. 2, a. 3, ad 1", "I, q. 2, a. 3", "aquinas") && AiAccess.PlaceMatches("nr 24 § 1", "nr 24", "numbered") && !AiAccess.PlaceMatches("§ 430", "§ 43", "sections"),
+                "texts: units in every scheme — decimal comments, Aquinas articles, paragraphs of a number; § 430 is not § 43");
+            var hitsT = AiAccess.SearchTexts(tsnap.Texts, "milujesz mnie");
+            check(hitsT.Count == 1 && hitsT[0].Block.Index == 2 && AiAccess.SearchTexts(tsnap.Texts, "Mnie").Count == 2, "texts: search without Polish letters finds the block");
+            check(AiAccess.RenderBlocks(part.Blocks.Take(3)).StartsWith("## [J 21] Rozdział 21") && AiAccess.RenderBlocks(part.Blocks.Skip(2).Take(1)) == "[J 21,15] Szymonie, synu Jana, czy miłujesz Mnie?",
+                "texts: rendered with headings and each block's own place");
+        }
+
         /* Entpacken mit Obergrenze. */
         var packed = Gzip(new byte[1_000_000]);
         check(AiAccess.Gunzip(Gzip("{\"v\":1}"u8.ToArray())).Length == 7 && Fails(() => AiAccess.Gunzip(packed, 10_000)), "unpacking stops at its limit (no gzip bomb)");

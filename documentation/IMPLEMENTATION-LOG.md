@@ -1789,8 +1789,8 @@ breaks, notes) be importable in portions as JSON — written by one's own AI —
   selection → "Dodaj cytat" with text and place, a quote opening the private passage, the Vulgate beside the Bible,
   a sermon's footnotes leading into the text.
 
-**Not done:** OCR or PDF reading in the app (the owner's AI does the transcription, as everywhere); full texts in the
-AI link / MCP (a text may be private while its work is not — left out until there is a rule for it).
+**Not done:** OCR or PDF reading in the app (the owner's AI does the transcription, as everywhere). Full texts in the
+AI link / MCP followed the same day (L2).
 
 ## C1 — Cogita in two parts: Wiedza and Nauka (2026-10-24)
 
@@ -1836,3 +1836,53 @@ Nauka with learning; secondary functions reachable but not competing; nothing lo
 
 **Not done:** Struktura on pages (shown as a table there); editing the typed place in the form's „Edycja tego, co już
 jest" (the entry editor changes it).
+
+## L2 — A work with its text in one import; full texts over MCP; links that follow their area (0128, 2026-10-24)
+
+The owner reported that a library added to an area did not reach ChatGPT over MCP, and asked for an entry about an
+article or book to be created together with its full text in one import, and for the full texts to be read over MCP.
+
+**Decided**
+- **A link may follow its area** (`app.ai_access.whole_area`, migration 0128): new collections of the area become its
+  parts by themselves — on creation, on listing and on reading — and the creating browser builds their first snapshot.
+  New links (also from the consent page) follow the area by default; a leader can switch to chosen collections.
+  Existing links that held every collection of their area when they were made follow it; others keep their choice —
+  nobody's choice is widened silently. The service works without the column until 0128 is applied.
+- **The text is read through its collection.** A library's snapshot carries the texts stored in it (whoever reads the
+  library reads its texts); a text in a collection outside the link never appears, not even its title. The browser
+  prepares every block (place — own and inherited, written the app's way —, pages, readable marks), so the service
+  finds places by simple, documented matching instead of a second parser: equal, a whole unit, a range, pages; a
+  place not in the text is not guessed.
+- **One document for a work and its text**: the work and the entries it names go through the library import (known
+  keys completed, not doubled), then the text; the format grew `portions` (a whole text in one document) and a
+  "Cały tekst" section on how to split a source.
+
+**Built**
+- Backend: `0128_ai_whole_area.sql`; `AiAccess.cs` (`HasWholeAreaAsync`, `FollowAreaAsync`, whole-area create and change,
+  `wholeArea` in the list), `Library.cs` (follow on creation), `AiAccess.Read.cs` (follow on reading; snapshot texts),
+  `AiAccess.Texts.cs` (texts, `NormPlace`, `PlaceMatches`, `Locate`, `SearchTexts`, `RenderBlocks`), `AiMcp.cs` (tools
+  `list_texts`, `read_text`, `search_text`; texts in `list_collections`, `get_entry`, standard `search`/`fetch`).
+- Frontend: `aiSnapshot.ts` (`snapshotTexts`), `aiAccess.ts` (texts fetched for a library's snapshot, size fallback,
+  `aiCollectionAdded`, `wholeArea`), `library.ts` (a new collection tells the AI link), `AiAccessPanel.tsx` and
+  `AiConnect.tsx` ("Cały obszar"); `sourceImport.ts` (shared preview/write of parts, `planWorkWithText`, description,
+  prompt, example), `SourceBox.tsx` ("Dzieło z tekstem (JSON)", whole-text documents in the work's box),
+  `sourceText.ts` (`portionDocs`, "Cały tekst"), `LibraryView.tsx` (the button in Źródła), `libraryJson.ts` (a
+  source-text document sent to its import).
+
+**Checks**
+- `app-library-check.mjs` 2l: the example article (author, journal, two parts) plans without warnings; references
+  resolved; a known key completed; "@key" for a known work; refusals; the scheme taken from the text; `portions` expand;
+  descriptions; the library import's redirect; the snapshot's texts (places inherited, readable marks, pages, title
+  only inside the link, `textsOmitted`).
+- Api.Tests 522 (+7): reading texts from a snapshot, places (verse, any writing, chapter, ranges, whole book, pages,
+  J 2 ≠ J 21), units in every scheme, search, rendering.
+- `scratchpad/ai/follow-texts-api.mjs` (LocalDB, 16): whole-area by default; a base created later joins the whole-area
+  link only, gets its snapshot and is ready over MCP; list_texts, read_text by place, range, chapter, not found, part by
+  part; search_text; standard search/fetch passages; get_entry names the text; another area's private text absent; the
+  migration rule. `mcp-e2e.mjs` (official SDK) 41: ten tools, text tools' output schemas valid.
+- `scratchpad/lib/work-text-browser.mjs` (headless Edge, 8): the dialog and its description, preview, import into the
+  private library, the article page with its text and fields, the reader, the same document again, "Cały obszar" in
+  the AI panel. `source-browser.mjs` still 17/17.
+
+**Owner:** apply 0128 (after 0123–0127), deploy the API, then the site. Existing whole-area links pick up new collections
+on their next listing or read; their snapshots appear when someone who writes in the area opens Recreatio.
