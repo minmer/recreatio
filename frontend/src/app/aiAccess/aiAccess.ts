@@ -58,6 +58,8 @@ export interface AiAccessRow {
   /** Ob der, der ihn anlegte, den Bereich noch prowadzi — sonst antwortet der Link nicht. */
   readonly creatorLeads: boolean;
   readonly works: boolean;
+  /** 2026-10-24 (0128) — zeigt alle Behälter des Bereichs, auch die später angelegten. */
+  readonly wholeArea?: boolean;
   readonly epoch: number | null;
   /** C unter dem Schlüssel des Bereichs — nur für die, die dort schreiben. */
   readonly keySealed: string | null;
@@ -101,8 +103,9 @@ export const loadAiAccess = (areaId: string): Promise<AiAccessList> => call(base
 export const extendAiAccess = (areaId: string, id: string, days: number): Promise<{ expiresAt: string }> =>
   call(`${base(areaId)}/${enc(id)}`, { method: 'POST', body: JSON.stringify({ days }) });
 
-export const setAiParts = (areaId: string, id: string, libraries: readonly string[]): Promise<unknown> =>
-  call(`${base(areaId)}/${enc(id)}`, { method: 'POST', body: JSON.stringify({ libraries }) });
+/** Die Behälter eines Links — oder (`wholeArea`) alle des Bereichs, auch künftige. */
+export const setAiParts = (areaId: string, id: string, libraries: readonly string[], wholeArea = false): Promise<unknown> =>
+  call(`${base(areaId)}/${enc(id)}`, { method: 'POST', body: JSON.stringify({ libraries, wholeArea }) });
 
 export const deleteAiAccess = (areaId: string, id: string): Promise<{ deleted: boolean }> =>
   call(`${base(areaId)}/${enc(id)}`, { method: 'DELETE' });
@@ -137,14 +140,14 @@ export const failedWords = (r: Refreshed): string | null => r.failed === 0 ? nul
  * gebaut. Scheitert der zweite Schritt, ist der halbe Link wieder fort.
  */
 export async function createAiAccess(
-  ring: Ring, areaId: string, libraries: readonly string[], days: number, progress?: (done: number, total: number) => void
+  ring: Ring, areaId: string, libraries: readonly string[], days: number, progress?: (done: number, total: number) => void, wholeArea = true
 ): Promise<CreatedAccess> {
   const newest = newestKey(await areaKeys(ring, areaId, true));
   if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru.');
 
   const id = newId();
   const made = await call<{ id: string; token: string; expiresAt: string }>(base(areaId), {
-    method: 'POST', body: JSON.stringify({ id, libraries, days })
+    method: 'POST', body: JSON.stringify({ id, libraries, days, wholeArea })
   });
   try {
     const key = crypto.getRandomValues(new Uint8Array(KEY_SIZE));
@@ -297,6 +300,19 @@ export async function refreshAiAccess(
     }
   }
   return { refreshed, failed, ...(reason === undefined ? {} : { reason }) };
+}
+
+/* -- Ein neuer Behälter im Bereich (0128) -------------------------------------------------------- */
+
+/**
+ * EIN BEHÄLTER WURDE ANGELEGT (`library.ts` → `createLibrary`): der Dienst hat ihn den Links
+ * gegeben, die ihrem Bereich folgen; dieser Browser (er schreibt dort, sonst hätte er ihn
+ * nicht anlegen dürfen) baut gleich seine erste Abschrift — leer, aber da: der Assistent sieht
+ * den neuen Behälter sofort, über den Link und über MCP.
+ */
+export function aiCollectionAdded(ring: Ring, areaId: string, libraryId: string): void {
+  forgetAiWatch(areaId);
+  void refreshAiAccess(ring, areaId, { only: libraryId }).catch(() => undefined);
 }
 
 /* -- Nach dem Schreiben ------------------------------------------------------------------------- */

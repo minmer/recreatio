@@ -175,7 +175,7 @@ export function AiConnect({ grantId, who }: { grantId: string | null; who: Who }
                 <label key={row.id} className="wk-check">
                   <input type="checkbox" checked={chosen.has(row.id)} onChange={() => flip(row.id)} disabled={busy !== null} />
                   <span>
-                    {row.parts.map((p) => nameOf(entry, p.libraryId, p.kind)).join(', ') || 'Link dla AI'}
+                    {row.parts.map((p) => nameOf(entry, p.libraryId, p.kind)).join(', ') || 'Link dla AI'}{row.wholeArea === true ? ' — cały obszar, także nowe zbiory' : ''}
                     {' '}<span className="wk-tag">ważny do {day(row.expiresAt)}</span>
                   </span>
                 </label>

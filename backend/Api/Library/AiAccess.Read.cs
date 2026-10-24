@@ -880,6 +880,9 @@ public static partial class AiAccess
 
         if (Count($"ai:{Ids.ToText(id)}") > PerMinute) return (null, LinkProblem.TooManyRequests);
 
+        /* 2026-10-24 (0128) — folgt der Link seinem Bereich, gehört ein neuer Behälter dazu (bis zur ersten Abschrift: „noch nicht gotowy"). */
+        await FollowAreaAsync(connection, null, areaId, ct);
+
         var opened = new Opened
         {
             Id = id,

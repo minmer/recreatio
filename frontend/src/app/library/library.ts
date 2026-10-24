@@ -119,6 +119,8 @@ export async function createLibrary(ring: Ring, areaId: string, name: string, ki
     method: 'POST',
     body: JSON.stringify({ libraryId, areaId, epoch, kind, nameSealed: toBase64Url(await sealText(key, nameAad(libraryId), name.trim() || fallback)) })
   });
+  /* 2026-10-24 (0128) — folgt ein Link für AI diesem Bereich, bekommt er den neuen Behälter: seine Abschrift entsteht hier. */
+  void import('../aiAccess/aiAccess').then((m) => m.aiCollectionAdded(ring, areaId, libraryId)).catch(() => undefined);
   return libraryId;
 }
 

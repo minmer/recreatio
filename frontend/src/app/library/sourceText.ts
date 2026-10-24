@@ -473,7 +473,27 @@ export function planSourceImport(raw: unknown, ctx: ImportContext): SourcePlan |
 }
 
 /** Ein Dokument oder eine Liste von Dokumenten (Export „wszystko") — als Liste. */
-export const documentsOf = (raw: unknown): unknown[] => (Array.isArray(raw) ? raw : [raw]);
+export const documentsOf = (raw: unknown): unknown[] => portionDocs(raw);
+
+/**
+ * 2026-10-24 — DER GANZE TEXT IN EINEM DOKUMENT. Ein Dokument trägt eine Part (`portion` +
+ * `blocks`) oder viele (`portions: [{ portion, blocks }, …]`); eine Liste von Dokumenten geht
+ * auch. Hier wird daraus je Part ein Dokument der einfachen Gestalt — mit `format`, `work`,
+ * `scheme` und `edition` des Ganzen. Ein Werk als Objekt (ein neuer Eintrag, `sourceImport.ts`)
+ * wird dabei zu seinem Schlüssel.
+ */
+export function portionDocs(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw.flatMap(portionDocs);
+  if (!isObject(raw)) return [raw];
+  const work = isObject(raw.work) ? (s(raw.work.key) === '' ? '' : `@${s(raw.work.key).replace(/^@/, '')}`) : raw.work;
+  if (!Array.isArray(raw.portions)) return [{ ...raw, work }];
+  const { portions, ...whole } = raw;
+  return (portions as unknown[]).map((one) => {
+    const item = isObject(one) ? one : {};
+    const portion = isObject(item.portion) ? item.portion : { key: item.key, label: item.label, order: item.order };
+    return { ...whole, work, ...(item.scheme === undefined ? {} : { scheme: item.scheme }), portion, blocks: item.blocks };
+  });
+}
 
 /* -- JSON hinaus ------------------------------------------------------------------------------------ */
 
@@ -571,7 +591,7 @@ export function sourceTextDescription(scheme?: SchemeId): string {
   const schemes = scheme === undefined ? SCHEMES : SCHEMES.filter((x) => x.id === scheme);
   return `# Tekst źródła jako JSON ("${SOURCE_FORMAT}", wersja ${SOURCE_VERSION})
 
-Jeden dokument JSON = JEDNA część tekstu jednego wydania dzieła (np. jedna księga Biblii, jeden rozdział książki, jeden dokument). Większe dzieła importuje się po częściach; część z tym samym "portion.key" zastępuje poprzednią, inne zostają.
+Tekst dzieła składa się z CZĘŚCI (np. księga Biblii, rozdział książki, cały krótki dokument albo artykuł). Dokument JSON zawiera jedną część ("portion" + "blocks") albo kilka naraz ("portions": [ … ] — także cały tekst). Część z tym samym "portion.key" zastępuje poprzednią, inne zostają — więc długie dzieło można przysyłać w kilku dokumentach po kolei, a powtórzony dokument niczego nie zdubluje.
 
 {
   "format": "${SOURCE_FORMAT}",
@@ -586,6 +606,12 @@ Jeden dokument JSON = JEDNA część tekstu jednego wydania dzieła (np. jedna k
   "portion": { "key": "rozdz-1", "label": "Rozdział 1", "order": 1 },
   "blocks": [ … ]                    — bloki w kolejności oryginału
 }
+
+Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" i "blocks":
+  "portions": [
+    { "portion": { "key": "wstep", "label": "Wstęp", "order": 1 }, "blocks": [ … ] },
+    { "portion": { "key": "rozdz-1", "label": "Rozdział 1", "order": 2 }, "blocks": [ … ] }
+  ]
 
 ## Bloki
   {"type": "heading", "level": 1-4, "text": "…", "loc": "…"}    nagłówek
@@ -612,7 +638,13 @@ ${schemes.map((x) => `- "${x.id}" — ${x.label}: ${x.says} Przykłady: ${x.exam
 - Nie wymyślaj tekstu ani numerów: czego nie widać w źródle, tego nie ma w JSON. Niepewne oznacz {{? …}} albo "uncertain": true.
 - Numery stron: drukowane, tak jak w książce (także rzymskie: "xii"); numer strony pliku PDF w "pdf", jeśli się różni.
 - Przypisy dolne i końcowe: blok "note" (po akapicie albo na końcu części) i {{note …}} w miejscu odsyłacza.
-- Jedna część — najwyżej ok. 2 mln znaków; przy przepisywaniu najlepiej jeden rozdział (albo jedna księga) na dokument, z kolejnym "portion.order".
+- Jedna część — najwyżej ok. 2 mln znaków.
+
+## Cały tekst
+- Podziel tekst według jego własnego podziału: księgi Biblii (klucz: skrót księgi, np. "J"), rozdziały książki ("rozdz-1", "rozdz-2"), kwestie Sumy ("I-q2"), rozdziały dokumentu; krótki artykuł albo dokument może być jedną częścią.
+- Klucze krótkie i stałe; "order" — kolejność w dziele (1, 2, 3…). Wstęp, przedmowa, spis treści, bibliografia, indeks — osobne części tylko wtedy, gdy są w źródle.
+- Przypisy końcowe (na końcu książki albo rozdziału) wpisz w tej części, do której odsyłają.
+- Gdy tekst nie mieści się w jednej odpowiedzi: przepisz kolejne części w kolejnych dokumentach (z tym samym "work", "scheme" i "edition"), zaczynając dokładnie tam, gdzie skończyłeś. Nigdy nie przerywaj części w połowie — dokończ ją albo zacznij od niej następny dokument (ta sama część drugi raz zastąpi poprzednią).
 Zwróć JEDEN obiekt JSON, bez komentarzy.
 
 ## Przykłady

@@ -27,6 +27,7 @@
 .wk-ai-title { margin-top: 0; }
 .wk-ai-when { font-size: var(--wk-text-sm); color: var(--wk-muted); }
 .wk-ai-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; font-size: var(--wk-text-sm); }
+.wk-ai-whole { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
 
 /* -- Die Glocke (0067) -- */
 

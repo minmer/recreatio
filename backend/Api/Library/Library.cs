@@ -265,6 +265,9 @@ public static partial class Library
             return;
         }
 
+        /* 2026-10-24 (0128) — die Links für AI, die ihrem Bereich folgen, zeigen ihn ab jetzt auch (die Abschrift baut der Browser). */
+        await AiAccess.FollowAreaAsync(connection, null, areaId, ctx.RequestAborted);
+
         /* 2026-10-22 — eine neue Bibliothek kennt nur die Regel des Bereichs: nichts durchzusehen. */
         if (await HasAreaRuleAsync(connection, ctx.RequestAborted))
         {

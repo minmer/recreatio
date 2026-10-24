@@ -97,7 +97,7 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
     }
   };
 
-  const create = async (libraries: readonly string[], days: number): Promise<void> => {
+  const create = async (libraries: readonly string[], days: number, whole: boolean): Promise<void> => {
     if (ring === null) return;
     const yes = await ask({
       title: 'Utworzyć link dla AI?',
@@ -106,7 +106,7 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
     });
     if (!yes) return;
     await run('Tworzę link…', async () => {
-      const out = await createAiAccess(ring, area.areaId, libraries, days, (done, total) => setWorking(`Przygotowuję odpisy… ${done}/${total}`));
+      const out = await createAiAccess(ring, area.areaId, libraries, days, (done, total) => setWorking(`Przygotowuję odpisy… ${done}/${total}`), whole);
       setMade({ id: out.id, link: out.link });
       const failed = failedWords(out.refresh);
       if (failed !== null) throw new WorkspaceError(failed);
@@ -155,7 +155,7 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
           {list.leads && containers !== null && ring !== null && list.accesses.filter((a) => !a.expired).length < list.limit && (
             containers.length === 0
               ? <p className="wk-empty">Ten obszar nie ma jeszcze biblioteki, skryptorium ani bazy wiedzy.</p>
-              : <CreateForm containers={containers} days={list.days} busy={working !== null} onCreate={(l, d) => void create(l, d)} />
+              : <CreateForm containers={containers} days={list.days} busy={working !== null} onCreate={(l, d, w) => void create(l, d, w)} />
           )}
           {!list.leads && list.accesses.length === 0 && <p className="wk-empty">Link dla AI zakłada ten, kto prowadzi obszar.</p>}
           {list.leads && ring === null && <p className="wk-empty">Odblokuj klucze (hasło), żeby tworzyć linki dla AI.</p>}
@@ -204,6 +204,7 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
         </span>
       </div>
 
+      {row.wholeArea === true && <p className="wk-ai-whole">Cały obszar — także zbiory, które dojdą później.</p>}
       <ul className="wk-ai-parts">
         {row.parts.map((part) => (
           <li key={part.libraryId}>
@@ -275,10 +276,11 @@ function AccessItem({ row, list, area, ring, containers, justMade, busy, nameOf,
         <PartsForm
           containers={containers}
           chosen={row.parts.map((p) => p.libraryId)}
+          whole={row.wholeArea === true}
           busy={busy}
           label="Zapisz zbiory"
-          onSave={(libraries) => void run('Zmieniam zbiory…', async () => {
-            await setAiParts(area.areaId, row.id, libraries);
+          onSave={(libraries, whole) => void run('Zmieniam zbiory…', async () => {
+            await setAiParts(area.areaId, row.id, libraries, whole);
             setEditParts(false);
             forgetAiWatch(area.areaId);
             const failed = failedWords(await refreshAiAccess(ring, area.areaId, { accessId: row.id, progress: (done, total) => setWorking(`Przygotowuję odpisy… ${done}/${total}`) }));
@@ -318,13 +320,13 @@ function CreateForm({ containers, days, busy, onCreate }: {
   containers: readonly Container[];
   days: readonly number[];
   busy: boolean;
-  onCreate: (libraries: readonly string[], days: number) => void;
+  onCreate: (libraries: readonly string[], days: number, whole: boolean) => void;
 }) {
   const [length, setLength] = useState(days.includes(90) ? 90 : days[0] ?? 30);
 
   return (
-    <PartsForm containers={containers} chosen={containers.map((c) => c.libraryId)} busy={busy} label="Utwórz link dla AI"
-      onSave={(libraries) => onCreate(libraries, length)}>
+    <PartsForm containers={containers} chosen={containers.map((c) => c.libraryId)} whole busy={busy} label="Utwórz link dla AI"
+      onSave={(libraries, whole) => onCreate(libraries, length, whole)}>
       <label className="wk-field">
         <span>Ważny przez</span>
         <select value={length} onChange={(e) => setLength(Number(e.target.value))}>
@@ -335,16 +337,21 @@ function CreateForm({ containers, days, busy, onCreate }: {
   );
 }
 
-/** Welche Behälter des Bereichs der Link zeigt — mindestens einer. */
-function PartsForm({ containers, chosen, busy, label, onSave, children }: {
+/**
+ * Welche Behälter des Bereichs der Link zeigt — mindestens einer. 2026-10-24 (0128): oder der
+ * ganze Bereich, auch was später dazukommt (eine neue Bibliothek, eine Baza wiedzy).
+ */
+function PartsForm({ containers, chosen, whole: wholeAtStart = false, busy, label, onSave, children }: {
   containers: readonly Container[];
   chosen: readonly string[];
+  whole?: boolean;
   busy: boolean;
   label: string;
-  onSave: (libraries: readonly string[]) => void;
+  onSave: (libraries: readonly string[], whole: boolean) => void;
   children?: ReactNode;
 }) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set(chosen));
+  const [whole, setWhole] = useState(wholeAtStart);
   const flip = (id: string) => setPicked((was) => {
     const next = new Set(was);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -352,19 +359,27 @@ function PartsForm({ containers, chosen, busy, label, onSave, children }: {
   });
 
   return (
-    <form className="wk-form" onSubmit={(e) => { e.preventDefault(); if (picked.size > 0) onSave(containers.filter((c) => picked.has(c.libraryId)).map((c) => c.libraryId)); }}>
+    <form className="wk-form" onSubmit={(e) => {
+      e.preventDefault();
+      if (whole) onSave(containers.map((c) => c.libraryId), true);
+      else if (picked.size > 0) onSave(containers.filter((c) => picked.has(c.libraryId)).map((c) => c.libraryId), false);
+    }}>
       <fieldset className="wk-field">
         <legend>Co czyta AI</legend>
+        <label className="wk-check">
+          <input type="checkbox" checked={whole} onChange={(e) => setWhole(e.target.checked)} />
+          <span>Cały obszar — także zbiory, które dojdą później</span>
+        </label>
         {containers.map((c) => (
           <label key={c.libraryId} className="wk-check">
-            <input type="checkbox" checked={picked.has(c.libraryId)} onChange={() => flip(c.libraryId)} />
+            <input type="checkbox" checked={whole || picked.has(c.libraryId)} disabled={whole} onChange={() => flip(c.libraryId)} />
             <span>{c.name} <span className="wk-tag">{PART_NAME[c.kind]}</span></span>
           </label>
         ))}
       </fieldset>
       {children}
       <div className="wk-actions">
-        <button type="submit" className="wk-btn" disabled={busy || picked.size === 0}>{label}</button>
+        <button type="submit" className="wk-btn" disabled={busy || (!whole && picked.size === 0)}>{label}</button>
       </div>
     </form>
   );

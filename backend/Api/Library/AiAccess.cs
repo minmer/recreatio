@@ -64,9 +64,62 @@ public static partial class AiAccess
         MapRead(app);
     }
 
-    public sealed record CreateRequest(string? Id, string[]? Libraries, int Days);
+    /// <param name="WholeArea">2026-10-24 (0128) — der Link zeigt alle Behälter des Bereichs, auch spätere.</param>
+    public sealed record CreateRequest(string? Id, string[]? Libraries, int Days, bool? WholeArea = null);
     public sealed record FinishRequest(string? Token, int Epoch, string? KeySealed, string? TokenSealed, string? KeyWrapped);
-    public sealed record ChangeRequest(int? Days, string[]? Libraries);
+    public sealed record ChangeRequest(int? Days, string[]? Libraries, bool? WholeArea = null);
+
+    /* -- 2026-10-24 (0128): ein Link, der seinem Bereich folgt ------------------------------------------ */
+
+    /// <summary>Gibt es die Spalte schon? (Ein Dienst vor der Migration 0128 arbeitet ohne sie, wie bisher.)</summary>
+    internal static async Task<bool> HasWholeAreaAsync(SqlConnection connection, SqlTransaction? tx, CancellationToken ct)
+    {
+        await using var cmd = new SqlCommand("SELECT CASE WHEN COL_LENGTH('app.ai_access', 'whole_area') IS NULL THEN 0 ELSE 1 END;", connection, tx);
+        return (int)(await cmd.ExecuteScalarAsync(ct) ?? 0) == 1;
+    }
+
+    /// <summary>
+    /// DIE LINKS, DIE IHREM BEREICH FOLGEN, BEKOMMEN SEINE NEUEN BEHÄLTER — als Teil ohne
+    /// Abschrift (die baut der nächste Browser, der dort schreibt; bis dahin sagt der Link,
+    /// dass sie noch fehlt). Aufgerufen, wenn ein Behälter angelegt wird, beim Auflisten
+    /// und beim Lesen: so fehlt nichts, auch was vor dieser Regel entstand. Höchstens
+    /// <see cref="MaxParts"/> Behälter je Link.
+    /// </summary>
+    internal static async Task FollowAreaAsync(SqlConnection connection, SqlTransaction? tx, Guid areaId, CancellationToken ct)
+    {
+        if (!await HasWholeAreaAsync(connection, tx, ct)) return;
+        await using var cmd = new SqlCommand($"""
+            INSERT INTO app.ai_access_part (access_id, library_id)
+            SELECT a.id, l.id
+            FROM app.ai_access a
+            JOIN app.library l ON l.area_id = a.area_id AND l.kind IN (N'books', N'writing', N'knowledge')
+            WHERE a.area_id = @area AND a.whole_area = 1
+              AND NOT EXISTS (SELECT 1 FROM app.ai_access_part p WHERE p.access_id = a.id AND p.library_id = l.id)
+              AND (SELECT COUNT(*) FROM app.ai_access_part c WHERE c.access_id = a.id) < {MaxParts};
+            """, connection, tx);
+        cmd.Parameters.AddWithValue("@area", areaId);
+        try
+        {
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch (SqlException e) when (e.Number is 2601 or 2627)
+        {
+            /* Zwei Anfragen zugleich: die andere hat ihn schon dazugenommen. */
+        }
+    }
+
+    /// <summary>Alle Behälter des Bereichs (für einen Link, der ihm folgt).</summary>
+    private static async Task<List<Guid>> AreaLibrariesAsync(SqlConnection connection, SqlTransaction? tx, Guid areaId, CancellationToken ct)
+    {
+        var out_ = new List<Guid>();
+        await using var cmd = new SqlCommand($"""
+            SELECT TOP ({MaxParts}) id FROM app.library WHERE area_id = @area AND kind IN (N'books', N'writing', N'knowledge') ORDER BY created_at;
+            """, connection, tx);
+        cmd.Parameters.AddWithValue("@area", areaId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) out_.Add(reader.GetGuid(0));
+        return out_;
+    }
 
     /* -- Was hereinkommt ------------------------------------------------------------------------ */
 
@@ -209,11 +262,14 @@ public static partial class AiAccess
         var allowed = await AllowedAsync(ctx, db, connection, areaId, Capability.Read);
         if (allowed is null) return;
         await TidyAsync(connection, areaId, ctx.RequestAborted);
+        /* 2026-10-24 (0128) — was inzwischen in den Bereich kam, gehört zu den Links, die ihm folgen. */
+        await FollowAreaAsync(connection, null, areaId, ctx.RequestAborted);
+        var hasWhole = await HasWholeAreaAsync(connection, null, ctx.RequestAborted);
 
-        var rows = new List<(Guid Id, Guid Creator, int? Epoch, byte[]? KeySealed, byte[]? TokenSealed, bool Ready, DateTimeOffset Created, DateTimeOffset Expires, DateTimeOffset? Used, int Uses)>();
-        await using (var cmd = new SqlCommand("""
+        var rows = new List<(Guid Id, Guid Creator, int? Epoch, byte[]? KeySealed, byte[]? TokenSealed, bool Ready, DateTimeOffset Created, DateTimeOffset Expires, DateTimeOffset? Used, int Uses, bool Whole)>();
+        await using (var cmd = new SqlCommand($"""
             SELECT id, account_id, epoch, key_sealed, token_sealed, CAST(CASE WHEN key_wrapped IS NULL THEN 0 ELSE 1 END AS bit),
-                   created_at, expires_at, last_used_at, uses
+                   created_at, expires_at, last_used_at, uses, {(hasWhole ? "whole_area" : "CAST(0 AS bit)")}
             FROM app.ai_access WHERE area_id = @area ORDER BY created_at DESC, id;
             """, connection))
         {
@@ -223,7 +279,7 @@ public static partial class AiAccess
             {
                 rows.Add((reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetInt32(2),
                     reader.IsDBNull(3) ? null : (byte[])reader[3], reader.IsDBNull(4) ? null : (byte[])reader[4], reader.GetBoolean(5),
-                    reader.GetDateTimeOffset(6), reader.GetDateTimeOffset(7), reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8), reader.GetInt32(9)));
+                    reader.GetDateTimeOffset(6), reader.GetDateTimeOffset(7), reader.IsDBNull(8) ? null : reader.GetDateTimeOffset(8), reader.GetInt32(9), reader.GetBoolean(10)));
             }
         }
 
@@ -269,6 +325,7 @@ public static partial class AiAccess
                 mine = r.Creator == allowed.Value.AccountId,
                 creatorLeads = leading[r.Creator],
                 works = r.Ready && r.Expires > now && leading[r.Creator],
+                wholeArea = r.Whole,
                 epoch = r.Epoch,
                 keySealed = allowed.Value.Writes && r.KeySealed is not null ? Base64Url.Encode(r.KeySealed) : null,
                 tokenSealed = allowed.Value.Leads && r.TokenSealed is not null ? Base64Url.Encode(r.TokenSealed) : null,
@@ -306,8 +363,9 @@ public static partial class AiAccess
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelna kennung dostępu.");
             return;
         }
+        var whole = body.WholeArea == true;
         var libraries = LibrariesOf(body.Libraries);
-        if (libraries is null)
+        if (libraries is null && !whole)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, $"Wybierz od 1 do {MaxParts} zbiorów tego obszaru.");
             return;
@@ -328,6 +386,14 @@ public static partial class AiAccess
         var expires = now.AddDays(body.Days);
         await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted))
         {
+            /* 2026-10-24 (0128) — ein Link für den ganzen Bereich: seine Behälter jetzt, und später die neuen. */
+            var follows = whole && await HasWholeAreaAsync(connection, tx, ctx.RequestAborted);
+            if (whole) libraries = await AreaLibrariesAsync(connection, tx, areaId, ctx.RequestAborted);
+            if (libraries is null || libraries.Count == 0)
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Ten obszar nie ma jeszcze biblioteki, skryptorium ani bazy wiedzy.");
+                return;
+            }
             if (!await OwnLibrariesAsync(connection, tx, areaId, libraries, ctx.RequestAborted))
             {
                 await Fail(ctx, StatusCodes.Status400BadRequest, "Można wybrać tylko bibliotekę, skryptorium i bazy wiedzy tego obszaru.");
@@ -359,7 +425,10 @@ public static partial class AiAccess
                 }
             }
 
-            await using (var insert = new SqlCommand("""
+            await using (var insert = new SqlCommand(follows ? """
+                INSERT INTO app.ai_access (id, area_id, account_id, token_sha256, created_at, expires_at, whole_area)
+                VALUES (@id, @area, @account, @hash, @now, @expires, 1);
+                """ : """
                 INSERT INTO app.ai_access (id, area_id, account_id, token_sha256, created_at, expires_at)
                 VALUES (@id, @area, @account, @hash, @now, @expires);
                 """, connection, tx))
@@ -566,6 +635,16 @@ public static partial class AiAccess
             await extend.ExecuteNonQueryAsync(ctx.RequestAborted);
         }
 
+        /* 2026-10-24 (0128) — dem Bereich folgen (dann entscheidet er, nicht die Auswahl) oder nicht mehr. */
+        if (body.WholeArea is bool follow && await HasWholeAreaAsync(connection, tx, ctx.RequestAborted))
+        {
+            await using var flag = new SqlCommand("UPDATE app.ai_access SET whole_area = @whole WHERE id = @id;", connection, tx);
+            flag.Parameters.AddWithValue("@id", id);
+            flag.Parameters.AddWithValue("@whole", follow);
+            await flag.ExecuteNonQueryAsync(ctx.RequestAborted);
+            if (follow) libraries = null;
+        }
+
         if (libraries is not null)
         {
             if (!await OwnLibrariesAsync(connection, tx, areaId, libraries, ctx.RequestAborted))
@@ -583,6 +662,7 @@ public static partial class AiAccess
             await AddPartsAsync(connection, tx, id, libraries, ctx.RequestAborted);
         }
         await tx.CommitAsync(ctx.RequestAborted);
+        if (body.WholeArea == true) await FollowAreaAsync(connection, null, areaId, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { id = Ids.ToText(id), expiresAt = expires });
     }
