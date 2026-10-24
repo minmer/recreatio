@@ -165,7 +165,11 @@ export class BubbleModel {
 
   /* -- Hilfen ---------------------------------------------------------------------------------------- */
 
-  /** Absoluter Druck der Flüssigkeit an (x, y): bilinear über die nicht festen Zellmitten. */
+  /**
+   * Absoluter Druck der Flüssigkeit an (x, y): bilinear über die nicht festen Zellmitten — nie unter dem halben
+   * Umgebungsdruck. Der Druck der Projektion hat bei heftiger Strömung kurze Einbrüche bis unter null; eine Blase ohne
+   * Trägheit folgte ihm sofort (Dampf auf der heissen Platte: von 55 auf 2000 cm³ in einem Schritt, extremes.ts).
+   */
   private pressure(x: number, y: number): number {
     const e = this.e;
     const g = e.grid;
@@ -185,7 +189,7 @@ export class BubbleModel {
       s += ww * g.pl[c];
       w += ww;
     }
-    return e.pRef + (w > 0 ? s / w : 0);
+    return Math.max(0.5 * e.pRef, e.pRef + (w > 0 ? s / w : 0));
   }
 
   /** Die Spur einer Blase in cells/wts (nur flüssige Zellen, auf Summe 1); Rückgabe: Anzahl (0: keine Flüssigkeit). */
@@ -233,7 +237,7 @@ export class BubbleModel {
     /* Wieviel Wärme jede flüssige Zelle bis T_sat hergeben (positiv) oder aufnehmen (negativ) kann. */
     for (let c = 0; c < n; c += 1) {
       if (kind[c] !== LIQUID) { this.budget[c] = 0; this.tsatCell[c] = 0; this.dTb[c] = 0; continue; }
-      const pc = e.pRef + g.pl[c];
+      const pc = Math.max(0.5 * e.pRef, e.pRef + g.pl[c]);
       const Ts = phase.boilingAt(c, pc);
       this.tsatCell[c] = Ts;
       if (phase.salty) this.dTb[c] = Ts - tSat(pc);
@@ -272,7 +276,7 @@ export class BubbleModel {
       const Tl = phase.Tl[fc];
       const kl = kLiq(phase.host[fc], Tl);
       const Tf = (mat.k * g.Ts[sc] + kl * Tl) / (mat.k + kl);
-      const pl = e.pRef + g.pl[fc];
+      const pl = Math.max(0.5 * e.pRef, e.pRef + g.pl[fc]);
       const Ts = this.tsatCell[fc] > 0 ? this.tsatCell[fc] : tSat(pl);
       if (Tf - Ts < 0) continue;
       const rc = this.sites.r[s];
@@ -495,10 +499,14 @@ export class BubbleModel {
     const H = bubbleEnthalpy(B.m, b * SPECIES_SLOTS, B.Tb[b], hGas);
     const dH = H - B.H[b];
     if (dH === 0) return;
+    if (site >= 0) { B.H[b] = H; e.heat.src[this.sites.cell[site]] -= dH / dt; return; }
+    /* Nur Zellen der Spur mit Flüssigkeit nehmen die Wärme auf: eine Zelle, die eine grosse Blase ganz leer gedrückt hat, bleibt flüssig, hat aber keine Wärmekapazität — dorthin gebucht ginge die Wärme verloren. Ohne solche Zelle behält die Blase ihre Enthalpie (bis zum nächsten Mal). */
+    const Cl = e.phase.Cl;
+    let sum = 0;
+    for (let q = 0; q < k; q += 1) if (Cl[this.cells[q]] > 0) sum += this.wts[q];
+    if (!(sum > 0)) return;
     B.H[b] = H;
-    if (site >= 0) { e.heat.src[this.sites.cell[site]] -= dH / dt; return; }
-    if (k === 0) return;
-    for (let q = 0; q < k; q += 1) e.heat.src[this.cells[q]] -= (dH * this.wts[q]) / dt;
+    for (let q = 0; q < k; q += 1) { const c = this.cells[q]; if (Cl[c] > 0) e.heat.src[c] -= (dH * this.wts[q]) / (sum * dt); }
   }
 
   /** Der Fritz-Durchmesser D_d = 0,0208 θ √(σ/(g Δρ)) einer hängenden Blase (m); ohne Schwerkraft unendlich. */
@@ -600,6 +608,8 @@ export class BubbleModel {
     B.site[q] = -1;
     B.V[q] = 0;
     if (B.id[q] === this.watch) { this.watch = B.id[b]; this.watchFate = 3; }
+    /* Bis zum nächsten Lösen: das Volumen beider, der Radius dazu (das Mildern und die Spur sehen so die vereinigte Blase). */
+    B.V[b] = V;
     B.r[b] = Math.cbrt((3 * V) / (4 * Math.PI));
     this.merged += 1;
   }

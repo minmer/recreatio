@@ -94,7 +94,7 @@ ${MAIN} {
   setF_at(A_FM * n + c, 0.0);
   setF_at(A_FE * n + c, 0.0);
   ${full ? `if (cu[U_KIND * n + c] == LIQUID) {
-    let Ts = tSat(P.pref + cf[F_PL * n + c]);
+    let Ts = tSat(max(0.5 * P.pref, P.pref + cf[F_PL * n + c]));
     cf[F_TSAT * n + c] = Ts;
     setF_at(A_BUDGET * n + c, Cl * (cf[F_PTL * n + c] - Ts));
   } else { cf[F_TSAT * n + c] = 0.0; setF_at(A_BUDGET * n + c, 0.0); }` : ''}

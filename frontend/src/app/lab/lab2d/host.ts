@@ -10,8 +10,9 @@
 import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import type { ObjectPatch } from './engine/objects';
-import type { HostMessage, HostStats, WorkerMessage } from './engine/protocol';
-import type { HeaterMode, Op, Quality, Side, SideName } from './engine/scene';
+import type { ExtremeEvent } from './engine/extremes';
+import type { BakeOptions, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
+import type { ExtremeMode, HeaterMode, Op, Quality, Side, SideName } from './engine/scene';
 import type { Region } from './engine/shapes';
 import { frameTransfer, type Overlay } from './render/frame';
 import { LabRenderer, type Walls } from './render/glRenderer';
@@ -29,6 +30,8 @@ export interface HostEvents {
   readonly onClip?: (info: ClipInfo | null) => void;
   readonly onBake?: (m: Extract<WorkerMessage, { type: 'bake' }>) => void;
   readonly onLive?: (t: number) => void;
+  /** Ein heftiger Zustand bei „ask“: der Arbeiter hat angehalten und wartet auf setExtremes. */
+  readonly onExtreme?: (event: ExtremeEvent) => void;
 }
 
 export class LabHost {
@@ -142,6 +145,9 @@ export class LabHost {
       case 'live':
         this.events.onLive?.(m.t);
         break;
+      case 'extreme':
+        this.events.onExtreme?.(m.event);
+        break;
       case 'probe':
         break;
     }
@@ -195,9 +201,10 @@ export class LabHost {
   step(): void { this.post({ type: 'step' }); }
   setSpeed(speed: number): void { this.post({ type: 'setSpeed', speed }); }
   setQuality(quality: Quality): void { this.post({ type: 'setQuality', quality }); }
+  setExtremes(mode: ExtremeMode): void { this.post({ type: 'setExtremes', mode }); }
   load(scene: unknown): void { this.post({ type: 'load', scene }); }
   /* Nachweise (B). */
-  bake(seconds: number): void { this.post({ type: 'bake', seconds }); }
+  bake(options: BakeOptions): void { this.post({ type: 'bake', options }); }
   stopBake(): void { this.post({ type: 'bakeStop' }); }
   clipOpen(play: boolean): void { this.post({ type: 'clipOpen', play }); }
   clipPlay(playing: boolean): void { this.post({ type: 'clipPlay', playing }); }

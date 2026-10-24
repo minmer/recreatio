@@ -306,6 +306,8 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
 
   /* Ein anderer Kalender: seine Art (beim neuen), seine Dauer (solange das Ende nicht von Hand gesetzt wurde), seine Sichtbarkeit. */
   const pickCalendar = (next: string) => {
+    /* Derselbe noch einmal: nichts — sonst fiele die Ausnahme der Sichtbarkeit eines älteren Termins still weg. */
+    if (next === calendarId) return;
     setCalendarId(next);
     const chosen = calendars.find((c) => c.calendarId === next);
     /* Ein neuer Eintrag ist, was sein Kalender führt (Msze → msza) — man kann es danach ändern. */
@@ -480,10 +482,10 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
           </div>
         )}
 
-        <input className="wk-ev-title" value={title} disabled={onlyTime} maxLength={200}
+        <input className="wk-ev-name" value={title} disabled={onlyTime} maxLength={200}
           aria-label={liturgy ? 'Nazwa (widoczna publicznie)' : 'Tytuł'}
           list={kind === 'devotion' ? 'wk-devotion-names' : undefined}
-          placeholder={kind === 'mass' ? 'Nazwa, np. Msza św. niedzielna — puste: sama godzina' : kind === 'devotion' ? 'Nazwa, np. Różaniec'
+          placeholder={kind === 'mass' ? 'Nazwa, np. Suma — puste: sama godzina' : kind === 'devotion' ? 'Nazwa, np. Różaniec'
             : kind === 'confession' ? 'Nazwa — puste: „Spowiedź”' : 'Tytuł, np. Spotkanie z rodzicami'}
           onChange={(e) => setTitle(e.target.value)} />
         {kind === 'devotion' && <datalist id="wk-devotion-names">{DEVOTION_NAMES.map((n) => <option key={n} value={n} />)}</datalist>}
@@ -499,7 +501,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               {(!allDay || endShown) && <span className="wk-ev-dash" aria-hidden="true">–</span>}
               {endShown && (
                 <input type="date" aria-label={allDay ? 'Do dnia' : 'Dzień końca'} min={date} value={endDate} disabled={onlyTime}
-                  onChange={(e) => { setEndDate(e.target.value); setEndTouched(true); }} />
+                  onChange={(e) => { setEndDate(e.target.value); setEndTouched(true); setEndWanted(true); }} />
               )}
               {!allDay && (
                 <input type="time" aria-label="Koniec" step={300} value={to} disabled={onlyTime}

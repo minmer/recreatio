@@ -238,7 +238,7 @@ ${MAIN} {
       }
     }
     cf[cfi(F_PHI, c)] = phi / P.vcell;
-    if (dv != 0.0) { addF_at(ati(A_VOLSRC, c), dv / glob[G_DT]); }
+    if (dv != 0.0) { addF_at(ati(A_VOLSRC, c), dv / max(glob[G_DT], DRIFT_DT)); }
     cu[cui(U_KPREV, c)] = cu[cui(U_KIND, c)];
   }
   if (c == 0u) { atomicStore(&cnt[C_TMAX], 0u); setF_cnt(C_SUM_WM, 0.0); setF_cnt(C_SUM_WMT, 0.0); }

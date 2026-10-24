@@ -128,7 +128,7 @@ fn sitePos(S: Site, r: f32) -> vec2<f32> {
 /** Was Blasen aus den Zellen lesen und in sie schreiben (cf, cu, at gebunden). */
 export const BUB_CELLS = `
 fn kindOf(c: u32) -> u32 { return cu[U_KIND * P.n + c]; }
-/* Absoluter Druck der Flüssigkeit an (x, y): bilinear über die nicht festen Zellmitten. */
+/* Absoluter Druck der Flüssigkeit an (x, y): bilinear über die nicht festen Zellmitten, nie unter dem halben Umgebungsdruck (wie BubbleModel.pressure). */
 fn pressureAt(x: f32, y: f32) -> f32 {
   let fx = clamp(x * P.invdx - 0.5, 0.0, f32(P.nx) - 1.0001);
   let fy = clamp(y * P.invdx - 0.5, 0.0, f32(P.ny) - 1.0001);
@@ -147,7 +147,7 @@ fn pressureAt(x: f32, y: f32) -> f32 {
       w += ww;
     }
   }
-  return P.pref + select(0.0, s / w, w > 0.0);
+  return max(0.5 * P.pref, P.pref + select(0.0, s / w, w > 0.0));
 }
 /* Summe der Gewichte über flüssige Zellen der Spur und Σ w T_l. */
 fn liqFoot(fp: FP, x: f32, y: f32, r: f32) -> vec2<f32> {
@@ -271,7 +271,7 @@ ${MAIN} {
   let Tl = cf[F_PTL * n + fc];
   let kl = kL(Tl);
   let Tf = (ks * cf[F_T * n + sc] + kl * Tl) / (ks + kl);
-  let pl = P.pref + cf[F_PL * n + fc];
+  let pl = max(0.5 * P.pref, P.pref + cf[F_PL * n + fc]);
   var Ts = cf[F_TSAT * n + fc];
   if (!(Ts > 0.0)) { Ts = tSat(pl); }
   if (Tf - Ts < 0.0) { return; }

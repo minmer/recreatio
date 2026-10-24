@@ -503,9 +503,9 @@ export function Calendar({ me, scope, startNew, at }: {
         <div className="wk-cal2-add">
           {mayAdd && (
             <button type="button" className="wk-btn" onClick={() => {
+              /* Die nächste volle Stunde — 2026-10-24: an einem späteren Tag, den man gerade ansieht, zu dieser Stunde dort (nicht um 1:00 nachts). */
               const at = new Date(Math.max(now.getTime(), anchor.getTime()));
-              at.setMinutes(0, 0, 0);
-              at.setHours(at.getHours() + 1);
+              at.setHours(now.getHours() + 1, 0, 0, 0);
               newAt(at);
             }}>+ Termin</button>
           )}
@@ -1165,7 +1165,7 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
               */}
               <button type="button" className="wk-cal2-cellhead" aria-label={dayLabel(day, dayMarks)} onClick={() => onDay(day)}>
                 {/* 2026-10-17 — an jedem Tag der Monat, kurz („31 paź", „1 lis"): an den Rändern und über mehrere Monate weiss man so immer, wo man ist. */}
-                <span className="wk-cal2-cellday">{day.getDate()} <span className="wk-cal2-cellmon">{monthOfName(day).slice(0, 3)}</span></span>
+                <span className={`wk-cal2-cellday${day.getDate() === 1 ? ' is-first' : ''}`}>{day.getDate()} <span className="wk-cal2-cellmon">{monthOfName(day).slice(0, 3)}</span></span>
                 <TaskTally marks={dayMarks} />
               </button>
               {mine.slice(0, SHOWN).map(({ event: e, parts }) => (

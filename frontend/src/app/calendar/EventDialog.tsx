@@ -5,8 +5,9 @@
  *
  * <b>Der Kalender gibt die Regeln vor</b> (0058): wer den Termin sieht, wie
  * lange er dauert, was er ist (Treffen, Messe), ob und von wem er reserviert
- * werden kann. Hier lässt sich jede davon für DIESEN Termin ändern — mehr
- * Plätze, nur für eine Gruppe, für andere Leute sichtbar.
+ * werden kann. Für DIESEN Termin lassen sich die Dauer, die Plätze und wer
+ * reservieren darf ändern; wer ihn sieht, sagt seit 2026-10-24 allein der
+ * Kalender (siehe `EventEditor.tsx`).
  *
  * <b>Wer da sein muss</b>: Menschen der Gruppe, an den Termin geheftet — für
  * die ganze Reihe oder nur für dieses Vorkommen.

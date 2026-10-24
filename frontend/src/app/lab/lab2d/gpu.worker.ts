@@ -396,6 +396,10 @@ scope.addEventListener('message', (event) => {
       case 'setSpeed':
         speed = Math.min(64, Math.max(0.05, m.speed));
         break;
+      case 'setExtremes':
+        cpu?.setExtremes(m.mode);
+        gpu?.writeParams();
+        break;
       case 'setQuality':
         task(async () => { if (cpu === null) return; cpu.setQuality(m.quality); restart(); });
         break;

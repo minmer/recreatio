@@ -140,7 +140,8 @@ export function TaskTally({ marks }: { marks: readonly TaskMark[] }) {
     <span className={`wk-taskpill is-mini is-quiet${d.classes}`} title={d.words} aria-hidden="true">
       <span className="wk-taskpill-tick">✓</span>
       <span className="wk-taskpill-count">{t.settled}/{t.total}</span>
-      {(t.pressing > 0 || t.behind > 0) && <span className="wk-taskpill-dot" />}
+      {/* Breit: nur, wenn etwas drängt oder liegen blieb. In einer schmalen Zelle (Telefon) steht nur er — in der Farbe des Standes. */}
+      <span className="wk-taskpill-dot" />
     </span>
   );
 }

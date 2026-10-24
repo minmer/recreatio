@@ -557,6 +557,13 @@
 button.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink); }
 /* Die stille Marke im Kopf eines Tages: kein eigener Knopf, der Kopf ist es. */
 .wk-taskpill.is-quiet { cursor: inherit; }
+.wk-taskpill.is-quiet .wk-taskpill-dot { display: none; background: var(--wk-muted); }
+.wk-taskpill.is-quiet.is-pressing .wk-taskpill-dot,
+.wk-taskpill.is-quiet.is-behind .wk-taskpill-dot { display: block; }
+.wk-taskpill.is-quiet.is-pressing .wk-taskpill-dot { background: var(--wk-accent); }
+.wk-taskpill.is-quiet.is-behind .wk-taskpill-dot { background: var(--wk-danger); }
+.wk-taskpill.is-quiet.is-past .wk-taskpill-dot { background: var(--wk-muted); }
+.wk-taskpill.is-quiet.is-clear .wk-taskpill-dot { background: var(--wk-ok); }
 .wk-taskpill:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 .wk-taskpill-tick { font-weight: 700; }
 .wk-taskpill-count { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -595,6 +602,7 @@ button.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink);
    (.wk-taskpill.is-quiet). Auf dem Telefon traf der Finger sonst die Pille.
 */
 .wk-cal2-cellhead {
+  container-type: inline-size;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -613,8 +621,20 @@ button.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink);
 }
 .wk-cal2-cellhead:hover { background: var(--wk-soft); }
 .wk-cal2-cellhead:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
-.wk-cal2-cellday { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--wk-text-sm); font-weight: 700; }
+.wk-cal2-cellday { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; font-size: var(--wk-text-sm); font-weight: 700; }
 .wk-cal2-cell.is-today .wk-cal2-cellday { color: var(--wk-accent); }
+.wk-cal2-cellhead .wk-taskpill { flex: none; }
+/* Schmale Zellen (Tablet, Telefon): erst fällt der Monat weg — ausser am Ersten —, dann wird der Stand der Aufgaben zum Punkt in seiner Farbe. */
+@container (max-width: 6.5rem) {
+  .wk-cal2-cellmon { display: none; }
+  .wk-cal2-cellday.is-first .wk-cal2-cellmon { display: inline; }
+}
+@container (max-width: 4.5rem) {
+  .wk-cal2-cellhead .wk-taskpill.is-quiet { padding: 0; border: 0; background: none; }
+  .wk-cal2-cellhead .wk-taskpill.is-quiet .wk-taskpill-tick,
+  .wk-cal2-cellhead .wk-taskpill.is-quiet .wk-taskpill-count { display: none; }
+  .wk-cal2-cellhead .wk-taskpill.is-quiet .wk-taskpill-dot { display: block; width: 8px; height: 8px; }
+}
 .wk-cal2-cellmon { font-weight: 400; font-size: var(--wk-text-xs); color: var(--wk-muted); }
 .wk-ev.is-line { white-space: nowrap; }
 .wk-cal2-more { justify-self: start; font-size: var(--wk-text-xs); }
@@ -677,18 +697,20 @@ button.wk-cal2-listhead:focus-visible { outline: 2px solid var(--wk-accent); out
 .wk-ev-scoperow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
 .wk-ev-scope-q { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
 .wk-ev-kinds { justify-self: start; }
-.wk-ev-title { box-sizing: border-box; width: 100%; font-size: var(--wk-text-lg); font-weight: 600; }
+.wk-ev-name { box-sizing: border-box; width: 100%; font-size: var(--wk-text-lg); font-weight: 600; }
 .wk-ev-row { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: var(--wk-space-3); align-items: start; }
 .wk-ev-row > .ui-icon { margin-top: 0.55rem; color: var(--wk-muted); }
+.wk-ev-row > * { min-width: 0; }
 .wk-ev-row > input,
 .wk-ev-row > textarea,
 .wk-ev-body > select,
 .wk-ev-link > input { box-sizing: border-box; width: 100%; min-width: 0; }
-.wk-ev-body { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-ev-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--wk-space-2); min-width: 0; }
 .wk-ev-times, .wk-ev-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
 .wk-ev-times input[type="date"] { flex: 1 1 9.5rem; min-width: 0; }
 .wk-ev-times input[type="time"] { flex: 0 1 6.5rem; min-width: 5.5rem; }
 .wk-ev-dash { color: var(--wk-muted); }
+.wk-ev-inline > * { max-width: 100%; min-width: 0; }
 .wk-ev-inline input[type="number"] { width: 4.5rem; }
 .wk-ev-inline input[type="date"] { flex: 0 1 10rem; min-width: 0; }
 .wk-ev-opts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-4); }
@@ -730,6 +752,8 @@ button.wk-cal2-listhead:focus-visible { outline: 2px solid var(--wk-accent); out
 .wk-ev-add:hover { border-color: var(--wk-accent); color: var(--wk-accent); }
 .wk-ev-add:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 @media (max-width: 40rem) {
+  /* Auf dem Telefon: der Tag in einer Zeile, darunter von–bis. */
+  .wk-ev-times > input[type="date"]:first-child { flex-basis: 100%; }
   .wk-ev-adds { padding-left: 0; }
   .wk-ev-add { min-height: 2.25rem; }
   .wk-ev-cal { min-height: 2.25rem; }

@@ -12,8 +12,9 @@ import type { FrameBuffers, Overlay } from '../render/frame';
 import type { Walls } from '../render/glRenderer';
 import type { View } from '../render/view';
 import type { EngineStats, ProbeInfo } from './engine';
+import type { ExtremeEvent } from './extremes';
 import type { ObjectPatch, ObjectView } from './objects';
-import type { HeaterMode, Op, Quality, Side, SideName } from './scene';
+import type { ExtremeMode, HeaterMode, Op, Quality, Side, SideName } from './scene';
 import type { Region } from './shapes';
 
 export type HostMessage =
@@ -38,12 +39,14 @@ export type HostMessage =
   | { readonly type: 'step' }
   | { readonly type: 'setSpeed'; readonly speed: number }
   | { readonly type: 'setQuality'; readonly quality: Quality }
+  /** Wie heftige Zustände gerechnet werden (extremes.ts): auch die Antwort auf eine Frage (extreme). */
+  | { readonly type: 'setExtremes'; readonly mode: ExtremeMode }
   | { readonly type: 'serialize'; readonly id: number }
   | { readonly type: 'load'; readonly scene: unknown }
   | { readonly type: 'theme'; readonly dark: boolean }
   | { readonly type: 'frameDone'; readonly frame: FrameBuffers }
   /* -- Nachweise (B): backen, abspielen, live weiter (nur der normale Weg) -- */
-  | { readonly type: 'bake'; readonly seconds: number }
+  | { readonly type: 'bake'; readonly options: BakeOptions }
   | { readonly type: 'bakeStop' }
   | { readonly type: 'clipOpen'; readonly play: boolean }
   | { readonly type: 'clipPlay'; readonly playing: boolean }
@@ -52,6 +55,20 @@ export type HostMessage =
   | { readonly type: 'clipLive' }
   | { readonly type: 'clipClose' }
   | { readonly type: 'clipDelete' };
+
+/**
+ * Wie gebacken wird (seit 2026-10-24): Länge (s Simulationszeit), Bilder je Sekunde (die Genauigkeit der Zeitleiste),
+ * ein Schlüsselbild alle keyEvery Sekunden (dort geht es live weiter; mehr kostet Platz), die Auflösung und wie heftige
+ * Zustände gerechnet werden (beim Backen wird nicht gefragt). Auflösung und Heftigkeit gehören zur Szene — und so zum
+ * Schlüssel des Nachweises.
+ */
+export interface BakeOptions {
+  readonly seconds: number;
+  readonly fps: number;
+  readonly keyEvery: number;
+  readonly quality: Quality;
+  readonly extremes: Exclude<ExtremeMode, 'ask'>;
+}
 
 /** Der Stand eines Nachweises in den Kennzahlen: beim Backen (t: aufgenommen) oder bei der Wiedergabe (t: gezeigt). */
 export interface ClipStats {
@@ -133,4 +150,6 @@ export type WorkerMessage =
   /** Backen: läuft (t von seconds, rate: Simulations- je echte Sekunde), wird gespeichert, fertig, fehlgeschlagen; seeking: auf dem Weg zum gezeigten Bild (live weiter). */
   | { readonly type: 'bake'; readonly state: 'running' | 'saving' | 'done' | 'failed' | 'seeking'; readonly t: number; readonly seconds: number; readonly rate: number; readonly message?: string }
   /** Live weiter ab t (die Wiedergabe ist vorbei; das Labor ruht). */
-  | { readonly type: 'live'; readonly t: number };
+  | { readonly type: 'live'; readonly t: number }
+  /** Ein heftiger Zustand bei „ask“: der Arbeiter hat angehalten und wartet auf setExtremes. */
+  | { readonly type: 'extreme'; readonly event: ExtremeEvent };

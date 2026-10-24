@@ -1886,3 +1886,54 @@ article or book to be created together with its full text in one import, and for
 
 **Owner:** apply 0128 (after 0123–0127), deploy the API, then the site. Existing whole-area links pick up new collections
 on their next listing or read; their snapshots appear when someone who writes in the area opens Recreatio.
+
+## K1 — Adding an appointment, tidied; a day's head belongs to its date (2026-10-24)
+
+The owner asked to simplify the calendar: to think about which options adding an appointment really needs, how they
+are stored, and to build a cleaner screen. On the phone, tapping a date in the month opened the day's tasks, because
+the task pill stood right next to the date.
+
+**Decided**
+- **What a new appointment needs is four things**: what (the title), when (a day and from–to, or all day), whether it
+  repeats, and which calendar. The calendar brings the rest (0058): who sees it, how long it lasts, what it is
+  (meeting, mass), whether it can be booked. Everything else is added on request — "+ Miejsce", "+ Notatka",
+  "+ Osoby" (group calendars), "+ Link", "+ Program" (saved appointments) — and stands open when editing as soon as it
+  holds something. Each row carries an icon instead of a heading.
+- **Stored as before** (`saveEvent`, no migration): the rules live on the calendar, an appointment keeps only what is
+  its own, NULL meaning "as the calendar". The sealed fields still name their area (`visibility_area_id`), so that
+  column stays — it is just no longer a choice.
+- **Removed from the editor**: the visibility per appointment (an older appointment that has one keeps it on saving
+  and says so — "inaczej niż kalendarz · jak w kalendarzu"; nothing becomes visible to more people silently), the
+  "Część programu" choice (a point is hooked in from its whole, "Podłącz istniejący termin"; a point says
+  "Punkt programu: … Odłącz"), and the kind in calendars that hold only meetings (chips Msza · Spowiedź ·
+  Nabożeństwo · Spotkanie appear in mass/service calendars).
+- **Behaviour**: a later start takes the end along (the length stays), so does a later day; the weekdays of a weekly
+  series follow the day until chosen by hand; "Co tydzień / Co miesiąc, 24. dnia / Co rok, 24 października" are one
+  choice, "co 2 tygodnie" sits under "Inaczej…"; the end day shows only when it differs ("Kończy się innego dnia",
+  "Kilka dni"); unticking "Cały dzień" with no usable hours gives 9:00 and the calendar's length; an end before the
+  start is said at once; "+ Termin" while looking at a later day proposes that day at the next full hour (was 1:00).
+  Series scope stays a choice above the form ("Zmieniasz: Ten termin · Ten i następne · Całą serię", 0079).
+- **The head of a day is one button** — in the month cell and in the list — with the day's task tally as a quiet
+  mark inside it (`TaskTally`); it opens the day. The tasks of a day are one click further: the "zadania" row of the
+  day view. In narrow cells (phone) the month name steps aside (except on the 1st) and the tally becomes a dot in the
+  colour of its state.
+- Not done, worth asking: monthly by weekday ("pierwszy piątek miesiąca") would need a new repeat rule in storage;
+  `calendar_item.status` (always "planned") and `task_state` are unused and could be dropped in a cleanup step
+  (API first, then the migration).
+
+**Built**
+- `calendar/EventEditor.tsx` rewritten (same save logic: "ten i następne" with handover, points follow their whole);
+  `calendar/EventDetails.tsx` (`ProgramOf` only lists, adds, opens, links and unlinks points); `calendar/TaskDay.tsx`
+  (`TaskTally`, `taskWords`; `TaskPill` without `mini`); `calendar/CalendarApp.tsx` (month and list heads, `ListView`
+  `onDay`, the "+ Termin" hour); `calendar/CalendarPart.tsx`; styles in `personal.css` (`.wk-ev-row` …,
+  `.wk-cal2-cellhead` with container queries), `links-and-notices.css`, `calendar-links.css`.
+
+**Checks**
+- LocalDB drives (headless Edge, dev server against the local API): `scratchpad/va/cal-ui.mjs` 41 — the core-only new
+  form, focus, chips, duration following the start, weekly weekdays, calendar chips and "Widzą", "+ Miejsce", the
+  instant end error, stored values, "bez końca", reopening a series ("Ten termin" only moves the time), the all-day
+  row, mass calendar kinds and length, "Ten i następne" with a new series, month/list heads open the day (mouse and
+  finger), no cut-off day numbers on the phone, the form fits a phone screen. `cal-ui2.mjs` 20 — program point add,
+  open, "Odłącz"; a kept visibility exception and "jak w kalendarzu"; booking in a "marked" calendar; the "+ Termin"
+  hour on a later day.
+- All `app-*-check` scripts and the style ratchet pass (wk-hint 565 → 555); `tsc` is clean for these files.

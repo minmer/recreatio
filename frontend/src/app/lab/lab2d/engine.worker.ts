@@ -226,6 +226,9 @@ function oneStep(): void {
   engine.step();
   stepsDone += 1;
   simDone += dt;
+  /* Ein heftiger Zustand bei „ask“ (extremes.ts): anhalten und fragen — die Antwort kommt als setExtremes. */
+  const ev = engine.extremes.take();
+  if (ev !== null) { paused = true; acc = 0; post({ type: 'extreme', event: ev }); }
   if (engine.time >= nextSample) {
     nextSample = engine.time + SAMPLE_EVERY;
     pendingSamples.push(charts.sample());
@@ -426,6 +429,9 @@ scope.addEventListener('message', (event) => {
         if (session !== null) session.speed = Math.min(16, Math.max(0.05, m.speed));
         if (!paused) wake(0);
         break;
+      case 'setExtremes':
+        if (live() !== null) { engine?.setExtremes(m.mode); session?.checkSoon(); }
+        break;
       case 'setQuality':
         if (engine !== null && live() !== null) { engine.setQuality(m.quality); restart(); }
         break;
@@ -440,7 +446,7 @@ scope.addEventListener('message', (event) => {
         }
         break;
       case 'bake':
-        void session?.bake(m.seconds);
+        void session?.bake(m.options);
         break;
       case 'bakeStop':
         session?.stopBake();

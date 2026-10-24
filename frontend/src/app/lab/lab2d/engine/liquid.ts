@@ -657,7 +657,8 @@ export class Liquid {
   splatVolumeChange(dt: number): void {
     const { P, g, bi, bj, wr, dVp, volSrc } = this;
     const { nx, ny } = g;
-    const inv = 1 / dt;
+    /* Ein Sprung (ein neues Teilchen, ein Rest Dampf, der kondensiert) wird über mindestens DRIFT_DT verteilt; den Rest behebt der Driftausgleich. */
+    const inv = 1 / Math.max(dt, DRIFT_DT);
     for (let p = 0; p < P.count; p += 1) {
       const dv = dVp[p];
       if (dv === 0) continue;

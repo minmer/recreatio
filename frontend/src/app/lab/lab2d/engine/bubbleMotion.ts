@@ -9,7 +9,11 @@
  * der eigenen Spur gelesen (sonst ritte die Blase auf ihrem Nachlauf);
  * Widerstand und virtuelle Masse wirken umgekehrt auf die Flüssigkeit
  * (Delnoij et al. 1997) — Blasen treiben die Strömung. Blasen unter 20 µm
- * schwimmen mit der Flüssigkeit.
+ * schwimmen mit der Flüssigkeit. Die Gegenkraft einer Blase, die grösser als
+ * eine Zelle ist, trifft die Flüssigkeit im Ring um sie (spreadForce): deren
+ * Masse ist grösser als die virtuelle Masse der Blase — auf wenige Flächen in
+ * ihrer Mitte gelegt, schaukelten sich Blase und Flüssigkeit über das
+ * explizite Du/Dt auf (heisse Platte: in sechs Schritten von 0,4 N auf 10⁵ N).
  */
 
 import { FORCE_SLOTS } from './bubbles';
@@ -114,7 +118,7 @@ export class BubbleMotion {
     B.force[f + 4] = Fdx; B.force[f + 5] = Fdy;
     B.force[f + 6] = Fax + Fvx - Kv * (vx - ux); B.force[f + 7] = Fay + Fvy - Kv * (vy - uy);
     /* Gegenkraft auf die Flüssigkeit: −(Widerstand + virtuelle Masse), über h gemittelt auf den Schritt. */
-    this.spreadForce(x, y, -(Fdx + B.force[f + 6]) * (h / e.dt), -(Fdy + B.force[f + 7]) * (h / e.dt));
+    this.spreadForce(x, y, r, -(Fdx + B.force[f + 6]) * (h / e.dt), -(Fdy + B.force[f + 7]) * (h / e.dt));
     let nxp = x + h * vx;
     let nyp = y + h * vy;
     /* Wände: nicht hinein. */
@@ -140,11 +144,16 @@ export class BubbleMotion {
     B.z[b] = 2 * r >= D ? D / 2 : Math.min(D - r, Math.max(r, B.z[b]));
   }
 
-  /** Eine Kraft (N) mit den Flächengewichten des B-Splines um (x, y) auf die Flüssigkeit verteilen. */
-  private spreadForce(x: number, y: number, fx: number, fy: number): void {
+  /**
+   * Eine Kraft (N) auf die Flüssigkeit verteilen: bei einer Blase bis zu einer Zelle Radius mit den Flächengewichten des
+   * B-Splines um (x, y), bei einer grösseren auf die Flächen im Ring r…R (R = max(1,5 r, r + 2Δx)) nach ihrem Anteil
+   * Flüssigkeit. Die Masse im Ring ist mindestens 1,25 πr²D ρ — mehr als die virtuelle Masse ½ πr²D ρ.
+   */
+  private spreadForce(x: number, y: number, r: number, fx: number, fy: number): void {
     const L = this.e.liquid;
     const g = this.e.grid;
     const { nx, ny, dx } = g;
+    if (r > dx && this.spreadRing(x, y, r, fx, fy)) return;
     const w = this.w3;
     /* u-Flächen bei (i, j + ½). */
     let i0 = Math.floor(x / dx - 0.5);
@@ -172,6 +181,56 @@ export class BubbleMotion {
       if (i < 0 || i >= nx || j < 0 || j > ny) continue;
       L.fV[i + j * nx] += fy * w[a] * w[3 + b];
     }
+  }
+
+  /** Die Kraft auf die Flächen im Ring r…R um (x, y), gewichtet mit dem Anteil Flüssigkeit der beiden Zellen; false: keine Flüssigkeit dort. */
+  private spreadRing(x: number, y: number, r: number, fx: number, fy: number): boolean {
+    const L = this.e.liquid;
+    const g = this.e.grid;
+    const { nx, ny, dx } = g;
+    const phi = g.phi;
+    const R = Math.max(1.5 * r, r + 2 * dx);
+    const r2 = r * r;
+    const R2 = R * R;
+    const ia = Math.max(0, Math.floor((x - R) / dx));
+    const ib = Math.min(nx, Math.ceil((x + R) / dx));
+    const ja = Math.max(0, Math.floor((y - R) / dx));
+    const jb = Math.min(ny, Math.ceil((y + R) / dx));
+    /* Zwei Durchgänge: Summe der Gewichte, dann die Anteile. u-Flächen bei (i, j + ½), v-Flächen bei (i + ½, j). */
+    let su = 0;
+    let sv = 0;
+    for (let pass = 0; pass < 2; pass += 1) {
+      if (pass === 1) {
+        if (!(su > 0) || !(sv > 0)) return false;
+        su = fx / su;
+        sv = fy / sv;
+      }
+      for (let j = ja; j <= jb; j += 1) {
+        for (let i = ia; i <= ib; i += 1) {
+          if (j < ny) {
+            const px = i * dx - x;
+            const py = (j + 0.5) * dx - y;
+            const d2 = px * px + py * py;
+            if (d2 >= r2 && d2 <= R2) {
+              const c = i + j * nx;
+              const w = 0.5 * ((i > 0 ? phi[c - 1] : 0) + (i < nx ? phi[c] : 0));
+              if (w > 0) { if (pass === 0) su += w; else L.fU[i + j * (nx + 1)] += su * w; }
+            }
+          }
+          if (i < nx) {
+            const px = (i + 0.5) * dx - x;
+            const py = j * dx - y;
+            const d2 = px * px + py * py;
+            if (d2 >= r2 && d2 <= R2) {
+              const c = i + j * nx;
+              const w = 0.5 * ((j > 0 ? phi[c - nx] : 0) + (j < ny ? phi[c] : 0));
+              if (w > 0) { if (pass === 0) sv += w; else L.fV[c] += sv * w; }
+            }
+          }
+        }
+      }
+    }
+    return true;
   }
 
   /** Angeströmte Fläche A⊥ der Blase b (aus V und r): Kugel πr², Scheibe 2rD, dazwischen linear. */

@@ -141,6 +141,13 @@ export class Extremes {
     else if (fastest > ASK_V) { this.pending = { kind: 'speed', value: fastest, time: this.e.time }; this.asked = true; }
   }
 
+  /** Das anstehende Ereignis abholen (der Arbeiter hält an und fragt); danach steht keins mehr an — gefragt wird einmal je Szene. */
+  take(): ExtremeEvent | null {
+    const ev = this.pending;
+    this.pending = null;
+    return ev;
+  }
+
   /** Neue Szene: noch nicht gefragt, nichts gemildert. */
   reset(): void {
     this.pending = null;
