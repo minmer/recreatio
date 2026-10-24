@@ -64,6 +64,13 @@ public static class Crypto
     public static string InfoAiAccess(Guid accessId) => $"recreatio:v1:ai-access:{Ids.ToText(accessId)}";
 
     /// <summary>
+    /// 0127 — Der Schlüssel, unter dem die freigegebenen Links einer OAuth-Freigabe
+    /// liegen, bis der Assistent seinen Code einlöst — abgeleitet aus dem Code (IKM:
+    /// dessen UTF-8), der selbst nur als Hash gespeichert ist.
+    /// </summary>
+    public static string InfoAiOAuthCode(Guid grantId) => $"recreatio:v1:ai-oauth-code:{Ids.ToText(grantId)}";
+
+    /// <summary>
     /// 3.4 — Das Salz einer Konto-Verpflichtung im Ketteneintrag.
     ///
     /// Es wird aus dem Servergeheimnis und der Eintragskennung ABGELEITET und

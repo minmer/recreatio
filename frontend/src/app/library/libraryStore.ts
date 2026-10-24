@@ -19,7 +19,7 @@ import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
   forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
-  type EntryDoc, type LibraryRow, type PublishedAs, type SealedEntry
+  type EntryDoc, type EntrySource, type LibraryRow, type PublishedAs, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
 import {
@@ -27,6 +27,7 @@ import {
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { citedKeys, mapRefTokens } from './libraryMarkup';
+import { HEAVY_KINDS, TEXT_KIND } from './sourceText';
 import { WorkspaceError } from '../core/session';
 
 export interface Entry extends LibEntry {
@@ -87,6 +88,9 @@ interface Cached {
 
 const cacheKey = (libraryId: string) => `entries:${libraryId}`;
 
+/** Die Zeile einer schweren Art, ohne Hülle. */
+const thinRow = (row: SealedEntry): SealedEntry => ({ ...row, sealed: null, heavy: true });
+
 /**
  * 2026-10-22 — ALLE LESBAREN BIBLIOTHEKEN ZUSAMMEN. Jeder Bereich hat seine
  * Bibliothek; wer mehrere lesen darf, arbeitet mit allen zugleich: ein
@@ -115,6 +119,14 @@ export class LibraryStore implements Lookup {
   /** Die Hüllen, wie sie kamen — für die Abschrift (nur, wenn sie abgelegt werden darf). */
   private readonly sealedRows = new Map<string, SealedEntry>();
   private cacheWrite: number | null = null;
+  /**
+   * 2026-10-24 — SCHWERE ARTEN (Teile eines Quellentexts, `sourceText.ts`): der Abgleich bringt
+   * nur ihre Zeile (`heavyRows`); geöffnet werden sie, wenn jemand liest (`heavy`), und sie
+   * stehen nie unter den Einträgen — nicht in Listen, Suche, Verweisen, JSON, Abschrift für AI.
+   */
+  private readonly heavyRows = new Map<string, SealedEntry>();
+  private readonly heavyOpen = new Map<string, Entry>();
+  private readonly heavyWait = new Map<string, Promise<Entry | null>>();
 
   /** Einträge, deren Hülle sich hier nicht öffnen lässt (Schlüssel einer fremden Epoche). */
   unreadable = 0;
@@ -205,6 +217,75 @@ export class LibraryStore implements Lookup {
 
   all(): Entry[] { return [...this.entries.values()]; }
 
+  /* -- 2026-10-24: Texte der Werke ----------------------------------------------------------- */
+
+  /** Die Texte (Verzeichnisse) eines Werks — hier und bei den Nachbarn: nur, was dieser Leser lesen darf. */
+  texts(workId: string): Entry[] {
+    return [...this.ownTexts(workId), ...this.peers().flatMap((p) => p.ownTexts(workId))];
+  }
+
+  private textIndex: Map<string, Entry[]> | null = null;
+
+  /** Die Texte eines Werks in dieser Bibliothek (ein Verzeichnis, neu gebaut nach jeder Änderung). */
+  ownTexts(workId: string): Entry[] {
+    if (this.textIndex === null) {
+      const index = new Map<string, Entry[]>();
+      for (const e of this.entries.values()) {
+        if (e.kind !== TEXT_KIND || typeof e.data.work !== 'string') continue;
+        const list = index.get(e.data.work);
+        if (list === undefined) index.set(e.data.work, [e]); else list.push(e);
+      }
+      this.textIndex = index;
+    }
+    return this.textIndex.get(workId) ?? [];
+  }
+
+  /** Ist dieser schwere Eintrag hier (seine Zeile)? */
+  ownsHeavy(id: string): boolean { return this.heavyRows.has(id); }
+
+  /**
+   * EINEN SCHWEREN EINTRAG ÖFFNEN — aus dieser Bibliothek oder einem Nachbarn; geholt nur,
+   * wenn er noch nicht offen ist oder sich seither geändert hat. `null`: es gibt ihn nicht
+   * (mehr), oder er lässt sich nicht öffnen.
+   */
+  async heavy(id: string): Promise<Entry | null> {
+    if (!this.heavyRows.has(id)) {
+      const there = this.peers().find((p) => p.ownsHeavy(id));
+      return there === undefined ? null : there.heavy(id);
+    }
+    const row = this.heavyRows.get(id)!;
+    const open = this.heavyOpen.get(id);
+    if (open !== undefined && open.version === row.version) return open;
+    return (await this.heavyMany([id]))[0] ?? null;
+  }
+
+  /** Viele auf einmal (die Suche im ganzen Text) — in Paketen zu 50, in der gegebenen Reihenfolge. */
+  async heavyMany(ids: readonly string[], progress?: (done: number, total: number) => void): Promise<(Entry | null)[]> {
+    const want = ids.filter((id) => {
+      const row = this.heavyRows.get(id);
+      return row !== undefined && this.heavyOpen.get(id)?.version !== row.version && !this.heavyWait.has(id);
+    });
+    for (let at = 0; at < want.length; at += 50) {
+      const chunk = want.slice(at, at + 50);
+      const wait = this.source(null, chunk).then(async ({ entries }) => {
+        const keys = await this.keysFor(entries.filter((r) => r.sealed !== null).map((r) => r.epoch));
+        for (const row of entries) {
+          if (row.deletedAt !== null || !HEAVY_KINDS.has(row.kind)) continue;
+          const entry = await this.opened(keys, row);
+          if (entry !== null) { this.heavyOpen.set(entry.id, entry); this.heavyRows.set(entry.id, thinRow(row)); }
+        }
+      }).finally(() => { for (const id of chunk) this.heavyWait.delete(id); });
+      for (const id of chunk) this.heavyWait.set(id, wait.then(() => this.heavyOpen.get(id) ?? null));
+      await wait;
+      progress?.(Math.min(at + 50, want.length), want.length);
+    }
+    return Promise.all(ids.map(async (id) => {
+      const waiting = this.heavyWait.get(id);
+      if (waiting !== undefined) return waiting;
+      return this.heavyOpen.get(id) ?? (this.heavyRows.has(id) ? null : (await this.peers().find((p) => p.ownsHeavy(id))?.heavy(id)) ?? null);
+    }));
+  }
+
   ofKind(kind: string): Entry[] { return this.all().filter((e) => e.kind === kind); }
 
   title(entry: LibEntry): string { return entryTitle(entry, this); }
@@ -276,6 +357,8 @@ export class LibraryStore implements Lookup {
     if (this.searchIndex === null) {
       const index = new Map<string, string>();
       for (const entry of this.entries.values()) {
+        /* 2026-10-24 — ein Verzeichnis eines Textes ist kein Fund; im Text sucht der Czytnik. */
+        if (entry.kind === TEXT_KIND) continue;
         const parts = [this.title(entry), entry.key ?? ''];
         for (const value of Object.values(entry.data)) {
           if (typeof value === 'string') parts.push(value);
@@ -290,7 +373,7 @@ export class LibraryStore implements Lookup {
     }
     const words = fold(query).split(/\s+/).filter(Boolean);
     return this.all().filter((entry) => (kinds === undefined || kinds.includes(entry.kind))
-      && words.every((w) => (this.searchIndex!.get(entry.id) ?? '').includes(w)));
+      && this.searchIndex!.has(entry.id) && words.every((w) => this.searchIndex!.get(entry.id)!.includes(w)));
   }
 
   /* -- Abgleich --------------------------------------------------------------------------- */
@@ -304,6 +387,7 @@ export class LibraryStore implements Lookup {
     this.revision += 1;
     this.backIndex = null;
     this.searchIndex = null;
+    this.textIndex = null;
     for (const listener of this.listeners) listener();
     for (const other of bus) if (other !== this) other.peerChanged();
   }
@@ -325,6 +409,19 @@ export class LibraryStore implements Lookup {
     const before = this.entries.get(id);
     if (before !== undefined) this.unindex(before);
     this.entries.delete(id);
+    this.heavyRows.delete(id);
+    this.heavyOpen.delete(id);
+  }
+
+  /** Eine Hülle als Eintrag dieser Bibliothek — `null`, wenn sie sich nicht öffnen lässt. */
+  private async opened(keys: ReadonlyMap<number, Uint8Array>, row: SealedEntry): Promise<Entry | null> {
+    const doc = await openEntry(keys, row);
+    if (doc === null) return null;
+    return {
+      libraryId: this.libraryId, id: doc.id, kind: doc.kind, ...(doc.key === undefined ? {} : { key: doc.key }), data: doc.data,
+      version: row.version, epoch: row.epoch, createdAt: row.createdAt, updatedAt: row.updatedAt,
+      publishedAt: row.publishedAt, publishedAs: row.publishedAs
+    };
   }
 
   /** 0109 — woher die Schlüssel kommen, wenn kein Konto liest (ein Link, ein Platz: `areaReader`). */
@@ -351,18 +448,24 @@ export class LibraryStore implements Lookup {
     const keys = await this.keysFor(rows.filter((r) => r.sealed !== null).map((r) => r.epoch));
     let unreadable = 0;
     for (const row of rows) {
+      const heavy = HEAVY_KINDS.has(row.kind);
       if (this.copies) {
         if (row.deletedAt !== null) this.sealedRows.delete(row.entryId);
-        else this.sealedRows.set(row.entryId, row);
+        /* Schwere Arten nur als Zeile auf dem Gerät — gelesen wird über das Netz. */
+        else this.sealedRows.set(row.entryId, heavy ? thinRow(row) : row);
       }
       if (row.deletedAt !== null) { this.drop(row.entryId); continue; }
-      const doc = await openEntry(keys, row);
-      if (doc === null) { unreadable += 1; continue; }
-      this.put({
-        libraryId: this.libraryId, id: doc.id, kind: doc.kind, ...(doc.key === undefined ? {} : { key: doc.key }), data: doc.data,
-        version: row.version, epoch: row.epoch, createdAt: row.createdAt, updatedAt: row.updatedAt,
-        publishedAt: row.publishedAt, publishedAs: row.publishedAs
-      });
+      if (heavy) {
+        this.heavyRows.set(row.entryId, thinRow(row));
+        const was = this.heavyOpen.get(row.entryId);
+        if (was !== undefined && was.version !== row.version) this.heavyOpen.delete(row.entryId);
+        /* Ein Dienst ohne `light` schickt die Hülle mit — dann gleich offen. */
+        if (row.sealed !== null) { const entry = await this.opened(keys, row); if (entry !== null) this.heavyOpen.set(entry.id, entry); }
+        continue;
+      }
+      const entry = await this.opened(keys, row);
+      if (entry === null) { unreadable += 1; continue; }
+      this.put(entry);
     }
     this.unreadable = this.since === null ? unreadable : this.unreadable + unreadable;
   }
@@ -371,11 +474,10 @@ export class LibraryStore implements Lookup {
    * Woher die Hüllen kommen — der Weg eines Kontos oder Links; ein Platz
    * (`/seat/…/library`) setzt seinen eigenen (`readVia`).
    */
-  private source: (since: string | null) => Promise<{ now: string; entries: readonly SealedEntry[] }> =
-    (since) => loadEntries(this.libraryId, since);
+  private source: EntrySource = (since, ids) => loadEntries(this.libraryId, since, ids);
 
   /** 0109 — die Hüllen über einen anderen Weg holen (ein Platz ohne Konto). */
-  readVia(source: (since: string | null) => Promise<{ now: string; entries: readonly SealedEntry[] }>): void {
+  readVia(source: EntrySource): void {
     this.source = source;
   }
 
@@ -511,8 +613,11 @@ export class LibraryStore implements Lookup {
   /** Versiegeln und schreiben — der Speicher kennt den Eintrag danach; wer zeichnet, erfährt es über `changed()`. */
   private async write(input: SaveInput, newest: { epoch: number; key: Uint8Array }): Promise<Entry> {
     const id = input.id ?? newId();
-    const before = this.entries.get(id);
-    if (before === undefined && this.get(id) !== undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki — zmień go tam.');
+    const heavy = HEAVY_KINDS.has(input.kind);
+    const thin = this.heavyRows.get(id);
+    const before: Pick<Entry, 'key' | 'data' | 'version' | 'createdAt' | 'publishedAt' | 'publishedAs'> | undefined = this.entries.get(id) ?? this.heavyOpen.get(id)
+      ?? (thin === undefined ? undefined : { data: {}, version: thin.version, createdAt: thin.createdAt, publishedAt: null, publishedAs: null });
+    if (before === undefined && (this.get(id) !== undefined || this.peers().some((p) => p.ownsHeavy(id)))) throw new WorkspaceError('Ten wpis należy do innej biblioteki — zmień go tam.');
     /* 2026-10-22 — im Speicher stehen Kennungen: ein Schlüssel im Zapis, der aufgeht, wird die Kennung seines Eintrags. */
     const data: EntryData = { ...storedMarkup(input.kind, cleanData(input.data), this) };
     const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
@@ -528,7 +633,13 @@ export class LibraryStore implements Lookup {
       version: done.version, epoch: newest.epoch, createdAt: before?.createdAt ?? done.updatedAt, updatedAt: done.updatedAt,
       publishedAt: before?.publishedAt ?? null, publishedAs: before?.publishedAs ?? null
     };
-    this.put(entry);
+    if (heavy) {
+      this.heavyOpen.set(id, entry);
+      this.heavyRows.set(id, {
+        entryId: id, kind: input.kind, epoch: newest.epoch, sealed: null, version: done.version, createdAt: entry.createdAt, updatedAt: done.updatedAt,
+        deletedAt: null, publishedAt: null, publishedAs: null, heavy: true
+      });
+    } else this.put(entry);
     return entry;
   }
 
@@ -545,7 +656,7 @@ export class LibraryStore implements Lookup {
    * der nächste Abgleich ab.
    */
   async removeMany(ids: readonly string[], progress?: (done: number, total: number) => void): Promise<number> {
-    const own = ids.filter((id) => this.entries.has(id));
+    const own = ids.filter((id) => this.entries.has(id) || this.heavyRows.has(id));
     let done = 0;
     for (let at = 0; at < own.length; at += 200) {
       const chunk = own.slice(at, at + 200);
@@ -686,7 +797,7 @@ export function forgetLibraries(): void {
  */
 export function readOnlyStore(
   library: Pick<LibraryRow, 'libraryId' | 'areaId'>,
-  source: (since: string | null) => Promise<{ now: string; entries: readonly SealedEntry[] }>,
+  source: EntrySource,
   keys: (areaId: string, epochs: readonly number[]) => Promise<ReadonlyMap<number, Uint8Array>>
 ): LibraryStore {
   const store = new LibraryStore(null, library);

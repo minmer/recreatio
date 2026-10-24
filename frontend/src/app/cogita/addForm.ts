@@ -163,11 +163,12 @@ export interface AddForm {
 }
 
 /** Was man in einer Zeile tippen kann — Verweise kommen über Kanten, Dateien nicht aus einer Zeile. */
-const TYPEABLE: ReadonlySet<string> = new Set(['line', 'text', 'markup', 'number', 'date', 'bool', 'choice', 'url', 'list', 'geo', 'range']);
+/* 2026-10-24 — auch `blocks` (die Treść eines Komentarza): getippt als Text, je Leerzeile ein Absatz. */
+const TYPEABLE: ReadonlySet<string> = new Set(['line', 'text', 'markup', 'blocks', 'number', 'date', 'bool', 'choice', 'url', 'list', 'geo', 'range']);
 export const isTypeable = (field: FieldDef): boolean => TYPEABLE.has(field.type);
 
 /** Mehrzeilig — dort darf Enter eine neue Zeile sein. */
-export const isLong = (field: FieldDef): boolean => field.type === 'text' || field.type === 'markup' || field.type === 'list';
+export const isLong = (field: FieldDef): boolean => field.type === 'text' || field.type === 'markup' || field.type === 'list' || field.type === 'blocks';
 
 /* -- Lesen und Schreiben ---------------------------------------------------------------- */
 
@@ -363,6 +364,19 @@ export function typedFields(kind: KindDef | undefined, c: EntryConfig): FieldDef
 }
 
 /**
+ * 2026-10-24 — DIE STELLE EINES VERWEISES, IN JEDER ZEILE GETIPPT. Ein Verweisfeld mit Stelle
+ * (`locator: true`, z. B. „Fragment Pisma") bekommt sein Ziel über eine Kante (oben gewählt:
+ * Pismo Święte) und seine Stelle aus der Zeile („Łk 1,35") — gespeichert als `{ value, locator }`.
+ * In der Zeile steht dafür ein eigenes Feld unter `@loc:<feld>`; im Rodzaj gibt es kein solches.
+ */
+export const LOCATOR = '@loc:';
+
+export function locatorFields(kind: KindDef | undefined, c: EntryConfig): FieldDef[] {
+  return (kind?.fields ?? []).filter((f) => f.type === 'ref' && f.locator === true && c.fields[f.key]?.from === 'type')
+    .map((f): FieldDef => ({ key: `${LOCATOR}${f.key}`, label: `${f.label} — miejsce`, type: 'line', multi: false, uncertain: false, says: 'Miejsce, np. „Łk 1,35", „s. 23", „nr 24"' }));
+}
+
+/**
  * DIE REIHENFOLGE DER ZEILE: wie im Formular festgelegt (`order`), sonst wie
  * auf der Leinwand — von links nach rechts, in einer Spalte von oben.
  */
@@ -386,14 +400,15 @@ export interface FormGroup {
  * WAS IN EINER ZEILE STEHT: je Knoten mit getippten Feldern eine Gruppe — in
  * der Reihenfolge der Leinwand, von links nach rechts, in einer Spalte von oben.
  */
-export function groupsOf(form: AddForm, look: Pick<Lookup, 'kind'>): FormGroup[] {
+export function groupsOf(form: AddForm, look: Pick<Lookup, 'kind'>, locators = false): FormGroup[] {
   const placed = form.graph.nodes.map((n, i) => ({ n, i })).filter(({ n }) => n.type === 'entry');
   placed.sort(rowOrder(form));
   const out: FormGroup[] = [];
   for (const { n } of placed) {
     const c = entryConfig(n.config);
     const kind = look.kind(c.kind);
-    const fields = typedFields(kind, c);
+    /* Beim Hinzufügen auch die Stellen der Verweise (`locatorFields`); die „Edycja" zeigt sie nicht. */
+    const fields = [...typedFields(kind, c), ...(locators ? locatorFields(kind, c) : [])];
     if (kind === undefined || fields.length === 0) continue;
     const choices = choicesOf(c, look);
     out.push({ node: n.id, label: nodeLabel(n, look, form.graph), kind, fields: choices.length > 1 ? fields.slice(0, 1) : fields, many: c.many, ...(choices.length > 1 ? { choices } : {}) });
@@ -473,6 +488,10 @@ const one = (field: FieldDef, text: string): { value: unknown } | { error: strin
     }
     case 'list':
       return { value: text.split(/\s*[;\n]\s*/).map((x) => x.trim()).filter(Boolean) };
+    case 'blocks': {
+      const paragraphs = text.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+      return paragraphs.length === 0 ? { error: 'pusty tekst' } : { value: paragraphs.map((x) => ({ type: 'paragraph', text: x })) };
+    }
     case 'geo': {
       const m = /^(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)$/.exec(text);
       const lat = m === null ? null : Number(m[1].replace(',', '.'));
@@ -494,7 +513,7 @@ const one = (field: FieldDef, text: string): { value: unknown } | { error: strin
  */
 export function typedValue(field: FieldDef, text: string): { value: unknown } | { error: string } {
   const t = text.trim();
-  if (field.multi && field.type !== 'list') {
+  if (field.multi && field.type !== 'list' && field.type !== 'blocks') {
     const out: unknown[] = [];
     for (const part of t.split(/\s*[;\n]\s*/).filter(Boolean)) {
       const v = one(field, part);
@@ -513,10 +532,11 @@ const norm = (v: unknown): string =>
 
 /** Die Werte eines geplanten Feldes, gleich ob einer oder mehrere. */
 const plannedValues = (field: FieldDef, raw: unknown): unknown[] =>
-  raw === undefined || raw === null ? [] : field.type === 'list' ? [raw] : Array.isArray(raw) ? raw : [raw];
+  raw === undefined || raw === null ? [] : field.type === 'list' ? [raw] : field.type === 'blocks' ? [readTyped(field, raw) ?? raw] : Array.isArray(raw) ? raw : [raw];
 
+/* Ein Verweis mit Stelle zählt mit seiner Stelle (Łk 1,35 ist nicht Łk 1,36) — so, wie er geplant wird. */
 const existingValues = (entity: Entity, field: FieldDef): unknown[] =>
-  valuesOf(entity, field).map((v) => v.value).filter((v) => v !== null);
+  valuesOf(entity, field).filter((v) => v.value !== null).map((v) => (field.type === 'ref' && v.locator !== undefined ? { value: v.value, locator: v.locator } : v.value));
 
 const keyOf = (fields: readonly FieldDef[], valuesFor: (f: FieldDef) => unknown[]): string =>
   fields.map((f) => `${f.key}=${[...new Set(valuesFor(f).map(norm))].sort().join('\u0001')}`).join('\u0002');
@@ -629,7 +649,7 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
   const problems: string[] = [];
   const byId = new Map(form.graph.nodes.map((n) => [n.id, n]));
   const sequence = order(form.graph);
-  if (sequence === null) return { saves: [], rows: rows.map(() => ({ made: [], skipped: [], problems: [], empty: true })), problems: ['Formularz ma koło — popraw go w Schemacie.'] };
+  if (sequence === null) return { saves: [], rows: rows.map(() => ({ made: [], skipped: [], problems: [], empty: true })), problems: ['Formularz ma koło — popraw go w Schematach (Sposoby dodawania).'] };
   const depth = depths(form.graph, sequence);
   const position = new Map(form.graph.nodes.map((n, i) => [n.id, { x: n.x, y: n.y, i }]));
 
@@ -733,7 +753,7 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
       const c = entryConfig(node.config);
       const kind = look.kind(c.kind)!;
       const label = nodeLabel(node, look, form.graph);
-      const typed = typedFields(kind, c);
+      const typed = [...typedFields(kind, c), ...locatorFields(kind, c)];
 
       /*
         2026-10-20 — RODZAJ JE WERT GEWÄHLT (Psalm oder Pieśń): jeder Wert für
@@ -803,10 +823,17 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
         if (absent.length > 0) { missing = absent.map((e) => nodeLabel(byId.get(e.from)!, look, form.graph)).join(', '); break; }
         const values = [...new Set(edges.flatMap((e) => outputs.get(e.from) ?? []))];
         if (values.length === 0) continue;
+        /* 2026-10-24 — eine getippte Stelle: jedes Ziel mit ihr, als `{ value, locator }`. */
+        const placed = (data: Record<string, unknown>, v: string): unknown => {
+          const at = data[`${LOCATOR}${field.key}`];
+          return typeof at === 'string' && at.trim() !== '' ? { value: v, locator: at.trim() } : v;
+        };
         combos = field.multi
-          ? combos.map((data) => ({ ...data, [field.key]: values }))
-          : combos.flatMap((data) => values.map((v) => ({ ...data, [field.key]: v })));
+          ? combos.map((data) => ({ ...data, [field.key]: values.map((v) => placed(data, v)) }))
+          : combos.flatMap((data) => values.map((v) => ({ ...data, [field.key]: placed(data, v) })));
       }
+      /* Die Stellen stehen in ihren Verweisen; als eigene Felder gibt es sie nicht. */
+      combos = combos.map((data) => Object.fromEntries(Object.entries(data).filter(([key]) => !key.startsWith(LOCATOR))));
       if (missing !== null) { skipped.push({ node: id, why: `brak: ${missing}` }); outputs.set(id, []); continue; }
       if (combos.length > MAX_PER_NODE) { rowProblems.push(`${label}: wyszłoby ${combos.length} wpisów z jednego wiersza — sprawdź „kilka w wierszu".`); outputs.set(id, []); continue; }
 

@@ -181,7 +181,7 @@ export function PickLibrary({ value, busy, onPick, kind = 'books' }: { value: st
       </select>
       {libraries.length === 0 && (
         <span className="wk-hint">
-          {knowledge ? <>Nie masz jeszcze bazy wiedzy — <a href={viewPath('learn')}>załóż ją w Nauce</a>.</>
+          {knowledge ? <>Nie masz jeszcze bazy wiedzy — <a href={viewPath('knowledge')}>załóż ją w Wiedzy</a>.</>
             : kind === 'writing' ? <>Nie masz jeszcze skryptorium — <a href={viewPath('scriptorium')}>załóż je</a>.</>
             : <>Nie masz jeszcze biblioteki — <a href={viewPath('library')}>załóż ją</a>.</>}
         </span>

@@ -5,7 +5,7 @@
  * Plätze auf der Leinwand — und wie er sich zeigt.
  *
  * <code>
- *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map",
+ *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map" | "outline",
  *     steps: [{ type: "source.kind", config: { kind } }, { type: "follow", config: { field, back } },
  *             { type: "filter.rule", config: { rule } }],
  *     query, group: { by: "kind" } | { by: "field", field } | { by: "axis", kind, via, through?, sort?, group? },
@@ -36,7 +36,8 @@ import {
   type Group, type Grouping, type RuleGroup, type SelectContext, type Step
 } from './selection';
 
-export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map';
+/** 2026-10-24 — `outline` (Struktura): die Einträge mit dem, wohin ihre „Idź po odwołaniu"-Schritte führen, als ein lesbares Ganzes (`viewOutline`). */
+export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline';
 
 /** Zeilen und Spalten einer Macierz. */
 export interface MatrixDef {
@@ -85,7 +86,7 @@ export function readView(raw: unknown): ViewDoc {
   ];
   return {
     name: typeof d.name === 'string' ? d.name : 'Widok',
-    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' ? d.mode : 'table',
+    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' || d.mode === 'outline' ? d.mode : 'table',
     steps,
     query: typeof d.query === 'string' ? d.query : '',
     group: readGrouping(d.group),
@@ -317,4 +318,66 @@ export function stepsOfRevision(raw: unknown): Step[] {
 /** 2026-10-23 (Schritt 5) — die Rodzaje, die eine Achse sein können: die mit Einträgen (eigene und der Quellen), ohne Pytanie. */
 export function axesOf(lib: ViewLib): KindDef[] {
   return lib.materialKinds.filter((k) => k.id !== 'question' && lib.material(k.id).length > 0);
+}
+
+/* -- 2026-10-24: Struktura — ein Eintrag mit dem, worauf er zeigt, als ein Ganzes ----------------------- */
+
+export interface OutlineGroup {
+  /** Wie der Weg heisst: das Feld („Argumenty za") oder, rückwärts, „← Komentarz". */
+  readonly label: string;
+  readonly nodes: readonly OutlineNode[];
+}
+
+export interface OutlineNode {
+  readonly id: string;
+  readonly groups: readonly OutlineGroup[];
+  /** Schon weiter oben auf diesem Weg — nicht noch einmal aufgeklappt. */
+  readonly again?: true;
+}
+
+/**
+ * DIE STRUKTUR EINES WIDOKS: die Einträge seiner Quellen (alles vor dem ersten „Idź po
+ * odwołaniu") als Wurzeln; jeder weitere Schritt „Idź po odwołaniu" ist eine Ebene darunter,
+ * nach Feldern gruppiert. So zeigt ein Widok über „Komentarz biblijny → Komentarz → wszystkie
+ * odwołania" den Fragment, den Komentarz und darunter seine Argumenty za und Zarzuty. Was
+ * gewählt wird, sagen die Schritte; dass es so erscheint, sagt nur der Modus.
+ */
+export function viewOutline(lib: ViewLib, view: ViewDoc, limit = 50): { roots: OutlineNode[]; more: boolean } {
+  const ctx = lib.selectContext();
+  const cut = view.steps.findIndex((step) => step.type === 'follow');
+  const roots = viewList(lib, cut < 0 ? view : { ...view, steps: view.steps.slice(0, cut) });
+  const follows = cut < 0 ? [] : view.steps.slice(cut).filter((step) => step.type === 'follow');
+  const str = (v: unknown) => (typeof v === 'string' ? v : '');
+  const grow = (id: string, depth: number, path: ReadonlySet<string>): OutlineNode => {
+    const step = follows[depth];
+    const entity = ctx.entity(id);
+    if (step === undefined || entity === undefined) return { id, groups: [] };
+    const field = str(step.config.field);
+    const groups: OutlineGroup[] = [];
+    const add = (label: string, ids: readonly string[]) => {
+      const unique = [...new Set(ids)].filter((x) => x !== id && ctx.entity(x) !== undefined);
+      if (unique.length === 0) return;
+      groups.push({ label, nodes: unique.map((x) => (path.has(x) ? { id: x, groups: [], again: true } : grow(x, depth + 1, new Set([...path, x])))) });
+    };
+    if (step.config.back === true) {
+      const pointers = [...ctx.pointing(id)].map((x) => ctx.entity(x)).filter((e): e is Entity => e !== undefined);
+      const byField = new Map<string, string[]>();
+      for (const pointer of pointers) {
+        for (const f of fieldsOf(pointer, ctx.look)) {
+          if (f.type !== 'ref' || (field !== '' && f.key !== field)) continue;
+          if (!valuesOf(pointer, f).some((v) => v.value === id)) continue;
+          const label = `← ${f.label}`;
+          byField.set(label, [...(byField.get(label) ?? []), pointer.id]);
+        }
+      }
+      for (const [label, ids] of byField) add(label, ids);
+    } else {
+      for (const f of fieldsOf(entity, ctx.look)) {
+        if (f.type !== 'ref' || (field !== '' && f.key !== field)) continue;
+        add(f.label, valuesOf(entity, f).map((v) => v.value).filter((v): v is string => typeof v === 'string'));
+      }
+    }
+    return { id, groups };
+  };
+  return { roots: roots.slice(0, limit).map((e) => grow(e.id, 0, new Set([e.id]))), more: roots.length > limit };
 }

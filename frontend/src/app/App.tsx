@@ -42,6 +42,7 @@ const JoinLink = lazy(() => import('./links/JoinLink').then((m) => ({ default: m
 const JoinWithoutAccount = lazy(() => import('./links/JoinLink').then((m) => ({ default: m.JoinWithoutAccount })));
 const SeatPortal = lazy(() => import('./seats/SeatPortal').then((m) => ({ default: m.SeatPortal })));
 const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Verify })));
+const AiConnect = lazy(() => import('./aiAccess/AiConnect').then((m) => ({ default: m.AiConnect })));
 const SharedFile = lazy(() => import('./phone/SharedFile').then((m) => ({ default: m.SharedFile })));
 
 export function App() {
@@ -243,6 +244,17 @@ export function App() {
       forgetState(); chat.forgetAreaKeys(); libraries.forgetLibraries(); forgetLoadedPageKeys(); setWho(null);
     })();
   };
+
+  /* 0127 — ein Assistent will Recreatio lesen: erst angemeldet, dann die Wahl der Links. */
+  if (address.route === 'polacz-ai') {
+    return (
+      <PlainFrame who={who} onSignOut={signOutNow}>
+        <Suspense fallback={<Loading />}>
+          <AiConnect grantId={address.slug} who={who} />
+        </Suspense>
+      </PlainFrame>
+    );
+  }
 
   /* 0065 — ein Link mit Zugang: erst angemeldet, dann das Zaproszenie. */
   if (address.route === 'dolacz') {

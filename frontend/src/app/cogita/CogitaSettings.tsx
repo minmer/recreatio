@@ -125,7 +125,7 @@ function BaseSection({ areas }: { areas: readonly AreaRow[] }) {
         <p className="wk-hint">Usuwa wszystkie wpisy, szablony, powtórki, przebiegi i odpowiedzi uczących się; sesje zostają, ale bez bazy. Tego nie da się cofnąć — najpierw zrób eksport (JSON).</p>
         <label className="wk-field"><span>Wpisz nazwę, żeby potwierdzić</span><input value={confirm} onChange={(e) => setConfirm(e.target.value)} /></label>
         <button type="button" className="wk-btn lib-btn-danger" disabled={busy || confirm.trim() !== name.trim()}
-          onClick={() => void run(async () => { await deleteLibrary(lib.libraryId); window.dispatchEvent(new Event(BASES_CHANGED)); window.location.hash = viewPath('learn'); })}>Usuń na zawsze</button>
+          onClick={() => void run(async () => { await deleteLibrary(lib.libraryId); window.dispatchEvent(new Event(BASES_CHANGED)); window.location.hash = viewPath('knowledge'); })}>Usuń na zawsze</button>
       </details>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>

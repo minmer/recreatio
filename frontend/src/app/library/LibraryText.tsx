@@ -19,8 +19,9 @@
  */
 
 import { originOf } from './libraryCite';
-import { str, type LibEntry, type Lookup } from './libraryKinds';
+import { ids, str, type LibEntry, type Lookup } from './libraryKinds';
 import { QuoteBody } from './markupView';
+import { TextJump } from './SourceJump';
 
 /** Ein Zitat mit Herkunft — in der Sammlung, in der Bibliothek. (2026-10-23: Komentarze über ein Zitat stehen in Nauka; „Powiązania" nennt sie.) */
 export function QuoteFigure({ entry, look }: { entry: LibEntry; look: Lookup; full?: boolean }) {
@@ -29,7 +30,7 @@ export function QuoteFigure({ entry, look }: { entry: LibEntry; look: Lookup; fu
     <figure className="lib-quote">
       <blockquote><QuoteBody text={str(d, 'text')} /></blockquote>
       {str(d, 'translation') !== '' && <p className="lib-embed-translation">{str(d, 'translation')}</p>}
-      <figcaption>— {originOf(entry, look)}</figcaption>
+      <figcaption>— {originOf(entry, look)}{ids(d, 'work')[0] !== undefined && <TextJump look={look} workId={ids(d, 'work')[0]!} locator={str(d, 'locator')} />}</figcaption>
     </figure>
   );
 }

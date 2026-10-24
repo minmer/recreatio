@@ -146,7 +146,19 @@ export interface SealedEntry {
   readonly deletedAt: string | null;
   readonly publishedAt: string | null;
   readonly publishedAs: PublishedAs | null;
+  /** 2026-10-24 — eine schwere Art (Teil eines Quellentexts) ohne Hülle: sie kommt erst, wenn jemand liest (`ids`). */
+  readonly heavy?: true;
 }
+
+/**
+ * 2026-10-24 — WAS DER ABGLEICH FRAGT: `light=1` (schwere Arten nur als Zeile) und seit wann;
+ * oder, mit `ids`, genau diese Einträge ganz (höchstens 50 — so holt der Leser einen Teil).
+ */
+const entriesQuery = (since: string | null, ids?: readonly string[]): string =>
+  ids !== undefined ? `?ids=${encodeURIComponent(ids.join(','))}` : `?light=1${since === null ? '' : `&since=${encodeURIComponent(since)}`}`;
+
+/** Woher ein Speicher seine Hüllen holt — mit `ids` genau diese, ganz. */
+export type EntrySource = (since: string | null, ids?: readonly string[]) => Promise<{ now: string; entries: readonly SealedEntry[] }>;
 
 /** Was in der Hülle steht. */
 export interface EntryDoc {
@@ -157,15 +169,15 @@ export interface EntryDoc {
   readonly data: EntryData;
 }
 
-export const loadEntries = (libraryId: string, since: string | null): Promise<{ now: string; entries: readonly SealedEntry[] }> =>
-  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries${since === null ? '' : `?since=${encodeURIComponent(since)}`}`);
+export const loadEntries = (libraryId: string, since: string | null, ids?: readonly string[]): Promise<{ now: string; entries: readonly SealedEntry[] }> =>
+  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries${entriesQuery(since, ids)}`);
 
 /** 0109 — dieselben Wege für einen Platz: seine Bibliothek (ihr Bereich, ihr versiegelter Name) und ihre Hüllen. */
 export const loadSeatLibrary = (token: string, libraryId: string): Promise<LibraryRow> =>
   call(`/seat/${encodeURIComponent(token)}/library/${encodeURIComponent(libraryId)}`);
 
-export const loadSeatEntries = (token: string, libraryId: string, since: string | null): Promise<{ now: string; entries: readonly SealedEntry[] }> =>
-  call(`/seat/${encodeURIComponent(token)}/library/${encodeURIComponent(libraryId)}/entries${since === null ? '' : `?since=${encodeURIComponent(since)}`}`);
+export const loadSeatEntries = (token: string, libraryId: string, since: string | null, ids?: readonly string[]): Promise<{ now: string; entries: readonly SealedEntry[] }> =>
+  call(`/seat/${encodeURIComponent(token)}/library/${encodeURIComponent(libraryId)}/entries${entriesQuery(since, ids)}`);
 
 /** 0109 — den Namen mit einem Schlüssel öffnen, der nicht aus einem Bund kommt (ein Platz). */
 export async function libraryNameWith(key: Uint8Array, row: Pick<LibraryRow, 'libraryId' | 'nameSealed'>): Promise<string> {
@@ -238,8 +250,8 @@ export interface OpenRead {
   readonly entries: readonly SealedEntry[];
 }
 
-export const loadOpen = (libraryId: string, since: string | null): Promise<OpenRead> =>
-  call(`/library/${encodeURIComponent(libraryId)}/open${since === null ? '' : `?since=${encodeURIComponent(since)}`}`);
+export const loadOpen = (libraryId: string, since: string | null, ids?: readonly string[]): Promise<OpenRead> =>
+  call(`/library/${encodeURIComponent(libraryId)}/open${entriesQuery(since, ids)}`);
 
 /** Wo diese Einträge liegen — nur die, die dieser Browser lesen darf; die anderen fehlen in der Antwort. */
 export const libraryWhere = (ids: readonly string[]): Promise<{ found: readonly { entryId: string; libraryId: string }[] }> =>

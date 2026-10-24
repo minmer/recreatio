@@ -76,8 +76,8 @@ export const LIBRARY_SPEC: FormatSpec = {
   saveOrder: ['person', 'work', 'quote'],
   elsewhere: (kind) => WRITING_KINDS_NAMED[kind] !== undefined
     ? `${WRITING_KINDS_NAMED[kind]} są teraz w Skryptorium — importuje się je tam (format "${SCRIPTORIUM_FORMAT}")`
-    : kind === 'comment' ? 'komentarze są teraz własnym rodzajem w Nauce — gotowy schemat: plik templates/cogita/komentarz.json, a komentarze w JSON bazy wiedzy'
-    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Nauce (np. „Tajemnica”, „Obszar”), połączone polami-odwołaniami'
+    : kind === 'comment' ? 'komentarze są teraz własnym rodzajem w Wiedzy — gotowy schemat: plik templates/cogita/komentarz.json, a komentarze w JSON bazy wiedzy'
+    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Wiedzy (np. „Tajemnica”, „Obszar”), połączone polami-odwołaniami'
     : null
 };
 
@@ -170,7 +170,7 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
   }
   if (list.length === 0) return { error: `To nie jest dokument w formacie "${spec.format}" — brakuje "entries" (albo "kind" i "data").` };
   if (root.format !== undefined && root.format !== spec.format) {
-    const where = root.format === LIBRARY_FORMAT ? 'w Bibliotece' : root.format === SCRIPTORIUM_FORMAT ? 'w Skryptorium' : String(root.format).startsWith('recreatio.cogita') ? 'w Nauce (baza wiedzy → JSON)' : '';
+    const where = root.format === LIBRARY_FORMAT ? 'w Bibliotece' : root.format === SCRIPTORIUM_FORMAT ? 'w Skryptorium' : String(root.format).startsWith('recreatio.cogita') ? 'w Wiedzy (baza wiedzy → Więcej → Import i eksport)' : '';
     return { error: `Inny format: „${String(root.format)}”${where === '' ? '' : ` — ten importuje się ${where}`}; tu przyjmowany jest "${spec.format}".` };
   }
   const allowed = new Set(spec.kinds.map((k) => k.kind));
@@ -416,7 +416,7 @@ const TYPE_SAYS: Record<LibField['type'], string> = {
   date: 'data RRRR-MM-DD', select: 'jedna z wartości', url: 'adres https://…', ref: 'odwołanie: kennung albo "@klucz"',
   refs: 'lista odwołań: kennungi albo "@klucze"', outline: 'lista punktów planu', items: 'lista obiektów o polach:',
   blocks: 'lista bloków (niżej: „Komentarz”)',
-  fields: 'lista pól — jak pola rodzaju w Nauce'
+  fields: 'lista pól — jak pola rodzaju w Wiedzy'
 };
 
 /** Ein Feld in der Beschreibung — bei `items` darunter seine Unterfelder. */
@@ -427,7 +427,7 @@ function fieldDoc(f: LibField, indent: string): string {
 }
 
 /** 2026-10-23 — wie man eine Stelle der Schrift schreibt: im "locator" eines Zitats, in einem Przypis, im Feld z miejscem w Nauce. */
-export const BIBLE_DOC = `Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w "locator" cytatu, w przypisie tekstu, w polu z miejscem w Nauce) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.`;
+export const BIBLE_DOC = `Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w "locator" cytatu, w przypisie tekstu, w polu z miejscem w Wiedzy) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.`;
 
 export const MARKUP_DOC = `## Zapis treści (pola "body" i "further" tekstu, punkty planu "plan[].text", "transcript" i "added[].text" wygłoszenia)
   ## Śródtytuł            (# albo ## — śródtytuł, ### — mniejszy)
@@ -467,7 +467,7 @@ export function libraryDescription(): string {
   return `# Biblioteka jako JSON ("${LIBRARY_FORMAT}", wersja ${LIBRARY_VERSION})
 
 Co robi import:
-Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "${SCRIPTORIUM_FORMAT}"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Nauce, jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
+Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "${SCRIPTORIUM_FORMAT}"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Wiedzy (Cogita), jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
 - Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
 - Odwołania ("authors", "editors", "translators", "container", "work") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.

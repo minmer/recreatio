@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -1371,6 +1371,18 @@ check('goals and lines follow the one logic', [
   const names = (steps, more = {}) => VW.viewList(lib, VW.readView({ steps, ...more })).map((e) => lib.label(e));
   const step = (type, config = {}) => ({ type, config });
 
+  /* 2026-10-24 — Struktura: die Quelle als Wurzeln, jedes „Idź po odwołaniu" eine Ebene, nach Feldern. */
+  const shape = (o) => o.roots.map(function walk(n) { return [lib.label(lib.entity(n.id)), ...(n.again ? ['↺'] : []), ...n.groups.map((g) => [g.label, ...g.nodes.map(walk)])]; });
+  check('Struktura: Jakub, his father, his father’s father — one readable whole', shape(VW.viewOutline(lib, VW.readView({ mode: 'outline', steps: [step('source.list', { ids: jak }), step('follow', { field: 'father' }), step('follow', { field: 'father' })] }))),
+    [['Jakub', ['Ojciec', ['Izaak', ['Ojciec', ['Abraham']]]]]]);
+  check('… backwards: who points here, under „← field"', shape(VW.viewOutline(lib, VW.readView({ mode: 'outline', steps: [step('source.list', { ids: abr }), step('follow', { field: 'father', back: true })] }))),
+    [['Abraham', ['← Ojciec', ['Izaak']]]]);
+  check('… all references of an entry, grouped by field; without a follow step only the roots', [
+    shape(VW.viewOutline(lib, VW.readView({ mode: 'outline', steps: [step('source.list', { ids: jak }), step('follow', { field: '' })] }))),
+    shape(VW.viewOutline(lib, VW.readView({ mode: 'outline', steps: [step('source.list', { ids: `${abr}\n${iza}` })] })))
+  ], [[['Jakub', ['Ojciec', ['Izaak']], ['Wątki', ['Obietnica']]]], [['Abraham'], ['Izaak']]]);
+  check('… the mode is kept in the view document', VW.readView(VW.viewJson(VW.readView({ mode: 'outline' }))).mode, 'outline');
+
   const old = VW.readView({ name: 'Stary', mode: 'tree', kind: kP, rule: { op: 'and', items: [{ field: 'era', cmp: 'eq', value: 'królowie' }] } });
   check('an old view (kind + filter) reads as steps', old.steps.map((x) => x.type), ['source.kind', 'filter.rule']);
   const json = VW.viewJson(old);
@@ -1510,6 +1522,38 @@ check('goals and lines follow the one logic', [
     && komentarz.docs.filter((d) => d.kind === 'template').every((d) => JSON.stringify(d.data.kinds) === JSON.stringify([komentarz.kinds[0].id])) && komentarz.docs.filter((d) => d.kind === 'template').length === 2 && komentarz.warnings.length === 0,
     'error' in komentarz ? komentarz.error : komentarz.warnings);
   truth('the psalter start imports with a place in the Scripture', !('error' in psalter) && psalter.kinds.some((k) => k.def.fields.some((f) => f.key === 'miejsce' && f.locator === true && (f.to ?? []).includes('work'))), 'error' in psalter ? psalter.error : '');
+
+  /* 2026-10-24 — EIN SPOSÓB DODAWANIA, ZWEI RODZAJE: der Komentarz biblijny (templates/cogita/komentarz-biblijny.json). */
+  const kbDoc = Js.planImport(new So.CogitaLibrary(freshStore, true), JSON.parse(await readFile('../templates/cogita/komentarz-biblijny.json', 'utf8')));
+  truth('the biblical commentary template imports: Komentarz (blocks, for/against) and Komentarz biblijny (a passage with its place, a comment), one adding method, no warning',
+    !('error' in kbDoc) && kbDoc.kinds.length === 2 && kbDoc.docs.filter((d) => d.kind === 'addform').length === 1 && kbDoc.warnings.length === 0, 'error' in kbDoc ? kbDoc.error : kbDoc.warnings);
+  const kbKinds = kbDoc.kinds.map((k) => k.def);
+  const KOM = kbKinds.find((k) => k.name === 'Komentarz');
+  const KB = kbKinds.find((k) => k.name === 'Komentarz biblijny');
+  const BIBLE = e('bt', ['work'], { workType: 'bible', title: 'Biblia Tysiąclecia' });
+  const kbPeople = [BIBLE];
+  const kbLook = S.lookupOf([...kbKinds, { id: 'work', name: 'Źródło', label: '{title}', fields: [{ key: 'title', label: 'Tytuł', type: 'line' }] }], kbPeople);
+  let kbN = 0;
+  const kbCtx = () => ({ look: kbLook, pool: (k) => kbPeople.filter((x) => x.kinds.includes(k)), isOwn: () => true, newId: () => `kb${++kbN}` });
+  const kbForm = AF.readAddForm('fkb', kbDoc.docs.find((d) => d.kind === 'addform').data);
+  check('… the form types the passage’s place and the comment, and chooses the Bible once', AF.groupsOf(kbForm, kbLook, true).map((g) => [g.label, g.fields.map((f) => f.label)]),
+    [['Komentarz biblijny', ['Fragment Pisma — miejsce']], ['Komentarz', ['Treść']]]);
+  check('… the editing view of a form shows no place column (it is not a field of the kind)', AF.groupsOf(kbForm, kbLook).map((g) => g.label), ['Komentarz']);
+  const kbRow = { kb: [{ '@loc:passage': 'Łk 1,35' }], kom: [{ content: 'Duch Święty zstąpi na Ciebie.\n\nTo zapowiedź Wcielenia.' }] };
+  const kbPlan = AF.planForm(kbForm, kbCtx(), [kbRow], { picks: { pismo: ['bt'] }, asks: {} });
+  const savedKom = kbPlan.saves.find((x) => x.kinds.includes(KOM.id));
+  const savedKb = kbPlan.saves.find((x) => x.kinds.includes(KB.id));
+  check('one row makes both entries, connected: the comment as two paragraphs, the commentary pointing at Łk 1,35 and at the comment',
+    [kbPlan.problems, kbPlan.saves.length, savedKom?.data.content, savedKb?.data.passage, savedKb?.data.comment === savedKom?.id, Object.keys(savedKb?.data ?? {}).some((k) => k.startsWith('@loc:'))],
+    [[], 2, [{ type: 'paragraph', text: 'Duch Święty zstąpi na Ciebie.' }, { type: 'paragraph', text: 'To zapowiedź Wcielenia.' }], { value: 'bt', locator: 'Łk 1,35' }, true, false]);
+  check('… saved after the comment (the commentary points at it)', kbPlan.saves.map((x) => x.kinds[0]), [KOM.id, KB.id]);
+  kbPeople.push(...kbPlan.saves.map((x) => e(x.id, x.kinds, x.data)));
+  const kbAgain = AF.planForm(kbForm, { ...kbCtx(), look: S.lookupOf([...kbKinds, { id: 'work', name: 'Źródło', label: '{title}', fields: [{ key: 'title', label: 'Tytuł', type: 'line' }] }], kbPeople) }, [kbRow], { picks: { pismo: ['bt'] }, asks: {} });
+  check('the same row again makes nothing new (the place counts: Łk 1,35 is found again)', kbAgain.saves.filter((x) => x.isNew).length, 0);
+  const kbOther = AF.planForm(kbForm, { ...kbCtx(), look: S.lookupOf([...kbKinds, { id: 'work', name: 'Źródło', label: '{title}', fields: [{ key: 'title', label: 'Tytuł', type: 'line' }] }], kbPeople) },
+    [{ ...kbRow, kb: [{ '@loc:passage': 'Łk 1,36' }] }], { picks: { pismo: ['bt'] }, asks: {} });
+  check('… another verse with the same comment: one new commentary, the comment reused (no duplicate)', [kbOther.saves.filter((x) => x.isNew).map((x) => x.kinds[0]), kbOther.saves.find((x) => x.isNew)?.data.comment === savedKom?.id], [[KB.id], true]);
+  check('… and the description says the place is typed in the row', AT.describeForm(kbForm, kbLook).some((line) => line.includes('Fragment Pisma ← „Pismo Święte", z miejscem wpisanym w wierszu')), true);
   check('add to plan: new points at the end, the old ones stay, ids stay unique', [added, newPlan.length, newPlan[0].id, newPlan[1].text, new Set(newPlan.map((x) => x.id)).size], [2, 3, 'p1', `[[${lib.label(lib.entity(cm1)).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim()}|@${cm1}]]`, 3]);
 }
 
@@ -1576,6 +1620,22 @@ check('goals and lines follow the one logic', [
   check('typing a row of the add form: 1,5 kN·m, 12, 12 J', [AF.typedValue(fMoment, '1,5 kN·m'), AF.typedValue(fMoment, '12'), 'error' in AF.typedValue(fMoment, '12 J')], [{ value: [{ value: 1.5, unit: 'KiloN-M', si: 1500 }] }, { value: [{ value: 12, unit: 'N-M', si: 12 }] }, true]);
   const rule = (cmp, value) => SEL.ruleMatches(motor, lookM, { op: 'and', items: [{ field: 'masa', cmp, value }] });
   check('a filter in another unit of the same kind: masa > 2 kg, < 3000 g, = 2,5 kg; never in metres', [rule('gt', '2 kg'), rule('lt', '3000 g'), rule('eq', '2,5 kg'), rule('gt', '1 m'), rule('gt', '2')], [true, true, true, false, true]);
+}
+
+/* ══ 2026-10-24 — Wiedza und Nauka: zwei Teile, dieselben Bazy, alte Adressen führen weiter ══ */
+{
+  const T = (tail, prefer) => { const r = PARTS.cogitaTrail(tail, prefer); return [r.part, r.tail.join('/')]; };
+  check('Wiedza: three activities first, the rest under „Więcej"', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje']]);
+  check('Nauka: learning only — no entries, no schema', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0])], [['nauka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'ustawienia']]);
+  check('Schematy: three independent categories', PARTS.SCHEMA_PARTS.map((p) => [p.slug, p.label]), [['rodzaje', 'Rodzaje wpisów'], ['dodawanie', 'Sposoby dodawania'], ['wyswietlanie', 'Sposoby wyświetlania']]);
+  check('old addresses lead on: schemat, schemat/<kind>, schemat/formularz/<id>, wpisy/dodaj/<id>, wpisy/nowy/<kind>', [
+    T(['schemat']), T(['schemat', 'k1']), T(['schemat', 'formularz']), T(['schemat', 'formularz', 'f1']), T(['wpisy', 'dodaj', 'f1']), T(['wpisy', 'nowy', 'k1'])
+  ], [['knowledge', 'schematy/rodzaje'], ['knowledge', 'schematy/rodzaje/k1'], ['knowledge', 'schematy/dodawanie'], ['knowledge', 'schematy/dodawanie/f1'], ['knowledge', 'dodaj/f1'], ['knowledge', 'dodaj/nowy/k1']]);
+  check('every tab finds its part; entries and views stay; settings stay in the part one is in', [
+    T(['wpisy', 'e1']), T(['wpisy', 'widok', 'v1']), T(['karty', 't1']), T(['powtorki', 'r1'], 'knowledge'), T(['sesje', 's1', 'ekran']), T(['ustawienia'], 'learn'), T(['ustawienia']), T([], 'learn')
+  ], [['knowledge', 'wpisy/e1'], ['knowledge', 'wpisy/widok/v1'], ['learn', 'karty/t1'], ['learn', 'powtorki/r1'], ['learn', 'sesje/s1/ekran'], ['learn', 'ustawienia'], ['knowledge', 'ustawienia'], ['learn', '']]);
+  check('cogitaPath: an old link becomes the new address', [PARTS.cogitaPath('b1', 'wpisy', 'e1'), PARTS.cogitaPath('b1', 'schemat', 'formularz', 'f1'), PARTS.cogitaPath('b1', 'nauka')],
+    ['#/workspace/knowledge/b1/wpisy/e1', '#/workspace/knowledge/b1/schematy/dodawanie/f1', '#/workspace/learn/b1/nauka']);
 }
 
 await rm(workspace, { recursive: true, force: true });

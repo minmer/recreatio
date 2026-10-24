@@ -139,7 +139,7 @@ Formula, code and duration are not field types.
 
 ### 2.3 Views
 
-- A table with column filters and sorting, a tree by kind, and a graph canvas whose positions all authors share [F2, F3].
+- A table with column filters and sorting, a tree by kind, a graph canvas whose positions all authors share [F2, F3], and (2026-10-24) **Struktura**: entries with what their references lead to, as one readable whole (§14.1).
 - Saved views (filter, columns, sorting) can be shared by a link [F7].
 - **A view is a selection in steps** (2026-10-22, step 9; `views.ts`, `selection.ts`). The steps are the ones a revision graph uses, with the same settings and the same code:
   - a source: everything, a kind (also a kind of a source library or Scriptorium — a text type too —, optionally from one source), a collection, a list, **Z wpisu** (what one entry points at);
@@ -181,7 +181,7 @@ A **form for adding** (Formularz dodawania, doc kind `addform`) says once what o
 - **Row order** (“Kolejność pól w wierszu”, form key `order`): the order of the typed row entries — where Enter goes next and how the columns of a pasted list stand — set with ↑ ↓ above the keys. Without it the canvas decides (column, then height); a new “kolejny taki” is placed right after its original.
 - **Choosing an entry** (everywhere a reference is picked: the choices on top, the defaults in the designer, reference fields in the entry editor): type to search, or open the list with the arrow; when nothing matches exactly and the place takes exactly one kind with a text field (the one in its label, else its first line), the list ends with “+ Utwórz „…” — Rodzaj”, which creates the entry and chooses it.
 - **Editing what is there** (“Edycja tego, co już jest”, beside “Dodawanie” on the filling screen): the saved entries shown in the shape of the form — a row per connecting entry (a translation, a group), its entries in the columns of the row entries that would have made them (the words per language), empty places where something may still be added. The choice on top is the filter: English–Polish shows no German rows. Texts are changed in place; values are added (found or made as when adding, with their language and topics), taken out of a row (×), rows deleted — and nothing is saved until **one button, “Zapisz zmiany (n)”**; leaving with unsaved changes asks first. A field that takes ONE entry (the “z” of a translation) cannot be left empty (delete the row instead) and offers “+ dodaj” only while it is empty; one that takes several (the words of a group) always offers it. Entries from a source base are shown, not changed; a value that fits no column (a language the form does not know) stays on its entry, unseen. A form without a connecting entry shows its first column only.
-- **Where.** Built under Schemat (`schemat/formularz/<id>`), filled under Wpisy (`wpisy/dodaj/<id>`, the menu “Wiele naraz”, and Ctrl K). Forms belong to the schema JSON (`forms`) and travel with it; a reused base’s forms are usable here.
+- **Where.** Built under Wiedza → Schematy → Sposoby dodawania (`schematy/dodawanie/<id>`), filled under Wiedza → Dodaj (`dodaj/<id>`, and Ctrl K) — §14.1. Forms belong to the schema JSON (`forms`) and travel with it; a reused base’s forms are usable here.
 - **A form as JSON** (2026-10-19): under each form „Formularz jako JSON” exports it with the own kinds it needs (in the schema format, so the Schemat import takes the same document) and imports one beside the generated description: the same `ref` changes the form in place, a new one creates a form. „+ Formularz → Z JSON (wklej)…” imports a form that is not here yet. The form import takes kinds, card templates and forms only; anything else in the document is named as left out. Several entry steps into one field that takes several give their values in the declared row order („Kolejność pól w wierszu”; without it, as on the canvas) — psalm, psalm, canticle. Example: `frontend/scripts/fixtures/brewiarz.json` — the psalter (kinds, a vespers and a compline form, five card templates), checked end to end in `app-cogita-check`.
 - **A kind to choose per value** (2026-10-20, entry key `also`): an entry step that takes several values can have several kinds (under „Rodzaj”, „+ inny rodzaj”; stored as the first in `kind`, the rest in `also`) — each value gets a select (Psalm / Pieśń) before its input, typed into that kind's first plain field; values keep the typed order, so one step serves vespers (psalm, psalm, canticle) and lauds (psalm, canticle, psalm). In a pasted list a prefix with the kind name chooses it (`Pieśń: Ap 19,1-7`); without one, the step's own kind. Such a step takes no reference connections.
 
@@ -520,9 +520,51 @@ Phones stay awake.
 | Public courses | A knowledge base in a public area, opened by a writer (Ustawienia → Kto czyta): everyone reads it as a whole, without an account (§13) | P10 |
 | Pages with one module | One common way to put a module on its own page (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever creates it, without building a page by hand; the module reads the base itself | F20 |
 | Search | Library and knowledge-base content in Ctrl K | P12 |
-| Nauka | The workspace view of Cogita: due now, sessions, the knowledge bases (each with its tabs at `#/workspace/learn/<id>`), and offline practice. The library itself has no Cogita tab. | A1 |
+| Wiedza and Nauka | Two workspace views of Cogita on the same bases (2026-10-24, §14.1): Wiedza for the knowledge (`#/workspace/knowledge/<id>`), Nauka for learning (`#/workspace/learn/<id>`): due now, sessions, offline practice. The library itself has no Cogita tab. | A1 |
 | JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
+
+### 14.1 Wiedza and Nauka (2026-10-24)
+
+Cogita has two parts in the workspace menu, on the same knowledge bases and the same store — a separation of what one
+does, not of the data (`cogita/parts.ts`):
+
+- **Wiedza** — collecting, organizing, connecting and exploring knowledge, useful without ever learning from it. A
+  base has three activities:
+  - **Wpisy** — find, open, follow references, edit. Search, a kind, a *sposób wyświetlania* (a saved view), and one
+    fold **„Dostosuj"** for more: *co pokazać* (Filtr; Wybór — also along references — and groups) apart from *jak
+    pokazać* (Tabela, Drzewo, **Struktura**, Macierz, Płótno). Saving a view as new opens it in Schematy to be named.
+    Under an entry: **„Ucz się tego"** makes a revision of its cards and opens it in Nauka.
+  - **Dodaj** — a single entry of any own kind (and Pytanie) without anything configured, or a *sposób dodawania*: a
+    form that makes several connected entries at once, shown by what it makes („tworzy: Komentarz biblijny ·
+    Komentarz"), filled in rows; its graph is not shown here. Readers propose instead.
+  - **Schematy** — three categories, each configured on its own: **Rodzaje wpisów** (kinds, fields, references; the
+    schema JSON), **Sposoby dodawania** (the forms for adding, §2.4), **Sposoby wyświetlania** (views, §2.3: name,
+    *co* and *jak*, a live result below; delete). None belongs to a kind: a form makes entries of several kinds, several
+    forms make the same kind, a view combines kinds through their references, and a kind needs neither.
+  - Under **Więcej**: Ustawienia, Import i eksport (JSON), Do zrobienia, Propozycje, Stare wpisy.
+- **Nauka** — learning from that knowledge without copies: **Ucz się** (what is due: revisions, flows), Powtórki,
+  Przebiegi, Sesje, Postępy; under Więcej Szablony kart (learning cards are not ways of presenting knowledge), Mapa,
+  Ustawienia. Cards lead back to their entries in Wiedza.
+- Each part ends its tab row with the way into the other („Ucz się z tej bazy" / „Wiedza tej bazy"). The menu groups
+  Biblioteka, Skryptorium, Wiedza and Nauka under „Studium".
+- **Addresses.** `#/workspace/knowledge/<base>/wpisy[/<id>|/widok/<view>]`, `…/dodaj[/nowy/<kind>|/<form>]`,
+  `…/schematy/rodzaje|dodawanie|wyswietlanie[/<id>]`; `#/workspace/learn/<base>/nauka|powtorki|przebiegi|sesje|postepy|karty|mapa`.
+  Old ones (`learn/<base>/wpisy`, `schemat`, `schemat/formularz/<id>`, `wpisy/dodaj/<id>`, `wpisy/nowy/<kind>`)
+  are replaced by their new place (`cogitaTrail`), so links in texts, pages, notifications, MCP results and
+  bookmarks keep working. Settings stay in the part one opened them from.
+- **The example from the brief** is a template: `templates/cogita/komentarz-biblijny.json` — *Komentarz* (Treść in
+  blocks, Argumenty za, Zarzuty → Komentarz) and *Komentarz biblijny* (Fragment Pisma: a reference with a place to a
+  Bible work; Komentarz). Its one adding method, „Komentarz do fragmentu Pisma", chooses the Bible once and types per
+  row the place („J 21,15") and the comment: two connected entries; the comment can be reused by other passages and
+  comments. A viewing method „Komentarz biblijny → Komentarz → all references" as **Struktura** shows the passage (with
+  „pokaż w tekście" when the Bible's text is readable, LIBRARY.md), the comment, and its arguments for and against.
+- **Built for it** (2026-10-24): forms can type a `blocks` field (paragraphs split at empty lines) and the **place of a
+  reference** whose target comes through an edge (`fields[<ref>] = { from: "type" }`, typed under `@loc:<ref>`,
+  stored as `{ value, locator }`, and counted with its place when recognising an existing entry); the designer offers
+  „miejsce wpisywane w każdym wierszu" on such a field. The view mode **Struktura** (`outline`, `viewOutline`): the
+  view's source entries as roots, each further „Idź po odwołaniu" a level below, grouped by field (backwards as
+  „← field"), statements whole, cycles marked; on pages it shows as a table.
 
 **Not wanted:**
 - printing (flashcards, tests, booklets) [K8, P11];
@@ -628,7 +670,7 @@ ARCHITECTURE.md → Keys → AI access).
 | Engine (pure, checked without a browser) | `frontend/src/app/cogita/`: `schema`, `graph`, `check`, `knowness`, `cards`, `revision`, `logic` (the one logic, also used by forms and pages), `flow`, `rules`, `game`, `kinds`, forms for adding: `addForm` (model, plan, row order), `addFormText` (pasted lists, problems, description), `addFormBuild` (a form from a kind, “kolejny taki”), `addFormEdit` (editing what is there) |
 | Knowledge base on the schema | `store.ts` (`CogitaLibrary`: own entries plus sources), `sources.ts` (opening the sources), `kinds.ts`, `versions.ts`, `files.ts`, `json.ts`, `presets.ts`; the IndexedDB copy in `libraryStore.ts` and `idb.ts` |
 | Learning | `learn.ts` (sealed batches, outbox, due), `holders.ts`, `offline.ts`, `python.ts` with `python.worker.ts` (Pyodide) |
-| Screens | `LearnView.tsx` (the workspace view **Nauka**: the knowledge bases, due, sessions, offline), `CogitaHome.tsx` (one knowledge base and its tabs), `LearnPart.tsx` (the view part), `AddFormEditor.tsx`, `AddFormRun.tsx` and `AddFormRows.tsx` (forms for adding and editing in their shape, §2.4), and the editors and players beside them |
+| Screens | `LearnView.tsx` (the workspace views **Wiedza** and **Nauka**: the knowledge bases, due, sessions, offline), `parts.ts` (the two parts, their tabs, old addresses), `CogitaHome.tsx` (one knowledge base and the tabs of its part), `KnowledgeParts.tsx` (Dodaj, Schematy, „Ucz się tego”), `LearnPart.tsx` (the view part), `AddFormEditor.tsx`, `AddFormRun.tsx` and `AddFormRows.tsx` (forms for adding and editing in their shape, §2.4), and the editors and players beside them |
 | Sessions | `live.ts` (keys, events, SignalR client with polling fallback), `Sessions.tsx`, `GamePanel.tsx` |
 | Public pages | `parts/cogita.tsx` (definitions) with `parts/cogitaViews.tsx` (loaded only when shown), `pageBase.ts` (the base as this reader may read it — step 8), `PublicRun.tsx` (a keyless revision), `entitySubject.tsx`, `seatLearn.ts` |
 | Visibility | `visibility.ts` (who reads, in words; what an item needs when it moves), `BaseWho.tsx` ("Kto widzi" with the move, "Kto czyta" in settings, "Stare kopie publikacji" — `oldCopies.ts`) |
@@ -642,8 +684,7 @@ ARCHITECTURE.md → Keys → AI access).
 ### Where it is used
 
 - **Workspace.**
-  - The view **Nauka** (`#/workspace/learn`): the knowledge bases (create one there), due now, sessions and offline practice.
-  - A knowledge base (`#/workspace/learn/<id>`) has these tabs: Nauka, Wpisy, Schemat, Szablony kart, Powtórki, Przebiegi, Sesje, Postępy, Mapa, Do zrobienia, Propozycje, Ustawienia, JSON, and **Stare wpisy** while there are any. Readers see Nauka, Przebiegi, Sesje, Postępy, Mapa and Zaproponuj.
+  - Two views on the same bases (2026-10-24, §14.1): **Wiedza** (`#/workspace/knowledge`: the bases — created here —, and in a base Wpisy, Dodaj, Schematy; under Więcej Ustawienia, Import i eksport, Do zrobienia, Propozycje and **Stare wpisy** while there are any; readers see Wpisy and Zaproponuj) and **Nauka** (`#/workspace/learn`: due now, sessions, offline practice; in a base Ucz się, Powtórki, Przebiegi, Sesje, Postępy; under Więcej Szablony kart, Mapa, Ustawienia; readers see Ucz się, Przebiegi, Sesje, Postępy, Mapa). Old addresses lead to the new ones.
   - **Ustawienia** holds the name (and deletion after typing it) and **Źródła**: add a library, a Scriptorium or another knowledge base from any area you read.
   - What comes from a source carries its name. It is read-only here, with a link to where it is changed.
   - The alert **Powtórka czeka** and a daily reminder.
@@ -682,7 +723,7 @@ ARCHITECTURE.md → Keys → AI access).
 
 | check | count |
 |---|---|
-| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 431 (2026-10-23) |
+| `scripts/app-cogita-check.mjs` (part of `npm run app:check`) | 449 (2026-10-24) |
 | `backend/Api.Tests` (22 of them for the game rules) | 472 (2026-10-23) |
 | `backend/Kernel.Tests` | 122 |
 
@@ -697,7 +738,7 @@ The full `tsc -p tsconfig.json` is clean now that the legacy tree is gone.
 
   The fixture generators `scripts/cogita-home.mjs` and `scripts/presentation-home.mjs` read them. They go in step 3 of the transfer (`documentation/TRANSFER.md`).
 - **Where a library is used.** A library does not know which knowledge bases point at it, because the references are sealed in their settings.
-- **Browser drives** for the three parts (2026-10-23, outside the repository): `komentarz-api/-browser.mjs` (import `komentarz.json`, write a comment with a table, learn its thesis) and `axes-api/-browser.mjs` (Tajemnica × Obszar).
+- **Browser drives** for the three parts (2026-10-23, outside the repository): `komentarz-api/-browser.mjs` (import `komentarz.json`, write a comment with a table, learn its thesis) and `axes-api/-browser.mjs` (Tajemnica × Obszar); for Wiedza and Nauka (2026-10-24) `parts-api/-browser.mjs`.
 
 Done on 2026-10-17: the dead `package.json` scripts (`api:types`, `rc:*`, `public:check`, `events:check`) and `_reference/` are removed.
 

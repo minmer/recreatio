@@ -134,7 +134,8 @@ function Runner({ entryId, version, data, onClose, onOpen, onEdit }: {
   const form = useMemo(() => readAddForm(entryId, data), [entryId, version]);
   const look = lib.look;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const groups = useMemo(() => groupsOf(form, look), [form, lib.revision]);
+  /* 2026-10-24 — mit den Stellen der Verweise (ein Fragment Pisma: „Łk 1,35"). */
+  const groups = useMemo(() => groupsOf(form, look, true), [form, lib.revision]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const top = useMemo(() => topOf(form, look), [form, lib.revision]);
   const storeKey = `cg-addform:${lib.libraryId}:${form.id}`;

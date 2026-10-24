@@ -436,3 +436,39 @@
 .cg-matrix .cg-matrix-heads th[scope="rowgroup"] { text-align: left; background: var(--wk-soft); }
 .cg-tree-head { list-style: none; margin-top: 0.5rem; }
 .cg-crumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: baseline; }
+
+/* -- 2026-10-24: Wiedza und Nauka (`parts.ts`, `KnowledgeParts.tsx`) ------------------------------- */
+/* Der Weg in den anderen Teil: am Ende der Reiter, leiser als sie. */
+.cg-subtabs .cg-other-part { margin-left: auto; display: inline-flex; align-items: center; gap: var(--wk-space-1); color: var(--wk-accent); font-weight: 500; }
+.cg-subtabs .cg-other-part .ui-icon { width: 0.95rem; height: 0.95rem; }
+/* „Dostosuj" in Wpisy: was gezeigt wird und wie — eine Falte, nicht drei Werkzeuge. */
+.cg-adjust > summary { cursor: pointer; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-adjust[open] { display: grid; gap: var(--wk-space-3); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); }
+.cg-adjust-part { display: grid; gap: var(--wk-space-2); }
+.cg-adjust-h { margin: 0; font-size: var(--wk-text-sm); font-weight: 700; color: var(--wk-ink-2); }
+.cg-adjust-part .cg-subtabs { margin: 0; }
+.cg-grow { flex: 1 1 16rem; min-width: 0; }
+/* Die drei Kategorien der Schematy: gleich gross, jede mit ihrem Satz. */
+.cg-schema-nav { display: grid; gap: var(--wk-space-2); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.cg-schema-tab {
+  font: inherit; text-align: left; cursor: pointer; display: grid; gap: var(--wk-space-1);
+  padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface); color: var(--wk-ink);
+}
+.cg-schema-tab:hover { border-color: var(--wk-line-strong); }
+.cg-schema-tab:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.cg-schema-tab.is-on { border-color: var(--wk-accent); box-shadow: 0 0 0 1px var(--wk-accent) inset; }
+.cg-schema-name { font-weight: 700; }
+.cg-schema-says { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+/* Dodaj: die Sposoby dodawania als Zeilen zum Anklicken, die Rodzaje als Knöpfe. */
+.cg-add { display: grid; gap: var(--wk-space-3); }
+.cg-add-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.cg-add-item { font: inherit; text-align: left; cursor: pointer; width: 100%; }
+.cg-method { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.cg-method > .lib-row { flex: 1 1 18rem; min-width: 0; font: inherit; text-align: left; background: none; border: 0; cursor: pointer; }
+.cg-learn-from { margin-top: var(--wk-space-3); }
+/* Struktura: ein Eintrag, darunter, wohin seine Verweise führen — eingerückt, mit dem Feld als Überschrift. */
+.cg-outline { display: grid; gap: var(--wk-space-4); }
+.cg-outline-node { display: grid; gap: var(--wk-space-2); }
+.cg-outline-group { display: grid; gap: var(--wk-space-2); margin-left: var(--wk-space-4); padding-left: var(--wk-space-3); border-left: 2px solid var(--wk-line); }
+.cg-outline-h { margin: 0; font-size: var(--wk-text-sm); font-weight: 700; color: var(--wk-ink-2); }
+.cg-outline-place { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }

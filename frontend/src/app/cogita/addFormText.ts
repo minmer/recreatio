@@ -141,7 +141,7 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
     }).join(', ')}. Wybór zostaje dla wszystkich wierszy, dopóki go nie zmienisz.`);
   }
   if (asks.length > 0) out.push(`Na początek ustawiasz: ${asks.map((a) => `${a.label}${a.value === '' ? '' : ` (domyślnie: ${a.value})`}`).join(', ')}.`);
-  const groups = groupsOf(form, look);
+  const groups = groupsOf(form, look, true);
   if (groups.length > 0) {
     out.push(`W każdym wierszu wpisujesz: ${groups.map((g) => `${quote(g.label)} — ${g.fields.map((f) => f.label).join(', ')}${g.many ? ' (kilka)' : ''}`).join('; ')}.`);
   }
@@ -157,7 +157,7 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
       const source = c.fields[f.key];
       if (f.type === 'ref') {
         const from = form.graph.edges.filter((e) => e.to === id && e.in === f.key).map((e) => byId.get(e.from)).filter((n): n is GraphNode => n !== undefined);
-        if (from.length > 0) parts.push(`${f.label} ← ${from.map((n) => quote(nodeLabel(n, look, form.graph))).join(' + ')}`);
+        if (from.length > 0) parts.push(`${f.label} ← ${from.map((n) => quote(nodeLabel(n, look, form.graph))).join(' + ')}${f.locator === true && source?.from === 'type' ? ', z miejscem wpisanym w wierszu' : ''}`);
       } else if (source !== undefined && isTypeable(f)) {
         parts.push(source.from === 'type' ? `${f.label} — wpisane` : source.from === 'ask' ? `${f.label} — z początku` : `${f.label} = ${source.value ?? ''}`);
       }

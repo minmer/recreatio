@@ -26,7 +26,7 @@ export class ScriptoriumLens extends CogitaLibrary {
   override get kinds(): readonly KindDef[] { return []; }
 
   override async saveEntity(): Promise<Entry> {
-    throw new WorkspaceError('Wpisy Nauki dodaje się w Nauce — tu można je tylko wskazać.');
+    throw new WorkspaceError('Wpisy bazy wiedzy dodaje się w Wiedzy — tu można je tylko wskazać.');
   }
 }
 

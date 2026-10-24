@@ -85,7 +85,7 @@ export function useNav(): Nav {
     return {
       main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers')],
       parish: [],
-      knowledge: [entry('learn', 'Nauka', 'cap')],
+      knowledge: [entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap')],
       settings: []
     };
   }
@@ -105,8 +105,8 @@ export function useNav(): Nav {
       entry('bookings', 'Rezerwacje', 'key', bookings),
       entry('registry', 'Kartoteka i kolęda', 'place')
     ],
-    /* 2026-10-23 — drei Teile: Źródła (Biblioteka), Pisanie (Skryptorium), Wiedza (Nauka). */
-    knowledge: [entry('library', 'Biblioteka', 'book'), entry('scriptorium', 'Skryptorium', 'compose'), entry('learn', 'Nauka', 'cap')],
+    /* 2026-10-23 — drei Teile: Źródła (Biblioteka), Pisanie (Skryptorium), Wiedza; 2026-10-24 Cogita getrennt in Wiedza und Nauka. */
+    knowledge: [entry('library', 'Biblioteka', 'book'), entry('scriptorium', 'Skryptorium', 'compose'), entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap')],
     settings: [entry('modules', 'Moduły', 'blocks'), entry('roles', 'Role', 'badge'), entry('addresses', 'Adresy i domeny', 'at')]
   };
 }
@@ -164,7 +164,7 @@ function Sidebar({ nav, spot, who, onSignOut }: { nav: Nav; spot: Spot; who: Who
         )}
         {nav.knowledge.length > 0 && (
           <>
-            <p className="wk-nav-label">Wiedza</p>
+            <p className="wk-nav-label">Studium</p>
             <NavList entries={nav.knowledge} at={at} />
           </>
         )}

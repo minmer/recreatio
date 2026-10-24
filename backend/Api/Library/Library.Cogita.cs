@@ -131,12 +131,14 @@ public static partial class Library
     }
 
     /// <summary>Der Abgleich für einen Platz — dieselbe Antwort wie für ein Konto (<see cref="EntriesAsync"/>).</summary>
-    private static async Task SeatEntriesAsync(HttpContext ctx, Db db, string token, Guid id, string? since)
+    private static async Task SeatEntriesAsync(HttpContext ctx, Db db, string token, Guid id, string? since, string? light, string? ids)
     {
+        var only = ids is null ? null : ParseIds(ids);
+        if (ids is not null && (only is null || only.Count > MaxHeavyBatch)) { await Fail(ctx, StatusCodes.Status400BadRequest, $"Podaj od 1 do {MaxHeavyBatch} identyfikatorów."); return; }
         if (!SinceOf(since, out var from)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         if (await SeatLibraryAsync(ctx, connection, token, id) is null) return;
-        await WriteEntriesAsync(ctx, connection, id, from);
+        await WriteEntriesAsync(ctx, connection, id, from, light == "1", only);
     }
 
     /* -- Fassungen ---------------------------------------------------------------------------- */

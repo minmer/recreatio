@@ -15,6 +15,7 @@ import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState,
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 import { later } from '../ui/later';
+import { TextJump } from './SourceJump';
 
 /* 2026-10-22 (Schritt 11) — ein Widok im Text: der Rechner (Cogita) kommt erst, wenn einer gezeigt wird. */
 const LiveView = later(() => import('../cogita/ViewEmbed').then((m) => m.ViewEmbed));
@@ -116,14 +117,19 @@ export function countNotes(parts: readonly (readonly Block[])[], look: Lookup): 
         const n = list.length + 1;
         numbers.set(inline, n);
         const segs: Seg[] = [];
+        /* 2026-10-24 — hat das zitierte Werk einen Text, den dieser Leser lesen darf: dorthin (`SourceJump.tsx`). */
+        const jumps: { workId: string; locator: string }[] = [];
         sources.forEach((item, i) => {
           const target = refTarget(look, item.key);
           const work = workBehind(target, look);
-          if (work !== undefined) works.push(work);
+          if (work !== undefined) {
+            works.push(work);
+            jumps.push({ workId: work.id, locator: target?.kind === 'quote' ? (item.locator || str(target.data, 'locator')) : item.locator });
+          }
           if (i > 0) segs.push({ text: '; ' });
           segs.push(...citeSegs(target, item.locator, look, state));
         });
-        list.push({ n, body: <><Segs segs={segs} />.</> });
+        list.push({ n, body: <><Segs segs={segs} />.{jumps.map((j, i) => <TextJump key={i} look={look} workId={j.workId} locator={j.locator} />)}</> });
       } else if (inline.t === 'note') {
         const n = list.length + 1;
         numbers.set(inline, n);
@@ -172,7 +178,15 @@ function Runs({ runs, look, notes, prefix }: { runs: readonly ParsedRun[]; look:
         const target = look.get(run.ref);
         /* 2026-10-22 — ein eigener Eintrag in einer Zelle ist ein Link; eine Quelle (Łk 1,35) steht als Name da. */
         if (target !== undefined && !isSource(target)) return <OwnRef key={i} token={run.ref} locator={run.locator} look={look} />;
-        return <span key={i} className={target === undefined ? 'lib-ref is-unreadable' : 'lib-ref'}>{refLabel(run.ref, run.locator, look)}</span>;
+        /* 2026-10-24 — eine Stelle eines Werks mit Text (der Vers eines Komentarza biblijnego): dorthin. */
+        const work = workBehind(target, look);
+        const locator = target?.kind === 'quote' ? (run.locator || str(target.data, 'locator')) : run.locator;
+        return (
+          <Fragment key={i}>
+            <span className={target === undefined ? 'lib-ref is-unreadable' : 'lib-ref'}>{refLabel(run.ref, run.locator, look)}</span>
+            {work !== undefined && <TextJump look={look} workId={work.id} locator={locator} />}
+          </Fragment>
+        );
       })}
     </>
   );

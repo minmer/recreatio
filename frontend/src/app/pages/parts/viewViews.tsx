@@ -44,7 +44,8 @@ const WritingCard = later(() => import('../../scriptorium/WritingCard').then((m)
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
 const fold = (s: string): string => s.toLocaleLowerCase('pl-PL').normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-type PageMode = Exclude<ListMode, 'canvas'>;
+/* 2026-10-24 — die Struktura (outline) zeigt eine Seite als Tabela, wie das Płótno. */
+type PageMode = Exclude<ListMode, 'canvas' | 'outline'>;
 
 /** Wie der Baustein zeigt — was die Seite sagt (oder der Besucher wählt), sonst was der Widok gespeichert hat; eine Płótno als Tabela. */
 export function modeOf(asked: string, saved: string): PageMode {

@@ -54,8 +54,8 @@ const BASE_SPEC: FormatSpec = {
   saveOrder: ['texttype', 'project', 'text', 'delivery'],
   elsewhere: (kind) => SOURCES_NAMED[kind] !== undefined
     ? `${SOURCES_NAMED[kind]} są w Bibliotece — importuje się je tam (format "${LIBRARY_FORMAT}")`
-    : kind === 'comment' ? 'komentarze są własnym rodzajem w Nauce — gotowy schemat: plik templates/cogita/komentarz.json'
-    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Nauce, połączone polami-odwołaniami (np. pola rodzaju tekstu)'
+    : kind === 'comment' ? 'komentarze są własnym rodzajem w Wiedzy — gotowy schemat: plik templates/cogita/komentarz.json'
+    : kind === 'topic' ? 'tematów już nie ma — porządek dają własne rodzaje w Wiedzy, połączone polami-odwołaniami (np. pola rodzaju tekstu)'
     : null
 };
 
@@ -86,7 +86,7 @@ function readTypeFields(value: unknown, where: string, warn: (line: string) => v
         if (token === '') continue;
         if (PLAIN_TARGETS.has(token)) { to.push(token); continue; }
         const id = ctx.kindRef?.(token) ?? (isUuid(token) ? token : null);
-        if (id === null) { warn(`${where}: pole „${key}” — nie ma w Nauce rodzaju „${token}”; to ograniczenie pominięte (pole wskaże dowolny wpis).`); continue; }
+        if (id === null) { warn(`${where}: pole „${key}” — nie ma w Wiedzy rodzaju „${token}”; to ograniczenie pominięte (pole wskaże dowolny wpis).`); continue; }
         to.push(id);
       }
       if (to.length > 0) field.to = to;

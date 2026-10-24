@@ -98,7 +98,13 @@ export const ROUTES = {
    * ohne Konto. Das Geheimnis steht hinter der Raute; der Dienst bekommt nur die
    * Kennung, die aus ihm folgt, und nie den Schlüssel.
    */
-  plik: { slugged: true, needsIdentity: false }
+  plik: { slugged: true, needsIdentity: false },
+
+  /**
+   * 0127 — Połącz z asystentem AI: . Hierher schickt ein Assistent
+   * (ChatGPT) über OAuth; mit Konto — der Mensch wählt seine Links für den Assistenten.
+   */
+  'polacz-ai': { slugged: true, needsIdentity: true }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;
@@ -407,10 +413,18 @@ export const VIEWS = {
   scriptorium: 'Skryptorium',
 
   /*
+   * 2026-10-24 — WIEDZA: die Bazy wiedzy zum Sammeln, Ordnen, Verbinden und
+   * Erkunden (`knowledge/<baza>/wpisy|dodaj|schematy`) — ohne je etwas lernen
+   * zu müssen. Dieselben Bazy wie in der Nauka (`cogita/parts.ts`).
+   */
+  knowledge: 'Wiedza',
+
+  /*
    * 0109 — NAUKA: was jetzt dran ist, Sitzungen, das Lernen ohne Netz — und
    * 0110 die Bazy wiedzy selbst (`learn/<baza>/<reiter>`): neben der
    * Bibliothek, nicht in ihr. Sie verweisen auf Bibliotheken und andere Bazy
-   * wiedzy, auch in anderen Bereichen.
+   * wiedzy, auch in anderen Bereichen. 2026-10-24: hier nur noch das Lernen —
+   * die Einträge und Schematy stehen in der Wiedza.
    */
   learn: 'Nauka',
 

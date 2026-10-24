@@ -79,6 +79,22 @@ public static partial class AiAccess
         public string? Notes { get; init; }
         public JsonElement Kinds { get; init; }
         public List<Item> Items { get; } = [];
+        /// <summary>Der Bereich des Links, durch den die Abschrift geöffnet wurde (offen wie in der Liste der Bereiche).</summary>
+        public Guid AreaId { get; set; }
+        public string AreaName { get; set; } = "";
+
+        /// <summary>Die Felder einer Art dieses Behälters (aus der Abschrift), nach ihrem Schlüssel.</summary>
+        public JsonElement? Field(IEnumerable<string> kinds, string key)
+        {
+            if (Kinds.ValueKind != JsonValueKind.Array) return null;
+            foreach (var kind in Kinds.EnumerateArray())
+            {
+                if (Str(kind, "id") is not string id || !kinds.Contains(id)) continue;
+                if (!kind.TryGetProperty("fields", out var fields) || fields.ValueKind != JsonValueKind.Array) continue;
+                foreach (var f in fields.EnumerateArray()) if (Str(f, "key") == key) return f;
+            }
+            return null;
+        }
     }
 
     public sealed class Item
@@ -259,18 +275,23 @@ public static partial class AiAccess
         var terms = Terms(query);
         if (terms.Count == 0) return (pool.OrderBy(i => PartOrder(i.From.Part)).ThenBy(i => Fold(i.KindName), StringComparer.Ordinal).ThenBy(i => i.FoldedTitle, StringComparer.Ordinal).ThenBy(i => i.Id, StringComparer.Ordinal).ToList(), true);
 
+        /*
+         * 2026-10-24 — „J 21": ein, zwei Zeichen zählen nur als ganzes Wort (sonst fände „j"
+         * jedes „jest" und „21" jedes „2021"), und wo die Wörter als Folge stehen
+         * („J 21,15"), steht der Eintrag vorne.
+         */
         var phrase = string.Join(' ', terms);
         int Score(Item i, bool all)
         {
             var hay = i.Haystack;
-            var hits = terms.Count(t => hay.Contains(t, StringComparison.Ordinal));
+            var hits = terms.Count(t => Has(hay, t));
             if (hits == 0 || (all && hits < terms.Count)) return 0;
             var score = hits;
-            foreach (var t in terms) if (i.FoldedTitle.Contains(t, StringComparison.Ordinal)) score += 10;
+            foreach (var t in terms) if (Has(i.FoldedTitle, t)) score += 10;
             if (i.Key is not null && Fold(i.Key) == phrase) score += 50;
             if (i.FoldedTitle == phrase) score += 30;
-            else if (terms.Count > 1 && i.FoldedTitle.Contains(phrase, StringComparison.Ordinal)) score += 15;
-            else if (terms.Count > 1 && hay.Contains(phrase, StringComparison.Ordinal)) score += 5;
+            else if (terms.Count > 1 && HasWords(i.FoldedTitle, phrase)) score += 115;
+            else if (terms.Count > 1 && HasWords(hay, phrase)) score += 100;
             return score;
         }
 
@@ -280,6 +301,26 @@ public static partial class AiAccess
 
         var found = Rank(true);
         return found.Count > 0 || terms.Count == 1 ? (found, true) : (Rank(false), false);
+    }
+
+    /// <summary>Ein Wort im gefalteten Text: kurze (1–2 Zeichen) nur als ganzes Wort, längere auch als Teil.</summary>
+    public static bool Has(string hay, string term) =>
+        term.Length <= 2 ? HasWords(hay, term) : hay.Contains(term, StringComparison.Ordinal);
+
+    /// <summary>Eine Folge von Wörtern, an Wortgrenzen: „j 21" in „j 21,15", nicht in „j 210".</summary>
+    public static bool HasWords(string hay, string words) => WordsAt(hay, words) >= 0;
+
+    private static int WordsAt(string hay, string words)
+    {
+        if (words.Length == 0) return -1;
+        for (var at = hay.IndexOf(words, StringComparison.Ordinal); at >= 0; at = hay.IndexOf(words, at + 1, StringComparison.Ordinal))
+        {
+            var before = at == 0 || !char.IsLetterOrDigit(hay[at - 1]);
+            var end = at + words.Length;
+            var after = end >= hay.Length || !char.IsLetterOrDigit(hay[end]);
+            if (before && after) return at;
+        }
+        return -1;
     }
 
     private static bool PartMatches(Item i, string? part)
@@ -317,11 +358,15 @@ public static partial class AiAccess
             foreach (var x in f) { folded.Append(x); from.Add(i); }
         }
         var hay = folded.ToString();
-        var at = -1;
-        foreach (var t in terms)
+        /* Die ganze Folge zuerst („j 21"), sonst das früheste Wort — kurze nur als ganzes Wort. */
+        var at = terms.Count > 1 ? WordsAt(hay, string.Join(' ', terms)) : -1;
+        if (at < 0)
         {
-            var i = hay.IndexOf(t, StringComparison.Ordinal);
-            if (i >= 0 && (at < 0 || i < at)) at = i;
+            foreach (var t in terms)
+            {
+                var i = t.Length <= 2 ? WordsAt(hay, t) : hay.IndexOf(t, StringComparison.Ordinal);
+                if (i >= 0 && (at < 0 || i < at)) at = i;
+            }
         }
 
         var start = at < 0 ? 0 : Math.Max(0, from[at] - width / 3);
@@ -342,7 +387,13 @@ public static partial class AiAccess
 
     /* -- Öffnen ------------------------------------------------------------------------------ */
 
-    private sealed class Opened : IDisposable
+    /// <summary>
+    /// Was ein Link (oder, beim MCP, mehrere Links zusammen) gerade offen hat — nur für
+    /// die Dauer einer Anfrage. <see cref="Url"/> sagt, wohin ein Eintrag zeigt: über
+    /// den Link (<c>/ai/…</c>) oder, wo kein Geheimnis in einer Antwort stehen darf
+    /// (MCP), in die App.
+    /// </summary>
+    internal sealed class Opened : IDisposable
     {
         public required Guid Id { get; init; }
         public required DateTimeOffset Expires { get; init; }
@@ -351,10 +402,14 @@ public static partial class AiAccess
         public required string Area { get; init; }
         public List<Snapshot> Parts { get; } = [];
         /// <summary>Behälter dieses Links ohne (lesbare) Abschrift — noch nicht gebaut.</summary>
-        public List<(Guid Library, string Part)> Missing { get; } = [];
+        public List<(Guid Library, string Part, string Area)> Missing { get; } = [];
         public List<JsonDocument> Docs { get; } = [];
+        /// <summary>Wohin ein Eintrag zeigt, wenn nicht über den Link.</summary>
+        public Func<Item, string>? UrlOf { get; set; }
 
         private Dictionary<string, Item>? byId;
+        private Dictionary<string, List<(Item From, Link Link)>>? incoming;
+        private readonly Dictionary<string, List<Link>> links = [];
         public IEnumerable<Item> Items => Parts.SelectMany(p => p.Items);
 
         public Item? Get(string idOrKey)
@@ -366,12 +421,238 @@ public static partial class AiAccess
             return Items.FirstOrDefault(i => i.Key is not null && string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase));
         }
 
-        public string Url(Item item) => $"{Base}/entry/{item.Id}";
+        public string Url(Item item) => UrlOf?.Invoke(item) ?? $"{Base}/entry/{item.Id}";
+
+        /// <summary>Worauf ein Eintrag zeigt — mit dem Feld, aus dem der Verweis kommt.</summary>
+        public List<Link> LinksOf(Item item)
+        {
+            if (!links.TryGetValue(item.Id, out var found)) links[item.Id] = found = AiAccess.LinksOf(item, token => Get(token));
+            return found;
+        }
+
+        /// <summary>Wer auf einen Eintrag zeigt (in diesem Zugang) — mit dem Feld.</summary>
+        public List<(Item From, Link Link)> Backlinks(Item item)
+        {
+            if (incoming is null)
+            {
+                incoming = [];
+                foreach (var one in Items)
+                    foreach (var link in LinksOf(one))
+                    {
+                        if (link.Outside || link.Id == one.Id) continue;
+                        if (!incoming.TryGetValue(link.Id, out var list)) incoming[link.Id] = list = [];
+                        list.Add((one, link));
+                    }
+            }
+            return incoming.TryGetValue(item.Id, out var back) ? back : [];
+        }
+
+        /// <summary>Mehrere offene Links als einer (MCP): alle Behälter, die Dokumente wandern mit.</summary>
+        public static Opened Combine(IReadOnlyList<Opened> all)
+        {
+            var one = new Opened
+            {
+                Id = all.Count == 1 ? all[0].Id : Guid.Empty,
+                Expires = all.Min(o => o.Expires),
+                Base = all.Count == 1 ? all[0].Base : "",
+                Area = string.Join(", ", all.Select(o => o.Area).Distinct())
+            };
+            foreach (var o in all)
+            {
+                foreach (var p in o.Parts) if (!one.Parts.Any(x => x.LibraryId == p.LibraryId)) one.Parts.Add(p);
+                foreach (var m in o.Missing) if (!one.Missing.Contains(m)) one.Missing.Add(m);
+                one.Docs.AddRange(o.Docs);
+                o.Docs.Clear();
+            }
+            return one;
+        }
 
         public void Dispose()
         {
             foreach (var doc in Docs) doc.Dispose();
         }
+    }
+
+    /* -- Verweise mit ihrem Feld --------------------------------------------------------------- */
+
+    /// <summary>
+    /// Ein Verweis eines Eintrags: aus welchem Feld (dem obersten Schlüssel in <c>data</c>), auf
+    /// welche Kennung, mit welcher Stelle („Ps 110", „s. 23"). <c>Outside</c>: eine Kennung, die
+    /// dieser Zugang nicht enthält — von ihr wird nichts weiter gesagt.
+    /// </summary>
+    public sealed record Link(string Field, string Id, string? Locator, bool Outside);
+
+    private static readonly Regex MarkupRef = new(@"@([A-Za-z0-9][A-Za-z0-9_.:\-]*)(?:\s*,\s*([^\];]+))?", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Alle Verweise eines Eintrags: Kennungen in Feldern (auch <c>{value, locator}</c> und Zellen
+    /// <c>{ref, locator}</c>) und Verweise im Zapis (<c>[@schlüssel, s. 23]</c>, <c>[[…|@…]]</c>,
+    /// <c>![@…]</c>), aufgelöst über <paramref name="resolve"/> (Kennung oder Schlüssel).
+    /// </summary>
+    public static List<Link> LinksOf(Item item, Func<string, Item?> resolve)
+    {
+        var out_ = new List<Link>();
+        void Add(string field, string token, string? locator)
+        {
+            var target = resolve(token);
+            Link link;
+            if (target is not null) link = new Link(field, target.Id, string.IsNullOrWhiteSpace(locator) ? null : locator.Trim(), false);
+            else if (Uuid.IsMatch(token)) link = new Link(field, token.ToLowerInvariant(), null, true);
+            else return;
+            if (!out_.Contains(link)) out_.Add(link);
+        }
+        void Walk(string field, JsonElement e, int depth)
+        {
+            if (depth > 14) return;
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.String:
+                    var s = e.GetString() ?? "";
+                    if (Uuid.IsMatch(s.Trim())) Add(field, s.Trim(), null);
+                    else if (s.Contains('@'))
+                        foreach (Match m in MarkupRef.Matches(s))
+                        {
+                            /* Nur in Klammern des Zapis — eine E-Mail-Adresse ist kein Verweis. */
+                            var before = m.Index == 0 ? ' ' : s[m.Index - 1];
+                            if (before is '[' or '|' or ' ' or ';' or '!') Add(field, m.Groups[1].Value.TrimEnd('.', ':'), m.Groups[2].Success ? m.Groups[2].Value : null);
+                        }
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var one in e.EnumerateArray()) Walk(field, one, depth + 1);
+                    break;
+                case JsonValueKind.Object:
+                    var target = Str(e, "value") ?? Str(e, "ref");
+                    if (target is not null && (Uuid.IsMatch(target) || resolve(target) is not null))
+                    {
+                        Add(field, target, Str(e, "locator"));
+                        break;
+                    }
+                    foreach (var p in e.EnumerateObject()) if (!p.Name.StartsWith('_')) Walk(field, p.Value, depth + 1);
+                    break;
+            }
+        }
+        if (item.Data.ValueKind == JsonValueKind.Object)
+            foreach (var p in item.Data.EnumerateObject())
+                if (!p.Name.StartsWith('_')) Walk(p.Name, p.Value, 0);
+        out_.RemoveAll(l => l.Id == item.Id);
+        return out_;
+    }
+
+    /* -- Ein Eintrag als lesbarer Text (MCP `fetch`, `get_entry`) ------------------------------- */
+
+    private static readonly Regex EmbedRef = new(@"!\[@([^\]]+)\]", RegexOptions.CultureInvariant);
+    private static readonly Regex WordsRef = new(@"\[\[([^\]|]+)\|@([^\]]+)\]\]", RegexOptions.CultureInvariant);
+    private static readonly Regex CiteRef = new(@"\[@([^\]]+)\]", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Der Eintrag als Text, wie ein Mensch ihn liest: Kopf, jedes Feld mit seiner Beschriftung,
+    /// Verweise mit Titel und Stelle statt Kennungen, Bausteine (Absätze, Listen, Tabellen), und am
+    /// Ende, worauf er zeigt und was auf ihn zeigt. Was ausserhalb des Zugangs liegt, heisst so.
+    /// </summary>
+    internal static string Render(Item item, Opened o)
+    {
+        var sb = new StringBuilder();
+        string Title(string token)
+        {
+            var target = o.Get(token);
+            return target is null ? "(poza tym dostępem)" : target.Title;
+        }
+        string Markup(string text)
+        {
+            text = EmbedRef.Replace(text, m => $"[osadzone: {Title(m.Groups[1].Value.Trim())}]");
+            text = WordsRef.Replace(text, m => $"{m.Groups[1].Value} [→ {Title(m.Groups[2].Value.Trim())}]");
+            return CiteRef.Replace(text, m => "[" + string.Join("; ", m.Groups[1].Value.Split(';').Select(one =>
+            {
+                var bits = one.Trim().TrimStart('@').Split(',', 2);
+                return bits.Length == 2 ? $"{Title(bits[0].Trim())}, {bits[1].Trim()}" : Title(bits[0].Trim());
+            })) + "]");
+        }
+        string Cell(JsonElement cell) => cell.ValueKind == JsonValueKind.Array
+            ? string.Concat(cell.EnumerateArray().Select(piece => Str(piece, "ref") is string r
+                ? $"[{Title(r)}{(Str(piece, "locator") is string l ? $", {l}" : "")}]"
+                : Markup(Str(piece, "text") ?? "")))
+            : Value(cell, 0);
+        string Value(JsonElement e, int depth)
+        {
+            if (depth > 10) return "…";
+            switch (e.ValueKind)
+            {
+                case JsonValueKind.String:
+                    var s = e.GetString() ?? "";
+                    return Uuid.IsMatch(s.Trim()) ? $"→ {Title(s.Trim())}" : Markup(s);
+                case JsonValueKind.Number:
+                case JsonValueKind.True:
+                case JsonValueKind.False:
+                    return e.GetRawText();
+                case JsonValueKind.Array:
+                    var lines = e.EnumerateArray().Select(one => Value(one, depth + 1)).Where(x => x.Length > 0).ToList();
+                    return lines.Count <= 1 ? string.Join("", lines) : string.Join("\n", lines.Select(l => "- " + l.Replace("\n", "\n  ")));
+                case JsonValueKind.Object:
+                    var type = Str(e, "type");
+                    if (type == "paragraph") return Markup(Str(e, "text") ?? "");
+                    if (type is "ordered" or "unordered" && e.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
+                        return string.Join("\n", items.EnumerateArray().Select((it, n) => (type == "ordered" ? $"{n + 1}. " : "- ") + Cell(it)));
+                    if (type == "table")
+                    {
+                        var rows = new List<string>();
+                        if (e.TryGetProperty("columns", out var cols) && cols.ValueKind == JsonValueKind.Array)
+                            rows.Add("| " + string.Join(" | ", cols.EnumerateArray().Select(c => Value(c, depth + 1))) + " |");
+                        if (e.TryGetProperty("rows", out var rs) && rs.ValueKind == JsonValueKind.Array)
+                            foreach (var r in rs.EnumerateArray())
+                                rows.Add("| " + string.Join(" | ", r.ValueKind == JsonValueKind.Array ? r.EnumerateArray().Select(Cell) : [Value(r, depth + 1)]) + " |");
+                        return string.Join("\n", rows);
+                    }
+                    if ((Str(e, "value") ?? Str(e, "ref")) is string target)
+                    {
+                        var shown = Uuid.IsMatch(target) || o.Get(target) is not null ? Title(target) : target;
+                        var extra = new List<string>();
+                        if (Str(e, "locator") is string loc) extra.Add(loc);
+                        if (Str(e, "state") is string st && st != "known") extra.Add($"stan: {st}");
+                        if (Str(e, "note") is string note) extra.Add(note);
+                        return extra.Count == 0 ? shown : $"{shown} ({string.Join(", ", extra)})";
+                    }
+                    var pairs = e.EnumerateObject().Where(p => !p.Name.StartsWith('_') && p.Value.ValueKind != JsonValueKind.Null)
+                        .Select(p => $"{p.Name}: {Value(p.Value, depth + 1)}").ToList();
+                    return string.Join("; ", pairs);
+                default:
+                    return "";
+            }
+        }
+
+        var kinds = item.Kinds.Length > 0 ? item.Kinds : [item.Kind];
+        sb.Append("# ").Append(item.Title).Append('\n');
+        sb.Append("Rodzaj: ").Append(item.KindName).Append(item.TypeName is null ? "" : $" ({item.TypeName})").Append('\n');
+        sb.Append("Zbiór: ").Append(item.From.Name).Append(" — ").Append(PartLabel(item.From.Part)).Append(item.From.AreaName == "" ? "" : $", obszar {item.From.AreaName}").Append('\n');
+        if (item.Key is not null) sb.Append("Klucz: ").Append(item.Key).Append('\n');
+        if (item.Tell is not null) sb.Append("Wyróżnik: ").Append(item.Tell).Append('\n');
+        sb.Append('\n');
+        if (item.Data.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var p in item.Data.EnumerateObject())
+            {
+                if (p.Name.StartsWith('_') || p.Value.ValueKind == JsonValueKind.Null) continue;
+                var label = item.From.Field(kinds, p.Name) is JsonElement f ? Str(f, "label") ?? p.Name : p.Name;
+                var text = Value(p.Value, 0);
+                if (text.Length == 0) continue;
+                sb.Append("## ").Append(label).Append(" (").Append(p.Name).Append(")\n").Append(text).Append("\n\n");
+            }
+        }
+        var outgoing = o.LinksOf(item);
+        if (outgoing.Count > 0)
+        {
+            sb.Append("## Wskazuje na\n");
+            foreach (var l in outgoing)
+                sb.Append("- ").Append(l.Field).Append(": ").Append(l.Outside ? "(poza tym dostępem)" : $"{Title(l.Id)} [{l.Id}]").Append(l.Locator is null ? "" : $", {l.Locator}").Append('\n');
+            sb.Append('\n');
+        }
+        var back = o.Backlinks(item);
+        if (back.Count > 0)
+        {
+            sb.Append("## Wskazują na ten wpis\n");
+            foreach (var (from, l) in back.Take(MaxUsedBy))
+                sb.Append("- ").Append(from.Title).Append(" [").Append(from.Id).Append("] (").Append(from.KindName).Append(", pole ").Append(l.Field).Append(")\n");
+        }
+        return sb.ToString().TrimEnd();
     }
 
     private static int Count(string key)
@@ -500,28 +781,75 @@ public static partial class AiAccess
     /// DEN LINK EINLÖSEN — <c>null</c>: die Antwort ist schon gegeben (404, 429).
     /// Der Schlüssel aus dem Link und C leben nur in dieser Methode.
     /// </summary>
+    /// <summary>Warum ein Link nichts öffnete.</summary>
+    internal enum LinkProblem { None, Gone, TooManyMisses, TooManyRequests }
+
     private static async Task<Opened?> OpenAsync(HttpContext ctx, Db db, string token)
+    {
+        var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "?";
+        var (opened, problem) = await OpenLinkAsync(db, token, ip, $"{PublicRoot(ctx.Request)}/ai", ctx.RequestAborted);
+        switch (problem)
+        {
+            case LinkProblem.TooManyMisses:
+                ctx.Response.Headers.RetryAfter = "60";
+                await Say(ctx, StatusCodes.Status429TooManyRequests, new { error = "Za dużo nieudanych prób — spróbuj za minutę." });
+                return null;
+            case LinkProblem.TooManyRequests:
+                ctx.Response.Headers.RetryAfter = "60";
+                await Say(ctx, StatusCodes.Status429TooManyRequests, new { error = $"Za dużo zapytań — najwyżej {PerMinute} na minutę. Spróbuj za chwilę." });
+                return null;
+            case LinkProblem.Gone:
+                await Gone(ctx);
+                return null;
+        }
+        return opened;
+    }
+
+    /// <summary>Wie der Dienst von aussen heisst: <c>https://api.recreatio.pl</c> (aus der Anfrage).</summary>
+    internal static string PublicRoot(HttpRequest request) => $"{request.Scheme}://{request.Host}{request.PathBase}";
+
+    /// <summary>
+    /// Gilt dieser Link gerade (fertig, nicht abgelaufen, sein Urheber prowadzi den Bereich)? Ohne
+    /// etwas zu öffnen — für die Anmeldung am MCP. Zählt Fehlversuche wie das Öffnen.
+    /// </summary>
+    internal static async Task<bool> LinkWorksAsync(Db db, string token, CancellationToken ct)
+    {
+        var secret = TokenOf(token);
+        if (secret is null) return false;
+        await using var connection = await db.OpenAsync(ct);
+        await using var cmd = new SqlCommand("""
+            SELECT area_id, account_id FROM app.ai_access
+            WHERE token_sha256 = @hash AND key_wrapped IS NOT NULL AND expires_at > SYSDATETIMEOFFSET();
+            """, connection);
+        cmd.Parameters.Add("@hash", System.Data.SqlDbType.VarBinary, 32).Value = Token.HashSecret(secret);
+        Guid area, creator;
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct)) return false;
+            area = reader.GetGuid(0);
+            creator = reader.GetGuid(1);
+        }
+        return await Area.MayAsync(connection, creator, area, Capability.Admin, ct);
+    }
+
+    /// <summary>
+    /// DEN LINK EINLÖSEN, ohne Antwort zu schreiben — für die Seiten unter <c>/ai/…</c> wie für den
+    /// MCP-Server. Der Schlüssel aus dem Link und C leben nur in dieser Methode; die Abschriften
+    /// bleiben offen, bis das zurückgegebene <see cref="Opened"/> verworfen wird (Ende der Anfrage).
+    /// </summary>
+    internal static async Task<(Opened? Opened, LinkProblem Problem)> OpenLinkAsync(Db db, string token, string ip, string linkBase, CancellationToken ct)
     {
         /*
          * Fehlversuche zählen je Adresse — aber erst NACH dem Nachschlagen: ein
          * gültiger Link wird nie abgewiesen, weil von derselben Adresse (bei einem
          * Anbieter von KI teilen sich viele eine) jemand Falsches probierte.
          */
-        var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "?";
-        async Task Miss()
-        {
-            if (Count($"miss:{ip}") > MissesPerMinute)
-            {
-                ctx.Response.Headers.RetryAfter = "60";
-                await Say(ctx, StatusCodes.Status429TooManyRequests, new { error = "Za dużo nieudanych prób — spróbuj za minutę." });
-            }
-            else await Gone(ctx);
-        }
+        LinkProblem Miss() => Count($"miss:{ip}") > MissesPerMinute ? LinkProblem.TooManyMisses : LinkProblem.Gone;
 
         var secret = TokenOf(token);
-        if (secret is null) { await Miss(); return null; }
+        if (secret is null) return (null, Miss());
 
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        await using var connection = await db.OpenAsync(ct);
         Guid id = Guid.Empty, areaId = Guid.Empty, creator = Guid.Empty;
         byte[]? wrapped = null;
         var expires = DateTimeOffset.MinValue;
@@ -533,8 +861,8 @@ public static partial class AiAccess
             """, connection))
         {
             cmd.Parameters.Add("@hash", System.Data.SqlDbType.VarBinary, 32).Value = Token.HashSecret(secret);
-            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            if (await reader.ReadAsync(ctx.RequestAborted))
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
             {
                 id = reader.GetGuid(0);
                 areaId = reader.GetGuid(1);
@@ -545,32 +873,19 @@ public static partial class AiAccess
             }
         }
 
-        if (wrapped is null || expires <= DateTimeOffset.UtcNow)
-        {
-            await Miss();
-            return null;
-        }
+        if (wrapped is null || expires <= DateTimeOffset.UtcNow) return (null, Miss());
 
         /* Der Link gilt nur, solange sein Urheber den Bereich prowadzi. */
-        if (!await Area.MayAsync(connection, creator, areaId, Capability.Admin, ctx.RequestAborted))
-        {
-            await Gone(ctx);
-            return null;
-        }
+        if (!await Area.MayAsync(connection, creator, areaId, Capability.Admin, ct)) return (null, LinkProblem.Gone);
 
-        if (Count($"ai:{Ids.ToText(id)}") > PerMinute)
-        {
-            ctx.Response.Headers.RetryAfter = "60";
-            await Say(ctx, StatusCodes.Status429TooManyRequests, new { error = $"Za dużo zapytań — najwyżej {PerMinute} na minutę. Spróbuj za chwilę." });
-            return null;
-        }
+        if (Count($"ai:{Ids.ToText(id)}") > PerMinute) return (null, LinkProblem.TooManyRequests);
 
         var opened = new Opened
         {
             Id = id,
             Expires = expires,
             Area = areaName,
-            Base = $"{ctx.Request.Scheme}://{ctx.Request.Host}{ctx.Request.PathBase}/ai/{secret}"
+            Base = linkBase == "" ? "" : $"{linkBase}/{secret}"
         };
 
         var linkKey = LinkKey(secret, id);
@@ -583,8 +898,8 @@ public static partial class AiAccess
             }
             catch (DecryptException)
             {
-                await Gone(ctx);
-                return null;
+                opened.Dispose();
+                return (null, LinkProblem.Gone);
             }
 
             await using var parts = new SqlCommand("""
@@ -596,24 +911,26 @@ public static partial class AiAccess
                 """, connection);
             parts.Parameters.AddWithValue("@id", id);
             parts.Parameters.AddWithValue("@area", areaId);
-            await using var reader = await parts.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted))
+            await using var reader = await parts.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
             {
                 var library = reader.GetGuid(0);
                 var part = reader.GetString(1);
-                if (reader.IsDBNull(2)) { opened.Missing.Add((library, part)); continue; }
+                if (reader.IsDBNull(2)) { opened.Missing.Add((library, part, areaName)); continue; }
                 try
                 {
                     var json = Gunzip(Crypto.Open(key, SnapshotAad(library), (byte[])reader[2]));
                     var doc = JsonDocument.Parse(json);
                     var snap = ReadSnapshot(library, part, doc.RootElement);
-                    if (snap is null) { doc.Dispose(); opened.Missing.Add((library, part)); continue; }
+                    if (snap is null) { doc.Dispose(); opened.Missing.Add((library, part, areaName)); continue; }
                     opened.Docs.Add(doc);
+                    snap.AreaId = areaId;
+                    snap.AreaName = areaName;
                     opened.Parts.Add(snap);
                 }
                 catch (Exception e) when (e is DecryptException or InvalidDataException or JsonException)
                 {
-                    opened.Missing.Add((library, part));
+                    opened.Missing.Add((library, part, areaName));
                 }
             }
         }
@@ -626,9 +943,9 @@ public static partial class AiAccess
         await using (var used = new SqlCommand("UPDATE app.ai_access SET uses = uses + 1, last_used_at = SYSDATETIMEOFFSET() WHERE id = @id;", connection))
         {
             used.Parameters.AddWithValue("@id", id);
-            await used.ExecuteNonQueryAsync(ctx.RequestAborted);
+            await used.ExecuteNonQueryAsync(ct);
         }
-        return opened;
+        return (opened, LinkProblem.None);
     }
 
     /* -- Was der Assistent fragt ------------------------------------------------------------- */
@@ -789,7 +1106,12 @@ public static partial class AiAccess
             data = item.Data.ValueKind == JsonValueKind.Undefined ? (JsonElement?)null : item.Data,
             schema,
             refs = item.Refs.Select(r => o.Get(r) is Item to ? Brief(o, to) : new { id = r, title = "(poza tym dostępem)", kind = (string?)null, type = (string?)null, key = (string?)null, part = (string?)null, snippet = (string?)null, url = (string?)null } as object),
-            usedBy
+            usedBy,
+            /* 2026-10-24 — dieselben Verweise mit ihrem Feld (z. B. „grounds", „objections") und ihrer Stelle. */
+            links = o.LinksOf(item).Select(l => o.Get(l.Id) is Item to && !l.Outside
+                ? new { field = l.Field, id = to.Id, title = to.Title, kind = to.KindName, locator = l.Locator, outside = (bool?)null, url = o.Url(to) }
+                : new { field = l.Field, id = l.Id, title = "(poza tym dostępem)", kind = (string)null!, locator = (string?)null, outside = (bool?)true, url = (string)null! }),
+            linkedFrom = o.Backlinks(item).Take(MaxUsedBy).Select(b => new { field = b.Link.Field, id = b.From.Id, title = b.From.Title, kind = b.From.KindName, url = o.Url(b.From) })
         });
     }
 

@@ -18,7 +18,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import { newId } from '../core/ids';
-import { viewPath } from '../routes';
+import { cogitaPath } from './parts';
 import { askText, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
@@ -79,7 +79,7 @@ export function AddFormEditor({ formId, onChoose, onBack, onRun }: {
     <div className="cg">
       <div className="cg-row-between">
         <div className="cg-row">
-          <button type="button" className="wk-link-btn" onClick={onBack}>← Schemat</button>
+          <button type="button" className="wk-link-btn" onClick={onBack}>← Sposoby dodawania</button>
           <select value={formId ?? ''} onChange={(e) => onChoose(e.target.value === '' ? null : e.target.value)} aria-label="Formularz dodawania">
             <option value="">— formularze dodawania ({forms.length}) —</option>
             {forms.map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Formularz'}{lib.isOwn(e.id) ? '' : ` · z: ${lib.origin(e.id)?.name ?? '?'}`}</option>)}
@@ -91,7 +91,7 @@ export function AddFormEditor({ formId, onChoose, onBack, onRun }: {
         <p className="wk-empty">Formularz dodawania mówi, co powstaje z jednego wiersza — np. dwa słowa i tłumaczenie między nimi — i co wybierasz raz na początek (języki, temat). Zacznij od rodzaju, który chcesz dodawać.</p>
       ) : (
         <>
-          {from !== undefined && <p className="wk-note">Z „{from.name}” — tu tylko do odczytu (wypełniać można). <a href={viewPath('learn', from.libraryId, 'schemat', 'formularz', entry.id)}>Zmień tam</a></p>}
+          {from !== undefined && <p className="wk-note">Z „{from.name}” — tu tylko do odczytu (wypełniać można). <a href={cogitaPath(from.libraryId, 'schematy', 'dodawanie', entry.id)}>Zmień tam</a></p>}
           <FormDesigner key={entry.id} entryId={entry.id} version={entry.version} data={entry.data} writes={writes && from === undefined} onRun={() => onRun(entry.id)} onGone={() => onChoose(null)} onOpen={(id) => onChoose(id)} />
         </>
       )}
@@ -622,7 +622,7 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
       {kind !== undefined && (
         <fieldset className="cg-af-fields"><legend>Pola</legend>
           {kind.fields.map((f) => (f.type === 'ref'
-            ? <RefSource key={f.key} form={form} node={node} field={f} readOnly={readOnly} onGraph={onGraph} wire={wire} onChoose={onChoose} />
+            ? <RefSource key={f.key} form={form} node={node} field={f} readOnly={readOnly} onGraph={onGraph} wire={wire} onChoose={onChoose} source={c.fields[f.key]} onSource={(s) => setSource(f.key, s)} />
             : <FieldSourceRow key={f.key} field={f} source={c.fields[f.key]} readOnly={readOnly} onChange={(s) => setSource(f.key, s)} />))}
         </fieldset>
       )}
@@ -674,7 +674,7 @@ function FieldSourceRow({ field, source, readOnly, onChange }: { field: FieldDef
 }
 
 /** Woher ein Verweisfeld seinen Eintrag bekommt: eine Wahl oben, ein Eintrag derselben Zeile — oder ein neuer davon. */
-function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose }: {
+function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose, source, onSource }: {
   form: AddForm;
   node: GraphNode;
   field: FieldDef;
@@ -682,6 +682,9 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose }: {
   onGraph: (graph: Graph) => void;
   wire: (graph: Graph, from: string, to: string, field: string) => Graph | null;
   onChoose: (id: string) => void;
+  /** 2026-10-24 — bei einem Verweis mit Stelle: ob die Stelle in jeder Zeile getippt wird. */
+  source?: FieldSource;
+  onSource?: (s: FieldSource | undefined) => void;
 }) {
   const { lib } = useCtx();
   const graph = form.graph;
@@ -724,6 +727,12 @@ function RefSource({ form, node, field, readOnly, onGraph, wire, onChoose }: {
           </span>
         );
       })}
+      {field.locator === true && incoming.length > 0 && onSource !== undefined && (
+        <label className="pe-check">
+          <input type="checkbox" checked={source?.from === 'type'} disabled={readOnly} onChange={(e) => onSource(e.target.checked ? { from: 'type' } : undefined)} />
+          <span>miejsce (np. werset „Łk 1,35”) wpisywane w każdym wierszu</span>
+        </label>
+      )}
       {!readOnly && (field.multi || incoming.length === 0) && (
         <select value="" aria-label={`${field.label}: skąd`} onChange={(e) => choose(e.target.value)}>
           <option value="">{incoming.length === 0 ? '— puste — (skąd?)' : '+ jeszcze skąd…'}</option>

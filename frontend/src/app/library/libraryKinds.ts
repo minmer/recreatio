@@ -25,9 +25,9 @@
  * zitiert wird über die Teile hinweg.
  */
 
-import { locatorKey } from './bible';
 import { blockMarkups, blockRefs, blocksOf, blocksTitle, statementBlocks } from './blocks';
 import { mapRefTokens } from './libraryMarkup';
+import { SCHEMES, workLocatorKey } from './locations';
 
 export type EntryData = Record<string, unknown>;
 
@@ -59,6 +59,12 @@ export interface Lookup {
    * Bibliothek, aus der ein Text des Skryptorium zitiert, oft erst nach dem Text an.
    */
   readonly revision?: number;
+  /**
+   * 2026-10-24 — die Texte eines Werks (ihre Verzeichnisse, `sourceText.ts`) und ein Teil davon,
+   * geholt, wenn jemand liest. Nur ein Speicher kennt sie — und nur, was dieser Leser lesen darf.
+   */
+  texts?(workId: string): readonly LibEntry[];
+  heavy?(id: string): Promise<LibEntry | null>;
 }
 
 /**
@@ -202,7 +208,12 @@ export const WORK_TYPES = [
   { value: 'other', label: 'Inne' }
 ] as const;
 
-const isPart = (data: EntryData) => ['chapter', 'article'].includes(str(data, 'workType'));
+const PSALMS = [
+  { value: 'hebrew', label: 'Hebrajska (BT)' },
+  { value: 'greek', label: 'Grecka (Wulgata)' }
+] as const;
+
+const isPart = (data: EntryData) =>['chapter', 'article'].includes(str(data, 'workType'));
 
 /** Was man in die Hand nimmt und ins Regal stellt — Seiten, Einband, Masse, eine eigene Nummer. */
 const isVolume = (data: EntryData) => !['chapter', 'article', 'web', 'talk'].includes(str(data, 'workType'));
@@ -259,7 +270,19 @@ const WORK: LibKind = {
     { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji' },
     { key: 'url', label: 'Adres', type: 'url', says: 'Adres w sieci' },
     { key: 'accessed', label: 'Dostęp', type: 'date', says: 'Kiedy strona była czytana (RRRR-MM-DD)', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
-    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' }
+    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' },
+    /* 2026-10-24 — wie Stellen in diesem Werk gelesen werden, und wovon es eine Ausgabe ist (`locations.ts`, `sourceText.ts`). */
+    {
+      key: 'scheme', label: 'Układ miejsc', type: 'select', options: SCHEMES.map((s) => ({ value: s.id, label: s.label })),
+      says: `Jak wskazuje się miejsca w tym dziele: ${SCHEMES.map((s) => `"${s.id}" (${s.label})`).join(', ')}; puste — z rodzaju (Pismo Święte: bible, dokument: numbered, inne: pages)`,
+      hint: 'puste: z rodzaju'
+    },
+    {
+      key: 'psalms', label: 'Numeracja psalmów', type: 'select', options: PSALMS,
+      says: 'Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata)',
+      when: (d) => str(d, 'workType') === 'bible' || str(d, 'scheme') === 'bible'
+    },
+    { key: 'editionOf', label: 'Wydanie / przekład dzieła', type: 'ref', to: ['work'], says: 'To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie.' }
   ],
   title: (data) => workTitle(data),
   sort: (entry, look) => {
@@ -312,8 +335,8 @@ const QUOTE: LibKind = {
  */
 export function quoteOrder(entry: LibEntry, look: Lookup): string {
   const work = look.get(ids(entry.data, 'work')[0] ?? '');
-  const bible = work !== undefined && str(work.data, 'workType') === 'bible';
-  return `${work === undefined ? '~' : WORK.sort(work, look).slice(0, 36)}|${locatorKey(str(entry.data, 'locator'), bible)}`;
+  /* 2026-10-24 — nach der Regel des Werks (`locations.ts`): Seiten, Verse, Nummern, Quaestionen, Propositionen. */
+  return `${work === undefined ? '~' : WORK.sort(work, look).slice(0, 36)}|${workLocatorKey(str(entry.data, 'locator'), work?.data)}`;
 }
 
 /* -- Eigene Texte ------------------------------------------------------------------------- */
@@ -539,14 +562,14 @@ const TEXT_TYPE: LibKind = {
   kind: 'texttype',
   label: 'Rodzaj tekstu',
   plural: 'Rodzaje tekstów',
-  says: 'Własny rodzaj tekstu (np. „Kazanie maryjne”): nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — także odwołania do wpisów w Nauce (np. tajemnica, obszar). Tekst bez rodzaju to zwykły tekst.',
+  says: 'Własny rodzaj tekstu (np. „Kazanie maryjne”): nazwa i dodatkowe pola, które ma każdy tekst tego rodzaju — także odwołania do wpisów w Wiedzy (np. tajemnica, obszar). Tekst bez rodzaju to zwykły tekst.',
   keyed: true,
   fields: [
     { key: 'name', label: 'Nazwa', type: 'line', says: 'Nazwa rodzaju, np. „Kazanie maryjne”' },
     { key: 'description', label: 'Opis', type: 'text', says: 'Do czego służy ten rodzaj' },
     {
       key: 'fields', label: 'Dodatkowe pola', type: 'fields',
-      says: 'Pola, które ma każdy tekst tego rodzaju — opisane jak pola rodzaju w Nauce: lista {"key", "label", "type", "multi", "options", "to", "locator", "says"}. "type": line, text, number, date, bool, choice, ref, url, list. Przy "ref" — "to": nazwy rodzajów w Nauce (np. ["Tajemnica"]) albo "work", "quote", "person" z biblioteki; "locator": true — z miejscem (np. Pismo Święte + "Łk 1,26-38"). Klucze stałych pól tekstu (title, date, plan, body …) są zajęte'
+      says: 'Pola, które ma każdy tekst tego rodzaju — opisane jak pola rodzaju w Wiedzy: lista {"key", "label", "type", "multi", "options", "to", "locator", "says"}. "type": line, text, number, date, bool, choice, ref, url, list. Przy "ref" — "to": nazwy rodzajów w Wiedzy (np. ["Tajemnica"]) albo "work", "quote", "person" z biblioteki; "locator": true — z miejscem (np. Pismo Święte + "Łk 1,26-38"). Klucze stałych pól tekstu (title, date, plan, body …) są zajęte'
     }
   ],
   title: (data) => str(data, 'name').trim() || 'Rodzaj tekstu',

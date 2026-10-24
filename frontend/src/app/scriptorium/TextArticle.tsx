@@ -200,7 +200,7 @@ function BaseEntry({ entry, look }: { entry: LibEntry; look: Lookup }) {
     <>
       <h3 className="lib-h">{ownTitle(entry, look)}</h3>
       {shown.length > 1 && <ul className="lib-opened-text">{shown.slice(1).map(([key, value]) => <li key={key}>{value}</li>)}</ul>}
-      {base !== undefined && window.location.hash.startsWith('#/workspace') && <p><a className="wk-link" href={viewPath('learn', base, 'wpisy', entry.id)}>Otwórz w Nauce</a></p>}
+      {base !== undefined && window.location.hash.startsWith('#/workspace') && <p><a className="wk-link" href={viewPath('knowledge', base, 'wpisy', entry.id)}>Otwórz w Wiedzy</a></p>}
     </>
   );
 }

@@ -24,6 +24,7 @@ import { DeleteBox, EntryJson, KeyBox, type EntryFormat } from './LibraryEntryBo
 import { PassageBox, Relations } from './LibraryRelations';
 import { FieldList } from './LibraryFields';
 import { useEntryDraft } from './entryDraft';
+import { SourceBox, type SourceTargets } from './SourceBox';
 
 /** Die Liste, zu der eine Art gehört (`#/workspace/library/<id>/<reiter>`). */
 export const LIBRARY_TAB: Readonly<Record<string, string>> = { work: 'zrodla', quote: 'cytaty', person: 'osoby' };
@@ -40,12 +41,14 @@ export const libraryFormat = (store: LibraryStore, name: string): EntryFormat =>
   describe: libraryDescription
 });
 
-export function LibraryEditor({ store, library, entryId, kind, preset = {} }: {
+export function LibraryEditor({ store, library, entryId, kind, preset = {}, sources }: {
   store: LibraryStore;
   library: OpenLibrary;
   entryId: string | null;
   kind: string | null;
   preset?: Record<string, unknown>;
+  /** 2026-10-24 — wohin der Text eines Werks gehen kann (`SourceBox.tsx`). */
+  sources?: SourceTargets;
 }) {
   const existing = entryId === null ? undefined : store.own(entryId);
   /* 2026-10-22 — ein Eintrag einer anderen lesbaren Bibliothek wird dort bearbeitet. */
@@ -60,15 +63,16 @@ export function LibraryEditor({ store, library, entryId, kind, preset = {} }: {
   if (!isLibraryKind(existing?.kind ?? kind ?? '')) {
     return <p className="wk-note">Ten wpis jest rodzaju, którego biblioteka już nie prowadzi. Można go przejrzeć i usunąć w zakładce „Stare wpisy”. <a href={viewPath('library', library.libraryId, 'stare')}>Stare wpisy</a></p>;
   }
-  return <Editor key={entryId ?? `new-${kind}`} store={store} library={library} existing={existing} kind={existing?.kind ?? kind!} preset={preset} />;
+  return <Editor key={entryId ?? `new-${kind}`} store={store} library={library} existing={existing} kind={existing?.kind ?? kind!} preset={preset} sources={sources} />;
 }
 
-function Editor({ store, library, existing, kind, preset }: {
+function Editor({ store, library, existing, kind, preset, sources }: {
   store: LibraryStore;
   library: OpenLibrary;
   existing: Entry | undefined;
   kind: string;
   preset: Record<string, unknown>;
+  sources: SourceTargets | undefined;
 }) {
   const def = kindOf(kind)!;
   const readOnly = !library.writes;
@@ -126,6 +130,7 @@ function Editor({ store, library, existing, kind, preset }: {
             }} />
           )}
           {saved !== undefined && <AreaBox store={store} library={library} entry={saved} readOnly={readOnly} />}
+          {saved !== undefined && kind === 'work' && <SourceBox store={store} library={library} work={saved} targets={sources} />}
           {saved !== undefined && kind === 'work' && saved.data.workType === 'bible' && <PassageBox store={store} work={saved} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}

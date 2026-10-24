@@ -29,7 +29,7 @@
  * wie die der ganzen Bibliothek (siehe [[json-import-export]]).
  */
 
-import { locatorKey } from './bible';
+import { workLocatorKey } from './locations';
 import { isUuid } from './library';
 import { citeSegs, newCiteState, segText } from './libraryCite';
 import { ids, kindOf, slug, str, type EntryData, type LibEntry, type Lookup } from './libraryKinds';
@@ -101,9 +101,9 @@ const line = (value: unknown): string => (typeof value === 'string' ? value.trim
 /** Felder älterer Fassungen, die nicht mehr gespeichert werden — mit dem Grund. */
 const DROPPED: Readonly<Record<string, string>> = {
   topics: 'tematów już nie ma',
-  comment: 'komentarze są teraz własnym rodzajem w Nauce',
-  description: 'komentarze są teraz własnym rodzajem w Nauce',
-  notes: 'komentarze są teraz własnym rodzajem w Nauce'
+  comment: 'komentarze są teraz własnym rodzajem w Wiedzy',
+  description: 'komentarze są teraz własnym rodzajem w Wiedzy',
+  notes: 'komentarze są teraz własnym rodzajem w Wiedzy'
 };
 
 /**
@@ -217,9 +217,8 @@ export async function importQuotes(
 
 /** Die Zitate des Buches als Dokument — zum Nachbessern (mit einer KI) und wieder Hereinholen. */
 export function exportQuotes(work: LibEntry, base: QuoteBase): Record<string, unknown> {
-  const bible = str(work.data, 'workType') === 'bible';
   const quotes = base.all().filter((e) => e.kind === 'quote' && ids(e.data, 'work').includes(work.id))
-    .sort((a, b) => locatorKey(str(a.data, 'locator'), bible).localeCompare(locatorKey(str(b.data, 'locator'), bible)));
+    .sort((a, b) => workLocatorKey(str(a.data, 'locator'), work.data).localeCompare(workLocatorKey(str(b.data, 'locator'), work.data)));
   return {
     format: QUOTES_FORMAT,
     version: QUOTES_VERSION,
@@ -270,7 +269,7 @@ Co robi import (na stronie książki „${summary.title}”):
 - Każdy cytat staje się wpisem „Cytat” z tą książką jako źródłem; klucz cytowania nadaje się sam (${work.key ?? 'klucz'}-1, ${work.key ?? 'klucz'}-2, …).
 - Przed zapisem widać listę: każdy cytat można poprawić albo odznaczyć.
 - Cytat, który już jest w tej książce (ten sam tekst), jest odznaczony. Cytat z "id" z eksportu jest zmieniany w miejscu.
-- Cytaty trafiają do biblioteki tej książki — widzą je ci, którzy widzą jej obszar. Biblioteka trzyma tylko źródła: cytaty nie mają tematów ani komentarzy (własne myśli to rodzaj w Nauce).
+- Cytaty trafiają do biblioteki tej książki — widzą je ci, którzy widzą jej obszar. Biblioteka trzyma tylko źródła: cytaty nie mają tematów ani komentarzy (własne myśli to rodzaj w Wiedzy).
 - Starsze pola ("topics", "comment", "description", "notes") są tylko pokazywane przy sprawdzaniu — nie są zapisywane.
 - Nic nie jest usuwane.
 Zwróć JEDEN obiekt JSON, bez komentarzy.

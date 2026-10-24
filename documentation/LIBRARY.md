@@ -151,6 +151,80 @@ work with `workType: bible` are read this way.
   pointing at an overlapping place ("Dz 1:14" also finds "Dz 1,12-14"), in every edition the reader has.
 - **Quotes stand in canonical order** (`quoteOrder`, `bibleKey`): "Rdz" before "Mt", "Dz 1,8" before "Dz 1,14".
 
+## Places in a work and source texts (2026-10-24)
+
+A work is complete **without** its text: it is cited, quoted and referred to by place. When a full text arrives later,
+every place already written somewhere leads into it — nothing is re-entered and nothing is stored to make the link.
+
+**One model of places** (`library/locations.ts`) is used by footnotes, quotes, Cogita fields with a place, the
+Scriptorium's markup, JSON and the blocks of a text. A locator stays the text someone wrote; what it *means* is read
+by the **scheme** of its work (the work field "Układ miejsc", else from its kind: Pismo Święte → `bible`, Dokument →
+`numbered`, anything else → `pages`):
+
+| scheme | for | examples |
+|---|---|---|
+| `pages` | pages of this edition (books, articles) | `s. 23`, `s. 23–25`, `s. 23, 27`, `s. xii`, `rozdz. 3, s. 45` |
+| `bible` | book, chapter, verse — every translation alike | `J 21,15-17`, `Ps 51(50),3`, `Łk 1,26–2,5`, `Mt 5,3-12; 6,1` |
+| `numbered` | numbered paragraphs (Church documents, catechism, codes) | `nr 24`, `nn. 24–26`, `KKK 1234`, `kan. 915 § 1` |
+| `aquinas` | part, question, article, objection / sed contra / corpus / answer | `I-II, q. 90, a. 1, ad 2`, `I q. 2 a. 3 co.` |
+| `decimal` | decimal propositions (Tractatus) | `2.0121`, `4.1–4.116`, `TLP 6.54` |
+| `sections` | numbered remarks with parts (Philosophical Investigations) | `§ 43`, `§§ 1–5`, `cz. II, xi` |
+| `outline` | volume, part, book, chapter, section, paragraph — as many levels as the work has | `t. 2, cz. 1, rozdz. 3`, `ks. II, rozdz. 4, § 2` |
+
+- **Structure vs. edition.** A *structural* place (a verse, a number, a proposition, a chapter) is the same in every
+  edition and translation; a *page* belongs to the one edition whose work entry is cited. A place may carry both
+  (`rozdz. 3, s. 45`). Compound and discontinuous places (`Mt 5,3-12; 6,1`, `s. 23, 27`) are lists of spans; a
+  shorter path means the whole unit (a chapter holds its verses). Outline places may skip levels and are compared
+  level by level.
+- **Psalms**: the work field "Numeracja psalmów" says whether its places are Hebrew (Biblia Tysiąclecia, the
+  default) or Greek (Vulgate); places are compared in Hebrew numbering, so editions line up.
+- **Editions**: "Wydanie / przekład dzieła" points an edition or translation at the work it renders. A structural
+  place cited in one edition may open the text of another (shown as such); a page never.
+- Quotes are ordered by the scheme of their work (`workLocatorKey`): pages as numbers, the Scripture by the canon,
+  Aquinas by part, question, article.
+
+**A source text** is stored like everything else, sealed under its area's key, in **any library one may write** —
+not necessarily the work's. So the work can stand in a public library and its text in a private one; whoever reads
+only the work's library sees the work and its quotes, never the text (not in footnotes, search, JSON, the AI link,
+embeds or pages). Two kinds, neither listed among the sources:
+
+| kind | holds | sync |
+|---|---|---|
+| `sourcetext` | the directory of one text of one work: `work`, `scheme`, `edition` (PDF page offset, language, psalm numbering, note), its parts with key, label, order, first / last place, pages, block and word counts | whole, like every entry |
+| `sourcepart` | one portion (a book of the Bible, a chapter) with its blocks in the original order | **heavy**: the sync (`?light=1`) brings only its row; the reader fetches it by id (`?ids=`, at most 50) when it is read |
+
+A block is a `heading` (level 1–4), `paragraph`, `quote`, `list`, `table`, `note` (a footnote with its id) or
+`page` (a printed page starts here, with the PDF page). Blocks carry `loc` where they have their own structural place;
+a block without one belongs to the place before it. Inside text: `{{page 46 pdf 52}}` (a page break exactly where it
+falls, also mid-paragraph), `{{note 3}}`, `{{? word}}` (uncertain reading), `{{gap}}`; `"uncertain": true` marks a
+whole block.
+
+**JSON `recreatio/source-text`, version 1** (`library/sourceText.ts`): one document = one portion of one edition;
+the description, with an example for every scheme (book, Scripture, Church document, Aquinas, Tractatus,
+Investigations, an outlined work), stands beside the import and is the prompt for one's own AI ("Kopiuj opis (dla
+AI)"). Its rule: transcribe exactly, mark what is uncertain, **never invent text or numbers**. The import is checked
+before anything is written (format, version, the work, a scheme that contradicts the work, unknown blocks, unreadable
+places, page order, notes without references and the reverse, size ≤ 3.5 MB per portion) and shown as a preview.
+**Portions without duplicates:** a portion with the same `portion.key` replaces itself, the same portion again writes
+nothing ("bez zmian"), another key covering the same places is flagged. The part is saved before the directory, so a
+directory never points at a missing part. Export gives the whole text back as documents.
+
+**Where it shows** (`SourceBox.tsx`, `SourceReader.tsx`, `SourceJump.tsx`):
+
+- On the work's page, "Tekst źródła": which texts exist (parts, words, in which library), "Czytaj", and the JSON
+  import with the choice of library (a public library asks first: copyright).
+- **The reader** `#/workspace/library/<library>/<work>/tekst[/<place>]`: contents (parts with their places and
+  pages), places at the margin, page breaks in the flow, footnotes with jumps, uncertain readings marked; "Przejdź"
+  to a place; search in the whole text (parts are fetched for it, diacritics ignored); "Obok" puts another edition
+  beside it, aligned by structural places (`alignEditions`); selecting text offers "Dodaj cytat" — a new quote with
+  the text, the work and the place of the selection (verses, numbers, or the pages of this edition) — and "Kopiuj z
+  miejscem". The margin and page labels are CSS `::before`, so they never get into a selection.
+- **Links made while reading:** a footnote in a text or a plan, a quote, a cell of a statement (a Komentarz biblijny
+  pointing at "Łk 1,35") and a Cogita field with a place show "pokaż w tekście" when this reader can read a text of
+  that work and the place is in it: the passage opens right there (also on a page), and in the workspace "czytnik"
+  opens the reader at the place. A place that falls into several parts is flagged as ambiguous instead of guessed.
+  Texts are found in what the reader has open: the drawing store and its neighbours, and the libraries of this tab.
+
 ## Reading on pages
 
 The service never decrypts. A page opens libraries in the browser (`libraryOpen.ts`):
@@ -277,6 +351,9 @@ area, and nothing of other areas), chooses how long it lasts (a week, a month, t
   that a link exists, what it shows and how often it was used. The link works only while its creator still leads the
   area. Deleting it stops it at once and removes its snapshots.
 - **For web-reading assistants** (2026-10-24): a client that asks for HTML (`Accept: text/html`, as browsers and ChatGPT's web tool do, or `?format=html`) gets the same answers as a page where every address is a real link — the guide links the kinds, every collection, every kind of entry and the full list; list pages link each entry and the next page; entries link what they cite and what cites them. Such tools open only links they have seen, not addresses built from a template. JSON stays the default (`?format=json`, ChatGPT actions). `HEAD` is answered too.
+- **As an MCP server** (0127): ChatGPT and other MCP assistants connect once to `https://api.recreatio.pl/mcp` with
+  OAuth and pick these links on a consent page; then they search, read and follow references through tools
+  ([MCP.md](MCP.md)).
 - **How it stays sealed:** ARCHITECTURE.md → Keys → AI access.
 
 ## How the Scriptorium and Cogita build on this
@@ -302,6 +379,8 @@ area, and nothing of other areas), chooses how long it lasts (a week, a month, t
   the field type `blocks`; topics, aspects and perspectives are gone — order comes from own kinds linked by
   reference fields. All earlier content was test data, so there was no migration; "Porządki" and its rebuilds were
   removed, and old entries stand under "Stare wpisy".
+- 2026-10-24: one model of places for every reference (schemes, structure vs. edition, editions); source texts in
+  portions with a reader, imported as JSON (IMPLEMENTATION-LOG, L1).
 
 ## Adding a kind
 

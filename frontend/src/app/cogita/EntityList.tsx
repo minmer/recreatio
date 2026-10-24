@@ -20,32 +20,45 @@ import ReactFlow, { Background, Controls, type Edge, type Node, type NodeChange 
 import 'reactflow/dist/style.css';
 
 import { MenuButton } from '../ui/Menu';
-import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
+import { fieldsOf, fieldText, placeText, valuesOf, type Entity } from './schema';
 import { SelectionBar } from './EntitySelection';
 import { RuleEditor } from './RuleEditor';
 import { OriginTag, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
-import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColumns, viewGroups, viewJson, viewList, viewMatrix, withRule, withSourceKind, type ViewDoc } from './views';
+import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColumns, viewGroups, viewJson, viewList, viewMatrix, viewOutline, withRule, withSourceKind, type OutlineNode, type ViewDoc } from './views';
+import { EntityGlance } from './CardFace';
+import { TextJump } from '../library/SourceJump';
 import type { Group } from './selection';
 import { MatrixGrid } from './MatrixGrid';
 import { addToPlan, contextOf, createHere, learn } from './viewActions';
 import { containerPath } from '../library/library';
-import { toast } from '../ui/dialogs';
+import { ask, toast } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
 
 export type { ListMode } from './views';
 
-export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
+/**
+ * 2026-10-24 (Wiedza) — ZWEI GESTALTEN DERSELBEN LISTE. In „Wpisy" steht das Wissen vorn:
+ * suchen, ein Rodzaj, ein Sposób wyświetlania — und „Dostosuj" für den, der mehr will (was
+ * gezeigt wird: Filtr, Wybór i grupy; wie: Tabela, Drzewo, Macierz, Płótno). In „Schematy →
+ * Sposoby wyświetlania" (`design`) wird ein Sposób gebaut: Name, dieselben Teile offen, Zapisz,
+ * Usuń — und darunter, was er zeigt. Hinzugefügt wird in „Dodaj", nicht hier.
+ */
+export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = false, onSaved, onRemoved }: {
   viewId: string | null;
   onOpen: (id: string) => void;
-  onNew: (kind: string) => void;
   onView: (id: string | null) => void;
-  /** 2026-10-17 — viele auf einmal: ein Formularz dodawania ausfüllen — oder einen bauen. */
-  onForm: (id: string) => void;
-  onForms: () => void;
+  /** Zum Reiter „Dodaj". */
+  onAdd?: () => void;
+  /** Diesen Sposób wyświetlania bauen (Schematy). */
+  onDesign?: (id: string | null) => void;
+  design?: boolean;
+  onSaved?: (id: string) => void;
+  onRemoved?: () => void;
 }) {
   const { lib, writes, href } = useCtx();
   const saved = viewId === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
-  const [view, setView] = useState<ViewDoc>(() => readView(saved?.data ?? { mode: 'table' }));
+  const [view, setView] = useState<ViewDoc>(() => readView(saved?.data ?? { mode: 'table', ...(design ? { name: 'Nowy sposób wyświetlania' } : {}) }));
   const [shownFor, setShownFor] = useState(viewId);
   if (shownFor !== viewId) { setShownFor(viewId); setView(readView(saved?.data ?? { mode: 'table' })); }
   const { busy, failed, run } = useBusy();
@@ -109,15 +122,59 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
   const rule = ruleOf(view);
 
   const saveView = (asNew: boolean) => run(async () => {
-    const name = asNew ? window.prompt('Nazwa widoku', view.name === 'Widok' ? (kind?.name ?? 'Widok') : view.name) : view.name;
-    if (name === null) return;
+    /* Ein neuer aus „Wpisy": gespeichert mit einem Namen aus dem Rodzaj — benannt und weiter gebaut wird er in den Schematy. */
+    const name = design || !asNew ? view.name : view.name === 'Widok' ? `${kind?.name ?? 'Wpisy'} — widok` : view.name;
     const doc = viewJson({ ...view, name: name.trim() || 'Widok' });
     const done = await lib.saveDoc('view', doc, asNew ? undefined : viewId ?? undefined);
+    if (design) { toast('Zapisano sposób wyświetlania.'); onSaved?.(done.id); return; }
+    if (asNew && onDesign !== undefined) { toast(`Zapisano „${name}” — tu możesz zmienić nazwę i ustawienia.`); onDesign(done.id); return; }
     onView(done.id);
   });
+  const removeView = () => run(async () => {
+    if (viewId === null) return;
+    if (!(await ask({ title: `Usunąć sposób wyświetlania „${view.name}”?`, body: 'Wpisy zostają; znika tylko ten sposób pokazywania ich (także z modułów „Widok" na stronach).', confirm: 'Usuń', danger: true }))) return;
+    await lib.remove(viewId);
+    onRemoved?.();
+  });
+  const layout = (
+    <span className="cg-subtabs" role="group" aria-label="Układ">
+      {(['table', 'tree', 'outline', 'matrix', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} aria-pressed={view.mode === m} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{{ table: 'Tabela', tree: 'Drzewo', outline: 'Struktura', matrix: 'Macierz', canvas: 'Płótno' }[m]}</button>)}
+    </span>
+  );
+  /* „Co pokazać" (die Auswahl) und „Jak pokazać" (die Gestalt) — getrennt gesagt, zusammen gespeichert. */
+  const adjust = (
+    <>
+      <div className="cg-adjust-part">
+        <h4 className="cg-adjust-h">Co pokazać</h4>
+        <details open={design || undefined}>
+          <summary>Filtr {rule !== null && rule.items.length > 0 ? `(${rule.items.length})` : ''}</summary>
+          <RuleEditor rule={rule ?? { op: 'and', items: [] }} onChange={(next) => setView(withRule(view, next))} />
+        </details>
+        <details open={design || undefined}>
+          <summary>Wybór — także po odwołaniach — i grupy {view.steps.length > 1 || quickKind === null ? `(${view.steps.length} ${view.steps.length === 1 ? 'krok' : 'kroki'})` : ''}</summary>
+          <ViewSteps view={view} onChange={setView} />
+        </details>
+      </div>
+      <div className="cg-adjust-part">
+        <h4 className="cg-adjust-h">Jak pokazać</h4>
+        {layout}
+      </div>
+    </>
+  );
 
   return (
     <div className="cg">
+      {design && (
+        <div className="cg-row" data-view-design="">
+          <label className="wk-field cg-grow">
+            <span>Nazwa sposobu wyświetlania</span>
+            <input value={view.name} disabled={!writes} onChange={(e) => setV({ name: e.target.value })} />
+          </label>
+          {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void saveView(viewId === null)}>{viewId === null ? 'Utwórz' : 'Zapisz'}</button>}
+          {viewId !== null && <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Zobacz we Wpisach</a>}
+          {writes && viewId !== null && <button type="button" className="wk-link-btn wk-danger-link" disabled={busy} onClick={() => void removeView()}>Usuń</button>}
+        </div>
+      )}
       <div className="cg-row">
         <input type="search" value={view.query} placeholder="Szukaj we wpisach…" onChange={(e) => setV({ query: e.target.value })} aria-label="Szukaj" />
         <select value={quickKind ?? '#inne'} onChange={(e) => { if (e.target.value !== '#inne') setView(withSourceKind(view, e.target.value)); }} aria-label="Rodzaj">
@@ -125,40 +182,30 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
           {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name} ({lib.ofKind(k.id).length})</option>)}
           {quickKind === null && <option value="#inne">inne źródło (zob. „Wybór")</option>}
         </select>
-        <span className="cg-subtabs">
-          {(['table', 'tree', 'matrix', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{{ table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', canvas: 'Płótno' }[m]}</button>)}
-        </span>
-        {/* 2026-10-23 — ein Rodzaj der anderen Teile (Tekst, Cytat, ein Rodzaj tekstu) entsteht dort, nicht hier: dann „+ Wpis" für den ersten eigenen. */}
-        {writes && (() => { const own = kind !== undefined && !lib.isForeignKind(kind.id) ? kind : undefined; return <button type="button" className="wk-btn" disabled={lib.kinds.length === 0} title={lib.kinds.length === 0 ? 'Najpierw dodaj rodzaj w Schemacie' : undefined} onClick={() => onNew(own?.id ?? lib.kinds[0]?.id ?? 'question')}>+ Wpis{own === undefined ? '' : `: ${own.name}`}</button>; })()}
-        {/* 2026-10-23 — Pytanie bleibt eingebaut (Karten, Sitzungen, Abläufe stellen es); angeboten wird es hier, nicht als „gotowy rodzaj". */}
-        {writes && kind?.id !== 'question' && <button type="button" className="wk-link-btn" onClick={() => onNew('question')}>+ Pytanie</button>}
-        {writes && (
-          <MenuButton label="Dodaj wiele naraz — formularzem" text="Wiele naraz" icon="list"
-            items={[
-              ...lib.docs('addform').map((e) => ({ label: typeof e.data.name === 'string' ? e.data.name : 'Formularz', onSelect: () => onForm(e.id) })),
-              { label: lib.docs('addform').length === 0 ? 'Zbuduj formularz dodawania…' : 'Formularze dodawania…', icon: 'settings' as const, onSelect: onForms }
-            ]} />
+        {!design && (
+          <select value={viewId ?? ''} onChange={(e) => onView(e.target.value === '' ? null : e.target.value)} aria-label="Sposób wyświetlania">
+            <option value="">— wszystkie wpisy —</option>
+            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
+          </select>
+        )}
+        <span className="cg-muted">{list.length} {list.length === 1 ? 'wpis' : 'wpisów'}</span>
+        {!design && writes && onAdd !== undefined && <button type="button" className="wk-btn" onClick={onAdd}><Icon name="plus" />Dodaj</button>}
+        {!design && (writes || viewId !== null) && (
+          <MenuButton label="Więcej: ten widok" items={[
+            ...(writes ? [{ label: 'Zapisz jako nowy sposób wyświetlania…', icon: 'plus' as const, onSelect: () => void saveView(true) }] : []),
+            ...(writes && viewId !== null ? [{ label: 'Zapisz zmiany tego sposobu', icon: 'check' as const, onSelect: () => void saveView(false) }] : []),
+            ...(writes && onDesign !== undefined ? [{ label: viewId === null ? 'Sposoby wyświetlania (Schematy)…' : 'Ustaw ten sposób w Schematach…', icon: 'settings' as const, onSelect: () => onDesign(viewId) }] : []),
+            ...(viewId !== null ? [{ label: 'Kopiuj link do tego widoku', icon: 'link' as const, onSelect: () => { void navigator.clipboard?.writeText(window.location.href); } }] : []),
+            ...(writes && list.length > 0 ? [{ label: 'Ucz się tego — powtórka w Nauce', icon: 'cap' as const, onSelect: () => void toRevision() }] : [])
+          ]} />
         )}
       </div>
-      <details>
-        <summary>Filtr {rule !== null && rule.items.length > 0 ? `(${rule.items.length})` : ''}</summary>
-        <RuleEditor rule={rule ?? { op: 'and', items: [] }} onChange={(next) => setView(withRule(view, next))} />
-      </details>
-      <details>
-        <summary>Wybór i grupy {view.steps.length > 1 || quickKind === null ? `(${view.steps.length} ${view.steps.length === 1 ? 'krok' : 'kroki'})` : ''}</summary>
-        <ViewSteps view={view} onChange={setView} />
-      </details>
-      <div className="cg-row">
-        <span className="cg-muted">{list.length} wpisów</span>
-        <select value={viewId ?? ''} onChange={(e) => onView(e.target.value === '' ? null : e.target.value)} aria-label="Zapisane widoki">
-          <option value="">— zapisane widoki —</option>
-          {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
-        </select>
-        {writes && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void saveView(true)}>Zapisz jako widok</button>}
-        {writes && viewId !== null && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void saveView(false)}>Zapisz zmiany widoku</button>}
-        {viewId !== null && <button type="button" className="wk-link-btn" onClick={() => { void navigator.clipboard?.writeText(window.location.href); }}>Kopiuj link do widoku</button>}
-        {writes && list.length > 0 && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void toRevision()}>Powtórka z tego widoku</button>}
-      </div>
+      {design ? adjust : (
+        <details className="cg-adjust">
+          <summary>Dostosuj — co i jak pokazać</summary>
+          {adjust}
+        </details>
+      )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
@@ -196,6 +243,7 @@ export function EntityList({ viewId, onOpen, onNew, onView, onForm, onForms }: {
         </>
       )}
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} />)}
+      {view.mode === 'outline' && <Outline view={view} onOpen={onOpen} />}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
         onMoved={(id, at) => {
           const next = { ...view, positions: { ...view.positions, [id]: at } };
@@ -426,6 +474,52 @@ function Canvas({ list, positions, onOpen, onMoved }: {
         <Background />
         <Controls showInteractive={false} />
       </ReactFlow>
+    </div>
+  );
+}
+
+/* -- 2026-10-24: Struktura --------------------------------------------------------------------- */
+
+/**
+ * DIE STRUKTUR: jeder Eintrag der Quelle, darunter, wohin die Schritte „Idź po odwołaniu" führen,
+ * nach Feldern („Komentarz", darunter „Argumenty za", „Zarzuty"). Eine Aussage steht ganz da;
+ * ein Verweis mit Stelle (Fragment Pisma: Łk 1,35) mit „pokaż w tekście", wenn es den Text gibt.
+ */
+function Outline({ view, onOpen }: { view: ViewDoc; onOpen: (id: string) => void }) {
+  const { lib } = useCtx();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const shape = useMemo(() => viewOutline(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort)]);
+  if (shape.roots.length === 0) return <p className="wk-empty">Nic tu nie ma.</p>;
+  const follows = view.steps.filter((x) => x.type === 'follow').length;
+  return (
+    <div className="cg-outline">
+      {follows === 0 && <p className="cg-muted">Struktura pokazuje też to, do czego prowadzą odwołania — dodaj w „Wybór” krok „Idź po odwołaniu”.</p>}
+      {shape.roots.map((node) => <OutlineItem key={node.id} node={node} onOpen={onOpen} />)}
+      {shape.more && <p className="cg-muted">Pokazano pierwsze 50 — zawęź wybór albo szukaj.</p>}
+    </div>
+  );
+}
+
+function OutlineItem({ node, onOpen }: { node: OutlineNode; onOpen: (id: string) => void }) {
+  const { lib } = useCtx();
+  const entity = lib.entity(node.id);
+  if (entity === undefined) return null;
+  if (node.again === true) return <p className="cg-muted">↺ <button type="button" className="cg-ref" onClick={() => onOpen(node.id)}>{lib.label(entity)}</button> (już wyżej)</p>;
+  const places = fieldsOf(entity, lib.look).filter((f) => f.type === 'ref' && f.locator === true)
+    .flatMap((f) => valuesOf(entity, f).filter((v) => typeof v.value === 'string' && v.locator !== undefined).map((v) => ({ f, id: v.value as string, locator: v.locator! })));
+  return (
+    <div className="cg-outline-node">
+      <EntityGlance lib={lib} entity={entity} onEntity={onOpen} />
+      {places.map(({ f, id, locator }, i) => {
+        const target = lib.entity(id);
+        return <p key={i} className="cg-outline-place">{f.label}: {placeText(target, locator, target === undefined ? '' : lib.label(target))}<TextJump look={undefined} workId={id} locator={locator} /></p>;
+      })}
+      {node.groups.map((g) => (
+        <section key={g.label} className="cg-outline-group">
+          <h4 className="cg-outline-h">{g.label}</h4>
+          {g.nodes.map((child) => <OutlineItem key={child.id} node={child} onOpen={onOpen} />)}
+        </section>
+      ))}
     </div>
   );
 }

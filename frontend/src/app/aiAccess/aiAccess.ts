@@ -187,14 +187,45 @@ export async function accessKey(ring: Ring, areaId: string, row: AiAccessRow): P
 
 /** Den Link noch einmal zeigen — wer prowadzi, öffnet das versiegelte Geheimnis; sonst `null`. */
 export async function aiLinkOf(ring: Ring, areaId: string, row: AiAccessRow): Promise<string | null> {
+  const secret = await aiSecretOf(ring, areaId, row);
+  return secret === null ? null : aiLink(secret);
+}
+
+/** Das Geheimnis eines Links selbst (für die Freigabe an einen Assistenten über OAuth, `AiConnect.tsx`). */
+export async function aiSecretOf(ring: Ring, areaId: string, row: AiAccessRow): Promise<string | null> {
   if (row.tokenSealed === null || row.epoch === null) return null;
   const key = await epochKey(ring, areaId, row.epoch);
   if (key === undefined) return null;
   try {
-    return aiLink(await openText(key, linkAad(row.id), fromBase64Url(row.tokenSealed)));
+    return await openText(key, linkAad(row.id), fromBase64Url(row.tokenSealed));
   } catch {
     return null;
   }
+}
+
+/* -- 0127: einen Assistenten über OAuth verbinden (MCP) --------------------------------------------- */
+
+export interface ConnectRequest {
+  readonly id: string;
+  readonly client: string;
+  readonly clientId: string | null;
+  readonly redirectHost: string;
+  readonly scope: string | null;
+  readonly expiresAt: string;
+}
+
+export const loadConnectRequest = (id: string): Promise<ConnectRequest> => call(`/oauth/request/${enc(id)}`);
+
+export const approveConnect = (grant: string, secrets: readonly string[]): Promise<{ redirect: string }> =>
+  call('/oauth/approve', { method: 'POST', body: JSON.stringify({ grant, secrets }) });
+
+export const denyConnect = (grant: string): Promise<{ redirect: string }> =>
+  call('/oauth/deny', { method: 'POST', body: JSON.stringify({ grant }) });
+
+/** Die Adresse des MCP-Servers (für die Anleitung in der Karte). */
+export function mcpUrl(): string {
+  const origin = /^https?:\/\//.test(API) ? API : `${window.location.origin}${API}`;
+  return `${origin}/mcp`;
 }
 
 /**

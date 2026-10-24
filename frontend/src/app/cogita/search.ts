@@ -13,6 +13,7 @@ import { containerPath, openedLibraryKind, openedLibraryNames } from '../library
 import { kindOf } from '../library/libraryKinds';
 import { loadedStores } from '../library/libraryStore';
 import { viewPath } from '../routes';
+import { cogitaPath } from './parts';
 import type { SearchEntry } from '../shell/search';
 import { DOC_LABEL, type DocKind } from './kinds';
 import { CogitaLibrary } from './store';
@@ -39,7 +40,7 @@ export function libraryHits(): SearchEntry[] {
   const out: SearchEntry[] = [...names].map(([libraryId, name]) => ({
     id: `library:${libraryId}`, label: name,
     kind: partName(libraryId),
-    href: isBase(libraryId) ? viewPath('learn', libraryId) : containerPath(libraryId)
+    href: isBase(libraryId) ? viewPath('knowledge', libraryId) : containerPath(libraryId)
   }));
   for (const store of loadedStores()) {
     const base = isBase(store.libraryId);
@@ -53,7 +54,7 @@ export function libraryHits(): SearchEntry[] {
         id: `entry:${entity.id}`,
         label: lib.label(entity),
         kind: lib.kind(entity.kinds[0] ?? '')?.name ?? builtIn?.label ?? 'Wpis',
-        href: base ? viewPath('learn', store.libraryId, 'wpisy', entity.id) : containerPath(store.libraryId, entity.id),
+        href: base ? cogitaPath(store.libraryId, 'wpisy', entity.id) : containerPath(store.libraryId, entity.id),
         hint: where
       });
     }
@@ -62,7 +63,7 @@ export function libraryHits(): SearchEntry[] {
       for (const doc of lib.docs(kind)) {
         if (doc.data.builtin !== undefined || !lib.isOwn(doc.id)) continue;
         const name = typeof doc.data.name === 'string' && doc.data.name.trim() !== '' ? doc.data.name : DOC_LABEL[kind];
-        out.push({ id: `doc:${doc.id}`, label: name, kind: DOC_LABEL[kind], href: viewPath('learn', store.libraryId, ...tab, doc.id), hint: where });
+        out.push({ id: `doc:${doc.id}`, label: name, kind: DOC_LABEL[kind], href: cogitaPath(store.libraryId, ...tab, doc.id), hint: where });
       }
     }
   }

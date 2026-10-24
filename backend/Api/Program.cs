@@ -60,6 +60,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatDelivery>());
 
 /* 0109 — Cogita: der Hub der Sitzungen (WebSocket, sonst fragt der Browser selbst) und der Takt der Spiele. */
 builder.Services.AddSignalR(options => { options.MaximumReceiveMessageSize = 64 * 1024; });
+
+/* 0127 — Recreatio als MCP-Server für Assistenten (ChatGPT), nur lesend, über die Links des Dostęp dla AI. */
+AiMcp.AddServices(builder.Services);
 builder.Services.AddHostedService<CogitaClock>();
 
 /*
@@ -162,6 +165,8 @@ LibraryCatalog.Map(app);
 
 /* 0126 — Dostęp dla AI: ein Link, über den ein Assistent die drei Teile eines Bereichs liest — nur lesen. */
 AiAccess.Map(app);
+/* 0127 — dasselbe als MCP (/mcp) mit OAuth (/oauth, /.well-known). */
+AiMcp.Map(app);
 
 /* 0109 — Cogita: Antworten und Kenntnis (versiegelt, an die Annahme), direkt veröffentlichte Bausteine, Sitzungen, Spiele. */
 Cogita.Map(app);

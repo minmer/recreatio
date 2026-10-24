@@ -139,7 +139,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({ open: viewPath('learn', libraryId, 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url });
+        setDone({ open: viewPath('knowledge', libraryId, 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url });
         return;
       }
 

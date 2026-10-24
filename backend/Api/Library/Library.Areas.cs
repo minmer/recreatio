@@ -114,9 +114,13 @@ public static partial class Library
     /// andere könnte der Leser ohnehin nicht öffnen) und nur, solange der
     /// Bereich offen ist. Der Dienst öffnet nichts; er gibt weiter.
     /// </summary>
-    private static async Task OpenEntriesAsync(HttpContext ctx, Db db, Guid id, string? since)
+    private static async Task OpenEntriesAsync(HttpContext ctx, Db db, Guid id, string? since, string? light, string? ids)
     {
         if (!SinceOf(since, out var from)) { await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan."); return; }
+        /* 2026-10-24 — schwere Arten (Teile eines Quellentexts) wie bei den Mitgliedern: leicht abgleichen, bei Bedarf holen. */
+        var only = ids is null ? null : ParseIds(ids);
+        if (ids is not null && (only is null || only.Count > MaxHeavyBatch)) { await Fail(ctx, StatusCodes.Status400BadRequest, $"Podaj od 1 do {MaxHeavyBatch} identyfikatorów."); return; }
+        var thin = light == "1" && only is null;
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var library = await LibraryAsync(connection, id, ctx.RequestAborted);
@@ -139,17 +143,19 @@ public static partial class Library
         }
 
         await using var cmd = new SqlCommand($"""
-            SELECT e.id, e.kind, e.epoch, e.sealed, e.version, e.created_at, e.updated_at, e.deleted_at
+            SELECT e.id, e.kind, e.epoch, {(thin ? $"CASE WHEN e.kind IN ({HeavyList}) THEN NULL ELSE e.sealed END" : "e.sealed")}, e.version, e.created_at, e.updated_at, e.deleted_at,
+                   CAST(CASE WHEN e.kind IN ({HeavyList}) THEN 1 ELSE 0 END AS bit)
             FROM app.library_entry e
             WHERE e.library_id = @id
-              AND {(from is null ? "e.deleted_at IS NULL" : "e.updated_at >= @since")}
+              AND {(only is not null ? $"e.deleted_at IS NULL AND e.id IN ({string.Join(", ", only.Select((_, i) => $"@e{i}"))})" : from is null ? "e.deleted_at IS NULL" : "e.updated_at >= @since")}
               AND (e.deleted_at IS NOT NULL OR EXISTS (
                     SELECT 1 FROM app.area_epoch k WHERE k.area_id = @area AND k.epoch = e.epoch AND k.key_public IS NOT NULL))
             ORDER BY e.updated_at;
             """, connection);
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@area", library.Value.AreaId);
-        if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
+        if (only is not null) for (var i = 0; i < only.Count; i++) cmd.Parameters.AddWithValue($"@e{i}", only[i]);
+        else if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
 
         var entries = new List<object>();
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
@@ -167,7 +173,8 @@ public static partial class Library
                     updatedAt = reader.GetDateTimeOffset(6),
                     deletedAt = reader.IsDBNull(7) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(7),
                     publishedAt = (DateTimeOffset?)null,
-                    publishedAs = (string?)null
+                    publishedAs = (string?)null,
+                    heavy = thin && reader.GetBoolean(8) && reader.IsDBNull(7) ? true : (bool?)null
                 });
             }
         }

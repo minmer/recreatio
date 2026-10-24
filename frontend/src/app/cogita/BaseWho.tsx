@@ -28,6 +28,7 @@ import { libraryKindOf, settleLibrary, type OpenLibrary } from '../library/libra
 import { useLibraries } from '../library/LibraryPick';
 import { storeOf } from '../library/libraryStore';
 import { viewPath } from '../routes';
+import { cogitaPath } from './parts';
 import { hasOldCopies, hasOldPublications, oldCopiesLine, withdrawOldCopies } from './oldCopies';
 import { BASES_CHANGED, MAX_SOURCES } from './sources';
 import { useBusy, useCtx } from './ui';
@@ -74,7 +75,7 @@ export function WhoSees({ id, title = 'Kto widzi' }: { id: string; title?: strin
     window.dispatchEvent(new Event(BASES_CHANGED));
     setSaid(`Przeniesiono ${ids.length === 1 ? 'wpis' : `${ids.length} wpisów`} do „${chosen.name}”.${renamed > 0 ? ` ${renamed} z nich dostało nowy klucz (stary był tam zajęty) — odnośniki idą po identyfikatorze, więc nic się nie zepsuło.` : ''}`);
     const tab = TAB_OF[entry.kind];
-    window.location.hash = tab === undefined ? viewPath('learn', chosen.libraryId) : viewPath('learn', chosen.libraryId, tab, id);
+    window.location.hash = tab === undefined ? viewPath('knowledge', chosen.libraryId) : cogitaPath(chosen.libraryId, tab, id);
   });
 
   return (

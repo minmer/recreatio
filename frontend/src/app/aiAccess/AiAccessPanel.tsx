@@ -17,7 +17,7 @@ import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '.
 import { ask } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
 import {
-  aiLinkOf, createAiAccess, deleteAiAccess, extendAiAccess, failedWords, forgetAiWatch, loadAiAccess, refreshAiAccess, setAiParts,
+  aiLinkOf, createAiAccess, deleteAiAccess, extendAiAccess, failedWords, forgetAiWatch, loadAiAccess, mcpUrl, refreshAiAccess, setAiParts,
   type AiAccessList, type AiAccessRow, type AiPart
 } from './aiAccess';
 
@@ -121,6 +121,11 @@ export function AiAccessPanel({ area, ring }: { area: AreaRow; ring: Ring | null
       <p className="wk-note">
         Link tylko do odczytu: asystent AI (ChatGPT, Claude…) czyta przez niego wybrane zbiory tego obszaru — bibliotekę,
         skryptorium, bazy wiedzy — i nic poza nimi. Niczego nie zmieni. To, co przeczyta, trafia do jego dostawcy.
+      </p>
+      {/* 0127 — dasselbe als MCP-Server: der Assistent verbindet sich einmal, der Mensch wählt hier angelegte Links. */}
+      <p className="wk-note">
+        Na stałe w ChatGPT (albo innym asystencie z MCP): dodaj własny serwer MCP <code>{mcpUrl()}</code> z logowaniem OAuth.
+        Przy łączeniu zalogujesz się do Recreatio i wybierzesz, które z tych linków asystent dostanie.
       </p>
 
       {list === null ? (

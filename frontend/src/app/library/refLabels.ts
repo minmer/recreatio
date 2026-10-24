@@ -7,7 +7,7 @@
  * für jede Seite, die es braucht.
  */
 
-import { viewPath } from '../routes';
+import { cogitaPath } from '../cogita/parts';
 import { containerPath, openedLibraryKind } from './library';
 import { entryTitle, kindOf, str, type LibEntry } from './libraryKinds';
 import { plainText } from './libraryMarkup';
@@ -56,9 +56,9 @@ export function hitTitle(entry: Entry, store: LibraryStore): string {
 export function hitHref(entry: Entry, store: LibraryStore): string {
   if (isBooksStore(store)) return containerPath(entry.libraryId, entry.id);
   const tab = DOC_TAB[entry.kind];
-  if (tab !== undefined) return viewPath('learn', entry.libraryId, ...tab, entry.id);
-  if (DOC_LABEL[entry.kind] !== undefined) return viewPath('learn', entry.libraryId, entry.kind === 'kind' ? 'schemat' : 'wpisy');
-  return viewPath('learn', entry.libraryId, 'wpisy', entry.id);
+  if (tab !== undefined) return cogitaPath(entry.libraryId, ...tab, entry.id);
+  if (DOC_LABEL[entry.kind] !== undefined) return cogitaPath(entry.libraryId, entry.kind === 'kind' ? 'schemat' : 'wpisy');
+  return cogitaPath(entry.libraryId, 'wpisy', entry.id);
 }
 
 const WHERE: Readonly<Record<string, string>> = {

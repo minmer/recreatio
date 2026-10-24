@@ -27,6 +27,7 @@ import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, ty
 import { fieldRefs, type LibEntry } from './libraryKinds';
 import { refsOf } from './refIndex';
 import { readOnlyStore, type LibraryStore } from './libraryStore';
+import { TEXT_KINDS } from './sourceText';
 
 let reader: AreaReader | null = null;
 const readerOf = (): AreaReader => (reader ??= areaReader());
@@ -75,15 +76,15 @@ async function openOne(libraryId: string): Promise<LibraryStore | null> {
   const first = await loadOpen(libraryId, null).catch(() => null);
   if (first !== null) {
     let pending: OpenRead | null = first;
-    store = readOnlyStore({ libraryId, areaId: first.areaId }, async (since) => {
-      if (pending !== null && since === null) { const r = pending; pending = null; return r; }
-      return loadOpen(libraryId, since);
+    store = readOnlyStore({ libraryId, areaId: first.areaId }, async (since, ids) => {
+      if (pending !== null && since === null && ids === undefined) { const r = pending; pending = null; return r; }
+      return loadOpen(libraryId, since, ids);
     }, keysOf);
   } else {
     /* Der Weg eines Mitglieds (oder eines Links): die Liste der Bibliotheken nennt den Bereich — 2026-10-22 auch einer Baza wiedzy. */
     const row = await loadLibraries().then((r) => r.libraries.find((l) => l.libraryId === libraryId), () => undefined);
     if (row === undefined) return null;
-    store = readOnlyStore(row, (since) => loadEntries(libraryId, since), keysOf);
+    store = readOnlyStore(row, (since, ids) => loadEntries(libraryId, since, ids), keysOf);
   }
 
   store.setPeers(pagePeers);
@@ -105,6 +106,8 @@ const asked = new Set<string>();
 async function reach(store: LibraryStore): Promise<void> {
   const missing = new Set<string>();
   for (const entry of store.all()) {
+    /* 2026-10-24 — das Verzeichnis eines Textes zeigt auf sein Werk und seine Teile — nichts, was die Seite dazuholen müsste. */
+    if (TEXT_KINDS.has(entry.kind)) continue;
     /* 2026-10-22 (Schritt 11) — auch was der Zapis nennt (ein Słowo, ein Widok einer Baza): `refsOf` liest Felder, Zapis, Plan und die Zellen von Bausteinen. */
     for (const ref of [...fieldRefs(entry), ...refsOf(entry, () => undefined).map((r) => r.target)]) {
       if (!asked.has(ref) && store.get(ref) === undefined) missing.add(ref);

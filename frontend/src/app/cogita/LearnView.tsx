@@ -1,6 +1,8 @@
 /**
  * NAUKA (0109, 0110) — `#/workspace/learn`: die Heimat von Cogita, neben der
- * Bibliothek.
+ * Bibliothek. 2026-10-24 — und WIEDZA (`#/workspace/knowledge`): dieselben Bazy,
+ * zwei Teile (`parts.ts`). Die Wiedza führt die Bazy (anlegen, Einträge, Schematy),
+ * die Nauka das Lernen; eine Adresse, die in den anderen Teil gehört, führt dorthin.
  *
  * <code>
  *   learn                     was jetzt dran ist (über alle Bazy wiedzy), Sitzungen,
@@ -29,6 +31,7 @@ import { plural } from '../core/plural';
 import { viewPath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
 import { CogitaHome } from './CogitaHome';
+import { cogitaTrail, type CogitaPart } from './parts';
 import { WHOLE_BASE } from './visibility';
 import { BASES_CHANGED } from './sources';
 import { holderOfMe } from './holders';
@@ -45,11 +48,11 @@ import { MenuButton } from '../ui/Menu';
 import { PageHeader } from '../ui/PageHeader';
 import { Modal } from '../ui/Modal';
 
-export function LearnView({ who, trail }: { who: Who; trail: readonly string[] }) {
+export function LearnView({ who, trail, part = 'learn' }: { who: Who; trail: readonly string[]; part?: CogitaPart }) {
   const me = useMe(who);
   if (me === undefined) return <Loading label="Wczytywanie…" />;
   if (me === null) return <OfflineOnly trail={trail[0] === 'bez-sieci' ? trail.slice(1) : []} />;
-  return <LearnHome me={me} who={who} trail={trail} />;
+  return <LearnHome me={me} who={who} trail={trail} part={part} />;
 }
 
 /** Ohne offenen Schlüsselbund (kein Netz, kein Passwort in dieser Karte): nur, was das Gerät hält. */
@@ -62,7 +65,7 @@ function OfflineOnly({ trail }: { trail: readonly string[] }) {
   );
 }
 
-function LearnHome({ me, who, trail }: { me: Me; who: Who; trail: readonly string[] }) {
+function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly string[]; part: CogitaPart }) {
   const [bases, setBases] = useState<readonly OpenLibrary[] | null>(null);
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
@@ -93,22 +96,32 @@ function LearnHome({ me, who, trail }: { me: Me; who: Who; trail: readonly strin
   const current = chosen === null ? null : bases?.find((one) => one.libraryId === chosen) ?? null;
   useCrumbs(current === null ? [] : [{
     label: current.name,
-    href: viewPath('learn', current.libraryId),
-    beside: (bases ?? []).filter((one) => one.libraryId !== current.libraryId).map((one) => ({ label: one.name, href: viewPath('learn', one.libraryId) }))
+    href: viewPath(part, current.libraryId),
+    beside: (bases ?? []).filter((one) => one.libraryId !== current.libraryId).map((one) => ({ label: one.name, href: viewPath(part, one.libraryId) }))
   }]);
+  /* 2026-10-24 — ein Weg, der in den anderen Teil gehört (oder ein alter Weg): dorthin, ersetzt, damit Zurück nicht im Kreis geht. */
+  const moved = chosen === null ? null : (() => {
+    const asked = trail.slice(1);
+    const next = cogitaTrail(asked, part);
+    return next.part === part && next.tail.join('/') === asked.join('/') ? null : viewPath(next.part, chosen, ...next.tail);
+  })();
+  useEffect(() => { if (moved !== null) window.location.replace(moved); }, [moved]);
 
-  if (trail[0] === 'bez-sieci') return <OfflinePart me={me} trail={trail.slice(1)} />;
+  if (moved !== null) return <Loading label="Przekierowanie…" />;
+  if (trail[0] === 'bez-sieci' && part === 'learn') return <OfflinePart me={me} trail={trail.slice(1)} />;
   if (failed !== null) return <p className="wk-error">{failed}</p>;
   if (chosen !== null) {
     if (bases === null) return <Loading label="Wczytywanie…" />;
-    if (current === null) return <p className="wk-empty">Tej bazy wiedzy nie ma albo nie masz do niej klucza. <a href={viewPath('learn')}>Wszystkie bazy wiedzy</a></p>;
-    return <KnowledgeBase me={me} who={who} base={current} trail={trail.slice(1)} />;
+    if (current === null) return <p className="wk-empty">Tej bazy wiedzy nie ma albo nie masz do niej klucza. <a href={viewPath(part)}>Wszystkie bazy wiedzy</a></p>;
+    return <KnowledgeBase me={me} who={who} base={current} trail={trail.slice(1)} part={part} />;
   }
-  return <Overview me={me} bases={bases} areas={areas} onCreated={() => setTick((n) => n + 1)} />;
+  return part === 'knowledge'
+    ? <KnowledgeOverview me={me} bases={bases} areas={areas} onCreated={() => setTick((n) => n + 1)} />
+    : <Overview me={me} bases={bases} areas={areas} />;
 }
 
-/** Eine Baza wiedzy: ihr Speicher, abgeglichen, und darin Cogita. */
-function KnowledgeBase({ me, who, base, trail }: { me: Me; who: Who; base: OpenLibrary; trail: readonly string[] }) {
+/** Eine Baza wiedzy: ihr Speicher, abgeglichen, und darin Cogita — der Teil Wiedza oder Nauka. */
+function KnowledgeBase({ me, who, base, trail, part }: { me: Me; who: Who; base: OpenLibrary; trail: readonly string[]; part: CogitaPart }) {
   const { store, failed } = useLibraryStore(me.ring, base);
   if (store === null) return null;
   if (failed !== null && !store.loaded) return <p className="wk-error">{failed}</p>;
@@ -118,12 +131,52 @@ function KnowledgeBase({ me, who, base, trail }: { me: Me; who: Who; base: OpenL
   return (
     <>
       <PageHeader title={base.name} meta={`${entries} ${plural(entries, 'wpis', 'wpisy', 'wpisów')}${base.writes ? '' : ' · uczysz się'}`} />
-      <CogitaHome me={me} who={who} library={base} store={store} trail={trail} />
+      <CogitaHome me={me} who={who} library={base} store={store} trail={trail} part={part} />
     </>
   );
 }
 
-function Overview({ me, bases, areas, onCreated }: { me: Me; bases: readonly OpenLibrary[] | null; areas: readonly AreaRow[]; onCreated: () => void }) {
+/**
+ * 2026-10-24 — WIEDZA: die Bazy wiedzy, und eine neue anlegen. Wissen ist auch ohne Lernen
+ * etwas wert: wer forscht, baut hier und braucht nie eine Powtórka.
+ */
+function KnowledgeOverview({ me, bases, areas, onCreated }: { me: Me; bases: readonly OpenLibrary[] | null; areas: readonly AreaRow[]; onCreated: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const areaName = (id: string) => areas.find((a) => a.areaId === id)?.personal === true ? 'tylko Ty' : areas.find((a) => a.areaId === id)?.name ?? 'obszar';
+  return (
+    <div className="cg cg-overview wk-narrow">
+      <PageHeader title="Wiedza" actions={<button type="button" className="wk-btn" onClick={() => setAdding(true)}><Icon name="plus" />Nowa baza wiedzy</button>} />
+      <section className="wk-box" aria-labelledby="knowledge-bases">
+        <div className="wk-box-head"><h2 className="wk-box-title" id="knowledge-bases">Bazy wiedzy</h2></div>
+        {bases === null ? <div className="wk-box-body"><Loading /></div>
+          : bases.length === 0 ? (
+            <div className="wk-box-body">
+              <p className="wk-box-empty">Baza wiedzy zbiera, porządkuje i łączy to, co wiesz: wpisy własnych rodzajów i odwołania między nimi. Z niej możesz potem się uczyć — w Nauce.</p>
+              <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => setAdding(true)}><Icon name="plus" />Nowa baza wiedzy</button></div>
+            </div>
+          )
+          : bases.map((l) => (
+            <a key={l.libraryId} className="wk-line" href={viewPath('knowledge', l.libraryId)}>
+              <span className="wk-line-ic"><Icon name="branch" /></span>
+              <span className="wk-line-text">
+                <span className="wk-line-title">{l.name}</span>
+                <span className="wk-line-sub">{l.entries} {plural(l.entries, 'wpis', 'wpisy', 'wpisów')} · {areaName(l.areaId)}{l.writes ? '' : ' · tylko do czytania'}</span>
+              </span>
+              <span className="wk-line-end"><Icon name="next" /></span>
+            </a>
+          ))}
+      </section>
+      {adding && (
+        <Modal title="Nowa baza wiedzy" onClose={() => setAdding(false)}>
+          <NewBase me={me} areas={areas} onCreated={() => { setAdding(false); onCreated(); }} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/** NAUKA: was jetzt dran ist, Sitzungen, die Bazy zum Lernen — angelegt werden sie in der Wiedza. */
+function Overview({ me, bases, areas }: { me: Me; bases: readonly OpenLibrary[] | null; areas: readonly AreaRow[] }) {
   const [due, setDue] = useState<readonly DueRow[] | null>(null);
   const [sessions, setSessions] = useState<readonly SessionRow[]>([]);
   useEffect(() => {
@@ -135,14 +188,12 @@ function Overview({ me, bases, areas, onCreated }: { me: Me; bases: readonly Ope
   const waiting = (due ?? []).filter((d) => d.dueAt !== null && new Date(d.dueAt).getTime() <= now && d.dueCount > 0);
   const later = (due ?? []).filter((d) => d.dueAt !== null && new Date(d.dueAt).getTime() > now);
   const areaName = (id: string) => areas.find((a) => a.areaId === id)?.personal === true ? 'tylko Ty' : areas.find((a) => a.areaId === id)?.name ?? 'obszar';
-  const [adding, setAdding] = useState(false);
   return (
     <div className="cg cg-overview wk-narrow">
       <PageHeader
         title="Nauka"
         actions={(
           <>
-            <button type="button" className="wk-btn" onClick={() => setAdding(true)}><Icon name="plus" />Nowa baza wiedzy</button>
             <MenuButton label="Więcej: Nauka" items={[
               { label: 'Bez internetu na tym urządzeniu', icon: 'download', onSelect: () => { window.location.hash = viewPath('learn', 'bez-sieci').slice(1); } }
             ]} />
@@ -188,8 +239,8 @@ function Overview({ me, bases, areas, onCreated }: { me: Me; bases: readonly Ope
         {bases === null ? <div className="wk-box-body"><Loading /></div>
           : bases.length === 0 ? (
             <div className="wk-box-body">
-              <p className="wk-hint">Baza wiedzy to to, czego się uczy: wpisy, pytania, karty, powtórki i przebiegi. Załóż ją albo dołącz do kursu przez link.</p>
-              <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => setAdding(true)}><Icon name="plus" />Nowa baza wiedzy</button></div>
+              <p className="wk-box-empty">Nie uczysz się jeszcze z żadnej bazy wiedzy. Bazę zakłada się w Wiedzy — albo dołącza do kursu przez link od nauczyciela.</p>
+              <div className="wk-actions"><a className="wk-btn wk-btn-line" href={viewPath('knowledge')}><Icon name="branch" />Przejdź do Wiedzy</a></div>
             </div>
           )
           : bases.map((l) => (
@@ -197,18 +248,13 @@ function Overview({ me, bases, areas, onCreated }: { me: Me; bases: readonly Ope
               <span className="wk-line-ic"><Icon name="book" /></span>
               <span className="wk-line-text">
                 <span className="wk-line-title">{l.name}</span>
-                <span className="wk-line-sub">{l.entries} wpisów · {areaName(l.areaId)}{l.writes ? '' : ' · uczysz się'}</span>
+                <span className="wk-line-sub">{l.entries} {plural(l.entries, 'wpis', 'wpisy', 'wpisów')} · {areaName(l.areaId)}{l.writes ? '' : ' · uczysz się'}</span>
               </span>
               <span className="wk-line-end"><Icon name="next" /></span>
             </a>
           ))}
       </section>
 
-      {adding && (
-        <Modal title="Nowa baza wiedzy" onClose={() => setAdding(false)}>
-          <NewBase me={me} areas={areas} onCreated={() => { setAdding(false); onCreated(); }} />
-        </Modal>
-      )}
     </div>
   );
 }
@@ -228,7 +274,7 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
       const area = areaId === '' ? await ensurePrivateArea(me.ring, me.person, areas) : areaId;
       const id = await createLibrary(me.ring, area, name.trim() === '' ? 'Moja baza wiedzy' : name, 'knowledge');
       onCreated();
-      window.location.hash = viewPath('learn', id, 'wpisy');
+      window.location.hash = viewPath('knowledge', id, 'wpisy');
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się założyć bazy wiedzy.');
     } finally {

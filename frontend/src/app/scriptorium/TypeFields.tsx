@@ -17,6 +17,7 @@ import type { Who } from '../core/session';
 import { containerPath } from '../library/library';
 import type { EntryData, LibEntry } from '../library/libraryKinds';
 import { viewPath } from '../routes';
+import { cogitaPath } from '../cogita/parts';
 import { CORE_KEYS, TEXT_TYPE_FIELD_TYPES } from './textTypes';
 import type { ScriptoriumLens } from './lens';
 
@@ -27,11 +28,11 @@ export function typeFieldDefs(type: Pick<LibEntry, 'id' | 'data'>): FieldDef[] {
     .map((f) => ({ ...f, uncertain: false }));
 }
 
-/** Wohin ein gewählter Eintrag führt — in Nauka oder in seinen Teil. */
+/** Wohin ein gewählter Eintrag führt — in die Wiedza oder in seinen Teil. */
 export function lensHref(lens: ScriptoriumLens, id: string): string | null {
   const from = lens.origin(id);
   if (from === undefined) return null;
-  return from.kind === 'knowledge' ? viewPath('learn', from.libraryId, 'wpisy', id) : containerPath(from.libraryId, id);
+  return from.kind === 'knowledge' ? viewPath('knowledge', from.libraryId, 'wpisy', id) : containerPath(from.libraryId, id);
 }
 
 export function TypeFields({ lens, me, who, type, data, set, readOnly }: {
@@ -52,7 +53,7 @@ export function TypeFields({ lens, me, who, type, data, set, readOnly }: {
     keyIn: async () => undefined,
     me,
     who,
-    href: (...tail) => viewPath('learn', ...tail)
+    href: (...tail) => (tail[0] === undefined ? viewPath('knowledge') : cogitaPath(tail[0], ...tail.slice(1)))
   }), [lens, readOnly, me, who]);
 
   if (fields.length === 0) return <p className="wk-empty">Rodzaj „{String(type.data.name ?? '')}” nie ma jeszcze własnych pól.</p>;

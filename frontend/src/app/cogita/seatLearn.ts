@@ -47,7 +47,7 @@ export async function seatStore(token: string, libraryId: string, reader: AreaRe
     }
     return out;
   };
-  const store = readOnlyStore(row, (since) => loadSeatEntries(token, row.libraryId, since), keys);
+  const store = readOnlyStore(row, (since, ids) => loadSeatEntries(token, row.libraryId, since, ids), keys);
   await store.sync();
   return { row, store };
 }

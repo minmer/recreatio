@@ -51,7 +51,7 @@ export async function revisionFromEntry(ring: Ring, libraryId: string, entryId: 
   const chosen = baseFor(rows, libraryId, (row) => storeOf(ring, row));
   const source = rows.find((r) => r.libraryId === libraryId);
   const writing = source !== undefined && libraryKindOf(source) === 'writing';
-  if (chosen === null) throw new Error(writing ? 'Nie ma bazy wiedzy, która korzysta z tego skryptorium, ani takiej w jego obszarze — załóż ją w Nauce.' : 'Nie ma bazy wiedzy, która korzysta z tej biblioteki, ani takiej w jej obszarze — załóż ją w Nauce.');
+  if (chosen === null) throw new Error(writing ? 'Nie ma bazy wiedzy, która korzysta z tego skryptorium, ani takiej w jego obszarze — załóż ją w Wiedzy.' : 'Nie ma bazy wiedzy, która korzysta z tej biblioteki, ani takiej w jej obszarze — załóż ją w Wiedzy.');
   const store = storeOf(ring, chosen.base);
   if (chosen.link) {
     const settings = store.all().find((e) => e.kind === 'settings');

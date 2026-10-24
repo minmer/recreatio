@@ -350,6 +350,14 @@ public enum Field
     AiSnapshot,
 
     /// <summary>
+    /// 0127 — die Geheimnisse der Links, die ein Mensch einem Assistenten über
+    /// OAuth freigab, bis der Assistent seinen Code einlöst: versiegelt unter
+    /// einem Schlüssel aus dem Code, den nur er bekommt. Nur der Dienst siegelt
+    /// und öffnet es; der Browser kennt dieses Etikett nicht.
+    /// </summary>
+    AiOAuthCode,
+
+    /// <summary>
     /// 0071 — ein Haushalt (Familie, Personen, Kontakt, Notizen, die Besuche
     /// der Kolęda) als EIN Dokument unter dem Schlüssel des Bereichs, dem das
     /// Adressverzeichnis gehört. Die Adresse selbst liegt offen daneben.
@@ -617,6 +625,7 @@ public readonly record struct Aad
         Field.AiAccessWrap            => "ai_access_wrap",
         Field.AiAccessLink            => "ai_access_link",
         Field.AiSnapshot              => "ai_snapshot",
+        Field.AiOAuthCode             => "ai_oauth_code",
         Field.Household               => "household",
         Field.SeatRoleKey             => "seat_role_key",
         Field.ModuleName              => "module_name",

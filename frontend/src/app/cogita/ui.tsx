@@ -17,6 +17,7 @@ import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
 import { runPython } from './python';
 import { viewPath } from '../routes';
+import { cogitaPath } from './parts';
 import type { SourceState } from './sources';
 import { patternKeys, type Entity, type MediaRef } from './schema';
 import { BOOK_KINDS, CogitaLibrary, lineOf, type Origin } from './store';
@@ -213,7 +214,7 @@ export function creatorFor(lib: CogitaLibrary, kinds: readonly string[] | undefi
 export const originPath = (origin: Origin, id: string, tab: string): string =>
   origin.kind === 'books' ? viewPath('library', origin.libraryId, id)
     : origin.kind === 'writing' ? viewPath('scriptorium', origin.libraryId, id)
-    : viewPath('learn', origin.libraryId, tab, id);
+    : cogitaPath(origin.libraryId, tab, id);
 
 /** Ein Schildchen, woher ein Eintrag kommt — nichts, wenn er hierher gehört. */
 export function OriginTag({ id }: { id: string }) {

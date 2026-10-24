@@ -157,7 +157,7 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
 }
 
 /** Ansichten, die ihren Titel selbst tragen. */
-const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'scriptorium', 'learn', 'forms', 'areas', 'sms', 'contacts', 'lamps']);
+const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'scriptorium', 'knowledge', 'learn', 'forms', 'areas', 'sms', 'contacts', 'lamps']);
 
 /** Unter welchem Namen eine Ansicht steht — Zadania unter Kalendarz. */
 const TITLE_OF: Partial<Record<View, View>> = { tasks: 'calendar' };
@@ -224,7 +224,9 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'chat') return <ChatView who={who} trail={trail} />;
   if (view === 'library') return <LibraryView who={who} trail={trail} />;
   if (view === 'scriptorium') return <Suspense fallback={<Loading />}><ScriptoriumView who={who} trail={trail} /></Suspense>;
-  if (view === 'learn') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} /></Suspense>;
+  /* 2026-10-24 — Cogita in zwei Teilen: Wiedza (Einträge, Dodaj, Schematy) und Nauka, dieselben Bazy (`cogita/parts.ts`). */
+  if (view === 'knowledge') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} part="knowledge" /></Suspense>;
+  if (view === 'learn') return <Suspense fallback={<Loading />}><LearnView who={who} trail={trail} part="learn" /></Suspense>;
   if (view === 'sms') return <Suspense fallback={<Loading />}><SmsApp who={who} trail={trail} /></Suspense>;
   if (view === 'contacts') return <Suspense fallback={<Loading />}><ContactsApp who={who} trail={trail} /></Suspense>;
   if (view === 'lamps') return <Suspense fallback={<Loading />}><LampsApp who={who} trail={trail} /></Suspense>;

@@ -1,0 +1,80 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Komentarz biblijny",
+  "kinds": [
+    {
+      "ref": "@komentarz",
+      "name": "Komentarz",
+      "label": "{content}",
+      "fields": [
+        {
+          "key": "content",
+          "label": "Treść",
+          "type": "blocks",
+          "says": "Pierwsze zdanie pierwszego akapitu to teza (nazwa wpisu). Dalej akapity, listy i tabele z odwołaniami."
+        },
+        {
+          "key": "grounds",
+          "label": "Argumenty za",
+          "type": "ref",
+          "multi": true,
+          "to": ["@komentarz"],
+          "says": "Inne komentarze, które ten komentarz wspierają"
+        },
+        {
+          "key": "objections",
+          "label": "Zarzuty",
+          "type": "ref",
+          "multi": true,
+          "to": ["@komentarz"],
+          "says": "Inne komentarze, które mu przeczą"
+        }
+      ]
+    },
+    {
+      "ref": "@komentarz-biblijny",
+      "name": "Komentarz biblijny",
+      "label": "{passage}",
+      "fields": [
+        {
+          "key": "passage",
+          "label": "Fragment Pisma",
+          "type": "ref",
+          "locator": true,
+          "to": ["work"],
+          "says": "Pismo Święte (dzieło z biblioteki) i miejsce, np. „Łk 1,35”"
+        },
+        {
+          "key": "comment",
+          "label": "Komentarz",
+          "type": "ref",
+          "to": ["@komentarz"],
+          "says": "Komentarz do tego fragmentu — ten sam komentarz może służyć też innym fragmentom i innym komentarzom"
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "ref": "@f-komentarz-biblijny",
+      "name": "Komentarz do fragmentu Pisma",
+      "says": "Na początek wybierasz przekład Pisma Świętego. W każdym wierszu wpisujesz miejsce (np. Łk 1,35) i treść komentarza — powstają dwa połączone wpisy: Komentarz i Komentarz biblijny, który wskazuje fragment i komentarz.",
+      "graph": {
+        "nodes": [
+          { "id": "pismo", "type": "pick", "x": 0, "y": 0, "config": { "label": "Pismo Święte", "kinds": ["work"], "many": false, "optional": false, "value": [] } },
+          { "id": "kom", "type": "entry", "x": 0, "y": 180, "config": { "kind": "@komentarz", "label": "Komentarz", "many": false, "reuse": "same", "fields": { "content": { "from": "type" } } } },
+          { "id": "kb", "type": "entry", "x": 320, "y": 90, "config": { "kind": "@komentarz-biblijny", "label": "Komentarz biblijny", "many": false, "reuse": "same", "fields": { "passage": { "from": "type" } } } }
+        ],
+        "edges": [
+          { "id": "e1", "from": "pismo", "out": "out", "to": "kb", "in": "passage" },
+          { "id": "e2", "from": "kom", "out": "out", "to": "kb", "in": "comment" }
+        ]
+      },
+      "order": ["kb", "kom"],
+      "keys": { "enter": "next", "ctrlEnter": "more", "shiftEnter": "save" },
+      "paste": { "columns": "|", "values": ";", "header": false }
+    }
+  ],
+  "templates": []
+}

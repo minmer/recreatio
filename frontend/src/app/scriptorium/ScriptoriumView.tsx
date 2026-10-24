@@ -101,7 +101,7 @@ function Scriptoria({ me, who, trail }: { me: Me; who: Who; trail: readonly stri
     const other = rows.find((one) => one.libraryId === id);
     if (current === null && other !== undefined) {
       return libraryKindOf(other) === 'knowledge'
-        ? <p className="wk-note">To jest baza wiedzy — jest w Nauce. <a href={viewPath('learn', id)}>Otwórz ją</a></p>
+        ? <p className="wk-note">To jest baza wiedzy — jest w Wiedzy. <a href={viewPath('knowledge', id)}>Otwórz ją</a></p>
         : <p className="wk-note">To jest biblioteka (źródła). <a href={viewPath('library', id)}>Otwórz ją</a></p>;
     }
     if (current === null) return <p className="wk-empty">Tego skryptorium nie ma albo nie masz do niego klucza. <a href={viewPath('scriptorium')}>Wszystkie skryptoria</a></p>;

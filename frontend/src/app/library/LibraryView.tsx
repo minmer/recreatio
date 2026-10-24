@@ -41,6 +41,7 @@ import { parseBible } from './bible';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
 import { ids, isLibraryKind, kindOf, LIBRARY_KINDS, quoteOrder, str, type LibEntry } from './libraryKinds';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
+import { TEXT_KINDS } from './sourceText';
 import { audienceWords } from './LibraryAreaBox';
 import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
@@ -49,6 +50,10 @@ import { PickBar, PickBox, usePicked } from './EntryPick';
 import { OldEntries, oldEntriesOf } from './OldEntries';
 import { WorkspaceError, type Who } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { later } from '../ui/later';
+
+/* 2026-10-24 — der Czytnik eines Textes kommt erst, wenn einer gelesen wird. */
+const SourceReader = later(() => import('./SourceReader').then((m) => m.SourceReader));
 
 /** Die Reiter einer Bibliothek — Wort in der Adresse, Art (2026-10-23: nur Quellen). */
 export const TABS = [
@@ -116,10 +121,10 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
   if (libraries === null) return <Loading label="Wczytywanie…" />;
 
   if (libraryId !== undefined) {
-    if (current === null && knowledge.has(libraryId)) return <p className="wk-note">To jest baza wiedzy — jest w Nauce. <a href={viewPath('learn', libraryId)}>Otwórz ją</a></p>;
+    if (current === null && knowledge.has(libraryId)) return <p className="wk-note">To jest baza wiedzy — jest w Wiedzy. <a href={viewPath('knowledge', libraryId)}>Otwórz ją</a></p>;
     if (current === null && writing.has(libraryId)) return <p className="wk-note">To jest skryptorium — teksty, wygłoszenia i projekty. <a href={viewPath('scriptorium', libraryId)}>Otwórz je</a></p>;
     if (current === null) return <p className="wk-empty">Tej biblioteki nie ma albo nie masz do niej klucza. <a href={viewPath('library')}>Wszystkie biblioteki</a></p>;
-    return <LibraryHome me={me} library={current} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
+    return <LibraryHome me={me} library={current} libraries={libraries} areas={areas} trail={trail.slice(1)} onChanged={() => setTick((n) => n + 1)} />;
   }
 
   return <LibraryList me={me} libraries={libraries} areas={areas} onChanged={() => setTick((n) => n + 1)} />;
@@ -162,7 +167,7 @@ function LibraryList({ me, libraries, areas, onChanged }: {
       <h1 className="wk-h1">Biblioteka</h1>
       <p className="wk-lede">
         Źródła, cytaty i ich autorzy — jedno miejsce dla każdego odwołania. Teksty piszesz w Skryptorium, a wiedzę
-        (komentarze, postacie, miejsca, wydarzenia) układasz w Nauce; jedno i drugie cytuje stąd.
+        (komentarze, postacie, miejsca, wydarzenia) układasz w Wiedzy; jedno i drugie cytuje stąd.
         Wszystko jest szyfrowane w przeglądarce. Każdy obszar ma swoją bibliotekę: widzą ją członkowie obszaru, a gdy obszar jest publiczny — wszyscy.
         Pracujesz ze wszystkimi naraz: odwołania i wyszukiwanie sięgają do każdej biblioteki, którą widzisz.
       </p>
@@ -203,9 +208,11 @@ function LibraryList({ me, libraries, areas, onChanged }: {
 
 /* -- Eine Bibliothek -------------------------------------------------------------------------- */
 
-function LibraryHome({ me, library, areas, trail, onChanged }: {
+function LibraryHome({ me, library, libraries, areas, trail, onChanged }: {
   me: Me;
   library: OpenLibrary;
+  /** Alle Bibliotheken des Kontos (2026-10-24: wohin ein Text, ein Zitat aus dem Czytnik geht). */
+  libraries: readonly OpenLibrary[];
   areas: readonly AreaRow[];
   trail: readonly string[];
   onChanged: () => void;
@@ -217,9 +224,13 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
   if (failed !== null && !store.loaded) return <p className="wk-error">{failed}</p>;
   if (!store.loaded) return <p className="wk-lede">Otwieranie biblioteki…</p>;
 
+  /* 2026-10-24 — der Text eines Werks im Czytnik. */
+  if (isUuid(first) && trail[1] === 'tekst') {
+    return <SourceReader store={store} library={library} workId={first} at={trail.slice(2).join('/')} writable={libraries.filter((l) => l.writes)} />;
+  }
   /* Ein Eintrag — oder ein neuer. */
   if (isUuid(first)) {
-    return <LibraryEditor store={store} library={library} entryId={first} kind={store.get(first)?.kind ?? null} />;
+    return <LibraryEditor store={store} library={library} entryId={first} kind={store.get(first)?.kind ?? null} sources={{ libraries, storeFor: (row) => storeOf(me.ring, row) }} />;
   }
   if (first === 'nowy' && isLibraryKind(trail[1] ?? '')) {
     return <LibraryEditor store={store} library={library} entryId={null} kind={trail[1]!} preset={presetFrom(trail[2])} />;
@@ -227,7 +238,8 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
 
   const tab = first === 'ustawienia' || first === 'json' || first === 'mapa' || first === 'stare' ? first : (TABS.find((t) => t.slug === first)?.slug ?? 'zrodla');
   /* 2026-10-23 — Einträge der Arten, die die Bibliothek nicht mehr hält: zum Durchsehen und Löschen. */
-  const known = isLibraryKind;
+  /* 2026-10-24 — und die Texte der Werke (Verzeichnis und Teile): sie gehören hierher, auch ohne eigenen Reiter. */
+  const known = (kind: string) => isLibraryKind(kind) || TEXT_KINDS.has(kind);
   const old = oldEntriesOf(store, known).length;
 
   return (
@@ -250,7 +262,7 @@ function LibraryHome({ me, library, areas, trail, onChanged }: {
         {tab === 'ustawienia' ? <Settings me={me} store={store} library={library} areas={areas} onChanged={onChanged} />
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
-          : tab === 'stare' ? <OldEntries store={store} known={known} writes={library.writes} where="Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Nauce." />
+          : tab === 'stare' ? <OldEntries store={store} known={known} writes={library.writes} where="Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Wiedzy." />
           : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}
       </div>
     </>

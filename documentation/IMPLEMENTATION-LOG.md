@@ -1695,3 +1695,144 @@ reaches the kinds, all 10 entries, refs and backlinks.
 
 **Not verifiable from here:** ChatGPT's own browsing. The most reliable way is a Custom GPT with an Action that
 imports `<link>/openapi.json`; plain chat browsing should work through the HTML links once the API is deployed.
+
+## AI3 — Recreatio as an MCP server (0127, 2026-10-24)
+
+The owner asked for a proper tool integration: connect Recreatio to ChatGPT once (custom MCP server with OAuth) and
+let the assistant discover, search, read and follow the authorized knowledge without copied links. Read-only.
+
+**Decided**
+- **A thin layer over the AI link.** No second store, no copies: every MCP call opens the authorized links'
+  snapshots exactly like `/ai/{link}` (`AiAccess.OpenLinkAsync`, split out of the HTTP handler for this). Search,
+  references and rendering are shared code.
+- **The OAuth access token is the list of AI link secrets** the user picks on a consent page in the app. Only the
+  user's browser can open those secrets (they lie under the area key); the service keeps them only sealed under a key
+  from the one-time code until redemption, then nothing. So every rule of the link holds: its collections, its expiry,
+  deletion stops it, its creator must still lead the area — and the service reads only while a request carries it.
+- **Official SDK** `ModelContextProtocol.AspNetCore` 2.3.0, stateless Streamable HTTP; tools with read-only
+  annotations and output schemas; the standard `search` / `fetch` for ChatGPT research next to five specific tools.
+- **No secret in results**: entry URLs point into the app. A `/mcp/<link>` path form stays for clients without
+  OAuth (documented: prefer OAuth, the path can reach host logs).
+
+**Built**
+- `backend/Api/Library/AiMcp.cs`: registration, the gate (401 with RFC 9728 metadata; only working links pass), the
+  tools `list_collections`, `get_schema`, `search_entries`, `get_entry`, `get_related`, `search`, `fetch`.
+- `backend/Api/Library/AiOAuth.cs` + `0127_ai_oauth.sql`: metadata (resource and authorization server), DCR, CIMD from
+  known assistant hosts, authorize (PKCE S256, `resource`, redirect checks; errors to the client with `iss`), the
+  consent calls (`/oauth/request`, `/oauth/approve` — every link must work and lie in an area the user leads —,
+  `/oauth/deny`), token (one use, PKCE, client, redirect, resource; `expires_in` = the shortest link).
+- Kernel: `Crypto.InfoAiOAuthCode`, AAD field `AiOAuthCode`.
+- `AiAccess.Read.cs`: references with their field and locator (`LinksOf`, from fields, `{value, locator}`, cells,
+  markup by key), backlinks with field, a readable rendering of an entry (`Render`), search with short words as whole
+  words and phrases first (`J 21`), the area name on every snapshot; the HTTP entry answer gained `links` and
+  `linkedFrom`.
+- Frontend: `aiAccess/AiConnect.tsx` (route `#/polacz-ai/<request>`: sign in, who asks, pick or make links, allow or
+  deny), `aiSecretOf` and the consent calls in `aiAccess.ts`, the MCP address in the "Dostęp dla AI" panel.
+- `documentation/MCP.md`: endpoint, authentication, connecting ChatGPT, tools, scope, revocation, troubleshooting.
+
+**Checks**
+- Api.Tests 515 (short words and phrases, links with fields and locators, PKCE against RFC 7636, redirects, `iss`,
+  token parsing, trusted CIMD hosts, the code seal).
+- `scratchpad/mcp/mcp-e2e.mjs` with the official MCP TypeScript SDK (1.32) on LocalDB — 40 checks: 401 discovery,
+  metadata, DCR, authorize/consent/token with PKCE (wrong verifier, code reuse, a non-leader refused), initialize and
+  tools with annotations and schemas, every tool, `J 21` ranking, Polish without diacritics, paging 36 entries by 7,
+  grounds/objections to depth 2 and backwards, the biblical commentary's passage with locator, standard search/fetch,
+  not_found for a foreign area's entry, the path form, revocation → 401 invalid_token.
+- `scratchpad/mcp/mcp-consent-browser.mjs` (headless Edge): from the authorize URL through sign-in and the consent page
+  to the client's callback with code, state and iss; the token works on `/mcp`.
+- MCP Inspector CLI 0.17.2: `tools/list` and `tools/call search_entries` against the local server.
+
+**Not verified here:** the production endpoint (needs the API deployed with 0125–0127) and ChatGPT itself (needs the
+owner's ChatGPT account) — MCP.md has the steps.
+
+## L1 — Source texts and one model of places (2026-10-24)
+
+The owner asked that works be usable with or without their full text, that one model of places serve footnotes,
+quotes, full texts, Cogita and the Scriptorium alike, and that structured full texts (order, hierarchy, places, page
+breaks, notes) be importable in portions as JSON — written by one's own AI — without ever leaking a private text.
+
+**Decided**
+- **A locator stays what was written; its meaning is read** (`library/locations.ts`) by the scheme of its work:
+  `pages`, `bible`, `numbered`, `aquinas`, `decimal`, `sections`, `outline`. Structural places (paths) are the same in
+  every edition; pages belong to one edition. The work gains "Układ miejsc", "Numeracja psalmów" and "Wydanie /
+  przekład dzieła". No migration: old locators are read the same way.
+- **Links are computed while reading, never stored**: a footnote, a quote, a statement's cell or a Cogita field asks
+  whether a text of that work is readable and holds the place. A text added later makes all earlier places
+  navigable; a place in several parts is flagged, not guessed.
+- **The text is a pair of entries** — `sourcetext` (the directory) and `sourcepart` (a portion) — in any writable
+  library, so the work can be public and its text private. Parts are **heavy**: the sync brings their rows only
+  (`?light=1`, `heavy: true`), the reader fetches them by id (`?ids=`, ≤ 50). An older client without `light` still
+  gets everything. Neither kind is a source: they stay out of lists, search, the library JSON and the AI link.
+- **JSON `recreatio/source-text` v1**, one portion per document; portions replace themselves by key; checked and
+  previewed before writing; "never invent text" is part of the description and the prompt.
+
+**Built**
+- Backend: `Library.cs` / `Library.Areas.cs` / `Library.Cogita.cs` — `light` and `ids` on the member, public and seat
+  entry routes (`HeavyKinds`).
+- `library/locations.ts` (parse, overlap, contains, sort keys, format), `library/sourceText.ts` (format, checks,
+  manifest, places → blocks, alignment of editions, selection → place, search, export, description with examples),
+  `library/sourceFind.ts`, `SourceBox.tsx` (the work's box and import), `SourceReader.tsx` (the reader, lazy),
+  `SourceBlocks.tsx`, `SourceJump.tsx` (footnotes, quotes, statement cells, Cogita place fields).
+- `LibraryStore`: heavy rows and on-demand opening (`heavy`, `heavyMany`), texts per work (`texts`, `ownTexts`);
+  `Lookup.texts` / `Lookup.heavy`; quotes ordered by the scheme of their work.
+
+**Checks**
+- `app-library-check.mjs` 2j/2k: every scheme (both psalm numberings, ranges, discontinuous places, outlines with gaps,
+  structure vs. pages), ordering by scheme; every example imports without warnings and survives export → import;
+  refusals and warnings; places → blocks; portions (replace, "bez zmian", duplicates flagged); ambiguity; selection
+  → place; search; alignment; footnotes and quotes link only when the text is readable.
+- `scratchpad/lib/source-api.mjs` (LocalDB, 14 checks): light rows, by ids, the old way, limits; the store opens parts
+  on demand; the private text found through the neighbour library; a reader of the shared area gets neither rows nor
+  parts of the private library (403) and no link; nobody without an account.
+- `scratchpad/lib/source-browser.mjs` (headless Edge, 17 checks): the work's box, import with preview into the private
+  library, the same portion again "bez zmian", the reader (contents, margin, `/tekst/nr 8`, search without diacritics),
+  selection → "Dodaj cytat" with text and place, a quote opening the private passage, the Vulgate beside the Bible,
+  a sermon's footnotes leading into the text.
+
+**Not done:** OCR or PDF reading in the app (the owner's AI does the transcription, as everywhere); full texts in the
+AI link / MCP (a text may be private while its work is not — left out until there is a rule for it).
+
+## C1 — Cogita in two parts: Wiedza and Nauka (2026-10-24)
+
+The owner asked to simplify Cogita by separating knowledge from learning: Wiedza with three activities (Wpisy, Dodaj,
+Schematy — and in Schematy three independent categories: Rodzaje wpisów, Sposoby dodawania, Sposoby wyświetlania),
+Nauka with learning; secondary functions reachable but not competing; nothing lost; Polish UI.
+
+**Decided**
+- **Two workspace views, one store** (`cogita/parts.ts`): `knowledge` (Wiedza) and `learn` (Nauka) open the same
+  bases; every tab belongs to one part (Ustawienia to both). No data or storage change, no migration.
+- **Old addresses are rewritten, not broken** (`cogitaTrail` / `cogitaPath`): `learn/<base>/wpisy|schemat|…` lead to
+  their new place with `location.replace`; every in-app link builder (Ctrl K, references, origin tags, the
+  Scriptorium, the MCP entry URL) uses the new paths.
+- **Wpisy shows knowledge first**: adding moved to Dodaj; filter, steps and layout are one fold „Dostosuj" with *co
+  pokazać* and *jak pokazać*; the saved views are the „Sposób wyświetlania" chooser. Learning from an entry or a view is
+  a link into Nauka („Ucz się tego").
+- **Configurations stay independent**: the kind editor lost the forms list; forms and views each have their own list
+  and editor in Schematy; none is bound to a kind.
+- **The brief's example works end to end** — so two small engine additions: a form can type a `blocks` field and the
+  place of a reference fed by an edge (stored `{ value, locator }`), and a view can present as **Struktura** (roots and
+  what their follow steps reach, grouped by field). The example ships as `templates/cogita/komentarz-biblijny.json`.
+
+**Built**
+- `cogita/parts.ts`, `cogita/KnowledgeParts.tsx` (Dodaj, Schematy, „Ucz się tego"); `CogitaHome.tsx` (tabs per part,
+  „Więcej", the way to the other part), `LearnView.tsx` (both overviews; bases are created in Wiedza; redirects),
+  `EntityList.tsx` (two shapes: Wpisy and the view designer; Struktura), `SchemaEditor.tsx` (kinds only), `routes.ts`
+  (`knowledge`), `Workspace.tsx`, `WorkspaceFrame.tsx` (Wiedza and Nauka under „Studium"), link builders in `search.ts`,
+  `ui.tsx`, `BaseWho.tsx`, `refLabels.ts`, `TypeFields.tsx`, `TextArticle.tsx`, `Starters.tsx`, `AiMcp.cs`.
+- Forms: `addForm.ts` (`blocks` typeable, `locatorFields`, `LOCATOR`, identity with places), `addFormText.ts`,
+  `AddFormRun.tsx`, `AddFormEditor.tsx` (the toggle „miejsce wpisywane w każdym wierszu"); views: `views.ts`
+  (`outline`, `viewOutline`), `pages/parts/viewViews.tsx` (a Struktura shows as a table on pages).
+- Words: „w Nauce" → „w Wiedzy" where knowledge is meant (JSON descriptions, notes, errors).
+
+**Checks**
+- `app-cogita-check.mjs`: 449 (+18) — the tab sets, the three categories, old → new addresses, `cogitaPath`; the
+  biblical-commentary template (import, groups with the typed place, one row → two connected entries with
+  `{ value: bt, locator: "Łk 1,35" }`, the same row again → nothing new, another verse → the comment reused,
+  description); Struktura (forward, backward, all references, roots only, kept in the document).
+- `scratchpad/lib/parts-browser.mjs` (headless Edge, 22 checks): the menu, Wiedza overview and tabs, Wpisy without
+  adding tools, Dodaj with the method and single entries, the form typing the place and the comment, an argument added
+  through the entry editor, Schematy's three categories, a viewing method built in the designer and shown as
+  Struktura (passage → text of the Bible, comment, argument „za"), Nauka's tabs, four old addresses, „Ucz się tego".
+
+**Not done:** Struktura on pages (shown as a table there); editing the typed place in the form's „Edycja tego, co już
+jest" (the entry editor changes it).

@@ -28,6 +28,7 @@ import { Loading } from '../ui/Loading';
 import { BlocksEditor } from '../library/BlocksEditor';
 import { blockData, blocksIn, isQuestion, THESIS_LIMIT, thesisOf, thesisProblem } from '../library/blocks';
 import { StatementMarks } from '../library/markupView';
+import { TextJump } from '../library/SourceJump';
 import { blocksField } from './statements';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -225,6 +226,8 @@ function PlaceInput({ field, target, locator, writes, onChange }: { field: Field
     <span className="cg-row">
       <input value={locator} disabled={!writes} aria-label={`Miejsce: ${field.label}`} placeholder={bible ? 'Ps 110, Łk 1,46-55' : 's. 23, rozdz. 4'} onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)} />
       {locator !== '' && <span className="cg-muted">{placeText(entity, locator, entity === undefined ? '' : lib.label(entity))}</span>}
+      {/* 2026-10-24 — hat das Werk einen Text: die Stelle darin (`library/SourceJump.tsx`). */}
+      {entity?.kinds.includes('work') === true && <TextJump look={undefined} workId={entity.id} locator={locator} />}
     </span>
   );
 }

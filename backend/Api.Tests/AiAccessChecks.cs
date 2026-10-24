@@ -101,6 +101,47 @@ internal static class AiAccessChecks
             check(html.Contains("<a href=\"https://api.recreatio.pl/ai/T/entry/1\">") && html.Contains("&lt;b&gt;x&lt;/b&gt;") && !html.Contains("<b>x")
                 && !html.Contains("search?q=\">"), "as a page: every address is a real link, text is escaped, a template is no link");
         }
+        /* 0127 — „J 21": kurze Wörter nur als ganzes Wort, die Folge an Wortgrenzen. */
+        check(AiAccess.Has("j 21,15-17", "j") && !AiAccess.Has("jest", "j") && AiAccess.Has("j 21,15", "21") && !AiAccess.Has("rok 2021", "21") && AiAccess.Has("przyjaciel", "przy"),
+            "search: 1–2 character words count only as whole words, longer ones also inside words");
+        check(AiAccess.HasWords("komentarz do j 21,15-17", "j 21") && !AiAccess.HasWords("j 210", "j 21") && !AiAccess.HasWords("1 j 21x", "j 21"), "search: a phrase only at word boundaries");
+
+        /* 0127 — Verweise mit ihrem Feld: Felder, Hüllen {value, locator}, Zellen {ref}, Zapis mit Schlüssel; Fremdes nur als Kennung. */
+        const string g1 = "01a00000-0000-7000-8000-000000000101", o1 = "01a00000-0000-7000-8000-000000000102", bible = "01a00000-0000-7000-8000-000000000103", far = "01a00000-0000-7000-8000-000000000999";
+        using (var linked = JsonDocument.Parse($$$"""
+            {"v":1,"entries":[
+              {"id":"01a00000-0000-7000-8000-000000000100","kind":"k","title":"Główny","data":{"grounds":["{{{g1}}}"],"objections":["{{{o1}}}","{{{far}}}"],
+                "content":[{"type":"table","rows":[[[{"ref":"{{{bible}}}","locator":"J 21,15"}]]]}],"passage":{"value":"{{{bible}}}","locator":"J 21,15-17"},"note":"Zob. [@bt, J 18,17] i jan@example.com"}},
+              {"id":"{{{g1}}}","kind":"k","title":"Uzasadnienie","data":{}},
+              {"id":"{{{o1}}}","kind":"k","title":"Zarzut","data":{}},
+              {"id":"{{{bible}}}","kind":"work","key":"bt","title":"Biblia Tysiąclecia","data":{}}]}
+            """))
+        {
+            var snap2 = AiAccess.ReadSnapshot(library, "knowledge", linked.RootElement)!;
+            AiAccess.Item? Resolve(string token) => snap2.Items.FirstOrDefault(i => i.Id == token.ToLowerInvariant() || i.Key == token);
+            var links = AiAccess.LinksOf(snap2.Items[0], Resolve);
+            check(links.Contains(new AiAccess.Link("grounds", g1, null, false)) && links.Contains(new AiAccess.Link("objections", o1, null, false)) && links.Contains(new AiAccess.Link("objections", far, null, true)),
+                "links: each reference with its field (grounds, objections); an id outside the access is only marked outside");
+            check(links.Contains(new AiAccess.Link("content", bible, "J 21,15", false)) && links.Contains(new AiAccess.Link("passage", bible, "J 21,15-17", false)) && links.Contains(new AiAccess.Link("note", bible, "J 18,17", false)),
+                "links: cells, envelopes with their locator and markup by key; an e-mail address is no reference");
+            check(links.Count == 6, $"links: nothing else ({links.Count})");
+        }
+
+        /* 0127 — OAuth: PKCE S256, Rücksprünge, iss, Token aus Links, bekannte CIMD-Anbieter. */
+        const string verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+        check(AiOAuth.PkceMatches(verifier, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM") && !AiOAuth.PkceMatches(verifier + "x", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM") && !AiOAuth.PkceMatches("short", "x"),
+            "OAuth: PKCE S256 against the RFC 7636 example");
+        check(AiOAuth.IsRedirect("https://chatgpt.com/connector_platform_oauth_redirect") && AiOAuth.IsRedirect("http://localhost:6274/oauth/callback") && !AiOAuth.IsRedirect("http://evil.example/cb") && !AiOAuth.IsRedirect("https://x.example/cb#frag") && !AiOAuth.IsRedirect("javascript:alert(1)"),
+            "OAuth: redirects are https, or http only on this machine, never with a fragment");
+        check(AiOAuth.Back("https://c.example/cb?x=1", "https://api.recreatio.pl", [("code", "abc"), ("state", "s ą"), ("error", null)]) == "https://c.example/cb?x=1&code=abc&state=s%20%C4%85&iss=https%3A%2F%2Fapi.recreatio.pl",
+            "OAuth: every answer to the client carries iss (RFC 9207), values escaped, empty ones left out");
+        check(AiMcp.SecretsOf($"{token}.{token}.bad!.{Token.NewSecret()}").Count == 2 && AiMcp.SecretsOf(null).Count == 0, "OAuth: an access token is the authorized links, dot-separated, each once");
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        check(AiOAuth.TrustedHost(config, "chatgpt.com") && AiOAuth.TrustedHost(config, "api.openai.com") && !AiOAuth.TrustedHost(config, "chatgpt.com.evil.example") && !AiOAuth.TrustedHost(config, "localhost"),
+            "OAuth: client metadata documents only from known assistants (chatgpt.com, openai.com, claude.ai, anthropic.com)");
+        check(Aad.FieldName(Field.AiOAuthCode) == "ai_oauth_code" && AiOAuth.CodeAad(id).Text == "ai:oauth:01a16af6-5a94-718f-b8b5-abdb3ab6918b:ai_oauth_code:1"
+            && Crypto.InfoAiOAuthCode(id) == "recreatio:v1:ai-oauth-code:01a16af6-5a94-718f-b8b5-abdb3ab6918b", "OAuth: the code's seal is bound to its grant");
+
         /* Entpacken mit Obergrenze. */
         var packed = Gzip(new byte[1_000_000]);
         check(AiAccess.Gunzip(Gzip("{\"v\":1}"u8.ToArray())).Length == 7 && Fails(() => AiAccess.Gunzip(packed, 10_000)), "unpacking stops at its limit (no gzip bomb)");

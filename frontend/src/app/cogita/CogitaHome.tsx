@@ -1,29 +1,23 @@
 /**
- * EINE BAZA WIEDZY (COGITA.md §13, §14): `#/workspace/learn/<id>/<reiter>/…`.
- * 0110 — neben der Bibliothek, nicht in ihr; ihre Quellen (Bibliotheken zum
- * Verweisen, andere Bazy wiedzy zum Wiederverwenden) lädt `useSources`.
+ * EINE BAZA WIEDZY (COGITA.md §13, §14). 0110 — neben der Bibliothek, nicht in ihr; ihre
+ * Quellen (Bibliotheken zum Verweisen, andere Bazy wiedzy zum Wiederverwenden) lädt `useSources`.
  *
+ * 2026-10-24 — ZWEI TEILE, EINE BAZA (`parts.ts`):
  * <code>
- *   nauka         lernen: die Wiederholungen, was fällig ist, und Abläufe zum Durchgehen
- *   wpisy         die Einträge — Tabelle, Baum, Leinwand; ein Eintrag bearbeiten;
- *                 `wpisy/dodaj/<formularz>` viele auf einmal mit einem Formularz dodawania
- *   schemat       die Arten; `schemat/formularz/<id>` die Formularze dodawania bauen
- *   karty         die Kartenvorlagen
- *   powtorki      die Wiederholungen bauen
- *   przebiegi     die Abläufe bauen (und spielen)
- *   sesje         Sitzungen führen und mitmachen
- *   postepy       der eigene Fortschritt — und der aller Lernenden für die Lehrerin
- *   mapa          die Karte zum Entdecken
- *   do-zrobienia  was offen ist und was gemeldet wurde
- *   propozycje    Vorschläge von Lesenden
- *   ustawienia    wohin die Antworten gehen, Motivation, Abhängigkeiten, Werte, Regeln, Aussehen
- *   json          der Kurs als JSON, und der Auftrag für die eigene KI
- *   stare         2026-10-23 — Einträge der Rodzaje, die es nicht mehr gibt (Wiedza, Komentarz, Temat):
- *                 durchsehen und löschen; der Reiter steht nur da, solange es welche gibt
+ *   WIEDZA  #/workspace/knowledge/&lt;baza&gt;/…
+ *     wpisy         die Einträge — suchen, ein Rodzaj, ein Sposób wyświetlania; „Dostosuj" (was und wie);
+ *                   ein Eintrag: öffnen, den Verweisen folgen, ändern — und „Ucz się tego" (Nauka)
+ *     dodaj         ein einzelner Eintrag oder ein Sposób dodawania (mehrere verbundene auf einmal)
+ *     schematy      Rodzaje wpisów · Sposoby dodawania · Sposoby wyświetlania (`KnowledgeParts.tsx`)
+ *     Więcej:       ustawienia, json, do-zrobienia, propozycje, stare (solange es alte gibt)
+ *     wer liest:    wpisy, zaproponuj
+ *   NAUKA   #/workspace/learn/&lt;baza&gt;/…
+ *     nauka         was jetzt dran ist: die Powtórki, die Przebiegi
+ *     powtorki · przebiegi · sesje · postepy; Więcej: karty (Szablony kart), mapa, ustawienia
+ *     wer liest:    nauka, przebiegi, sesje, postepy, mapa
  * </code>
- *
- * Wer nur liest, sieht die Werkzeuge der Autoren nicht [L2]: Lernen, Abläufe,
- * Sitzungen, den eigenen Fortschritt, die Karte und das Vorschlagen.
+ * Jeder Teil hat oben rechts den Weg in den anderen. Die Daten sind dieselben: gelernt wird aus
+ * dem Wissen, ohne Kopie; eine Karte führt zurück zu ihrem Eintrag.
  */
 
 import { useCallback, useMemo } from 'react';
@@ -34,7 +28,6 @@ import type { LibraryStore } from '../library/libraryStore';
 import type { Me } from '../core/me';
 import { viewPath } from '../routes';
 import type { Who } from '../core/session';
-import { AddFormEditor } from './AddFormEditor';
 import { AddFormRun } from './AddFormRun';
 import { CogitaJson } from './CogitaJson';
 import { CogitaSettings } from './CogitaSettings';
@@ -47,14 +40,15 @@ import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
 import { readFlow, resolveFlow } from './flow';
 import { holderOfMe, useLearner } from './holders';
 import { dueAt } from './knowness';
+import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
 import { renamer } from './learn';
+import { cogitaPath, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
 import { OfficeProgress, OwnProgress } from './Progress';
 import { Pending } from './Pending';
 import { REVISION_PRESETS } from './presets';
 import { RevisionEditor } from './RevisionEditor';
 import { RevisionRun } from './RevisionRun';
-import { SchemaEditor } from './SchemaEditor';
 import { accountSources, useSources } from './sources';
 import { SessionsTab } from './Sessions';
 import { TemplateEditor } from './TemplateEditor';
@@ -65,22 +59,7 @@ import { Icon } from '../ui/icons';
 import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { isOldInBase, oldInBaseLabel } from './oldInBase';
 
-const AUTHOR_TABS = [
-  ['nauka', 'Nauka'], ['wpisy', 'Wpisy'], ['schemat', 'Schemat'], ['karty', 'Szablony kart'], ['powtorki', 'Powtórki'],
-  ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy'], ['mapa', 'Mapa'], ['do-zrobienia', 'Do zrobienia'],
-  ['propozycje', 'Propozycje'], ['ustawienia', 'Ustawienia'], ['json', 'JSON']
-] as const;
-
-const READER_TABS = [['nauka', 'Nauka'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy'], ['mapa', 'Mapa'], ['zaproponuj', 'Zaproponuj']] as const;
-
-/*
- * 2026-10-17 — SECHS REITER FÜR JEDEN TAG, der Rest unter „Więcej": wer eine
- * Baza wiedzy baut, sah dreizehn Reiter in einer Reihe (am Telefon zum
- * Wischen), und die täglichen gingen zwischen Schemat und JSON unter.
- */
-const DAILY: ReadonlySet<string> = new Set(['nauka', 'wpisy', 'powtorki', 'przebiegi', 'sesje', 'postepy']);
-
-export function CogitaHome({ me, who, library, store, trail }: { me: Me; who: Who; library: OpenLibrary; store: LibraryStore; trail: readonly string[] }) {
+export function CogitaHome({ me, who, library, store, trail, part = 'knowledge' }: { me: Me; who: Who; library: OpenLibrary; store: LibraryStore; trail: readonly string[]; part?: CogitaPart }) {
   const lib = useCogita(store, library.writes);
   /* 0110 — die Quellen mit dem Zugang dieses Kontos: was es nicht liest, fehlt. */
   const open = useMemo(() => accountSources(me), [me]);
@@ -90,46 +69,64 @@ export function CogitaHome({ me, who, library, store, trail }: { me: Me; who: Wh
   const ctx = useMemo<CogitaCtx | null>(() => lib === null ? null : ({
     lib, name: library.name, writes: library.writes, me, who, sources, keyIn,
     keyOf: (epoch) => keyIn(library.areaId, epoch),
-    href: (...tail) => viewPath('learn', library.libraryId, ...tail)
+    /* 2026-10-24 — jeder Weg in den richtigen Teil, auch ein alter („schemat", „wpisy/dodaj/…"). */
+    href: (...tail) => cogitaPath(library.libraryId, ...tail)
   }), [lib, library, me, who, sources, keyIn]);
   if (ctx === null) return null;
   return (
     <CogitaContext.Provider value={ctx}>
-      <Hub trail={trail} />
+      <Hub trail={trail} part={part} />
     </CogitaContext.Provider>
   );
 }
 
-function Hub({ trail }: { trail: readonly string[] }) {
+function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   const { lib, writes, me, href } = useCtx();
   const holder = useMemo(() => (me === null ? null : holderOfMe(me)), [me]);
   const { learner } = useLearner(lib, holder);
   const known = useCallback((_kind: string, entry: Parameters<typeof isOldInBase>[0]) => !isOldInBase(entry, (id) => lib.kind(id)), [lib]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const old = useMemo(() => (writes ? oldEntriesOf(lib.store, known).length : 0), [writes, lib.store, lib.revision, known]);
-  const tabs: readonly (readonly [string, string])[] = writes ? (old > 0 || trail[0] === 'stare' ? [...AUTHOR_TABS, ['stare', `Stare wpisy (${old})`]] : AUTHOR_TABS) : READER_TABS;
-  const tab = tabs.some(([slug]) => slug === trail[0]) ? trail[0]! : 'nauka';
-  const go = (...tail: string[]) => { window.location.hash = href(...tail); };
-  const cards = useAsync(() => lib.cards('learn').then((r) => r.cards), [lib.revision]);
+  const old = useMemo(() => (writes && part === 'knowledge' ? oldEntriesOf(lib.store, known).length : 0), [writes, part, lib.store, lib.revision, known]);
+  const tabs: readonly (readonly [string, string])[] = part === 'knowledge' ? (writes ? KNOWLEDGE_TABS : KNOWLEDGE_READER_TABS) : (writes ? LEARN_TABS : LEARN_READER_TABS);
+  const more: readonly (readonly [string, string])[] = !writes ? [] : part === 'knowledge'
+    ? (old > 0 || trail[0] === 'stare' ? [...KNOWLEDGE_MORE, ['stare', `Stare wpisy (${old})`]] : KNOWLEDGE_MORE)
+    : LEARN_MORE;
+  const all = [...tabs, ...more];
+  const tab = all.some(([slug]) => slug === trail[0]) ? trail[0]! : tabs[0]![0];
+  /* „Ustawienia" gibt es in beiden Teilen — man bleibt, wo man ist. */
+  const go = (...tail: string[]) => { window.location.hash = tail[0] === 'ustawienia' ? viewPath(part, lib.libraryId, ...tail) : href(...tail); };
+  /* Karten nur, wo gelernt wird: die Wiedza rechnet keine. */
+  const cards = useAsync(() => (part === 'learn' ? lib.cards('learn').then((r) => r.cards) : Promise.resolve(null)), [lib.revision, part]);
+  const other = part === 'knowledge'
+    ? { href: viewPath('learn', lib.libraryId), label: 'Ucz się z tej bazy', icon: 'cap' as const }
+    : { href: viewPath('knowledge', lib.libraryId), label: 'Wiedza tej bazy', icon: 'branch' as const };
 
   return (
-    <div className="cg">
-      <nav className="cg-subtabs" aria-label="Cogita">
-        {tabs.filter(([slug]) => !writes || DAILY.has(slug)).map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} href={href(slug)}>{label}</a>)}
-        {writes && (
+    <div className="cg" data-cogita-part={part}>
+      <nav className="cg-subtabs cg-parttabs" aria-label={part === 'knowledge' ? 'Wiedza' : 'Nauka'}>
+        {tabs.map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} aria-current={slug === tab ? 'page' : undefined} href={href(slug)}>{label}</a>)}
+        {more.length > 0 && (
           <MenuButton
-            label="Więcej: baza wiedzy"
-            className={DAILY.has(tab) ? 'cg-subtabs-more' : 'cg-subtabs-more is-on'}
-            trigger={<>{DAILY.has(tab) ? 'Więcej' : tabs.find(([slug]) => slug === tab)?.[1] ?? 'Więcej'}<Icon name="chevron" /></>}
-            items={tabs.filter(([slug]) => !DAILY.has(slug)).map(([slug, label]) => ({ label, checked: slug === tab, onSelect: () => go(slug) }))}
+            label={part === 'knowledge' ? 'Więcej: wiedza' : 'Więcej: nauka'}
+            className={more.some(([slug]) => slug === tab) ? 'cg-subtabs-more is-on' : 'cg-subtabs-more'}
+            trigger={<>{more.find(([slug]) => slug === tab)?.[1] ?? 'Więcej'}<Icon name="chevron" /></>}
+            items={more.map(([slug, label]) => ({ label, checked: slug === tab, onSelect: () => go(slug) }))}
           />
         )}
+        <a className="cg-other-part" href={other.href}><Icon name={other.icon} />{other.label}</a>
       </nav>
-      {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
+      {/* -- Wiedza -- */}
       {tab === 'wpisy' && <EntitiesTab trail={trail.slice(1)} go={go} />}
-      {tab === 'schemat' && (trail[1] === 'formularz'
-        ? <AddFormEditor formId={trail[2] ?? null} onChoose={(id) => go('schemat', 'formularz', ...(id === null ? [] : [id]))} onBack={() => go('schemat')} onRun={(id) => go('wpisy', 'dodaj', id)} />
-        : <SchemaEditor chosenId={trail[1] ?? null} onChoose={(id) => go('schemat', ...(id === null ? [] : [id]))} onForm={(id) => go('schemat', 'formularz', id)} />)}
+      {tab === 'dodaj' && <AddTab trail={trail.slice(1)} go={go} />}
+      {tab === 'schematy' && <SchemaHub trail={trail.slice(1)} go={go} />}
+      {tab === 'do-zrobienia' && <Pending onOpen={(id) => go('wpisy', id)} />}
+      {tab === 'propozycje' && <Contributions />}
+      {tab === 'zaproponuj' && <Propose />}
+      {tab === 'json' && <CogitaJson />}
+      {tab === 'stare' && <OldEntries store={lib.store} known={known} writes={writes} labelOf={oldInBaseLabel}
+        where="Rodzajów „Wiedza”, „Komentarz” i „Temat” już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json), a porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”)." />}
+      {/* -- Nauka -- */}
+      {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
@@ -141,13 +138,8 @@ function Hub({ trail }: { trail: readonly string[] }) {
         </div>
       )}
       {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">Liczenie kart…</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}
-      {tab === 'do-zrobienia' && <Pending onOpen={(id) => go('wpisy', id)} />}
-      {tab === 'propozycje' && <Contributions />}
-      {tab === 'zaproponuj' && <Propose />}
+      {/* -- in beiden -- */}
       {tab === 'ustawienia' && <CogitaSettings />}
-      {tab === 'json' && <CogitaJson />}
-      {tab === 'stare' && <OldEntries store={lib.store} known={known} writes={writes} labelOf={oldInBaseLabel}
-        where="Rodzajów „Wiedza”, „Komentarz” i „Temat” w Nauce już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json), a porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”)." />}
     </div>
   );
 }
@@ -208,17 +200,10 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   );
 }
 
-/* -- Wpisy ------------------------------------------------------------------------------------- */
+/* -- Wiedza: Wpisy und Dodaj ------------------------------------------------------------------------ */
 
 function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[]) => void }) {
   const { lib } = useCtx();
-  /* 2026-10-17 — ein Formularz dodawania ausfüllen: viele Einträge, Zeile für Zeile (AddFormRun). */
-  if (trail[0] === 'dodaj') {
-    return <AddFormRun formId={trail[1] ?? null} onClose={() => go('wpisy')} onOpen={(id) => go('wpisy', id)} onEdit={(id) => go('schemat', 'formularz', id)} />;
-  }
-  if (trail[0] === 'nowy') {
-    return <EntityEditor entityId={null} newKinds={trail[1] === undefined ? [lib.kinds[0]?.id ?? 'question'] : [trail[1]]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />;
-  }
   if (trail[0] !== undefined && trail[0] !== 'widok' && lib.entity(trail[0]) !== undefined) {
     return (
       <div className="cg">
@@ -227,11 +212,26 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
         <ForeignOnly id={trail[0]} tab="wpisy">
           <EntityEditor entityId={trail[0]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />
         </ForeignOnly>
+        <LearnFrom id={trail[0]} go={go} />
       </div>
     );
   }
-  return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} onOpen={(id) => go('wpisy', id)} onNew={(kind) => go('wpisy', 'nowy', kind)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))}
-    onForm={(id) => go('wpisy', 'dodaj', id)} onForms={() => go('schemat', 'formularz')} />;
+  return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} onOpen={(id) => go('wpisy', id)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))}
+    onAdd={() => go('dodaj')} onDesign={(id) => go('schematy', 'wyswietlanie', ...(id === null ? [] : [id]))} />;
+}
+
+/** Dodaj: ein einzelner Eintrag (`dodaj/nowy/<rodzaj>`), ein Sposób dodawania ausfüllen (`dodaj/<formularz>`), sonst die Auswahl. Wer nur liest, schlägt vor. */
+function AddTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[]) => void }) {
+  const { lib, writes } = useCtx();
+  if (!writes) return <Propose />;
+  if (trail[0] === 'nowy') {
+    return <EntityEditor entityId={null} newKinds={[trail[1] ?? lib.kinds[0]?.id ?? 'question']} onDone={(id) => go(...(id === null ? ['dodaj'] : ['wpisy', id]))} onOpen={(id) => go('wpisy', id)} />;
+  }
+  if (trail[0] !== undefined) {
+    /* 2026-10-17 — ein Formularz dodawania ausfüllen: viele Einträge, Zeile für Zeile (AddFormRun). */
+    return <AddFormRun formId={trail[0]} onClose={() => go('dodaj')} onOpen={(id) => go('wpisy', id)} onEdit={(id) => go('schematy', 'dodawanie', id)} />;
+  }
+  return <AddHub go={go} />;
 }
 
 /* -- Przebiegi ---------------------------------------------------------------------------------- */

@@ -80,6 +80,9 @@ export { textToLatex, planToLatex } from '${app}scriptorium/latex';
 export { archiveRow, browseLocal, choose, facetKey, facetsOf, fieldFacet, PROJECTS } from '${app}scriptorium/archive';
 export { layoutOf } from '${app}scriptorium/archiveLayout';
 export { snapshotDoc, refsOf as snapshotRefs, gzip, SNAPSHOT_VERSION } from '${app}aiAccess/aiSnapshot';
+export * as loc from '${app}library/locations';
+export * as src from '${app}library/sourceText';
+export { SourceBlockView } from '${app}library/SourceBlocks';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 `);
@@ -151,7 +154,7 @@ try {
     const other = m.planLibraryImport({ format: 'recreatio/scriptorium', entries: [{ kind: 'text', data: {} }] }, empty);
     assert.ok('error' in other && other.error.includes('w Skryptorium'), 'another part\'s format says where it is imported');
     const cogita = m.planLibraryImport({ format: 'recreatio.cogita.base', entries: [{ kind: 'entity', data: {} }] }, empty);
-    assert.ok('error' in cogita && cogita.error.includes('w Nauce'), 'a Cogita file says where it is imported');
+    assert.ok('error' in cogita && cogita.error.includes('w Wiedzy'), 'a Cogita file says where it is imported');
   }
   ok('sources only: a file with texts, deliveries, comments or topics is refused, naming where each belongs; other formats name their part');
 
@@ -808,7 +811,7 @@ try {
     assert.equal(fresh.locator, 's. 23–24');
     assert.equal(fresh.topics, undefined, 'a quote has no topics any more');
     assert.ok(fresh.check.includes('por. Dn 10') && fresh.check.includes('nie zostanie zapisane'), 'an old note is shown before saving — and said not to be saved');
-    assert.ok(qp.warnings.some((w) => w.includes('„topics”') && w.includes('tematów już nie ma')) && qp.warnings.some((w) => w.includes('„notes”') && w.includes('Nauce')), 'old fields are named, with the reason');
+    assert.ok(qp.warnings.some((w) => w.includes('„topics”') && w.includes('tematów już nie ma')) && qp.warnings.some((w) => w.includes('„notes”') && w.includes('Wiedzy')), 'old fields are named, with the reason');
     assert.equal(fresh.photo, undefined, 'no photo numbers: the photos stay in the own chat');
     assert.equal(fresh.uncertain, true);
     assert.ok(m.planQuotes({ quotes: [{ text: 'x' }], work: { title: 'Zupełnie inna' } }, book, shelf).warnings.some((w) => w.includes('Zupełnie inna')), 'written for another book: said, not refused');
@@ -1047,6 +1050,122 @@ try {
     const packed = await m.gzip('{"v":1}');
     assert.deepEqual([packed[0], packed[1]], [0x1f, 0x8b], 'packed as gzip (the service unpacks with a limit)');
     ok('AI access: a readable snapshot per collection — titles, kinds with field meanings, notes from the app, references only inside the link');
+  }
+
+  /* 2j. 2026-10-24 — Miejsca w dziele (`locations.ts`): ein Modell für jede Stelle. */
+  {
+    const P = m.loc.parsePlace;
+    const F = (text, scheme, o) => m.loc.formatPlace(P(text, scheme, o), text);
+    const hit = (a, sa, b, sb = sa, oa = {}, ob = {}) => P(a, sa, oa).spans.some((x) => P(b, sb, ob).spans.some((y) => m.loc.overlap(x, y)));
+    assert.equal(F('J 21,15-17', 'bible'), 'J 21,15-17', 'Scripture: book, chapter, verses — written back the same');
+    assert.equal(P('Mt 5,3-12; 6,1', 'bible').spans.length, 2, 'discontinuous: two pieces');
+    assert.ok(hit('Ps 50,3', 'bible', 'Ps 51,3', 'bible', { psalms: 'greek' }) && !hit('Ps 50,3', 'bible', 'Ps 51,3'), 'Psalms: a Vulgate (Greek) number meets the Hebrew one only when the work says so');
+    assert.ok(hit('J 21', 'bible', 'J 21,16') && !hit('J 21,15', 'bible', 'J 21,16'), 'a chapter holds its verses; a verse is not the next one');
+    assert.ok(hit('nn. 24–26', 'numbered', 'nr 25') && !hit('nr 24', 'numbered', 'nr 25') && P('kan. 915 § 1', 'numbered').spans.length === 1, 'documents: numbers, ranges, a paragraph in a canon');
+    assert.equal(F('I-II, q. 90, a. 1, ad 2', 'aquinas'), 'I-II, q. 90, a. 1, ad 2', 'Aquinas: part, question, article, answer to an objection');
+    assert.ok(hit('I, q. 2, a. 3', 'aquinas', 'I q. 2 a. 3 co.') && !hit('I, q. 2, a. 3, ad 1', 'aquinas', 'I, q. 2, a. 3, co.'), 'the article holds its corpus; ad 1 is not the corpus');
+    assert.ok(hit('4.1–4.116', 'decimal', '4.11') && !hit('4.1–4.116', 'decimal', '4.2') && hit('2.01', 'decimal', '2.0121'), 'Tractatus: decimal levels, ranges, a proposition holds its comments');
+    assert.ok(hit('§§ 1–5', 'sections', '§ 3') && P('cz. II, xi', 'sections').spans.length === 1 && !hit('§ 3', 'sections', 'cz. II, iii'), 'Investigations: §§ of part I, the sections of part II apart');
+    assert.ok(hit('t. 2, cz. 1, rozdz. 3', 'outline', 'rozdz. 3') && !hit('t. 2, cz. 1, rozdz. 3', 'outline', 'rozdz. 4'), 'an outline: levels may be missing; what both name must meet');
+    const both = P('rozdz. 3, s. 45', 'pages');
+    assert.ok(m.loc.isStructural(both) && both.pages[0].from === 45 && !m.loc.isStructural(P('s. 23–25', 'pages')), 'structure and page in one place; pages alone belong to this edition only');
+    assert.ok(P('s. xii', 'pages').pages[0].from < P('s. 1', 'pages').pages[0].from, 'roman pages (front matter) come before page 1');
+    const AQ = { id: 'aq', kind: 'work', key: 'sth', data: { workType: 'book', title: 'Summa theologiae', scheme: 'aquinas' } };
+    const aq = (id, locator) => ({ id, kind: 'quote', data: { text: id, work: ['aq'], locator } });
+    const aqq = [aq('b', 'I-II, q. 1, a. 1'), aq('a', 'I, q. 2, a. 3'), aq('c', 'I-II, q. 90, a. 1, ad 2'), aq('d', 'I-II, q. 90, a. 1')];
+    const AL = look([AQ, ...aqq]);
+    assert.deepEqual([...aqq].sort((x, y) => m.quoteOrder(x, AL).localeCompare(m.quoteOrder(y, AL))).map((q) => q.id), ['a', 'b', 'd', 'c'], 'quotes ordered by the scheme of their work (part, question, article, answer)');
+    assert.ok(m.kindOf('work').fields.some((f) => f.key === 'scheme' && f.options.length === m.loc.SCHEMES.length) && m.kindOf('work').fields.some((f) => f.key === 'editionOf' && f.type === 'ref'), 'a work says its scheme and of which work it is an edition');
+    ok('places in a work: Scripture (both Psalm numberings), documents, Aquinas, Tractatus, Investigations, outlines, pages — structure vs. edition');
+  }
+
+  /* 2k. 2026-10-24 — Tekst źródła (`sourceText.ts`): JSON, Prüfung, Teile, Verknüpfung beim Lesen, Datenschutz. */
+  {
+    const S = m.src;
+    const schemeWork = { pages: 'book', bible: 'bible', numbered: 'document' };
+    const keys = { pages: 'ratzinger2007', bible: 'bt', numbered: 'dei-verbum', aquinas: 'sth', decimal: 'tractatus', sections: 'dociekania', outline: 'wyznania' };
+    for (const [scheme, doc] of Object.entries(S.SOURCE_EXAMPLES)) {
+      const work = { id: `w-${scheme}`, kind: 'work', key: keys[scheme], data: { workType: schemeWork[scheme] ?? 'book', title: scheme } };
+      const plan = S.planSourceImport(doc, { work });
+      assert.ok(!('error' in plan), `example ${scheme} imports: ${plan.error ?? ''}`);
+      assert.deepEqual([plan.scheme, plan.warnings], [scheme, []], `example ${scheme}: its scheme, no warnings`);
+      assert.ok(plan.summary.located > 0 || scheme === 'pages', `example ${scheme}: blocks carry places`);
+      const again = S.planSourceImport(S.exportSourcePart(work, S.readManifest(S.nextManifest(undefined, work.id, plan, 'p')), S.readPart(S.partData('t', work.id, plan))), { work });
+      assert.deepEqual(again.blocks, plan.blocks, `example ${scheme}: export → import gives the same blocks`);
+    }
+    const BT = { id: 'bt1', kind: 'work', key: 'bt', data: { workType: 'bible', title: 'Biblia Tysiąclecia', siglum: 'BT' } };
+    assert.match(S.planSourceImport({ format: 'x' }, { work: BT }).error, /recreatio\/source-text/, 'another format is refused');
+    assert.match(S.planSourceImport({ ...S.SOURCE_EXAMPLES.bible, work: '@inne' }, { work: BT }).error, /innego dzieła/, 'a text for another work is refused');
+    assert.match(S.planSourceImport({ ...S.SOURCE_EXAMPLES.bible, scheme: 'pages' }, { work: { ...BT, data: { ...BT.data, scheme: 'bible' } } }).error, /układ miejsc/, 'a scheme that contradicts the work is refused');
+    const warned = S.planSourceImport({ ...S.SOURCE_EXAMPLES.pages, work: '@bt', scheme: undefined, blocks: [{ type: 'page', page: '40' }, { type: 'paragraph', text: 'A {{page 39}} b {{note 9}}' }, { type: 'quiz' }] }, { work: { ...BT, data: { workType: 'book', title: 'K' } } });
+    assert.ok(warned.warnings.some((w) => /39 po stronie wyższej/.test(w)) && warned.warnings.some((w) => /\{\{note 9\}\}/.test(w)) && warned.warnings.some((w) => /nieznany typ/.test(w)), 'warnings: pages out of order, a note reference without its note, an unknown block (skipped)');
+    assert.deepEqual(S.pieces('a {{page 34 pdf 46}}b{{note 1}} {{? sł}} {{gap}}').map((p) => p.t), ['text', 'page', 'text', 'note', 'text', 'unsure', 'text', 'gap'], 'marks inside the text: page breaks (printed + PDF), notes, uncertain, gaps');
+    assert.equal(S.plainOfText('Ala {{page 2}}ma {{? kota}}{{note 1}}.'), 'Ala ma kota.', 'the plain text has no marks (search, quotes)');
+
+    /* Blöcke zu einer Stelle: genau getroffen, ganze Einheit, Seiten; die Kapitelüberschrift nur, wenn nichts Genaueres da ist. */
+    const bib = S.SOURCE_EXAMPLES.bible.blocks;
+    const find = (blocks, loc, scheme) => S.findBlocks(blocks, m.loc.parsePlace(loc, scheme), scheme);
+    assert.deepEqual([find(bib, 'J 21,16', 'bible'), find(bib, 'J 21', 'bible'), find(bib, 'J 20,1', 'bible')], [[3], [0, 1, 2, 3], []], 'a verse: its block; a chapter: all of it; elsewhere: nothing');
+    const coarse = [{ type: 'heading', loc: 'J 21', text: 'R' }, { type: 'paragraph', loc: 'J 21,15-17', text: 'a' }, { type: 'paragraph', loc: 'J 21,18', text: 'b' }];
+    assert.deepEqual(find(coarse, 'J 21,16', 'bible'), [1], 'a verse inside a paragraph of several verses: that paragraph, not the chapter heading');
+    assert.deepEqual(find(S.SOURCE_EXAMPLES.pages.blocks, 's. 34', 'pages'), [2, 3], 'a page: the paragraph that runs onto it and what stands on it');
+    assert.deepEqual(find(S.SOURCE_EXAMPLES.aquinas.blocks, 'I, q. 2, a. 3, ad 1', 'aquinas'), [5], 'Aquinas: the answer to the first objection');
+
+    /* Teile: derselbe Schlüssel ersetzt, ein anderer kommt dazu, derselbe Teil zweimal ändert nichts, doppelte Stellen werden gemeldet. */
+    const one = S.planSourceImport(S.SOURCE_EXAMPLES.bible, { work: BT });
+    const m1 = S.readManifest(S.nextManifest(undefined, BT.id, one, 'p1'));
+    const re = S.planSourceImport(S.SOURCE_EXAMPLES.bible, { work: BT, manifest: m1 });
+    assert.ok(re.replaces && S.samePart(S.readPart(S.partData('t', BT.id, one)), re), 'the same portion again: it replaces itself and nothing changed (no duplicate)');
+    assert.equal(S.readManifest(S.nextManifest(m1, BT.id, re, 'p1')).parts.length, 1, 'still one part');
+    const dup = S.planSourceImport({ ...S.SOURCE_EXAMPLES.bible, portion: { key: 'J-bis', label: 'J znowu', order: 44 } }, { work: BT, manifest: m1 });
+    assert.deepEqual([dup.replaces, S.overlapsWith(m1, dup)], [false, ['Ewangelia według św. Jana']], 'another key with the same places: added, but flagged as a probable duplicate');
+    const mk = S.planSourceImport({ ...S.SOURCE_EXAMPLES.bible, portion: { key: 'Mk', label: 'Marek', order: 41 }, blocks: [{ type: 'paragraph', loc: 'Mk 1,1', text: 'Początek Ewangelii.' }] }, { work: BT, manifest: m1 });
+    const m2 = S.readManifest(S.nextManifest(m1, BT.id, mk, 'p2'));
+    assert.deepEqual([m2.parts.map((p) => p.key), S.overlapsWith(m1, mk)], [['Mk', 'J'], []], 'another book: added in canonical order, no warning');
+    assert.deepEqual([S.placeInManifest(m2, 'J 21,15').part.id, S.placeInManifest(m2, 'Mk 1,1').part.id, S.placeInManifest(m2, 'Rdz 1,1').status], ['p1', 'p2', 'none'], 'a place finds its part from the directory alone');
+    const pagesTwice = { work: 'w', scheme: 'pages', edition: {}, parts: [{ id: 'a', key: 'a', label: 'A', order: 1, pages: [10, 20], blocks: 1, words: 1 }, { id: 'b', key: 'b', label: 'B', order: 2, pages: [15, 30], blocks: 1, words: 1 }] };
+    assert.deepEqual([S.placeInManifest(pagesTwice, 's. 17').status, S.placeInManifest(pagesTwice, 's. 25').part.id], ['ambiguous', 'b'], 'a page in two parts is ambiguous — said, not guessed');
+
+    /* Aus einer Auswahl: die Stelle. */
+    assert.equal(S.selectionLocator(bib, 2, 3, 'bible'), 'J 21,15-16', 'selected verses → their range');
+    assert.equal(S.selectionLocator(S.SOURCE_EXAMPLES.pages.blocks, 2, 3, 'pages'), 's. 33–34', 'a selection in a book → its pages in this edition');
+    assert.equal(S.searchParts([{ part: m1.parts[0], data: S.readPart(S.partData('t', BT.id, one)) }], 'milujesz')[0].loc, 'J 21,15', 'search ignores diacritics and says where');
+    const vgBlocks = [{ type: 'heading', loc: 'J 21', text: 'Caput XXI' }, { type: 'paragraph', loc: 'J 21,15-16', text: 'Cum ergo… diligis me?' }, { type: 'paragraph', loc: 'J 21,17', text: 'Dicit ei tertio' }];
+    const aligned = S.alignEditions(bib, vgBlocks, { scheme: 'bible' }, { scheme: 'bible' });
+    assert.deepEqual([aligned.rows.map((r) => [r.mine, r.theirs]), aligned.rest], [[[[0, 1], [0]], [[2], [1]], [[3], [2]]], []],
+      'two editions side by side: chapter by chapter, a paragraph of two verses next to its first verse, a verse this part lacks after the verse before it');
+
+    /* Beim Lesen verknüpft — und nur, was dieser Leser lesen darf. */
+    const text = { id: 'tx1', kind: 'sourcetext', libraryId: 'priv', data: S.nextManifest(undefined, BT.id, one, 'p1') };
+    const VG = { id: 'vg1', kind: 'work', key: 'vg', data: { workType: 'bible', title: 'Nova Vulgata', psalms: 'greek', editionOf: ['bt1'] } };
+    const quote = { id: 'q1', kind: 'quote', key: 'q1', data: { text: 'Miłujesz', work: ['bt1'], locator: 'J 21,15' } };
+    const base = [BT, VG, quote];
+    const reader = { ...look(base), readable: () => base, texts: (w) => (w === 'bt1' ? [text] : []) };
+    const stranger = { ...look(base), readable: () => base, texts: () => [] };
+    assert.deepEqual([S.textPlace(reader, reader.texts, 'bt1', 'J 21,15').status, S.textPlace(stranger, stranger.texts, 'bt1', 'J 21,15')], ['found', null], 'with the text readable: found; without: nothing at all');
+    const viaEdition = S.textPlace(reader, reader.texts, 'vg1', 'J 21,16');
+    assert.deepEqual([viaEdition.status, viaEdition.edition.id, S.textPlace(reader, reader.texts, 'vg1', 's. 5')], ['found', 'bt1', null], 'another edition: a verse is found in the sister text, a page never');
+    const cites = { id: 'c', kind: 'text', data: { title: 'K', body: 'Raz [@bt, J 21,15]. Dwa [@q1].' } };
+    const withText = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: cites, look: reader }));
+    const without = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: cites, look: stranger }));
+    assert.equal((withText.match(/pokaż w tekście/g) ?? []).length, 2, 'both footnotes (a work with a place, a quote with its place) lead into the text');
+    assert.ok(!without.includes('pokaż w tekście') && !without.includes('w tekście'), 'a reader who cannot read the text sees no trace of it');
+    const amb = { ...reader, texts: () => [{ ...text, data: { work: 'bt1', scheme: 'pages', parts: pagesTwice.parts } }] };
+    const ambHtml = m.renderToStaticMarkup(m.createElement(m.TextArticle, { entry: { id: 'c2', kind: 'text', data: { title: 'K', body: 'X [@bt, s. 17].' } }, look: amb }));
+    assert.ok(ambHtml.includes('niejednoznaczne'), 'an ambiguous place is flagged in the footnote');
+    const fig = m.renderToStaticMarkup(m.createElement(m.QuoteFigure, { entry: quote, look: reader }));
+    assert.ok(fig.includes('pokaż w tekście'), 'a quote leads to its place in the text');
+    const block = m.renderToStaticMarkup(m.createElement(m.SourceBlockView, { block: { type: 'paragraph', loc: 'J 21,15', text: 'A {{page 34}}b{{note 1}}' }, index: 0, prefix: 'x-' }));
+    assert.ok(block.includes('data-label="s. 34"') && block.includes('data-label="J 21,15"') && !/>s\. 34</.test(block) && !/>J 21,15</.test(block), 'marks are labels (::before), never selectable text — a quote from a selection stays clean');
+
+    /* Wo der Text nicht hingehört: JSON der Bibliothek, Abschrift für AI, Suche. */
+    assert.ok(S.HEAVY_KINDS.has('sourcepart') && !m.isLibraryKind('sourcetext') && !m.isLibraryKind('sourcepart'), 'parts are heavy (synced as rows only); neither kind is exported with the library JSON');
+    const snap = m.snapshotDoc([{ store: { libraryId: 'L', all: () => [BT, quote, text] }, kind: 'books', name: 'Biblioteka' }], 'L', 'now');
+    assert.ok(!snap.entries.some((e) => e.kind === 'sourcetext'), 'the AI snapshot leaves the text directory out');
+    const desc = S.sourceTextDescription();
+    assert.ok(m.loc.SCHEMES.every((s) => desc.includes(`"${s.id}"`)) && desc.includes('{{page 46 pdf 52}}') && desc.includes('Nie wymyślaj tekstu'), 'the description names every scheme, the marks and the rule: never invent text');
+    assert.ok(S.sourceTextPrompt(BT, 'Biblia Tysiąclecia', 'bible').includes('"@bt"'), 'the prompt names the work by its key');
+    ok('source texts: JSON with examples for every scheme, checked import in portions (no duplicates), places → blocks, ambiguity said, links made while reading, invisible to readers without access');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

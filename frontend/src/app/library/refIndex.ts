@@ -53,7 +53,8 @@ export interface Ref {
 }
 
 /** Was nie als Verweis zählt: Buchhaltung der Cogita (Zusammenführungen, Einstellungen mit den Kennungen der Quellen). */
-const SKIP_KINDS: ReadonlySet<string> = new Set(['merge', 'settings']);
+/* 2026-10-24 — und das Verzeichnis eines Quellentexts (`sourceText.ts`): es gehört zum Werk, es verweist nicht darauf. */
+const SKIP_KINDS: ReadonlySet<string> = new Set(['merge', 'settings', 'sourcetext', 'sourcepart']);
 
 const MARKUP = /\[@|\|@/;
 

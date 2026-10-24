@@ -11,6 +11,9 @@
  * „Gotowy schemat"): ein Rodzaj ist leer und eigen, oder er kommt als JSON —
  * die Vorlagen liegen als Dateien in `templates/cogita/*.json` (Komentarz,
  * Słownik, Psałterz) und werden hier unten importiert.
+ *
+ * 2026-10-24 — „Rodzaje wpisów", eine der drei Kategorien der Schematy (Wiedza): nur
+ * die Rodzaje. Sposoby dodawania und Sposoby wyświetlania stehen daneben, eigenständig.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -18,15 +21,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { ask, toast } from '../ui/dialogs';
 import { JsonPanel } from '../ui/JsonPanel';
 import { WorkspaceError } from '../core/session';
-import { nodeLabel, readAddForm } from './addForm';
-import { NewFormMenu } from './AddFormEditor';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
 import { isBaseKind } from './kinds';
 import { problemsOf, type KindDef } from './schema';
 import { KindForm } from './KindForm';
 import { OriginTag, useBusy, useCtx } from './ui';
 
-export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string | null; onChoose: (id: string | null) => void; onForm: (id: string) => void }) {
+export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
   const { lib, writes, name } = useCtx();
   const chosen = chosenId === null ? undefined : lib.kind(chosenId);
   const [draft, setDraft] = useState<KindDef | null>(null);
@@ -107,29 +108,7 @@ export function SchemaEditor({ chosenId, onChoose, onForm }: { chosenId: string 
             </li>
           ))}
         </ul>
-        {/* 2026-10-17 — wie man die Einträge dieser Rodzaje anlegt, viele auf einmal: Formularze dodawania (`addForm.ts`). */}
-        <div className="cg-row-between">
-          <h3>Formularze dodawania</h3>
-          {writes && <NewFormMenu onMade={onForm} />}
-        </div>
-        {lib.docs('addform').length === 0 ? (
-          <p className="cg-muted">Formularz dodaje wiele wpisów naraz, wiersz po wierszu — np. słowo, jego tłumaczenie i temat. Zacznij od rodzaju, który chcesz dodawać.</p>
-        ) : (
-          <ul className="lib-list">
-            {lib.docs('addform').map((e) => {
-              const form = readAddForm(e.id, e.data);
-              const made = form.graph.nodes.filter((n) => n.type === 'entry').map((n) => nodeLabel(n, lib.look));
-              return (
-                <li key={e.id}>
-                  <button type="button" className="lib-row cg-card" onClick={() => onForm(e.id)}>
-                    <span className="lib-row-title">{form.name} {!lib.isOwn(e.id) && <OriginTag id={e.id} />}</span>
-                    <span className="lib-row-meta">{made.join(' · ') || 'pusty'}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {/* 2026-10-24 — die Formularze dodawania stehen jetzt unter „Sposoby dodawania" (eigene Kategorie der Schematy, `KnowledgeParts.tsx`). */}
       </aside>
     </div>
   );

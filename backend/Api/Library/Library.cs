@@ -353,8 +353,14 @@ public static partial class Library
     /// Browser fragt beim nächsten Mal ab diesem Stand, und zwei Sekunden
     /// Überlappung fangen ab, was gleichzeitig geschrieben wurde.
     /// </summary>
-    private static async Task EntriesAsync(HttpContext ctx, Db db, Guid id, string? since)
+    private static async Task EntriesAsync(HttpContext ctx, Db db, Guid id, string? since, string? light, string? ids)
     {
+        var only = ids is null ? null : ParseIds(ids);
+        if (ids is not null && (only is null || only.Count > MaxHeavyBatch))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, $"Podaj od 1 do {MaxHeavyBatch} identyfikatorów.");
+            return;
+        }
         if (!SinceOf(since, out var from))
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny stan.");
@@ -368,7 +374,7 @@ public static partial class Library
         if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
         if (await ReadableAsync(ctx, connection, caller, id) is null) return;
 
-        await WriteEntriesAsync(ctx, connection, id, from);
+        await WriteEntriesAsync(ctx, connection, id, from, light == "1", only);
     }
 
     /// <summary>`since` gelesen — zwei Sekunden früher, damit Gleichzeitiges nicht durchfällt; leer: alles.</summary>
@@ -382,17 +388,33 @@ public static partial class Library
     }
 
     /// <summary>Die Einträge (oder was sich seit <paramref name="from"/> geändert hat) — für Konto, Link und Platz dieselbe Antwort.</summary>
-    private static async Task WriteEntriesAsync(HttpContext ctx, SqlConnection connection, Guid id, DateTimeOffset? from)
+    /*
+     * 2026-10-24 — SCHWERE ARTEN. Ein Teil eines Quellentexts (`sourcepart`) ist gross (ein
+     * Buch der Bibel, ein Kapitel eines Buches); der Abgleich mit `light=1` bringt nur seine
+     * Zeile ohne Hülle (`heavy: true`), der Leser holt ihn bei Bedarf mit `ids=…`. Ein älterer
+     * Browser fragt ohne `light` und bekommt alles wie bisher.
+     */
+    public static readonly string[] HeavyKinds = ["sourcepart"];
+    private const int MaxHeavyBatch = 50;
+    private static readonly string HeavyList = string.Join(", ", HeavyKinds.Select(k => $"N'{k}'"));
+
+    private static async Task WriteEntriesAsync(HttpContext ctx, SqlConnection connection, Guid id, DateTimeOffset? from, bool light = false, List<Guid>? only = null)
     {
         var now = DateTimeOffset.UtcNow;
+        var where = only is not null
+            ? $"deleted_at IS NULL AND id IN ({string.Join(", ", only.Select((_, i) => $"@e{i}"))})"
+            : from is null ? "deleted_at IS NULL" : "updated_at >= @since";
+        var sealedColumn = light && only is null ? $"CASE WHEN kind IN ({HeavyList}) THEN NULL ELSE sealed END" : "sealed";
         await using var cmd = new SqlCommand($"""
-            SELECT id, kind, epoch, sealed, version, created_at, updated_at, deleted_at, published_at, published_as
+            SELECT id, kind, epoch, {sealedColumn}, version, created_at, updated_at, deleted_at, published_at, published_as,
+                   CAST(CASE WHEN kind IN ({HeavyList}) THEN 1 ELSE 0 END AS bit)
             FROM app.library_entry
-            WHERE library_id = @id AND {(from is null ? "deleted_at IS NULL" : "updated_at >= @since")}
+            WHERE library_id = @id AND {where}
             ORDER BY updated_at;
             """, connection);
         cmd.Parameters.AddWithValue("@id", id);
-        if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
+        if (only is not null) for (var i = 0; i < only.Count; i++) cmd.Parameters.AddWithValue($"@e{i}", only[i]);
+        else if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
 
         var entries = new List<object>();
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
@@ -410,13 +432,14 @@ public static partial class Library
                     updatedAt = reader.GetDateTimeOffset(6),
                     deletedAt = reader.IsDBNull(7) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(7),
                     publishedAt = reader.IsDBNull(8) ? (DateTimeOffset?)null : reader.GetDateTimeOffset(8),
-                    publishedAs = reader.IsDBNull(9) ? null : reader.GetString(9)
+                    publishedAs = reader.IsDBNull(9) ? null : reader.GetString(9),
+                    heavy = light && only is null && reader.GetBoolean(10) && reader.IsDBNull(7) ? true : (bool?)null
                 });
             }
         }
 
         /* 2026-10-22 — was seitdem in einen anderen Bereich zog, ist HIER fort: es kommt als gelöscht. */
-        if (from is not null) await MovedAwayAsync(connection, id, from.Value, entries, ctx.RequestAborted);
+        if (from is not null && only is null) await MovedAwayAsync(connection, id, from.Value, entries, ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new { now, entries });
     }
