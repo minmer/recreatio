@@ -59,7 +59,7 @@ const LINK_SAMPLE = shareLink('x'.repeat(22));
 /** Der Text mit dem Link darunter. */
 export const withLinkText = (text: string, link: string): string => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
 
-export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial = '', separate = false, media = true, who }: {
+export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial = '', separate = false, media = true, who, onWrite }: {
   to: readonly string[];
   /** Die Karte, von der gesendet wird — der Kopf des Gesprächs wählt sie (`null`: die des Telefons). */
   sub: number | null;
@@ -75,6 +75,8 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   media?: boolean;
   /** Gesetzt: ein Anhang kann auch als Link gehen (versiegelt im eigenen Bereich). */
   who?: Who;
+  /** Man beginnt zu schreiben (das Feld bekommt den Fokus) — das Gespräch geht ans Ende. */
+  onWrite?: () => void;
 }) {
   const [text, setText] = useState(initial);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
@@ -222,7 +224,7 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
       <div className="ch-compose-row">
         <div className="ch-field">
           <textarea ref={field} rows={1} value={text} placeholder={mms ? 'MMS' : 'SMS'}
-            aria-label="Treść wiadomości" disabled={disabled} onChange={(e) => setText(e.target.value)}
+            aria-label="Treść wiadomości" disabled={disabled} onChange={(e) => setText(e.target.value)} onFocus={onWrite}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !coarsePointer() && !e.nativeEvent.isComposing) { e.preventDefault(); void send(); }
             }} />

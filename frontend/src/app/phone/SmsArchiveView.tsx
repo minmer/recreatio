@@ -710,7 +710,7 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
         place={`archive:${ctx.areaId}:${conversation.key}`} firstNew={null} />
       {!native && (
         <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite}
-          onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} />
+          onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} onWrite={() => setFollow((n) => n + 1)} />
       )}
       {askingLine && (
         <OtherLine value={ownText} onClose={() => setAskingLine(false)}
@@ -743,8 +743,10 @@ function OtherLine({ value, onSave, onClose }: { value: string; onSave: (value: 
  * im Kopf; nur das Telefon mit dieser Nummer nimmt sie (FCM weckt es, sonst spätestens in
  * einer Viertelstunde).
  */
-function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued }: {
+function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued, onWrite }: {
   who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; line: string; mayWrite: boolean; onQueued: () => void;
+  /** Man beginnt zu schreiben — das Gespräch geht ans Ende. */
+  onWrite: () => void;
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -827,7 +829,7 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued }: {
       )}
       <div className="ch-compose-row">
         <div className="ch-field">
-          <textarea rows={1} value={text} placeholder="Odpowiedź — SMS wyśle telefon" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)}
+          <textarea rows={1} value={text} placeholder="Odpowiedź — SMS wyśle telefon" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)} onFocus={onWrite}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(null); } }} />
           <button type="button" className="ch-icon-btn" aria-label="Dołącz plik (pójdzie jako link)" title="Dołącz plik (pójdzie jako link)" disabled={busy}
             onClick={() => picker.current?.click()}>

@@ -21,6 +21,9 @@ export type Side = 'wall' | 'open';
 export type SideName = 'left' | 'right' | 'bottom' | 'top';
 export type Quality = 'very-high' | 'high' | 'medium';
 export type HeaterMode = 'power' | 'thermostat';
+/** Wie heftige Zustände gerechnet werden (extremes.ts): fragen, so rechnen, mildern. */
+export type ExtremeMode = 'ask' | 'compute' | 'normalize';
+export const isExtremeMode = (v: unknown): v is ExtremeMode => v === 'ask' || v === 'compute' || v === 'normalize';
 
 /** Die Stufen von fein nach grob. */
 export const QUALITIES: readonly Quality[] = ['very-high', 'high', 'medium'];
@@ -83,6 +86,8 @@ export interface Scene {
   readonly ambient: Ambient;
   readonly sides: Readonly<Record<SideName, Side>>;
   readonly quality: Quality;
+  /** Heftige Zustände (Riesenblase, Siedeverzug, Wasser auf sehr heisser Platte): fragen (Vorgabe), so rechnen oder mildern. */
+  readonly extremes: ExtremeMode;
   readonly ops: readonly Op[];
 }
 
@@ -264,6 +269,7 @@ export function readScene(raw: unknown, options: ReadOptions = {}): { scene: Sce
         top: side(sides.top, 'open')
       },
       quality: isQuality(r.quality) ? r.quality : 'high',
+      extremes: isExtremeMode(r.extremes) ? r.extremes : 'ask',
       ops
     },
     warnings
@@ -310,6 +316,7 @@ export function writeScene(scene: Scene): Record<string, unknown> {
     ambient: { p: round(scene.ambient.p / 1000, 4), T: round(scene.ambient.T - T0, 3), rh: scene.ambient.rh, g: round(scene.ambient.g, 4), air: { ...scene.ambient.air } },
     sides: { ...scene.sides },
     quality: scene.quality,
+    ...(scene.extremes !== 'ask' ? { extremes: scene.extremes } : {}),
     ops: scene.ops.map(writeOp)
   };
 }

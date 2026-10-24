@@ -643,6 +643,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
         <Composer to={peers} sub={sub} sims={status?.sims ?? []} who={who}
           disabled={status !== null && !status.defaultSms}
           onSent={() => { setFollow((n) => n + 1); void load(); }}
+          onWrite={() => setFollow((n) => n + 1)}
           onScheduled={() => { setFollow((n) => n + 1); void loadPlanned(); }} />
       )}
 
