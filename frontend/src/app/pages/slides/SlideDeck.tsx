@@ -106,12 +106,12 @@ function useTall(ref: MutableRefObject<HTMLDivElement | null>): boolean {
 }
 
 /** 0107 — eine Schicht hinter einem Slajd oder im Tuch: ihr Grund, und was in ihr liegt. */
-function LayerFace({ layer, style, className = '' }: { layer: Layer; style: CSSProperties; className?: string }) {
+function LayerFace({ layer, style, className = '', shift = 0 }: { layer: Layer; style: CSSProperties; className?: string; shift?: number }) {
   return (
     <div className={`wk-deck-layer is-${layer.kind}${className}`} style={{ ...layerBackground(layer), ...style }} aria-hidden="true">
       <LayerArt layer={layer} />
       {/* 2026-10-24 — auch im gemeinsamen Tuch steht ein Schriftzug da (vorher fehlte er dort ganz). */}
-      {layer.kind === 'bigtext' && <BigText layer={layer} shift={0} />}
+      {layer.kind === 'bigtext' && <BigText layer={layer} shift={shift} />}
     </div>
   );
 }
@@ -354,7 +354,20 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
             {deck.backdrop.map((layer, n) => <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={{ height: '100%' }} />)}
             {backdropAt(slides.map((slide) => slide.layers.length > 0), at).map(({ index, opacity }) => (
               <div key={slides[index].key} className="wk-deck-backdrop-slide" style={{ opacity }}>
-                {slides[index].layers.map((layer, n) => <LayerFace key={n} layer={layer} style={{ height: '100%' }} />)}
+                {slides[index].layers.map((layer, n) => {
+                  /*
+                     2026-10-24 — AUCH IM TUCH WANDERN DIE SCHICHTEN: wie weit der
+                     Slajd durch den Schirm ist (0 kommt herein, 1 ist hinaus); eine
+                     Schicht ist um ihr Tempo höher als der Schirm und gleitet so weit
+                     nach oben — ein Bild wird dafür grösser gezogen. Der Schriftzug
+                     steht in seiner Ebene und wandert um seine Strecke.
+                  */
+                  const frame = geometry[index];
+                  const through = frame === undefined ? 0.5 : Math.min(1, Math.max(0, (scroll.position - frame.start + vh) / (frame.height + vh)));
+                  const speed = layer.kind === 'bigtext' ? 0 : layer.speed;
+                  const flow: CSSProperties = { top: 0, height: `${vh * (1 + speed)}px`, transform: `translate3d(0, ${-speed * vh * through}px, 0)` };
+                  return <LayerFace key={n} layer={layer} style={flow} shift={layer.kind === 'bigtext' ? (0.5 - through) * vh * layer.speed : 0} />;
+                })}
               </div>
             ))}
           </div>

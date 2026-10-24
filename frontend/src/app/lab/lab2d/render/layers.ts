@@ -6,7 +6,8 @@
  * darum zeigt ein abgespielter Nachweis genau, was live zu sehen war.
  *
  * - Je Zelle: Art und Werkstoff (code), Blasen da (flags), Salzkruste bzw.
- *   Salz am Boden der Kiste (crust), Glühen der Feststoffe (glow),
+ *   in Fluidzellen Salz am Boden der Kiste und Körner (M3c: ihr Anteil an
+ *   der dichten Packung; crust), Glühen der Feststoffe (glow),
  *   Temperatur von Gas und Feststoff (temp, 0,5 K), und für die Einblendungen
  *   im Gas: Druck und Geschwindigkeit (pres, speed: 8 bit auf fester,
  *   quadratischer Skala), Feuchte (hum, 64 Stufen), Dampfdichte (vap), Nebel
@@ -30,6 +31,7 @@ import type { Engine } from '../engine/engine';
 import { pSatFast } from '../engine/if97';
 import { MOLAR, SOLIDS, WATER } from '../engine/materials';
 import { RHO_CRYSTAL, SOLUTES } from '../engine/solution';
+import { PHI_MAX } from '../engine/grains';
 import { GAS, H2O, LIQUID, N2, O2, SOLID, SPECIES_SLOTS, T0 } from '../engine/units';
 import { hex, T_SCALE, viridis } from './palette';
 
@@ -228,7 +230,9 @@ export function sampleLayers(e: Engine, L: Layers, overlay: Overlay | null): voi
       /* Heiss: Rot mischt sich bei (mit der Temperatur über 60 °C, voll bei 400 °C). */
       L.glow[c] = built ? u8((g.T[c] - T0 - 60) / 340) : 0;
       L.flags[c] = wantA && g.alpha[c] > 0.02 ? 1 : 0;
-      L.crust[c] = built ? u8(crustCover(g.crust[c], g.dx, g.depth)) : kind !== SOLID && j === 0 && e.salt.floor[i] > 0 ? u8(crustCover(e.salt.floor[i], g.dx, g.depth)) : 0;
+      /* Feststoff: seine Kruste; Fluid: Salz am Boden der Kiste (unterste Zeile) und Körner, wie dicht sie die Zelle füllen. */
+      L.crust[c] = built ? u8(crustCover(g.crust[c], g.dx, g.depth))
+        : kind === SOLID ? 0 : u8(Math.max(j === 0 && e.salt.floor[i] > 0 ? crustCover(e.salt.floor[i], g.dx, g.depth) : 0, g.grain[c] / PHI_MAX));
       let p = 128, s = 0, hu = 0, va = 0, fo = 0;
       if (kind === GAS) {
         if (wantP) { p = presQ(g.pg[c]); pmax = Math.max(pmax, Math.abs(presOf(p))); }
@@ -557,11 +561,12 @@ export function composeFrame(L: Layers, f: ComposeTarget, overlay: Overlay): voi
         if ((L.flags[c] & 1) !== 0) { cells[o] = 250; cells[o + 1] = 200; cells[o + 2] = 80; cells[o + 3] = 220; }
         continue;
       }
-      /* Salz am Boden der Kiste (wo unter der Lösung kein Feststoff lag): die unterste Zelle seiner Spalte. */
-      if (j === 0 && L.crust[c] > 0) {
-        cells[o] = CRYSTAL_RGB[0]; cells[o + 1] = CRYSTAL_RGB[1]; cells[o + 2] = CRYSTAL_RGB[2]; cells[o + 3] = L.crust[c];
+      /* Salz in Fluidzellen (Körner, Salz am Boden der Kiste): im weichen Feld, über der Flüssigkeit. */
+      const salt = L.crust[c] / 255;
+      if (kind !== GAS) {
+        if (salt > 0) { field[o] = CRYSTAL_RGB[0] * salt; field[o + 1] = CRYSTAL_RGB[1] * salt; field[o + 2] = CRYSTAL_RGB[2] * salt; field[o + 3] = 255 * salt; }
+        continue;
       }
-      if (kind !== GAS) continue;
       /* Einblendung: Farbe (0–255) und Deckkraft (0–1), am Ende vormultipliziert. */
       let r = 0, gg = 0, bl = 0, a = 0;
       if (strong) {
@@ -582,6 +587,14 @@ export function composeFrame(L: Layers, f: ComposeTarget, overlay: Overlay): voi
           gg = (255 * af + gg * a * (1 - af)) / outA;
           bl = (255 * af + bl * a * (1 - af)) / outA;
         }
+        a = outA;
+      }
+      /* Körner über dem Gas, seiner Einblendung und dem Nebel. */
+      if (salt > 0) {
+        const outA = salt + a * (1 - salt);
+        r = (CRYSTAL_RGB[0] * salt + r * a * (1 - salt)) / outA;
+        gg = (CRYSTAL_RGB[1] * salt + gg * a * (1 - salt)) / outA;
+        bl = (CRYSTAL_RGB[2] * salt + bl * a * (1 - salt)) / outA;
         a = outA;
       }
       field[o] = r * a; field[o + 1] = gg * a; field[o + 2] = bl * a; field[o + 3] = 255 * a;

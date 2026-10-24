@@ -48,9 +48,13 @@ const SUB_MAX = 0.002;
 const ITER = 4;
 /** Radius einer vollen Kornscheibe je Zellkante: vier Scheiben je Zelle füllen sie in dichter Packung (π r² = 0,907 Δx²/4). */
 const R_FAC = 0.2687;
-/** Reibung zwischen Körnern und an Wänden: Haft- und Gleitbeiwert (auf den Schüttwinkel des Stoffs geeicht, Test 49). */
-export const MU_STATIC = 0.85;
-export const MU_KINETIC = 0.7;
+/**
+ * Reibung zwischen Körnern und an Wänden: Haft- und Gleitbeiwert, auf den Schüttwinkel von Speisesalz (34°) geeicht —
+ * ein aufgeschütteter Haufen aus 2000 Körnern bei 2 mm: μ_s 0,22 → 30,8°, 0,25 → 33,1°, 0,28 → 36,0°, 0,34 → 41,3°
+ * (Scheiben ohne Drehung: der Winkel ist nicht arctan μ, Test 49).
+ */
+export const MU_STATIC = 0.245;
+export const MU_KINETIC = 0.2;
 
 /** Sinkgeschwindigkeit nach Ferguson & Church (m/s): w = R g d²/(C₁ ν + √(0,75 C₂ R g d³)), R = (ρ_s − ρ_l)/ρ_l. */
 export function settlingVelocity(d: number, rhoS: number, rhoL: number, mu: number, g: number): number {

@@ -63,8 +63,10 @@ export class Grains {
   /** Temperatur (K); die Enthalpie ist m c_p (T − 0 °C). */
   readonly T: Float64Array;
   readonly mat: Uint8Array;
-  /** 1: die Körner tragen noch trockene Spalten (Keime für Blasen); beim ersten Benetzen 0. */
+  /** 1: die Körner tragen noch Luft in ihren Spalten (Keime für Blasen); 0, wenn sie gekeimt haben oder die Spalten geflutet sind. */
   readonly dry: Uint8Array;
+  /** Wie lange das Korn schon im Wasser liegt (s): die Luft in den Spalten hält sich eine Weile (grainSalt.ts). */
+  readonly wet: Float64Array;
   readonly id: Uint32Array;
 
   constructor(cap: number) {
@@ -79,6 +81,7 @@ export class Grains {
     this.T = new Float64Array(cap);
     this.mat = new Uint8Array(cap);
     this.dry = new Uint8Array(cap);
+    this.wet = new Float64Array(cap);
     this.id = new Uint32Array(cap);
   }
 
@@ -97,6 +100,7 @@ export class Grains {
     this.T[p] = T;
     this.mat[p] = mat;
     this.dry[p] = 1;
+    this.wet[p] = 0;
     this.id[p] = this.nextId;
     this.nextId = (this.nextId + 1) >>> 0 || 1;
     return p;
@@ -116,6 +120,7 @@ export class Grains {
       this.T[p] = this.T[q];
       this.mat[p] = this.mat[q];
       this.dry[p] = this.dry[q];
+      this.wet[p] = this.wet[q];
       this.id[p] = this.id[q];
     }
     this.count = q;

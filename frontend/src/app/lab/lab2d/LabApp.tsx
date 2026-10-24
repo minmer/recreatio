@@ -23,6 +23,7 @@ import { BakePanel, PlayerBar, type BakeProgress } from './ClipControls';
 import type { ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import type { ExtremeEvent } from './engine/extremes';
+import { GRAIN_D } from './engine/grains';
 import type { ObjectPatch } from './engine/objects';
 import type { BakeOptions, ChartSample, HostStats } from './engine/protocol';
 import { CELL, QUALITIES, isQuality, readScene, writeScene, type ExtremeMode, type Quality } from './engine/scene';
@@ -300,6 +301,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     if (tool === 'erase') { h.apply({ op: 'erase', region }); return; }
     const m = MATERIALS.find((k) => k.key === ts.material) ?? MATERIALS[0];
     if (m.solid !== null) h.addSolid(region, m.solid, T0 + ts.tempC);
+    else if (m.grains !== undefined) h.apply({ op: 'grains', region, material: m.grains, d: GRAIN_D, T: T0 + ts.tempC });
     else if (m.liquid !== undefined && m.solute !== undefined) h.addLiquid(region, { [m.liquid]: 1 - ts.saltPct / 100, [m.solute]: ts.saltPct / 100 }, T0 + ts.tempC);
     else if (m.liquid !== undefined) h.addLiquid(region, { [m.liquid]: 1 }, T0 + ts.tempC);
     else h.apply({ op: 'fill', region, phase: 'gas', T: T0 + ts.tempC, composition: { N2: 0.7676, O2: 0.2324 } });

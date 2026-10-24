@@ -9,6 +9,7 @@
 import type { ReactNode } from 'react';
 
 import { Icon } from '../../../ui/icons';
+import { GRAIN_MATS } from '../engine/grains';
 import { LIQUIDS } from '../engine/materials';
 import { num, t, type TextKey } from '../i18n';
 import { KindIcon, OBJECT_KINDS, type ObjectKind } from '../objectKinds';
@@ -26,6 +27,8 @@ export interface Material {
   readonly liquid?: string;
   /** Ein darin gelöster Stoff (NaCl) — sein Massenanteil kommt vom Regler „Sól w solance“. */
   readonly solute?: string;
+  /** Körner eines Stoffs (M3c): gemalt als lockere Schüttung. */
+  readonly grains?: string;
   readonly color: string;
 }
 
@@ -33,6 +36,7 @@ export const MATERIALS: readonly Material[] = [
   { key: 'water', label: 'matWater', solid: null, liquid: 'H2O', color: '#3d8fd8' },
   { key: 'oil', label: 'matOil', solid: null, liquid: 'oil-rapeseed', color: LIQUIDS[1]?.color ?? '#e3b437' },
   { key: 'brine', label: 'matBrine', solid: null, liquid: 'H2O', solute: 'NaCl', color: '#8dbbe3' },
+  { key: 'salt', label: 'matSalt', solid: null, grains: 'NaCl', color: GRAIN_MATS[0]?.color ?? '#f4f3ee' },
   { key: 'air', label: 'matAir', solid: null, color: '#e6eef3' },
   { key: 'glass', label: 'matGlass', solid: 'glass', color: '#9cc3d5' },
   { key: 'steel', label: 'matSteel', solid: 'steel', color: '#7d858e' },

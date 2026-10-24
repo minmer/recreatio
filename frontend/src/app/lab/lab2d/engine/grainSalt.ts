@@ -21,9 +21,11 @@
  * - **Wärme**: ein Korn nähert sich der Temperatur der Flüssigkeit seiner Zelle
  *   (ohne Wasser: der Luft) mit τ = m c_p/(h A), h = Nu k/d (dieselbe Form wie
  *   Sh, mit Pr); die Wärme nimmt die Zelle im Wärmeschritt (heat.src).
- * - **Keime**: ein Korn mit trockenen Spalten, das in Wasser über
- *   T_sat + ΔT_act(10 µm) (3,3 K) gerät, setzt eine Blase frei (Griffith &
- *   Wallis 1958: Gas in den Spalten); jedes Benetzen flutet die Spalten.
+ * - **Keime**: in den Spalten der Körner ist Luft (Griffith & Wallis 1958);
+ *   gerät ein Korn in Wasser über T_sat + ΔT_act(10 µm) (3,3 K), setzt es eine
+ *   Blase frei — einmal. Die Luft hält sich WET_LIFE im Wasser (sie löst sich
+ *   erst nach und nach): ein Korn, das durch die Oberfläche (dort T_sat) in
+ *   überhitztes Wasser fällt, keimt noch darin.
  */
 
 import { activation } from './cavities';
@@ -37,6 +39,8 @@ import { GAS, H2O, LIQUID, SPECIES_SLOTS, T0 } from './units';
 
 /** Mündungsradius der Spalten der Körner (m): ΔT_act ≈ 3,3 K bei 1 atm. */
 const R_CAVITY = 1e-5;
+/** So lange hält sich die Luft in den Spalten eines Korns im Wasser (s; Modellannahme). */
+const WET_LIFE = 2;
 /** Unter diesem Anteil seiner ersten Masse ist ein Korn gelöst (der Rest geht mit). */
 const GONE = 1e-4;
 
@@ -146,7 +150,8 @@ export class GrainSalt {
       if (G.dry[q] === 0) continue;
       const c = g.cellAt(G.x[q], G.y[q]);
       if (c < 0 || g.kind[c] !== LIQUID || this.head[c] < 0) continue;
-      G.dry[q] = 0;
+      G.wet[q] += dt;
+      if (G.wet[q] > WET_LIFE) { G.dry[q] = 0; continue; }
       /* Das Wasser der Zelle: Masse, mittleres T, mittleres h̄_w. */
       let W = 0, WT = 0, WH = 0;
       for (let p = this.head[c]; p >= 0; p = this.next[p]) {
@@ -168,6 +173,7 @@ export class GrainSalt {
       if (mv * 4 > W) continue;
       const b = B.add(G.x[q], G.y[q], 0.5 * g.depth);
       if (b < 0) continue;
+      G.dry[q] = 0;
       B.m[b * SPECIES_SLOTS + H2O] = mv;
       B.r[b] = R_CAVITY;
       B.V[b] = V;

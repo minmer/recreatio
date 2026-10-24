@@ -213,6 +213,32 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     }
   },
   {
+    key: 'sol-w-wodzie',
+    title: 'Sól wsypana do wody',
+    summary: 'garść soli (kryształki 0,5 mm) wpada do zimnej wody — tonie, rozpuszcza się powoli, a słona woda zbiera się przy dnie',
+    text: [
+      'Nad zlewką z wodą o temperaturze 20 °C wisi garść soli. Puść czas: kryształki spadają, w wodzie zwalniają i opadają na dno z prędkością kilku centymetrów na sekundę (opór wody), tworząc kopczyk.',
+      'Sól rozpuszcza się tylko tam, gdzie woda nie jest jeszcze nasycona. Przy dnie powstaje gęsta solanka, która zostaje na dole — bez mieszania rozpuszczanie trwa długo. Nakładka „Stężenie soli” pokazuje słoną warstwę, a „Temperatura”, że rozpuszczanie lekko ją ochładza.'
+    ],
+    scene: {
+      ...BASE,
+      ops: [beaker(), water(20), { op: 'grains', region: { rect: [0.09, 0.07, 0.11, 0.08] }, material: 'NaCl', d: 0.0005, T: 20 }]
+    }
+  },
+  {
+    key: 'sol-do-wrzatku',
+    title: 'Sól do przegrzanej wody',
+    summary: 'woda przegrzana do 104 °C (bez kamyczków) i szczypta soli — w szczelinach kryształków jest powietrze, więc woda nagle wrze na każdym ziarnie',
+    text: [
+      'Woda w zlewce ma 104 °C — więcej niż temperatura wrzenia, ale gładkie szkło nie ma wgłębień, w których mógłby powstać pęcherz, więc woda nie wrze (jest przegrzana). Nad nią wisi szczypta soli.',
+      'Kryształki mają szczeliny z powietrzem. Gdy wpadną do przegrzanej wody, na każdym rodzi się pęcherz pary — woda gwałtownie wrze. Tak bywa w kuchni z wodą z mikrofalówki. Sól nie ochładza tu wody: przy 100 °C jej rozpuszczanie oddaje trochę ciepła.'
+    ],
+    scene: {
+      ...BASE,
+      ops: [plate(20, 106), beaker(104), water(104), { op: 'grains', region: { rect: [0.095, 0.07, 0.105, 0.075] }, material: 'NaCl', d: 0.0005, T: 20 }]
+    }
+  },
+  {
     key: 'przewrocona-zlewka',
     title: 'Przewrócona zlewka',
     summary: 'zlewka z wodą stoi na krawędzi kamiennego stopnia, za daleko — przewraca się, a woda się wylewa',
