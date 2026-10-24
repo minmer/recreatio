@@ -22,10 +22,13 @@
  *   (ohne Wasser: der Luft) mit τ = m c_p/(h A), h = Nu k/d (dieselbe Form wie
  *   Sh, mit Pr); die Wärme nimmt die Zelle im Wärmeschritt (heat.src).
  * - **Keime**: in den Spalten der Körner ist Luft (Griffith & Wallis 1958);
- *   gerät ein Korn in Wasser über T_sat + ΔT_act(10 µm) (3,3 K), setzt es eine
- *   Blase frei — einmal. Die Luft hält sich WET_LIFE im Wasser (sie löst sich
- *   erst nach und nach): ein Korn, das durch die Oberfläche (dort T_sat) in
- *   überhitztes Wasser fällt, keimt noch darin.
+ *   liegt ein Korn in Wasser über seinem Siedepunkt (mit dem Salz der Zelle)
+ *   + ΔT_act(10 µm) (3,3 K), setzt es Blasen frei wie eine Kavität der Wand:
+ *   höchstens eine je NUC_EVERY. Die Luft hält sich WET_LIFE im Wasser (sie
+ *   löst sich erst nach und nach): ein Korn, das durch die Oberfläche (dort
+ *   T_sat) in überhitztes Wasser fällt, keimt noch darin — und auf dem Weg
+ *   nach unten immer wieder (mit nur einer Blase je Korn wuchs keine: die
+ *   ersten keimten an der Oberfläche, wo die kalten Körner das Wasser kühlten).
  */
 
 import { activation } from './cavities';
@@ -34,13 +37,18 @@ import { GRAIN_MATS } from './grains';
 import { rhoVapourSatFast, tSat } from './if97';
 import { gridVelocityAt } from './extend';
 import { cpL, hV, kL, kMix, muL, rhoL, sigma, WATER } from './materials';
-import { hCrystal, hWaterIn, NACL, rhoSol, saltDiffusivity, satFraction } from './solution';
+import { boilingPoint, hCrystal, hWaterIn, molality, NACL, rhoSol, saltDiffusivity, satFraction } from './solution';
 import { GAS, H2O, LIQUID, SPECIES_SLOTS, T0 } from './units';
 
 /** Mündungsradius der Spalten der Körner (m): ΔT_act ≈ 3,3 K bei 1 atm. */
 const R_CAVITY = 1e-5;
 /** So lange hält sich die Luft in den Spalten eines Korns im Wasser (s; Modellannahme). */
 const WET_LIFE = 2;
+/**
+ * Höchstens eine Blase je Kornteilchen in dieser Zeit (s): wie oft eine Kavität der Wand eine Blase abgibt —
+ * Zuber: f d_d ≈ 0,59 [σ g Δρ/ρ_l²]^¼, für Wasser bei 1 atm und d_d ≈ 2,3 mm (Test 8) etwa 40 Hz (Modellannahme).
+ */
+const NUC_EVERY = 0.025;
 /** Unter diesem Anteil seiner ersten Masse ist ein Korn gelöst (der Rest geht mit). */
 const GONE = 1e-4;
 
@@ -142,7 +150,7 @@ export class GrainSalt {
     return true;
   }
 
-  /** Körner mit trockenen Spalten im Wasser: über T_sat + ΔT_act eine Blase, auf jeden Fall geflutet. */
+  /** Körner mit trockenen Spalten im Wasser: über dem Siedepunkt + ΔT_act eine Blase je NUC_EVERY, nach WET_LIFE geflutet. */
   private nucleate(dt: number): void {
     const e = this.e;
     const { grid: g, grains: G, bubbles: B, particles: P, liquid: L } = e;
@@ -150,22 +158,26 @@ export class GrainSalt {
       if (G.dry[q] === 0) continue;
       const c = g.cellAt(G.x[q], G.y[q]);
       if (c < 0 || g.kind[c] !== LIQUID || this.head[c] < 0) continue;
+      const was = G.wet[q];
       G.wet[q] += dt;
       if (G.wet[q] > WET_LIFE) { G.dry[q] = 0; continue; }
-      /* Das Wasser der Zelle: Masse, mittleres T, mittleres h̄_w. */
-      let W = 0, WT = 0, WH = 0;
+      /* Ein Versuch je Abschnitt NUC_EVERY der Zeit im Wasser (der erste gleich beim Eintauchen). */
+      if (was > 0 && Math.floor(was / NUC_EVERY) === Math.floor(G.wet[q] / NUC_EVERY)) continue;
+      /* Das Wasser der Zelle: Masse, Salz, mittleres T, mittleres h̄_w. */
+      let W = 0, S = 0, WT = 0, WH = 0;
       for (let p = this.head[c]; p >= 0; p = this.next[p]) {
         const s = P.smass[2 * p];
         const mw = P.mass[p] - s;
         W += mw;
+        S += s;
         WT += mw * P.T[p];
         WH += mw * (s > 0 ? hWaterIn(P.T[p], s / P.mass[p]) : P.h[p]);
       }
       if (!(W > 0)) continue;
       const Tl = WT / W;
       const pl = Math.max(0.5 * e.pRef, e.pRef + g.pl[c]);
-      const Ts = tSat(pl);
-      if (Tl - Ts < activation(R_CAVITY, pl)) continue;
+      const Ts = S > 0 ? boilingPoint(pl, molality(S / (S + W))) : tSat(pl);
+      if (Tl - Ts < e.extremes.activation(activation(R_CAVITY, pl))) continue;
       const pb = pl + (2 * sigma(Tl)) / R_CAVITY;
       const Tb = tSat(pb);
       const V = (4 / 3) * Math.PI * R_CAVITY ** 3;
@@ -173,7 +185,6 @@ export class GrainSalt {
       if (mv * 4 > W) continue;
       const b = B.add(G.x[q], G.y[q], 0.5 * g.depth);
       if (b < 0) continue;
-      G.dry[q] = 0;
       B.m[b * SPECIES_SLOTS + H2O] = mv;
       B.r[b] = R_CAVITY;
       B.V[b] = V;

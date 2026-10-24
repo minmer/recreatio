@@ -231,7 +231,7 @@ export const LAB2D_PRESETS: readonly LabPreset[] = [
     summary: 'woda przegrzana do 104 °C (bez kamyczków) i szczypta soli — w szczelinach kryształków jest powietrze, więc woda nagle wrze na każdym ziarnie',
     text: [
       'Woda w zlewce ma 104 °C — więcej niż temperatura wrzenia, ale gładkie szkło nie ma wgłębień, w których mógłby powstać pęcherz, więc woda nie wrze (jest przegrzana). Nad nią wisi szczypta soli.',
-      'Kryształki mają szczeliny z powietrzem. Gdy wpadną do przegrzanej wody, na każdym rodzi się pęcherz pary — woda gwałtownie wrze. Tak bywa w kuchni z wodą z mikrofalówki. Sól nie ochładza tu wody: przy 100 °C jej rozpuszczanie oddaje trochę ciepła.'
+      'Kryształki mają szczeliny z powietrzem. Gdy wpadną do przegrzanej wody, na każdym rodzą się pęcherze pary — woda gwałtownie wrze, aż zużyje przegrzanie. Laboratorium zatrzyma się i zapyta, jak liczyć dalej: dokładnie (woda może wylecieć z naczynia) czy łagodniej. Tak bywa w kuchni z wodą z mikrofalówki. Sól nie ochładza tu wody: przy 100 °C jej rozpuszczanie oddaje trochę ciepła.'
     ],
     scene: {
       ...BASE,

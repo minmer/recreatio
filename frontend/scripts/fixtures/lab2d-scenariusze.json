@@ -22,7 +22,7 @@
       },
       "config": {
         "title": "Jak pracować",
-        "body": "Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę, mgłę i ciała, które pływają, toną albo się przewracają. Każdy ma własne nagranie."
+        "body": "Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę, mgłę, ciała, które pływają, toną albo się przewracają, lód, który się topi, i sól wsypaną do wody. Każdy ma własne nagranie."
       }
     },
     {
@@ -1371,6 +1371,166 @@
                     "H2O": 1
                   },
                   "phase": "liquid",
+                  "T": 20
+                }
+              ]
+            }
+          },
+          {
+            "title": "Sól wsypana do wody",
+            "text": [
+              "Nad zlewką z wodą o temperaturze 20 °C wisi garść soli. Puść czas: kryształki spadają, w wodzie zwalniają i opadają na dno z prędkością kilku centymetrów na sekundę (opór wody), tworząc kopczyk.",
+              "Sól rozpuszcza się tylko tam, gdzie woda nie jest jeszcze nasycona. Przy dnie powstaje gęsta solanka, która zostaje na dole — bez mieszania rozpuszczanie trwa długo. Nakładka „Stężenie soli” pokazuje słoną warstwę, a „Temperatura”, że rozpuszczanie lekko ją ochładza."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "beaker",
+                  "id": "zlewka",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 20
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 20
+                },
+                {
+                  "op": "grains",
+                  "region": {
+                    "rect": [
+                      0.09,
+                      0.07,
+                      0.11,
+                      0.08
+                    ]
+                  },
+                  "material": "NaCl",
+                  "d": 0.0005,
+                  "T": 20
+                }
+              ]
+            }
+          },
+          {
+            "title": "Sól do przegrzanej wody",
+            "text": [
+              "Woda w zlewce ma 104 °C — więcej niż temperatura wrzenia, ale gładkie szkło nie ma wgłębień, w których mógłby powstać pęcherz, więc woda nie wrze (jest przegrzana). Nad nią wisi szczypta soli.",
+              "Kryształki mają szczeliny z powietrzem. Gdy wpadną do przegrzanej wody, na każdym rodzą się pęcherze pary — woda gwałtownie wrze, aż zużyje przegrzanie. Laboratorium zatrzyma się i zapyta, jak liczyć dalej: dokładnie (woda może wylecieć z naczynia) czy łagodniej. Tak bywa w kuchni z wodą z mikrofalówki. Sól nie ochładza tu wody: przy 100 °C jej rozpuszczanie oddaje trochę ciepła."
+            ],
+            "scene": {
+              "format": "recreatio/lab2d",
+              "version": 1,
+              "seed": 1,
+              "box": {
+                "w": 0.2,
+                "h": 0.15,
+                "depth": 0.01
+              },
+              "ambient": {
+                "p": 101.325,
+                "T": 20,
+                "rh": 0.5,
+                "g": 9.81
+              },
+              "sides": {
+                "left": "wall",
+                "right": "wall",
+                "bottom": "wall",
+                "top": "open"
+              },
+              "quality": "high",
+              "ops": [
+                {
+                  "op": "hotplate",
+                  "id": "plyta",
+                  "x": 0.1,
+                  "y": 0,
+                  "w": 0.12,
+                  "h": 0.008,
+                  "material": "steel",
+                  "mode": "power",
+                  "power": 20,
+                  "target": 150,
+                  "on": true,
+                  "T": 106
+                },
+                {
+                  "op": "beaker",
+                  "id": "zlewka",
+                  "x": 0.1,
+                  "y": 0.008,
+                  "w": 0.07,
+                  "h": 0.08,
+                  "wall": 0.002,
+                  "material": "glass",
+                  "T": 104
+                },
+                {
+                  "op": "fill",
+                  "region": {
+                    "rect": [
+                      0.067,
+                      0.01,
+                      0.133,
+                      0.06
+                    ]
+                  },
+                  "composition": {
+                    "H2O": 1
+                  },
+                  "phase": "liquid",
+                  "T": 104
+                },
+                {
+                  "op": "grains",
+                  "region": {
+                    "rect": [
+                      0.095,
+                      0.07,
+                      0.105,
+                      0.075
+                    ]
+                  },
+                  "material": "NaCl",
+                  "d": 0.0005,
                   "T": 20
                 }
               ]

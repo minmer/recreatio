@@ -71,7 +71,10 @@ lab/lab2d/
                        mass to and from the particles (water with its partial enthalpy) (§9)
     flash.ts, fog.ts   flash evaporation (surface cells and droplets), fog in the gas (§9)
     salt.ts            crystallisation of supersaturated brine, the crust and the box-floor store (M2b, §9)
-    edits.ts           scene operations and tools: fill, erase, move, solid, beaker, hot plate (§10)
+    grains.ts          grain particles (M3c): the store, grain materials (NaCl), the loose packing (§21)
+    grainFlow.ts       the grains' motion: settling and drag in the liquid, contacts with friction (§21)
+    grainSalt.ts       grains dissolve, grow, take their cell's temperature and release bubbles (§21)
+    edits.ts           scene operations and tools: fill, erase, move, solid, grains, beaker, hot plate (§10)
     budget.ts          mass and energy budgets
     charts.ts          the samples behind the live charts (every 0.25 s)
     stages.ts          the eight stage names (HUD, tests)
@@ -112,8 +115,8 @@ lab/lab2d/
 pages/parts/lab2d.tsx  the page part `lab2d` (card in a strip, the lab in a block, fullscreen)
 scripts/lab2d-bench.mjs  the benchmark scene, timing per stage (§13)
 scripts/fixtures/lab2d-wrzenie.json  a page with four labs, for import
-scripts/lab2d-scenarios.mjs  writes scripts/fixtures/lab2d-scenariusze.json from the presets: one lab with eleven
-                       scenarios to choose, one lab that bakes on opening (for import)
+scripts/lab2d-scenarios.mjs  writes scripts/fixtures/lab2d-scenariusze.json from the presets: one lab with
+                       seventeen scenarios to choose, one lab that bakes on opening (for import)
 ```
 
 ## 3. Data layout
@@ -220,21 +223,24 @@ leaves and books the difference as latent heat in the cells — the budgets clos
 
 ## 5. The step loop
 
-One loop for every scene (`engine.ts`); dt = min(1/120 s, 0.9 Δx/u_max of the liquid, ½ Δx/v_max of awake bodies). Each stage is timed for the HUD.
+One loop for every scene (`engine.ts`); dt = min(1/120 s, 0.9 Δx/u_max of the liquid, ½ Δx/v_max of awake bodies and of
+grains). Each stage is timed for the HUD.
 
 1. **Inputs**: tools, heater power, ambient settings (applied between steps); awake bodies are written into the grid
    (§17), the particles they cover pushed out.
-2. **Liquid** (§7): volume change of the last step to the grid; weights; volume fractions; classification (against
+2. **Liquid** (§7): the grains' volume fraction (§21); volume change of the last step to the grid; weights; volume
+   fractions; classification (against
    the previous kinds); gas moves out of cells that became liquid and into cells that became gas (exactly); regions
    and p0; gas pressure for the free surface; particles → grid, forces, projection, grid → particles, advection,
-   drift correction; heat weights.
+   drift correction; heat weights; then the grains move (§21).
 3. **Gas** (§6): gas volumes; gas faces; conservative transport (sub-cycled); equation of state; MacCormack velocity
    with buoyancy and viscosity; sources; projection.
 4. **Bubbles** (§8): the liquid gathered per cell (T, C, Σ w m, Σ w m h); per-cell budgets; nucleation; growth or
    condensation, departure and motion in adaptive substeps; coalescence; bursting and collapse; mass to the
    particles; α_b.
 5. **Interface and gas-phase change** (§9): vapour diffusion with surface evaporation, condensation and dew; flash;
-   fog; wall films that spawn particles; supersaturated solutions crystallise (`salt.ts`).
+   fog; wall films that spawn particles; supersaturated solutions crystallise (`salt.ts`; onto a grain nearby if
+   there is one); grains dissolve, take their cell's temperature and release bubbles (`grainSalt.ts`, §21).
 6. **Heat** (§6.5): implicit conduction over all cells with the latent heat of steps 4–5 as sources; heaters; losses;
    then the particles of each cell share heat and salt, and salt diffuses between cells (`exchange.ts`).
 7. **Chemistry hook**: empty in M1.
@@ -515,7 +521,7 @@ condenses away (collapse) gives the rest to the liquid of its footprint.
 A scene is a starting layout: box (w, h, depth), ambient (p, T, relative humidity, dry-air composition, g — all
 adjustable while it runs; a new composition enters through open sides, the gas in the box keeps its own), sides,
 quality, seed and an ordered list of operations — `fill` (liquid water, or gas of a composition), `erase`, `solid` (a
-painted, static solid of cells), the **objects** `body` (a block of a region and material — an ice cube, wood, stone —
+painted, static solid of cells), `grains` (a loose pour of salt crystals of diameter `d`; M3c, §21), the **objects** `body` (a block of a region and material — an ice cube, wood, stone —
 free unless `pinned`, turned by `angle` about the region's centre; M3a, §17), `beaker` (with an optional lid) and
 `hotplate` (power or thermostat) — both pinned unless `"pinned": false`, turned by `angle` about the middle of their
 base —, `move` and `remove`. Since 2026-10-23 every object has a name (`id`; `readScene` gives one where it is
@@ -574,8 +580,9 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (87 tests, ~6 minutes) and
-`npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34, 41 at 1 mm, 43 with enough salt).
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (94 tests, ~6 minutes) and
+`npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34, 41 at 1 mm, 43 with enough salt,
+49).
 MILESTONES.md records the numbers.
 
 | # | Test | File |
@@ -613,7 +620,7 @@ MILESTONES.md records the numbers.
 | 35 | Stirring: under an imposed pure strain λ the in-cell differences of salt decay at (π² D/Δx²)·x/W(x), x = 2(λ − 0.02/s)τ (±1 %); below 0.02/s at the molecular rate; heat at its still rate for every λ | m2b.test.ts |
 | 31 | Playback: every frame of a clip draws the same pixels as the live view did while baking (without overlay every frame, with each overlay every third frame) | b.test.ts |
 | 32 | Seeking: frames read in any order equal frames read in sequence; time t is frame floor(30 t) | b.test.ts |
-| 33 | Going on from a keyframe: the whole state equals the run that never stopped (boiling, brine to a crust, water under oil, a sealed box with fog, moving bodies with contacts, melting ice); from a clip's keyframe the frames equal the clip | b.test.ts |
+| 33 | Going on from a keyframe: the whole state equals the run that never stopped (boiling, brine to a crust, water under oil, a sealed box with fog, moving bodies with contacts, melting ice, grains falling into warm water); from a clip's keyframe the frames equal the clip | b.test.ts |
 | 34 | Size: a minute of the boiling beaker at 2 mm stays under 40 MB (measured 36.0) | b.slow.test.ts |
 | 36 | Floating: pine and ice float with ρ_b/ρ_l of their height under water (±2 %, mean over 3 s); budgets exact | m3a.test.ts |
 | 37 | Sinking: a 2 cm ceramic square reaches the drag law's terminal speed (C_D = 2.1 of a square cylinder, ±15 %) before its wake turns it over; a stone block lands and rests without jitter, asleep | m3a.test.ts |
@@ -629,6 +636,13 @@ MILESTONES.md records the numbers.
 | 46 | The side the heat comes through melts: an ice block on a warm plate melts from below and stays on the plate; budgets exact | m3b.test.ts |
 | 47 | Violent boiling: water at 95 °C poured onto steel at 140 °C for 300 steps — the critical heat flux is 1.26 MW/m²; computed: every value finite, the 20 m/s guard never acts, the step never collapses, budgets exact; softened: no bubble above 4 mm, water held at 1.5 m/s, the water stays, budgets exact | ext.test.ts |
 | 48 | Asking: one event when a bubble passes 6 mm or water 2 m/s, handed over once; the answer is stored in the scene and nothing is asked again | ext.test.ts |
+| — | The grains operation: four grains per cell at the packing fraction, d and material through JSON, salt booked; scenes with grains need the CPU | m3c.test.ts |
+| 49 | Angle of repose: two piles of 25 g of 0.5 mm salt poured slowly stand at 34° (±3° of the cited value for fine table salt, the mean of both slopes of both); salt exact | m3c.slow.test.ts |
+| 50 | Settling: a 0.5 mm grain in saturated brine sinks relative to the brine at the Ferguson–Church speed (±10 %) | m3c.test.ts |
+| 51 | Dissolving: a 0.2 mm grain in still fresh water without gravity (Sh = 2) is gone after d₀²/(2K), K = 4 D ρ ln(1 + B)/ρ_s (±20 %); salt and energy exact | m3c.test.ts |
+| 52 | Cooling: 2.4 % fine salt in water at 20 °C, once dissolved, leaves the solution as much colder as its enthalpy says (±5 %); energy exact | m3c.test.ts |
+| 53 | Salt exact through dissolving and growing: saturated brine with grains, warmed they dissolve, cooled they grow again (no crust while grains are near) | m3c.test.ts |
+| 54 | Salt into superheated water: grains falling into water 4 K above T_sat release bubbles at their crevices, which grow; budgets close | m3c.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -649,26 +663,25 @@ benchmark scene takes 4.9 ms per step at 2 mm and 7.7 ms at 1 mm, the gas stage 
 ## 14. Designed for, not built
 
 Chemistry (M2: species and reactions as a graph, each cell a well-mixed reactor, stiff implicit kinetics, gas from a
-liquid becomes bubbles, gas in the gas phase a divergence source); melting and grains (M3b, M3c — rigid bodies are
-built, §17); energetic reactions (M4: an explicit sub-model for
+liquid becomes bubbles, gas in the gas phase a divergence source); energetic reactions (M4: an explicit sub-model for
 the Coulomb explosion of sodium; hydrogen ignition needs a compressible solver); zero gravity (surface tension on the
 resolved surface); a molecule lens (read-only Lennard-Jones view).
 Nothing in M1 blocks them: six species slots on cells and bubbles, two composition slots on particles, the object
 store, the chemistry hook in the loop.
 
 The plan for the next steps — several liquids (oil), bodies that fall, float and tip, melting and freezing, salt in
-solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code; M2a,
-M2b, B and M3a are built). It replaces the M3 sketch above: melting there is an interface process at the solution's freezing
-point, not a volume enthalpy rule. Still open from M2b: the crust does not dissolve (grains and dissolution are M3c),
-only NaCl, one diffusion coefficient for all concentrations.
+solution and as grains, and baked clips — is [SANDBOX.md](SANDBOX.md) (2026-10-21, a design before the code; all of it
+is built: M2a, M2b, B, M3a, M3b and M3c, §17, §18, §21). It replaces the M3 sketch above: melting there is an interface
+process at the solution's freezing point, not a volume enthalpy rule. Still open: the crust does not dissolve (grains
+do), only NaCl, one diffusion coefficient for all concentrations, no new crystals in the liquid.
 
 ## 15. The GPU path (M1e): the accelerated view
 
 The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
-to the CPU worker with a note; a scene with a free body or ice goes back to the CPU worker the same way, with its tools
-applied (`needsCpu`; M3a and M3b are not ported). Everything else is ported — violent events (§19), other liquids
+to the CPU worker with a note; a scene with a free body, ice or grains goes back to the CPU worker the same way, with
+its tools applied (`needsCpu`; M3a, M3b and M3c are not ported). Everything else is ported — violent events (§19), other liquids
 (M2a) and salt (M2b) since 2026-10-24 (MILESTONES.md, "The accelerated view for the new parts"):
 - **Oil**: the liquid of a particle in bits 8–15 of its flags; the laws of every liquid as WGSL functions; only water
   exchanges mass (gather, flash, mass to the particles) and condensate in a cell without water particles spawns one;
@@ -1041,3 +1054,89 @@ bar starts and pauses.
 
 Texts: `i18n.ts` (Polish first, German and English beside it — the overlays, environment, charts and inspector now in
 all three) and `i18nShell.ts` for the surface.
+
+## 21. Grains (M3c, since 2026-10-24)
+
+Salt that is poured instead of dissolved: a handful of crystals falls, sinks through water, piles up, dissolves where
+the water is not saturated, grows from supersaturated brine, and — dry crystals carry air in their crevices — sets off
+boiling in superheated water. Files: `grains.ts` (the store), `grainFlow.ts` (motion), `grainSalt.ts` (salt and heat).
+
+- **The store.** A grain particle stands for N real crystals of diameter d, as a liquid particle stands for many
+  molecules: position, velocity, mass m (and m₀ when placed), N, temperature, material, whether its crevices are still
+  dry and how long it has lain in water. d follows from m and N, d = (6m/(Nπρ_s))^⅓: a dissolving grain shrinks, a
+  growing one grows. One material so far, NaCl — ρ and c_p of rock salt (as the crust), the angle of repose of fine
+  table salt, 34 ± 3° (the Handbook of Pharmaceutical Excipients gives 38° for cubic crystals, teaching material about
+  32°; no measured value exists for 0.3–0.8 mm crystals).
+- **Placing**: `{ "op": "grains", "region", "material": "NaCl", "d", "T" }`, in the palette "Sól (kryształki)". 2 × 2
+  grain particles per cell of the region, not in solids or bodies, each of mass ρ_s φ_max V_cell/4 — a loose pour,
+  φ_max = 0.58 (poured table salt 0.51–0.60; spheres 0.55–0.60, [Onoda & Liniger 1990](https://doi.org/10.1103/PhysRevLett.64.2727)).
+  d defaults to 0.5 mm (fine table salt), from 0.05 to 5 mm. Salt and energy are booked; `erase` and a painted solid
+  remove grains (booked).
+- **Volume** (start of stage 2, `GrainFlow.splatVolume`): each grain's volume m/ρ_s goes with the quadratic B-spline
+  into `grid.grain`, the grain fraction of the cells. The liquid counts it like the void fraction of bubbles — in the
+  classification (φ + φ_s + α + grain ≥ ½), the drift correction (a cell full of grains holds less water) and the
+  position of the free surface. The gas does not see grains (SIMPLIFICATIONS.md #47).
+- **Motion** (end of stage 2), position-based dynamics after [Macklin et al. 2014](https://doi.org/10.1145/2601097.2601152):
+  - *Forces.* In air gravity. In a liquid cell gravity reduced by buoyancy, g(1 − ρ_l/ρ_s), and the drag toward the
+    liquid's velocity at the grain, implicit with τ = w/g_eff, w the settling speed of
+    [Ferguson & Church 2004](https://doi.org/10.1306/051204740933), w = R g d²/(C₁ν + √(0.75 C₂ R g d³)), R = (ρ_s −
+    ρ_l)/ρ_l, C₁ = 18 and C₂ = 1.0 for natural sieved grains — a single grain sinks exactly at w. ρ_l and the
+    temperature (for water's viscosity μ(T)) come from the liquid particles in the grain's cell, gathered in this step
+    (its neighbours when it holds none) — reading the heat step's per-cell temperature, a working array, made a clip
+    continued from a keyframe run differently. The reaction m Δv/Δt goes onto the liquid's faces with the B-spline
+    weights (`Liquid.fU`, `fV`, used in the next step): a sinking grain carries its weight to the floor through the
+    water, a resting one through the grains below it.
+  - *Contacts.* Discs of radius r = 0.2687 Δx √(m/m₀): four touching discs per cell in the densest packing of discs
+    (area fraction 0.907) stand for the packing φ_max of the real crystals. Positions are predicted, neighbours found
+    by cell; each overlapping pair is pushed apart by its overlap, shared by inverse masses scaled with height,
+    w ∝ e^{y/(4 r₀)}/m: lower grains count as
+    heavier ("mass scaling", Macklin §6), so a pile carries itself in a few sweeps instead of spreading like a
+    compressible liquid. Static friction cancels the tangential displacement of the pair while it stays below μ_s times
+    the overlap, kinetic friction limits it to μ_k times the overlap (μ_s = 0.245, μ_k = 0.2, calibrated to 34°: μ_s 0.23
+    gives 31.0°, 0.245 34.6°, 0.26 37.6° — discs do not roll, so the angle is not arctan μ). The box walls, painted
+    solids (along their signed distance) and bodies (their own hit test, moving with the body) are contacts with
+    friction too.
+  - Substeps of at most 2 ms, four Gauss–Seidel sweeps each, alternately forward and backward (in one direction piles
+    leaned to one side); v = Δx/Δt afterwards. A grain leaving through an open side is booked as escaped salt and
+    energy. dt keeps the fastest grain to half a cell per step.
+- **Salt and heat** (stage 5, after `salt.ts`):
+  - *Dissolving*, in a liquid cell whose water is below saturation: ṁ = A k ρ ln(1 + B), B = (w_sat − w_∞)/(1 − w_sat),
+    k = Sh D/d, Sh = 1 + (1 + Re Sc)^⅓ f(Re) with f = 1 up to Re = 1 and Re^0.077 up to 400 (Clift, Grace & Weber, as
+    quoted by [Nugraha et al. 2022](https://doi.org/10.1016/j.ces.2021.117292)); A = Nπd², Re from the grain's slip
+    against the liquid, w_∞ the salt fraction of the cell's water, w_sat(T) that of saturated brine (`solution.ts`).
+    The salt goes to the cell's water particles by their water with the enthalpy of the crystal, so the heat of
+    solution (+4.6 kJ/mol at 20 °C, −5.0 at 100 °C) cools or warms the solution by itself, exactly. Never more than the
+    cell's water takes up to saturation; below 10⁻⁴ of m₀ the rest goes too and the grain is removed.
+  - *Growth*: what a supersaturated particle gives off (`salt.ts`) goes onto the nearest grain in its cell or a
+    neighbouring one, with the crystal's enthalpy; only where there is none it becomes crust, as before. No new
+    crystals appear in the liquid.
+  - *Heat*: a grain approaches the temperature of its cell's liquid (without water: the gas) with τ = m c_p/(h A),
+    h = Nu k/d (the same form with Pr), the heat booked into the cell (`heat.src`); in the heat solve the grains add
+    their m c_p to their cell's capacity and take its temperature change.
+  - *Cavities*: dry crystals carry air in their crevices
+    ([Griffith & Wallis 1958](https://dspace.mit.edu/handle/1721.1/61453)). A dry grain in liquid water above its
+    boiling point (with the salt of its cell) + ΔT_act of a 10 µm mouth — 3.3 K at 1 atm, in the softened mode at most
+    2 K, as for wall cavities — releases a bubble of 10 µm, its vapour from the cell's water (with h̄_w), the latent
+    heat from the cell; like a wall cavity it does so again and again, at most once per 25 ms (`NUC_EVERY`: Zuber's
+    departure frequency f d_d ≈ 0.59 [σ g Δρ/ρ_l²]^¼ gives about 40 Hz for water at 1 atm — an assumption). The
+    crevices stay dry for 2 s in water (`WET_LIFE`, an assumption: the trapped air dissolves gradually) — long enough
+    for a grain that fell through the surface, which stays at T_sat, into the superheated water below. With one
+    bubble per grain nothing boiled: the bubbles were born at the surface, where the cold grains had just cooled the
+    water, and collapsed.
+- **Budgets**: grains are a salt store of their own (`SaltByState.grains`) and part of the solids' energy; salt stays
+  exact to rounding through dissolving and growing, energy closes (tests 50–54).
+- **Drawing**: per cell the grain fraction relative to φ_max covers the cell in the smooth field — white over the
+  liquid, a warm light grey over the gas (white would vanish against it; sparse grains there drawn by the square root
+  of their fraction), above the gas overlays and the fog. It is the crust layer of fluid cells, so clips need no new
+  layer; keyframes hold the grains with the rest of the state (their arrays up to the count).
+- **Painting** puts grains only into cells without grains: a brush stroke passes the same cells many times, and grains
+  laid exactly onto others flew apart.
+- **Not on the accelerated view**: a scene with grains goes back to the CPU (`needsCpu`, §15).
+
+Not the plan's continuum (SANDBOX.md §8, after Narain, Golas & Lin 2010): with four grains per 2 mm cell the
+continuum held no resting slope — half-filled cells at the surface have no pressure there, the top layer flowed off
+and every pile crept flat, also with a conjugate-gradient pressure and an overburden term. The particles with friction
+hold the slope; their cost scales with the grains present (a scene without grains pays nothing). Two presets show it:
+"Sól wsypana do wody" (a handful sinks, dissolves slowly, the brine stays at the bottom, the water cools by 0.4 K) and
+"Sól do przegrzanej wody" (water at 104 °C in a smooth beaker: the salt sets off violent boiling). Numbers: MILESTONES.md
+§M3c.

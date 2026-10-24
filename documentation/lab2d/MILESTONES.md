@@ -7,7 +7,7 @@ tests measured, and what is not met. Architecture: [ARCHITECTURE.md](ARCHITECTUR
 Reference machine: the development laptop, AMD Ryzen 9 5900HS (8 cores, single-threaded engine), Node 24, Windows 11.
 The prompt's "target school laptop" was never named; a typical school laptop is two to four times slower per core.
 
-Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` (long runs, ~35 min),
+Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` (long runs, ~38 min),
 `npm run bench:lab2d` (benchmark, on a quiet machine).
 
 ## Summary
@@ -25,6 +25,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` 
 | M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU; objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
 | M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
+| M3c grains | tests 49–54 (SANDBOX.md §13) | built on the CPU (2026-10-24): all met — salt piles stand at 33.3° (cited 34 ± 3°), a grain sinks at its Ferguson–Church speed (+0.01 %), dissolves in its mass-transfer time (−0.3 %), the solution cools as its enthalpy says (−0.1 %), salt exact through dissolving and growing, grains in superheated water set off violent boiling (§M3c); position-based friction instead of the planned continuum; a scene with grains runs on the CPU |
 | Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); on the accelerated view too (test 47 there) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout: the
@@ -807,6 +808,82 @@ particles (only its place is liquid) made vapour from nothing; now it needs them
 followed the continued velocity of the liquid and hung in the air; now they fly with gravity (the CPU's stranded
 droplets), droplets in gas cells flash above T_sat, and a particle that would keep almost no water evaporates whole.
 Before them the last drops of test 27 hung on the dish wall and the water budget was off by 8 mg; after, both close.
+
+## M3c — grains (2026-10-24)
+
+Built on the CPU (2026-10-24), the last step of [SANDBOX.md](SANDBOX.md) §13 and "the next step to the full sandbox
+implementation" the user asked for: salt as crystals that fall, sink, pile up, dissolve, grow from supersaturated
+brine and set off boiling in superheated water. ARCHITECTURE.md §21 has the machinery; the short version:
+
+- Grain particles, each standing for N crystals of diameter d (0.5 mm by default, fine table salt), painted four per
+  cell at the packing of a loose pour (0.58) — the scene operation `grains` and the palette entry "Sól (kryształki)".
+- Motion by position-based dynamics (Macklin et al. 2014): gravity reduced by buoyancy and an implicit drag toward the
+  liquid that gives a single grain exactly the Ferguson–Church settling speed, with its reaction on the liquid; discs
+  with static and kinetic friction against each other, walls, painted solids and bodies; lower grains count as heavier
+  (mass scaling), so a pile carries itself.
+- Dissolving by the mass-transfer correlation of a sphere with the blowing factor ln(1 + B); the salt enters the
+  cell's water with the crystal's enthalpy, so the heat of solution follows by itself. Supersaturated particles grow a
+  grain nearby instead of the crust. Grains exchange heat with their cell, and their dry crevices release bubbles in
+  superheated water like wall cavities (at most one per grain particle every 25 ms).
+
+The gates (SANDBOX.md §13; m3c.test.ts, m3c.slow.test.ts):
+
+| Test | Result |
+|---|---|
+| — the grains operation | four grains per cell, d and material through JSON, the salt booked exactly; a scene with grains needs the CPU |
+| 49 angle of repose (slow) | two piles of 25 g poured slowly (a pinch every 0.05 s over the middle, then 1 s of rest), a line through the profile between 20 and 80 % of the height on each side: 31.8° / 32.8° (35.2 mm high) and 31.2° / 37.3° (34.8 mm), **mean 33.3°** against the cited 34 ± 3°; salt exact |
+| 50 settling | a 0.5 mm grain in saturated brine at 20 °C sinks relative to the brine at 46.72 mm/s, Ferguson–Church 46.71 mm/s (**+0.01 %**); it keeps its mass to 2·10⁻⁶ |
+| 51 dissolving | a 0.2 mm grain in still fresh water without gravity (Sh = 2) is gone after 25.05 s, d₀²/(2K) = 25.13 s (**−0.3 %**); salt error 3·10⁻²³ kg of 9·10⁻⁹ kg, energy −9·10⁻⁹ J |
+| 52 cooling | 2.4 % fine salt (0.1 mm) spread through water at 20 °C, sealed and insulated: dissolved after 6.6 s, ΔT −0.5132 K, from the enthalpies −0.5139 K (**−0.1 %**); energy −1.1·10⁻⁷ J |
+| 53 salt through dissolving and growing | saturated brine at 40 °C with 30 mg of 0.2 mm grains: warmed for 5 s they hold 29.994 mg (0.011 mg dissolved), cooled for 10 s 31.316 mg (1.327 mg grown), no crust; salt error 2.5·10⁻¹⁷ kg of 1.9 g, energy 4.8·10⁻⁷ J |
+| 54 salt into superheated water | 16 grains fall into water at 104 °C (4 K above T_sat) without boiling chips: 532 bubbles within 1.5 s, the largest 6.03 mm, until the superheat is spent; salt 1·10⁻¹⁹ kg, water 6·10⁻¹⁶ kg, energy 6·10⁻¹⁰ J |
+| 33 keyframe | grains falling into warm water, restored into a fresh engine, run on bit for bit (snapshot 630 kB) |
+
+The fast suite has 94 tests in 11 files (all met); every number of M1–M3b and of the violent events is unchanged to
+the last printed digit — grains cost nothing where there are none (0.3 µs per step for the empty calls in the
+benchmark scene). With grains they cost: the preset "Sól wsypana do wody" (200 grain particles, 2.5 g) takes 22.8 ms
+per step against 17.2 ms without the salt — 2.0 ms the grains' motion, 0.3 ms their salt and heat, 2.1 ms the brine
+they make (the heat stage shares salt between the particles of a cell), the rest the other stages handling salty
+water; falling grains shorten the step (409 steps in 3 s instead of 361). A pile of 25 g is 2000 grain
+particles: about ten times the motion cost. What would help next: the body hit test runs for every grain in a
+beaker's box (a third of the motion), and the pairs are searched in all nine neighbouring cells per sweep.
+
+**How it came about.** The plan (SANDBOX.md §8) was a granular continuum on the grid after Narain, Golas & Lin 2010:
+unilateral incompressibility and Drucker–Prager friction. With four grains per 2 mm cell it held no resting slope: a
+30 mm wedge at 45° slumped to 7.6 mm within a second, and even a wedge at 15°, below the angle of repose, sank (its
+top from 30 to 25.8 mm) — half-filled cells at the surface carry no pressure there, so the top layer flowed off; with
+a conjugate-gradient pressure and an overburden term the piles crept more slowly, but they never stopped. The grain particles themselves with friction (position-based dynamics) hold the slope. Two details mattered:
+sweeping in one direction made every pile lean to one side; alternating sweeps fixed it; without mass scaling a pile sagged like a compressible liquid for seconds. The friction
+was calibrated on slow pours (μ_s 0.23 → 31.0°, 0.245 → 34.6°, 0.26 → 37.6°; four pours at 0.245 scattered from
+32.3° to 36.1° — avalanches come as they come, so test 49 averages two piles). The grains' crevices were first
+flooded as soon as they lay in water: grains that fell through the surface, which stays at T_sat, never reached the
+superheated water dry; the air now lasts 2 s in water (an assumption). In the first version the drag read the
+liquid temperature of the last heat step from a working array; a clip continued from a keyframe then ran differently
+(test 33 with grains, added for this); it now gathers temperature and density from the particles of the grain's cell.
+And a grain first released one bubble only: in the superheated preset all 50 grains nucleated as they entered the
+water, where the cold salt had just cooled it, and every bubble collapsed — no boiling at all (test 54 passed on one
+late bubble). Now a dry grain nucleates like a wall cavity, at most once per 25 ms while it sinks: 1600 bubbles in the
+preset, up to 7.2 mm, until the superheat is spent after about 1.4 s.
+
+Two presets: "Sól wsypana do wody" (a handful of 0.5 mm salt over a beaker of water at 20 °C: the grains slow down in
+the water, sink to the bottom at a few centimetres per second and pile up; the salt dissolves where the water is not
+yet saturated, the dense brine stays at the bottom, the water cools by about 0.4 K) and "Sól do przegrzanej wody"
+(water at 104 °C in a smooth beaker on a plate: the salt sets off violent boiling, and after half a second the lab
+asks how to go on — "Gwałtowne wrzenie"). Both are scenarios of the page
+fixture (18 scenes). The AI prompt and the scene docs know the operation; the accelerated view hands scenes with
+grains back to the CPU ("Widok przyspieszony nie zna jeszcze … kryształków soli").
+
+**Checked** in headless Edge against a bundle of the shell (10 checks): the preset in the page's whole window, the
+handful visible in the air, running (the grains enter the water as a cloud, slow down and settle at the bottom),
+"Maluj" pausing the run, the palette offering "Sól (kryształki)", salt painted in the air falling — into the beaker or
+beside it onto the box floor; the superheated preset boiling and asking "Gwałtowne wrzenie" at 0.56 s (a bubble of
+6.2 mm), "Licz dokładnie" going on without a second question; no console errors. Two fixes came from it: white grains vanished against the light gas
+(now a warm light grey there, sparse grains drawn by the square root of their fraction), and a brush stroke laid new
+grains exactly onto the grains of its previous position, which then flew apart (painting now skips cells that hold
+grains).
+
+Not modelled (SIMPLIFICATIONS.md #46–#49): crystal shapes and rolling, grains taking room in the gas, brine
+viscosity, hindered settling of dense clouds as its own law, new crystals in the liquid, crust dissolving.
 
 ## Benchmark
 

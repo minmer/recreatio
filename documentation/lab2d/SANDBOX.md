@@ -1,9 +1,9 @@
 # 2D lab engine — the sandbox plan (more matter, everything falls, melting, salt, baking)
 
-Status (2026-10-23): a design before the code, as ARCHITECTURE.md was. **M2a, M2b, B, M3a and M3b are built** (several
-liquids, rapeseed oil; salt solutions with a crust; baked clips; rigid bodies of exact rectangles that fall, float,
-sink and tip; ice that melts and freezes — MILESTONES.md §M2a, §M2b, §B, §M3a, §M3b; ARCHITECTURE.md §17, §18); M3c
-is not. The user confirmed the order of §13 and decided (2026-10-21):
+Status (2026-10-24): a design before the code, as ARCHITECTURE.md was. **All of it is built**: M2a, M2b, B, M3a, M3b
+and M3c (several liquids, rapeseed oil; salt solutions with a crust; baked clips; rigid bodies of exact rectangles
+that fall, float, sink and tip; ice that melts and freezes; salt crystals that sink, pile up, dissolve and grow —
+MILESTONES.md §M2a, §M2b, §B, §M3a, §M3b, §M3c; ARCHITECTURE.md §17, §18, §21). The user confirmed the order of §13 and decided (2026-10-21):
 
 - every object is one whole — a beaker, a plate, an ice cube moves as one piece; for each object the user decides
   whether it is pinned or reacts to gravity;
@@ -37,7 +37,8 @@ and (2026-10-24):
   violent events (ARCHITECTURE.md §20);
 - **the accelerated view gets every new part**: the GPU ports of §12 follow now, step by step, and M3c is the next step
   of the sandbox. Done the same day: violent events, oil (M2a) and salt (M2b) run on the accelerated view
-  (MILESTONES.md); free bodies (M3a) and ice (M3b) still send a scene back to the CPU.
+  (MILESTONES.md); free bodies (M3a) and ice (M3b) still send a scene back to the CPU. M3c (grains) followed the same
+  day on the CPU; scenes with grains also run on the CPU.
 
 It extends
 ARCHITECTURE.md §14 ("Designed for, not built": M2 chemistry, M3 solids) with what the user asked for:
@@ -245,7 +246,13 @@ rule:
 - Not modelled: supercooling and spontaneous freezing in the bulk (freezing needs existing ice or a solid colder
   than T_f by a nucleation margin, which seeds a new ice body); ice growth patterns below the cell size.
 
-## 8. Grains (salt crystals, sugar, sand)
+## 8. Grains (salt crystals, sugar, sand) (built for salt: ARCHITECTURE.md §21)
+
+Built 2026-10-24 with one change to the plan below: dry grains are not a continuum on the grid but the grain
+particles themselves, with friction as position constraints (position-based dynamics, Macklin et al. 2014) — with
+four grains per 2 mm cell the continuum held no resting slope (MILESTONES.md §M3c). Grains are salt only; sugar and
+sand need their materials (density, angle of repose; sugar does not dissolve into the solution model yet). New
+crystals do not seed by themselves: supersaturated brine grows a grain nearby, else crust.
 
 - **Grain particles** in the particle store: `kind` = grain, material, grain size (each particle stands for many real
   grains, as a liquid particle stands for many molecules).
@@ -358,7 +365,10 @@ Each milestone is then ported (M2a and M2b since 2026-10-24: ARCHITECTURE.md §1
 - body rasterisation as kernels;
 - body dynamics in one workgroup (few bodies, contacts with warm starting) — the accelerated view has no round trips
   inside a step, and that stays so;
-- grains in the liquid kernels plus a frictional projection.
+- grains in the liquid kernels plus the frictional contacts (built on the CPU as position-based dynamics: one thread
+  per grain with graph colouring or Jacobi sweeps instead of Gauss–Seidel).
+
+Not ported yet (2026-10-24): free bodies (M3a), ice (M3b) and grains (M3c) — such a scene runs on the CPU.
 
 Before adding kernels, the workgroup memory of the tile kernels should shrink (MILESTONES.md, M1e: in Firefox it
 costs most of the step and 20 s of compile time).
@@ -372,7 +382,7 @@ costs most of the step and 20 s of compile time).
 | **B** Baking and recording (**built**, baking only) | clip format, bake runner, cache in the browser, playback, resume from keyframe | playback frame-identical to the recording; seeking to within one frame; CPU resume bit-identical to a straight run; measured size per minute (gate set from the measurement) | — (keyframe sections grow with later steps) |
 | **M3a** Bodies (**built**) | bodies of exact rectangles (voxels until 2026-10-23), contacts (physics-lab solver), fluid coupling through covered fractions, heat in bodies, apparatus as bodies, pin | floating depth ρ_b/ρ_l for wood and ice (±2 %); a sinking block reaches a drag-law terminal speed (±15 %) and rests without jitter; a stack of two blocks stands; a full beaker tips at its geometric tipping angle (±3°); budgets close with moving solids | M2a |
 | **M3b** Melting and freezing (**built**) | ice; interface at T_f(w); a side melts or grows as a whole; melt to particles, freeze from supercooled water; salt rejection | Stefan melting front against the Neumann solution (±5 %); ice cube in warm water: energy budget closes; brine with ice settles at T_f(w) (±0.2 K) and approaches the eutectic with enough salt; freezing brine keeps all its salt | M3a, M2b |
-| **M3c** Grains | grain particles: settling, dry granular flow, dissolution, crystallisation, cavities on grains | angle of repose of salt (±3° of the cited value); settling speed (±10 %); dissolution time against the mass-transfer correlation (±20 %); temperature drop from Δ_solH; salt mass exact through dissolving and crystallising | M2b, M3a |
+| **M3c** Grains (**built**) | grain particles: settling, dry granular flow, dissolution, crystallisation, cavities on grains | angle of repose of salt (±3° of the cited value); settling speed (±10 %); dissolution time against the mass-transfer correlation (±20 %); temperature drop from Δ_solH; salt mass exact through dissolving and crystallising | M2b, M3a |
 | GPU ports | after each step (or two steps at a time) | test 17 extended by each step's tests | the step |
 
 **Recommended order: M2a → M2b → B → M3a → M3b → M3c.** Each step builds on the previous one:

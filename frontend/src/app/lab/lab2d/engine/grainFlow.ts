@@ -10,7 +10,11 @@
  *   Geschwindigkeit der Flüssigkeit am Ort hin mit der Zeit τ = w/g_eff, w die
  *   Sinkgeschwindigkeit nach Ferguson & Church (2004),
  *   https://doi.org/10.1306/051204740933 (natürliche Körner nach Siebweite:
- *   C₁ = 18, C₂ = 1,0) — so sinkt ein einzelnes Korn genau mit w. Die
+ *   C₁ = 18, C₂ = 1,0) — so sinkt ein einzelnes Korn genau mit w. Dichte und
+ *   Temperatur der Flüssigkeit aus ihren Teilchen in der Zelle des Korns
+ *   (dieses Schritts — nichts aus dem Arbeitsspeicher anderer Stufen, sonst
+ *   liefe ein Lauf aus einem Schlüsselbild anders weiter); die Zähigkeit ist
+ *   die des Wassers bei dieser Temperatur (auch in Sole und Öl). Die
  *   Gegenkraft bekommt das Wasser im nächsten Schritt (Liquid.fU, fV): ein
  *   sinkendes Korn trägt sein Gewicht über das Wasser zum Boden, ein liegendes
  *   über die anderen Körner.
@@ -50,8 +54,9 @@ const ITER = 4;
 const R_FAC = 0.2687;
 /**
  * Reibung zwischen Körnern und an Wänden: Haft- und Gleitbeiwert, auf den Schüttwinkel von Speisesalz (34°) geeicht —
- * ein aufgeschütteter Haufen aus 2000 Körnern bei 2 mm: μ_s 0,22 → 30,8°, 0,25 → 33,1°, 0,28 → 36,0°, 0,34 → 41,3°
- * (Scheiben ohne Drehung: der Winkel ist nicht arctan μ, Test 49).
+ * langsam aufgeschüttete Haufen aus 25 g (Körner 0,5 mm, Zellen 2 mm, wie Test 49), Mittel beider Böschungen:
+ * μ_s 0,23 → 31,0°, 0,245 → 34,6° (vier Haufen streuen 32,3–36,1°), 0,26 → 37,6°
+ * (Scheiben ohne Drehung: der Winkel ist nicht arctan μ).
  */
 export const MU_STATIC = 0.245;
 export const MU_KINETIC = 0.2;
@@ -86,6 +91,11 @@ export class GrainFlow {
   private readonly w = new Float64Array(6);
   private readonly vel = new Float64Array(2);
   private readonly hit = new Float64Array(6);
+  /* Je Zelle Σ m, Σ m T und Σ m/ρ der Flüssigkeitsteilchen (in jedem Schritt neu); Temperatur und Dichte am Korn. */
+  private readonly lm: Float64Array;
+  private readonly lmT: Float64Array;
+  private readonly lv: Float64Array;
+  private readonly loc = new Float64Array(2);
   /** Länge des laufenden Teilschritts (s) und der Exponent der Massenskalierung (1/m). */
   private h = 0;
   private ks = 0;
@@ -95,6 +105,9 @@ export class GrainFlow {
   constructor(engine: Engine) {
     this.e = engine;
     this.head = new Int32Array(engine.grid.n);
+    this.lm = new Float64Array(engine.grid.n);
+    this.lmT = new Float64Array(engine.grid.n);
+    this.lv = new Float64Array(engine.grid.n);
   }
 
   /** Höchstens eine halbe Zelle je Schritt für das schnellste Korn. */
@@ -155,16 +168,19 @@ export class GrainFlow {
   private forces(dt: number): void {
     const e = this.e;
     const { grid: g, grains: G } = e;
-    const rhoL = e.liquid.rhoRef;
     const gy = e.gy;
     const gRef = gy > 0 ? gy : 9.81;
+    let gathered = false;
     for (let q = 0; q < G.count; q += 1) {
       const c = g.cellAt(G.x[q], G.y[q]);
       const wet = c >= 0 && g.kind[c] === LIQUID;
       if (!wet) { G.vy[q] -= gy * dt; continue; }
+      if (!gathered) { this.gatherLiquid(); gathered = true; }
+      this.liquidAt(c);
+      const T = this.loc[0];
+      const rhoL = this.loc[1];
       const rhoS = GRAIN_MATS[G.mat[q]].rho;
       const geff = gy * (1 - rhoL / rhoS);
-      const T = g.Tl[c] > 200 ? g.Tl[c] : 293.15;
       const tau = settlingVelocity(G.diameter(q), rhoS, rhoL, muL(T), gRef) / Math.max(1e-6, Math.abs(gRef * (1 - rhoL / rhoS)));
       gridVelocityAt(g, G.x[q], G.y[q], this.vel);
       const vx0 = G.vx[q];
@@ -177,6 +193,43 @@ export class GrainFlow {
       /* Die Gegenkraft auf das Wasser (N), im nächsten Schritt. */
       this.spread(G.x[q], G.y[q], (-G.m[q] * (vx - vx0)) / dt, (-G.m[q] * (vy - vy0)) / dt);
     }
+  }
+
+  /** Σ m, Σ m T, Σ m/ρ der Flüssigkeitsteilchen je Zelle. */
+  private gatherLiquid(): void {
+    const { grid: g, particles: P } = this.e;
+    const { lm, lmT, lv } = this;
+    lm.fill(0);
+    lmT.fill(0);
+    lv.fill(0);
+    for (let p = 0; p < P.count; p += 1) {
+      const c = g.cellAt(P.x[p], P.y[p]);
+      if (c < 0) continue;
+      const m = P.mass[p];
+      lm[c] += m;
+      lmT[c] += m * P.T[p];
+      lv[c] += m / P.rho[p];
+    }
+  }
+
+  /** Temperatur (K) und Dichte der Flüssigkeit in Zelle c nach loc: ihre Teilchen, ohne welche die der Nachbarn, sonst Raum und mittlere Dichte. */
+  private liquidAt(c: number): void {
+    const g = this.e.grid;
+    const { lm, lmT, lv, loc } = this;
+    let m = lm[c], mT = lmT[c], v = lv[c];
+    if (!(m > 0)) {
+      const i0 = c % g.nx;
+      const j0 = (c - i0) / g.nx;
+      for (let b = -1; b <= 1; b += 1) for (let a = -1; a <= 1; a += 1) {
+        const i = i0 + a;
+        const j = j0 + b;
+        if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) continue;
+        const k = i + j * g.nx;
+        m += lm[k]; mT += lmT[k]; v += lv[k];
+      }
+    }
+    loc[0] = m > 0 ? mT / m : this.e.ambientT;
+    loc[1] = m > 0 && v > 0 ? m / v : this.e.liquid.rhoRef;
   }
 
   /** Eine Kraft (N) mit den Flächengewichten des B-Splines um (x, y) auf die Flüssigkeit (wie BubbleMotion.spreadForce). */

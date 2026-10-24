@@ -23,7 +23,7 @@ export interface GrainMaterial {
   readonly color: string;
   /** Löst er sich in Wasser (als gelöster Stoff NACL)? */
   readonly dissolves: boolean;
-  /** Schüttwinkel (Grad) — der Reibungswinkel des Kornkontinuums (grainFlow.ts). */
+  /** Schüttwinkel (Grad) — der Wert, auf den die Reibung der Körner geeicht ist (grainFlow.ts, Test 49). */
   readonly repose: number;
 }
 
@@ -63,7 +63,7 @@ export class Grains {
   /** Temperatur (K); die Enthalpie ist m c_p (T − 0 °C). */
   readonly T: Float64Array;
   readonly mat: Uint8Array;
-  /** 1: die Körner tragen noch Luft in ihren Spalten (Keime für Blasen); 0, wenn sie gekeimt haben oder die Spalten geflutet sind. */
+  /** 1: die Körner tragen noch Luft in ihren Spalten (Keime für Blasen); 0, wenn die Spalten geflutet sind. */
   readonly dry: Uint8Array;
   /** Wie lange das Korn schon im Wasser liegt (s): die Luft in den Spalten hält sich eine Weile (grainSalt.ts). */
   readonly wet: Float64Array;

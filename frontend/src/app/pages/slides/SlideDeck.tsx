@@ -116,6 +116,23 @@ function LayerFace({ layer, style, className = '', shift = 0 }: { layer: Layer; 
   );
 }
 
+/**
+ * 2026-10-24 — WIE EINE SCHICHT IM TUCH WANDERT — genau wie hinter einem Slajd ohne Tuch: um ihr Tempo
+ * langsamer als die Bahn (0 steht, 1 läuft mit dem Inhalt), und so viel höher als der Schirm, dass sie ihn
+ * auf dem ganzen Weg bedeckt (ein Bild wird dafür grösser gezogen). Verschiedene Tempi geben die Tiefe.
+ * Der Schriftzug steht in seiner Ebene und wandert um seine Strecke („Długość przejazdu").
+ * `from` und `length`: der Abschnitt der Bahn, über den sie wandert.
+ */
+function drift(layer: Layer, position: number, from: number, length: number, vh: number): { style: CSSProperties; shift: number } {
+  const span = Math.max(1, length);
+  const along = Math.min(span, Math.max(0, position - from));
+  const speed = layer.kind === 'bigtext' ? 0 : layer.speed;
+  return {
+    style: { top: 0, height: `${vh + speed * span}px`, transform: `translate3d(0, ${-speed * along}px, 0)` },
+    shift: layer.kind === 'bigtext' ? (0.5 - along / span) * vh * layer.speed : 0
+  };
+}
+
 /** Der Schriftzug einer Schicht — `shift`: wie weit er gerade über den Schirm gewandert ist (px). */
 function BigText({ layer, shift }: { layer: Extract<Layer, { kind: 'bigtext' }>; shift: number }) {
   return (
@@ -351,22 +368,26 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
         */}
         {shared && (
           <div className="wk-deck-backdrop" aria-hidden="true">
-            {deck.backdrop.map((layer, n) => <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={{ height: '100%' }} />)}
+            {/* Die gemeinsamen wandern über die ganze Folge — langsam, wie ihr Tempo sagt (0 steht). */}
+            {deck.backdrop.map((layer, n) => {
+              const last = geometry[geometry.length - 1];
+              const travel = last === undefined ? 0 : Math.max(0, last.start + last.height - vh);
+              const d = drift(layer, scroll.position, 0, travel, vh);
+              return <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={d.style} shift={d.shift} />;
+            })}
             {backdropAt(slides.map((slide) => slide.layers.length > 0), at).map(({ index, opacity }) => (
               <div key={slides[index].key} className="wk-deck-backdrop-slide" style={{ opacity }}>
                 {slides[index].layers.map((layer, n) => {
                   /*
-                     2026-10-24 — AUCH IM TUCH WANDERN DIE SCHICHTEN: wie weit der
-                     Slajd durch den Schirm ist (0 kommt herein, 1 ist hinaus); eine
-                     Schicht ist um ihr Tempo höher als der Schirm und gleitet so weit
-                     nach oben — ein Bild wird dafür grösser gezogen. Der Schriftzug
-                     steht in seiner Ebene und wandert um seine Strecke.
+                     Die eigenen eines Slajds wandern über seinen Weg durch den Schirm:
+                     vom Hereinkommen unten (Bahn = Anfang − Schirm) bis zum Verlassen
+                     oben (Anfang + Höhe) — auch im Wechsel, damit die Tiefe bleibt.
                   */
                   const frame = geometry[index];
-                  const through = frame === undefined ? 0.5 : Math.min(1, Math.max(0, (scroll.position - frame.start + vh) / (frame.height + vh)));
-                  const speed = layer.kind === 'bigtext' ? 0 : layer.speed;
-                  const flow: CSSProperties = { top: 0, height: `${vh * (1 + speed)}px`, transform: `translate3d(0, ${-speed * vh * through}px, 0)` };
-                  return <LayerFace key={n} layer={layer} style={flow} shift={layer.kind === 'bigtext' ? (0.5 - through) * vh * layer.speed : 0} />;
+                  const d = frame === undefined
+                    ? drift(layer, 0, 0, 0, vh)
+                    : drift(layer, scroll.position, frame.start - vh, frame.height + vh, vh);
+                  return <LayerFace key={n} layer={layer} style={d.style} shift={d.shift} />;
                 })}
               </div>
             ))}

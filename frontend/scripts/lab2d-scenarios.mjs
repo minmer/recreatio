@@ -27,8 +27,8 @@ try {
     if (p === undefined) throw new Error(`preset ${key}`);
     return p;
   };
-  /* Die Reihenfolge der Wahl: vom Erwärmen über das Sieden zu Öl, Salz und Nebel, dann Körper (M3a) und Eis (M3b). */
-  const order = ['zlewka-na-plycie', 'konwekcja', 'wrzenie', 'szybkowar', 'wysoka-gora', 'woda-pod-olejem', 'olej-i-woda', 'solanka-wrze-pozniej', 'solanka-pod-woda', 'odparowanie-solanki', 'mgla', 'co-plywa', 'lod-w-wodzie', 'lod-z-sola', 'przewrocona-zlewka'];
+  /* Die Reihenfolge der Wahl: vom Erwärmen über das Sieden zu Öl, Salz und Nebel, dann Körper (M3a), Eis (M3b) und Salzkörner (M3c). */
+  const order = ['zlewka-na-plycie', 'konwekcja', 'wrzenie', 'szybkowar', 'wysoka-gora', 'woda-pod-olejem', 'olej-i-woda', 'solanka-wrze-pozniej', 'solanka-pod-woda', 'odparowanie-solanki', 'mgla', 'co-plywa', 'lod-w-wodzie', 'lod-z-sola', 'przewrocona-zlewka', 'sol-w-wodzie', 'sol-do-wrzatku'];
   const [first, ...rest] = order.map(preset);
   const scenario = (p) => ({ title: p.title, text: p.text, scene: p.scene });
   const boiling = preset('wrzenie');
@@ -47,7 +47,7 @@ try {
         size: { colSpan: 6, rowSpan: 2 },
         config: {
           title: 'Jak pracować',
-          body: 'Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę, mgłę i ciała, które pływają, toną albo się przewracają. Każdy ma własne nagranie.'
+          body: 'Laboratorium nic nie liczy samo. Po otwarciu czeka: „Uruchom na żywo” liczy symulację w tej chwili (na słabszym komputerze wolniej niż w rzeczywistości), „Upiecz” liczy wybrany scenariusz raz, jak najszybciej, i zapisuje nagranie w tej przeglądarce.\n## Nagranie\nUpieczone nagranie odtwarza się płynnie, bez liczenia — także na telefonie: przewijaj suwakiem czasu, zmieniaj tempo i nakładki. „Na żywo od tej chwili” liczy dalej dokładnie od pokazanego obrazu; wtedy znów działają narzędzia.\n## Scenariusze\nNad tekstem po prawej wybierasz scenariusz: od nagrzewania wody przez wrzenie (także w szybkowarze i w górach) po olej, solankę, mgłę, ciała, które pływają, toną albo się przewracają, lód, który się topi, i sól wsypaną do wody. Każdy ma własne nagranie.'
         }
       },
       {

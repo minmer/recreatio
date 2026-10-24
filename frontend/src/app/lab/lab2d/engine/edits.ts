@@ -365,9 +365,12 @@ export function applyOp(w: World, op: Op): string | null {
       const m = (gm.rho * PHI_MAX * g.vCell) / 4;
       const N = m / ((gm.rho * Math.PI * op.d * op.d * op.d) / 6);
       let full = false;
+      /* Wo schon Körner liegen, kommen keine dazu — sonst legte jeder Pinselstrich neue genau auf die alten (sie flögen auseinander). */
+      const taken = new Uint8Array(g.n);
+      for (let q = 0; q < w.grains.count; q += 1) { const c = g.cellAt(w.grains.x[q], w.grains.y[q]); if (c >= 0) taken[c] = 1; }
       eachCellBox(g, op.region, (i, j) => {
         const c = i + j * g.nx;
-        if (g.solid[c] !== 0) return;
+        if (g.solid[c] !== 0 || taken[c] !== 0) return;
         for (let b = 0; b < 2; b += 1) for (let a = 0; a < 2; a += 1) {
           const x = (i + 0.25 + 0.5 * a) * g.dx;
           const y = (j + 0.25 + 0.5 * b) * g.dx;

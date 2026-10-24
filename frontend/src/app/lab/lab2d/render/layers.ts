@@ -507,6 +507,8 @@ export interface ComposeTarget {
 
 const SOLID_RGB = SOLIDS.map((s) => hex(s.color));
 const CRYSTAL_RGB = hex(SOLUTES[0]?.color ?? '#f4f3ee');
+/** Körner in der Luft: ein warmes Hellgrau (weiss verschwände vor dem hellen Gas) — und dünn gestreute deutlicher (√ des Anteils). */
+const GRAIN_AIR_RGB = [188, 184, 174] as const;
 /** Unter den Einblendungen Temperatur, Druck und Geschwindigkeit wird der Nebel blasser (die Farben bleiben lesbar). */
 const FOG_UNDER_OVERLAY = 0.3;
 const scratch = new Uint8Array(4);
@@ -591,10 +593,11 @@ export function composeFrame(L: Layers, f: ComposeTarget, overlay: Overlay): voi
       }
       /* Körner über dem Gas, seiner Einblendung und dem Nebel. */
       if (salt > 0) {
-        const outA = salt + a * (1 - salt);
-        r = (CRYSTAL_RGB[0] * salt + r * a * (1 - salt)) / outA;
-        gg = (CRYSTAL_RGB[1] * salt + gg * a * (1 - salt)) / outA;
-        bl = (CRYSTAL_RGB[2] * salt + bl * a * (1 - salt)) / outA;
+        const sa = Math.sqrt(salt);
+        const outA = sa + a * (1 - sa);
+        r = (GRAIN_AIR_RGB[0] * sa + r * a * (1 - sa)) / outA;
+        gg = (GRAIN_AIR_RGB[1] * sa + gg * a * (1 - sa)) / outA;
+        bl = (GRAIN_AIR_RGB[2] * sa + bl * a * (1 - sa)) / outA;
         a = outA;
       }
       field[o] = r * a; field[o + 1] = gg * a; field[o + 2] = bl * a; field[o + 3] = 255 * a;

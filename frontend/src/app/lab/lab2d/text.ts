@@ -22,7 +22,8 @@ export function lab2dDescription(): string {
     '',
     'Kroki ("op"):',
     '  { "op": "fill", "region": obszar, "composition": { "H2O": 1 }, "phase": "liquid", "T": °C } — ciecz w obszarze: "H2O" (woda) albo "oil-rapeseed" (olej rzepakowy; nie paruje, lżejszy od wody, gęstszy w ruchu); kilka cieczy naraz (udziały masowe) rozkłada się równo i rozdziela się pod wpływem grawitacji; "NaCl" (sól kuchenna) rozpuszcza się w wodzie: { "H2O": 0.9, "NaCl": 0.1 } to solanka 10 % (nasycona ma ok. 26 %; nadmiar krystalizuje jako osad na dnie, solanka wrze wyżej niż 100 °C); "phase": "gas" z { "N2": 0.7676, "O2": 0.2324 } — powietrze',
-    '  { "op": "erase", "region": obszar } — usuwa wodę, pęcherze i ciała stałe; wraca powietrze z pokoju',
+    '  { "op": "erase", "region": obszar } — usuwa wodę, pęcherze, kryształki i ciała stałe; wraca powietrze z pokoju',
+    '  { "op": "grains", "region": obszar, "material": "NaCl", "d": średnica kryształków w m (0.0005 — sól kuchenna; od 0.00005 do 0.005), "T": °C } — garść soli w kryształkach (luźno usypana): spada, w wodzie tonie tym wolniej, im drobniejsze kryształki (opór wody), usypuje kopczyk o zboczach ok. 34°, rozpuszcza się tam, gdzie woda nie jest nasycona (lekko ją ochładzając; bez mieszania słona woda zostaje przy dnie), w nasyconej solance kryształki rosną; w przegrzanej wodzie powietrze w szczelinach kryształków wywołuje nagłe wrzenie',
     '  { "op": "move", "id": nazwa przedmiotu, "dx": m, "dy": m } — przesuwa przedmiot razem z tym, co leży w jego obrysie (woda i pęcherze w zlewce, kostka lodu w niej); tak zapisuje się przeciągnięcie narzędziem „Wybierz”. Albo { "op": "move", "region": obszar, "dx", "dy" } — wszystko stałe w obszarze (malowana budowla o całe komórki)',
     '  { "op": "remove", "id": nazwa przedmiotu } — zabiera przedmiot',
     '  { "op": "solid", "region": obszar, "material": "glass" | "steel" | "ceramic" | "wood" | "ice" | "stone", "T": °C } — nieruchoma budowla z komórek siatki (ceramic = kamyczki wrzenne; lód jako budowla się nie topi — topniejący lód to "body")',
@@ -36,7 +37,7 @@ export function lab2dDescription(): string {
 
 export function lab2dPrompt(): string {
   return [
-    'Przygotuj układ startowy JSON dla modułu „Laboratorium 2D” w REcreatio (szkolna piaskownica: ciepło, wrzenie, parowanie, mgła, woda, olej i solanka, ciała, które spadają, pływają i toną, lód, który się topi i przymarza).',
+    'Przygotuj układ startowy JSON dla modułu „Laboratorium 2D” w REcreatio (szkolna piaskownica: ciepło, wrzenie, parowanie, mgła, woda, olej i solanka, sól w kryształkach, która tonie i się rozpuszcza, ciała, które spadają, pływają i toną, lód, który się topi i przymarza).',
     'Temat: [opisz, co ma stać w skrzynce, np. „zlewka z gorącą wodą na płycie grzejnej, kamyczki wrzenne na dnie”].',
     'Zasady: realne rozmiary (zlewka 7 cm szerokości, płyta 12 cm), rzeczy nie nachodzą na siebie, aparatura stoi na dnie (y = 0) albo na innej rzeczy, woda wewnątrz zlewki nad jej dnem; swobodny przedmiot może wisieć nad wodą — spadnie (chyba że ma "pinned": true). Daj przedmiotom krótkie nazwy "id". Zwróć JEDEN obiekt JSON, bez komentarzy.',
     '',

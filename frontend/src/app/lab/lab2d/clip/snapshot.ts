@@ -14,7 +14,7 @@
  *   jemand liest (SCRATCH — ausgemessen: ihn mit Unsinn zu füllen ändert den
  *   Lauf nicht, MILESTONES.md §B; was das Bild liest, bleibt dabei, etwa die
  *   Geschwindigkeit des Wassers für seine Pfeile);
- * - bei Feldern je Teilchen oder je Blase (Länge ein Vielfaches der
+ * - bei Feldern je Teilchen, je Blase oder je Korn (Länge ein Vielfaches der
  *   Kapazität) alles hinter der Anzahl.
  *
  * Jeder Eintrag trägt seinen Pfad; zurückgeschrieben wird nach Pfad in eine
@@ -57,6 +57,10 @@ export const SCRATCH: ReadonlySet<string> = new Set<string>([
   '.e.prevKind',
   /* Körper (M3a): Arbeitsspeicher der Kräfte und der Berührungen (die Teile werden aus den Körpern neu gebaut, der Warmstart steht in contacts.warm*); das Schmelzen (bodyMelt.ts) baut seine Listen der Teilchen je Zelle in jedem Schritt neu. */
   '.e.melt.head', '.e.melt.next', '.e.melt.sg',
+  /* Körner (M3c): Nachbarlisten und Lagen der Teilschritte, Radien, Listen je Zelle (in jedem Schritt neu), ihre Wärmekapazität je Zelle. */
+  '.e.grainFlow.head', '.e.grainFlow.next', '.e.grainFlow.px', '.e.grainFlow.py', '.e.grainFlow.rad', '.e.grainFlow.w', '.e.grainFlow.vel', '.e.grainFlow.hit',
+  '.e.grainFlow.lm', '.e.grainFlow.lmT', '.e.grainFlow.lv', '.e.grainFlow.loc',
+  '.e.grainSalt.head', '.e.grainSalt.next', '.e.grainSalt.gHead', '.e.grainSalt.gNext', '.e.grainSalt.vel', '.e.heat.Cgr', '.e.heat.CTgr',
   '.e.bodies.forces.pe', '.e.bodies.forces.re', '.e.bodies.forces.known', '.e.bodies.forces.mass', '.e.bodies.forces.vol', '.e.bodies.forces.out', '.e.bodies.forces.front', '.e.bodies.forces.next', '.e.bodies.forces.vp', '.e.bodies.forces.vr', '.e.bodies.forces.queued', '.e.bodies.forces.tag',
   '.e.bodies.contacts.parts', '.e.bodies.contacts.byBody', '.e.bodies.contacts.builtFor', '.e.bodies.contacts.cache',
   '.e.bodies.contacts.live', '.e.bodies.contacts.liveKey', '.e.bodies.contacts.touching', '.e.bodies.contacts.toWake',
@@ -126,26 +130,29 @@ function walk(o: object, path: string, seen: Set<object>, v: Visitor, skip: Read
 }
 
 export interface SnapshotRoot {
-  readonly e: { particles: { cap: number; count: number }; bubbles: { cap: number; count: number } };
+  readonly e: { particles: { cap: number; count: number }; bubbles: { cap: number; count: number }; grains: { cap: number; count: number } };
   readonly [k: string]: unknown;
 }
 
 /**
- * Felder je Teilchen und je Blase (nach ihrem Pfad): nur bis zur Anzahl
- * gespeichert. Jedes andere Feld ganz — auch ein neues Feld je Teilchen, das
+ * Felder je Teilchen, je Blase und je Korn (nach ihrem Pfad): nur bis zur
+ * Anzahl gespeichert. Jedes andere Feld ganz — auch ein neues Feld je Teilchen, das
  * hier fehlt (grösser, aber richtig); früher entschied die Länge, und ein Feld
  * des Gitters oder eines Körpers, dessen Länge zufällig ein Vielfaches der
  * Kapazität der Blasen (4096) war, wäre abgeschnitten worden.
  */
 const PER_PARTICLE = /^\.e\.(particles\.[^.]+|liquid\.(bi|bj|wr|wt|dVp|stranded|dropletDrift))$/;
 const PER_BUBBLE = /^\.e\.(bubbles\.[^.]+|bubbleModel\.motion\.(ux0|uy0))$/;
+/* Die Körner erreicht der Gang über die Wärme (heat.grains) oder direkt — je nach Reihenfolge der Felder der Engine. */
+const PER_GRAIN = /^\.e\.(?:heat\.)?grains\.[^.]+$/;
 
-/** Wie viele Elemente eines Feldes zählen: je Teilchen/Blase nur bis zur Anzahl. */
+/** Wie viele Elemente eines Feldes zählen: je Teilchen/Blase/Korn nur bis zur Anzahl. */
 function keepOf(a: Typed, root: SnapshotRoot, path: string): number {
   const n = a.length;
-  const { particles: P, bubbles: B } = root.e;
+  const { particles: P, bubbles: B, grains: G } = root.e;
   if (n > 0 && n % P.cap === 0 && PER_PARTICLE.test(path)) return (n / P.cap) * P.count;
   if (n > 0 && n % B.cap === 0 && PER_BUBBLE.test(path)) return (n / B.cap) * B.count;
+  if (n > 0 && n % G.cap === 0 && PER_GRAIN.test(path)) return (n / G.cap) * G.count;
   return n;
 }
 

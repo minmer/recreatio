@@ -92,6 +92,17 @@ const RESUME: Record<string, { scene: () => unknown; warm: number }> = {
         { op: 'body', region: { rect: [0.03, 0.025, 0.045, 0.04] }, material: 'ice', T: -5 }
       ]
     })
+  },
+  /* M3c: Salzkörner fallen in warmes Wasser — im Flug, sinkend, sich lösend, am Boden aufgeschüttet (Reibung, Lösen, Wärme). */
+  grains: {
+    warm: 150,
+    scene: () => scene({
+      box: { w: 0.06, h: 0.06, depth: 0.01 },
+      ops: [
+        { op: 'fill', region: { rect: [0, 0, 0.06, 0.025] }, composition: { H2O: 1 }, phase: 'liquid', T: 40 },
+        { op: 'grains', region: { rect: [0.02, 0.035, 0.04, 0.045] }, material: 'NaCl', d: 0.0005, T: 20 }
+      ]
+    })
   }
 };
 
@@ -248,14 +259,14 @@ describe('B — test 33: going on from a keyframe is the same run', () => {
 });
 
 describe('B — the scenario page (scripts/fixtures/lab2d-scenariusze.json)', () => {
-  it('one lab with the scene and fourteen scenarios to choose, one lab that bakes on opening; every scene reads and builds without a warning', () => {
+  it('one lab with the scene and sixteen scenarios to choose, one lab that bakes on opening; every scene reads and builds without a warning', () => {
     const page = scenarios as { modules: { kind: string; config: { scene?: unknown; start?: string; seconds?: string; scenarios?: { title: string; scene: unknown }[] } }[] };
     const labs = page.modules.filter((m) => m.kind === 'lab2d');
     expect(labs.length).toBe(2);
     expect(labs[0].config.start).toBe('button');
     expect(labs[1].config.start).toBe('bake');
     const scenes = [...labs.map((m) => m.config.scene), ...(labs[0].config.scenarios ?? []).map((x) => x.scene)];
-    expect(scenes.length).toBe(16);
+    expect(scenes.length).toBe(18);
     for (const raw of scenes) {
       const { scene: sc, warnings } = readScene(raw);
       expect(warnings).toEqual([]);
