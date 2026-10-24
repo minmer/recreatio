@@ -1,12 +1,21 @@
 /**
  * Die Beschreibung neben jedem JSON-Fach (0064): wozu, welche Schlüssel, ein Beispiel — für Seite, Präsentation, Teil, Modul.
+ *
+ * <b>2026-10-24 — als Baum</b> (`core/jsonTree.ts`): die Seite trägt den Eintrag
+ * eines Moduls, der Eintrag die Arten und das Formular, das Formular seine
+ * Wymagania. Jeder Abschnitt steht an EINER Stelle; die Beschreibung der
+ * Seite, eines Moduls und eines Bausteins setzt sich aus denselben Knoten
+ * zusammen — was ein Formular neu kann, steht sofort in allen dreien.
  */
 
-import { QUESTION_EXAMPLE, QUESTION_KEYS } from '../forms/formJson';
+import { QUESTION_EXAMPLE } from '../forms/formJson';
+import { FORM_FORMAT } from '../forms/formFormat';
 import { DEFAULT_ENTRY, MAX_APPOINTMENTS, MAX_DEPTH } from '../calendar/appointmentsJson';
+import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
 import { motionDescription } from './motion/motion';
 import { liveDescription } from './motion/liveText';
 import { MODULE_FORMAT, PAGE_FORMAT } from './pageJson';
+import { MAX_NEEDS, NEED_PREFIX } from './pageImageNeeds';
 import { GATE_KINDS, INPUT_KINDS, PAGE_NODE_LABEL } from './pageLogic';
 import { subjectDescription } from './pageSubject';
 import type { PartModule } from './part';
@@ -15,20 +24,14 @@ import { DEFAULT_THEMES } from './slides/slideLook';
 
 /* -- Die Beschreibung ------------------------------------------------------------- */
 
-const keyLines = (keys: Readonly<Record<string, string>>, indent = '  '): string =>
-  Object.entries(keys).map(([key, says]) => `${indent}"${key}" — ${says}`).join('\n');
-
-const pretty = (value: unknown): string => JSON.stringify(value, null, 2);
-
-/** Ein Abschnitt je Art: wozu, welche Schlüssel, ein Beispiel. */
-export function kindSection(def: PartModule): string {
+/** Was eine Art im JSON ist: wozu, welche Schlüssel, ein Beispiel. */
+function kindText(def: PartModule): string {
   const flags = [
     def.takes ? 'przyjmuje zgłoszenia' : null,
     def.fullscreen ? 'można otworzyć na pełnym ekranie' : null,
     def.Editor !== null ? 'w edytorze: własny edytor list' : null
   ].filter((one) => one !== null);
   return [
-    `### "${def.kind}" — ${def.label}${def.retired === undefined ? '' : ' (WYCOFANY — nie dodawaj; ' + def.retired + ')'}`,
     def.use + (flags.length === 0 ? '' : ` (${flags.join('; ')})`),
     `Domyślny rozmiar: ${def.box.colSpan}×${def.box.rowSpan}.`,
     '"config":',
@@ -36,6 +39,21 @@ export function kindSection(def: PartModule): string {
     'Przykład "config":',
     pretty(def.json.example)
   ].join('\n');
+}
+
+/** Eine Art als Knoten — dieselbe in der Seite, im Modul und im Baustein. */
+const kindNodes = new Map<string, JsonNode>();
+export function kindNode(def: PartModule): JsonNode {
+  const known = kindNodes.get(def.kind);
+  if (known !== undefined) return known;
+  const node: JsonNode = {
+    key: `part:${def.kind}`,
+    title: `"${def.kind}" — ${def.label}${def.retired === undefined ? '' : ' (WYCOFANY — nie dodawaj; ' + def.retired + ')'}`,
+    short: `"${def.kind}" — ${def.label}${def.retired === undefined ? '' : ' (wycofany)'}`,
+    text: () => kindText(def)
+  };
+  kindNodes.set(def.kind, node);
+  return node;
 }
 
 const LAYERS = `Warstwy tła ("cover" strony, "slide.layers" modułu) — od tyłu do przodu:
@@ -62,8 +80,7 @@ Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkow
   "layout" — gdzie stoi treść slajdu: { "align": "start"|"center"|"end", "valign": "start"|"center"|"end", "width": 68, "tall": { "align", "valign", "width" } } — "width" w procentach sceny (szerokość sceny — "deck.width"); "tall" — na telefonie; pominięte — na środku, wygodna szerokość tekstu
   "with" — moduł NIE ma własnego slajdu: stoi obok innego na jego slajdzie, w jednym rzędzie: { "slide": "<id modułu>", "side": "end"|"start", "share": 42, "tallSide": "start"|"end" } — "side" po prawej / po lewej, "share" — % szerokości rzędu, "tallSide" — na telefonie nad nim / pod nim (obraz, animacja obok tekstu); "with": "<id>" też wystarczy`;
 
-const PRESENTATION = `## Prezentacja ("mode": "presentation")
-Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć kilka kroków — wtedy wyróżnienie przechodzi z modułu na moduł, a scena idzie za wyróżnionym. Moduł z miejscem na kilku scenach wędruje: przy zmianie sceny przechodzi płynnie na swoje następne miejsce. Wszystko idzie za przewijaniem (kółko, palec, strzałki), w „Pokazie” — za klawiaturą i kliknięciem.
+const PRESENTATION = `Sceny to ekrany; moduły stoją na nich w dowolnym miejscu. Scena może mieć kilka kroków — wtedy wyróżnienie przechodzi z modułu na moduł, a scena idzie za wyróżnionym. Moduł z miejscem na kilku scenach wędruje: przy zmianie sceny przechodzi płynnie na swoje następne miejsce. Wszystko idzie za przewijaniem (kółko, palec, strzałki), w „Pokazie” — za klawiaturą i kliknięciem.
 Wewnątrz sceny moduł może zmieniać się z jej POSTĘPEM ("frames" miejsca): duże zdjęcie maleje do kadru, przesuwa się, odsłania przez maskę — przewijanie wstecz cofa zmianę, zatrzymanie ją zatrzymuje, a koło, palec, klawiatura i pokaz poruszają ten sam postęp. Im więcej "steps" ma scena, tym dłuższa jej droga.
 Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dalej” (strzałki, przewijanie: "next") i przyciski (moduły z "go"). Wyjście prowadzi do sceny, do końca ("end") albo na zewnątrz ("link:<id>" z "links"). Kto naciśnie przycisk, idzie dalej tą drogą; wstecz — drogą, którą przyszedł.
 
@@ -132,16 +149,6 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
 
 Tekst ("text") w prezentacji i na stronie: "## " — śródtytuł, "# " — duża linia, "> " — mała, cicha linia, [napis](https://… | #/strona | #scena | mailto:… | tel:…) — link; linia z samych linków to rząd linków.`;
 
-const FORM_SECTION = () => `## Pytania formularza (moduł "form")
-Wpis modułu "form" — na stronie i w eksporcie modułu — może nieść jego pytania i układ. Pytania są szyfrowane w przeglądarce kluczem obszaru formularza: eksport pokazuje tylko te, które da się otworzyć Twoimi kluczami (inne mają "label": null i przy imporcie zostają nietknięte). Import pieczętuje nowe i zmienione pytania tutaj, zanim trafią do usługi.
-- Pytanie z "id" z eksportu jest zmieniane — jego odpowiedzi zostają.
-- Pytanie bez "id" albo z własnym (np. "q1") powstaje nowe, na końcu; tej samej nazwy można użyć w "design".
-- Pytań, których nie ma w dokumencie, import nie usuwa — chyba że zaznaczysz „usuń pozostałe”. Pytania z odpowiedziami usługa i tak odmówi usunięcia.
-- Kolejności istniejących pytań nie da się zmienić — kolejność na formularzu ustala "design.layout".
-${keyLines(QUESTION_KEYS)}
-Przykład:
-${pretty(QUESTION_EXAMPLE)}`;
-
 const ENTRY_KEYS: Readonly<Record<string, string>> = {
   id: 'Miejsce modułu na tej stronie. Z eksportu — moduł jest zmieniany w miejscu (zostają zgłoszenia, linki, mapa logiki). Pominięty albo nieznany — powstaje nowe miejsce',
   module: 'Moduł, który to miejsce pokazuje (ten sam moduł może stać na kilku stronach). Przy nowym miejscu pominięty — powstaje nowy moduł; przy miejscu z "id" — zostaje dotychczasowy',
@@ -152,8 +159,9 @@ const ENTRY_KEYS: Readonly<Record<string, string>> = {
   size: 'Rozmiar, gdy nie podajesz "layout": { "colSpan": 2|3|4|6, "rowSpan": 1|3|5 } — 1 pasek, 3 blok, 5 wysoki. Miejsce: pierwsze wolne',
   layout: 'Dokładne miejsce na siatce dla "desktop" (6 kolumn), "tablet" (4) i "mobile" (2): { "position": { "row", "col" }, "size": { "colSpan", "rowSpan" } }. Pominięty — moduł zostaje, gdzie był (nowy: pierwsze wolne miejsce)',
   config: 'Treść modułu — zależy od rodzaju (niżej). Pominięta — treść zostaje bez zmian',
-  questions: 'Tylko "form": pytania (niżej)',
-  design: 'Tylko "form": układ i logika (niżej)'
+  questions: 'Tylko "form": pytania (niżej: Formularz)',
+  design: 'Tylko "form": układ i logika (niżej: Formularz)',
+  needs: 'Tylko "form": wymagania — niepełnoletni, zdrowie, ubezpieczenie, zasady (niżej: Wymagania formularza). Także "memberRoles", "virtualAreas", "group", "repeat", "audience" — wszystko, co niesie dokument modułu (niżej: Formularz)'
 };
 
 /** Ein vollständiges Beispiel einer Seite — aus den Beispielen der Bausteine. */
@@ -190,7 +198,8 @@ export function pageExample(): Record<string, unknown> {
           : { label: def.label, layers: [] },
         size: def.box,
         config: def.json.example,
-        ...(def.kind === 'form' ? QUESTION_EXAMPLE : {})
+        /* 2026-10-24 — und die Minderjährigen mit allen Möglichkeiten (`forms/needs.ts`). */
+        ...(def.kind === 'form' ? { ...QUESTION_EXAMPLE, needs: [{ id: 'minor', age: 'birth', ways: ['parent', 'adult', 'consent'] }] } : {})
       })),
       /* 0107 — eine Animacja neben dem Hasło, auf dessen Slajd; auf dem Telefon darüber. */
       { kind: 'animation', slide: { label: 'Mapa', layers: [], with: { slide: 'start', side: 'end', share: 42, tallSide: 'start' } }, size: { colSpan: 3, rowSpan: 3 }, config: { scene: 'map' } }
@@ -230,19 +239,43 @@ ${pretty({
     modules: [{ kind: 'program', config: { title: 'Program', calendar: '', item: '@dzien1' } }]
   })}`;
 
-export function pageDescription(): string {
-  return `# Strona jako JSON ("${PAGE_FORMAT}", wersja 1)
+/*
+   2026-10-24 — Dateien, um die eine Seite bittet: beschrieben in "images", eingesetzt überall, wo
+   "page-image:@schlüssel" steht (`pageImageNeeds.ts`, im Import `ImageNeeds.tsx`).
+*/
+const IMAGES_SECTION = `Strona może poprosić o pliki, których jeszcze nie ma — zdjęcia, krótki film, dźwięk, dokument do pobrania. Opisz każdy w "images", a tam, gdzie ma stanąć, wpisz "${NEED_PREFIX}klucz" zamiast "page-image:<id>" — w module, w warstwie tła, w scenie prezentacji, w menu, gdziekolwiek stoi adres obrazu albo pliku. Przed importem osoba importująca dodaje plik do każdego opisu (albo wybiera plik, który strona już ma); import wgrywa je do plików strony (publicznych jak strona) i wstawia w każde miejsce z "${NEED_PREFIX}klucz".
+Opis pliku (wpis w "images"):
+  "key" — krótka nazwa (litery, cyfry, - i _), ta sama co w "${NEED_PREFIX}klucz"
+  "label" — krótki tytuł, który zobaczy osoba importująca (bez niego — "key")
+  "description" — co plik ma przedstawiać: temat, kadr, pora, nastrój, poziomo czy pionowo i do czego posłuży — według tego osoba importująca wybiera plik
+  "name" — nazwa pliku, jeśli jest znana (np. "IMG_3240.jpg"): pliki o tej nazwie przypisują się same, także te, które strona już ma
+  "kind" — "image" (zwykłe: JPEG, PNG, WebP, GIF albo AVIF, do 8 MB), "video" (MP4 albo WebM, do 30 MB), "sound" (MP3, M4A, OGG albo WAV, do 30 MB) albo "file" (PDF, Word, Excel, PowerPoint, OpenDocument, GPX albo obraz, do 25 MB)
+Opis, do którego nikt nie dodał pliku: jego miejsca zostają puste (moduł bez obrazu) — import to mówi, a plik dodasz później w edytorze. "${NEED_PREFIX}klucz" bez opisu w "images" też działa — osoba importująca dostaje go bez opisu. Najwyżej ${MAX_NEEDS} plików.
+Przykład:
+${pretty({
+    images: [
+      { key: 'dom', label: 'Dom od strony ogrodu', description: 'Dom w słońcu, widziany z ogrodu; poziomo, szeroki kadr — tło pierwszego ekranu', name: 'dom-ogrod.jpg' },
+      { key: 'ognisko', kind: 'video', label: 'Ognisko wieczorem', description: '5–10 sekund ognia w pętli, bez dźwięku, poziomo' },
+      { key: 'regulamin', kind: 'file', label: 'Regulamin', description: 'Regulamin pobytu jako PDF' }
+    ],
+    cover: [{ kind: 'image', speed: 0.3, url: `${NEED_PREFIX}dom`, opacity: 1, blend: 'normal', position: 'center' }],
+    modules: [
+      { kind: 'image', config: { url: `${NEED_PREFIX}dom`, video: `${NEED_PREFIX}ognisko`, alt: 'Dom od strony ogrodu wieczorem, przy ognisku', fit: 'cover' } },
+      { kind: 'files', config: { files: [{ label: 'Regulamin pobytu', url: `${NEED_PREFIX}regulamin`, note: null, size: null }], note: null } }
+    ]
+  })}`;
 
-Co robi import:
+/* -- Der Baum der Seite (2026-10-24) ------------------------------------------------------ */
+
+const PAGE_INTRO = (): string => `Co robi import:
 - Dokument opisuje całą stronę: tytuł, tekst, wygląd (strona z modułami albo slajdy), kolory, menu, mapę logiki i moduły — każdy z treścią. Klucz, którego nie ma w dokumencie, zostaje na stronie bez zmian.
 - Eksport → zmiana → import zmienia stronę W MIEJSCU: moduł z "id" z eksportu zostaje tym samym modułem (z jego zgłoszeniami, linkami osób i miejscem w mapie logiki). Moduł bez "id" powstaje nowy.
 - „Zastąp moduły strony”: moduły strony stają się dokładnie tymi z dokumentu, pozostałe znikają ze strony. Bez tego moduły z dokumentu są zmieniane albo dopisywane, a reszta zostaje.
 - Import zapisuje od razu. Eksport przed importem to kopia zapasowa.
 - Przyjmowany jest też dokument wydarzenia ze starego systemu ({ "title", "pages": [{ "parts": [...] }] }) oraz pojedynczy moduł ("${MODULE_FORMAT}") — dopisywany do strony.
-Zwróć JEDEN obiekt JSON, bez komentarzy.
+Zwróć JEDEN obiekt JSON, bez komentarzy.`;
 
-## Strona
-  "format" — "${PAGE_FORMAT}"
+const PAGE_KEYS = (): string => `  "format" — "${PAGE_FORMAT}"
   "version" — 1
   "path" — tylko informacja; import zawsze trafia na otwartą stronę
   "title" — tytuł strony
@@ -267,38 +300,52 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
   "modules" — moduły w kolejności czytania
   "appointments" — terminy do kalendarza, z programem (punktami i podpunktami): import DODAJE je do kalendarzy, które wybiera osoba importująca (niżej: Terminy do kalendarza); eksport ich nie zawiera
   "calendars" — wejścia dla terminów: do których kalendarzy mają trafić (osoba importująca wybiera kalendarz dla każdego wejścia)
+  "images" — pliki, których strona potrzebuje, a których jeszcze nie ma (zdjęcia, film, dźwięk, dokument), każdy z opisem: osoba importująca dodaje je przed importem, a import wstawia je wszędzie, gdzie stoi "${NEED_PREFIX}klucz" (niżej: Pliki do dodania); eksport ich nie zawiera`;
 
-## Teksty na stronie
-Krótki napis (powitanie, ogłoszenie, kilka zdań) zostaje w module — np. "text". Dłuższy tekst (kazanie, konferencja, rozważanie, rozdział) mieszka w Skryptorium i stamtąd go się pokazuje: moduł "writing" (jeden tekst — z planem, wygłoszeniami, przypisami) albo "writings" (archiwum tekstów jednego skryptorium). Wtedy poprawka w Skryptorium jest od razu na każdej stronie, a kto widzi tekst, decyduje obszar skryptorium. Cytaty pokazuje moduł "quotes" (z Biblioteki).
+const PAGE_TEXTS = `Krótki napis (powitanie, ogłoszenie, kilka zdań) zostaje w module — np. "text". Dłuższy tekst (kazanie, konferencja, rozważanie, rozdział) mieszka w Skryptorium i stamtąd go się pokazuje: moduł "writing" (jeden tekst — z planem, wygłoszeniami, przypisami) albo "writings" (archiwum tekstów jednego skryptorium). Wtedy poprawka w Skryptorium jest od razu na każdej stronie, a kto widzi tekst, decyduje obszar skryptorium. Cytaty pokazuje moduł "quotes" (z Biblioteki).`;
 
-## Terminy do kalendarza
-${APPOINTMENTS_SECTION}
+/** Die Arten — ihr Inhalt ("config") je Art. */
+const KINDS_JSON: JsonNode = {
+  key: 'kinds',
+  title: 'Rodzaje modułów',
+  text: () => 'Treść ("config") zależy od rodzaju modułu ("kind"): każdy rodzaj ma swoje klucze i przykład.',
+  inside: () => PARTS.map(kindNode)
+};
 
-## Moduł (wpis w "modules")
-${keyLines(ENTRY_KEYS)}
+/** Der Eintrag eines Moduls in "modules" — die Arten und das Formular stecken in ihm. */
+const ENTRY_JSON: JsonNode = {
+  key: 'page.module',
+  title: 'Moduł (wpis w "modules")',
+  text: () => keyLines(ENTRY_KEYS),
+  inside: () => [KINDS_JSON, FORM_FORMAT]
+};
 
-${LAYERS}
+/** 0064 — DIE SEITE ALS JSON: der Baum, aus dem ihre Beschreibung entsteht (und die Beispiele zum Einsetzen). */
+export const PAGE_JSON: JsonNode = {
+  key: 'page',
+  title: `Strona jako JSON ("${PAGE_FORMAT}", wersja 1)`,
+  text: PAGE_INTRO,
+  inside: () => [
+    textNode('page.keys', 'Strona', PAGE_KEYS),
+    textNode('page.texts', 'Teksty na stronie', () => PAGE_TEXTS),
+    textNode('page.appointments', 'Terminy do kalendarza', () => APPOINTMENTS_SECTION),
+    textNode('page.images', 'Pliki do dodania', () => IMAGES_SECTION),
+    ENTRY_JSON,
+    textNode('layers', 'Warstwy tła i slajd modułu', () => LAYERS),
+    textNode('motion', 'Ruch', motionDescription),
+    textNode('live', 'Rysunek do poruszania', liveDescription),
+    textNode('presentation', 'Prezentacja ("mode": "presentation")', () => PRESENTATION),
+    textNode('page.example', 'Przykład całej strony', () => pretty(pageExample())),
+    textNode('page.presentation', 'Przykład prezentacji', () => pretty(presentationExample()))
+  ],
+  samples: () => [
+    { label: 'strona ze slajdami i formularzem', doc: pageExample },
+    { label: 'prezentacja', doc: presentationExample }
+  ]
+};
 
-## Ruch
-${motionDescription()}
-
-## Rysunek do poruszania
-${liveDescription()}
-
-${PRESENTATION}
-
-## Rodzaje modułów
-${PARTS.map(kindSection).join('\n\n')}
-
-${FORM_SECTION()}
-
-## Przykład całej strony
-${pretty(pageExample())}
-
-## Przykład prezentacji
-${pretty(presentationExample())}
-`;
-}
+/** Die Beschreibung der Seite — neben dem Import der Seite, und zum Kopieren für ein Sprachmodell. */
+export const pageDescription = (): string => describe(PAGE_JSON);
 
 /**
  * 0085 — EINE KLEINE PRÄSENTATION: der Flug durch den Raum, eine Szene mit
@@ -356,25 +403,38 @@ export function presentationExample(): Record<string, unknown> {
   };
 }
 
-/** Die Beschreibung eines einzelnen Bausteins — neben seinem Import im Editor. */
-export function partDescription(kind: string): string {
+/** Ein Baustein im Editor — sein Inhalt ("config") als Knoten, einer je Art. */
+const partJsons = new Map<string, JsonNode>();
+export function partFormat(kind: string): JsonNode {
+  const known = partJsons.get(kind);
+  if (known !== undefined) return known;
   const def = partOf(kind);
-  if (def === undefined) return `Rodzaj „${kind}” nie jest znany tej wersji.`;
-  return `# Treść modułu „${def.label}” jako JSON
-
-Co robi import tutaj: treść ("config") zastępuje obecną treść tego modułu w szkicu strony — zapisuje ją dopiero „Zapisz moduły”. Przyjmowany jest sam obiekt "config", wpis { "kind", "config" } albo cały wpis z eksportu strony (liczy się z niego "config"). Klucze, których nie podasz, zostają puste.
-
-${kindSection(def)}
-`;
+  const node: JsonNode = def === undefined
+    ? textNode(`part-doc:${kind}`, `Treść modułu „${kind}” jako JSON`, () => `Rodzaj „${kind}” nie jest znany tej wersji.`)
+    : {
+      key: `part-doc:${kind}`,
+      title: `Treść modułu „${def.label}” jako JSON`,
+      text: () => 'Co robi import tutaj: treść ("config") zastępuje obecną treść tego modułu w szkicu strony — zapisuje ją dopiero „Zapisz moduły”. Przyjmowany jest sam obiekt "config", wpis { "kind", "config" } albo cały wpis z eksportu strony (liczy się z niego "config"). Klucze, których nie podasz, zostają puste.',
+      inside: () => [kindNode(def)]
+    };
+  partJsons.set(kind, node);
+  return node;
 }
 
-/** Die Beschreibung eines Moduls — neben seinem Import im Bausteinverwalter. */
-export function moduleDescription(kind: string): string {
+/** Die Beschreibung eines einzelnen Bausteins — neben seinem Import im Editor. */
+export const partDescription = (kind: string): string => describe(partFormat(kind));
+
+/** Ein Modul im Bausteinverwalter — seine Art und, bei einem Formular, alles, was ein Formular trägt (FORM_FORMAT). */
+const moduleJsons = new Map<string, JsonNode>();
+export function moduleFormat(kind: string): JsonNode {
+  const known = moduleJsons.get(kind);
+  if (known !== undefined) return known;
   const def = partOf(kind);
   const form = kind === 'form';
-  return `# Moduł jako JSON ("${MODULE_FORMAT}", wersja 1)
-
-Co robi import tutaj: zmienia TEN moduł — jego nazwę i treść — na wszystkich stronach, na których stoi.${form ? ' Do tego pytania formularza i jego układ (niżej).' : ''} Klucz, którego nie ma w dokumencie, zostaje bez zmian. Import zapisuje od razu.
+  const node: JsonNode = {
+    key: `module:${kind}`,
+    title: `Moduł jako JSON ("${MODULE_FORMAT}", wersja 1)`,
+    text: () => `Co robi import tutaj: zmienia TEN moduł — jego nazwę i treść — na wszystkich stronach, na których stoi.${form ? ' Do tego to, co należy do formularza: pytania, układ, wymagania, role i obszary osób (niżej: Formularz).' : ''} Klucz, którego nie ma w dokumencie, zostaje bez zmian. Import zapisuje od razu.
 
   "format" — "${MODULE_FORMAT}"
   "version" — 1
@@ -382,13 +442,13 @@ Co robi import tutaj: zmienia TEN moduł — jego nazwę i treść — na wszyst
   "kind" — rodzaj; musi się zgadzać z otwartym modułem
   "name" — nazwa na liście modułów
   "config" — treść, zależna od rodzaju (niżej)${form ? `
-  "questions", "design" — pytania i układ formularza (niżej)
-  "extends", "audience" — tylko w rozszerzeniu (podformularzu): który formularz rozszerza i kto je wypełnia ("person" — osoba przez swój link, "office" — tylko koordynator). "extends" to tylko informacja; "audience" import zmienia, dopóki podformularz nie ma żadnego wpisu
-  "group" — grupa formularzy (folder), w której stoi: jej nazwa; null — bez grupy. Import przenosi formularz do grupy o tej nazwie (jeśli jej nie ma — zakłada ją). Dla wypełniających nic się nie zmienia
-  "repeat" — tylko w rozszerzeniu: jak często każda osoba z listy dostaje wpis — "once" (raz), "day", "week", "month", "year". Import zmienia to, dopóki rozszerzenie nie ma żadnego wpisu
-  "memberRoles" — role uczestników: lista identyfikatorów ról, które dostaje każdy, kto wyśle formularz (dostęp do ich obszarów, stron, kalendarzy, rozmów); pusta lista — żadna. Import ustawia je tylko, jeśli masz te role; kto już do roli należy, zostaje. Obecne zgłoszenia przenosi się w module („Przenieś obecne zgłoszenia"). Starszy zapis "memberRole" (jedna rola albo null) też jest czytany
-  "virtualAreas" — obszary osób: lista reguł; każda osoba, która wyśle formularz, dostaje według każdej reguły własny obszar (rozmowa, terminy, zadania tylko dla niej). Reguła: { "name": nazwa, "submitter": co robi osoba — "write" (pisze), "read" (czyta), "none" (nie widzi: obszar tylko dla prowadzących), "roles": [{ "role": identyfikator roli, "level": "read" | "write" | "admin" (prowadzi) }] } — każda z tych ról widzi taki obszar każdej osoby. Import zakłada reguły, których nazwy jeszcze nie ma, zmienia "submitter" i dodaje role, które masz; niczego nie usuwa` : ''}
-
-${def === undefined ? `Rodzaj „${kind}” nie jest znany tej wersji — "config" przechodzi bez zmian.` : kindSection(def)}
-${form ? `\n${FORM_SECTION()}\n` : ''}`;
+  "questions", "design", "needs", "memberRoles", "virtualAreas", "group", "repeat", "extends", "audience" — tylko formularz (niżej: Formularz)` : ''}${def === undefined ? `
+Rodzaj „${kind}” nie jest znany tej wersji — "config" przechodzi bez zmian.` : ''}`,
+    inside: () => [...(def === undefined ? [] : [kindNode(def)]), ...(form ? [FORM_FORMAT] : [])]
+  };
+  moduleJsons.set(kind, node);
+  return node;
 }
+
+/** Die Beschreibung eines Moduls — neben seinem Import im Bausteinverwalter. */
+export const moduleDescription = (kind: string): string => describe(moduleFormat(kind));

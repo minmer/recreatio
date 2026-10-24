@@ -123,9 +123,18 @@
 .wk-need-pick { display: flex; gap: 0.5rem; align-items: flex-start; cursor: pointer; }
 .wk-need-pick input { margin-top: 0.25rem; flex: none; width: 1.05rem; height: 1.05rem; }
 .wk-need-pick > span { display: grid; gap: 0.25rem; min-width: 0; }
-.wk-need-holds { color: var(--wk-ok); }
+.wk-need-holds { font-size: var(--wk-text-sm); color: var(--wk-ok); }
 .wk-need-leave { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; padding: 0.5rem 0.75rem; border-radius: 6px; background: var(--wk-held-bg); color: var(--wk-held-ink); }
 .wk-need-leave .wk-hint { flex: 1 1 18rem; color: inherit; }
+/* 2026-10-24 — was ein Wymaganie gibt, und seine Einstellungen (Minderjährige: woran man sie erkennt, wie sie teilnehmen). */
+.wk-need-use { font-size: var(--wk-text-sm); line-height: 1.5; color: var(--wk-muted); }
+.wk-need-settings { display: grid; gap: var(--wk-space-3); padding-left: calc(1.05rem + var(--wk-space-2)); }
+.wk-need-setting { display: grid; gap: var(--wk-space-1); min-width: 0; margin: 0; padding: 0; border: 0; }
+.wk-need-setting legend { padding: 0; margin-bottom: var(--wk-space-1); font-size: var(--wk-text-sm); font-weight: 600; }
+.wk-need-option { display: flex; gap: var(--wk-space-2); align-items: flex-start; font-size: var(--wk-text-sm); line-height: 1.5; cursor: pointer; }
+.wk-need-option input { flex: none; margin-top: 0.2rem; }
+.wk-need-option:has(input:disabled) { cursor: default; }
+.wk-need-says { color: var(--wk-muted); }
 .wk-tag-need { margin-left: 0.5rem; border-color: var(--wk-ok); color: var(--wk-ok); background: transparent; }
 
 /* 0086 — vom Formular genommen: leiser, mit dem Weg zurück. */

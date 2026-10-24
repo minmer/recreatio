@@ -1,8 +1,10 @@
 /**
  * LABOR 2D (v2) — DIE KERNE DER GRENZFLÄCHE auf der GPU (wie engine/phase.ts):
- * die Sammlung der Flüssigkeit je Zelle (mit den Wärmegewichten), Masse auf
- * die Teilchen verteilen, Dampfdiffusion mit Verdunsten, Kondensieren, Tau und
- * Umgebung als Randbedingungen, Entspannungsverdampfen, Nebel, Wandfilme.
+ * die Sammlung der Flüssigkeit je Zelle (mit den Wärmegewichten; mit Salz das
+ * Wasser ohne sein Salz, Molalität, Aktivität und Siedepunkt), Masse auf die
+ * Teilchen verteilen (ein vertrocknendes Teilchen mit Salz wird Dampf und
+ * Kruste), Dampfdiffusion mit Verdunsten (über Sole mit a_w), Kondensieren, Tau
+ * und Umgebung als Randbedingungen. Teil 2 in kflash.ts.
  *
  * Abweichung von der CPU: ein fast leeres Teilchen ohne Gas über sich bleibt
  * mit seiner Restmasse (statt sie einem Nachbarn zu geben); ein Film gibt je
@@ -10,7 +12,6 @@
  */
 
 import type { KernelDef } from './kernel';
-import { DERIVE } from './kgas';
 import { REDUCE } from './kliquid';
 
 const WG = 128;
@@ -35,10 +36,40 @@ fn wtAtI(k: u32, i: i32, j: i32) -> f32 {
 fn aliveI(k: u32) -> bool { return (parts[k].flags & 1u) == 0u && parts[k].mass > 0.0; }
 `;
 
+/** Kristalle x (kg) mit der Enthalpie H (J) vom Ort (px, py) auf den nächsten Feststoff (wie Salt.deposit; cu, at, cnt gebunden). */
+export const DEPOSIT = `
+fn depositSalt(px: f32, py: f32, x: f32, H: f32) {
+  if (!(x > 0.0)) { return; }
+  let n = P.n;
+  let o = U_SOLID * n;
+  let i = i32(clamp(floor(px * P.invdx), 0.0, f32(P.nx - 1u)));
+  let j = i32(clamp(floor(py * P.invdx), 0.0, f32(P.ny - 1u)));
+  let c0 = cellOf(i, j);
+  var tgt = NONE;
+  if (cu[o + c0] != 0u) { tgt = c0; }
+  else if (j > 0 && cu[o + c0 - P.nx] != 0u) { tgt = c0 - P.nx; }
+  else if (i > 0 && cu[o + c0 - 1u] != 0u) { tgt = c0 - 1u; }
+  else if (i + 1 < i32(P.nx) && cu[o + c0 + 1u] != 0u) { tgt = c0 + 1u; }
+  else if (j + 1 < i32(P.ny) && cu[o + c0 + P.nx] != 0u) { tgt = c0 + P.nx; }
+  else {
+    for (var jj = j - 2; jj >= 0; jj--) {
+      let c = cellOf(i, jj);
+      if (cu[o + c] != 0u) { tgt = c; break; }
+    }
+  }
+  if (tgt != NONE) { addF_at(A_DCRUST * n + tgt, x); addF_at(A_DES * n + tgt, H); return; }
+  if (P.openB != 0u) { addF_cnt(C_ESC_SALT, x); addF_cnt(C_ESC_ENERGY, H); return; }
+  addF_at(A_DFLOOR * n + u32(i), x);
+  addF_at(A_DFLOORH * n + u32(i), H);
+}
+`;
+
 /** Gesättigter Massenanteil bei T und p über dem Gas der Zelle c (cf gebunden). */
 const YSAT = `
-fn ysat(T: f32, p: f32, c: u32) -> f32 {
-  let x = min(0.999, pSat(T) / p);
+fn ysat(T: f32, p: f32, c: u32) -> f32 { return ysatA(T, p, c, 1.0); }
+/* Über einer Lösung mit der Aktivität aw des Wassers (M2b). */
+fn ysatA(T: f32, p: f32, c: u32, aw: f32) -> f32 {
+  let x = min(0.999, aw * pSat(T) / p);
   let mN = cf[F_MN * P.n + c];
   let mO = cf[F_MO * P.n + c];
   let dry = mN + mO;
@@ -64,6 +95,8 @@ ${MAIN} {
   var CT = 0.0;
   var acc = 0.0;
   var accH = 0.0;
+  var accS = 0.0;
+  var accM: array<f32, NLIQ>;
   for (var b = -1; b <= 1; b++) {
     let jj = j + b;
     if (jj < 0 || jj >= i32(P.ny)) { continue; }
@@ -79,11 +112,19 @@ ${MAIN} {
         if (w == 0.0 || !aliveI(pk)) { continue; }
         let m = parts[pk].mass;
         let T = parts[pk].T;
-        let Cp = m * cpL(T);
+        let mat = matOf(parts[pk].flags);
+        let s = parts[pk].s;
+        let Cp = m * pCp(mat, T, s, m);
         Cl += w * Cp;
         CT += w * Cp * T;
-        acc += w * m;
-        accH += w * m * parts[pk].h;
+        /* Nur Wasser verdampft und kondensiert: alles, was Masse zwischen Flüssigkeit und Dampf bewegt, liest acc und accH — in Lösungen nur das Wasser, mit h̄_w. */
+        if (mat == 0u) {
+          var hw = parts[pk].h;
+          if (s > 0.0) { hw = hWaterIn(T, s / m); accS += w * s; }
+          acc += w * (m - s);
+          accH += w * (m - s) * hw;
+        }
+        accM[min(mat, NLIQ - 1u)] += w * m;
       }
     }
   }
@@ -91,13 +132,30 @@ ${MAIN} {
   cf[F_PTL * n + c] = select(cf[F_T * n + c], CT / Cl, Cl > 0.0);
   cf[F_ACC * n + c] = acc;
   cf[F_ACCH * n + c] = accH;
+  var all = 0.0;
+  var host = 0u;
+  for (var l = 0u; l < NLIQ; l++) { all += accM[l]; if (accM[l] > accM[host]) { host = l; } }
+  cf[F_ACCALL * n + c] = all;
+  cf[F_HOST * n + c] = f32(host);
+  /* Salz (M2b): die Molalität des Wassers der Zelle und seine Aktivität bei T_l. */
+  cf[F_ACCS * n + c] = accS;
+  var mol = 0.0;
+  if (accS > 0.0 && acc > 0.0) { mol = accS / (acc * S_MS); }
+  cf[F_MOL * n + c] = mol;
+  cf[F_AW * n + c] = select(1.0, waterAct(cf[F_PTL * n + c], mol), mol > 0.0);
   setF_at(A_FM * n + c, 0.0);
   setF_at(A_FE * n + c, 0.0);
-  ${full ? `if (cu[U_KIND * n + c] == LIQUID) {
-    let Ts = tSat(max(0.5 * P.pref, P.pref + cf[F_PL * n + c]));
+  ${full ? `setF_at(A_CHF * n + c, 0.0);
+  if (cu[U_KIND * n + c] == LIQUID) {
+    let pc = max(0.5 * P.pref, P.pref + cf[F_PL * n + c]);
+    let Tw = tSat(pc);
+    /* Sole siedet bei T_b(p, m) (die Grenzfläche einer Blase steht um ΔT_b über ihrem Dampf). */
+    var Ts = Tw;
+    if (mol > 0.0) { Ts = boilPt(pc, mol); }
     cf[F_TSAT * n + c] = Ts;
+    cf[F_DTB * n + c] = Ts - Tw;
     setF_at(A_BUDGET * n + c, Cl * (cf[F_PTL * n + c] - Ts));
-  } else { cf[F_TSAT * n + c] = 0.0; setF_at(A_BUDGET * n + c, 0.0); }` : ''}
+  } else { cf[F_TSAT * n + c] = 0.0; cf[F_DTB * n + c] = 0.0; setF_at(A_BUDGET * n + c, 0.0); }` : ''}
 }`
   })),
   {
@@ -106,6 +164,7 @@ ${MAIN} {
     bind: 'P:u glob:r cnt:a cf:r cu:r at:a parts:w',
     code: `${WT}
 ${REDUCE}
+${DEPOSIT}
 ${MAIN} {
   let lid = lid3.x;
   let count = cntWG(lid, C_PSORT);
@@ -113,7 +172,7 @@ ${MAIN} {
   var made = 0.0;
   if (p < count) {
     var q = parts[p];
-    if (alive(q)) {
+    if (alive(q) && matOf(q.flags) == 0u) {
       let n = P.n;
       var d = 0.0;
       for (var k = 0; k < 9; k++) {
@@ -125,12 +184,45 @@ ${MAIN} {
         let c = cellOf(i, j);
         let fm = getF_at(A_FM * n + c);
         let acc = cf[F_ACC * n + c];
-        if (fm != 0.0 && acc > 0.0) { d += fm * w * q.mass / acc; }
+        if (fm != 0.0 && acc > 0.0) { d += fm * w * (q.mass - q.s) / acc; }
       }
-      if (d != 0.0) {
+      let nominal = glob[G_RHOREF] * P.vcell / 4.0;
+      if (d != 0.0 && q.s > 0.0) {
+        /* Mit Salz (wie Phase.applySalty): das Wasser trägt h̄_w; bleibt kaum Wasser, wird der Rest Dampf über dem Teilchen und das Salz Kruste. */
+        let s = q.s;
+        let m0 = q.mass;
+        let H = m0 * q.h + d * hWaterIn(q.T, s / m0);
+        let mw1 = m0 - s + d;
+        var dry = false;
+        if (mw1 < MIN_MASS * nominal) {
+          let c0 = cellAt(q.x, q.y);
+          var gc = c0;
+          for (var k = 0u; k < P.ny; k++) { if (cu[U_KIND * n + gc] == GAS) { break; } if (gc + P.nx < n) { gc += P.nx; } else { gc = NONE; break; } }
+          if (gc != NONE && cu[U_KIND * n + gc] != GAS) { gc = NONE; }
+          if (gc != NONE || !(mw1 > 0.0)) {
+            dry = true;
+            let T = q.T;
+            let Hs = s * hCrys(T);
+            depositSalt(q.x, q.y, s, Hs);
+            var mv = 0.0;
+            if (gc != NONE && mw1 > 0.0) { mv = mw1; addF_at(A_DV * n + gc, mv); addF_at(A_DH * n + gc, mv * hV(T)); made = mv; }
+            addF_at(A_HSRC * n + c0, -(mv * hV(T) + Hs - H) / glob[G_DT]);
+            q.flags = q.flags | 1u;
+            q.mass = 0.0;
+            q.s = 0.0;
+          }
+        }
+        if (!dry) {
+          let before = m0 / q.rho;
+          q.mass = m0 + d;
+          q.h = H / q.mass;
+          pDerive(&q);
+          q.dvp += q.mass / q.rho - before;
+        }
+        parts[p] = q;
+      } else if (d != 0.0) {
         let before = q.mass / q.rho;
         let m = q.mass + d;
-        let nominal = glob[G_RHOREF] * P.vcell / 4.0;
         if (m < MIN_MASS * nominal) {
           let c0 = cellAt(q.x, q.y);
           var gc = c0;
@@ -225,8 +317,12 @@ ${MAIN} {
         if (k == 0u) { nb = c - 1u; } else if (k == 1u) { nb = c + 1u; } else if (k == 2u) { nb = c - P.nx; }
         let kn = cu[U_KIND * n + nb];
         if (kn == LIQUID) {
-          yb = ysat(cf[F_PTL * n + nb], p, c);
-          G = half * (1.0 - Y);
+          yb = ysatA(cf[F_PTL * n + nb], p, c, cf[F_AW * n + nb]);
+          var fw = 1.0;
+          if (P.mixed != 0u) { let all = cf[F_ACCALL * n + nb]; fw = select(1.0, (cf[F_ACC * n + nb] + cf[F_ACCS * n + nb]) / all, all > 0.0); }
+          /* Ohne Wasserteilchen in der Zelle (nur ihr Platz ist flüssig) verdunstet nichts — sonst entstünde Dampf aus nichts (wie die CPU). */
+          if (!(cf[F_ACC * n + nb] > 0.0)) { fw = 0.0; }
+          G = half * (1.0 - Y) * fw;
         } else if (kn == SOLID) {
           let ys = ysat(cf[F_T * n + nb], p, c);
           if (Y > ys || (cf[F_FILM * n + nb] > 0.0 && Y < ys)) { yb = ys; G = half * (1.0 - Y); }
@@ -295,6 +391,26 @@ ${MAIN} {
   },
   {
     /* Jede Gaszelle bucht ihre Flächen und ihre Ränder: Verdunsten/Kondensieren an der Flüssigkeit, Tau an Wänden, die Umgebung an offenen Seiten. */
+    name: 'diffOut', wg: WG,
+    bind: 'P:u cf:w cu:r ff:r',
+    code: `${MAIN} {
+  let c = gid.x;
+  if (c >= P.n) { return; }
+  let n = P.n;
+  var sc = 1.0;
+  if (cu[U_KIND * n + c] == GAS) {
+    let i = ci(c);
+    let j = cj(c);
+    /* Links und unten ist c die Zelle b (sie gibt ab, wenn dV > 0), rechts und oben die Zelle a (wenn dV < 0). */
+    let out = max(ff[ffi(FF_DV, uF(i, j))], 0.0) + max(ff[ffi(FF_DV, vF(i, j))], 0.0) + max(-ff[ffi(FF_DV, uF(i + 1, j))], 0.0) + max(-ff[ffi(FF_DV, vF(i, j + 1))], 0.0);
+    let mv = cf[F_MV * n + c];
+    if (out > mv && out > 0.0) { sc = mv / out; }
+  }
+  cf[F_SCALE * n + c] = sc;
+}`
+  },
+  {
+    /* Jede Gaszelle bucht ihre Flächen (gekürzt mit dem Faktor der abgebenden Zelle) und ihre Ränder. */
     name: 'diffApply', wg: WG,
     bind: 'P:u glob:r cnt:a cf:w cu:r at:a ff:r cgv:r',
     code: `${REDUCE}
@@ -312,12 +428,17 @@ ${MAIN} {
     var mV = cf[F_MV * n + c];
     var H = cf[F_HG * n + c];
     let T = cf[F_T * n + c];
-    /* Flächen: links und unten ist c die Zelle b, rechts und oben die Zelle a. */
+    /* Flächen: links und unten ist c die Zelle b, rechts und oben die Zelle a; je Fläche der Faktor ihrer abgebenden Zelle (diffOut). */
     let fl = uF(i, j); let fr = uF(i + 1, j); let fb = vF(i, j); let ft = vF(i, j + 1);
-    mV += ff[ffi(FF_DV, fr)] + ff[ffi(FF_DV, ft)] - ff[ffi(FF_DV, fl)] - ff[ffi(FF_DV, fb)];
-    mN += ff[ffi(FF_DN, fr)] + ff[ffi(FF_DN, ft)] - ff[ffi(FF_DN, fl)] - ff[ffi(FF_DN, fb)];
-    mO += ff[ffi(FF_DO, fr)] + ff[ffi(FF_DO, ft)] - ff[ffi(FF_DO, fl)] - ff[ffi(FF_DO, fb)];
-    H += ff[ffi(FF_DH, fr)] + ff[ffi(FF_DH, ft)] - ff[ffi(FF_DH, fl)] - ff[ffi(FF_DH, fb)];
+    var sr = 0.0; var st = 0.0; var sl = 0.0; var sb = 0.0;
+    if (i + 1 < i32(P.nx)) { sr = select(cf[F_SCALE * n + c + 1u], cf[F_SCALE * n + c], ff[ffi(FF_DV, fr)] < 0.0); }
+    if (j + 1 < i32(P.ny)) { st = select(cf[F_SCALE * n + c + P.nx], cf[F_SCALE * n + c], ff[ffi(FF_DV, ft)] < 0.0); }
+    if (i > 0) { sl = select(cf[F_SCALE * n + c], cf[F_SCALE * n + c - 1u], ff[ffi(FF_DV, fl)] < 0.0); }
+    if (j > 0) { sb = select(cf[F_SCALE * n + c], cf[F_SCALE * n + c - P.nx], ff[ffi(FF_DV, fb)] < 0.0); }
+    mV += sr * ff[ffi(FF_DV, fr)] + st * ff[ffi(FF_DV, ft)] - sl * ff[ffi(FF_DV, fl)] - sb * ff[ffi(FF_DV, fb)];
+    mN += sr * ff[ffi(FF_DN, fr)] + st * ff[ffi(FF_DN, ft)] - sl * ff[ffi(FF_DN, fl)] - sb * ff[ffi(FF_DN, fb)];
+    mO += sr * ff[ffi(FF_DO, fr)] + st * ff[ffi(FF_DO, ft)] - sl * ff[ffi(FF_DO, fl)] - sb * ff[ffi(FF_DO, fb)];
+    H += sr * ff[ffi(FF_DH, fr)] + st * ff[ffi(FF_DH, ft)] - sl * ff[ffi(FF_DH, fl)] - sb * ff[ffi(FF_DH, fb)];
     if (cu[U_EDGE * n + c] != 0u) {
       let Yc = cgv[s0(c)];
       for (var k = 0u; k < 4u; k++) {
@@ -436,288 +557,9 @@ ${MAIN} {
   let n = P.n;
   let fm = getF_at(A_FM * n + c);
   let acc = cf[F_ACC * n + c];
-  if (fm == 0.0 || !(acc > 0.0)) { return; }
-  let hbar = cf[F_ACCH * n + c] / acc;
+  if (fm == 0.0) { return; }
+  let hbar = select(hL(cf[F_PTL * n + c]), cf[F_ACCH * n + c] / acc, acc > 0.0);
   addF_at(A_HSRC * n + c, (getF_at(A_FE * n + c) - fm * hbar) / glob[G_DT]);
 }`
   },
-  /* -- Entspannungsverdampfen ------------------------------------------------------------------------ */
-  {
-    name: 'flashTs', wg: WG,
-    bind: 'P:u cf:w cu:r reg:r',
-    code: `${MAIN} {
-  let c = gid.x;
-  if (c >= P.n) { return; }
-  let n = P.n;
-  let o = U_KIND * n;
-  var ts = 0.0;
-  if (cu[o + c] == LIQUID) {
-    let i = ci(c);
-    let j = cj(c);
-    let surface = (j + 1 < i32(P.ny) && cu[o + c + P.nx] == GAS) || (i > 0 && cu[o + c - 1u] == GAS) || (i + 1 < i32(P.nx) && cu[o + c + 1u] == GAS) || (j > 0 && cu[o + c - P.nx] == GAS);
-    if (surface) {
-      let T = tSat(pAt(c));
-      if (cf[F_PTL * n + c] > T) { ts = T; }
-    }
-  }
-  cf[F_TS * n + c] = ts;
-}`
-  },
-  {
-    name: 'flashVap', wg: WG,
-    bind: 'P:u cf:w parts:r ccount:r cstart:r bsum:r',
-    code: `${WT}
-${MAIN} {
-  let c = gid.x;
-  if (c >= P.n) { return; }
-  let n = P.n;
-  let ts = cf[F_TS * n + c];
-  var vap = 0.0;
-  var vapH = 0.0;
-  if (ts > 0.0) {
-    let hs = hL(ts);
-    let hv = hV(ts);
-    let i = ci(c);
-    let j = cj(c);
-    for (var b = -1; b <= 1; b++) {
-      let jj = j + b;
-      if (jj < 0 || jj >= i32(P.ny)) { continue; }
-      for (var a = -1; a <= 1; a++) {
-        let ii = i + a;
-        if (ii < 0 || ii >= i32(P.nx)) { continue; }
-        let cc = cellOf(ii, jj);
-        let st = cellStart(cc);
-        let cn = ccount[cc];
-        for (var k = 0u; k < cn; k++) {
-          let pk = st + k;
-          let h = parts[pk].h;
-          if (h <= hs) { continue; }
-          let w = wtAtI(pk, i, j);
-          if (w == 0.0 || !aliveI(pk)) { continue; }
-          let dmv = w * parts[pk].mass * (h - hs) / (hv - hs);
-          vap += dmv;
-          vapH += dmv * hv;
-        }
-      }
-    }
-  }
-  cf[F_VAP * n + c] = vap;
-  cf[F_VAPH * n + c] = vapH;
-}`
-  },
-  {
-    name: 'flashParts', wg: WG,
-    bind: 'P:u cnt:a cf:r parts:w',
-    code: `${WT}
-${MAIN} {
-  let count = cntWG(lid3.x, C_PSORT);
-  let p = gid.x;
-  if (p >= count) { return; }
-  var q = parts[p];
-  if (!alive(q)) { return; }
-  let n = P.n;
-  var lost = 0.0;
-  var lostE = 0.0;
-  for (var k = 0; k < 9; k++) {
-    let w = q.wt[k];
-    if (w == 0.0) { continue; }
-    let i = q.bi + k % 3;
-    let j = q.bj + k / 3;
-    if (!inGrid(i, j)) { continue; }
-    let ts = cf[F_TS * n + cellOf(i, j)];
-    if (ts == 0.0) { continue; }
-    let hs = hL(ts);
-    if (q.h <= hs) { continue; }
-    let hv = hV(ts);
-    let dmv = w * q.mass * (q.h - hs) / (hv - hs);
-    lost += dmv;
-    lostE += dmv * hv;
-  }
-  if (lost == 0.0) { return; }
-  if (lost > 0.5 * q.mass) { lostE *= 0.5 * q.mass / lost; lost = 0.5 * q.mass; }
-  let before = q.mass / q.rho;
-  let m = q.mass - lost;
-  q.h = (q.mass * q.h - lostE) / m;
-  q.mass = m;
-  q.T = tFromHL(q.h);
-  q.rho = rhoL(q.T);
-  q.dvp += m / q.rho - before;
-  parts[p] = q;
-}`
-  },
-  {
-    /* Der Dampf der Oberflächenzellen geht zu ihren Gasnachbarn (bevorzugt nach oben). */
-    name: 'flashDist', wg: WG,
-    bind: 'P:u cnt:a cf:r cu:r at:a',
-    code: `${REDUCE}
-${MAIN} {
-  let c = gid.x;
-  let lid = lid3.x;
-  var made = 0.0;
-  let n = P.n;
-  if (c < n && cf[F_VAP * n + c] > 0.0) {
-    let vap = cf[F_VAP * n + c];
-    let vapH = cf[F_VAPH * n + c];
-    let i = ci(c);
-    let j = cj(c);
-    let o = U_KIND * n;
-    if (j + 1 < i32(P.ny) && cu[o + c + P.nx] == GAS) {
-      addF_at(A_DV * n + c + P.nx, vap);
-      addF_at(A_DH * n + c + P.nx, vapH);
-    } else {
-      var nbs = array<u32, 3>(NONE, NONE, NONE);
-      var targets = 0.0;
-      if (i > 0 && cu[o + c - 1u] == GAS) { nbs[0] = c - 1u; targets += 1.0; }
-      if (i + 1 < i32(P.nx) && cu[o + c + 1u] == GAS) { nbs[1] = c + 1u; targets += 1.0; }
-      if (j > 0 && cu[o + c - P.nx] == GAS) { nbs[2] = c - P.nx; targets += 1.0; }
-      for (var k = 0; k < 3; k++) {
-        if (nbs[k] == NONE) { continue; }
-        addF_at(A_DV * n + nbs[k], vap / targets);
-        addF_at(A_DH * n + nbs[k], vapH / targets);
-      }
-    }
-    made = vap;
-  }
-  let sm = wsum(made, lid);
-  if (lid == 0u && sm != 0.0) { addF_cnt(C_PRODUCED, sm); }
-}`
-  },
-  /* -- Nebel: Kondensation bis genau zur Sättigung, oder Verdunsten von Nebel ------------------------ */
-  {
-    name: 'fog', wg: WG,
-    bind: 'P:u cnt:a cf:w cu:r reg:r',
-    code: `${DERIVE}
-${REDUCE}
-fn tempWith(c: u32, mv: f32, mf: f32, Tin: f32) -> f32 {
-  let n = P.n;
-  let mN = cf[F_MN * n + c];
-  let mO = cf[F_MO * n + c];
-  let H = cf[F_HG * n + c];
-  if (mf <= 0.0) { return gasTemperature(mN, mO, mv, H); }
-  var T = Tin;
-  for (var it = 0; it < 6; it++) {
-    let dT = (H - gasEnthalpy(mN, mO, mv, mf, T)) / gasHeatCapacity(mN, mO, mv, mf, T);
-    T += dT;
-    if (abs(dT) < 1e-6) { break; }
-  }
-  return T;
-}
-fn satGap(c: u32, d: f32, nDry: f32, p: f32, Tin: f32) -> f32 {
-  let n = P.n;
-  let mv = cf[F_MV * n + c] - d;
-  let mf = cf[F_MF * n + c] + d;
-  let T = tempWith(c, mv, mf, Tin);
-  let nv = mv / M_H2O;
-  var pv = 0.0;
-  if (nv + nDry > 0.0) { pv = nv / (nv + nDry) * p; }
-  return pv - pSat(T);
-}
-${MAIN} {
-  let c = gid.x;
-  let lid = lid3.x;
-  var made = 0.0;
-  var err = 0.0;
-  let n = P.n;
-  if (c < n && cu[U_KIND * n + c] == GAS) {
-    let mv = cf[F_MV * n + c];
-    let mf = cf[F_MF * n + c];
-    var go = mv > 0.0 || mf > 0.0;
-    let nDry = cf[F_MN * n + c] / M_N2 + cf[F_MO * n + c] / M_O2;
-    let p = pAt(c);
-    let T0c = cf[F_T * n + c];
-    if (go && mf <= 0.0) {
-      let nv = mv / M_H2O;
-      if (nv / (nv + nDry) * p < 0.999 * pSat(T0c)) { go = false; }
-    }
-    var d = 0.0;
-    var setd = false;
-    if (go) {
-      let gap0 = satGap(c, 0.0, nDry, p, T0c);
-      if (!(gap0 <= 0.0 && mf <= 0.0)) {
-        var lo = 0.0; var hi = 0.0; var flo = 0.0; var fhi = 0.0;
-        var done = false;
-        if (gap0 > 0.0) {
-          lo = 0.0; flo = gap0; hi = mv; fhi = satGap(c, hi, nDry, p, T0c);
-        } else {
-          hi = 0.0; fhi = gap0; lo = -mf; flo = satGap(c, lo, nDry, p, T0c);
-          if (flo <= 0.0) { d = lo; setd = true; done = true; }
-        }
-        if (!done && fhi > 0.0) { d = hi; setd = true; done = true; }
-        if (!done) {
-          d = lo;
-          var side = 0;
-          for (var it = 0; it < 40; it++) {
-            d = (lo * fhi - hi * flo) / (fhi - flo);
-            if (!(d > min(lo, hi) && d < max(lo, hi))) { d = 0.5 * (lo + hi); }
-            let f = satGap(c, d, nDry, p, T0c);
-            if (abs(f) <= 1e-7 * p) { break; }
-            if (f > 0.0) { lo = d; flo = f; if (side == 1) { fhi = fhi / 2.0; } side = 1; }
-            else { hi = d; fhi = f; if (side == -1) { flo = flo / 2.0; } side = -1; }
-          }
-          setd = true;
-        }
-      }
-    }
-    if (setd && d != 0.0 && d == d) {
-      let dd = clamp(d, -cf[F_MF * n + c], cf[F_MV * n + c]);
-      cf[F_MV * n + c] -= dd;
-      var nf = cf[F_MF * n + c] + dd;
-      if (nf < 1e-30) { nf = 0.0; }
-      cf[F_MF * n + c] = nf;
-      made = dd;
-      deriveCell(c);
-      if (nf > 0.0) {
-        let after = satGap(c, 0.0, nDry, p, cf[F_T * n + c]);
-        err = abs(after) / pSat(cf[F_T * n + c]);
-      }
-    }
-  }
-  let sm = wsum(made, lid);
-  let mx = wmax(err, lid);
-  if (lid == 0u) {
-    if (sm != 0.0) { addF_cnt(C_FOGMADE, sm); }
-    maxU_cnt(C_FOGERR, mx);
-  }
-}`
-  },
-  {
-    /* Volle Wandfilme geben ein Teilchen ab (in die Gaszelle neben der Wand, mit der Temperatur der Wand). */
-    name: 'films', wg: WG,
-    bind: 'P:u glob:r cnt:a cf:w cu:r parts:w',
-    code: `${MAIN} {
-  let c = gid.x;
-  if (c >= P.n) { return; }
-  let n = P.n;
-  if (cu[U_SOLID * n + c] == 0u) { return; }
-  let full = glob[G_RHOREF] * P.vcell / 4.0;
-  if (cf[F_FILM * n + c] < full) { return; }
-  let i = ci(c);
-  let j = cj(c);
-  let o = U_KIND * n;
-  var tgt = NONE;
-  if (i > 0 && cu[o + c - 1u] == GAS) { tgt = c - 1u; }
-  else if (i + 1 < i32(P.nx) && cu[o + c + 1u] == GAS) { tgt = c + 1u; }
-  else if (j + 1 < i32(P.ny) && cu[o + c + P.nx] == GAS) { tgt = c + P.nx; }
-  else if (j > 0 && cu[o + c - P.nx] == GAS) { tgt = c - P.nx; }
-  if (tgt == NONE) { return; }
-  let ti = ci(tgt);
-  let tj = cj(tgt);
-  let x = (f32(ti) + 0.5 + 0.25 * sign(f32(i - ti))) * P.dx;
-  let y = (f32(tj) + 0.5 + 0.25 * sign(f32(j - tj))) * P.dx;
-  let p = atomicAdd(&cnt[C_PCOUNT], 1u);
-  if (p >= P.pcap) { atomicSub(&cnt[C_PCOUNT], 1u); atomicAdd(&cnt[C_PFULL], 1u); return; }
-  let Tw = cf[F_T * n + c];
-  var q: Particle;
-  q.x = x; q.y = y; q.vx = 0.0; q.vy = 0.0; q.c00 = 0.0; q.c01 = 0.0; q.c10 = 0.0; q.c11 = 0.0;
-  q.mass = full; q.h = hL(Tw); q.T = tFromHL(q.h); q.rho = rhoL(q.T); q.dvp = 0.0; q.flags = 0u;
-  q.id = atomicAdd(&cnt[C_NEXTID_P], 1u);
-  q.bi = i32(floor(x * P.invdx - 1.0));
-  q.bj = i32(floor(y * P.invdx - 1.0));
-  for (var k = 0; k < 9; k++) { q.wt[k] = 0.0; }
-  q.wt[4] = 1.0;
-  parts[p] = q;
-  cf[F_FILM * n + c] -= full;
-  cf[F_ES * n + c] -= full * hL(Tw);
-}`
-  }
 ];

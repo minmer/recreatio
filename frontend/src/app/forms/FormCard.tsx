@@ -38,7 +38,7 @@ import { missingIn } from './formDesign';
 import { FormFlow, isRequired } from './FormFlow';
 import { peselBirth, peselValid } from './pesel';
 import { REPEAT_LABEL, repeatOf, roundLabel, roundOf, type Repeat } from './rounds';
-import { paperNeeded, SignSheetButton } from './SignSheet';
+import { paperNeeded, SignSheetButton, signsShown } from './SignSheet';
 import type { Subject } from './subject';
 import { OwnSubmissions } from './Submission';
 import { submitForm, type Answer } from './submissions';
@@ -189,7 +189,7 @@ export function FormCard(props: FormCardProps) {
           Antworten verlangt (etwa: die Zustimmung der Eltern ist angekreuzt).
           Gedruckt wird, was eben hinausging.
         */}
-        {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields }) && (
+        {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields, signs: signsShown(layout, outcome.hidden) }) && (
           <div className="wk-paper-note">
             <p>
               <strong>To trzeba jeszcze podpisać odręcznie.</strong> Wydrukuj zgłoszenie, podpisz je
@@ -548,7 +548,7 @@ export function FormCard(props: FormCardProps) {
             das das Kind statt der Eltern setzt, sondern das Blatt zum
             Unterschreiben — schon jetzt zu drucken, und nach dem Absenden wieder.
           */}
-          {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields }) && (
+          {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields, signs: signsShown(layout, outcome.hidden) }) && (
             <div className="wk-paper-note wk-paper-end">
               <p>
                 <strong>Zgoda do podpisania odręcznie.</strong> Wydrukuj ją, podpisz

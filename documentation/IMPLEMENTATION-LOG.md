@@ -1937,3 +1937,70 @@ the task pill stood right next to the date.
   open, "Odłącz"; a kept visibility exception and "jak w kalendarzu"; booking in a "marked" calendar; the "+ Termin"
   hour on a later day.
 - All `app-*-check` scripts and the style ratchet pass (wk-hint 565 → 555); `tsc` is clean for these files.
+
+## F1 — Minors in a form: how they are recognised, how they take part; the JSON formats as a tree (2026-10-24)
+
+The owner asked: a form with minors knows minority from the age when it is asked, otherwise from a tick; a minor then
+takes part with a parent, with an adult the parent authorises, or alone with the parent's written consent, and each
+way asks as little as possible (nothing, a name, the parent with the paper). The form chooses birth date or tick and
+which ways are open (checkboxes; an event only for children opens one). Such a form must import as JSON, also inside
+the page JSON, and formats that carry other formats must always describe them currently, without copies.
+
+**Decided**
+- **Settings are a general piece of a need** (`NeedSetting`: one of several, or several), not a screen of their own.
+  The minors need is the first with settings: `age` = `birth` | `ask`, `ways` ⊆ `parent`, `adult`, `consent`
+  (proposed: birth date, all three; an entry from before reads as birth date + consent, as it was).
+- **What is asked**: with a parent, nothing (when it is the only way, one sentence says so); with an adult, the
+  adult's name; alone, the parent's name and phone and the approval to sign (a text, never a tick, as since 0087).
+  Several ways: the minor chooses ("Jak niepełnoletni uczestnik weźmie udział?", required only for minors). One way:
+  nobody chooses. The logic compares the chosen wording, so the need holds those options (read-only in the editor).
+- **New paper rule `sign`**: print when the form shows a statement to sign. The minors need sets it, so the print
+  appears for the tick as well as for the birth date, and only for the consent way. `minor` keeps working for forms
+  that have it. A later print evaluates the age on the day of filling.
+- **Changing the settings of a need that is on reshapes the form in place**: what both versions need stays (same
+  questions, answers kept), the new groups stand where the old ones stood, what the need added and no longer needs
+  goes (answered questions are only taken off), questions another need holds stay. Entries from before the settings
+  resolve their parts by the order in which `applyNeed` created them.
+- **JSON**: a form carries `needs` beside `questions` and `design` — `{ "id": "minor", "age": "ask", "ways": [...] }`
+  or just `"health"`. The export adds `holds` (key → id), so a copy takes the questions over instead of adding them
+  twice. The locks (`config.needs`) are no longer in `config`, and no import overwrites them (`PartJson.own`,
+  `keepOwn`). Needs missing from a document stay on unless "Usuń pytania i wymagania, których nie ma w dokumencie".
+- **The page import does for each form what the module import does** — one reader (`modules/moduleWish.ts`), one
+  importer (`modules/moduleImport.ts`): questions, design, needs, roles, virtual areas, group, repeat, audience.
+- **The JSON tree** (`core/jsonTree.ts`): a node says only its own keys and names the nodes inside it; a description
+  is a node and everything below it, each node once. Page → page keys, texts, appointments, files, module entry
+  (→ kinds, form → needs), layers, motion, drawing, presentation, examples. The module and part descriptions are made
+  of the same nodes. The panel shows the outline (a click jumps to the section) and "Wstaw przykład": the page, a
+  presentation and two complete forms with every possibility for minors (birth date / tick).
+
+**Built**
+- `forms/needs.ts` (wordings, settings, shapes, `NEEDS`, `choiceOf`), `forms/needPlan.ts` (`NeedOn` with `choice`
+  and `keys`, `planNeed`, `adoptedOf`, `holdingOf`, `paperAfter`, `layoutReplacing`, `lockedOf().options`),
+  `forms/formTemplates.ts` (`applyNeed`, `reshapeNeed`, `dropNeed`, `importNeeds`; refuses to place a need without
+  an answers area), `forms/needsJson.ts`, `forms/formFormat.ts`; `FormSettings.tsx` (settings under the need,
+  "Zastosuj ustawienia", the `sign` rule in "Po wysłaniu"), `FieldEditors.tsx` (options held by a need),
+  `SignSheet.tsx` (`PAPER_SIGN`, `signsShown`, `signsIn`; the form hands its fresh copy to the print button —
+  `keepOpenedForm`), `formDesign.ts` (`evaluate(…, { on })`).
+- `core/jsonTree.ts`, `pages/pageJsonText.ts` (nodes: `PAGE_JSON`, `moduleFormat`, `partFormat`, `kindNode`),
+  `ui/JsonPanel.tsx` (`format`, outline, samples), `pages/part.ts` (`own`, `keepOwn`), `pages/parts/live.tsx`
+  (`needs` own, `paper` says `sign`), `pages/pageJson.ts` (export `needs`, form wishes in the plan, own keys kept),
+  `pages/PageJsonPanel.tsx` (forms through `applyModuleWish`; a module from another page keeps its own keys; a new
+  form without an answers area is warned about), `modules/ModuleJson.tsx`.
+
+**Checks**
+- `app-platform-check`: 17 need shapes (3 + minors 2 × 7) — placements, references, unique keys, nothing hideable
+  required by itself, compared words are options; per setting: an adult owes nothing, a minor owes only what the
+  chosen way needs, paper only with written consent, on the day of filling; the plan: turning on reuses names,
+  reshaping keeps, takes off, restores, re-fixes options and spares other needs; old entries by order.
+- `app-json-check`: the tree (63 sections in the page, each once; the same text wherever a node stands; every sample
+  imports without a warning); needs JSON (every need, setting and value described; tolerant reading; out and back
+  the same; locks never in `config`; a page form gets its needs; adoption instead of doubles).
+- LocalDB drive `scratchpad/minor-ui.mjs` (headless Edge, 47): outline and jump; sample, area, import of three
+  needs; the form in every way (tick, choice, adult's name, parent with the print, untick); settings → birth date
+  and two ways (the same parent question, the tick gone); one way (no choice, parent and print at once); module
+  export (`needs` with `holds`, no locks in `config`), the same document back (no change), a copy on the page takes
+  the questions over (same count, its own ids).
+- `tsc` clean; presentation, slides, motion, sim, event and style checks pass.
+
+**Owner:** no migration and no API deploy (the service reads `config.needs` as before); deploy the site. Forms with
+the minors need on keep their behaviour (birth date, written consent, paper `minor`) until their settings change.

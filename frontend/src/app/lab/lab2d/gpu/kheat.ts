@@ -121,7 +121,7 @@ ${MAIN} {
   let count = cntWG(lid, C_PSORT);
   let p = gid.x;
   var v = 0.0;
-  if (p < count) { let q = parts[p]; if ((q.flags & 1u) == 0u) { v = q.mass * cpL(q.T); } }
+  if (p < count) { let q = parts[p]; if ((q.flags & 1u) == 0u) { v = q.mass * pCp(matOf(q.flags), q.T, q.s, q.mass); } }
   let s = wsum(v, lid);
   if (lid == 0u && s != 0.0) { addF_cnt(C_SUM_CL, s); }
 }`
@@ -142,6 +142,9 @@ ${MAIN} {
     let j = cj(c);
     var Cl = 0.0;
     var CTl = 0.0;
+    /* Andere Flüssigkeiten: ihr Anteil an der Leitfähigkeit der Zelle (nach Wärmekapazität gewichtet, wie heat.ts). */
+    var Co = 0.0;
+    var CKo = 0.0;
     for (var b = -1; b <= 1; b++) {
       let jj = j + b;
       if (jj < 0 || jj >= i32(P.ny)) { continue; }
@@ -156,9 +159,11 @@ ${MAIN} {
           let w = wtAtI(pk, i, j);
           if (w == 0.0 || !aliveI(pk)) { continue; }
           let T = parts[pk].T;
-          let Cp = parts[pk].mass * cpL(T);
+          let mt = matOf(parts[pk].flags);
+          let Cp = parts[pk].mass * pCp(mt, T, parts[pk].s, parts[pk].mass);
           Cl += w * Cp;
           CTl += w * Cp * T;
+          if (mt != 0u) { Co += w * Cp; CKo += w * Cp * kLM(mt, T); }
         }
       }
     }
@@ -166,7 +171,7 @@ ${MAIN} {
     let T = cf[F_T * n + c];
     var cs = 0.0;
     var kc = 0.0;
-    if (s != 0u) { cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_FILM * n + c] * cpL(T); kc = solidK(s); }
+    if (s != 0u) { cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_FILM * n + c] * cpL(T) + cf[F_CRUST * n + c] * CP_CRYSTAL; kc = solidK(s); }
     var cg = 0.0;
     if (s == 0u && cf[F_CAP * n + c] > 0.0) { cg = cf[F_CAP * n + c]; }
     let sum = cs + cg + Cl;
@@ -182,7 +187,7 @@ ${MAIN} {
       cf[F_TSTAR * n + c] = Ts;
       if (Cl > 0.0) { cf[F_TL * n + c] = CTl / Cl; }
       if (s == 0u) {
-        if (Cl >= cg) { kc = kL(Ts); } else { kc = kMix(cf[F_MN * n + c], cf[F_MO * n + c], cf[F_MV * n + c], Ts); }
+        if (Cl >= cg) { kc = select(kL(Ts), ((Cl - Co) * kL(Ts) + CKo) / Cl, Co > 0.0); } else { kc = kMix(cf[F_MN * n + c], cf[F_MO * n + c], cf[F_MV * n + c], Ts); }
       }
       cf[F_K * n + c] = kc;
       var qc = src;
@@ -342,9 +347,7 @@ ${MAIN} {
   }
   if (dT == 0.0) { return; }
   let before = q.mass / q.rho;
-  q.h += cpL(q.T) * dT;
-  q.T = tFromHL(q.h);
-  q.rho = rhoL(q.T);
+  { q.h += pCp(matOf(q.flags), q.T, q.s, q.mass) * dT; pDerive(&q); }
   q.dvp += q.mass / q.rho - before;
   parts[p] = q;
 }`
@@ -382,11 +385,12 @@ ${MAIN} {
     let pk = st + k;
     if (!aliveI(pk)) { continue; }
     let T = parts[pk].T;
-    let cp = cpL(T);
+    let mt = matOf(parts[pk].flags);
+    let cp = pCp(mt, T, parts[pk].s, parts[pk].mass);
     let Cp = parts[pk].mass * cp;
     C += Cp;
     CT += Cp * T;
-    CA += Cp * kL(T) / (parts[pk].rho * cp);
+    CA += Cp * kLM(mt, T) / (parts[pk].rho * cp);
   }
   if (!(C > 0.0)) { return; }
   let f = 1.0 - exp(-PI * PI * glob[G_DT] * P.invdx * P.invdx * CA / C);
@@ -398,9 +402,7 @@ ${MAIN} {
     let dT = f * (Tm - q.T);
     if (dT == 0.0) { continue; }
     let before = q.mass / q.rho;
-    q.h += cpL(q.T) * dT;
-    q.T = tFromHL(q.h);
-    q.rho = rhoL(q.T);
+    { q.h += pCp(matOf(q.flags), q.T, q.s, q.mass) * dT; pDerive(&q); }
     q.dvp += q.mass / q.rho - before;
     parts[pk] = q;
   }
@@ -423,8 +425,7 @@ ${MAIN} {
   if (dp == 0.0 || reg[r * REG_STRIDE + R_OPEN] != 0.0) { return; }
   let before = q.mass / q.rho;
   q.h += before * dp / q.mass;
-  q.T = tFromHL(q.h);
-  q.rho = rhoL(q.T);
+  pDerive(&q);
   q.dvp += q.mass / q.rho - before;
   parts[p] = q;
 }`
@@ -468,15 +469,17 @@ ${MAIN} {
   {
     name: 'measCells', wg: 256,
     bind: 'P:u cf:r cu:r meas:w probe:w',
-    code: `var<workgroup> red: array<f32, ${8 * 256}>;
+    code: `var<workgroup> red: array<f32, ${11 * 256}>;
 ${MAIN} {
   let c = gid.x;
   let lid = lid3.x;
   if (c == 0u) { probe[31] = 0.0; }
-  var v = array<f32, 8>(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+  var v = array<f32, 11>(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
   let n = P.n;
   if (c < n) {
     let k = cu[U_KIND * n + c];
+    if (c < P.nx) { v[9] = cf[F_FLOOR * n + c]; v[10] = cf[F_FLOORH * n + c]; }
+    v[8] = cf[F_CRUST * n + c];
     if (k == SOLID || cu[U_SOLID * n + c] != 0u) { v[0] = cf[F_ES * n + c]; v[1] = cf[F_FILM * n + c]; }
     else {
       v[2] = cf[F_HG * n + c];
@@ -486,35 +489,45 @@ ${MAIN} {
       if (k == LIQUID) { v[6] = 1.0; } else { v[7] = 1.0; }
     }
   }
-  for (var q = 0u; q < 8u; q++) { red[q * 256u + lid] = v[q]; }
+  for (var q = 0u; q < 11u; q++) { red[q * 256u + lid] = v[q]; }
   workgroupBarrier();
   for (var s = 128u; s > 0u; s >>= 1u) {
-    if (lid < s) { for (var q = 0u; q < 8u; q++) { red[q * 256u + lid] += red[q * 256u + lid + s]; } }
+    if (lid < s) { for (var q = 0u; q < 11u; q++) { red[q * 256u + lid] += red[q * 256u + lid + s]; } }
     workgroupBarrier();
   }
-  if (lid < 8u) { meas[wid3.x * ${MEAS_K}u + lid] = red[lid * 256u]; }
+  if (lid < 11u) { meas[wid3.x * ${MEAS_K}u + lid] = red[lid * 256u]; }
 }`
   },
   {
     name: 'measParts', wg: 256,
     bind: 'P:u cnt:a parts:r meas:w',
-    code: `var<workgroup> red: array<f32, ${4 * 256}>;
+    code: `var<workgroup> red: array<f32, ${7 * 256}>;
 ${MAIN} {
   let lid = lid3.x;
   let count = cntWG(lid, C_PSORT);
   let p = gid.x;
   var v = vec4<f32>(0.0);
+  var o = vec2<f32>(0.0);
+  var salt = 0.0;
   if (p < count) {
     let q = parts[p];
-    if ((q.flags & 1u) == 0u && q.mass > 0.0) { v = vec4<f32>(q.mass * q.h, q.mass, q.mass * q.T, q.mass * (q.h - hL(P.tsatAmb))); }
+    if ((q.flags & 1u) == 0u && q.mass > 0.0) {
+      /* 0: Enthalpie aller Teilchen, 1–3: Wasser (Masse ohne Salz, m T, fühlbare Wärme über T_sat), 4–5: andere Flüssigkeiten (Masse, m T), 6: Salz. */
+      salt = q.s;
+      if (matOf(q.flags) == 0u) { v = vec4<f32>(q.mass * q.h, q.mass - q.s, q.mass * q.T, q.mass * (q.h - hL(P.tsatAmb))); }
+      else { v = vec4<f32>(q.mass * q.h, 0.0, 0.0, 0.0); o = vec2<f32>(q.mass, q.mass * q.T); }
+    }
   }
   for (var k = 0u; k < 4u; k++) { red[k * 256u + lid] = v[k]; }
+  red[4u * 256u + lid] = o.x;
+  red[5u * 256u + lid] = o.y;
+  red[6u * 256u + lid] = salt;
   workgroupBarrier();
   for (var s = 128u; s > 0u; s >>= 1u) {
-    if (lid < s) { for (var k = 0u; k < 4u; k++) { red[k * 256u + lid] += red[k * 256u + lid + s]; } }
+    if (lid < s) { for (var k = 0u; k < 7u; k++) { red[k * 256u + lid] += red[k * 256u + lid + s]; } }
     workgroupBarrier();
   }
-  if (lid < 4u) { meas[((P.n + 255u) / 256u + wid3.x) * ${MEAS_K}u + lid] = red[lid * 256u]; }
+  if (lid < 7u) { meas[((P.n + 255u) / 256u + wid3.x) * ${MEAS_K}u + lid] = red[lid * 256u]; }
 }`
   },
   {

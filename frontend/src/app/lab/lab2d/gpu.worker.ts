@@ -137,13 +137,12 @@ async function settleGpu(): Promise<void> {
 }
 
 /**
- * Andere Flüssigkeiten als Wasser (Öl, M2a) und Salz (M2b) rechnet der
- * beschleunigte Weg noch nicht: die Szene geht mit allen Handgriffen an den
- * normalen Weg zurück.
+ * Freie Körper (M3a) und Eis (M3b) rechnet der beschleunigte Weg noch nicht:
+ * die Szene geht mit allen Handgriffen an den normalen Weg zurück.
  */
-function refuseOther(): boolean {
+function refuseCpuOnly(): boolean {
   if (cpu === null || !cpu.needsCpu()) return false;
-  post({ type: 'gpu', ok: false, adapter, message: 'other-liquid', scene: cpu.serialize() });
+  post({ type: 'gpu', ok: false, adapter, message: 'cpu-only', scene: cpu.serialize() });
   return true;
 }
 
@@ -162,7 +161,7 @@ function applyOps(): void {
       const warning = cpu.apply(op);
       if (warning !== null && warning.startsWith('refused')) post({ type: 'refused', message: warning });
     }
-    if (refuseOther()) return;
+    if (refuseCpuOnly()) return;
     const v = gpu.stateVersion;
     gpu.upload();
     afterUpload(v);
@@ -198,6 +197,12 @@ function bubbleView(r: Readout | null): BubbleView | null {
 function onReadout(r: Readout, now: number): void {
   if (gpu === null || charts === null) return;
   gpu.baselineFromLast();
+  /* Heftige Zustände (extremes.ts): bei „ask“ anhalten und fragen, wie auf der CPU (nur ein Weilchen später — die Ablesung kommt fünfmal je Sekunde). */
+  if (cpu !== null && r.stepsSince > 0) {
+    cpu.extremes.observe(r.rmaxB, r.vmaxP, gpu.totals.time);
+    const ev = cpu.extremes.take();
+    if (ev !== null) { paused = true; acc = 0; pendingSteps = 0; post({ type: 'extreme', event: ev }); }
+  }
   if (gpu.totals.time >= nextSample) {
     const s = charts.sample();
     if (s !== null) {
@@ -275,7 +280,7 @@ function frame(): void {
 async function init(m: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   cpu = new Engine(m.scene);
   paused = m.paused === true;
-  if (refuseOther()) return;
+  if (refuseCpuOnly()) return;
   canvas = m.canvas;
   if (canvas === null) throw new Error('no OffscreenCanvas');
   gpu = await GpuEngine.create(cpu);
@@ -409,7 +414,7 @@ scope.addEventListener('message', (event) => {
         else task(async () => { post({ type: 'reply', id: m.id, data: cpu?.serialize() ?? null }); });
         break;
       case 'load':
-        task(async () => { if (cpu === null) return; cpu.load(m.scene); if (refuseOther()) return; restart(); });
+        task(async () => { if (cpu === null) return; cpu.load(m.scene); if (refuseCpuOnly()) return; restart(); });
         break;
       case 'selectObject':
         selectedObject = m.object;
@@ -421,7 +426,7 @@ scope.addEventListener('message', (event) => {
           await gpu.download();
           const result = editObject(cpu, m.object, m.patch);
           post({ type: 'reply', id: m.id, data: result });
-          if (refuseOther()) return;
+          if (refuseCpuOnly()) return;
           if (result.rebuilt) { restart(); return; }
           const v = gpu.stateVersion;
           gpu.upload();

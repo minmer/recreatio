@@ -15,6 +15,7 @@
 
 import { THETA_MIN } from '../engine/liquid';
 import type { KernelDef } from './kernel';
+import { DROP_DRIFT } from './kmix';
 
 /** Wo die Oberfläche zwischen der Mitte der Flüssigkeitszelle c und ihrer Gasnachbarzelle n liegt (wie engine/liquid.ts, „ghost fluid“). */
 const THETA = `const THETA_MIN: f32 = ${THETA_MIN.toFixed(6)};
@@ -241,7 +242,8 @@ ${MAIN} {
     if (dv != 0.0) { addF_at(ati(A_VOLSRC, c), dv / max(glob[G_DT], DRIFT_DT)); }
     cu[cui(U_KPREV, c)] = cu[cui(U_KIND, c)];
   }
-  if (c == 0u) { atomicStore(&cnt[C_TMAX], 0u); setF_cnt(C_SUM_WM, 0.0); setF_cnt(C_SUM_WMT, 0.0); }
+  /* Die Summen dieses Schritts von vorn (Σ m c_p der Teilchen für eine Leistung in die Flüssigkeit wuchs sonst von Schritt zu Schritt). */
+  if (c == 0u) { atomicStore(&cnt[C_TMAX], 0u); setF_cnt(C_SUM_WM, 0.0); setF_cnt(C_SUM_WMT, 0.0); setF_cnt(C_SUM_CL, 0.0); }
   let sm = wsum(ms, lid);
   let sv = wsum(vs, lid);
   if (lid == 0u) { addF_cnt(C_SUM_M, sm); addF_cnt(C_SUM_V, sv); }
@@ -294,6 +296,7 @@ ${MAIN} {
   var m = 0.0;
   var mom = 0.0;
   var rv = 0.0;
+  var eta = 0.0;
   let dx = P.dx;
   /* Zellen der Teilchen, deren Knoten auf diese Fläche fallen können. */
   let pi0 = select(i - 1, i - 2, isU);
@@ -312,6 +315,8 @@ ${MAIN} {
         let qm = parts[pk].mass;
         let sx = qx * P.invdx;
         let sy = qy * P.invdx;
+        var qeta = 0.0;
+        if (P.mixed != 0u) { qeta = muLM(matOf(parts[pk].flags), parts[pk].T); }
         if (isU) {
           let i0 = i32(floor(sx - 0.5));
           let j0 = i32(floor(sy - 1.0));
@@ -326,6 +331,7 @@ ${MAIN} {
               if (ti != i || tj != j) { continue; }
               let wm = bspline1(sx - f32(ni)) * bspline1(sy - 0.5 - f32(nj)) * qm;
               m += wm;
+              eta += wm * qeta;
               mom += sg * wm * (parts[pk].vx + parts[pk].c00 * (f32(ni) * dx - qx) + parts[pk].c01 * ((f32(nj) + 0.5) * dx - qy));
             }
           }
@@ -344,6 +350,7 @@ ${MAIN} {
               if (ti != i || tj != j) { continue; }
               let wm = bspline1(sx - 0.5 - f32(ni)) * bspline1(sy - f32(nj)) * qm;
               m += wm;
+              eta += wm * qeta;
               mom += sg * wm * (parts[pk].vy + parts[pk].c10 * ((f32(ni) + 0.5) * dx - qx) + parts[pk].c11 * (f32(nj) * dx - qy));
               rv += wm * ratio;
             }
@@ -356,9 +363,17 @@ ${MAIN} {
   let force = af[f];
   af[f] = 0.0;
   var u = 0.0;
+  var du = 0.0;
   if (m > empty) {
-    u = mom / m + dt * force / (rhoRef * P.vcell);
-    if (!isU) { u -= dt * P.gy * (rv / m); }
+    du = dt * force / (rhoRef * P.vcell);
+    if (!isU) { du -= dt * P.gy * (rv / m); }
+    u = mom / m;
+    /* Ohne andere Flüssigkeit gleich mit den Kräften; mit ihr erst nach dem zähen Schritt (viscForce, wie liquid.ts). */
+    if (P.mixed == 0u) { u += du; }
+  }
+  if (P.mixed != 0u) {
+    ff[ffi(FF_ETA, f)] = select(0.0, eta / m, m > empty);
+    ff[ffi(FF_VF, f)] = du;
   }
   /* Feste und Wandflächen: 0, bekannt = 2; an Flüssigkeit: 1. */
   let ok = U_KIND * P.n;
@@ -377,6 +392,7 @@ ${MAIN} {
   var known = select(0u, 1u, ka == LIQUID || kb == LIQUID);
   if (wall || ka == SOLID || kb == SOLID) { u = 0.0; known = 2u; }
   ff[ffi(FF_UL, f)] = u;
+  if (P.mixed != 0u) { ff[ffi(FF_U0, f)] = u; }
   fu[fui(FU_KNOWN, f)] = known;
 }`
   },
@@ -541,9 +557,25 @@ ${MAIN} {
   /* -- APIC zurück, RK2-Transport, Stoss an Feststoffen, Entweichen ---------------------------------- */
   {
     name: 'g2p', wg: WG_P,
-    bind: 'P:u glob:r cnt:a cf:r ff:r parts:w',
+    bind: 'P:u glob:r cnt:a cf:r cu:r ff:r parts:w',
     code: `${MIRROR}
 ${REDUCE}
+/* Keine flüssige Zelle in ±2 Zellen um (x, y): ein Tropfen in der Luft. */
+fn stranded(x: f32, y: f32) -> bool {
+  let c = cellAt(x, y);
+  if (cu[U_KIND * P.n + c] == LIQUID) { return false; }
+  let i0 = ci(c);
+  let j0 = cj(c);
+  for (var b = -2; b <= 2; b++) {
+    for (var a = -2; a <= 2; a++) {
+      let ii = i0 + a;
+      let jj = j0 + b;
+      if (inGrid(ii, jj) && cu[U_KIND * P.n + cellOf(ii, jj)] == LIQUID) { return false; }
+    }
+  }
+  return true;
+}
+${DROP_DRIFT}
 fn uAt(i: i32, j: i32) -> f32 {
   if (i >= 0 && i <= i32(P.nx) && j >= 0 && j < i32(P.ny)) { return ff[FF_UL * P.nf + uF(i, j)]; }
   let m = mirrorU(i, j);
@@ -561,6 +593,8 @@ ${MAIN} {
   var speed = 0.0;
   var escM = 0.0;
   var escE = 0.0;
+  var escO = 0.0;
+  var escS = 0.0;
   if (p < count) {
     var q = parts[p];
     let dx = P.dx;
@@ -599,20 +633,37 @@ ${MAIN} {
       }
     }
     let k4 = 4.0 / (dx * dx);
+    /* Ein Tropfen fern jeder Flüssigkeit fliegt für sich: seine eigene Geschwindigkeit mit der Schwerkraft, keine Drehung. */
+    let fly = stranded(x, y);
+    if (fly) { u = q.vx; v = q.vy - P.gy * dt; cu0 = 0.0; cu1 = 0.0; cv0 = 0.0; cv1 = 0.0; }
     q.vx = u; q.vy = v;
     q.c00 = k4 * cu0; q.c01 = k4 * cu1; q.c10 = k4 * cv0; q.c11 = k4 * cv1;
     speed = sqrt(u * u + v * v);
-    /* RK2 im Gitterfeld. */
-    let v0 = velL(x, y);
-    let vm = velL(x + 0.5 * dt * v0.x, y + 0.5 * dt * v0.y);
-    var nxp = x + dt * vm.x;
-    var nyp = y + dt * vm.y;
+    /* Die Rechenwache (extremes.ts): kein Teilchen schneller als P.vmax (20 m/s, beim Mildern 1,5); Δt richtet sich weiter nach dem Gitter. */
+    var held = speed;
+    if (speed > P.vmax) { let f = P.vmax / speed; q.vx *= f; q.vy *= f; held = P.vmax; atomicAdd(&cnt[C_SLOWED], 1u); }
+    maxU_cnt(C_VMAXP, held);
+    /* RK2 im Gitterfeld (ein fliegender Tropfen geradeaus). */
+    var nxp = x + dt * q.vx;
+    var nyp = y + dt * q.vy;
+    if (!fly) {
+      let v0 = velL(x, y);
+      let vm = velL(x + 0.5 * dt * v0.x, y + 0.5 * dt * v0.y);
+      nxp = x + dt * vm.x;
+      nyp = y + dt * vm.y;
+      if (P.mixed != 0u) { nyp += dropDrift(q, dt); }
+    }
     if ((nxp < 0.0 && P.openL != 0u) || (nxp > P.boxw && P.openR != 0u) || (nyp < 0.0 && P.openB != 0u) || (nyp > P.boxh && P.openT != 0u)) {
-      escM = q.mass;
+      /* Entwichen: Wasser und andere Flüssigkeiten getrennt (die Energie aller). */
+      if (matOf(q.flags) == 0u) { escM = q.mass - q.s; } else { escO = q.mass - q.s; }
+      escS = q.s;
       escE = q.mass * q.h;
       q.flags = q.flags | ${DEAD}u;
     } else {
       let mg = 1e-4 * dx;
+      /* Ein fliegender Tropfen an einer Wand der Kiste bleibt dort (seine Geschwindigkeit in die Wand fällt weg). */
+      if (fly && (nxp < mg || nxp > P.boxw - mg)) { q.vx = 0.0; }
+      if (fly && (nyp < mg || nyp > P.boxh - mg)) { q.vy = 0.0; }
       nxp = clamp(nxp, mg, P.boxw - mg);
       nyp = clamp(nyp, mg, P.boxh - mg);
       var d = sdfAt(nxp, nyp);
@@ -643,9 +694,14 @@ ${MAIN} {
   let vmax = wmax(speed, lid);
   let em = wsum(escM, lid);
   let ee = wsum(escE, lid);
+  let eo = wsum(escO, lid);
+  let es = wsum(escS, lid);
   if (lid == 0u) {
     maxU_cnt(C_UMAXL, vmax);
-    if (em != 0.0) { addF_cnt(C_ESC_WATER, em); addF_cnt(C_ESC_ENERGY, ee); }
+    if (em != 0.0) { addF_cnt(C_ESC_WATER, em); }
+    if (eo != 0.0) { addF_cnt(C_ESC_OTHER, eo); }
+    if (es != 0.0) { addF_cnt(C_ESC_SALT, es); }
+    if (ee != 0.0) { addF_cnt(C_ESC_ENERGY, ee); }
   }
 }`
   },
@@ -681,9 +737,12 @@ ${MAIN} {
     if (sum > 0.0) { for (var k = 0; k < 9; k++) { q.wt[k] = q.wt[k] / sum; } }
     else { for (var k = 0; k < 9; k++) { q.wt[k] = 0.0; } q.wt[4] = 1.0; }
     parts[p] = q;
-    m = q.mass;
-    mt = q.mass * q.T;
-    tmax = q.T;
+    /* Mittlere und höchste Temperatur des Wassers (wie Engine.waterTemperature). */
+    if (matOf(q.flags) == 0u && (q.flags & 1u) == 0u) {
+      m = q.mass;
+      mt = q.mass * q.T;
+      tmax = q.T;
+    }
   }
   let sm = wsum(m, lid);
   let st = wsum(mt, lid);

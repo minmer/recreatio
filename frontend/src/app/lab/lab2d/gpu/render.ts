@@ -10,8 +10,9 @@
  * Pfeile und Wände übereinander.
  */
 
-import { SOLIDS } from '../engine/materials';
-import type { Overlay } from '../render/frame';
+import { LIQUIDS, SOLIDS } from '../engine/materials';
+import { RHO_CRYSTAL, SOLUTES } from '../engine/solution';
+import { SALT_FULL, type Overlay } from '../render/frame';
 import { hex, T_SCALE, VIRIDIS } from '../render/palette';
 import type { View } from '../render/view';
 import type { Walls } from '../render/glRenderer';
@@ -25,7 +26,7 @@ const MAIN = '@compute @workgroup_size(WG) fn main(@builtin(global_invocation_id
 
 /** Abstand der Pfeile (m) wie frame.ts. */
 const ARROW_SPACING = 0.006;
-/* Salz kennt der beschleunigte Weg noch nicht (er lehnt Szenen mit Salz ab): „Stężenie“ zeigt dort reines Wasser. */
+/* „Stężenie soli“ färbt die Flüssigkeit (R.tint = 2); in den Zellen zeigt es nichts. */
 export const OVERLAY_CODE: Readonly<Record<Overlay, number>> = { none: 0, temperature: 1, pressure: 2, velocity: 3, humidity: 4, vapour: 5, salt: 0, phase: 6 };
 /* Deckkraft des Nebels nach Beer–Lambert (frame.ts): LWC_ref. */
 const FOG_REF = (4 * 1000 * 1.5e-6) / (3 * 2 * 0.07);
@@ -96,6 +97,9 @@ ${MAIN} {
     code: `${RO_WGSL}
 ${VIRIDIS_WGSL}
 const SOLID_RGB = array<vec3<f32>, ${SOLIDS.length}>(${SOLIDS.map((s) => { const c = hex(s.color); return `vec3<f32>(${f(c[0] / 255)}, ${f(c[1] / 255)}, ${f(c[2] / 255)})`; }).join(', ')});
+const CRYSTAL_RGB = vec3<f32>(${hex(SOLUTES[0]?.color ?? '#f4f3ee').map((x) => f(x / 255)).join(', ')});
+/* Deckung einer Salzkruste (wie layers.ts): die Dicke m/(ρ Δx D) als Bruchteil der Zelle, mit der Wurzel. */
+fn crustCover(m: f32) -> f32 { if (!(m > 0.0)) { return 0.0; } return min(1.0, sqrt(m / (${f(RHO_CRYSTAL)} * P.dx * P.depth) / P.dx)); }
 ${MAIN} {
   let c = gid.x;
   if (c >= P.n) { return; }
@@ -116,12 +120,16 @@ ${MAIN} {
     let rgb = SOLID_RGB[min(s, ${SOLIDS.length}u) - 1u];
     let glow = clamp((T - T0 - 60.0) / 340.0, 0.0, 1.0);
     cell = vec4<f32>(rgb.x + (0.902 - rgb.x) * glow, rgb.y * (1.0 - 0.6 * glow), rgb.z * (1.0 - 0.8 * glow), 1.0);
+    let cr = crustCover(cf[F_CRUST * n + c]);
+    if (cr > 0.0) { cell = vec4<f32>(mix(cell.rgb, CRYSTAL_RGB, cr), 1.0); }
     if (ov == 1u) { cell = vec4<f32>(viridis((T - T0 - tmin) / tspan), 1.0); }
     else if (ov == 6u) { cell = vec4<f32>(0.353, 0.353, 0.353, 1.0); }
   } else if (ov == 6u) {
     if (k == LIQUID) { cell = vec4<f32>(0.239, 0.561, 0.847, 0.784); } else { cell = vec4<f32>(0.922, 0.922, 0.922, 0.471); }
     if (cf[F_ALPHA * n + c] > 0.02) { cell = vec4<f32>(0.98, 0.784, 0.314, 0.863); }
   } else if (k == GAS) {
+    /* Salz am Boden der Kiste (wo unter der Lösung kein Feststoff lag): die unterste Zelle seiner Spalte. */
+    if (j == 0) { let fc = crustCover(cf[F_FLOOR * n + c]); if (fc > 0.0) { cell = vec4<f32>(CRYSTAL_RGB, fc); } }
     if (ov == 1u || ov == 2u || ov == 3u) {
       var t = 0.0;
       if (ov == 1u) { t = (T - T0 - tmin) / tspan; }
@@ -175,6 +183,8 @@ ${MAIN} {
   let jc = i32(J / 2u);
   var w = 0.0;
   var wt = 0.0;
+  var wo = 0.0;
+  var wsl = 0.0;
   for (var b = -1; b <= 1; b++) {
     let jj = jc + b;
     if (jj < 0 || jj >= i32(P.ny)) { continue; }
@@ -193,11 +203,15 @@ ${MAIN} {
         let vp = m / parts[pk].rho * inv * ww;
         w += vp;
         wt += vp * parts[pk].T;
+        if (((parts[pk].flags >> 8u) & 255u) != 0u) { wo += vp; }
+        wsl += vp * parts[pk].s / m;
       }
     }
   }
-  lq[2u * t] = w;
-  lq[2u * t + 1u] = wt;
+  lq[4u * t] = w;
+  lq[4u * t + 1u] = wt;
+  lq[4u * t + 2u] = wo;
+  lq[4u * t + 3u] = wsl;
 }`
   },
   {
@@ -211,8 +225,7 @@ ${MAIN} {
   let I = t % lx;
   let l = select(t, t - 1u, I > 0u);
   let r = select(t, t + 1u, I + 1u < lx);
-  lq2[2u * t] = 0.25 * lq[2u * l] + 0.5 * lq[2u * t] + 0.25 * lq[2u * r];
-  lq2[2u * t + 1u] = 0.25 * lq[2u * l + 1u] + 0.5 * lq[2u * t + 1u] + 0.25 * lq[2u * r + 1u];
+  for (var k = 0u; k < 4u; k++) { lq2[4u * t + k] = 0.25 * lq[4u * l + k] + 0.5 * lq[4u * t + k] + 0.25 * lq[4u * r + k]; }
 }`
   },
   {
@@ -227,11 +240,13 @@ ${MAIN} {
   let J = t / lx;
   let b = select(t, t - lx, J > 0u);
   let u = select(t, t + lx, J + 1u < ly);
-  let w = 0.25 * lq2[2u * b] + 0.5 * lq2[2u * t] + 0.25 * lq2[2u * u];
-  let wt = 0.25 * lq2[2u * b + 1u] + 0.5 * lq2[2u * t + 1u] + 0.25 * lq2[2u * u + 1u];
+  let w = 0.25 * lq2[4u * b] + 0.5 * lq2[4u * t] + 0.25 * lq2[4u * u];
+  let wt = 0.25 * lq2[4u * b + 1u] + 0.5 * lq2[4u * t + 1u] + 0.25 * lq2[4u * u + 1u];
+  let wo = 0.25 * lq2[4u * b + 2u] + 0.5 * lq2[4u * t + 2u] + 0.25 * lq2[4u * u + 2u];
+  let wsl = 0.25 * lq2[4u * b + 3u] + 0.5 * lq2[4u * t + 3u] + 0.25 * lq2[4u * u + 3u];
   var temp = 0.0;
   if (w > 0.0) { temp = clamp((wt / w - T0 - ${f(T_SCALE[0])}) / ${f(T_SCALE[1] - T_SCALE[0])}, 0.0, 1.0); }
-  textureStore(liquid, vec2<i32>(i32(I), i32(ly - 1u - J)), vec4<f32>(min(1.0, w), temp, 0.0, 1.0));
+  textureStore(liquid, vec2<i32>(i32(I), i32(ly - 1u - J)), vec4<f32>(min(1.0, w), temp, select(0.0, clamp(wo / w, 0.0, 1.0), w > 0.0), select(0.0, clamp(wsl / (w * ${f(SALT_FULL)}), 0.0, 1.0), w > 0.0)));
 }`
   },
   {
@@ -303,6 +318,7 @@ fn toClip(p: vec2<f32>) -> vec4<f32> { return vec4<f32>((p - R.view.xy) / (R.vie
 
 const QUAD_WGSL = `${DRAW_COMMON}
 ${VIRIDIS_WGSL}
+const OIL_RGB = vec3<f32>(${hex(LIQUIDS[1]?.color ?? '#e3b437').map((x) => f(x)).join(', ')});
 @group(0) @binding(1) var tex: texture_2d<f32>;
 @group(0) @binding(2) var smp: sampler;
 struct VO { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
@@ -323,7 +339,8 @@ struct VO { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> }
   let cover = c.r;
   let a = smoothstep(0.42, 0.58, cover);
   if (a <= 0.0) { discard; }
-  var rgb = mix(R.water.rgb, viridis(c.g), R.tint);
+  /* R.tint: 0 die Farbe der Flüssigkeit, 1 Temperatur (Kanal G), 2 Salzgehalt (Kanal A) — über die Farbskala. */
+  var rgb = mix(mix(R.water.rgb, OIL_RGB, c.b), viridis(select(c.g, c.a, R.tint > 1.5)), select(0.0, 1.0, R.tint > 0.5));
   let edge = 1.0 - smoothstep(0.0, 0.12, abs(cover - 0.5));
   rgb *= 1.0 - 0.25 * edge;
   let alpha = 0.82 * a;
@@ -382,6 +399,7 @@ struct VO { @builtin(position) pos: vec4<f32>, @location(0) local: vec2<f32>, @l
   let c = toClip(vec2<f32>(parts[p].x, parts[p].y));
   o.pos = vec4<f32>(c.xy + corner * R.pointPx / R.canvas, 0.0, 1.0);
   o.t = clamp((parts[p].T - ${f(273.15 + T_SCALE[0])}) / ${f(T_SCALE[1] - T_SCALE[0])}, 0.0, 1.0);
+  if (R.tint > 1.5) { o.t = clamp(parts[p].s / max(1e-30, parts[p].mass) / ${f(SALT_FULL)}, 0.0, 1.0); }
   return o;
 }
 @fragment fn fs(i: VO) -> @location(0) vec4<f32> {
@@ -507,8 +525,8 @@ export class GpuRenderer {
     this.lq?.destroy();
     this.lq2?.destroy();
     this.arrows?.destroy();
-    this.lq = d.createBuffer({ size: 4 * 2 * nl, usage: GPUBufferUsage.STORAGE });
-    this.lq2 = d.createBuffer({ size: 4 * 2 * nl, usage: GPUBufferUsage.STORAGE });
+    this.lq = d.createBuffer({ size: 4 * 4 * nl, usage: GPUBufferUsage.STORAGE });
+    this.lq2 = d.createBuffer({ size: 4 * 4 * nl, usage: GPUBufferUsage.STORAGE });
     const step = Math.max(2, Math.round(ARROW_SPACING / this.gpu.cpu.grid.dx));
     const half = step >> 1;
     const nax = Math.max(1, Math.ceil((S.d.nx - half) / step));
@@ -574,7 +592,7 @@ export class GpuRenderer {
       a.set([...this.theme.ground, 1, ...this.water, 1, ...this.theme.ink, 0.85, ...this.waterInk, 0.9], 8);
       a.set(rect, 24);
       a.set(fill, 28);
-      a[32] = overlay === 'temperature' ? 1 : 0;
+      a[32] = overlay === 'temperature' ? 1 : overlay === 'salt' ? 2 : 0;
       a[33] = Math.max(1.5, (0.5 * g.dx * width) / (view.x1 - view.x0));
       u[34] = S.d.bcap;
       u[35] = S.d.pcap;

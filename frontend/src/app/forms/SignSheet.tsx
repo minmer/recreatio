@@ -90,10 +90,42 @@ export function openPublicFormKept(partId: string): Promise<OpenForm> {
   return form;
 }
 
+/**
+ * 2026-10-24 — WER DAS FORMULAR FRISCH AUFGEMACHT HAT (das Formular selbst),
+ * legt es hier ab: sonst entschiede der Knopf zum Drucken nach einem Aufbau
+ * von vor zwei Minuten — etwa vor dem Umstellen der Minderjährigen — und
+ * druckte ein anderes Blatt, als das Formular zeigt.
+ */
+export function keepOpenedForm(partId: string, form: OpenForm): void {
+  opened.set(partId, { at: Date.now(), form: Promise.resolve(form) });
+}
+
 /* -- Wann auf Papier ----------------------------------------------------------------- */
 
 /** Die Regel „niepełnoletni": Papier für jeden unter 18 — aus Geburtsdatum oder PESEL. */
 export const PAPER_MINOR = 'minor';
+
+/**
+ * 2026-10-24 — DIE REGEL „DO PODPISU, WENN ES ETWAS ZU UNTERSCHREIBEN GIBT":
+ * Papier, sobald das Formular eine Erklärung zum Unterschreiben (`sign`)
+ * zeigt. Die Logik entscheidet, wem — bei den Minderjährigen nur dem, der
+ * allein mit der Zustimmung der Eltern kommt, gleich ob das Alter aus dem
+ * Geburtsdatum folgt oder aus einem Kästchen.
+ */
+export const PAPER_SIGN = 'sign';
+
+/** Steht eine Erklärung zum Unterschreiben gerade sichtbar im Formular? */
+export function signsShown(layout: readonly LayoutItem[], hidden: ReadonlySet<string>): boolean {
+  return layout.some((item) => !hidden.has(item.id)
+    && ((item.type === 'text' && item.sign === true && item.text.trim() !== '') || (item.type === 'group' && signsShown(item.items, hidden))));
+}
+
+/** Dasselbe für ein Ausgefülltes — die Logik ausgewertet an seinem Tag (`on`). */
+export function signsIn(open: Pick<OpenForm, 'fields' | 'design'>, values: ReadonlyMap<string, string>, on: string | null): boolean {
+  if (open.design === null) return false;
+  const layout = layoutWith(open.design.layout, [...open.fields].sort((a, b) => a.position - b.position).map((f) => f.fieldId));
+  return signsShown(layout, evaluate({ ...open.design, layout }, Object.fromEntries(values), { on }).hidden);
+}
 
 /** Was eine Frage sein muss, damit aus ihr das Alter folgt. */
 type AgeField = Pick<OpenField, 'fieldId' | 'kind' | 'identityRole'>;
@@ -113,19 +145,21 @@ export function birthFrom(fields: readonly AgeField[], valueOf: (fieldId: string
 
 /**
  * Muss DIESES Ausgefüllte auf Papier unterschrieben werden? `always` — immer;
- * `minor` — wenn der Mensch am Tag des Ausfüllens (`on`, sonst heute) noch
- * keine 18 ist (aus Geburtsdatum oder PESEL; ohne eines davon nicht); die
- * Kennung einer Frage — wenn sie angekreuzt ist (eine Zustimmung, ein
- * „Tak / nie"); sonst nicht.
+ * `sign` — wenn das Formular eine Erklärung zum Unterschreiben zeigt (`signs`,
+ * vom Aufrufer ausgewertet); `minor` — wenn der Mensch am Tag des Ausfüllens
+ * (`on`, sonst heute) noch keine 18 ist (aus Geburtsdatum oder PESEL; ohne
+ * eines davon nicht); die Kennung einer Frage — wenn sie angekreuzt ist (eine
+ * Zustimmung, ein „Tak / nie"); sonst nicht.
  */
 export function paperNeeded(
   after: AfterSend | null | undefined,
   valueOf: (fieldId: string) => string | undefined,
-  person: { readonly fields?: readonly AgeField[]; readonly on?: string | null } = {}
+  person: { readonly fields?: readonly AgeField[]; readonly on?: string | null; readonly signs?: boolean } = {}
 ): boolean {
   const rule = after?.paper?.trim() ?? '';
   if (rule === '') return false;
   if (rule === 'always') return true;
+  if (rule === PAPER_SIGN) return person.signs === true;
   if (rule === PAPER_MINOR) {
     const birth = birthFrom(person.fields ?? [], valueOf);
     const age = birth === null ? null : ageOn(birth, person.on ?? null);
@@ -205,8 +239,8 @@ interface Row { readonly label: string; readonly value: string }
 interface Block { readonly title: string; readonly rows: Row[] }
 interface Statement { readonly label: string; readonly given: boolean; readonly text: string }
 
-/** Was auf dem Blatt steht — in der Reihenfolge des Formulars, nur was sichtbar war. */
-export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
+/** Was auf dem Blatt steht — in der Reihenfolge des Formulars, nur was sichtbar war (am Tag des Ausfüllens, `on`). */
+export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>, on: string | null = null): {
   blocks: Block[]; statements: Statement[]; notes: string[];
   /** 0087 — Erklärungen, die hier unterschrieben werden (Texte `sign`, die sichtbar waren). */
   signed: string[];
@@ -215,7 +249,7 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
   const sorted = [...open.fields].sort((a, b) => a.position - b.position);
   const layout = layoutWith(open.design?.layout ?? [], sorted.map((f) => f.fieldId));
   const answers: Record<string, string> = Object.fromEntries(values);
-  const outcome = evaluate({ ...(open.design ?? EMPTY_DESIGN), layout }, answers);
+  const outcome = evaluate({ ...(open.design ?? EMPTY_DESIGN), layout }, answers, { on });
 
   const statements: Statement[] = [];
   const notes: string[] = [];
@@ -274,7 +308,7 @@ export function sheetOf(open: OpenForm, values: ReadonlyMap<string, string>): {
 }
 
 function Sheet({ open, values, submittedAt }: { open: OpenForm; values: ReadonlyMap<string, string>; submittedAt: string | null }) {
-  const { blocks, statements, notes, signed } = useMemo(() => sheetOf(open, values), [open, values]);
+  const { blocks, statements, notes, signed } = useMemo(() => sheetOf(open, values, dayOf(submittedAt)), [open, values, submittedAt]);
   const c = open.form.controller;
 
   return (
@@ -376,8 +410,9 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
 
   if (open === null) return null;
   const after = open.form.after ?? null;
+  const on = dayOf(submittedAt);
   const show = when === 'ruled' ? (after?.paper ?? '') !== ''
-    : paperNeeded(after, (id) => values.get(id), { fields: open.fields, on: dayOf(submittedAt) });
+    : paperNeeded(after, (id) => values.get(id), { fields: open.fields, on, signs: (after?.paper ?? '').trim() === PAPER_SIGN && signsIn(open, values, on) });
   if (!show) return null;
 
   return (

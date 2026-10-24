@@ -11,6 +11,7 @@
 
 import { ALPHA_RATE } from '../engine/bubbleState';
 import { data, H_EXT } from '../engine/materials';
+import { CP_CRYSTAL } from '../engine/solution';
 import { G0, P_ATM, R_GAS, T0 } from '../engine/units';
 import { REG_STRIDE, SLOTS_WGSL } from './slots';
 
@@ -42,6 +43,15 @@ const hL100 = (() => {
 })();
 const HV100 = hL100 + water.saturation.hlv100.v;
 const solids = data.solids;
+/* Weitere Flüssigkeiten (M2a; wie engine/materials.ts GEN): c_p, ρ, k linear in T, μ nach Vogel, σ fest, h das genaue Integral von c_p. Index 0 ist Wasser (eigene Gesetze). */
+interface LiqFit { readonly cA: number; readonly cB: number; readonly h0: number; readonly rA: number; readonly rB: number; readonly kA: number; readonly kB: number; readonly mA: number; readonly mB: number; readonly mC: number; readonly sigma: number }
+const LIQ_FITS: readonly LiqFit[] = (data.species.slice(3) as unknown as readonly { readonly liquid: { readonly cp: { readonly linear: readonly number[] }; readonly rho: { readonly linear: readonly number[] }; readonly k: { readonly linear: readonly number[] }; readonly mu: { readonly vogel: readonly number[] }; readonly sigma: { readonly v: number } } }[]).map((s) => {
+  const l = s.liquid;
+  const [cA, cB] = l.cp.linear;
+  return { cA, cB, h0: cA * T0 + 0.5 * cB * T0 * T0, rA: l.rho.linear[0], rB: l.rho.linear[1], kA: l.k.linear[0], kB: l.k.linear[1], mA: l.mu.vogel[0], mB: l.mu.vogel[1], mC: l.mu.vogel[2], sigma: l.sigma.v };
+});
+const NLIQ = 1 + LIQ_FITS.length;
+const liqArr = (pick: (l: LiqFit) => number): string => `array<f32, ${NLIQ}>(${fa([0, ...LIQ_FITS.map(pick)])})`;
 
 /** Sonderwert „keine Zelle“, „kein Gebiet“, „keine Blase“. */
 export const NONE = 0xffffffff;
@@ -64,11 +74,12 @@ struct Params {
   ambN2: f32, ambO2: f32, ambH2O: f32, ambH: f32,
   yN2: f32, yO2: f32, yH2O: f32, tsatAmb: f32,
   openL: u32, openR: u32, openB: u32, openT: u32,
-  sealed: u32, harness: u32, theta: f32, pad0: u32,
+  sealed: u32, harness: u32, theta: f32, mixed: u32,
+  chf: f32, actMax: f32, vmax: f32, bubCap: f32,
 }`;
-export const PARAMS_WORDS = 44;
+export const PARAMS_WORDS = 48;
 
-/** Ein Wasserteilchen (Feld eines Speicherpuffers; 26 Wörter). */
+/** Ein Teilchen (Feld eines Speicherpuffers; 27 Wörter): s ist sein gelöstes Salz (kg; 0: keines, M2b). */
 export const PARTICLE_WGSL = `
 struct Particle {
   x: f32, y: f32, vx: f32, vy: f32,
@@ -77,8 +88,9 @@ struct Particle {
   dvp: f32, flags: u32, id: u32, bi: i32,
   bj: i32,
   wt: array<f32, 9>,
+  s: f32,
 }`;
-export const PARTICLE_WORDS = 26;
+export const PARTICLE_WORDS = 27;
 
 /** Eine Blase (29 Wörter). */
 export const BUBBLE_WGSL = `
@@ -181,6 +193,20 @@ const ALPHA_RATE: f32 = ${f(ALPHA_RATE)};
 const REG_STRIDE: u32 = ${REG_STRIDE}u;
 const EMPTY_FACE: f32 = 1e-9;
 const H_EXT0: f32 = ${f(H_EXT)};
+/* c_p des Salzkristalls (Kruste auf Feststoffen, M2b). */
+const CP_CRYSTAL: f32 = ${f(CP_CRYSTAL)};
+const NLIQ: u32 = ${NLIQ}u;
+const L_CA = ${liqArr((l) => l.cA)};
+const L_CB = ${liqArr((l) => l.cB)};
+const L_H0 = ${liqArr((l) => l.h0)};
+const L_RA = ${liqArr((l) => l.rA)};
+const L_RB = ${liqArr((l) => l.rB)};
+const L_KA = ${liqArr((l) => l.kA)};
+const L_KB = ${liqArr((l) => l.kB)};
+const L_MA = ${liqArr((l) => l.mA)};
+const L_MB = ${liqArr((l) => l.mB)};
+const L_MC = ${liqArr((l) => l.mC)};
+const L_SIG = ${liqArr((l) => l.sigma)};
 `;
 
 /** Stoffwerte (wie engine/materials.ts, in f32). */
@@ -233,6 +259,22 @@ fn sigmaW(T: f32) -> f32 {
   let tau = max(0.0, 1.0 - T / T_CRIT);
   return ST_B * pow(tau, ST_MU) * (1.0 + ST_b * tau);
 }
+/* Die Flüssigkeit eines Teilchens (M2a): Bits 8..15 seiner Merkmale (0 Wasser); ihre Stoffgesetze wie engine/materials.ts. */
+fn matOf(flags: u32) -> u32 { return (flags >> 8u) & 255u; }
+fn cpLM(m: u32, T: f32) -> f32 { if (m == 0u) { return cpL(T); } return L_CA[m] + L_CB[m] * T; }
+fn hLM(m: u32, T: f32) -> f32 { if (m == 0u) { return hL(T); } return (L_CA[m] + 0.5 * L_CB[m] * T) * T - L_H0[m]; }
+fn tFromHLM(m: u32, h: f32) -> f32 {
+  if (m == 0u) { return tFromHL(h); }
+  let c = h + L_H0[m];
+  let a = L_CA[m];
+  let b = L_CB[m];
+  if (b == 0.0) { return c / a; }
+  return 2.0 * c / (a + sqrt(max(0.0, a * a + 2.0 * b * c)));
+}
+fn rhoLM(m: u32, T: f32) -> f32 { if (m == 0u) { return rhoL(T); } return L_RA[m] + L_RB[m] * T; }
+fn kLM(m: u32, T: f32) -> f32 { if (m == 0u) { return kL(T); } return L_KA[m] + L_KB[m] * T; }
+fn muLM(m: u32, T: f32) -> f32 { if (m == 0u) { return muL(T); } return L_MA[m] * exp2(L_MB[m] / (max(T, L_MC[m] + 60.0) - L_MC[m]) * 3.321928094887362); }
+fn sigmaLM(m: u32, T: f32) -> f32 { if (m == 0u) { return sigmaW(T); } return L_SIG[m]; }
 fn cpV(T: f32) -> f32 { return CPV0 + CPV1 * (T - CPV_T); }
 fn hV(T: f32) -> f32 {
   let a = T - CPV_T;

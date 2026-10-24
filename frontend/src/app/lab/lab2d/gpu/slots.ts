@@ -45,6 +45,12 @@ export const C = {
   WATCH_FATE: 57,
   /* erste Keimbildung: Bits von T_f − T_sat + 1000 (0: noch keine) und Werkstoff + 1 */
   FIRST_SH: 58, FIRST_MAT: 59,
+  /* Heftige Zustände bis zur nächsten Ablesung (eigens geleert): schnellstes Teilchen und grösste Blase (f32-Bits), gebremste Teilchen (u32), abgelassener Dampf (f32) */
+  VMAXP: 60, RMAXB: 61, SLOWED: 62, VENTED: 63,
+  /* M2a/M2b bis zur nächsten Ablesung (eigens geleert): entwichene andere Flüssigkeiten, entwichenes Salz, Energie mit ihnen (f32) */
+  ESC_OTHER: 65, ESC_SALT: 66,
+  /* M2b: auskristallisiertes Salz bis zur nächsten Ablesung (f32; mit ESC_OTHER und ESC_SALT geleert) */
+  CRYST: 67,
   /* Ende der Zwischensummen */
   /* Kennzahlen auf Anfrage (Partialsummen stehen in `meas`) */
   TMAX: 64,
@@ -85,9 +91,19 @@ export const F = {
   TSAT: 25, PTL: 26, PCL: 27, ACC: 28, ACCH: 29, SCALE: 30,
   C: 31, CS: 32, CG: 33, TSTAR: 34, K: 35, Q: 36, SHARE: 37,
   MTOT: 38, Y0: 39, RD: 40, HVC: 41, HNC: 42, HOC: 43, BG: 44, BY: 48,
-  TS: 52, VAP: 53, VAPH: 54
+  TS: 52, VAP: 53, VAPH: 54,
+  /* M2a: Σ w m aller Flüssigkeiten und die vorherrschende Flüssigkeit der Zelle (Index in LIQUIDS, als f32) */
+  ACCALL: 55, HOST: 56,
+  /* M2a: die Flüssigkeit mit der meisten Masse unter den Teilchen der Zelle selbst (für die Drift der Tröpfchen) */
+  DHOST: 57,
+  /* M2b: Σ w s, die Molalität des Wassers und seine Aktivität, die Erhöhung des Siedepunkts (zur Sammlung der Flüssigkeit) */
+  ACCS: 58, MOL: 59, AW: 60, DTB: 61,
+  /* M2b: Salzkruste der festen Zelle (kg); Salz am Boden der Kiste je Spalte i (an der Stelle i) und seine Enthalpie */
+  CRUST: 62, FLOOR: 63, FLOORH: 64,
+  /* M2b, Austausch: Salz und Wasser der Wasserteilchen der Zelle selbst, ihre mittlere Temperatur, tauscht sie (1/0); Dichte ihres Wassers (Drift) */
+  XS: 65, XW: 66, XT: 67, XON: 68, RHOW: 69
 } as const;
-export const NF = 55;
+export const NF = 70;
 
 /** cu: u32-Zellfelder (Heizgruppe + 1, 0: keine; Gebiet NONE: fest). */
 export const U = { KIND: 0, KPREV: 1, SOLID: 2, HGRP: 3, RID: 4, EDGE: 5 } as const;
@@ -95,15 +111,21 @@ export const NU = 6;
 
 /** at: atomare Zellfelder (f32 über CAS). */
 export const A = {
-  VOLSRC: 0, HSRC: 1, FM: 2, FE: 3, BUDGET: 4, DN: 5, DO: 6, DV: 7, DF: 8, DH: 9, ALPHA: 10, DFILM: 11, DES: 12
+  VOLSRC: 0, HSRC: 1, FM: 2, FE: 3, BUDGET: 4, DN: 5, DO: 6, DV: 7, DF: 8, DH: 9, ALPHA: 10, DFILM: 11, DES: 12,
+  /* Wärme, die eine Wandzelle in diesem Schritt schon an Blasen gab (J; höchstens die kritische Wärmestromdichte) */
+  CHF: 13,
+  /* M2b: Kristalle auf eine feste Zelle (kg; ihre Enthalpie über DES), auf den Boden der Kiste je Spalte (kg, J) */
+  DCRUST: 14, DFLOOR: 15, DFLOORH: 16
 } as const;
-export const NA = 13;
+export const NA = 17;
 
 /** ff: f32-Flächenfelder. */
 export const FF = {
-  UL: 0, UG: 1, TMP: 2, MAC1: 3, LO: 4, HI: 5, TSCR: 6, FLUX: 7, DV: 12, DN: 13, DO: 14, DH: 15
+  UL: 0, UG: 1, TMP: 2, MAC1: 3, LO: 4, HI: 5, TSCR: 6, FLUX: 7, DV: 12, DN: 13, DO: 14, DH: 15,
+  /* M2a: Zähigkeit der Fläche (massengewichtet), die Geschwindigkeit der Übertragung, der Zuwachs aus den Kräften, der zweite Puffer der Jacobi-Schritte */
+  ETA: 16, U0: 17, VF: 18, VT: 19
 } as const;
-export const NFF = 16;
+export const NFF = 20;
 
 /** fu: u32-Flächenfelder. */
 export const FU = { KNOWN: 0, MARK: 1, MARK2: 2, GAS: 3 } as const;

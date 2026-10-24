@@ -11,6 +11,8 @@ from cell to cell (`exchange.ts`, tests 28–30). The accelerated view takes nei
 within cells like the CPU. B (2026-10-22) bakes a scene into a clip — computed once as fast as the machine allows,
 kept in the browser, played back without computing and continued live from any frame bit for bit (§16, tests 31–34);
 the lab never starts by itself, a module may bake on opening, and one lab can offer several scenarios.
+Since 2026-10-24 violent boiling is computed without blowing up, softened or asked about (§19), and the lab runs only
+full screen with a preparation phase, a simulation phase and a bake dialog (§20).
 [MILESTONES.md](MILESTONES.md) has the measured numbers. Written as a
 design before the code (2026-10-19, as the build prompt v2 asks) and updated to what was built.
 Code: `frontend/src/app/lab/lab2d/`. Simplifications: [SIMPLIFICATIONS.md](SIMPLIFICATIONS.md).
@@ -557,8 +559,8 @@ worker builds frame buffers and transfers them (a ring of two) to a WebGL2 canva
   largest speed (the legend gives both);
 - the box walls (open sides stay open).
 
-Water vapour itself is invisible; the "vapour" overlay shows it next to the fog. The React shell (`Lab2D.tsx` in
-`LabFrame`) holds only settings and the stats; it draws the force arrows of the selected bubble, the overlay legend,
+Water vapour itself is invisible; the "vapour" overlay shows it next to the fog. The React shell (since 2026-10-24
+`Lab2D.tsx` → `LabApp.tsx` with the parts in `shell/`, §20) holds only settings and the stats; it draws the force arrows of the selected bubble, the overlay legend,
 the HUD and notes as SVG/HTML over the canvas. The inspector asks the worker (`query`); a selected bubble is followed
 through merges, and when it bursts or collapses its last state stays with a note saying what happened.
 
@@ -572,7 +574,7 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (83 tests, ~5 minutes) and
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (87 tests, ~6 minutes) and
 `npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34, 41 at 1 mm, 43 with enough salt).
 MILESTONES.md records the numbers.
 
@@ -625,11 +627,15 @@ MILESTONES.md records the numbers.
 | 44 | Freezing brine keeps all its salt: the ice grows, the brine gets saltier, salt exact | m3b.test.ts |
 | 45 | A carved ice block melts as a few rectangles that neither overlap nor fall apart; budgets exact | m3b.test.ts |
 | 46 | The side the heat comes through melts: an ice block on a warm plate melts from below and stays on the plate; budgets exact | m3b.test.ts |
+| 47 | Violent boiling: water at 95 °C poured onto steel at 140 °C for 300 steps — the critical heat flux is 1.26 MW/m²; computed: every value finite, the 20 m/s guard never acts, the step never collapses, budgets exact; softened: no bubble above 4 mm, water held at 1.5 m/s, the water stays, budgets exact | ext.test.ts |
+| 48 | Asking: one event when a bubble passes 6 mm or water 2 m/s, handed over once; the answer is stored in the scene and nothing is asked again | ext.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
 headless Edge against a bundle of the shell; the results are in MILESTONES.md (M1d); baking, playback, seeking, going
-live, the clip cache, baking on opening and the scenarios likewise (MILESTONES.md §B).
+live, the clip cache, baking on opening and the scenarios likewise (MILESTONES.md §B); the full-screen surface of
+2026-10-24 — card, layer, phases, tools, settings, bake dialog, the question, the page's whole window, the phone —
+likewise (MILESTONES.md, "Violent events and the full-screen surface").
 
 ## 13. Performance
 
@@ -712,17 +718,19 @@ computing — smoothly also on a weak computer or a phone — with a timeline, 0
 **"Na żywo od tej chwili"** continues live from the frame on screen. Clips stay in the browser (the user's decision,
 SANDBOX.md §9): no files, nothing attached to pages.
 
-**Starting.** The lab never starts by itself: it shows the scene's start and waits — "Uruchom na żywo" runs it live,
-"Upiecz" bakes it (10, 30, 60, 120 or 300 s of simulated time), and when this browser already holds a clip of the
-scene, "Odtwórz nagranie" plays it. A module may bake on opening (`start: "bake"` in its configuration, set in the
+**Starting.** The lab never starts by itself: it shows the scene's start and waits — "Uruchom" runs it live,
+"Upiecz…" opens the bake dialog (§20: 10, 30, 60, 120 or 300 s of simulated time, a frame every 67, 33 or 17 ms,
+resume points every 1, 5 or 10 s, the resolution and how violent events are computed — never "ask" while baking), and
+when this browser already holds a clip of the scene, "Nagranie … s" plays it. A module may bake on opening (`start: "bake"` in its configuration, set in the
 editor as "Po otwarciu"); a clip already baked then plays at once. `seconds` sets the length, `scenarios` adds
 further scenes to choose from (a picker above the text; each scenario has its own clip and, with `start: "bake"`,
 bakes when chosen). Restart and choosing a scenario also come back paused.
 
 **The clip** (`recreatio/lab2d-clip`, version 2 — version 1 clips, without the bodies' quads, still play; `clip/clip.ts`):
 
-- *Header*: the scene (canonical JSON with quality, seed and every operation), the grid, 30 frames per second of
-  simulated time, the sizes of the chunks, the keyframes, the chart samples (every 0.25 s) and the layout of the engine
+- *Header*: the scene (canonical JSON with quality, seed, the mode of violent events and every operation), the grid,
+  the frames per second of simulated time (30 by default; 15 or 60 as chosen when baking — the timeline steps by
+  them), the sizes of the chunks, the keyframes, the chart samples (every 0.25 s) and the layout of the engine
   that baked it.
 - *Frames*: the layers of each frame (`render/layers.ts`) — per cell the kind and material, salt crust, the glow of
   hot solids, fog opacity, the temperature (0.5 K), gas pressure and speed (8 bit on a fixed quadratic scale, so a
@@ -734,7 +742,7 @@ bakes when chosen). Restart and choosing a scenario also come back paused.
   (`CompressionStream`; `clip/codec.ts`). What the frame without overlay needs is stored in every frame; what only the
   gas overlays show (temperature, pressure, speed, humidity, vapour, bubbles in the phase map, arrows) in every third,
   and playback holds it in between — that halves a clip. Lossless: playback composes the very layers that were baked.
-- *Keyframes*: the whole engine state every 5 s (`clip/snapshot.ts`). Instead of a list per module a walk through the
+- *Keyframes*: the whole engine state every 5 s (or 1 or 10 s, as chosen; `clip/snapshot.ts`). Instead of a list per module a walk through the
   object graph of the engine and its chart sampler takes every number, string and typed array in field order — each
   object once (the modules share arrays), plain data objects as one value (so null ↔ object does not change the
   structure), getters left out; per-particle and per-bubble arrays only up to the count. Left out is scratch: arrays
@@ -751,7 +759,8 @@ bakes when chosen). Restart and choosing a scenario also come back paused.
 **The store** (`clip/store.ts`): IndexedDB `recreatio-lab2d` — headers in `clips`, packed chunks in `chunks`, keyframes
 in `keys`, so playback fetches only what it needs (the chunk on screen and the next; three chunks in memory). The key
 of a clip is SHA-256 over the format and the canonical scene: the same scene in the same quality finds its clip again
-— also after an edit is undone, never for a changed scene. More than 16 clips or 600 MB: the least recently played go
+— also after an edit is undone, never for a changed scene. The frame rate and the keyframe spacing are not part of
+the key: baking the same scene again with other ones replaces its clip. More than 16 clips or 600 MB: the least recently played go
 first. Without IndexedDB (a private window) the clip lives as long as the lab is open.
 
 **In the worker** (`clip/session.ts`): three states. *Live*: as before. *Baking*: the engine is rebuilt from the scene
@@ -920,3 +929,96 @@ follow Neumann within 6 % at 2 mm and 4 % at 1 mm (melting, after 4 min; its spe
 within 7 % and 3 % (freezing, after 2 min). The interface lives in cells — first order in Δx: in the first seconds,
 while the thermal layer is thinner than a cell, melting runs ahead and freezing lags (SIMPLIFICATIONS.md #31, #40;
 MILESTONES.md §M3b).
+
+## 19. Violent events (since 2026-10-24)
+
+Water poured onto a very hot plate, superheated water in a smooth beaker that finally nucleates (bumping), many
+bubbles merging into one: before 2026-10-24 such scenes ended in a giant vapour bubble that pushed the water out of
+the box, or in NaN within ten steps. Water at 95 °C on steel at 140 °C traced the chain (`ext.test.ts`; the diagnostic
+runs are in MILESTONES.md):
+
+1. An attached bubble took the whole stored superheat of its wall cell in one step — 8.6 cm³ of vapour in 27 ms.
+2. The reaction force of a bubble larger than a cell (drag and added mass, Delnoij et al. 1997) went onto the 3 × 3
+   faces at its centre, where the liquid has already made room. The explicit Du/Dt of the added mass then fed back:
+   the liquid's acceleration in one step became a larger opposite one in the next (0.4 N → 10⁵ N in six steps).
+3. The drift correction ran at DRIFT_GAIN·err/Δt and a particle's volume jump at ΔV/Δt: the faster the flow, the
+   shorter the step, the larger both sources — the step fell to 0.1 µs and the water ran at 5000 m/s.
+4. Bubbles followed the projection's pressure without inertia; its short dips below zero absolute let a bubble grow
+   from 55 to 2000 cm³ in one step, and the boiling point of the cells dropped with it.
+
+What changed for every scene (each a numerical guard; SIMPLIFICATIONS.md #42–#45):
+
+- **Critical heat flux.** A bubble on a wall gets at most what the boiling curve lets through the wall:
+  q″_max = 0.149 ρ_v^½ h_lv [σ g (ρ_l − ρ_v)]^¼ (Lienhard & Dhir 1973; 1.26 MW/m² at 1 atm and 1 g) on the wetted face
+  of the wall cell, per step (`extremes.ts`, `wallLeft`/`takeWall`). Heat the wall keeps stays there and conducts.
+- **The ring.** The reaction force of a bubble larger than a cell spreads over the faces in the ring r…R around it,
+  R = max(1.5 r, r + 2Δx), weighted by the liquid share of the two cells (`bubbleMotion.spreadRing`). The ring holds at
+  least 1.25 πr²D ρ — more than the added mass ½ πr²D ρ, so the feedback factor stays below 0.4. Smaller bubbles keep
+  the B-spline stencil.
+- **No faster than DRIFT_DT.** The drift correction and a particle's volume jump are spread over at least
+  DRIFT_DT = 0.5 ms (`liquid.ts`); what is not corrected in this step stays an overfill that the drift corrects next.
+  At ordinary steps (≥ 0.5 ms) nothing changes.
+- **The void fraction stops at the open part of a cell** (`updateAlpha`): beyond it no flow could make room, and
+  the error would never close.
+- **Pressure floor.** The pressure a bubble sees and the boiling point of a cell use at least half the ambient
+  pressure.
+- **A guard**: no particle faster than 20 m/s (water in a lab box reaches a few m/s; the guard did not act in test 47).
+
+Two bugs went with it: a free bubble booked the enthalpy change of its re-solved state into every cell of its
+footprint — also into cells a big bubble had emptied, which have no heat capacity, so the heat was lost (now only
+cells with liquid; without one the bubble keeps it); and two bubbles that merged kept the volume of one until the next
+solve.
+
+**The modes** (`scene.extremes`, the setting "Gwałtowne zjawiska"):
+
+| Mode | What it does |
+|---|---|
+| `ask` (default) | computed like `compute`; when a bubble passes 6 mm or water 2 m/s, the worker pauses and posts `extreme`; the surface asks "Licz dokładnie" or "Łagodź", the answer is stored in the scene (`setExtremes`); asked once per scene |
+| `compute` | nothing more: superheated water may boil explosively and throw water out of the vessel, as it does in reality |
+| `normalize` | walls give bubbles at most a tenth of the critical heat flux; every cavity nucleates by 2 K of superheat (no bumping); what a bubble has beyond 4 mm radius goes to the gas above the surface as if that part burst there; water is held below 1.5 m/s |
+
+Mass and energy stay exact in every mode (the kinetic energy of the liquid is not in the energy budget, so the brake
+does not change it). Stats carry the mode, a pending event, the largest bubble, the fastest particle and what was
+softened. Water at 95 °C on steel at 140 °C (test 47, 300 steps at 2 mm): computed, the largest bubble reaches 26 mm,
+the fastest particle 9.7 m/s, the shortest step 0.19 ms, and half the water is thrown out of the open box; softened,
+no bubble passes 4 mm, the fastest particle 1.1 m/s, the step stays above 1.7 ms and 99.7 % of the water stays.
+Baking never asks: the bake dialog chooses `compute` or `normalize`. The accelerated view carries the mode (§15).
+
+## 20. The full-screen surface (since 2026-10-24)
+
+The lab runs only full screen. On a page a card shows the title, the first sentence of the task and "Otwórz
+laboratorium"; the lab opens as a layer over the whole window (`Lab2D.tsx`: a portal to the body, the browser's full
+screen where it has one, the body locked so nothing scrolls behind it; Esc closes what is open, then the layer). In the
+page's own whole window (`whole`) the lab fills the space under the page's bar at once.
+
+`LabApp.tsx` lays it out on a grid without scrolling:
+
+- **top** (`shell/TopBar.tsx`): the title (or the scenario picker), below it the first sentence of the task (a click
+  opens it whole), the phase — Przygotowanie, Symulacja, Pieczenie, Nagranie — and task & model, settings, close;
+- **left**, on a phone a row at the bottom (`shell/ToolRail.tsx`): Wybierz, Dodaj, Maluj, Gumka, Ścianka, Badaj; the
+  chosen tool's settings float over the stage (objects to add, materials with brush, temperature and salt, the wall's
+  material) and fold away on a phone as soon as one reaches into the box;
+- **right**, only when there is something to show (`shell/SidePanel.tsx`; on a phone a sheet from below): the selected
+  object with its settings (ObjectPanel), what Badaj found, the selected bubble with its forces, the charts — tabs
+  when there are several;
+- **bottom** (`shell/TimeBar.tsx`): Uruchom / Pauza / Wznów, one step, the speed, the clock, the slow-computer chip,
+  the overlay, the charts, Od nowa, the scene's clip, Upiecz…; while baking the progress, in playback the player
+  (timeline in the clip's own frames, speed, loop, live from here, delete, end).
+
+**Two phases.** *Preparation* (time 0): everything can be built and set, objects' set-up included. *Simulation*: once it
+runs, the tools that change the scene (Dodaj, Maluj, Gumka, Ścianka) are muted; choosing one, dragging an object or
+removing one pauses the run first ("Zatrzymano — możesz zmieniać scenę"). Starting keeps the set-up (a `serialize`
+before `pause(false)`, which the worker answers in order); "Od nowa" returns to it, "Scenariusz od początku" (in the
+settings) to the scenario. Baking always starts from that set-up.
+
+**Settings** (`shell/SettingsSheet.tsx`, a drawer): resolution (1, 2, 3 mm), violent events (§19), the graphics card,
+the environment (pressure presets and sliders, room temperature, humidity, oxygen, gravity), the box's sides, particles
+instead of the surface, the level of the texts, the developer panel, and the scene as a file (save, load, empty box,
+scenario from the start). **Task & model** (`shell/Dialogs.tsx`, `InfoSheet`): the scenario's text and the model's
+simplifications. **Bake dialog** (`BakeDialog`): length, recording step, resume points, resolution, violent events
+and an estimate of frames, resume points and size (1.9 B per cell and frame, 44 B per cell and keyframe, from test
+31); the last frame rate and spacing are kept in this browser. **The question** (`ExtremeDialog`): see §19. The space
+bar starts and pauses.
+
+Texts: `i18n.ts` (Polish first, German and English beside it — the overlays, environment, charts and inspector now in
+all three) and `i18nShell.ts` for the surface.

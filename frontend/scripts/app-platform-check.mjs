@@ -82,8 +82,10 @@ export { readSubject, writeSubject, subjectKindOf, implicitSubject } from '${app
 export { peselValid, peselBirth, birthOf, ageOn } from '${app}forms/pesel';
 export { consentValue, consentGiven, consentText, shownAnswer } from '${app}forms/form';
 export { evaluate } from '${app}forms/formDesign';
-export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR, printedByDefault } from '${app}forms/SignSheet';
-export { NEEDS, readNeeds, needsJson, lockedOf, layoutWithout, logicWithout } from '${app}forms/formTemplates';
+export { paperNeeded, sheetOf, parentalConsentOf, ageFields, PAPER_MINOR, PAPER_SIGN, printedByDefault, signsShown, signsIn } from '${app}forms/SignSheet';
+export { NEEDS, needOf, choiceOf, sameChoice, WAY_OPTION } from '${app}forms/needs';
+export { readNeeds, needsJson, lockedOf, layoutWithout, layoutReplacing, logicWithout, planNeed, choiceOfOn, keysOfOn, holdingOf, paperAfter, adoptedOf, itemIds } from '${app}forms/needPlan';
+export { readNeedWishes, needOut, needsOut, needWishLines, needsKeys, NEEDS_EXAMPLE } from '${app}forms/needsJson';
 export { asked, takenOff } from '${app}forms/form';
 export { splitAt, pageLink, keepFromAddress } from '${app}seats/seatKeep';
 export { parsePath, pageSteps, ROOT_STEP } from '${app}routes';
@@ -948,54 +950,225 @@ try {
     }
 
     /* 0087 — die Zustimmung der Eltern als Erklärung zum Unterschreiben: kein Kästchen, auf dem Blatt über der Linie. */
+    const minorNeed = m.needOf('minor');
+    const formOf = (shape) => ({
+      form: { title: 'Rakieta', controller: null, after: null },
+      fields: shape.questions.map((q, i) => field(q.id, q.kind, q.label, i, { identityRole: q.identity ?? 'none', options: q.options ?? [] })),
+      design: { version: 1, layout: shape.layout, nodes: shape.nodes, edges: shape.edges }, account: null
+    });
     {
-      const need = m.NEEDS.find((t) => t.id === 'minor');
-      const qs = need.questions.map((q, i) => field(q.id, q.kind, q.label, i, { identityRole: q.identity ?? 'none' }));
-      const form = { form: { title: 'Rakieta', controller: null, after: null }, fields: qs, design: { version: 1, layout: need.layout, nodes: need.nodes, edges: need.edges }, account: null };
-      assert.ok(!need.questions.some((q) => q.kind === 'consent' || q.kind === 'checkbox'), 'minors: nothing to tick');
+      /* Die Fassung von vor den Einstellungen (2026-10-24): Geburtsdatum, nur die schriftliche Zustimmung. */
+      const wasChoice = m.choiceOf(minorNeed, undefined, 'was');
+      assert.deepEqual(wasChoice, { age: ['birth'], ways: ['consent'] }, 'an entry from before the settings reads as it was');
+      const was = minorNeed.shape(wasChoice);
+      const form = formOf(was);
+      assert.ok(!was.questions.some((q) => q.kind === 'consent' || q.kind === 'checkbox'), 'minors: nothing to tick');
       const child = m.sheetOf(form, new Map([['given', 'Kuba'], ['surname', 'Mały'], ['born', '2012-03-04'], ['guardian', 'Ewa Mała'], ['guardianPhone', '+48 600 700 800']]));
       assert.equal(child.signed.length, 1, 'a child: the approval is on the sheet, to be signed');
       assert.ok(child.signed[0].startsWith('Zgoda rodzica / opiekuna prawnego na udział.') && child.signed[0].includes('wyrażam zgodę'));
       assert.ok(!child.notes.some((n) => n.includes('wyrażam zgodę')), 'not as small print');
       const grown = m.sheetOf(form, new Map([['given', 'Jan'], ['surname', 'Duży'], ['born', '1990-01-01']]));
       assert.deepEqual(grown.signed, [], 'an adult: no parental approval');
-      const outcome = m.evaluate({ version: 1, layout: need.layout, nodes: need.nodes, edges: need.edges }, { born: '2012-03-04' });
+      const outcome = m.evaluate(form.design, { born: '2012-03-04' });
       assert.ok([...outcome.required].every((id) => id === 'guardian' || id === 'guardianPhone'), 'required for a child: the parent and the phone, no tick');
       ok('minors: the parental approval is read in the form and signed on the printed sheet — no checkbox to force');
     }
 
-    /* Die Wymagania (0086): jede Kennung im Aufbau und in der Logik zeigt auf etwas, das es gibt. */
+    /* Die Wymagania (0086): jede Kennung im Aufbau und in der Logik zeigt auf etwas, das es gibt — für JEDE Einstellung (2026-10-24). */
+    const subsets = (list) => list.reduce((acc, x) => [...acc, ...acc.map((s) => [...s, x])], [[]]).filter((s) => s.length > 0);
+    const variants = (t) => t.settings.reduce((acc, s) => acc.flatMap((c) =>
+      (s.many ? subsets(s.choices.map((x) => x.value)) : s.choices.map((x) => [x.value])).map((v) => ({ ...c, [s.key]: v }))), [{}]);
+    let shapes = 0;
     for (const t of m.NEEDS) {
-      const ids = new Set(t.questions.map((q) => q.id));
-      const walk = (items) => items.flatMap((i) => (i.type === 'group' ? [i.id, ...walk(i.items)] : [i.id]));
-      const placed = walk(t.layout);
-      for (const q of t.questions) assert.ok(placed.includes(q.id), `${t.id}: ${q.id} is placed`);
-      const known = new Set([...ids, ...placed]);
-      for (const n of t.nodes) {
-        if (n.fieldId !== undefined) assert.ok(ids.has(n.fieldId), `${t.id}: node ${n.id} reads a question`);
-        if (n.target !== undefined) assert.ok(known.has(n.target), `${t.id}: node ${n.id} targets something placed`);
-      }
-      const nodes = new Set(t.nodes.map((n) => n.id));
-      for (const e of t.edges) assert.ok(nodes.has(e.from) && nodes.has(e.to), `${t.id}: edge ${e.id}`);
-      if (t.paper !== undefined) assert.ok(['always', 'minor'].includes(t.paper) || t.questions.find((q) => q.id === t.paper)?.kind === 'consent', `${t.id}: paper is a rule the sheet knows`);
-      for (const q of t.questions.filter((one) => one.kind === 'consent')) assert.ok((q.help ?? '').length > 40, `${t.id}: ${q.id} has its wording`);
-      /* Was ein „Pokaż" verbergen kann, darf nicht von sich aus Pflicht sein — der Dienst prüft Pflicht ohne die Logik. */
-      const groupOf = (items, inside) => items.flatMap((i) => (i.type === 'group' ? groupOf(i.items, [...inside, i.id]) : [[i.id, inside]]));
-      const within = new Map(groupOf(t.layout, []));
-      const hideable = new Set(t.nodes.filter((n) => n.kind === 'show').map((n) => n.target));
-      for (const q of t.questions) {
-        const hidden = hideable.has(q.id) || (within.get(q.id) ?? []).some((g) => hideable.has(g));
-        if (hidden) assert.ok(!q.required, `${t.id}: ${q.id} can be hidden — required only through the logic`);
+      for (const choice of variants(t)) {
+        const shape = t.shape(choice);
+        const label = `${t.id} ${JSON.stringify(choice)}`;
+        shapes += 1;
+        const ids = new Set(shape.questions.map((q) => q.id));
+        const placed = m.itemIds(shape.layout);
+        const walk = (items) => items.flatMap((i) => (i.type === 'group' ? [i.id, ...walk(i.items)] : [i.id]));
+        const all = walk(shape.layout);
+        for (const q of shape.questions) assert.ok(all.includes(q.id), `${label}: ${q.id} is placed`);
+        const known = new Set([...ids, ...placed]);
+        for (const n of shape.nodes) {
+          if (n.fieldId !== undefined) assert.ok(ids.has(n.fieldId), `${label}: node ${n.id} reads a question`);
+          if (n.target !== undefined) assert.ok(known.has(n.target), `${label}: node ${n.id} targets something placed`);
+        }
+        const nodes = new Set(shape.nodes.map((n) => n.id));
+        for (const e of shape.edges) assert.ok(nodes.has(e.from) && nodes.has(e.to), `${label}: edge ${e.id}`);
+        const keys = [...ids, ...placed, ...nodes, ...shape.edges.map((e) => e.id)];
+        assert.equal(new Set(keys).size, keys.length, `${label}: every key once (questions, groups, texts, nodes, edges)`);
+        if (shape.paper !== undefined) assert.ok(['always', 'minor', 'sign'].includes(shape.paper) || shape.questions.find((q) => q.id === shape.paper)?.kind === 'consent', `${label}: paper is a rule the sheet knows`);
+        for (const q of shape.questions.filter((one) => one.kind === 'consent')) assert.ok((q.help ?? '').length > 40, `${label}: ${q.id} has its wording`);
+        /* Was ein „Pokaż" verbergen kann, darf nicht von sich aus Pflicht sein — der Dienst prüft Pflicht ohne die Logik. */
+        const groupOf = (items, inside) => items.flatMap((i) => (i.type === 'group' ? groupOf(i.items, [...inside, i.id]) : [[i.id, inside]]));
+        const within = new Map(groupOf(shape.layout, []));
+        const hideable = new Set(shape.nodes.filter((n) => n.kind === 'show').map((n) => n.target));
+        for (const q of shape.questions) {
+          const hidden = hideable.has(q.id) || (within.get(q.id) ?? []).some((g) => hideable.has(g));
+          if (hidden) assert.ok(!q.required, `${label}: ${q.id} can be hidden — required only through the logic`);
+        }
+        /* Eine Wahl, an deren Wortlaut die Logik hängt: jeder verglichene Wert ist eine ihrer Möglichkeiten. */
+        for (const q of shape.questions.filter((one) => one.options !== undefined)) {
+          const compared = shape.nodes.filter((n) => n.kind === 'const' && shape.edges.some((e) => e.from === n.id && shape.edges.some((f) => f.to === e.to && shape.nodes.find((x) => x.id === f.from)?.fieldId === q.id)));
+          for (const n of compared) assert.ok(q.options.includes(n.value), `${label}: "${n.value}" is an option of ${q.id}`);
+        }
       }
     }
-    const parent = m.NEEDS.find((t) => t.id === 'minor');
-    const minor = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '2015-01-01' });
-    const grown = m.evaluate({ version: 1, layout: parent.layout, nodes: parent.nodes, edges: parent.edges }, { born: '1990-01-01' });
-    assert.ok(!minor.hidden.has('gGuardian'), 'a child: guardian and parental consent');
-    assert.ok(grown.hidden.has('gGuardian'), 'an adult: neither');
-    assert.ok(minor.required.has('guardian') && minor.required.has('guardianPhone') && !grown.required.has('guardian'), 'required for a child only');
-    assert.equal(parent.paper, m.PAPER_MINOR, 'minors: the print follows the age, not a tick');
-    ok('needs: every placement and every logic reference resolves; the parental part shows for minors only, printed for minors');
+    assert.equal(shapes, 3 + 2 * 7, 'three needs without settings, the minors in 2 × 7 variants');
+    ok(`needs: ${shapes} shapes — every placement and logic reference resolves, keys unique, hideable never required by itself, compared words are options`);
+
+    /* 2026-10-24 — wer was sieht und was er muss, je Einstellung: Erwachsene nichts, Minderjährige je nach Art. */
+    {
+      const answersFor = (age, minor, way) => ({
+        ...(age === 'birth' ? { born: minor ? '2015-01-01' : '1990-01-01' } : { minorAsk: minor ? 'tak' : '' }),
+        ...(way === undefined ? {} : { way })
+      });
+      for (const choice of variants(minorNeed)) {
+        const shape = minorNeed.shape(choice);
+        const label = JSON.stringify(choice);
+        const design = { version: 1, layout: shape.layout, nodes: shape.nodes, edges: shape.edges };
+        const has = (id) => shape.questions.some((q) => q.id === id) || m.itemIds(shape.layout).includes(id);
+        const age = choice.age[0];
+        const many = choice.ways.length > 1;
+        assert.equal(has('born'), age === 'birth', `${label}: a birth date only when asked for`);
+        assert.equal(has('minorAsk'), age === 'ask', `${label}: the tick only without a birth date`);
+        assert.equal(has('way'), many, `${label}: a choice only when there is one`);
+        assert.equal(shape.paper, choice.ways.includes('consent') ? m.PAPER_SIGN : undefined, `${label}: paper only with the written consent`);
+        if (many) assert.deepEqual(shape.questions.find((q) => q.id === 'way').options, choice.ways.map((w) => m.WAY_OPTION[w]), `${label}: the options in order`);
+
+        const grown = m.evaluate(design, answersFor(age, false));
+        for (const id of ['gGuardian', 'adultName', 'way', 'tParent']) if (has(id)) assert.ok(grown.hidden.has(id), `${label}: an adult does not see ${id}`);
+        assert.equal(grown.required.size, 0, `${label}: an adult owes nothing more`);
+        assert.equal(m.signsShown(shape.layout, grown.hidden), false, `${label}: an adult signs nothing`);
+
+        if (many) {
+          const undecided = m.evaluate(design, answersFor(age, true));
+          assert.deepEqual([...undecided.required], ['way'], `${label}: a minor who has not chosen yet owes only the choice`);
+          assert.ok(!undecided.hidden.has('way'));
+        }
+        for (const way of choice.ways) {
+          const child = m.evaluate(design, answersFor(age, true, many ? m.WAY_OPTION[way] : undefined));
+          const sees = (id) => has(id) && !child.hidden.has(id);
+          assert.equal(m.signsShown(shape.layout, child.hidden), way === 'consent', `${label} / ${way}: a print only with the written consent`);
+          assert.equal(sees('gGuardian'), way === 'consent', `${label} / ${way}: the parent's data only with the written consent`);
+          assert.equal(child.required.has('guardian') && child.required.has('guardianPhone'), way === 'consent', `${label} / ${way}: parent and phone required only then`);
+          assert.equal(sees('adultName') && child.required.has('adultName'), way === 'adult', `${label} / ${way}: the adult's name only with an adult`);
+          if (way === 'parent') {
+            assert.deepEqual([...child.required].filter((id) => id !== 'way'), [], `${label} / parent: nothing more`);
+            assert.equal(sees('tParent'), !many, `${label} / parent: the sentence when it is the only way`);
+          }
+          if (many) assert.ok(sees('way') && child.required.has('way'), `${label} / ${way}: the choice stays asked`);
+        }
+      }
+
+      /* Das Papier „wenn eine Erklärung zum Unterschreiben zu sehen ist" — am Tag des Ausfüllens. */
+      assert.equal(m.paperNeeded({ title: null, text: null, paper: m.PAPER_SIGN, signer: null }, () => undefined, { signs: true }), true);
+      assert.equal(m.paperNeeded({ title: null, text: null, paper: m.PAPER_SIGN, signer: null }, () => undefined, { signs: false }), false);
+      assert.equal(m.paperNeeded({ title: null, text: null, paper: m.PAPER_SIGN, signer: null }, () => undefined), false, 'unknown: no paper');
+      const every = formOf(minorNeed.shape({ age: ['birth'], ways: ['parent', 'adult', 'consent'] }));
+      const consent = m.WAY_OPTION.consent;
+      assert.equal(m.signsIn(every, new Map([['born', '2010-10-25'], ['way', consent]]), '2026-10-24'), true, 'fifteen, alone with consent: paper');
+      assert.equal(m.signsIn(every, new Map([['born', '2008-10-24'], ['way', consent]]), '2026-10-24'), false, 'eighteen that day: no paper');
+      assert.equal(m.signsIn(every, new Map([['born', '2008-10-24'], ['way', consent]]), '2026-10-23'), true, 'printed later for a day when still seventeen: the day of filling counts');
+      assert.equal(m.signsIn(every, new Map([['born', '2010-10-25'], ['way', m.WAY_OPTION.adult]]), '2026-10-24'), false, 'with an adult: no paper');
+      const sheet = m.sheetOf(every, new Map([['given', 'Ola'], ['surname', 'Lis'], ['born', '2008-10-24'], ['way', consent], ['guardian', 'Ewa Lis'], ['guardianPhone', '+48 600 100 200']]), '2026-10-23');
+      assert.equal(sheet.signed.length, 1, 'the sheet of the day of filling carries the approval');
+      const asked = formOf(minorNeed.shape({ age: ['ask'], ways: ['consent'] }));
+      assert.equal(m.signsIn(asked, new Map([['minorAsk', 'tak']]), null), true, 'the tick alone makes a minor');
+      assert.equal(m.signsIn(asked, new Map(), null), false, 'no tick: an adult');
+      ok('minors (2026-10-24): an adult owes nothing; a minor chooses among the open ways and owes only what that way needs; paper only with the written consent, on the day of filling');
+    }
+
+    /* 2026-10-24 — der Plan: einschalten, umstellen (was bleibt, bleibt an seinem Platz), Papier. */
+    {
+      const q = (id, kind, label, extra = {}) => ({ id, kind, label, help: null, options: [], required: false, halfWidth: false, identity: 'none', selfEdit: true, answersTo: 'A', ...extra });
+      let n = 0;
+      const makeId = () => `new${++n}`;
+      const own = [q('G', 'line', 'Imię', { identity: 'given_name' }), q('S', 'line', 'Nazwisko', { identity: 'surname' }), q('X', 'text', 'Uwagi')];
+      const first = { age: ['birth'], ways: ['consent'] };
+      const plan = m.planNeed({ need: minorNeed, choice: first, content: { questions: own, removed: [], design: null }, now: null, others: [], makeId });
+      assert.equal(plan.reused, 2, 'the names already asked are reused');
+      assert.deepEqual(plan.questions.map((x) => x.label), ['Data urodzenia', 'Imię i nazwisko rodzica / opiekuna prawnego', 'Telefon rodzica / opiekuna'], 'only what is missing is created');
+      assert.deepEqual(plan.design.layout.slice(0, 3).map((i) => i.id), ['G', 'S', 'X'], 'what was there stays first');
+      const participant = plan.design.layout.find((i) => i.id === plan.keys.gParticipant);
+      assert.deepEqual(participant.items.map((i) => i.id), [plan.keys.born], 'questions placed elsewhere stay there — the group holds the new ones');
+      const on = m.holdingOf(minorNeed, first, plan, (id) => id, true);
+      assert.deepEqual(on.fields, ['G', 'S', ...plan.created], 'it holds the reused and the new');
+      assert.deepEqual(on.added, plan.created, 'but added only the new');
+      assert.deepEqual(on.choice, first);
+
+      /* Umstellen: nur Kästchen, alle drei Arten — und eine eigene Frage in seiner Gruppe, eine eigene Kante an einem Knoten, den es behält. */
+      const placedOwn = plan.design.layout.map((i) => (i.id === plan.keys.gGuardian ? { ...i, items: [...i.items, { type: 'field', id: 'X' }] } : i)).filter((i) => i.id !== 'X');
+      const ownNode = { id: 'mine', kind: 'message', x: 0, y: 0, target: 'X', value: 'Dla rodzica' };
+      const design = { ...plan.design, layout: [{ type: 'field', id: 'Z' }, ...placedOwn], nodes: [...plan.design.nodes, ownNode], edges: [...plan.design.edges, { id: 'eMine', from: on.keys.nMinor, to: 'mine', port: 'in' }, { id: 'eMine2', from: on.keys.nShow0, to: 'mine', port: 'in' }] };
+      const born = q(plan.keys.born, 'date', 'Data urodzenia', { identity: 'born' });
+      const now = { questions: [q('Z', 'line', 'Szkoła'), ...own, born, q(plan.keys.guardian, 'line', 'Imię i nazwisko rodzica / opiekuna prawnego'), q(plan.keys.guardianPhone, 'phone', 'Telefon rodzica / opiekuna')], removed: [], design };
+      const next = { age: ['ask'], ways: ['parent', 'adult', 'consent'] };
+      const re = m.planNeed({ need: minorNeed, choice: next, content: now, now: on, others: [], makeId });
+      assert.deepEqual(re.leaving, [plan.keys.born], 'the birth date it added goes');
+      assert.deepEqual(re.questions.map((x) => x.label), ['Uczestnik jest niepełnoletni (nie ma jeszcze 18 lat)', 'Jak niepełnoletni uczestnik weźmie udział?', 'Imię i nazwisko pełnoletniego opiekuna'], 'the tick, the choice and the adult are new');
+      assert.deepEqual([re.keys.given, re.keys.guardian, re.keys.guardianPhone], ['G', plan.keys.guardian, plan.keys.guardianPhone], 'what both need stays, with its answers');
+      assert.equal(re.keys.gGuardian, plan.keys.gGuardian, 'the parent group keeps its id');
+      assert.deepEqual(re.design.layout.map((i) => i.id).slice(0, 4), ['Z', 'G', 'S', re.keys.gParticipant], 'the new groups stand where the old ones stood');
+      const guardianGroup = re.design.layout.find((i) => i.id === re.keys.gGuardian);
+      assert.ok(re.design.layout.findIndex((i) => i.id === 'X') > re.design.layout.indexOf(guardianGroup), 'an own question moved into its group stays right after it');
+      const placedIds = (items) => items.flatMap((i) => (i.type === 'group' ? [i.id, ...placedIds(i.items)] : [i.id]));
+      assert.ok(!placedIds(re.design.layout).includes(plan.keys.born), 'the leaving question is no longer placed');
+      const nodeIds = new Set(re.design.nodes.map((x) => x.id));
+      assert.ok(!nodeIds.has(on.keys.nAge) && !nodeIds.has(on.keys.nMinor) && nodeIds.has(re.keys.nAsk), 'the age logic goes, the tick comes');
+      assert.equal(re.keys.nShow0, on.keys.nShow0, 'a node both need keeps its id');
+      assert.ok(nodeIds.has('mine') && re.design.edges.some((e) => e.id === 'eMine2') && !re.design.edges.some((e) => e.id === 'eMine'), 'an own edge stays on a kept node, goes with a gone one');
+      assert.equal(new Set(re.design.edges.map((e) => e.id)).size, re.design.edges.length, 'no edge twice');
+      const out = m.evaluate(re.design, { [re.keys.minorAsk]: 'tak', [re.keys.way]: m.WAY_OPTION.adult });
+      assert.ok(!out.hidden.has(re.keys.adultName) && out.required.has(re.keys.adultName) && out.hidden.has(re.keys.gGuardian), 'the new logic works with the real ids');
+      const after = m.holdingOf(minorNeed, next, re, (id) => id, true);
+      assert.deepEqual(after.added, [plan.keys.guardian, plan.keys.guardianPhone, ...re.created], 'it added: the parent, the phone and the new ones — not the names, not the gone birth date');
+
+      /* Eine Wahl, deren Möglichkeiten jemand geändert hat, bekommt sie zurück. */
+      const rest = now.questions.filter((x) => x.id !== plan.keys.born);
+      const tick = q(re.keys.minorAsk, 'checkbox', 'Uczestnik jest niepełnoletni (nie ma jeszcze 18 lat)');
+      const adult = q(re.keys.adultName, 'line', 'Imię i nazwisko pełnoletniego opiekuna');
+      const way = q(re.keys.way, 'choice', 'Jak niepełnoletni uczestnik weźmie udział?', { options: ['A', 'B'] });
+      const fixed = m.planNeed({ need: minorNeed, choice: next, content: { questions: [...rest, tick, way, adult], removed: [], design: re.design }, now: after, others: [], makeId });
+      assert.deepEqual(fixed.questions.map((x) => [x.id, x.options]), [[re.keys.way, next.ways.map((w) => m.WAY_OPTION[w])]], 'the options the logic compares come back');
+      assert.deepEqual([fixed.created, fixed.leaving, fixed.restore], [[], [], []], 'nothing else changes');
+      assert.equal(m.lockedOf([after]).options.get(re.keys.way), minorNeed.label, 'and they are held');
+      assert.ok(!m.lockedOf([after]).options.has(re.keys.adultName));
+
+      /* Wieder zurück zum Geburtsdatum: die genommene Frage kommt mit ihren Antworten zurück. */
+      const right = { ...way, options: next.ways.map((w) => m.WAY_OPTION[w]) };
+      const back = m.planNeed({ need: minorNeed, choice: first, content: { questions: [...rest, tick, right, adult], removed: [born], design: re.design }, now: after, others: [], makeId });
+      assert.deepEqual(back.restore, [plan.keys.born], 'the taken-off birth date returns');
+      assert.deepEqual(back.created, [], 'nothing new');
+      assert.deepEqual([...back.leaving].sort(), [re.keys.minorAsk, re.keys.way, re.keys.adultName].sort(), 'the tick, the choice and the adult go');
+
+      /* Ein anderes Wymaganie hält dieselbe Frage — sie bleibt. */
+      const shared = m.planNeed({ need: minorNeed, choice: next, content: now, now: on, others: [{ id: 'insurance', label: 'U', fields: [plan.keys.born], added: [], items: [], nodes: [], edges: [] }], makeId });
+      assert.deepEqual(shared.leaving, [], 'a question another need holds stays');
+      ok('needs (2026-10-24): turning on reuses names, creates only what is missing; reshaping keeps what both need in place, takes off what it added, restores, re-fixes options, spares what another need holds');
+    }
+
+    /* Ein Eintrag von vor den Einstellungen: was er hält, nach der Reihenfolge, in der `applyNeed` es anlegte. */
+    {
+      const legacy = { id: 'minor', label: 'Niepełnoletni potrzebują pisemnej zgody rodzica', fields: ['a', 'b', 'c', 'd', 'e'], added: ['c', 'd', 'e'], items: ['g1', 'g2', 't1'], nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6'], edges: ['e1', 'e2', 'e3', 'e4', 'e5'], paper: true };
+      const keys = m.keysOfOn(legacy);
+      assert.deepEqual([keys.given, keys.born, keys.guardianPhone, keys.gParticipant, keys.gGuardian, keys.tApproval, keys.nAge, keys.nMinor, keys.nNeed1, keys.eShow0, keys.eNeed1],
+        ['a', 'c', 'e', 'g1', 'g2', 't1', 'n1', 'n3', 'n6', 'e3', 'e5'], 'questions, groups, nodes and edges by their order');
+      assert.deepEqual(m.choiceOfOn(legacy), { age: ['birth'], ways: ['consent'] });
+      const odd = m.keysOfOn({ ...legacy, fields: ['a', 'c'] }, { questions: [{ id: 'a', kind: 'line', label: 'Imię', identity: 'given_name' }, { id: 'c', kind: 'date', label: 'Data urodzenia', identity: 'born' }], removed: [] });
+      assert.deepEqual([odd.given, odd.born, odd.surname], ['a', 'c', undefined], 'when the count does not fit: by identity and wording');
+
+      /* Papier nach dem Einschalten und Umstellen. */
+      const all = minorNeed.shape({ age: ['birth'], ways: ['parent', 'adult', 'consent'] });
+      const without = minorNeed.shape({ age: ['birth'], ways: ['parent', 'adult'] });
+      assert.deepEqual(m.paperAfter(minorNeed, all, null, {}), { set: { paper: m.PAPER_SIGN, paperSigner: all.signer }, paper: true });
+      assert.deepEqual(m.paperAfter(minorNeed, all, null, { paper: 'always' }), { set: {}, paper: false }, '"always" is more — it stays');
+      assert.equal(m.paperAfter(minorNeed, all, legacy, { paper: 'minor' }).set.paper, m.PAPER_SIGN, 'the rule from before the settings becomes the general one');
+      assert.deepEqual(m.paperAfter(minorNeed, without, legacy, { paper: 'sign', paperSigner: all.signer }), { set: { paper: '', paperSigner: '' }, paper: false }, 'without the written consent its print goes');
+      assert.deepEqual(m.paperAfter(minorNeed, without, { ...legacy, paper: undefined }, { paper: 'sign' }), { set: {}, paper: false }, 'a rule it did not set stays');
+      ok('needs: entries from before the settings resolve by order (or identity); the print rule follows the written consent');
+    }
   }
 
   /* -- 15. Slajdy: der Wechsel und die Bühne (0084) ------------------------------------------------ */

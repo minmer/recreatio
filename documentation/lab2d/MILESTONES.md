@@ -7,7 +7,7 @@ tests measured, and what is not met. Architecture: [ARCHITECTURE.md](ARCHITECTUR
 Reference machine: the development laptop, AMD Ryzen 9 5900HS (8 cores, single-threaded engine), Node 24, Windows 11.
 The prompt's "target school laptop" was never named; a typical school laptop is two to four times slower per core.
 
-Reproduce: `npm run test:lab2d` (fast tests, ~5 min), `npm run test:lab2d:slow` (long runs, ~35 min),
+Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` (long runs, ~35 min),
 `npm run bench:lab2d` (benchmark, on a quiet machine).
 
 ## Summary
@@ -25,6 +25,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~5 min), `npm run test:lab2d:slow` 
 | M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU; objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
 | M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
+| Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); GPU parity follows |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout: the
 CPU step of the benchmark scene at 2 mm takes 22.9 ms since M3b (21.6 ms after M1d; budget 6 ms per step, two steps
@@ -691,6 +692,59 @@ always free, and "Przesuń" moved only beakers and plates.
   in JSON); test 39 releases its beaker through the setting instead of `pin`; a drive in headless Edge (add a cube, see
   its panel, pin it, run — it stays —, release it — it falls —, add a beaker, drag it, remove it; no console errors).
   83 fast tests in 9 files.
+
+## Violent events and the full-screen surface (2026-10-24)
+
+The user's screenshot showed the lab embedded in a page with everything at once, and asked for a clean surface that
+needs no explanations, full screen only with nothing scrolling outside, first the preparation and then the
+simulation (paused to add something), a choice of how a clip is baked, and — "the greatest problems" — a choice for
+very violent events such as a great hot vapour bubble, "because most of the simulations went out in such a bubble
+pushing the whole water of the scene outside it".
+
+**Diagnosis** (water at 95 °C poured onto steel at 140 °C, 2 mm). Before: 2184 nucleations in five steps, particles at
+3000 m/s and NaN at step 10. The chain, found one link at a time with step-by-step traces (ARCHITECTURE.md §19):
+
+| What | Measured before | Fix |
+|---|---|---|
+| wall heat to attached bubbles | the whole stored superheat of a wall cell per step: 8.6 cm³ of vapour in 27 ms | the critical heat flux (Lienhard & Dhir 1973), 1.26 MW/m² at 1 atm |
+| drift correction and volume jumps | DRIFT_GAIN·err/Δt, ΔV/Δt: Δt fell to 0.1 µs, water at 5000 m/s | spread over ≥ 0.5 ms |
+| void fraction of a bubble at a wall | up to 1.9 of a cell: an error no flow closes | at most the open part of the cell |
+| reaction force of big bubbles | on the 3 × 3 faces at the centre: 0.4 N → 10⁵ N in six steps | on the liquid in the ring r…max(1.5 r, r + 2Δx) |
+| pressure a bubble sees | dips below zero absolute: one bubble 55 → 2000 cm³ in one step | at least half the ambient |
+
+Two older bugs showed only here: the enthalpy change of a re-solved free bubble was booked into every cell of its
+footprint, also into cells a big bubble had emptied (no heat capacity — up to 10⁻² J lost per step; now only cells
+with liquid, else the bubble keeps it); merged bubbles kept one bubble's volume until the next solve (the softening
+missed them; now the sum).
+
+**Tests** (`ext.test.ts`; 87 fast tests in 10 files, all met):
+
+| # | Gate | Measured |
+|---|---|---|
+| 47 | q″_max at 1 atm and 1 g | 1.261 MW/m² |
+| 47 | computed: 300 steps finite, guard idle, Δt not collapsing, budgets exact | finite; largest bubble 26.4 mm, fastest particle 9.7 m/s, guard 0×, shortest step 0.19 ms; half the water thrown out of the open box; energy −2.4·10⁻¹⁰ J, water 5·10⁻¹⁶ kg |
+| 47 | softened: no bubble above 4 mm, water ≤ 1.5 m/s, water stays, budgets exact | largest bubble 4.00 mm, fastest 1.06 m/s, shortest step 1.7 ms, 99.7 % of the water stays (9.4 mg of vapour vented), energy −2.7·10⁻¹⁰ J |
+| 48 | asking: one event, handed over once, the answer stored, no second question | after 4 steps (22.6 ms): a 6.4 mm bubble |
+
+The rest of the fast suite is unchanged within its tolerances (the guards do not act at ordinary steps; the ring acts
+only for bubbles larger than a cell). Longer runs of the same scene: computed 12.4 s and softened 8.9 s of simulated
+time, finite throughout, energy within 4·10⁻¹⁰ J; three seeds of the computed scene closed the energy within
+3·10⁻¹⁰ J over 300 violent steps after the footprint fix (before: up to 2·10⁻³ J). The presets stay calm for 20 s at
+2 mm; a beaker without chips heated for 337 s reached 119 °C at the bottom (19 K superheat) with the bulk at 59 °C —
+the bumping that "ask" now catches.
+
+**The surface** (ARCHITECTURE.md §20): a card on the page, the lab as a full-screen layer; top bar with the phase,
+tool rail, side panel only when needed, time bar; settings, task & model and the bake dialog on demand; the question
+when violent events start. Clips: frames per second (15, 30, 60) and keyframe spacing (1, 5, 10 s) chosen when baking,
+stored in the header. **Checked** in headless Edge against a bundle of the shell: card → layer filling the window
+with the body locked, phases, six tools, adding an ice cube (selected, panel, the tool back to Wybierz), running,
+muted tools, "Maluj" pausing the run with its note, settings with "Łagodź" stored, the bake dialog (10 s, every
+67 ms, 3 mm) baking into a clip that plays with a timeline stepping 1/15 s, ending playback back to the preparation
+with the clip's button, the phone layout (tools in a row at the bottom, no horizontal overflow), Esc closing panel
+then lab (43 checks); the page's whole window (the lab fills it under the page bar, nothing scrolls), a block added,
+run and "Od nowa" back to the set-up, Badaj and the charts as tabs, task & model, Esc closing only the sheet, and
+water on the hot plate asking "Gwałtowne wrzenie", answered "Łagodź", running on without a second question (30
+checks). No console errors.
 
 ## Benchmark
 

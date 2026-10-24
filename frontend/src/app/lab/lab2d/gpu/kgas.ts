@@ -53,7 +53,7 @@ fn deriveCell(c: u32) {
 fn deriveSolid(c: u32) {
   let n = P.n;
   let s = cu[U_SOLID * n + c];
-  let cs = solidRho(s) * solidCp(s) * P.vcell;
+  let cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_CRUST * n + c] * CP_CRYSTAL;
   let film = cf[F_FILM * n + c];
   let E = cf[F_ES * n + c];
   if (film <= 0.0) { cf[F_T * n + c] = T0 + E / cs; return; }
@@ -112,8 +112,13 @@ ${MAIN} {
     cf[F_MN * n + c] += dN; cf[F_MO * n + c] += dO; cf[F_MV * n + c] = max(0.0, cf[F_MV * n + c] + dV); cf[F_MF * n + c] = max(0.0, cf[F_MF * n + c] + dF); cf[F_HG * n + c] += dH;
     at[A_DN * n + c] = 0.0; at[A_DO * n + c] = 0.0; at[A_DV * n + c] = 0.0; at[A_DF * n + c] = 0.0; at[A_DH * n + c] = 0.0;
   }
+  /* Kristalle (M2b): Kruste der festen Zelle (ihre Enthalpie kommt über DES), Salz am Boden der Kiste je Spalte. */
+  let dCr = at[A_DCRUST * n + c];
+  if (dCr != 0.0) { cf[F_CRUST * n + c] += dCr; at[A_DCRUST * n + c] = 0.0; }
+  let dFl = at[A_DFLOOR * n + c]; let dFh = at[A_DFLOORH * n + c];
+  if (dFl != 0.0 || dFh != 0.0) { cf[F_FLOOR * n + c] += dFl; cf[F_FLOORH * n + c] += dFh; at[A_DFLOOR * n + c] = 0.0; at[A_DFLOORH * n + c] = 0.0; }
   let dFi = at[A_DFILM * n + c]; let dEs = at[A_DES * n + c];
-  if (dFi != 0.0 || dEs != 0.0) {
+  if (dFi != 0.0 || dEs != 0.0 || dCr != 0.0) {
     cf[F_FILM * n + c] = max(0.0, cf[F_FILM * n + c] + dFi); cf[F_ES * n + c] += dEs;
     at[A_DFILM * n + c] = 0.0; at[A_DES * n + c] = 0.0;
     if (k == SOLID) { deriveSolid(c); }

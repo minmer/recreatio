@@ -254,9 +254,13 @@ The format `recreatio/event` adds only the bundle itself and relative dates:
 }
 ```
 
-- **Pages.** Each `page` is a page document exactly as page JSON exports it: parts, forms with questions and design,
-  menu, logic, subject. `@keys` resolve the way the appointment import already resolves them: `@main` in Program,
-  `@uczestnicy` as a form's role, `{path}` in a form's portal.
+- **Pages.** Each `page` is a page document exactly as page JSON exports it: parts, menu, logic, subject, and forms
+  with everything a module document carries (questions, design, needs, roles, virtual areas, folder, rounds —
+  `modules/moduleImport.ts`). `@keys` resolve the way the appointment import already resolves them: `@main` in
+  Program, `@uczestnicy` as a form's role, `{path}` in a form's portal.
+- **Pictures.** A template asks for the event's own photos and files the way a page document already can (since
+  2026-10-24): each described in `images`, used as `page-image:@key`. The dialog shows the descriptions, the
+  organiser adds the files, and they land in every place that uses them.
 - **Export.** "Zapisz jako wzór" and "Kolejna edycja" export an event into this format:
   - dates become relative to its main appointment;
   - ids are dropped;
@@ -269,7 +273,9 @@ The format `recreatio/event` adds only the bundle itself and relative dates:
   - "Wyjazd z noclegiem": consents, insurance, payments, participants' and leaders' pages;
   - "Przygotowanie do bierzmowania", taken from the structure built in Grzegórzki.
 - **Description.** The description of the format stands next to its import and is generated from the code, as every
-  JSON format must; `app-json-check` covers it.
+  JSON format must; `app-json-check` covers it. Descriptions are a tree since 2026-10-24 (`core/jsonTree.ts`): the
+  event format is one node whose `inside` holds the page format (`PAGE_JSON`), so pages, modules, forms and their
+  needs are described once and never copied.
 
 ## 7. Underneath
 

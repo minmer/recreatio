@@ -283,7 +283,11 @@ export interface Outcome {
  * Der Editor lässt keinen entstehen; ein Dokument von woanders könnte einen
  * tragen.
  */
-export function evaluate(design: FormDesign, answers: Readonly<Record<string, string>>): Outcome {
+export function evaluate(
+  design: FormDesign, answers: Readonly<Record<string, string>>,
+  /** 2026-10-24 — `on`: welcher Tag „heute" ist (für das Alter ohne eigenen Tag) — der Tag des Ausfüllens, wenn später gedruckt wird. */
+  options: { readonly on?: string | null } = {}
+): Outcome {
   const byId = new Map(design.nodes.map((n) => [n.id, n]));
   const into = new Map<string, LogicEdge[]>();
   for (const e of design.edges) into.set(e.to, [...(into.get(e.to) ?? []), e]);
@@ -315,7 +319,8 @@ export function evaluate(design: FormDesign, answers: Readonly<Record<string, st
        */
       case 'age': {
         const born = birthOf(node.fieldId === undefined ? '' : answers[node.fieldId]);
-        const years = born === null ? null : ageOn(born, node.value);
+        const day = node.value !== undefined && node.value.trim() !== '' ? node.value : options.on ?? null;
+        const years = born === null ? null : ageOn(born, day);
         v = years === null ? '' : String(years);
         break;
       }

@@ -2,7 +2,7 @@
  * Die Einstellungen eines Formulars: nach dem Absenden, Bedarf, Erweiterungen, Überschrift.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
@@ -13,10 +13,12 @@ import { type ModuleRow, createModule } from '../modules/module';
 import { formPath } from '../routes';
 import type { ExtensionInfo } from '../steps/steps';
 import { AUDIENCE_LABEL, type OpenField, setPartConfig } from './form';
-import { type FormNeed, NEEDS, applyNeed, dropNeed, readNeeds } from './formTemplates';
+import { applyNeed, dropNeed, reshapeNeed } from './formTemplates';
+import { NEEDS, choiceOf, needOf, sameChoice, type FormNeed, type NeedChoice, type NeedSetting } from './needs';
+import { choiceOfOn, readNeeds, type NeedOn } from './needPlan';
 import { createIntake } from './intake';
 import { REPEATS, REPEAT_LABEL, type Repeat, repeatOf } from './rounds';
-import { PAPER_MINOR, ageFields, parentalConsentOf } from './SignSheet';
+import { PAPER_MINOR, PAPER_SIGN, ageFields, parentalConsentOf } from './SignSheet';
 
 /**
  * NACH DEM ABSENDEN — eine eigene Überschrift, ein eigener Text, und ob das
@@ -94,13 +96,14 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
         <select value={paper} disabled={busy || saving} onChange={(e) => setPaper(e.target.value)}>
           <option value="">nie trzeba</option>
           <option value="always">zawsze — każdy drukuje i podpisuje</option>
+          <option value={PAPER_SIGN}>gdy formularz pokazuje oświadczenie do podpisu (np. zgodę rodzica)</option>
           <option value={PAPER_MINOR} disabled={!knowsAge && paper !== PAPER_MINOR}>
             niepełnoletni — wg daty urodzenia albo PESEL{knowsAge ? '' : ' (formularz o nie nie pyta)'}
           </option>
           {ticks.map((f) => (
             <option key={f.fieldId} value={f.fieldId}>gdy zaznaczono: {f.label ?? 'pytanie'}</option>
           ))}
-          {paper !== '' && paper !== 'always' && !ticks.some((f) => f.fieldId === paper) && (
+          {paper !== '' && paper !== 'always' && paper !== PAPER_MINOR && paper !== PAPER_SIGN && !ticks.some((f) => f.fieldId === paper) && (
             <option value={paper}>(pytanie, którego już nie ma)</option>
           )}
         </select>
@@ -119,10 +122,10 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
             {paper === '' ? ', a wydruku do podpisu nie ma' : ''}. Zaznaczenie nie jest podpisem rodzica — zaznacza je dziecko.
           </p>
           <p>
-            Lepiej: w zakładce „Pytania” zaznacz wymaganie <strong>„Niepełnoletni potrzebują pisemnej zgody rodzica”</strong>.
-            Formularz zapyta o datę urodzenia, a niepełnoletni zobaczy treść zgody bez pola do zaznaczenia i na końcu
-            formularza (oraz po wysłaniu) wydrukuje ją do podpisu. Potem to pole usuń — dotychczasowe odpowiedzi zostaną
-            w zgłoszeniach.
+            Lepiej: w zakładce „Pytania” zaznacz wymaganie <strong>„{needOf('minor')?.label}”</strong>.
+            Formularz rozpozna niepełnoletnich (po dacie urodzenia albo polu do zaznaczenia), a kto przychodzi z pisemną
+            zgodą rodzica, zobaczy jej treść bez pola do zaznaczenia i na końcu formularza (oraz po wysłaniu) wydrukuje ją
+            do podpisu. Potem to pole usuń — dotychczasowe odpowiedzi zostaną w zgłoszeniach.
           </p>
           <div className="wk-actions">
             {onNeeds !== undefined && (
@@ -155,11 +158,16 @@ export function AfterSendSettings({ partId, config, fields, busy, onSaved, onErr
 }
 
 /**
- * 0086 — WYMAGANIA FORMULARZA, zum Ankreuzen (`formTemplates.ts`): was ein
- * Wydarzenie verlangt — Minderjährige mit Ausdruck für die Eltern, Zdrowie,
- * Ubezpieczenie, Zasady. Eingeschaltet bringt jedes seine Fragen, Gruppen und
- * Logik mit (was es schon gibt, wird weiterbenutzt) und sperrt sie gegen das
- * Löschen; ausgeschaltet nimmt es sie wieder mit — Antworten bleiben.
+ * 0086 — WYMAGANIA FORMULARZA, zum Ankreuzen (`needs.ts`, `formTemplates.ts`):
+ * was ein Wydarzenie verlangt — Minderjährige, Zdrowie, Ubezpieczenie, Zasady.
+ * Eingeschaltet bringt jedes seine Fragen, Gruppen und Logik mit (was es schon
+ * gibt, wird weiterbenutzt) und sperrt sie gegen das Löschen; ausgeschaltet
+ * nimmt es sie wieder mit — Antworten bleiben.
+ *
+ * <b>2026-10-24 — Einstellungen.</b> Ein Wymaganie mit Einstellungen (die
+ * Minderjährigen: woran man sie erkennt, wie sie teilnehmen dürfen) zeigt sie
+ * unter seinem Namen. Ausgeschaltet sind sie der Entwurf fürs Einschalten;
+ * eingeschaltet stellt „Zastosuj ustawienia" das Formular um.
  */
 export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct, onConfig }: {
   module: ModuleRow;
@@ -177,18 +185,42 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
   const [said, setSaid] = useState<string | null>(null);
   /** Welches Wymaganie gerade ausgeschaltet werden soll — erst nach „Wyłącz" geschieht es. */
   const [leaving, setLeaving] = useState<string | null>(null);
+  /** Die Einstellungen im Entwurf, je Wymaganie — angewandt beim Einschalten oder mit „Zastosuj ustawienia". */
+  const [drafts, setDrafts] = useState<Readonly<Record<string, NeedChoice>>>({});
   const usable = areas.filter((a) => a.heldEpochs > 0);
   const on = readNeeds(config.needs);
 
   useEffect(() => { if (answersTo !== null) setTarget(answersTo); }, [answersTo]);
 
+  const choiceFor = (need: FormNeed, active: NeedOn | undefined): NeedChoice =>
+    drafts[need.id] ?? (active === undefined ? choiceOf(need, undefined) : choiceOfOn(active));
+  const forget = (needId: string) => setDrafts((was) => Object.fromEntries(Object.entries(was).filter(([id]) => id !== needId)));
+
   const turnOn = (need: FormNeed) => void onAct(`Włączanie: ${need.label}…`, async () => {
     try {
       setSaid(null);
-      const done = await applyNeed(who, module, need, target === '' ? null : target, config, setStage);
+      const done = await applyNeed(who, module, need, choiceFor(need, undefined), target === '' ? null : target, config, setStage);
       onConfig(done.config);
+      forget(need.id);
       setSaid([
         `„${need.label}”: nowych pytań ${done.added}${done.reused > 0 ? `, wykorzystane istniejące: ${done.reused}` : ''}.`,
+        ...done.warnings
+      ].join(' '));
+    } finally {
+      setStage(null);
+    }
+  });
+
+  const reshape = (need: FormNeed, choice: NeedChoice) => void onAct(`Zmiana ustawień: ${need.label}…`, async () => {
+    try {
+      setSaid(null);
+      const done = await reshapeNeed(who, module, need.id, choice, target === '' ? null : target, config, setStage);
+      onConfig(done.config);
+      forget(need.id);
+      setSaid([
+        `„${need.label}”: ustawienia zmienione — nowych pytań ${done.added}`
+          + (done.removed > 0 ? `, usunięte ${done.removed}` : '')
+          + (done.kept > 0 ? `, zdjęte z formularza (mają odpowiedzi — zostają w zgłoszeniach) ${done.kept}` : '') + '.',
         ...done.warnings
       ].join(' '));
     } finally {
@@ -227,8 +259,10 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
       <ul className="wk-need-list">
         {NEEDS.map((need) => {
           const active = on.find((one) => one.id === need.id);
+          const choice = choiceFor(need, active);
+          const changed = active !== undefined && !sameChoice(need, choice, choiceOfOn(active));
           return (
-            <li key={need.id} className={active === undefined ? 'wk-need' : 'wk-need is-on'}>
+            <li key={need.id} className={active === undefined ? 'wk-need' : 'wk-need is-on'} data-need={need.id}>
               <label className="wk-need-pick">
                 <input
                   type="checkbox" checked={active !== undefined}
@@ -237,15 +271,29 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
                 />
                 <span>
                   <strong>{need.label}</strong>
-                  <span className="wk-hint">{need.use}</span>
+                  {/* Mit Einstellungen sagen die Einstellungen darunter, was es gibt — der Satz stünde zweimal da. */}
+                  {need.settings.length === 0 && <span className="wk-need-use">{need.use(choice)}</span>}
                   {active !== undefined && (
-                    <span className="wk-hint wk-need-holds">
+                    <span className="wk-need-holds">
                       Pytania: {active.fields.length}{active.nodes.length > 0 && ` · logika: ${active.nodes.length} węzłów`}
-                      {active.paper === true && ' · wydruk do podpisu dla niepełnoletnich'}
+                      {active.paper === true && ' · wydruk zgody do podpisu'}
                     </span>
                   )}
                 </span>
               </label>
+              {need.settings.length > 0 && (
+                <NeedSettings need={need} choice={choice} disabled={busy} onChange={(next) => setDrafts((was) => ({ ...was, [need.id]: next }))} />
+              )}
+              {changed && (
+                <div className="wk-need-leave" role="group" aria-label={`Nowe ustawienia: ${need.label}`}>
+                  <span className="wk-hint">
+                    Formularz dostanie pytania nowych ustawień. Pytania, których nowe ustawienia nie potrzebują, znikną; te, na które
+                    ktoś już odpowiedział, zostaną tylko zdjęte — ich odpowiedzi zostają w zgłoszeniach.
+                  </span>
+                  <button type="button" className="wk-btn wk-btn-quiet" disabled={busy} onClick={() => reshape(need, choice)}>Zastosuj ustawienia</button>
+                  <button type="button" className="wk-link-btn" disabled={busy} onClick={() => forget(need.id)}>Anuluj</button>
+                </div>
+              )}
               {leaving === need.id && active !== undefined && (
                 <div className="wk-need-leave" role="group" aria-label={`Wyłączyć: ${need.label}`}>
                   <span className="wk-hint">
@@ -264,6 +312,50 @@ export function NeedsPanel({ module, who, config, answersTo, areas, busy, onAct,
       {stage !== null && <p className="wk-working">{stage}</p>}
       {said !== null && <p className="wk-done" role="status">{said}</p>}
     </section>
+  );
+}
+
+/**
+ * 2026-10-24 — DIE EINSTELLUNGEN EINES WYMAGANIE: je Einstellung Knöpfe (eine
+ * von mehreren) oder Kästchen (mehrere — die letzte lässt sich nicht
+ * abwählen: eine Möglichkeit muss offen bleiben).
+ */
+function NeedSettings({ need, choice, disabled, onChange }: {
+  need: FormNeed;
+  choice: NeedChoice;
+  disabled: boolean;
+  onChange: (next: NeedChoice) => void;
+}) {
+  const name = useId();
+  const pick = (s: NeedSetting, value: string, chosen: boolean): readonly string[] => {
+    if (!s.many) return [value];
+    const now = choice[s.key] ?? [];
+    const next = chosen ? now.filter((v) => v !== value) : [...now, value];
+    return s.choices.map((c) => c.value).filter((v) => next.includes(v));
+  };
+
+  return (
+    <div className="wk-need-settings">
+      {need.settings.map((s) => (
+        <fieldset key={s.key} className="wk-need-setting" disabled={disabled}>
+          <legend>{s.label}</legend>
+          {s.choices.map((c) => {
+            const chosen = (choice[s.key] ?? []).includes(c.value);
+            const last = s.many && chosen && (choice[s.key] ?? []).length === 1;
+            return (
+              <label key={c.value} className="wk-need-option" title={last ? 'Jedna możliwość musi zostać.' : undefined}>
+                <input
+                  type={s.many ? 'checkbox' : 'radio'} name={`${name}-${s.key}`} checked={chosen} disabled={last}
+                  data-need-setting={`${need.id}.${s.key}.${c.value}`}
+                  onChange={() => onChange({ ...choice, [s.key]: pick(s, c.value, chosen) })}
+                />
+                <span>{c.label} <span className="wk-need-says">— {c.says}</span></span>
+              </label>
+            );
+          })}
+        </fieldset>
+      ))}
+    </div>
   );
 }
 

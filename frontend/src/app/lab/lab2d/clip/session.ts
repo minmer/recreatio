@@ -11,9 +11,9 @@
 
 import { Charts } from '../engine/charts';
 import type { Engine } from '../engine/engine';
-import type { HostStats, WorkerMessage } from '../engine/protocol';
+import type { BakeOptions, HostStats, WorkerMessage } from '../engine/protocol';
 import type { Layers } from '../render/layers';
-import { Baker, canonicalScene, clipKey, FPS, infoOf, Player, rootOf, type Baked, type ClipHeader, type ClipInfo } from './clip';
+import { BAKE_FPS, BAKE_KEYS, Baker, canonicalScene, clipKey, infoOf, Player, rootOf, type Baked, type ClipHeader, type ClipInfo } from './clip';
 import { unpack } from './codec';
 import { layoutOf, restoreSnapshot } from './snapshot';
 import { browserStore, type ClipStore } from './store';
@@ -93,18 +93,25 @@ export class ClipSession {
 
   /* -- Backen ------------------------------------------------------------------------------------------ */
 
-  /** Die Szene, wie sie jetzt aufgebaut ist, vom Anfang an backen (seconds Simulationszeit). */
-  async bake(seconds: number): Promise<void> {
+  /**
+   * Die Szene, wie sie jetzt aufgebaut ist, vom Anfang an backen — mit der gewählten Länge, Bildern je Sekunde,
+   * Schlüsselbildern, Auflösung und Rechnung heftiger Zustände (die beiden letzten gehören zur Szene: ein anderer
+   * Nachweis). Ein Nachweis derselben Szene mit anderen Bildern je Sekunde ersetzt den alten.
+   */
+  async bake(o: BakeOptions): Promise<void> {
     if (this.mode === 'baking' || this.busy) return;
     const e = this.host.engine();
-    const scene = canonicalScene(e.serialize());
+    const scene = canonicalScene({ ...e.serialize(), quality: o.quality, extremes: o.extremes });
+    const fps = BAKE_FPS.includes(o.fps) ? o.fps : 30;
+    const keyEvery = BAKE_KEYS.includes(o.keyEvery) ? o.keyEvery : 5;
+    const seconds = Math.max(1, Math.min(600, o.seconds));
     const key = await clipKey(scene);
     this.leavePlayback();
     e.load(scene);
     const charts = new Charts(e);
     this.host.setCharts(charts);
     this.host.rebuilt();
-    this.baker = new Baker(e, charts, scene, key, Math.max(1, Math.min(600, seconds)));
+    this.baker = new Baker(e, charts, scene, key, seconds, fps, keyEvery);
     this.key = key;
     this.mode = 'baking';
     this.stopRequested = false;
@@ -271,7 +278,7 @@ export class ClipSession {
       const charts = new Charts(e);
       restoreSnapshot(rootOf(e, charts), raw);
       this.host.setCharts(charts);
-      const target = k / FPS - 1e-9;
+      const target = k / h.fps - 1e-9;
       const from = e.time;
       /* Vom Schlüsselbild bis zum gezeigten Bild rechnen — in Happen, mit Fortschritt. */
       while (e.time < target) {

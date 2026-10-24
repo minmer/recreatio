@@ -11,8 +11,11 @@ import { HEAT_KERNELS } from './kheat';
 import type { KernelDef } from './kernel';
 import { LIQUID_KERNELS } from './kliquid';
 import { MG_KERNELS } from './kmg';
+import { MIX_KERNELS } from './kmix';
+import { FLASH_KERNELS } from './kflash';
 import { PHASE_KERNELS } from './kphase';
+import { SALT_KERNELS } from './ksalt';
 import { SOLVER_KERNELS } from './ksolver';
 import { RENDER_KERNELS } from './render';
 
-export const ALL_KERNELS: readonly KernelDef[] = [...SOLVER_KERNELS, ...MG_KERNELS, ...LIQUID_KERNELS, ...GAS_KERNELS, ...GAS_FLOW_KERNELS, ...BUBBLE_KERNELS, ...BUBBLE_END_KERNELS, ...PHASE_KERNELS, ...HEAT_KERNELS, ...RENDER_KERNELS];
+export const ALL_KERNELS: readonly KernelDef[] = [...SOLVER_KERNELS, ...MG_KERNELS, ...LIQUID_KERNELS, ...MIX_KERNELS, ...GAS_KERNELS, ...GAS_FLOW_KERNELS, ...BUBBLE_KERNELS, ...BUBBLE_END_KERNELS, ...PHASE_KERNELS, ...FLASH_KERNELS, ...SALT_KERNELS, ...HEAT_KERNELS, ...RENDER_KERNELS];

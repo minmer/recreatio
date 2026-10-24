@@ -16,6 +16,8 @@ import { H2O, N2, O2, SPECIES_SLOTS } from '../engine/units';
 import type { GpuCtx } from './kernel';
 import { fromStair, stairOf, type Stair } from './staircase';
 import { BUBBLE_WORDS, NONE, PARAMS_WORDS, PARTICLE_WORDS, SITE_WORDS } from './lib';
+import { extremeParams } from '../engine/extremes';
+import { NACL } from '../engine/solution';
 import { CSUM_PARTS } from './ksolver';
 import { planLevels, type Plan } from './solver';
 import {
@@ -183,7 +185,11 @@ export class GpuState {
     u[40] = sealed;
     u[41] = e.optionsUsed.harness === true ? 1 : 0;
     f[42] = e.bubbleModel.contactAngleOverride ?? -1;
-    u[43] = 0;
+    /* Andere Flüssigkeiten als Wasser in der Szene (M2a): Zähigkeit und Drift der Tröpfchen laufen nur dann. */
+    u[43] = e.particles.hasOther() ? 1 : 0;
+    /* Heftige Zustände (extremes.ts): Wärmestromdichte der Wände an Blasen, Keimen spätestens bei, Teilchen höchstens, Blasen höchstens. */
+    const x = extremeParams(e.scene.extremes, e.regions.pAmb, Math.abs(e.gy));
+    f.set([x.chf, x.actMax, x.vmax, x.bubCap], 44);
     this.ctx.device.queue.writeBuffer(this.params, 0, buf);
   }
 
@@ -262,6 +268,10 @@ export class GpuState {
     put(F.VGAS, G0.vgas); put(F.RHO, G0.rho); put(F.NMOL, G0.nmol); put(F.CAP, G0.cap); put(F.MU, G0.mu);
     put(F.VEOS, G0.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, G0.veosMid); put(F.PHIS, st.phiS); put(F.SDF, st.sdf);
     put(F.PTL, st.T);
+    /* Salz (M2b): Kruste je Zelle (Körperteile: ihr Spiegel), Salz am Boden der Kiste je Spalte; a_w = 1 bis zur ersten Sammlung. */
+    put(F.CRUST, g.crust);
+    for (let i = 0; i < g.nx; i += 1) { cf[F.FLOOR * n + i] = e.salt.floor[i]; cf[F.FLOORH * n + i] = e.salt.floorH[i]; }
+    cf.fill(1, F.AW * n, (F.AW + 1) * n);
     q.writeBuffer(this.cf, 0, cf);
     const at = new Float32Array(NA * n);
     for (let c = 0; c < n; c += 1) at[A.VOLSRC * n + c] = e.liquid.volSrc[c];
@@ -287,11 +297,14 @@ export class GpuState {
     for (let p = 0; p < P.count; p += 1) {
       const o = PARTICLE_WORDS * p;
       pf.set([P.x[p], P.y[p], P.vx[p], P.vy[p], P.c00[p], P.c01[p], P.c10[p], P.c11[p], P.mass[p], P.h[p], P.T[p], P.rho[p], L.dVp[p]], o);
-      pu[o + 13] = 0;
+      /* Merkmale: Bit 0 tot, Bits 8..15 die Flüssigkeit (M2a). */
+      pu[o + 13] = (P.mat[p] & 0xff) << 8;
       pu[o + 14] = P.id[p];
       pi[o + 15] = L.bi[p];
       pi[o + 16] = L.bj[p];
       for (let k = 0; k < 9; k += 1) pf[o + 17 + k] = L.wt[9 * p + k];
+      /* Gelöstes Salz (M2b). */
+      pf[o + 26] = P.smass[2 * p];
     }
     if (P.count > 0) q.writeBuffer(this.partsA, 0, pb);
     /* Blasen. */
@@ -422,6 +435,8 @@ export class GpuState {
     const G0 = e.gas;
     get(F.VGAS, G0.vgas); get(F.RHO, G0.rho); get(F.NMOL, G0.nmol); get(F.CAP, G0.cap); get(F.MU, G0.mu);
     get(F.VEOS, G0.veos); get(F.SRCV, G0.srcV); get(F.VEOSMID, G0.veosMid);
+    get(F.CRUST, g.crust);
+    for (let i = 0; i < g.nx; i += 1) { e.salt.floor[i] = cf[F.FLOOR * n + i]; e.salt.floorH[i] = cf[F.FLOORH * n + i]; }
     const cu = new Uint32Array(cuB);
     for (let c = 0; c < n; c += 1) g.kind[c] = cu[U.KIND * n + c];
     const at = new Float32Array(atB);
@@ -447,7 +462,8 @@ export class GpuState {
       P.x[p] = pf[o]; P.y[p] = pf[o + 1]; P.vx[p] = pf[o + 2]; P.vy[p] = pf[o + 3];
       P.c00[p] = pf[o + 4]; P.c01[p] = pf[o + 5]; P.c10[p] = pf[o + 6]; P.c11[p] = pf[o + 7];
       P.mass[p] = pf[o + 8]; P.h[p] = pf[o + 9];
-      P.spc[2 * p] = 0; P.spc[2 * p + 1] = 0; P.smass[2 * p] = 0; P.smass[2 * p + 1] = 0; P.mat[p] = 0;
+      const s = pf[o + 26] > 0 ? pf[o + 26] : 0;
+      P.spc[2 * p] = s > 0 ? NACL : 0; P.spc[2 * p + 1] = 0; P.smass[2 * p] = s; P.smass[2 * p + 1] = 0; P.mat[p] = (pu[o + 13] >>> 8) & 0xff;
       P.id[p] = pu[o + 14];
       if (P.id[p] > maxId) maxId = P.id[p];
       L.dVp[p] = pf[o + 12];

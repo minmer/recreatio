@@ -3,8 +3,10 @@
  * BubbleModel.coalesce, finish, drop, updateAlpha): Verschmelzen (jede Blase in
  * die erste, niedrigste, die sie berührt — Orte vom Anfang des Verschmelzens),
  * Platzen an der freien Oberfläche, Vergehen, Aufräumen der Liste, α_b und
- * seine Volumenquelle. Wie auf der CPU folgt beim Verschmelzen nur der Radius
- * dem Volumen der Summe; V leitet das nächste Lösen aus den Massen ab.
+ * seine Volumenquelle. Wie auf der CPU hat die vereinigte Blase bis zum
+ * nächsten Lösen das Volumen beider (seit 2026-10-24; α_b folgt ihm höchstens
+ * mit ALPHA_RATE). Beim Mildern (extremes.ts) gibt bubVent ab, was eine Blase
+ * über den grössten Radius hinaus hat.
  */
 
 import type { KernelDef } from './kernel';
@@ -18,6 +20,61 @@ fn bulkCold() -> bool {
   let m = bitcast<f32>(atomicLoad(&cnt[C_SUM_WM]));
   let mt = bitcast<f32>(atomicLoad(&cnt[C_SUM_WMT]));
   return m > 0.0 && mt / m <= P.tsatAmb - 5.0;
+}
+`;
+
+/** Den Anteil frac des Inhalts der Blase B in die Gaszellen über ihr geben (so viele, wie ihr Volumen braucht); false: kein Gas erreichbar. */
+const VENT_UP = `
+fn ventUp(B: Bubble, frac: f32) -> bool {
+  let n = P.n;
+  var c = cellAt(B.x, min(P.boxh - 1e-6, B.y + B.r));
+  for (var k = 0u; k < P.ny; k++) { if (kindOf(c) == GAS) { break; } if (c + P.nx < n) { c += P.nx; } else { c = NONE; break; } }
+  if (c != NONE && kindOf(c) != GAS) { c = NONE; }
+  if (c == NONE) {
+    let i = u32(clamp(floor(B.x * P.invdx), 0.0, f32(P.nx - 1u)));
+    for (var j = i32(P.ny) - 1; j >= 0; j--) { let q = i + u32(j) * P.nx; if (kindOf(q) == GAS) { c = q; break; } }
+  }
+  if (c == NONE) { return false; }
+  let ci0 = ci(c);
+  let cj0 = cj(c);
+  let Vout = frac * B.V;
+  var tot = 0.0;
+  var count = 0u;
+  var rings = 0;
+  for (var ring = 0; ring <= 6; ring++) {
+    if (count > 0u && tot >= 2.0 * Vout) { break; }
+    rings = ring;
+    for (var dj = 0; dj <= ring; dj++) {
+      for (var di = -ring; di <= ring; di++) {
+        if (max(abs(di), dj) != ring) { continue; }
+        let i = ci0 + di;
+        let j = cj0 + dj;
+        if (!inGrid(i, j)) { continue; }
+        let q = cellOf(i, j);
+        if (kindOf(q) != GAS) { continue; }
+        tot += max(1e-3 * P.vcell, cf[F_VGAS * n + q]);
+        count += 1u;
+      }
+    }
+  }
+  for (var ring = 0; ring <= rings; ring++) {
+    for (var dj = 0; dj <= ring; dj++) {
+      for (var di = -ring; di <= ring; di++) {
+        if (max(abs(di), dj) != ring) { continue; }
+        let i = ci0 + di;
+        let j = cj0 + dj;
+        if (!inGrid(i, j)) { continue; }
+        let q = cellOf(i, j);
+        if (kindOf(q) != GAS) { continue; }
+        let w = frac * max(1e-3 * P.vcell, cf[F_VGAS * n + q]) / tot;
+        addF_at(A_DN * n + q, w * B.mN);
+        addF_at(A_DO * n + q, w * B.mO);
+        addF_at(A_DV * n + q, w * B.mV);
+        addF_at(A_DH * n + q, w * B.H);
+      }
+    }
+  }
+  return true;
 }
 `;
 
@@ -111,12 +168,46 @@ ${MAIN} {
   B.H += getF_bacc(o + BA_H);
   B.age = max(B.age, bitcast<f32>(atomicLoad(&bacc[o + BA_AGE])));
   if (B.site >= 0 && (flags & 0x80000000u) != 0u) { atomicStore(&sbub[u32(B.site)], 0u); B.site = -1; }
-  /* Wie BubbleModel.merge: nur der Radius folgt dem Volumen der Summe; V bleibt, bis das nächste Lösen es aus den
-     Massen ableitet. Mit der Summe als V sprang α_b, wenn ein Haufen Blasen in kaltem Wasser zu einer wurde (die
-     Volumenquelle der Flüssigkeit wuchs mit 1/Δt, Δt fiel gegen null). */
+  /* Wie BubbleModel.merge: bis zum nächsten Lösen das Volumen beider und der Radius dazu (α_b folgt höchstens mit ALPHA_RATE). */
+  B.V = V;
   B.r = cbrtf(3.0 * V / (4.0 * PI));
   bubs[b] = B;
   for (var k = 0u; k < BACC_STRIDE; k++) { atomicStore(&bacc[o + k], 0u); }
+}`
+  },
+  {
+    /* Mildern (extremes.ts): was eine Blase über P.bubCap hinaus hat, geht ins Gas über der Oberfläche; dazu die grösste Blase des Schritts. */
+    name: 'bubVent', wg: WG,
+    bind: 'P:u cnt:a cf:r cu:r at:a bubs:w',
+    code: `${BUB_LIB}
+${BUB_CELLS}
+${VENT_UP}
+${MAIN} {
+  let count = min(cntWG(lid3.x, C_BCOUNT), P.bcap);
+  let b = gid.x;
+  if (b >= count) { return; }
+  var B = bubs[b];
+  if (B.alive == 0u) { return; }
+  let R = P.bubCap;
+  if (B.r > R) {
+    let D = P.depth;
+    let Vcap = select(PI * R * R * D, 4.0 / 3.0 * PI * R * R * R, 2.0 * R <= D);
+    if (B.V > Vcap) {
+      let f = 1.0 - Vcap / B.V;
+      if (ventUp(B, f)) {
+        addF_cnt(C_BURSTVAP, f * B.mV);
+        addF_cnt(C_VENTED, f * B.mV);
+        B.mN *= 1.0 - f;
+        B.mO *= 1.0 - f;
+        B.mV *= 1.0 - f;
+        B.H *= 1.0 - f;
+        B.V = Vcap;
+        B.r = R;
+        bubs[b] = B;
+      }
+    }
+  }
+  maxU_cnt(C_RMAXB, B.r);
 }`
   },
   {
@@ -126,6 +217,7 @@ ${MAIN} {
     code: `${BUB_LIB}
 ${BUB_CELLS}
 ${BULK_COLD}
+${VENT_UP}
 ${MAIN} {
   let count = min(cntWG(lid3.x, C_BCOUNT), P.bcap);
   let b = gid.x;
@@ -149,62 +241,19 @@ ${MAIN} {
   let mAir = B.mN + B.mO;
   let cold = bulkCold();
   if (burst || mAir > 0.0) {
-    /* Die Gaszellen über der Blase: so viele, wie ihr Volumen braucht. */
-    var c = cellAt(B.x, min(P.boxh - 1e-6, B.y + B.r));
-    for (var k = 0u; k < P.ny; k++) { if (kindOf(c) == GAS) { break; } if (c + P.nx < n) { c += P.nx; } else { c = NONE; break; } }
-    if (c != NONE && kindOf(c) != GAS) { c = NONE; }
-    if (c == NONE) {
-      let i = u32(clamp(floor(B.x * P.invdx), 0.0, f32(P.nx - 1u)));
-      for (var j = i32(P.ny) - 1; j >= 0; j--) { let q = i + u32(j) * P.nx; if (kindOf(q) == GAS) { c = q; break; } }
-    }
-    if (c == NONE) { return; }
-    let ci0 = ci(c);
-    let cj0 = cj(c);
-    var tot = 0.0;
-    var count = 0u;
-    var rings = 0;
-    for (var ring = 0; ring <= 6; ring++) {
-      if (count > 0u && tot >= 2.0 * B.V) { break; }
-      rings = ring;
-      for (var dj = 0; dj <= ring; dj++) {
-        for (var di = -ring; di <= ring; di++) {
-          if (max(abs(di), dj) != ring) { continue; }
-          let i = ci0 + di;
-          let j = cj0 + dj;
-          if (!inGrid(i, j)) { continue; }
-          let q = cellOf(i, j);
-          if (kindOf(q) != GAS) { continue; }
-          tot += max(1e-3 * P.vcell, cf[F_VGAS * n + q]);
-          count += 1u;
-        }
-      }
-    }
-    for (var ring = 0; ring <= rings; ring++) {
-      for (var dj = 0; dj <= ring; dj++) {
-        for (var di = -ring; di <= ring; di++) {
-          if (max(abs(di), dj) != ring) { continue; }
-          let i = ci0 + di;
-          let j = cj0 + dj;
-          if (!inGrid(i, j)) { continue; }
-          let q = cellOf(i, j);
-          if (kindOf(q) != GAS) { continue; }
-          let w = max(1e-3 * P.vcell, cf[F_VGAS * n + q]) / tot;
-          addF_at(A_DN * n + q, w * B.mN);
-          addF_at(A_DO * n + q, w * B.mO);
-          addF_at(A_DV * n + q, w * B.mV);
-          addF_at(A_DH * n + q, w * B.H);
-        }
-      }
-    }
+    /* Die Gaszellen über der Blase: so viele, wie ihr Volumen braucht (ventUp mit dem ganzen Inhalt); ohne erreichbares Gas bleibt sie. */
+    if (!ventUp(B, 1.0)) { return; }
     addF_cnt(C_BURSTVAP, mv);
     if (burst) {
       atomicAdd(&cnt[C_BURST], 1u);
       if (cold) { atomicAdd(&cnt[C_BURST_COLD], 1u); } else { atomicAdd(&cnt[C_BURST_WARM], 1u); }
     }
   } else if (mv > 0.0) {
-    /* Der Rest Dampf kondensiert in die Flüssigkeit der Spur (latente Wärme dort). */
+    /* Der Rest Dampf kondensiert in das Wasser der Spur (nach seinem Anteil; latente Wärme dort); ohne Wasser in der Spur wird er dort ein Wasserteilchen (spawnWater). */
     let fp = fpOf(B.x, B.y, B.r, B.V);
     let ws = liqFoot(fp, B.x, B.y, B.r).x;
+    var fs = 0.0;
+    if (ws > 0.0 && P.mixed != 0u) { fs = liqShare(fp, B.x, B.y, B.r, ws); }
     if (ws > 0.0) {
       for (var j = fp.j0; j <= fp.j1; j++) {
         for (var i = fp.i0; i <= fp.i1; i++) {
@@ -212,9 +261,10 @@ ${MAIN} {
           if (kindOf(c) != LIQUID) { continue; }
           let w0 = fpW(fp, B.x, B.y, B.r, i, j);
           if (w0 <= 0.0) { continue; }
-          let w = w0 / ws;
-          let acc = cf[F_ACC * n + c];
-          let hbar = select(hL(B.Tb), cf[F_ACCH * n + c] / acc, acc > 0.0);
+          var w = w0 / ws;
+          if (fs > 0.0) { w *= shareW(c) / fs; }
+          if (w == 0.0) { continue; }
+          let hbar = hbarC(c);
           addF_at(A_FM * n + c, mv * w);
           addF_at(A_HSRC * n + c, w * (B.H - mv * hbar) / dt);
         }

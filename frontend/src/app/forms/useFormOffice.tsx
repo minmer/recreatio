@@ -23,7 +23,7 @@ import { type MovedValue, type OpenField, type SealedField, asked, editField, fu
 import { EMPTY_DESIGN, type FormDesign, type SealedDesign, layoutWith, openDesign, saveDesign, sealDesign } from './formDesign';
 import type { ReadForm } from './formRead';
 import type { TableChange } from './FormTable';
-import { lockedOf, readNeeds } from './formTemplates';
+import { lockedOf, readNeeds } from './needPlan';
 import { createIntake, loadIntake, loadPublicIntake, openIntakeKey } from './intake';
 import { addOfficeEntry, reviseAcrossAsOffice } from './revisions';
 import { repeatOf } from './rounds';

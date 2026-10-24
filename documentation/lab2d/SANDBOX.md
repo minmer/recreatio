@@ -25,6 +25,19 @@ and (2026-10-23):
   name and its own settings; whether it is pinned (does not fall) is one of them, set in the object's panel — there is
   no separate "Przypnij" tool.
 
+and (2026-10-24):
+
+- **violent events are the user's choice.** Superheated water that boils explosively, a giant vapour bubble, fast
+  splashing water: the scene says whether this is computed as in reality, softened (calmer boiling, the water stays in
+  the vessel) or asked about the first time it happens (the default) — ARCHITECTURE.md §19. Every scene computes such
+  events without blowing up;
+- **the lab runs only full screen**, with nothing scrolling around it, and needs no explanations: first the
+  preparation (build and set everything), then the simulation; to change the scene the simulation pauses ("Od nowa"
+  returns to the set-up at the start). Baking asks how: length, the recording step, resume points, resolution and the
+  violent events (ARCHITECTURE.md §20);
+- **the accelerated view gets every new part**: the GPU ports of §12 follow now, step by step, and M3c is the next step
+  of the sandbox.
+
 It extends
 ARCHITECTURE.md §14 ("Designed for, not built": M2 chemistry, M3 solids) with what the user asked for:
 

@@ -33,6 +33,14 @@ export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription,
 export { BREAKPOINTS } from '${app}pages/layout';
 export { readVirtualAreas, levelOf } from '${app}forms/virtualAreasJson';
 export { readAppointments, referencesIn, resolveReferences, describePlan, DEFAULT_ENTRY } from '${app}calendar/appointmentsJson';
+export { readImageNeeds, resolveImageNeeds, previewImageNeeds, matchFiles, fileProblem, fitsNeed, acceptOf, NEED_PREFIX, PREVIEW_REF, MAX_NEEDS } from '${app}pages/pageImageNeeds';
+export { describe, sectionsOf, samplesOf } from '${app}core/jsonTree';
+export { FORM_FORMAT, NEEDS_FORMAT, minorFormSample } from '${app}forms/formFormat';
+export { readNeedWishes, needOut, needsOut, needWishLines, needsKeys, NEEDS_EXAMPLE } from '${app}forms/needsJson';
+export { NEEDS, needOf, choiceOf } from '${app}forms/needs';
+export { readNeeds, needsJson, adoptedOf, planNeed, holdingOf, keysOfOn } from '${app}forms/needPlan';
+export { keepOwn } from '${app}pages/part';
+export { readModuleWish, carriesForm, formWishLine } from '${app}modules/moduleWish';
 `);
 await build({
   entryPoints: [entry],
@@ -273,18 +281,130 @@ try {
 
   /* -- 5: die Beschreibung ------------------------------------------------------------ */
   const page = m.pageDescription();
+  /* 2026-10-24 — die Überschrift eines Abschnitts, gleich auf welcher Ebene des Baums er steht. */
+  const heading = (text, title) => text.split('\n').some((line) => /^#{1,4} /.test(line) && line.replace(/^#{1,4} /, '').startsWith(title));
   for (const def of m.PARTS) {
-    assert.ok(page.includes(`### "${def.kind}" — ${def.label}`), `page description lists ${def.kind}`);
+    assert.ok(heading(page, `"${def.kind}" — ${def.label}`), `page description lists ${def.kind}`);
     for (const key of Object.keys(def.json.keys)) assert.ok(page.includes(`"${key}" — `), `page description explains ${def.kind}.${key}`);
-    assert.ok(m.partDescription(def.kind).includes(`### "${def.kind}"`), `part description of ${def.kind}`);
-    assert.ok(m.moduleDescription(def.kind).includes(`### "${def.kind}"`), `module description of ${def.kind}`);
+    assert.ok(heading(m.partDescription(def.kind), `"${def.kind}" — ${def.label}`), `part description of ${def.kind}`);
+    assert.ok(heading(m.moduleDescription(def.kind), `"${def.kind}" — ${def.label}`), `module description of ${def.kind}`);
   }
   for (const key of Object.keys(m.QUESTION_KEYS)) assert.ok(m.moduleDescription('form').includes(`"${key}" — `), `form description explains ${key}`);
   const example = m.planImport(m.pageExample(), { ...now, parts: [], logic: null }, { ...m.DEFAULT_IMPORT, replace: true });
-  assert.ok(!('error' in example) && example.warnings.length === 0, 'the example in the description imports cleanly');
+  assert.ok(!('error' in example) && example.warnings.length === 0, `the example in the description imports cleanly: ${example.warnings?.join(' | ')}`);
   assert.equal(example.parts.length, m.pageExample().modules.length);
   assert.ok(example.forms.size === 1, 'the example form carries questions');
+  assert.equal(example.forms.values().next().value.needs[0].id, 'minor', 'and the minors with every way');
   ok('descriptions: every kind and every key, for page, part and module; the page example imports cleanly');
+
+  /* -- 2026-10-24: der Baum der Formate — jeder Abschnitt einmal, Behälter tragen ihren Inhalt ------------ */
+  {
+    const keysOf = (root) => m.sectionsOf(root).map((s) => s.node.key);
+    const pageKeys = keysOf(m.PAGE_JSON);
+    assert.equal(new Set(pageKeys).size, pageKeys.length, 'every node once in the page');
+    for (const key of ['page.keys', 'page.appointments', 'page.images', 'page.module', 'kinds', 'form', 'form.needs', 'motion', 'live', 'presentation']) {
+      assert.ok(pageKeys.includes(key), `the page carries ${key}`);
+    }
+    assert.ok(pageKeys.indexOf('page.module') < pageKeys.indexOf('form') && pageKeys.indexOf('form') < pageKeys.indexOf('form.needs'), 'page → module → form → needs');
+    for (const def of m.PARTS) assert.ok(pageKeys.includes(`part:${def.kind}`), `the page carries the kind ${def.kind}`);
+    const formModule = keysOf(m.moduleFormat('form'));
+    assert.deepEqual(formModule, ['module:form', 'part:form', 'form', 'form.needs'], 'a form module: its kind, the form, its needs');
+    assert.deepEqual(keysOf(m.moduleFormat('text')), ['module:text', 'part:text'], 'another module: only its kind');
+    assert.deepEqual(keysOf(m.partFormat('form')), ['part-doc:form', 'part:form']);
+    /* Derselbe Knoten, derselbe Text — wo er auch steht. */
+    const needsText = m.NEEDS_FORMAT.text();
+    assert.ok(page.includes(needsText) && m.moduleDescription('form').includes(needsText), 'the needs section is the same in the page and in the module');
+    assert.equal(page.split(needsText).length, 2, 'and stands once');
+    assert.equal(m.moduleDescription('form').split(m.FORM_FORMAT.text()).length, 2);
+    assert.ok(page.includes('## Ruch') && page.includes('## Pliki do dodania') && page.includes('## Terminy do kalendarza') && page.includes('#### Wymagania formularza ("needs")'), 'headings by depth');
+    assert.ok(!m.moduleDescription('text').includes('"needs"'), 'a text module says nothing about needs');
+    /* Ganze Beispiele zum Einsetzen: jedes importiert ohne ein Wort. */
+    const samples = m.samplesOf(m.PAGE_JSON);
+    assert.deepEqual(samples.map((s) => s.label).length, 4, 'two page samples and two forms');
+    for (const sample of samples) {
+      const planned = m.planImport(sample.doc(), { ...now, parts: [], logic: null }, { ...m.DEFAULT_IMPORT, replace: true });
+      assert.ok(!('error' in planned) && planned.warnings.length === 0, `sample „${sample.label}” imports cleanly: ${planned.warnings?.join(' | ')}`);
+    }
+    assert.deepEqual(m.samplesOf(m.moduleFormat('form')).map((s) => s.label), m.samplesOf(m.NEEDS_FORMAT).map((s) => s.label), 'the form module offers the form samples');
+    assert.deepEqual(m.samplesOf(m.moduleFormat('text')), [], 'a text module none');
+    ok(`JSON tree: ${pageKeys.length} sections in the page, each once; page → module → form → needs; the same text wherever a node stands; samples import cleanly`);
+  }
+
+  /* -- 2026-10-24: die Wymagania im JSON ("needs") -------------------------------------------------- */
+  {
+    const keys = m.needsKeys();
+    documented('needs', m.NEEDS_EXAMPLE, keys);
+    for (const need of m.NEEDS) {
+      assert.ok(keys['needs[].id'].includes(`"${need.id}"`), `the description names ${need.id}`);
+      for (const s of need.settings) for (const c of s.choices) assert.ok(keys[`needs[].${s.key}`].includes(`"${c.value}"`), `the description explains ${need.id}.${s.key}=${c.value}`);
+    }
+    const said = [];
+    const wishes = m.readNeedWishes(['health', { id: 'minor', age: 'ask', ways: ['consent', 'parent', 'boat'], colour: 'red' }, { id: 'nonsense' }, 'health', { id: 'rules', holds: 'x' }, 7], said);
+    assert.deepEqual(wishes.map((w) => w.id), ['health', 'minor', 'rules'], 'known needs once, in order');
+    assert.deepEqual(wishes[1].choice, { age: ['ask'], ways: ['parent', 'consent'] }, 'known values kept, in their order');
+    assert.equal(said.length, 6, `each dropped thing says so: ${said.join(' | ')}`);
+    assert.deepEqual(m.readNeedWishes([{ id: 'minor' }], []).at(0).choice, { age: ['birth'], ways: ['parent', 'adult', 'consent'] }, 'without settings: every way, the birth date');
+    assert.deepEqual(m.readNeedWishes([{ id: 'minor', age: ['ask', 'birth'] }], said).at(0).choice.age, ['ask'], 'one value where one is asked: the first named');
+    assert.equal(m.readNeedWishes(undefined, []), undefined, 'no key: nothing said');
+    assert.deepEqual(m.readNeedWishes(null, []), [], 'null: none');
+    assert.equal(m.readNeedWishes('minor', said), undefined, 'not a list: nothing (with a word)');
+
+    /* Eingeschaltet → JSON → gelesen: dieselbe Wahl, dieselben Kennungen. */
+    const on = { id: 'minor', label: 'Udział niepełnoletnich', fields: ['f1'], added: ['f1'], items: ['g1'], nodes: [], edges: [], paper: true, choice: { age: ['ask'], ways: ['adult', 'consent'] }, keys: { given: 'f1', gParticipant: 'g1' } };
+    const out = m.needOut(on);
+    assert.deepEqual(out, { id: 'minor', age: 'ask', ways: ['adult', 'consent'], holds: { given: 'f1', gParticipant: 'g1' } }, 'a setting of one is a word, of many a list; holds as they are');
+    const back = m.readNeedWishes(JSON.parse(JSON.stringify([out])), []);
+    assert.deepEqual([back[0].choice, back[0].holds], [on.choice, on.keys], 'round trip');
+    const legacy = { id: 'minor', label: 'Niepełnoletni potrzebują pisemnej zgody rodzica', fields: ['a', 'b', 'c', 'd', 'e'], added: [], items: ['g1', 'g2', 't1'], nodes: ['n1', 'n2', 'n3', 'n4', 'n5', 'n6'], edges: ['e1', 'e2', 'e3', 'e4', 'e5'] };
+    assert.deepEqual([m.needOut(legacy).age, m.needOut(legacy).ways, m.needOut(legacy).holds.guardian], ['birth', ['consent'], 'd'], 'an entry from before the settings goes out as it was, with what it holds');
+    assert.deepEqual(m.needOut({ id: 'health', label: 'Z', fields: [], added: [], items: [], nodes: [], edges: [] }), { id: 'health' }, 'a need without settings and holdings: its id');
+
+    /* Die Vorschau: was der Import täte. */
+    const lines = m.needWishLines(m.readNeedWishes([{ id: 'minor', age: 'birth', ways: ['consent'] }, 'rules'], []), [on, { id: 'health', label: 'Zdrowie', fields: [], added: [], items: [], nodes: [], edges: [] }], false);
+    assert.ok(lines.some((l) => l.includes('nowe ustawienia')) && lines.some((l) => l.includes('zostanie włączone')) && lines.some((l) => l.includes('zostaje włączone')), `lines: ${lines.join(' | ')}`);
+    assert.ok(m.needWishLines([], [on], true)[0].includes('wyłączone'), 'with "replace": turned off');
+
+    /* Die Sperren der Tafel stehen nicht im JSON — und kein Import überschreibt sie. */
+    const form = m.partOf('form').json;
+    assert.equal('needs' in form.toJson({ title: 'Z', needs: '[{"id":"minor"}]' }), false, 'the locks are not exported in config');
+    assert.equal('needs' in form.fromJson({ title: 'Z', needs: [{ id: 'x' }] }), false, 'and not imported from config');
+    assert.deepEqual(m.keepOwn(form, { title: 'A', needs: 'L' }, { title: 'B' }), { title: 'B', needs: 'L' }, 'a replaced config keeps them');
+    assert.deepEqual(m.replacing({ title: 'A', needs: 'L' }, m.keepOwn(form, { title: 'A', needs: 'L' }, { title: 'B' })), { title: 'B' }, 'so the patch never clears them');
+    const exported = m.exportModule({ moduleId: 'b1', kind: 'form', name: 'Zapisy', config: { title: 'Z', needs: m.needsJson([on]) } });
+    assert.deepEqual([exported.config.needs, exported.needs?.[0]?.id], [undefined, 'minor'], 'the module document says "needs" beside its questions');
+    const entryOut = m.exportEntry({ id: 'p1', moduleId: 'b1', kind: 'form', layout: {}, config: { needs: m.needsJson([on]) } });
+    assert.equal(entryOut.needs[0].age, 'ask', 'so does a page entry');
+    assert.equal('needs' in m.exportModule({ moduleId: 'b2', kind: 'form', name: 'X', config: {} }), false, 'no need, no key');
+
+    /* Der Plan einer Seite: ein Formular bekommt seine Wymagania; eine andere Art nicht; was der Ort hält, bleibt. */
+    const place = { id: ids[2], moduleId: 'b1', kind: 'form', layout: layoutAt(7), config: { title: 'Zapisy', needs: 'LOCKS' } };
+    const withNeeds = m.planImport({ format: m.PAGE_FORMAT, modules: [
+      { id: ids[2], kind: 'form', config: { title: 'Zapisy 2', needs: 'IGNORED' }, needs: [{ id: 'minor', ways: ['parent'] }, 'nothing'], memberRoles: ['r1'] },
+      { kind: 'text', config: { title: 'x' }, needs: ['health'], questions: [] }
+    ] }, { ...now, parts: [place] }, m.DEFAULT_IMPORT);
+    const wish = withNeeds.forms.get(ids[2]);
+    assert.deepEqual([wish.needs.map((w) => w.id), wish.memberRoles], [['minor'], ['r1']], 'the form gets its needs and roles');
+    assert.equal(withNeeds.parts.find((p) => p.id === ids[2]).config.needs, 'LOCKS', 'the locks of the place stay, whatever the document says');
+    assert.equal(withNeeds.parts.find((p) => p.id === ids[2]).config.title, 'Zapisy 2');
+    assert.ok(withNeeds.warnings.some((w) => w.includes('nothing')), 'an unknown need is reported');
+    assert.ok(withNeeds.warnings.some((w) => w.includes('"needs"') && w.includes('tylko formularz')), 'needs on a text module are reported');
+    assert.ok(withNeeds.lines.some((l) => l.includes('Udział niepełnoletnich')), 'the plan names them');
+
+    /* Übernehmen statt verdoppeln: was das Dokument mitbrachte, zählt über seine neuen Kennungen. */
+    const content = {
+      questions: [{ id: 'Q1', kind: 'line', label: 'Imię', identity: 'given_name' }, { id: 'Q2', kind: 'line', label: 'Imię i nazwisko rodzica / opiekuna prawnego', identity: 'none' }],
+      removed: [],
+      design: { version: 1, layout: [{ type: 'group', id: 'tpl-g', kind: 'group', title: 'Rodzic', items: [{ type: 'field', id: 'Q2' }] }], nodes: [{ id: 'tpl-n', kind: 'show', x: 0, y: 0, target: 'tpl-g' }], edges: [] }
+    };
+    const adopted = m.adoptedOf(m.needOf('minor'), { given: 'doc-1', guardian: 'doc-2', gGuardian: 'tpl-g', nShow0: 'tpl-n', nAge: 'gone' }, new Map([['doc-1', 'Q1'], ['doc-2', 'Q2']]), new Set(['Q2']), content);
+    assert.deepEqual([adopted.keys, adopted.fields, adopted.added, adopted.items, adopted.nodes], [{ given: 'Q1', guardian: 'Q2', gGuardian: 'tpl-g', nShow0: 'tpl-n' }, ['Q1', 'Q2'], ['Q2'], ['tpl-g'], ['tpl-n']],
+      'questions by their new ids, groups and nodes as they are, what is missing falls away; only what the import created may go again');
+    assert.equal(m.adoptedOf(m.needOf('minor'), { given: 'x' }, new Map(), new Set(), content), null, 'nothing there: no adoption');
+    const replanned = m.planNeed({ need: m.needOf('minor'), choice: { age: ['birth'], ways: ['consent'] }, content, now: adopted, others: [], makeId: (() => { let n = 0; return () => `new${++n}`; })() });
+    assert.deepEqual([replanned.keys.given, replanned.keys.guardian, replanned.keys.gGuardian], ['Q1', 'Q2', 'tpl-g'], 'the adopted parts are reused');
+    assert.deepEqual(replanned.questions.map((q) => q.label), ['Nazwisko', 'Data urodzenia', 'Telefon rodzica / opiekuna'], 'only the missing ones are created');
+    ok('needs JSON (2026-10-24): every need, setting and value described; tolerant reading; out and back the same; locks never in config; a page form gets them; adoption instead of doubles');
+  }
 
   /* -- 2026-10-24: Termine fürs Kalender im JSON einer Seite ------------------------------- */
   {
@@ -471,6 +591,99 @@ try {
   const fromExample = m.planEntries(JSON.parse(listDoc.slice(listDoc.indexOf('Przykład:') + 'Przykład:'.length)), { ...ctx, existing: [] }, at);
   assert.ok(!('error' in fromExample) && fromExample.warnings.length === 0 && fromExample.add.length === 2 && fromExample.recordsNew.length === 1, 'the example in the list description imports cleanly');
   ok('list JSON: export round-trips, new and changed people, records per period, warnings, a description built from the form');
+  }
+
+  /* -- 2026-10-24: Dateien, um die eine Seite bittet ("images", "page-image:@schlüssel") ---------- */
+  {
+    const P = m.NEED_PREFIX;
+    const page = (extra) => ({ format: m.PAGE_FORMAT, version: 1, ...extra });
+    const ref = (n) => `page-image:0190a0a0-0000-7000-8000-0000000000${String(n).padStart(2, '0')}`;
+    const doc = page({
+      images: [
+        { key: 'dom', label: 'Dom od ogrodu', description: 'Dom latem, poziomo', name: 'dom-ogrod.jpg' },
+        { key: 'ognisko', kind: 'video', description: 'Ogień w pętli' },
+        { key: 'szum', kind: 'sound', label: 'Szum lasu' },
+        { key: 'zapas', label: 'Nieużywany' },
+        { key: 'zły klucz' },
+        { key: 'dom', label: 'Drugi raz' },
+        { key: 'logo', kind: 'gif' }
+      ],
+      cover: [{ kind: 'image', speed: 0.3, url: `${P}dom`, opacity: 1 }],
+      menu: [{ label: 'Start', kind: 'abs', target: '', image: `${P}logo` }],
+      show: { scenes: [{ key: 's1', title: 'Start' }], sound: { url: `${P}szum`, label: 'Las' } },
+      modules: [
+        { kind: 'image', config: { url: `${P}dom`, video: `${P}ognisko`, alt: 'Dom' } },
+        { kind: 'gallery', config: { shots: [{ url: `${P}galeria-1`, caption: 'Pierwsze' }] } }
+      ]
+    });
+
+    const needs = m.readImageNeeds(doc);
+    assert.deepEqual(needs.needs.map((n) => [n.key, n.kind, n.uses, n.declared]),
+      [['dom', 'image', 2, true], ['ognisko', 'video', 1, true], ['szum', 'sound', 1, true], ['zapas', 'image', 0, true], ['logo', 'image', 1, true], ['galeria-1', 'any', 1, false]],
+      'described files with their kinds and uses; one only used, without a description');
+    assert.deepEqual([needs.needs[0].label, needs.needs[0].description, needs.needs[0].name, needs.needs[1].label], ['Dom od ogrodu', 'Dom latem, poziomo', 'dom-ogrod.jpg', 'ognisko'],
+      'label, description and file name read; a missing label is the key');
+    for (const part of ['„zły klucz”', '„dom” jest opisany w "images" dwa razy', '„zapas” jest opisany', '„logo”: "kind" „gif”', `„${P}galeria-1” nie ma opisu`]) {
+      assert.ok(needs.warnings.some((w) => w.includes(part)), `a warning says: ${part}\n${needs.warnings.join('\n')}`);
+    }
+    assert.equal(m.readImageNeeds(doc), needs, 'the same document is read once');
+    assert.equal(m.readImageNeeds(page({ modules: [] })), undefined, 'no "images" and no placeholder: nothing is asked for');
+    assert.equal(m.readImageNeeds(page({ images: [], modules: [] })), undefined, 'an empty list asks for nothing');
+
+    /* Einsetzen: überall im Dokument, die Beschreibungen bleiben, was fehlt, wird leer. */
+    const refs = new Map([['dom', ref(1)], ['ognisko', ref(2)], ['logo', ref(3)], ['galeria-1', ref(4)]]);
+    const resolved = m.resolveImageNeeds(doc, refs);
+    const out = resolved.doc;
+    assert.equal(out.cover[0].url, ref(1), 'in a background layer');
+    assert.equal(out.menu[0].image, ref(3), 'in the menu');
+    assert.equal(out.show.sound.url, '', 'a file nobody added leaves its place empty');
+    assert.deepEqual([out.modules[0].config.url, out.modules[0].config.video, out.modules[1].config.shots[0].url], [ref(1), ref(2), ref(4)], 'in modules, also deep in lists');
+    assert.deepEqual(out.images, doc.images, 'the descriptions themselves stay as they are');
+    assert.deepEqual([resolved.placed, resolved.missing], [5, ['szum']], 'five places filled, one file missing');
+    assert.ok(JSON.stringify(doc).includes(`${P}dom`), 'the document itself is not changed');
+    assert.equal(m.resolveImageNeeds({ text: `tło: ${P}dom, koniec` }, refs).doc.text, `tło: ${ref(1)}, koniec`, 'inside a longer text too');
+
+    /* Der Plan sieht echte Dateien: kein Logo fällt weg, die Module tragen die Kennungen. */
+    const planned = m.planImport(out, { ...now, parts: [], logic: null }, m.DEFAULT_IMPORT);
+    assert.ok(!('error' in planned), 'the resolved document imports');
+    assert.ok(!planned.warnings.some((w) => w.startsWith('Menu:')), `no logo is reported as broken:\n${planned.warnings.join('\n')}`);
+    assert.ok(planned.warnings.some((w) => w.includes('"show.sound"')), 'the sound nobody added is said to be missing');
+    assert.equal(planned.menu.items[0].image, ref(3), 'the menu keeps its logo');
+    assert.equal(planned.parts[0].config.url, ref(1), 'the image module carries the file');
+    const raw = m.planImport(doc, { ...now, parts: [], logic: null }, m.DEFAULT_IMPORT);
+    assert.ok(raw.warnings.some((w) => w.includes('Start') && w.includes('image')), 'without resolving, the menu would drop its placeholder — so the import resolves first');
+    const shown = m.planImport(m.previewImageNeeds(doc, new Set(['logo'])), { ...now, parts: [], logic: null }, m.DEFAULT_IMPORT);
+    assert.equal(shown.menu.items[0].image, m.PREVIEW_REF, 'the preview puts a placeholder in the shape of a file where one is chosen');
+    assert.equal(shown.parts[0].config.url ?? '', '', 'and leaves the rest empty, as the import will');
+
+    /* Mehrere Dateien auf einmal: nach Namen, ohne Endung, nach Schlüssel; der Rest bleibt übrig. */
+    const match = m.matchFiles(needs.needs, ['DOM-OGROD.JPG', 'ognisko.mp4', 'cokolwiek.png', 'szum.mp3', 'dom-ogrod.png']);
+    assert.deepEqual([...match.byKey.entries()], [['dom', 0], ['ognisko', 1], ['szum', 3]], 'by the given name (any case), then by the key as the name');
+    assert.deepEqual(match.rest, [2, 4], 'what fits nothing (or comes second) stays for the person');
+    assert.equal(m.matchFiles(needs.needs, ['dom-ogrod.webp']).byKey.get('dom'), 0, 'the given name without its extension also fits');
+
+    /* Was eine Datei sein darf. */
+    assert.equal(m.fileProblem('image', 'image/png', 1000), null);
+    assert.ok(m.fileProblem('image', 'video/mp4', 1000).includes('obraz'), 'a film is no picture');
+    assert.ok(m.fileProblem('image', 'image/jpeg', 9 * 1024 * 1024).includes('8 MB'), 'a picture over 8 MB is refused');
+    assert.equal(m.fileProblem('video', 'video/webm', 20 * 1024 * 1024), null);
+    assert.ok(m.fileProblem('sound', null, 10).includes('dźwięk'), 'an unknown file is no sound');
+    assert.equal(m.fileProblem('file', 'application/pdf', 1000), null);
+    assert.equal(m.fileProblem('any', 'audio/mpeg', 1000), null, 'an undescribed file takes anything the page takes');
+    assert.ok(m.fitsNeed('file', 'image/png') && !m.fitsNeed('image', 'application/pdf'), 'documents may be pictures, pictures no documents');
+    assert.ok(m.acceptOf('image').includes('image/png') && m.acceptOf('sound').includes('.mp3'), 'the file dialog offers the right kinds');
+
+    /* Die Beschreibung: der Schlüssel, der Abschnitt, und sein Beispiel liest sich und importiert sauber. */
+    const text = m.pageDescription();
+    assert.ok(text.includes('"images" — ') && text.includes('## Pliki do dodania') && text.includes(`"${P}klucz"`), 'the description explains "images" and the placeholder');
+    const at = text.indexOf('## Pliki do dodania');
+    const sample = JSON.parse(text.slice(text.indexOf('Przykład:', at) + 'Przykład:'.length, text.indexOf('\n## ', at + 5)).trim());
+    const sampleNeeds = m.readImageNeeds(sample);
+    assert.ok(sampleNeeds.warnings.length === 0 && sampleNeeds.needs.length === 3 && sampleNeeds.needs.every((n) => n.declared && n.uses > 0), 'the example reads cleanly: three described files, each used');
+    const sampleRefs = new Map(sampleNeeds.needs.map((n, i) => [n.key, ref(10 + i)]));
+    const samplePlan = m.planImport(m.resolveImageNeeds(sample, sampleRefs).doc, { ...now, parts: [], logic: null }, m.DEFAULT_IMPORT);
+    assert.ok(!('error' in samplePlan) && samplePlan.warnings.length === 0, `the example imports without a word:\n${('warnings' in samplePlan ? samplePlan.warnings : []).join('\n')}`);
+    ok('page JSON (2026-10-24): files a page asks for — described in "images", placed wherever "page-image:@key" stands, missing ones empty, matched by name, checked by kind, described');
   }
 
 } finally {

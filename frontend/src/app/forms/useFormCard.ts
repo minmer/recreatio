@@ -15,7 +15,7 @@ import { type ExtensionInfo, loadSteps } from '../steps/steps';
 import { useEntrySubject, useOfficeSubject } from './entrySubject';
 import type { OpenField, PublicForm } from './form';
 import { type FormDesign, evaluate, layoutWith } from './formDesign';
-import { openPublicForm } from './SignSheet';
+import { keepOpenedForm, openPublicForm } from './SignSheet';
 import { type Subject, detailsOf, personFieldOf, subjectsFor } from './subject';
 
 export type FormCardProps = {
@@ -97,8 +97,9 @@ export function useFormCard(props: FormCardProps) {
 
   const look = useCallback(async () => {
     try {
-      /* 0083 — dasselbe Aufmachen wie für den Ausdruck (`SignSheet.openPublicForm`). */
+      /* 0083 — dasselbe Aufmachen wie für den Ausdruck (`SignSheet.openPublicForm`) — und der Ausdruck nimmt genau dieses (2026-10-24). */
       const opened = await openPublicForm(partId);
+      keepOpenedForm(partId, opened);
       const found = opened.form;
       setForm(found);
 

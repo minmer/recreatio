@@ -42,6 +42,7 @@ const NORM_V = 1.5;
 /** Fragen: ab diesem Blasenradius (m) oder dieser Geschwindigkeit (m/s). */
 const ASK_R = 0.006;
 const ASK_V = 2;
+/* (ASK_LIMITS unten nennt dieselben Zahlen für den beschleunigten Weg.) */
 
 /** Ein heftiger Zustand, auf den die Oberfläche antworten soll. */
 export interface ExtremeEvent {
@@ -61,6 +62,19 @@ export interface ExtremeStats {
   readonly heldHeat: number;
   readonly vented: number;
   readonly slowed: number;
+}
+
+/** Ab welchem Blasenradius (m) und welcher Geschwindigkeit (m/s) „ask“ fragt — auch der beschleunigte Weg. */
+export const ASK_LIMITS = { r: ASK_R, v: ASK_V } as const;
+
+/**
+ * Was die Kerne des beschleunigten Wegs (gpu/) von der Art der Rechnung brauchen: die Wärmestromdichte der Wände an
+ * Blasen (W/m²), die höchste Überhitzung zum Keimen (K), die höchste Geschwindigkeit der Teilchen (m/s), der grösste
+ * Blasenradius (m) — dieselben Zahlen wie hier auf der CPU.
+ */
+export function extremeParams(mode: ExtremeMode, p: number, g: number): { chf: number; actMax: number; vmax: number; bubCap: number } {
+  const soft = mode === 'normalize';
+  return { chf: criticalHeatFlux(p, g) * (soft ? NORM_FLUX : 1), actMax: soft ? NORM_DT : 1e30, vmax: soft ? NORM_V : V_GUARD, bubCap: soft ? NORM_R : 1e30 };
 }
 
 /** Kritische Wärmestromdichte (W/m²) beim Druck p (Pa) und der Schwerkraft g (m/s²) — Lienhard & Dhir (1973). */
@@ -139,6 +153,15 @@ export class Extremes {
     if (this.mode !== 'ask' || this.asked) return;
     if (big > ASK_R) { this.pending = { kind: 'bubble', value: big, time: this.e.time }; this.asked = true; }
     else if (fastest > ASK_V) { this.pending = { kind: 'speed', value: fastest, time: this.e.time }; this.asked = true; }
+  }
+
+  /** Der beschleunigte Weg meldet aus seiner Ablesung die grösste Blase und das schnellste Teilchen: dieselbe Frage wie afterStep. */
+  observe(big: number, fastest: number, time: number): void {
+    this.maxBubble = big;
+    this.maxSpeed = fastest;
+    if (this.mode !== 'ask' || this.asked) return;
+    if (big > ASK_R) { this.pending = { kind: 'bubble', value: big, time }; this.asked = true; }
+    else if (fastest > ASK_V) { this.pending = { kind: 'speed', value: fastest, time }; this.asked = true; }
   }
 
   /** Das anstehende Ereignis abholen (der Arbeiter hält an und fragt); danach steht keins mehr an — gefragt wird einmal je Szene. */

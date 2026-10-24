@@ -7,12 +7,13 @@
  *
  * Ein Nachweis („recreatio/lab2d-clip“, Fassung 2; Fassung 1 ohne die Körper als Rechtecke spielt weiter):
  *
- * - der Kopf: die Szene (mit Auflösung und Samen), das Gitter, 30 Bilder je
- *   Sekunde Simulationszeit, die Stücke und Schlüsselbilder, die Proben der
- *   Schreiber (alle 0,25 s) und der Bau der Engine (layout);
- * - die Bilder: die Ebenen jedes Bildes (render/layers.ts), eine Sekunde je
+ * - der Kopf: die Szene (mit Auflösung und Samen), das Gitter, die Bilder je
+ *   Sekunde Simulationszeit (Vorgabe 30; seit 2026-10-24 beim Backen wählbar),
+ *   die Stücke und Schlüsselbilder, die Proben der Schreiber (alle 0,25 s) und
+ *   der Bau der Engine (layout);
+ * - die Bilder: die Ebenen jedes Bildes (render/layers.ts), zwei Sekunden je
  *   Stück, als Unterschied zum vorigen Bild und gepackt (codec.ts);
- * - Schlüsselbilder: der ganze Zustand alle fünf Sekunden (snapshot.ts),
+ * - Schlüsselbilder: der ganze Zustand alle fünf Sekunden (wählbar; snapshot.ts),
  *   gepackt — daraus „Na żywo od tej chwili“.
  *
  * Der Backer läuft im Arbeiter in Happen (er gibt die Hand zurück, damit
@@ -30,12 +31,13 @@ import { layoutOf, takeSnapshot, type SnapshotRoot } from './snapshot';
 export const CLIP_FORMAT = 'recreatio/lab2d-clip';
 /** Fassung 2 (2026-10-23): die Körper als genaue Rechtecke in den Bildern; Fassung 1 lässt sich weiter abspielen. */
 export const CLIP_VERSION = 2;
-/** Bilder je Sekunde Simulationszeit. */
+/** Bilder je Sekunde Simulationszeit (Vorgabe; der Kopf sagt, wie gebacken wurde). */
 export const FPS = 30;
-/** Ein Schlüsselbild alle so viele Sekunden. */
+/** Ein Schlüsselbild alle so viele Sekunden (Vorgabe). */
 export const KEY_EVERY = 5;
-/** Bilder je Stück (zwei Sekunden): das erste Bild eines Stücks steht roh, die anderen als Unterschied. */
-export const CHUNK_FRAMES = 2 * FPS;
+/** Was sich beim Backen wählen lässt: Bilder je Sekunde, ein Schlüsselbild alle … Sekunden. */
+export const BAKE_FPS: readonly number[] = [15, 30, 60];
+export const BAKE_KEYS: readonly number[] = [1, 5, 10];
 /** Probe der Schreiber alle so viele Sekunden (wie live). */
 const SAMPLE_EVERY = 0.25;
 
@@ -123,6 +125,10 @@ export class Baker {
   readonly charts: Charts;
   readonly seconds: number;
   readonly total: number;
+  /** Bilder je Sekunde, Bilder je Stück (zwei Sekunden), ein Schlüsselbild alle so viele Bilder. */
+  readonly fps: number;
+  readonly chunkFrames: number;
+  readonly keyFrames: number;
   frames = 0;
   /** Nach jedem aufgenommenen Bild (Prüfstand: das Live-Bild daneben). */
   onFrame: ((k: number, L: Layers) => void) | null = null;
@@ -137,21 +143,24 @@ export class Baker {
   private readonly layout: string;
   private computeMs = 0;
 
-  /** e: frisch gebaut aus scene (Zeit 0), charts: ihre Schreiber. */
-  constructor(e: Engine, charts: Charts, scene: Record<string, unknown>, key: string, seconds: number) {
+  /** e: frisch gebaut aus scene (Zeit 0), charts: ihre Schreiber; fps: Bilder je Sekunde, keyEvery: ein Schlüsselbild alle … Sekunden. */
+  constructor(e: Engine, charts: Charts, scene: Record<string, unknown>, key: string, seconds: number, fps = FPS, keyEvery = KEY_EVERY) {
     this.e = e;
     this.charts = charts;
     this.scene = scene;
     this.key = key;
     this.seconds = seconds;
-    this.total = Math.round(seconds * FPS) + 1;
+    this.fps = Math.max(1, Math.round(fps));
+    this.chunkFrames = 2 * this.fps;
+    this.keyFrames = Math.max(1, Math.round(keyEvery * this.fps));
+    this.total = Math.round(seconds * this.fps) + 1;
     this.layers = allocLayers(e.grid.nx, e.grid.ny, e.grid.dx, 256);
     this.writer = new ChunkWriter(e.grid.nx, e.grid.ny, e.grid.dx);
     this.layout = layoutOf(rootOf(e, charts));
   }
 
   /** Simulationszeit des zuletzt aufgenommenen Bildes (s). */
-  get time(): number { return this.frames > 0 ? (this.frames - 1) / FPS : 0; }
+  get time(): number { return this.frames > 0 ? (this.frames - 1) / this.fps : 0; }
   get done(): boolean { return this.frames >= this.total; }
 
   /** Rechnen und aufnehmen, höchstens budgetMs lang; liefert, ob alles aufgenommen ist. */
@@ -159,7 +168,7 @@ export class Baker {
     const start = performance.now();
     const e = this.e;
     while (this.frames < this.total) {
-      if (e.time >= this.frames / FPS - 1e-9) { this.capture(); continue; }
+      if (e.time >= this.frames / this.fps - 1e-9) { this.capture(); continue; }
       e.step();
       if (e.time >= this.nextSample) {
         this.nextSample = e.time + SAMPLE_EVERY;
@@ -181,10 +190,10 @@ export class Baker {
     const k = this.frames;
     this.frames += 1;
     this.onFrame?.(k, this.layers);
-    if (this.writer.count >= CHUNK_FRAMES) this.flush();
-    if (k % (KEY_EVERY * FPS) === 0) {
+    if (this.writer.count >= this.chunkFrames) this.flush();
+    if (k % this.keyFrames === 0) {
       const bytes = takeSnapshot(rootOf(this.e, this.charts));
-      this.keys.push({ frame: k, t: k / FPS, data: pack(bytes) });
+      this.keys.push({ frame: k, t: k / this.fps, data: pack(bytes) });
     }
   }
 
@@ -203,8 +212,8 @@ export class Baker {
     const g = this.e.grid;
     const header: ClipHeader = {
       format: CLIP_FORMAT, version: CLIP_VERSION, key: this.key, scene: this.scene, quality: this.e.currentQuality, layout: this.layout,
-      fps: FPS, nx: g.nx, ny: g.ny, dx: g.dx, depth: g.depth, boxW: g.w, boxH: g.h, frames: this.frames, duration: (this.frames - 1) / FPS,
-      seconds: this.seconds, chunkFrames: CHUNK_FRAMES, chunkBytes: chunks.map((c) => c.length),
+      fps: this.fps, nx: g.nx, ny: g.ny, dx: g.dx, depth: g.depth, boxW: g.w, boxH: g.h, frames: this.frames, duration: (this.frames - 1) / this.fps,
+      seconds: this.seconds, chunkFrames: this.chunkFrames, chunkBytes: chunks.map((c) => c.length),
       keyframes: this.keys.map((k, i) => ({ frame: k.frame, t: k.t, bytes: keys[i].length })),
       samples: this.samples, created: Date.now(), bakeMs: Math.round(this.computeMs), bytes: chunks.reduce((s, c) => s + c.length, 0) + keys.reduce((s, c) => s + c.length, 0),
       used: Date.now()

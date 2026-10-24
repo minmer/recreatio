@@ -303,13 +303,19 @@ export interface FieldChange {
  * sagt der Dienst, wenn es so ist. Und wohin die Antworten gehen: dann werden
  * die vorhandenen mitgenommen, im Browser neu verpackt für den neuen Bereich.
  */
-export function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
+export function FieldEditor({ field, areas, taken, busy, onCancel, onSave, optionsOf }: {
   field: OpenField;
   areas: readonly AreaRow[];
   taken: readonly IdentityRole[];
   busy: boolean;
   onCancel: () => void;
   onSave: (change: FieldChange) => void;
+  /**
+   * 2026-10-24 — eine Wahl, deren Möglichkeiten ein Wymaganie festhält (die
+   * Logik erkennt die Antwort an ihrem Wortlaut): sein Name. Dann bleiben
+   * Rodzaj und Możliwości, wie sie sind — umstellen geht über das Wymaganie.
+   */
+  optionsOf?: string;
 }) {
   const [label, setLabel] = useState(field.label ?? '');
   const [help, setHelp] = useState(field.help ?? '');
@@ -322,7 +328,7 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
   const [areaId, setAreaId] = useState(field.areaId);
 
   const usable = areas.filter((a) => a.heldEpochs > 0);
-  const fixed = KIND_OF[identity] !== undefined;
+  const fixed = KIND_OF[identity] !== undefined || optionsOf !== undefined;
   const moving = areaId !== field.areaId;
 
   const about = (next: IdentityRole) => {
@@ -375,14 +381,15 @@ export function FieldEditor({ field, areas, taken, busy, onCancel, onSave }: {
           {FIELD_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
         </select>
         <span className="wk-hint">
-          {fixed ? 'Wynika z tego, czego dotyczy pytanie.' : 'Rodzaj zmienisz tylko, dopóki nikt nie odpowiedział.'}
+          {optionsOf !== undefined ? `Ustala wymaganie „${optionsOf}”.`
+            : fixed ? 'Wynika z tego, czego dotyczy pytanie.' : 'Rodzaj zmienisz tylko, dopóki nikt nie odpowiedział.'}
         </span>
       </label>
 
       {kind === 'choice' && (
         <label className="wk-field">
-          <span>Możliwości — jedna w wierszu</span>
-          <textarea rows={3} value={options} onChange={(e) => setOptions(e.target.value)} />
+          <span>{optionsOf === undefined ? 'Możliwości — jedna w wierszu' : `Możliwości — ustala je wymaganie „${optionsOf}” (zmienisz je w jego ustawieniach)`}</span>
+          <textarea rows={3} value={options} readOnly={optionsOf !== undefined} onChange={(e) => setOptions(e.target.value)} />
         </label>
       )}
 

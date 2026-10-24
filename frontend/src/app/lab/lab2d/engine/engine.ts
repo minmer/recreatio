@@ -117,6 +117,8 @@ export interface EngineStats {
   g: number;
   /** Heftige Zustände (extremes.ts): Art der Rechnung, anstehende Frage, grösste Blase, schnellstes Teilchen, was gemildert wurde. */
   extremes: ExtremeStats;
+  /** Braucht die Szene den normalen Weg (needsCpu)? Dann bietet die Oberfläche die beschleunigte Ansicht nicht an. */
+  cpuOnly: boolean;
 }
 
 /** Was der Inspektor an einem Punkt sieht. */
@@ -655,9 +657,9 @@ export class Engine {
     return s.other.total - this.other0 - this.flows.editOther;
   }
 
-  /** Braucht die Szene den normalen Weg? Andere Flüssigkeiten (M2a), Salz — gelöst oder als Kruste (M2b) —, freie Körper (M3a) und Eis, das schmilzt oder wächst (M3b), kennt der beschleunigte Weg noch nicht. */
+  /** Braucht die Szene den normalen Weg? Freie Körper (M3a) und Eis, das schmilzt oder wächst (M3b), kennt der beschleunigte Weg noch nicht (andere Flüssigkeiten und Salz seit 2026-10-24). */
   needsCpu(): boolean {
-    return this.particles.hasOther() || this.particles.hasSalt() || this.salt.crustMass() > 0 || this.salt.floorTotals().mass > 0 || this.bodies.anyFree || this.melt.any();
+    return this.bodies.anyFree || this.melt.any();
   }
 
   /** Abweichung der Salzbilanz seit dem Start (kg): gelöst + Kruste + Boden + entwichen gegen den Anfang und die Eingriffe. */
@@ -779,7 +781,8 @@ export class Engine {
       ambientT: this.ambientT,
       ambientP: this.pRef,
       g: this.gy,
-      extremes: this.extremes.stats()
+      extremes: this.extremes.stats(),
+      cpuOnly: this.needsCpu()
     };
   }
 }

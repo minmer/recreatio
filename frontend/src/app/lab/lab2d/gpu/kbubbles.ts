@@ -37,7 +37,7 @@ fn gapF(p: f32, mv: f32, na: f32, pb: f32) -> f32 {
   let T = tSat(p);
   return mv / rhoVapourSat(T) - na * R_GAS * T / (pb - p);
 }
-fn solveBubble(mN: f32, mO: f32, mV: f32, pl: f32, Tl: f32, D: f32, rGuess: f32) -> Shape {
+fn solveBubble(mN: f32, mO: f32, mV: f32, pl: f32, Tl: f32, D: f32, rGuess: f32, host: u32) -> Shape {
   let na = mN / M_N2 + mO / M_O2;
   let nv = mV / M_H2O;
   var r = rGuess;
@@ -47,7 +47,7 @@ fn solveBubble(mN: f32, mO: f32, mV: f32, pl: f32, Tl: f32, D: f32, rGuess: f32)
   var Tb = Tl;
   var V = 0.0;
   for (var it = 0; it < 8; it++) {
-    pb = pl + 2.0 * sigmaW(Tb) / r;
+    pb = pl + 2.0 * sigmaLM(host, Tb) / r;
     if (na <= 0.0) {
       pv = pb; Tb = tSat(pv); V = mV / rhoVapourSat(Tb);
     } else if (nv <= 1e-9 * na) {
@@ -76,7 +76,7 @@ fn solveBubble(mN: f32, mO: f32, mV: f32, pl: f32, Tl: f32, D: f32, rGuess: f32)
     if (abs(rn - r) <= 1e-6 * r) { r = rn; break; }
     r = rn;
   }
-  return Shape(r, V, pl + 2.0 * sigmaW(Tb) / r, pv, Tb);
+  return Shape(r, V, pl + 2.0 * sigmaLM(host, Tb) / r, pv, Tb);
 }
 fn bubEnthalpy(mN: f32, mO: f32, mV: f32, T: f32) -> f32 {
   var H = 0.0;
@@ -128,6 +128,18 @@ fn sitePos(S: Site, r: f32) -> vec2<f32> {
 /** Was Blasen aus den Zellen lesen und in sie schreiben (cf, cu, at gebunden). */
 export const BUB_CELLS = `
 fn kindOf(c: u32) -> u32 { return cu[U_KIND * P.n + c]; }
+/* M2a: die vorherrschende Flüssigkeit der Zelle und der Anteil des Wassers an ihrer Flüssigkeit (0 ohne Wasserteilchen). */
+fn hostC(c: u32) -> u32 { return min(u32(cf[F_HOST * P.n + c]), NLIQ - 1u); }
+fn hostXY(x: f32, y: f32) -> u32 { let c = cellAtN(x, y); if (c == NONE) { return 0u; } return hostC(c); }
+fn shareW(c: u32) -> f32 {
+  let acc = cf[F_ACC * P.n + c];
+  if (!(acc > 0.0)) { return 0.0; }
+  if (P.mixed == 0u) { return 1.0; }
+  let all = cf[F_ACCALL * P.n + c];
+  return select(1.0, (acc + cf[F_ACCS * P.n + c]) / all, all > 0.0);
+}
+/* Das mittlere h des Wassers der Zelle (ohne Wasser: h bei der Temperatur ihrer Flüssigkeit) — wie phase.waterH. */
+fn hbarC(c: u32) -> f32 { let acc = cf[F_ACC * P.n + c]; return select(hL(cf[F_PTL * P.n + c]), cf[F_ACCH * P.n + c] / acc, acc > 0.0); }
 /* Absoluter Druck der Flüssigkeit an (x, y): bilinear über die nicht festen Zellmitten, nie unter dem halben Umgebungsdruck (wie BubbleModel.pressure). */
 fn pressureAt(x: f32, y: f32) -> f32 {
   let fx = clamp(x * P.invdx - 0.5, 0.0, f32(P.nx) - 1.0001);
@@ -149,10 +161,11 @@ fn pressureAt(x: f32, y: f32) -> f32 {
   }
   return max(0.5 * P.pref, P.pref + select(0.0, s / w, w > 0.0));
 }
-/* Summe der Gewichte über flüssige Zellen der Spur und Σ w T_l. */
-fn liqFoot(fp: FP, x: f32, y: f32, r: f32) -> vec2<f32> {
+/* Summe der Gewichte über flüssige Zellen der Spur, Σ w T_l und Σ w ΔT_b (Sole, M2b). */
+fn liqFoot(fp: FP, x: f32, y: f32, r: f32) -> vec3<f32> {
   var ws = 0.0;
   var wt = 0.0;
+  var wd = 0.0;
   for (var j = fp.j0; j <= fp.j1; j++) {
     for (var i = fp.i0; i <= fp.i1; i++) {
       let c = cellOf(i, j);
@@ -161,9 +174,10 @@ fn liqFoot(fp: FP, x: f32, y: f32, r: f32) -> vec2<f32> {
       if (w <= 0.0) { continue; }
       ws += w;
       wt += w * cf[F_PTL * P.n + c];
+      wd += w * cf[F_DTB * P.n + c];
     }
   }
-  return vec2<f32>(ws, wt);
+  return vec3<f32>(ws, wt, wd);
 }
 fn liqAvail(fp: FP, x: f32, y: f32, r: f32, ws: f32) -> f32 {
   var a = 0.0;
@@ -177,33 +191,56 @@ fn liqAvail(fp: FP, x: f32, y: f32, r: f32, ws: f32) -> f32 {
   }
   return a;
 }
-/* Masse dm aus der Flüssigkeit der Spur (nach w), latente Wärme dort; das Budget mit. */
-fn liqTake(fp: FP, x: f32, y: f32, r: f32, ws: f32, dm: f32, hvb: f32, Tl: f32, dt: f32) {
+/* Σ (w/ws)·Anteil des Wassers über die Spur: so viel der Masse, die die Blase tauschen möchte, hat Wasser zum Tauschen (wie fwSum in BubbleModel.advance). */
+fn liqShare(fp: FP, x: f32, y: f32, r: f32, ws: f32) -> f32 {
+  var a = 0.0;
+  for (var j = fp.j0; j <= fp.j1; j++) {
+    for (var i = fp.i0; i <= fp.i1; i++) {
+      let c = cellOf(i, j);
+      if (kindOf(c) != LIQUID) { continue; }
+      let w = fpW(fp, x, y, r, i, j);
+      if (w > 0.0) { a += w / ws * shareW(c); }
+    }
+  }
+  return a;
+}
+/* Masse dm aus dem Wasser der Spur (nach w und dem Anteil des Wassers, Summe fw), latente Wärme dort; das Budget mit. */
+fn liqTake(fp: FP, x: f32, y: f32, r: f32, ws: f32, fw: f32, dm: f32, hvb: f32, Tl: f32, dt: f32) {
   for (var j = fp.j0; j <= fp.j1; j++) {
     for (var i = fp.i0; i <= fp.i1; i++) {
       let c = cellOf(i, j);
       if (kindOf(c) != LIQUID) { continue; }
       let w0 = fpW(fp, x, y, r, i, j);
       if (w0 <= 0.0) { continue; }
-      let w = w0 / ws;
-      let acc = cf[F_ACC * P.n + c];
-      let hbar = select(hL(Tl), cf[F_ACCH * P.n + c] / acc, acc > 0.0);
+      let w = w0 / ws * shareW(c) / fw;
+      if (w == 0.0) { continue; }
+      let hbar = hbarC(c);
       addF_at(A_FM * P.n + c, -dm * w);
       addF_at(A_HSRC * P.n + c, -dm * w * (hvb - hbar) / dt);
       addF_at(A_BUDGET * P.n + c, -dm * w * (hvb - hbar));
     }
   }
 }
-/* Wärme q (W) an die Flüssigkeit der Spur (nach w). */
-fn liqHeat(fp: FP, x: f32, y: f32, r: f32, ws: f32, q: f32) {
+/* Wärme q (W) an die Flüssigkeit der Spur (nach w) — nur an Zellen mit Flüssigkeit: eine Zelle, die eine grosse Blase leer gedrückt hat, bleibt flüssig, hat aber keine Wärmekapazität (wie BubbleModel.restoreEnthalpy). false: keine solche Zelle. */
+fn liqHeat(fp: FP, x: f32, y: f32, r: f32, q: f32) -> bool {
+  var ws = 0.0;
   for (var j = fp.j0; j <= fp.j1; j++) {
     for (var i = fp.i0; i <= fp.i1; i++) {
       let c = cellOf(i, j);
-      if (kindOf(c) != LIQUID) { continue; }
+      if (kindOf(c) != LIQUID || !(cf[F_PCL * P.n + c] > 0.0)) { continue; }
+      ws += max(0.0, fpW(fp, x, y, r, i, j));
+    }
+  }
+  if (!(ws > 0.0)) { return false; }
+  for (var j = fp.j0; j <= fp.j1; j++) {
+    for (var i = fp.i0; i <= fp.i1; i++) {
+      let c = cellOf(i, j);
+      if (kindOf(c) != LIQUID || !(cf[F_PCL * P.n + c] > 0.0)) { continue; }
       let w = fpW(fp, x, y, r, i, j);
       if (w > 0.0) { addF_at(A_HSRC * P.n + c, q * w / ws); }
     }
   }
+  return true;
 }
 `;
 
@@ -215,12 +252,67 @@ fn fritzD(B: Bubble, Tl: f32) -> f32 {
   var theta = P.theta;
   if (!(theta > 0.0)) { theta = solidTheta(cu[U_SOLID * P.n + S.cell]); }
   let rhov = (B.mN + B.mO + B.mV) / max(1e-30, B.V);
-  return FRITZ * theta * sqrt(sigmaW(B.Tb) / (P.gy * (rhoL(Tl) - rhov)));
+  let hm = hostC(S.fluid);
+  return FRITZ * theta * sqrt(sigmaLM(hm, B.Tb) / (P.gy * (rhoLM(hm, Tl) - rhov)));
 }
 `;
 
-/** Gegenkraft einer Blase auf die Flüssigkeit (af gebunden): B-Spline-Gewichte der Flächen um (x, y). */
+/**
+ * Gegenkraft einer Blase auf die Flüssigkeit (af gebunden): bis zu einer Zelle Radius die B-Spline-Gewichte der Flächen um
+ * (x, y), grösser die Flächen im Ring r…max(1,5 r, r + 2Δx) nach ihrem Anteil Flüssigkeit (wie BubbleMotion.spreadRing).
+ */
 const SPREAD = `
+fn spreadRing(x: f32, y: f32, r: f32, fx: f32, fy: f32) -> bool {
+  let nx = i32(P.nx);
+  let ny = i32(P.ny);
+  let dx = P.dx;
+  let n = P.n;
+  let R = max(1.5 * r, r + 2.0 * dx);
+  let r2 = r * r;
+  let R2 = R * R;
+  let ia = max(0, i32(floor((x - R) * P.invdx)));
+  let ib = min(nx, i32(ceil((x + R) * P.invdx)));
+  let ja = max(0, i32(floor((y - R) * P.invdx)));
+  let jb = min(ny, i32(ceil((y + R) * P.invdx)));
+  var su = 0.0;
+  var sv = 0.0;
+  for (var ps = 0; ps < 2; ps++) {
+    if (ps == 1) {
+      if (!(su > 0.0) || !(sv > 0.0)) { return false; }
+      su = fx / su;
+      sv = fy / sv;
+    }
+    for (var j = ja; j <= jb; j++) {
+      for (var i = ia; i <= ib; i++) {
+        if (j < ny) {
+          let px = f32(i) * dx - x;
+          let py = (f32(j) + 0.5) * dx - y;
+          let d2 = px * px + py * py;
+          if (d2 >= r2 && d2 <= R2) {
+            var w = 0.0;
+            if (i > 0) { w += cf[F_PHI * n + u32(i - 1 + j * nx)]; }
+            if (i < nx) { w += cf[F_PHI * n + u32(i + j * nx)]; }
+            w *= 0.5;
+            if (w > 0.0) { if (ps == 0) { su += w; } else { addF_af(uF(i, j), su * w); } }
+          }
+        }
+        if (i < nx) {
+          let px = (f32(i) + 0.5) * dx - x;
+          let py = f32(j) * dx - y;
+          let d2 = px * px + py * py;
+          if (d2 >= r2 && d2 <= R2) {
+            var w = 0.0;
+            if (j > 0) { w += cf[F_PHI * n + u32(i + (j - 1) * nx)]; }
+            if (j < ny) { w += cf[F_PHI * n + u32(i + j * nx)]; }
+            w *= 0.5;
+            if (w > 0.0) { if (ps == 0) { sv += w; } else { addF_af(vF(i, j), sv * w); } }
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
 fn spreadForce(x: f32, y: f32, fx: f32, fy: f32) {
   let nx = i32(P.nx);
   let ny = i32(P.ny);
@@ -255,6 +347,7 @@ export const BUBBLE_KERNELS: readonly KernelDef[] = [
     name: 'bubNucleate', wg: WG,
     bind: 'P:u glob:r cnt:a cf:r cu:r at:a bubs:w sites:r sbub:a',
     code: `${BUB_LIB}
+${BUB_CELLS}
 ${MAIN} {
   let s = gid.x;
   if (s >= P.nsites) { return; }
@@ -265,19 +358,23 @@ ${MAIN} {
   if (cu[U_KIND * n + fc] != LIQUID) { return; }
   let acc = cf[F_ACC * n + fc];
   if (!(acc > 0.0)) { return; }
+  /* Keime nur im Wasser (der einzigen flüchtigen Flüssigkeit): die Zelle vor der Kavität muss vor allem Wasser sein. */
+  if (shareW(fc) < 0.5) { return; }
   let sc = S.cell;
   let mat = cu[U_SOLID * n + sc];
   let ks = solidK(mat);
   let Tl = cf[F_PTL * n + fc];
-  let kl = kL(Tl);
+  let hm = hostC(fc);
+  let kl = kLM(hm, Tl);
   let Tf = (ks * cf[F_T * n + sc] + kl * Tl) / (ks + kl);
   let pl = max(0.5 * P.pref, P.pref + cf[F_PL * n + fc]);
   var Ts = cf[F_TSAT * n + fc];
   if (!(Ts > 0.0)) { Ts = tSat(pl); }
   if (Tf - Ts < 0.0) { return; }
   let rc = S.r;
-  if (Tf - Ts < activation(rc, pl)) { return; }
-  let pb = pl + 2.0 * sigmaW(Tf) / rc;
+  /* Beim Mildern keimt jede Kavität spätestens bei P.actMax Überhitzung (extremes.ts). */
+  if (Tf - Ts < min(activation(rc, pl), P.actMax)) { return; }
+  let pb = pl + 2.0 * sigmaLM(hm, Tf) / rc;
   let Tb = tSat(pb);
   let V = 4.0 / 3.0 * PI * rc * rc * rc;
   let mv = rhoVapourSat(Tb) * V;
@@ -336,11 +433,14 @@ ${MAIN} {
     var srcCell = NONE;
     var fp = FP(0, -1, 0, -1, 1u, 0u);
     var ws = 0.0;
+    /* In Sole steht die Grenzfläche um ΔT_b über dem Dampf der Blase (0 in reinem Wasser). */
+    var shift = 0.0;
     if (site >= 0) {
       let S = sites[u32(site)];
+      shift = cf[F_DTB * n + S.fluid];
       let ks = solidK(cu[U_SOLID * n + S.cell]);
       let Tw = cf[F_PTL * n + S.fluid];
-      let klw = kL(Tw);
+      let klw = kLM(hostC(S.fluid), Tw);
       Tl = (ks * cf[F_T * n + S.cell] + klw * Tw) / (ks + klw);
       srcCell = S.cell;
     } else {
@@ -349,12 +449,16 @@ ${MAIN} {
       ws = lf.x;
       if (!(ws > 0.0)) { break; }
       Tl = lf.y / ws;
+      shift = lf.z / ws;
     }
     let Tb = B.Tb;
-    let kl = kL(Tl);
-    let rhol = rhoL(Tl);
-    let cpl = cpL(Tl);
-    let mul = muL(Tl);
+    /* Stoffwerte der Flüssigkeit um die Blase (Wasser, oder Öl über einer Wasserschicht). */
+    var hm = 0u;
+    if (site >= 0) { hm = hostC(sites[u32(site)].fluid); } else { hm = hostXY(B.x, B.y); }
+    let kl = kLM(hm, Tl);
+    let rhol = rhoLM(hm, Tl);
+    let cpl = cpLM(hm, Tl);
+    let mul = muLM(hm, Tl);
     let alpha = kl / (rhol * cpl);
     let d = 2.0 * r;
     let age = B.age;
@@ -366,10 +470,10 @@ ${MAIN} {
     let hRM = (kl / d) * (2.0 + 0.6 * sqrt(Re) * pow(Pr, 1.0 / 3.0));
     let Lh = hV(Tb) - hL(Tl);
     var hInt = max(pzk * 2.0 * (sqrt(age + h) - sqrt(age)), hRM * h);
-    if (site >= 0 && Tl > Tb) {
+    if (site >= 0 && Tl > Tb + shift) {
       let rdep = 0.5 * fritzD(B, Tl);
       let rv0 = select(rhoVapourSat(Tb), B.mV / B.V, B.mV > 0.0);
-      let drPlan = hInt * (Tl - Tb) / (rv0 * Lh);
+      let drPlan = hInt * (Tl - Tb - shift) / (rv0 * Lh);
       if (r < rdep && r + drPlan > rdep && drPlan > 0.0) {
         let want = hInt * (rdep - r) / drPlan;
         if (hRM * h >= pzk * 2.0 * (sqrt(age + h) - sqrt(age))) { h = want / hRM; }
@@ -380,12 +484,12 @@ ${MAIN} {
     }
     let V = B.V;
     let rhov = select(rhoVapourSat(Tb), B.mV / V, B.mV > 0.0);
-    let dr = hInt * (Tl - Tb) / (rhov * Lh);
+    let dr = hInt * (Tl - Tb - shift) / (rhov * Lh);
     let r1 = max(0.0, r + dr);
     var dV = 0.0;
     if (V <= PI * D * D * D / 6.0) { dV = 4.0 / 3.0 * PI * (r1 * r1 * r1 - r * r * r); }
     else if (V >= PI * D * D * D / 4.0) { dV = PI * D * (r1 * r1 - r * r); }
-    else { dV = PI * D * D * hInt * (Tl - Tb) / (rhov * Lh); }
+    else { dV = PI * D * D * hInt * (Tl - Tb - shift) / (rhov * Lh); }
     var Q = rhov * dV * Lh;
     /* Keine Zelle durch diesen Austausch über T_sat hinaus (oder darunter). */
     if (site >= 0) {
@@ -393,12 +497,17 @@ ${MAIN} {
       let cap = solidRho(s) * solidCp(s) * P.vcell * max(0.0, cf[F_T * n + srcCell] - Tb);
       let used = -getF_at(A_BUDGET * n + srcCell);
       if (Q > 0.0) { Q = min(Q, max(0.0, cap - used)); }
+      /* Und nicht mehr, als die Siedekurve durch die Wand lässt (kritische Wärmestromdichte; beim Mildern ein Zehntel). */
+      if (Q > 0.0) { Q = takeF_at(A_CHF * n + srcCell, Q, P.chf * dx * D * dt); }
     } else {
       let avail = liqAvail(fp, B.x, B.y, B.r, ws);
       if (Q > 0.0) { Q = min(Q, max(0.0, avail)); } else { Q = max(Q, min(0.0, avail)); }
     }
     var dm = Q / Lh;
     if (dm < 0.0) { dm = max(dm, -B.mV); }
+    /* Nur Wasser verdampft in die Blase und nimmt ihr Kondensat auf: frei mit dem Anteil des Wassers an der Spur. */
+    var fw = 1.0;
+    if (site < 0 && dm != 0.0) { fw = liqShare(fp, B.x, B.y, B.r, ws); dm *= fw; }
     if (dm != 0.0) {
       let hvb = hV(Tb);
       if (site >= 0) {
@@ -406,26 +515,25 @@ ${MAIN} {
         let acc = cf[F_ACC * n + fc];
         let fm = getF_at(A_FM * n + fc);
         if (dm > 0.0 && acc + fm - dm < 0.0) { dm = max(0.0, acc + fm); }
-        let hbar = select(hL(Tl), cf[F_ACCH * n + fc] / acc, acc > 0.0);
+        let hbar = hbarC(fc);
         addF_at(A_FM * n + fc, -dm);
         addF_at(A_HSRC * n + srcCell, -dm * (hvb - hbar) / dt);
         addF_at(A_BUDGET * n + srcCell, -dm * (hvb - hbar));
       } else {
-        liqTake(fp, B.x, B.y, B.r, ws, dm, hvb, Tl, dt);
+        if (fw > 0.0) { liqTake(fp, B.x, B.y, B.r, ws, fw, dm, hvb, Tl, dt); }
       }
       B.mV += dm;
       B.H += dm * hvb;
       grew += dm;
     }
     /* Neuer Zustand; die Enthalpie folgt T_b, die Differenz tauscht die Blase mit ihrer Umgebung. */
-    let sh = solveBubble(B.mN, B.mO, B.mV, pressureAt(B.x, B.y), Tl, D, B.r);
+    let sh = solveBubble(B.mN, B.mO, B.mV, pressureAt(B.x, B.y), Tl, D, B.r, hostXY(B.x, B.y));
     B.r = sh.r; B.V = sh.V; B.pb = sh.pb; B.pv = sh.pv; B.Tb = sh.Tb;
     let Hn = bubEnthalpy(B.mN, B.mO, B.mV, B.Tb);
     let dH = Hn - B.H;
     if (dH != 0.0) {
-      B.H = Hn;
-      if (site >= 0) { addF_at(A_HSRC * n + sites[u32(site)].cell, -dH / dt); }
-      else { liqHeat(fp, B.x, B.y, r, ws, -dH / dt); }
+      if (site >= 0) { B.H = Hn; addF_at(A_HSRC * n + sites[u32(site)].cell, -dH / dt); }
+      else if (liqHeat(fp, B.x, B.y, r, -dH / dt)) { B.H = Hn; }
     }
     if (B.r < 1e-6 || (B.mV <= 1e-18 && B.mN + B.mO <= 0.0)) { B.age += h; break; }
     if (site >= 0) {
@@ -463,8 +571,10 @@ ${MAIN} {
       }
       let cc = cellAt(x, y);
       let Tm = select(B.Tb, cf[F_PTL * n + cc], cf[F_PCL * n + cc] > 0.0);
-      let rl = glob[G_RHOREF];
-      let ml = muL(Tm);
+      /* Die Flüssigkeit um die Blase: nur Wasser — die mittlere Dichte (wie in M1), mit anderen Flüssigkeiten die der vorherrschenden. */
+      let hb = hostC(cc);
+      let rl = select(glob[G_RHOREF], rhoLM(hb, Tm), P.mixed != 0u);
+      let ml = muLM(hb, Tm);
       let rv = (B.mN + B.mO + B.mV) / max(1e-30, Vb);
       let dux = (ux - B.ux0) / max(h, 1e-6);
       let duy = (uy - B.uy0) / max(h, 1e-6);
@@ -481,7 +591,7 @@ ${MAIN} {
         let sl = sqrt(rx * rx + ry * ry);
         let dd = 2.0 * rr;
         let Reb = max(1e-6, rl * sl * dd / ml);
-        let Eo = max(0.0, P.gy) * (rl - rv) * dd * dd / sigmaW(Tm);
+        let Eo = max(0.0, P.gy) * (rl - rv) * dd * dd / sigmaLM(hb, Tm);
         let CD = max(24.0 / Reb * (1.0 + 0.15 * pow(Reb, 0.687)), 8.0 / 3.0 * (Eo / (Eo + 4.0)));
         let K = 0.5 * CD * rl * frontOf(Vb, rr, D) * sl;
         let mEff = (rv + C_A * rl) * Vb;
@@ -506,7 +616,9 @@ ${MAIN} {
         B.force[0] = Fpx; B.force[1] = Fpy; B.force[2] = 0.0; B.force[3] = Fwy;
         B.force[4] = Fdx; B.force[5] = Fdy;
         B.force[6] = Fax + Fvx - Kv * (vx - ux); B.force[7] = Fay + Fvy - Kv * (vy - uy);
-        spreadForce(x, y, -(Fdx + B.force[6]) * (h / dt), -(Fdy + B.force[7]) * (h / dt));
+        let Fx = -(Fdx + B.force[6]) * (h / dt);
+        let Fy = -(Fdy + B.force[7]) * (h / dt);
+        if (!(rr > dx && spreadRing(x, y, rr, Fx, Fy))) { spreadForce(x, y, Fx, Fy); }
         var nxp = x + h * vx;
         var nyp = y + h * vy;
         let dist = sdfAt(nxp, nyp);

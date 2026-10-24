@@ -13,7 +13,7 @@
  * wird mit „Zapisz moduły", wie jede andere Änderung dort.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { setPartConfig } from '../forms/form';
 import { readFormContent, writeFormContent, type FormContent } from '../forms/formJson';
@@ -27,11 +27,36 @@ import { AppointmentOptions } from '../calendar/AppointmentOptions';
 import { resolveReferences } from '../calendar/appointmentsJson';
 import { loadCalendars, type CalendarRow } from '../calendar/calendar';
 import { keysFor } from '../core/ringOf';
-import { pageDescription, partDescription } from './pageJsonText';
+import { PAGE_JSON, partFormat } from './pageJsonText';
+import { applyModuleWish } from '../modules/moduleImport';
+import { keepOwn } from './part';
 import { partOf } from './parts/registry';
 import { asRecord, asText, count } from './event/kit';
+import { ImageNeeds, type ImageChoice } from './ImageNeeds';
+import { imageRef, uploadPageFile } from './pageImages';
+import { previewImageNeeds, readImageNeeds, resolveImageNeeds, type NeedsPlan } from './pageImageNeeds';
 import { writeLook } from './slides/slideLook';
 import { WorkspaceError, type Who } from '../core/session';
+
+/** 2026-10-24 — die Vorschaubilder vom Gerät freigeben: sie halten die Datei im Speicher. */
+function dropPreviews(choices: readonly ImageChoice[]): void {
+  for (const one of choices) if (one.from === 'device' && one.preview !== null) URL.revokeObjectURL(one.preview);
+}
+
+/** 2026-10-24 — eine Zeile zum Plan: wie viele Dateien das Dokument erbittet und wie viele schon da sind. */
+function needsLine(needs: NeedsPlan, chosen: Readonly<Record<string, ImageChoice>>): string {
+  const have = needs.needs.filter((n) => chosen[n.key] !== undefined).length;
+  const lacking = needs.needs.length - have;
+  return `Pliki do dodania: ${needs.needs.length} — dodane ${have}${lacking > 0 ? `, brakuje ${lacking}` : ''} (niżej).`;
+}
+
+function needsWarnings(needs: NeedsPlan, chosen: Readonly<Record<string, ImageChoice>>): string[] {
+  const lacking = needs.needs.filter((n) => chosen[n.key] === undefined);
+  return [
+    ...needs.warnings,
+    ...(lacking.length === 0 ? [] : [`Bez pliku zostaną puste miejsca: ${lacking.map((n) => `„${n.label}”`).join(', ')} — dodaj pliki niżej albo później w edytorze.`])
+  ];
+}
 
 export function PageJson({ now, who, unsaved, onDone }: {
   /** Die Seite, wie der Editor sie gerade hält — mit dem Entwurf. */
@@ -46,9 +71,35 @@ export function PageJson({ now, who, unsaved, onDone }: {
   const [answersTo, setAnswersTo] = useState('');
   /* 2026-10-24 — je Eingang der Termine des Dokuments: der Kalender, in den sie gehen. */
   const [calendarFor, setCalendarFor] = useState<Readonly<Record<string, string>>>({});
+  /*
+     2026-10-24 — je Datei, um die das Dokument bittet ("images", `page-image:@schlüssel`): was
+     gewählt ist — vom Gerät (erst beim Import hochgeladen) oder aus den Dateien der Seite.
+  */
+  const [imageFor, setImageFor] = useState<Readonly<Record<string, ImageChoice>>>({});
+  const [uploading, setUploading] = useState(false);
+  const latestImages = useRef(imageFor);
+  latestImages.current = imageFor;
+  useEffect(() => () => dropPreviews(Object.values(latestImages.current)), []);
+
+  const chooseImage = (key: string, choice: ImageChoice | null) => {
+    const old = latestImages.current[key];
+    if (old !== undefined && old !== choice) dropPreviews([old]);
+    setImageFor((was) => {
+      const { [key]: _gone, ...rest } = was;
+      return choice === null ? rest : { ...rest, [key]: choice };
+    });
+  };
+
+  /** Nach einem Import: die Wahl gehörte zum Dokument, und das ist fort. */
+  const forgetImages = () => {
+    dropPreviews(Object.values(latestImages.current));
+    setImageFor({});
+  };
 
   const set = (patch: Partial<ImportOptions>) => setOptions((was) => ({ ...was, ...patch }));
   const plan = (doc: unknown) => planImport(doc, { ...now, menu: null }, options);
+  /* 2026-10-24 — vor jedem Plan die erbetenen Dateien eingesetzt, wie es der Import tun wird: gewählte als Platzhalter, fehlende leer. */
+  const planShown = (doc: unknown) => plan(previewImageNeeds(doc, new Set(Object.keys(imageFor))));
 
   const exportDoc = async () => {
     const menu = await loadMenu(now.path).catch(() => null);
@@ -63,12 +114,68 @@ export function PageJson({ now, who, unsaved, onDone }: {
   };
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
-    const done = plan(doc);
+    const done = planShown(doc);
     if ('error' in done) return done;
     const unchosen = (done.appointments?.entries ?? []).filter((e) => (calendarFor[e.key] ?? '') === '');
+    const needs = readImageNeeds(doc);
+    /* 2026-10-24 — ein neues Formular hat noch keinen Bereich: ohne Wahl entstünden seine Fragen (und die seiner Wymagania) nicht. */
+    const homeless = answersTo === '' && [...done.forms].some(([id, wish]) =>
+      (wish.questions !== undefined || wish.needs !== undefined) && done.parts.find((p) => p.id === id)?.moduleId === null);
     return {
-      lines: done.lines,
-      warnings: [...done.warnings, ...unchosen.map((e) => `Wybierz kalendarz dla terminów „${e.label}” — bez tego zostaną pominięte.`)]
+      lines: [...done.lines, ...(needs === undefined || needs.needs.length === 0 ? [] : [needsLine(needs, imageFor)])],
+      warnings: [
+        ...done.warnings,
+        ...(needs === undefined ? [] : needsWarnings(needs, imageFor)),
+        ...unchosen.map((e) => `Wybierz kalendarz dla terminów „${e.label}” — bez tego zostaną pominięte.`),
+        ...(homeless ? ['Wybierz obszar, do którego trafiają odpowiedzi nowego formularza — bez niego jego pytania i wymagania nie powstaną.'] : [])
+      ]
+    };
+  };
+
+  /*
+     2026-10-24 — DIE ERBETENEN DATEIEN, vor allem anderen: hochladen, was vom
+     Gerät kommt, und überall einsetzen, wo `page-image:@schlüssel` steht. Ein
+     Dokument, das sich nicht importieren lässt, lädt nichts hoch. Was
+     hochgeladen ist, gilt danach als Datei der Seite — ein zweiter Versuch
+     lädt es nicht noch einmal.
+  */
+  const placeImages = async (doc: unknown, stage: (what: string) => void): Promise<{ doc: unknown; lines: string[]; warnings: string[] }> => {
+    const needs = readImageNeeds(doc);
+    if (needs === undefined) return { doc, lines: [], warnings: [] };
+    const checked = planShown(doc);
+    if ('error' in checked) throw new Error(checked.error);
+
+    const refs = new Map<string, string>();
+    const sending = needs.needs.filter((n) => imageFor[n.key]?.from === 'device').length;
+    let sent = 0;
+    setUploading(true);
+    try {
+      for (const need of needs.needs) {
+        const choice = imageFor[need.key];
+        if (choice === undefined) continue;
+        if (choice.from === 'page') {
+          refs.set(need.key, imageRef(choice.id));
+          continue;
+        }
+        stage(`Wgrywanie plików strony (${sent + 1}/${sending})…`);
+        const made = await uploadPageFile(now.path, choice.file, choice.file.name, choice.type).catch((e: unknown) => {
+          throw new WorkspaceError(`Plik „${need.label}” (${choice.file.name}): ${e instanceof WorkspaceError ? e.message : 'nie udało się wgrać.'}`
+            + (sent > 0 ? ` Wgrane wcześniej (${sent}) są już w plikach strony — ponowny import ich nie powtórzy.` : ''));
+        });
+        sent += 1;
+        refs.set(need.key, imageRef(made.id));
+        chooseImage(need.key, { from: 'page', id: made.id, name: choice.file.name, type: made.contentType });
+      }
+    } finally {
+      setUploading(false);
+    }
+
+    const resolved = resolveImageNeeds(doc, refs);
+    const labelOf = (key: string) => needs.needs.find((n) => n.key === key)?.label ?? key;
+    return {
+      doc: resolved.doc,
+      lines: refs.size === 0 ? [] : [`Pliki strony: wgrane — ${sent}${refs.size > sent ? `, z plików strony — ${refs.size - sent}` : ''}; wstawione w ${count(resolved.placed, 'miejsce', 'miejsca', 'miejsc')}.`],
+      warnings: resolved.missing.length === 0 ? [] : [`Bez pliku zostały puste miejsca: ${resolved.missing.map((key) => `„${labelOf(key)}”`).join(', ')} — plik dodasz w edytorze.`]
     };
   };
 
@@ -109,11 +216,13 @@ export function PageJson({ now, who, unsaved, onDone }: {
   };
 
   const run = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    const planned = plan(doc);
+    /* 2026-10-24 — erst die erbetenen Dateien, dann der Plan mit ihren echten Kennungen. */
+    const images = await placeImages(doc, stage);
+    const planned = plan(images.doc);
     if ('error' in planned) throw new Error(planned.error);
     const path = now.path;
-    const warnings = [...planned.warnings];
-    const lines = [...planned.lines];
+    const warnings = [...planned.warnings, ...images.warnings];
+    const lines = [...images.lines, ...planned.lines];
 
     /* 2026-10-24 — die Termine zuerst: die Bausteine zeigen dann auf ihre echten Kennungen. */
     const done = await placeAppointments(planned, stage, lines, warnings);
@@ -127,8 +236,20 @@ export function PageJson({ now, who, unsaved, onDone }: {
       }
     }
 
+    /* 2026-10-24 — ein Modul, das schon anderswo steht, behält, was es selbst führt (die Sperren der Wymagania). */
+    const foreign = done.parts.filter((p) => p.moduleId !== null && !now.parts.some((x) => (x.moduleId ?? x.id) === p.moduleId));
+    let parts = done.parts;
+    if (foreign.length > 0) {
+      const known = await loadModules().then((r) => r.modules, () => []);
+      parts = done.parts.map((p) => {
+        const module = foreign.includes(p) ? known.find((m) => m.moduleId === p.moduleId) : undefined;
+        const def = partOf(p.kind);
+        return module === undefined || def === undefined ? p : { ...p, config: keepOwn(def.json, readConfig(module.config), p.config) };
+      });
+    }
+
     stage('Zapisywanie modułów…');
-    await saveParts(path, done.parts);
+    await saveParts(path, parts);
 
     /* Ein Modul, das auch woanders steht, folgt dem Entwurf nicht — es bekommt seinen Inhalt eigens. */
     const loaded = await loadPage(path);
@@ -137,10 +258,13 @@ export function PageJson({ now, who, unsaved, onDone }: {
       const part = loaded.parts.find((p) => p.id === id);
       if (part === undefined) continue;
       const have = readConfig(part.config);
-      if (sameConfig(have, wanted)) continue;
+      /* 2026-10-24 — was das Modul selbst führt (die Sperren der Wymagania), bleibt. */
+      const def = partOf(part.kind);
+      const kept = def === undefined ? wanted : keepOwn(def.json, have, wanted);
+      if (sameConfig(have, kept)) continue;
       try {
         stage('Zapisywanie treści modułów…');
-        await setPartConfig(moduleOf.get(id)!, replacing(have, wanted));
+        await setPartConfig(moduleOf.get(id)!, replacing(have, kept));
       } catch (e) {
         warnings.push(`Treść modułu ${partOf(part.kind)?.label ?? part.kind}: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
       }
@@ -155,17 +279,30 @@ export function PageJson({ now, who, unsaved, onDone }: {
           warnings.push(`Nazwa „${name}”: ${e instanceof WorkspaceError ? e.message : 'nie udało się zapisać'}.`);
         }
       }
-      for (const [id, content] of done.forms) {
+      /*
+       * 2026-10-24 — EIN FORMULAR DER SEITE BEKOMMT, WAS EIN MODUL-DOKUMENT IHM
+       * GÄBE (`moduleImport.ts`): Fragen und Aufbau, Wymagania, Rollen, Obszary
+       * osób, Gruppe, Wiederholung — dieselben Schritte wie im Bausteinverwalter.
+       */
+      for (const [id, wish] of done.forms) {
         const moduleId = moduleOf.get(id);
         if (moduleId === undefined) continue;
         const module = modules.find((m) => m.moduleId === moduleId);
+        const name = module?.name ?? '';
         try {
-          const written = await writeFormContent(who, { moduleId, areaId: module?.areaId ?? null }, content,
-            { replace: replaceQuestions, answersTo: answersTo === '' ? null : answersTo, onStage: stage });
-          lines.push(`Formularz ${module?.name ?? ''}: nowe pytania — ${written.added}, zmienione — ${written.changed}${written.removed > 0 ? `, usunięte — ${written.removed}` : ''}${written.designSaved ? '; układ zapisany' : ''}.`);
-          warnings.push(...written.warnings);
+          if (module !== undefined) {
+            const applied = await applyModuleWish(who, module, wish, { replace: replaceQuestions, answersTo: answersTo === '' ? null : answersTo, stage });
+            lines.push(...applied.lines.map((line) => `Formularz ${name}: ${line}`));
+            warnings.push(...applied.warnings);
+          } else if (wish.questions !== undefined || wish.design !== undefined) {
+            /* Ein Modul, das die Liste (noch) nicht kennt: wenigstens Fragen und Aufbau. */
+            const written = await writeFormContent(who, { moduleId, areaId: null }, { questions: wish.questions, design: wish.design },
+              { replace: replaceQuestions, answersTo: answersTo === '' ? null : answersTo, onStage: stage });
+            lines.push(`Formularz: nowe pytania — ${written.added}, zmienione — ${written.changed}${written.designSaved ? '; układ zapisany' : ''}.`);
+            warnings.push(...written.warnings, 'Wymagania, role i obszary osób tego formularza pominięte — zaimportuj je w jego module.');
+          }
         } catch (e) {
-          warnings.push(`Pytania formularza ${module?.name ?? ''}: ${e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'nie udało się'}.`);
+          warnings.push(`Formularz ${name}: ${e instanceof WorkspaceError ? e.message : e instanceof Error ? e.message : 'nie udało się'}.`);
         }
       }
     }
@@ -197,6 +334,7 @@ export function PageJson({ now, who, unsaved, onDone }: {
     }
 
     await onDone();
+    forgetImages();
     return { lines, warnings };
   };
 
@@ -206,14 +344,15 @@ export function PageJson({ now, who, unsaved, onDone }: {
       lead={<>Cała strona — tytuł, wygląd, menu, mapa logiki i moduły z treścią (formularze z pytaniami) — jako jeden dokument. Wyeksportuj, zmień i zaimportuj: moduły zmieniają się w miejscu, a zgłoszenia, linki i mapa logiki zostają.</>}
       fileName={`strona-${now.path.replace(/[^a-z0-9]+/gi, '-')}.json`}
       exportDoc={exportDoc}
-      description={pageDescription}
+      format={PAGE_JSON}
       preview={preview}
       importLabel="Importuj i zapisz"
       note={unsaved ? 'Niezapisane zmiany w edytorze zostaną zapisane razem z importem.' : null}
       onImport={run}
       options={(doc) => {
         const kind = documentKind(doc);
-        const planned = plan(doc);
+        const planned = planShown(doc);
+        const needs = readImageNeeds(doc);
         const entries = asRecord(doc).modules;
         const fromElsewhere = Array.isArray(entries) && entries.some((e) => {
           const one = asRecord(e);
@@ -223,6 +362,10 @@ export function PageJson({ now, who, unsaved, onDone }: {
         const pages = kind === 'legacy' ? legacyPagesOf(doc) : [];
         return (
           <div className="wk-json-options">
+            {/* 2026-10-24 — die Dateien, um die das Dokument bittet: vor dem Import hinzufügen. */}
+            {needs !== undefined && needs.needs.length > 0 && (
+              <ImageNeeds path={now.path} needs={needs.needs} chosen={imageFor} busy={uploading} onChoose={chooseImage} />
+            )}
             {kind === 'page' || kind === 'legacy' ? (
               <label className="pe-check">
                 <input type="checkbox" checked={options.replace} onChange={(e) => set({ replace: e.target.checked })} />
@@ -249,7 +392,7 @@ export function PageJson({ now, who, unsaved, onDone }: {
                 <span>Weź też kolory wydarzenia</span>
               </label>
             )}
-            {!('error' in planned) && [...planned.forms.values()].some((f) => f.questions !== undefined) && (
+            {!('error' in planned) && [...planned.forms.values()].some((f) => f.questions !== undefined || f.needs !== undefined) && (
               <QuestionOptions answersTo={answersTo} onAnswersTo={setAnswersTo} replace={replaceQuestions} onReplace={setReplaceQuestions} />
             )}
             {/* 2026-10-24 — die Eingänge der Termine: je einer ein Kalender. */}
@@ -285,11 +428,11 @@ export function PartJson({ part, onSet }: { part: DraftPart; onSet: (patch: Reco
       lead={<>Treść tego modułu jako JSON — do skopiowania, poprawienia albo przygotowania przez AI. Import zmienia szkic; zapisuje „Zapisz moduły”.</>}
       fileName={`modul-${part.kind}.json`}
       exportDoc={() => ({ format: PART_FORMAT, version: 1, id: part.id, module: part.moduleId ?? part.id, kind: part.kind, config: def.json.toJson(part.config) })}
-      description={() => partDescription(part.kind)}
+      format={partFormat(part.kind)}
       preview={(doc) => {
         const got = configOfDoc(doc, part.kind);
         if ('error' in got) return got;
-        const patch = replacing(part.config, configFromJson(part.kind, got.config));
+        const patch = replacing(part.config, keepOwn(def.json, part.config, configFromJson(part.kind, got.config)));
         const changed = Object.keys(patch).length;
         return { lines: [changed === 0 ? 'Treść bez zmian.' : `Treść: ${count(changed, 'zmieniony klucz', 'zmienione klucze', 'zmienionych kluczy')}.`], warnings: [] };
       }}
@@ -297,7 +440,7 @@ export function PartJson({ part, onSet }: { part: DraftPart; onSet: (patch: Reco
       onImport={async (doc) => {
         const got = configOfDoc(doc, part.kind);
         if ('error' in got) throw new Error(got.error);
-        const patch = replacing(part.config, configFromJson(part.kind, got.config));
+        const patch = replacing(part.config, keepOwn(def.json, part.config, configFromJson(part.kind, got.config)));
         if (Object.keys(patch).length > 0) onSet(patch);
         return { lines: ['Treść jest w szkicu — zapisz moduły, żeby została.'], warnings: [] };
       }}

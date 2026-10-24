@@ -9,6 +9,7 @@
  */
 
 import { LIB } from './lib';
+import { SALT_USE, SALT_WGSL } from './libSalt';
 
 /** u uniform, r/w Speicher, a atomar, t Speichertextur (schreibend), x Textur (lesend), s Sampler. */
 type Mode = 'u' | 'r' | 'w' | 'a' | 't' | 'x' | 's';
@@ -165,6 +166,8 @@ fn cntWG(lid: u32, slot: u32) -> u32 {
 
 function generate(def: KernelDef, binds: readonly BindSpec[], wg: number): string {
   const lines: string[] = [LIB, `const WG: u32 = ${wg}u;`, COMMON];
+  /* Kochsalz (libSalt.ts) nur für Kerne, die es rufen. */
+  if (SALT_USE.test(def.code)) lines.push(SALT_WGSL);
   const names = new Set(binds.map((b) => b.name));
   for (const b of binds) if (b.mode === 'a') names.add(`${b.name}!`);
   for (const h of BY_BINDING) if (h.needs.every((n) => names.has(n))) lines.push(h.code);
@@ -188,7 +191,18 @@ function generate(def: KernelDef, binds: readonly BindSpec[], wg: number): strin
 }
 fn getF_${b.name}(i: u32) -> f32 { return bitcast<f32>(atomicLoad(&${b.name}[i])); }
 fn setF_${b.name}(i: u32, v: f32) { atomicStore(&${b.name}[i], bitcast<u32>(v)); }
-fn maxU_${b.name}(i: u32, v: f32) { atomicMax(&${b.name}[i], bitcast<u32>(max(v, 0.0))); }`);
+fn maxU_${b.name}(i: u32, v: f32) { atomicMax(&${b.name}[i], bitcast<u32>(max(v, 0.0))); }
+fn takeF_${b.name}(i: u32, want: f32, lim: f32) -> f32 {
+  var old = atomicLoad(&${b.name}[i]);
+  loop {
+    let cur = bitcast<f32>(old);
+    let t = clamp(lim - cur, 0.0, want);
+    if (!(t > 0.0)) { return 0.0; }
+    let r = atomicCompareExchangeWeak(&${b.name}[i], old, bitcast<u32>(cur + t));
+    if (r.exchanged) { return t; }
+    old = r.old_value;
+  }
+}`);
     }
   });
   lines.push(def.code);

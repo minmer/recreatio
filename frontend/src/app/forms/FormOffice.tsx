@@ -339,6 +339,7 @@ export function FormOffice(props: FormOfficeProps) {
                     taken={fields.filter((o) => o.fieldId !== f.fieldId)
                       .map((o) => o.identityRole).filter((r) => r !== 'none')}
                     busy={busy !== null}
+                    optionsOf={locks.options.get(f.fieldId)}
                     onCancel={() => setEditing(null)}
                     onSave={(change) => void act('Zapisywanie pytania…', async () => {
                       await saveField(f, change);

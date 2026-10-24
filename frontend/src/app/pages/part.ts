@@ -324,6 +324,25 @@ export interface PartJson {
    * geworfen wird nie — ein kaputtes Feld leert nur sich selbst.
    */
   readonly fromJson: (value: unknown) => RawConfig;
+
+  /**
+   * 2026-10-24 — SCHLÜSSEL, DIE DAS MODUL SELBST FÜHRT (die Sperren eines
+   * Formulars, `needs`): sie stehen in keinem Export, kein Import setzt sie,
+   * und ein Import, der die Tafel ersetzt, lässt sie stehen (`keepOwn`). Was
+   * sie bedeuten, sagt das Dokument auf seine Weise (ein Formular: "needs").
+   */
+  readonly own: readonly string[];
+}
+
+/** Die eigenen Schlüssel eines Moduls (`PartJson.own`) aus der alten Tafel in die neue — ein Import ändert sie nie. */
+export function keepOwn(json: Pick<PartJson, 'own'>, before: RawConfig, after: RawConfig): RawConfig {
+  if (json.own.length === 0) return after;
+  const out: RawConfig = { ...after };
+  for (const key of json.own) {
+    if (before[key] !== undefined && before[key].trim() !== '') out[key] = before[key];
+    else delete out[key];
+  }
+  return out;
 }
 
 /**
@@ -402,16 +421,17 @@ function jsonOf(stored: string, shape: JsonShape): unknown {
  * zusätzlichen Schlüsseln. Unbekannte Schlüssel gehen unverändert mit: ein
  * Export verliert nichts, auch nicht, was diese Fassung nicht kennt.
  */
-export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[], example: RawConfig): PartJson {
+export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[], example: RawConfig, own: readonly string[] = []): PartJson {
   const shapes = new Map<string, JsonShape>([
     ...fields.map((f) => [f.key, shapeOfField(f.kind)] as const),
     ...extra.map((e) => [e.key, e.shape] as const)
   ]);
   const order = [...shapes.keys()];
+  const mine = new Set(own);
 
   const toJson = (raw: RawConfig): Record<string, unknown> => {
     const out: Record<string, unknown> = {};
-    const keys = [...order, ...Object.keys(raw).filter((key) => !shapes.has(key)).sort()];
+    const keys = [...order, ...Object.keys(raw).filter((key) => !shapes.has(key) && !mine.has(key)).sort()];
     for (const key of keys) {
       const stored = raw[key];
       if (stored === undefined || stored.trim() === '') continue;
@@ -424,6 +444,7 @@ export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[]
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
     const out: RawConfig = {};
     for (const [key, one] of Object.entries(value as Record<string, unknown>)) {
+      if (mine.has(key)) continue;
       const stored = storedOf(one, shapes.get(key) ?? (Array.isArray(one) ? 'lines' : 'line'));
       if (stored !== null) out[key] = stored;
     }
@@ -437,7 +458,7 @@ export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[]
     for (const [path, says] of Object.entries(e.inside ?? {})) keys[`${e.key}${path}`] = says;
   }
 
-  return { example: toJson(example), keys, toJson, fromJson };
+  return { example: toJson(example), keys, toJson, fromJson, own };
 }
 
 /** 0063 — was ein eigener Editor über seine Umgebung wissen darf. */
@@ -497,6 +518,9 @@ export function definePart<C>(spec: {
   /** Schlüssel, die die Tafel ohne eigenes Feld trägt — siehe `ExtraKey`. */
   extra?: readonly ExtraKey[];
 
+  /** 2026-10-24 — Schlüssel, die das Modul selbst führt — siehe `PartJson.own`. */
+  own?: readonly string[];
+
   /** Ein eigenes JSON statt des flachen (die Bausteine der Ereignisseiten). */
   json?: PartJson;
   /** 2026-10-22 (Schritt 10) — siehe `PartModule.retired`. */
@@ -538,7 +562,7 @@ export function definePart<C>(spec: {
     ownArea: spec.ownArea ?? false,
     read: spec.read,
     Editor: spec.Editor ?? null,
-    json: spec.json ?? flatJson(spec.fields, spec.extra ?? [], spec.example)
+    json: spec.json ?? flatJson(spec.fields, spec.extra ?? [], spec.example, spec.own ?? [])
   };
 }
 

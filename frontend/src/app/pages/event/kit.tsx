@@ -442,7 +442,8 @@ export function defineEventPart<C>(spec: {
       if (asText(title).trim() !== '') out.title = asText(title);
       if (asText(intro).trim() !== '') out.intro = asText(intro);
       return out;
-    }
+    },
+    own: []
   };
 
   const module = definePart<EventConfig<C>>({

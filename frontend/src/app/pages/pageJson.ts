@@ -34,7 +34,10 @@ import { PAGE_MODES, type DraftPart, type MenuItem, type PageMode } from './page
 import { menuImageOf } from './menuPath';
 import { readLogic, type PageLogic } from './pageLogic';
 import { readSubject, subjectKindOf, writeSubject } from './pageSubject';
-import type { RawConfig } from './part';
+import { keepOwn, type RawConfig } from './part';
+import { readNeeds } from '../forms/needPlan';
+import { needsOut } from '../forms/needsJson';
+import { carriesForm, formOnlyKeys, formPartOf, formWishLine, readModuleWish, type ModuleWish } from '../modules/moduleWish';
 import { partOf } from './parts/registry';
 import {
   ARRIVALS, BETWEENS, EASES, FONT_PAIRS, FORMATS, MASK_SHAPES, MAX_FRAMES, mediaUrl, NAVS, ORIGINS, pieceJson, PROGRESS, readCrop, readPiece, readPieceValue,
@@ -75,6 +78,13 @@ export interface PageNow {
 
 /* -- Export -------------------------------------------------------------------------- */
 
+/** 2026-10-24 — die Wymagania eines Formulars im JSON ("needs"), aus seiner Tafel — ohne eines kein Schlüssel. */
+function needsOf(kind: string, config: RawConfig): { needs?: Record<string, unknown>[] } {
+  if (kind !== 'form') return {};
+  const list = needsOut(readNeeds(config.needs));
+  return list.length === 0 ? {} : { needs: list };
+}
+
 /** Ein Baustein der Seite als Eintrag von `modules`. */
 export function exportEntry(part: DraftPart, extra: { name?: string; form?: FormContent } = {}): Record<string, unknown> {
   const def = partOf(part.kind);
@@ -97,7 +107,9 @@ export function exportEntry(part: DraftPart, extra: { name?: string; form?: Form
     ...(part.layout.show === undefined ? {} : { show: pieceJson(readPiece(part.layout)) }),
     layout,
     config: def === undefined ? { ...part.config } : def.json.toJson(part.config),
-    ...(extra.form === undefined ? {} : { questions: extra.form.questions, design: extra.form.design })
+    ...(extra.form === undefined ? {} : { questions: extra.form.questions, design: extra.form.design }),
+    /* 2026-10-24 — die Wymagania: was gewollt ist (und was sie hier halten), nicht die Sperren der Tafel. */
+    ...needsOf(part.kind, part.config)
   };
 }
 
@@ -154,6 +166,7 @@ export function exportModule(module: {
     ...(module.extendsId == null ? {} : { extends: module.extendsId, audience: module.audience ?? 'person', repeat: module.repeat ?? 'once' }),
     config: def === undefined ? { ...module.config } : def.json.toJson(module.config),
     ...(form === undefined ? {} : { questions: form.questions, design: form.design }),
+    ...needsOf(module.kind, module.config),
     ...(module.memberRoles === undefined || module.memberRoles.length === 0 ? {} : { memberRoles: [...module.memberRoles] }),
     ...(module.virtualAreas === undefined || module.virtualAreas.length === 0 ? {} : {
       virtualAreas: module.virtualAreas.map((va) => ({ name: va.name, submitter: va.submitter, roles: va.roles.map((r) => ({ ...r })) }))
@@ -376,7 +389,8 @@ export interface PagePlan {
   /** Stelle → gewünschter Name des Moduls. */
   readonly names: ReadonlyMap<string, string>;
   /** Stelle → Fragen und Aufbau eines Formulars. */
-  readonly forms: ReadonlyMap<string, { readonly questions?: unknown; readonly design?: unknown }>;
+  /** Stelle → was ein Formular über Name und Inhalt hinaus bekommt (Fragen, Aufbau, Wymagania, Rollen …) — `moduleImport.ts`. */
+  readonly forms: ReadonlyMap<string, ModuleWish>;
   /** 2026-10-24 — Termine (mit Programm), die der Import in die gewählten Kalender einträgt (`appointmentsJson.ts`). */
   readonly appointments?: AppointmentsPlan;
   readonly lines: readonly string[];
@@ -456,7 +470,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   const ids = new Map<string, string>();
   const configs = new Map<string, RawConfig>();
   const names = new Map<string, string>();
-  const forms = new Map<string, { questions?: unknown; design?: unknown }>();
+  const forms = new Map<string, ModuleWish>();
   const made: { part: DraftPart; place: boolean; size: { colSpan: number; rowSpan: number } }[] = [];
   let updated = 0;
   let added = 0;
@@ -484,11 +498,21 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
       : options.copyModules ? null : isUuid(docModule) ? docModule : null;
     if (docModule !== '' && !isUuid(docModule)) warnings.push(`Moduł ${index + 1}: "module" „${docModule}” nie jest identyfikatorem — powstanie nowy moduł.`);
 
-    const config = has(entry, 'config') ? configFromJson(kindSaid, entry.config) : match?.config ?? {};
+    /* 2026-10-24 — was das Modul selbst führt (die Sperren der Wymagania), setzt kein Dokument. */
+    const config = has(entry, 'config')
+      ? (def === undefined ? configFromJson(kindSaid, entry.config) : keepOwn(def.json, match?.config ?? {}, configFromJson(kindSaid, entry.config)))
+      : match?.config ?? {};
     if (has(entry, 'config')) configs.set(id, config);
     if (asText(entry.name).trim() !== '') names.set(id, asText(entry.name).trim());
-    if (kindSaid === 'form' && (has(entry, 'questions') || has(entry, 'design'))) {
-      forms.set(id, { ...(has(entry, 'questions') ? { questions: entry.questions } : {}), ...(has(entry, 'design') ? { design: entry.design } : {}) });
+    /* 2026-10-24 — ein Formular bekommt alles, was ein Modul-Dokument trägt (`moduleWish.ts`); eine andere Art nichts davon. */
+    const wish = readModuleWish(entry);
+    if (kindSaid === 'form' && carriesForm(wish)) {
+      forms.set(id, formPartOf(wish));
+      warnings.push(...wish.warnings.map((w) => `Moduł ${index + 1}: ${w}`));
+      const said = formWishLine(wish, `Formularz ${asText(entry.name).trim() === '' ? index + 1 : `„${asText(entry.name).trim()}”`}`);
+      if (said !== null) lines.push(said);
+    } else if (kindSaid !== 'form' && formOnlyKeys(wish).length > 0) {
+      warnings.push(`Moduł ${index + 1}: ${formOnlyKeys(wish).map((k) => `"${k}"`).join(', ')} ma tylko formularz — pominięte.`);
     }
 
     /* Der Platz: aus dem Dokument, sonst der bisherige, sonst der erste freie. */

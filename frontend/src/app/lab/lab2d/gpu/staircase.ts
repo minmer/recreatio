@@ -26,6 +26,7 @@
 import { solidEnergy, solidTemperature } from '../engine/body';
 import type { Engine } from '../engine/engine';
 import { hL, SOLIDS } from '../engine/materials';
+import { CP_CRYSTAL } from '../engine/solution';
 import { SOLID, T0 } from '../engine/units';
 
 /** Die Treppe einer Engine (je Zelle), wie die GPU sie bekommt. */
@@ -100,7 +101,7 @@ export function stairOf(e: Engine): Stair {
     kind[c] = SOLID;
     /* Die Temperatur des Körperanteils, die Energie aus der ganzen Zelle (so rechnet der Rechenkern). */
     const T = g.Ts[c] > 0 ? g.Ts[c] : solidTemperature(g.Es[c], g.capB[c], g.film[c], g.crust[c], g.T[c]);
-    es[c] = s.rho * s.cp * g.vCell * (T - T0) + g.film[c] * hL(T);
+    es[c] = (s.rho * s.cp * g.vCell + g.crust[c] * CP_CRYSTAL) * (T - T0) + g.film[c] * hL(T);
     Tc[c] = T;
     if (b !== undefined && b.heater >= 0 && b.heater < heaterCells.length) {
       hgrp[c] = b.heater + 1;
@@ -172,7 +173,7 @@ export function fromStair(e: Engine, stair: Stair | null): void {
   for (let c = 0; c < n; c += 1) {
     if (stair.body[c] === 0) continue;
     const s = SOLIDS[stair.solid[c] - 1];
-    const T = solidTemperature(g.Es[c], s.rho * s.cp * g.vCell, g.film[c], 0, g.T[c]);
+    const T = solidTemperature(g.Es[c], s.rho * s.cp * g.vCell, g.film[c], g.crust[c], g.T[c]);
     g.Es[c] = solidEnergy(g.capB[c], g.film[c], g.crust[c], T);
     if (g.solid[c] === 0) g.kind[c] = stair.kindCpu[c];
   }

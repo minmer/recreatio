@@ -112,6 +112,7 @@ const SCENE_DOCS: Readonly<Record<string, string>> = {
   '.sides.bottom': 'Dno skrzynki',
   '.sides.top': 'Góra (zwykle "open")',
   '.quality': 'Wielkość komórki: "high" (2 mm, zwykła), "very-high" (1 mm, mocny komputer), "medium" (3 mm, słabszy komputer); urządzenie, na którym ktoś wybrał inną, zostaje przy swojej',
+  '.extremes': 'Gwałtowne zjawiska (wrzenie wybuchowe przegrzanej wody, bardzo szybki ruch wody): "ask" (domyślnie — laboratorium zatrzymuje się i pyta, jak liczyć dalej), "compute" (licz dokładnie, jak w rzeczywistości — woda może wylecieć z naczynia), "normalize" (łagodź: pęcherze najwyżej 4 mm, bez przegrzania, woda zostaje w naczyniu)',
   '.ops': 'Kroki budowy po kolei — układ startowy, nie przebieg',
   '.ops[].op': '"fill" (woda albo powietrze), "erase" (usuń — wraca powietrze), "solid" (nieruchoma budowla z komórek), przedmioty z nazwą i ustawieniami: "body" (klocek, kostka lodu, kamień — dokładny prostokąt: spada, pływa, tonie, przewraca się; lód topi się i przymarza całymi ścianami), "beaker" (zlewka), "hotplate" (płyta grzejna); "move" (przesuń przedmiot "id" razem z tym, co w nim, albo wszystko stałe w obszarze), "remove" (zabierz przedmiot "id"); "pin" (starsze sceny: przypnij albo odepnij ciało w punkcie x, y — dziś "pinned" w przedmiocie)',
   '.ops[].id': 'Nazwa przedmiotu ("body", "beaker", "hotplate"), np. "kostka" — pod nią laboratorium wybiera przedmiot i zmienia jego ustawienia w nim samym; w krokach "move" i "remove" nazwa przedmiotu, którego dotyczą; bez nazwy przedmiot dostaje "body-1", "beaker-1" …',

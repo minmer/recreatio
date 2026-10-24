@@ -89,16 +89,18 @@ export const formPart = definePart<FormConfig>({
     smsTemplates: JSON.stringify([{ label: 'Przypomnienie', text: 'Jutro wyjazd o 7:00 spod kościoła.' }]),
     sentTitle: 'Dziękujemy za zapisanie!',
     sentText: 'Zbiórka w sobotę o 7:00 przed kościołem.\n\nZabierz legitymację szkolną.',
-    paper: 'minor',
+    paper: 'sign',
     paperSigner: 'czytelny podpis rodzica / opiekuna prawnego',
-    /* 0086 — der Zusatz zur Adresse nach dem Absenden, und die eingeschalteten Wymagania. */
-    portalAt: '#twoje-zgloszenie',
-    needs: JSON.stringify([{
-      id: 'minor', label: 'Niepełnoletni potrzebują pisemnej zgody rodzica',
-      fields: ['<id pytania>'], added: ['<id pytania>'], items: ['<id grupy>'], nodes: ['<id węzła>'], edges: ['<id krawędzi>'],
-      paper: true
-    }])
+    /* 0086 — der Zusatz zur Adresse nach dem Absenden. */
+    portalAt: '#twoje-zgloszenie'
   },
+
+  /*
+   * 2026-10-24 — DIE SPERREN DER WYMAGANIA (`needs`) führt das Formular selbst:
+   * im JSON stehen die Wymagania als "needs" neben den Fragen (`needsJson.ts`),
+   * nicht als Kennungen in der Tafel — kein Import überschreibt sie.
+   */
+  own: ['needs'],
 
   /* Was der Bogen trägt, ohne dass die Seite es zeigt — eingestellt wird es in seinem Reiter „Ustawienia". */
   extra: [
@@ -116,26 +118,12 @@ export const formPart = definePart<FormConfig>({
     { key: 'sentText', shape: 'line', says: 'Tekst po wysłaniu — "\\n" nowa linia, pusta linia nowy akapit' },
     {
       key: 'paper', shape: 'line',
-      says: 'Podpis odręczny na wydruku: "always" (zawsze), "minor" (niepełnoletni — wg daty urodzenia albo PESEL w dniu wypełnienia) albo identyfikator pytania „Zgoda / oświadczenie” lub „Tak / nie” — wtedy, gdy zaznaczone (np. zgoda rodzica, którą widzą tylko niepełnoletni)'
+      says: 'Podpis odręczny na wydruku: "always" (zawsze), "sign" (gdy formularz pokazuje oświadczenie do podpisu — tekst z "sign": true w układzie, np. zgodę rodzica, którą logika pokazuje tylko niepełnoletnim bez rodzica; ustawia to wymaganie "minor"), "minor" (niepełnoletni — wg daty urodzenia albo PESEL w dniu wypełnienia) albo identyfikator pytania „Zgoda / oświadczenie” lub „Tak / nie” — wtedy, gdy zaznaczone'
     },
     { key: 'paperSigner', shape: 'line', says: 'Kto podpisuje — napis pod linią podpisu na wydruku' },
     {
       key: 'portalAt', shape: 'line',
       says: 'Dopisek do adresu strony po wysłaniu (portalUnder): "#nazwa-slajdu" (otwiera ten slajd), "?s=3" (trzeci slajd), "?part=<id modułu>" albo razem "?s=2#zapisy"; zaczyna się od "?" albo "#", bez spacji; klucz osoby link dopisuje sam'
-    },
-    {
-      key: 'needs', shape: 'json',
-      says: 'Włączone wymagania formularza (zakładka „Pytania”) — lista; ich pytań nie da się usunąć, dopóki wymaganie jest włączone (przesuwać można). Włącza się je i wyłącza w module — ręcznie wpisane identyfikatory tylko blokują usuwanie',
-      inside: {
-        '[].id': 'Które: "minor" (niepełnoletni potrzebują pisemnej zgody rodzica), "health" (zdrowie i dieta, pomoc w nagłym wypadku), "insurance" (ubezpieczenie NNW), "rules" (zasady, wizerunek, informacja o danych)',
-        '[].label': 'Nazwa wymagania — tak stoi przy zablokowanym pytaniu',
-        '[].fields': 'Identyfikatory wszystkich jego pytań (także tych, które już były w formularzu) — zablokowane przed usunięciem',
-        '[].added': 'Identyfikatory pytań, które samo dodało — po wyłączeniu znikają (z odpowiedziami: tylko zdjęte z formularza)',
-        '[].items': 'Identyfikatory jego grup i tekstów w układzie',
-        '[].nodes': 'Identyfikatory jego węzłów logiki (zablokowane)',
-        '[].edges': 'Identyfikatory jego połączeń logiki (zablokowane)',
-        '[].paper': 'true — ustawiło wydruk do podpisu ("paper": "minor") i po wyłączeniu go zdejmie'
-      }
     }
   ],
   label: 'Formularz',

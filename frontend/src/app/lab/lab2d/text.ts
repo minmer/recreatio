@@ -15,6 +15,7 @@ export function lab2dDescription(): string {
     '  "ambient": { "p": kPa (101.325), "T": °C, "rh": wilgotność 0–1, "g": m/s² (od 2.45 do 19.6), "air": { "N2": 0.7676, "O2": 0.2324 } },',
     '  "sides": { "left" | "right" | "bottom" | "top": "wall" albo "open" (otwarta strona to pokój) },',
     '  "quality": "high" (komórki 2 mm, zwykle) | "very-high" (1 mm) | "medium" (3 mm),',
+    '  "extremes": "ask" (domyślnie: przy gwałtownym wrzeniu laboratorium pyta) | "compute" (licz dokładnie — przegrzana woda może wrzeć wybuchowo) | "normalize" (łagodź — spokojne wrzenie), opcjonalnie,',
     '  "ops": [ kroki budowy po kolei ] }',
     '',
     'Przedmioty — "body" (klocek, kostka lodu, kamień), "beaker" (zlewka), "hotplate" (płyta grzejna) — mają nazwę "id" (np. "kostka", "zlewka"; bez niej dostaną "body-1", "beaker-1" …) i swoje ustawienia: "pinned" (przypięty — stoi w miejscu, nie spada), "T", "angle", materiał, rozmiar, grzanie. Ustawienie zmienia się w samym przedmiocie, nie w osobnym kroku.',
