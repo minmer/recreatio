@@ -292,7 +292,7 @@ export class Liquid {
     for (let c = 0; c < g.n; c += 1) {
       if (g.solid[c] !== 0) { g.kind[c] = SOLID; continue; }
       const f = g.phi[c];
-      let isLiquid = f > 0 && f + g.phiS[c] + g.alpha[c] >= 0.5;
+      let isLiquid = f > 0 && f + g.phiS[c] + g.alpha[c] + g.grain[c] >= 0.5;
       if (!isLiquid && prev !== null && prev[c] !== GAS && prev[c] !== SOLID) {
         const i = c % nx;
         const j = (c - i) / nx;
@@ -529,7 +529,7 @@ export class Liquid {
           const div = flux(ul, g.usol, fl + 1, aR, knownU) - flux(ul, g.usol, fl, aL, knownU)
             + flux(vl, g.vsol, fb + nx, aT, knownV) - flux(vl, g.vsol, fb, aB, knownV);
           /* Quelle: Volumenänderungen (m³/s je Zelle) plus Driftausgleich. */
-          const phiTot = g.phi[c] + g.phiS[c] + g.alpha[c];
+          const phiTot = g.phi[c] + g.phiS[c] + g.alpha[c] + g.grain[c];
           let src = (this.volSrc[c] * invV);
           const surface = this.gasAt(i - 1, j) || this.gasAt(i + 1, j) || this.gasAt(i, j - 1) || this.gasAt(i, j + 1);
           const err = phiTot - 1;
@@ -620,8 +620,8 @@ export class Liquid {
    */
   private theta(c: number, n: number): number {
     const g = this.g;
-    const fc = g.phi[c] / (1 - Math.min(0.9, g.phiS[c])) + g.alpha[c];
-    const fn = g.phi[n] / (1 - Math.min(0.9, g.phiS[n])) + g.alpha[n];
+    const fc = g.phi[c] / (1 - Math.min(0.9, g.phiS[c])) + g.alpha[c] + g.grain[c];
+    const fn = g.phi[n] / (1 - Math.min(0.9, g.phiS[n])) + g.alpha[n] + g.grain[n];
     if (!(fc > 0.5) || !(fc > fn)) return THETA_MIN;
     return Math.max(THETA_MIN, Math.min(1, (fc - 0.5) / (fc - fn)));
   }

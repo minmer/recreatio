@@ -667,10 +667,27 @@ only NaCl, one diffusion coefficient for all concentrations.
 The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
-to the CPU worker with a note; a scene with a liquid other than water, with dissolved salt or with a salt crust goes
-back to the CPU worker the same way, with its tools applied (M2a and M2b are not ported yet; nor are the M2b changes
-for droplets below the cell size and for cells without water particles, §7, §9). The sharing of heat inside a cell
-(§6.5) is ported: kernel `heatShare`, one thread per cell over its sorted particles, after the heat solve. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
+to the CPU worker with a note; a scene with a free body or ice goes back to the CPU worker the same way, with its tools
+applied (`needsCpu`; M3a and M3b are not ported). Everything else is ported — violent events (§19), other liquids
+(M2a) and salt (M2b) since 2026-10-24 (MILESTONES.md, "The accelerated view for the new parts"):
+- **Oil**: the liquid of a particle in bits 8–15 of its flags; the laws of every liquid as WGSL functions; only water
+  exchanges mass (gather, flash, mass to the particles) and condensate in a cell without water particles spawns one;
+  viscosity as 24 Jacobi steps per step on the faces (`kmix.ts`), the droplet drift in the transport.
+- **Salt**: a particle's salt `s` as a field of its own (27 words per particle); `libSalt.ts` holds the solution's laws
+  in WGSL — the water activity evaluated exactly by Pitzer (the CPU reads a table; in f32 the temperature form is
+  written in x = T − T_R so nothing cancels), E(T) of the heat capacity as a 14-term Chebyshev series with its exact
+  integral — and a kernel gets only the functions it calls. The gather adds the water's partial enthalpy, the molality
+  and activity of each cell and its boiling point (the bubbles' interface shift ΔT_b); salty particles take water with
+  h̄_w and dry up into vapour and crust; `ksalt.ts` crystallises supersaturated particles onto the nearest solid (the
+  crust is a cell field in the solids' heat capacity; the box floor per column), shares salt inside a cell (with the
+  stirring factor) and moves it between cells by Fick — one thread per cell; the flux over a face is computed by both
+  cells with one function, smaller cell first, so it closes exactly. The renderer colours the liquid by its salt and
+  draws crust and floor salt.
+- **Droplets** (§7, §9): stranded droplets fly with gravity, droplets in gas cells flash above T_sat (their vapour
+  stays in the cell), a particle that would keep almost no water evaporates whole, and only cells with water particles
+  evaporate.
+The sharing of heat inside a cell (§6.5) is ported: kernel `heatShare`, one thread per cell over its sorted particles,
+after the heat solve. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
 determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
 (wgpu). They schedule workgroups differently, so a kernel whose result depends on that order works in one and fails
 in the other (§15, solves). Checked on 2026-10-21 by running every kernel with its workgroups in reverse order
@@ -700,7 +717,9 @@ in the other (§15, solves). Checked on 2026-10-21 by running every kernel with 
   hit its cap); iterations after convergence return at once. The gas transport records all 16 substeps and the GPU
   decides each step how many of them work — a count taken from the readbacks came too late for a sudden splash, and a
   smaller Δt did not help because the gas source grows with 1/Δt. Indirect dispatches are avoided (Chrome validates
-  each one with an extra pass, ~30 µs).
+  each one with an extra pass, ~30 µs). The vapour diffusion books its faces in parallel, so each face is first limited
+  by the donor's vapour and then all faces of a donor are scaled so together they give at most what it holds
+  (`diffOut`; before, the clamp to zero after an overdraw made water).
 - **Readbacks**: a few times per second the worker reads counters, interval sums (energy and water flows, phase change,
   bubble events), regions, heaters and the watched bubble, and keeps f64 totals; each readback carries the layout it was
   recorded with, and one that is still in flight when the state is rebuilt is discarded. Budgets on the GPU are f32:

@@ -36,7 +36,8 @@ and (2026-10-24):
   returns to the set-up at the start). Baking asks how: length, the recording step, resume points, resolution and the
   violent events (ARCHITECTURE.md §20);
 - **the accelerated view gets every new part**: the GPU ports of §12 follow now, step by step, and M3c is the next step
-  of the sandbox.
+  of the sandbox. Done the same day: violent events, oil (M2a) and salt (M2b) run on the accelerated view
+  (MILESTONES.md); free bodies (M3a) and ice (M3b) still send a scene back to the CPU.
 
 It extends
 ARCHITECTURE.md §14 ("Designed for, not built": M2 chemistry, M3 solids) with what the user asked for:
@@ -350,7 +351,7 @@ Measured: 33.6 MB per simulated minute of boiling at 2 mm (frames 11.6 kB, keyfr
 
 ## 12. GPU path
 
-Each milestone is then ported:
+Each milestone is then ported (M2a and M2b since 2026-10-24: ARCHITECTURE.md §15):
 - material tables as storage buffers read by the same lookups;
 - the viscosity solve on the existing MGPCG machinery;
 - solutes as per-particle fields;

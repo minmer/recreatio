@@ -110,6 +110,19 @@ function LayerFace({ layer, style, className = '' }: { layer: Layer; style: CSSP
   return (
     <div className={`wk-deck-layer is-${layer.kind}${className}`} style={{ ...layerBackground(layer), ...style }} aria-hidden="true">
       <LayerArt layer={layer} />
+      {/* 2026-10-24 — auch im gemeinsamen Tuch steht ein Schriftzug da (vorher fehlte er dort ganz). */}
+      {layer.kind === 'bigtext' && <BigText layer={layer} shift={0} />}
+    </div>
+  );
+}
+
+/** Der Schriftzug einer Schicht — `shift`: wie weit er gerade über den Schirm gewandert ist (px). */
+function BigText({ layer, shift }: { layer: Extract<Layer, { kind: 'bigtext' }>; shift: number }) {
+  return (
+    <div className="wk-deck-bigtext" style={{ opacity: layer.opacity, transform: `translate3d(0, ${shift}px, 0)` }}>
+      {layer.lines.map((line, i) => (
+        <span key={i} style={layer.color ? { color: layer.color } : undefined}>{line}</span>
+      ))}
     </div>
   );
 }
@@ -332,17 +345,18 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
       <div className="wk-deck-viewport" ref={viewportRef}>
         {/*
           0107 — DAS GEMEINSAME TUCH: steht, während die Slajdy darüber rollen.
-          Unten die eigenen Schichten des jetzigen und des nächsten Slajds
-          (übereinander geblendet), darüber die gemeinsamen.
+          2026-10-24: ganz unten die gemeinsamen Schichten, darüber die eigenen
+          des jetzigen und des nächsten Slajds (übereinander geblendet) — ein
+          deckendes gemeinsames Tuch verdeckte sonst jedes Bild eines Slajds.
         */}
         {shared && (
           <div className="wk-deck-backdrop" aria-hidden="true">
+            {deck.backdrop.map((layer, n) => <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={{ height: '100%' }} />)}
             {backdropAt(slides.map((slide) => slide.layers.length > 0), at).map(({ index, opacity }) => (
               <div key={slides[index].key} className="wk-deck-backdrop-slide" style={{ opacity }}>
                 {slides[index].layers.map((layer, n) => <LayerFace key={n} layer={layer} style={{ height: '100%' }} />)}
               </div>
             ))}
-            {deck.backdrop.map((layer, n) => <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={{ height: '100%' }} />)}
           </div>
         )}
 
@@ -408,14 +422,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
                       {/* 0107 — Dunst, Nici, Fale: mehr als ein Grund. */}
                       <LayerArt layer={layer} />
                       {layer.kind === 'bigtext' && (
-                        <div className="wk-deck-bigtext" style={{
-                          opacity: layer.opacity,
-                          transform: `translate3d(0, ${(0.5 - Math.min(1, Math.max(0, (pinned - frame.start + vh) / (frame.height + vh)))) * scroll.viewportHeight * layer.speed}px, 0)`
-                        }}>
-                          {layer.lines.map((line, i) => (
-                            <span key={i} style={layer.color ? { color: layer.color } : undefined}>{line}</span>
-                          ))}
-                        </div>
+                        <BigText layer={layer} shift={(0.5 - Math.min(1, Math.max(0, (pinned - frame.start + vh) / (frame.height + vh)))) * scroll.viewportHeight * layer.speed} />
                       )}
                     </div>
                   );

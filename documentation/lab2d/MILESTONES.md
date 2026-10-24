@@ -20,12 +20,12 @@ Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` 
 | M1c Bubbles and phase change | tests 6–14, 16 | tests met; **16 not met** |
 | M1d Teaching tools | 16 and a walkthrough of the boiling scene | walkthrough done; **16 not met** |
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
-| M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); the accelerated view hands oil scenes back to the CPU |
-| M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; the accelerated view shares heat like the CPU and hands salt scenes back to the CPU |
+| M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); on the accelerated view since 2026-10-24 (tests 18, 19, 21, 22 met there, §The accelerated view for the new parts) |
+| M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; on the accelerated view since 2026-10-24 (tests 24–30 met there except 29 measured from the start, +3.2 % and +3.6 %: the start-up flow of the GPU stirs; from 1 s on −0.05 %) |
 | M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU; objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
 | M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
-| Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); GPU parity follows |
+| Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); on the accelerated view too (test 47 there) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout: the
 CPU step of the benchmark scene at 2 mm takes 22.9 ms since M3b (21.6 ms after M1d; budget 6 ms per step, two steps
@@ -745,6 +745,68 @@ then lab (43 checks); the page's whole window (the lab fills it under the page b
 run and "Od nowa" back to the set-up, Badaj and the charts as tabs, task & model, Esc closing only the sheet, and
 water on the hot plate asking "Gwałtowne wrzenie", answered "Łagodź", running on without a second question (30
 checks). No console errors.
+
+## The accelerated view for the new parts (2026-10-24)
+
+"Integrate the GPU acceleration to all the new parts": the accelerated view now computes violent events, oil and salt
+like the CPU (ARCHITECTURE.md §15); free bodies and ice still send a scene back to the CPU (`needsCpu`). Checked with
+harness pages in headless Edge on the RTX 3070 (laptop) — the tests' own scenes and measures, the CPU engine as the
+workshop (`GpuEngine` over the same `Engine`); budgets are the GPU's f32 bookkeeping with f64 totals.
+
+**Violent events** (§Violent events): the critical heat flux per wall cell (an atomic budget), the activation cap,
+venting big bubbles, the speed guard, the ring of a big bubble, heat only into cells with liquid, merged volumes summed.
+
+| Test | GPU | CPU |
+|---|---|---|
+| 1 Hydrostatics 20 / 90 °C | 97.911 / 94.685 Pa/cm (−0.013 %), 0.18 mm/s | 97.921 / 94.695, 0.11 mm/s |
+| 2 Conduction | 0.0679 K of 80 K (0.085 %) | the same |
+| 3 Heating rate | −1.88 % (the staircase of the beaker: §M3a) | −2.20 % |
+| 6 Saturation at 10 cm | 0.2587 K | 0.2604 K |
+| 11 Boiling plateau | −0.291 K, vapour −0.11 % | −0.32 K, +0.05 % |
+| 47 computed | 300 steps finite; largest bubble 20–31 mm, fastest particle 6–20 m/s (the guard acted in one run of three), shortest step 0.06–0.33 ms; 81–93 % of the water stays; energy ≤ 4·10⁻³ J | finite; 26.4 mm, 9.7 m/s, 0.19 ms |
+| 47 softened | largest bubble 4.00 mm, fastest 1.17 m/s, shortest step 1.8 ms, 99.7 % stays, 11.7 mg vented | 4.00 mm, 1.06 m/s, 99.7 % |
+
+(The computed run is chaotic: on the GPU no two runs are the same.)
+
+**Oil** (M2a): the liquid of each particle in its flags, the laws of every liquid as WGSL functions, water-only mass
+exchange, viscosity as 24 Jacobi steps on the faces (the system is strongly diagonal), the drift of unresolved droplets,
+condensate in a cell without water particles as a new water particle.
+
+| Test | GPU | CPU |
+|---|---|---|
+| 18 Two layers at rest | 97.924 and 90.310 Pa/cm (0.00 %), 0.0063 mm/s | the same, 0.0027 mm/s |
+| 19 Oil under water | interface at 32.00 mm, no oil below | the same |
+| 21 Oil 140 → 150 °C | dT/dt −0.09 %, no bubbles, no vapour | −0.04 % |
+| 22 Water boiling under oil | first burst after 3.3–3.4 s, oil centre 49.8 mm above the water's 25.0 mm; oil mass ±2·10⁻¹⁰ kg | bursts cross the oil |
+
+**Salt** (M2b): the salt of a particle as a field of its own; Pitzer's water activity evaluated exactly in f32 (the CPU
+reads a table), the heat capacity's E(T) as a Chebyshev series; gather with the water's partial enthalpy, molality,
+activity and the boiling point per cell; mass to salty particles with h̄_w and their drying up into vapour and crust;
+evaporation over brine with a_w; flash boiling at T_b; crystallisation onto the nearest solid or the box floor; sharing
+inside a cell (with stirring) and Fick between cells, one thread per cell; crust in the solids' heat capacity; the
+liquid coloured by its salt (overlay "Stężenie soli") and the crust drawn on solids.
+
+| Test | GPU | CPU |
+|---|---|---|
+| 24 Brine under water | 112.631 Pa/cm (0.00 %) and 97.953 (+0.03 %); no salt above the interface; 0.32 mm/s; salt −9·10⁻⁷ (f32 sums) | 112.629, 97.924; exact |
+| 25 Air over saturated brine | 75.15 % RH after 40 s (Greenspan 75.29 %) | 75.15 % |
+| 26 Brine boiling | 49 334 nucleated, 3 708 burst, 33.7 mg vapour; salt share 5.5216 → 5.5299 %; salt 1·10⁻⁸, water 3·10⁻⁷ relative, energy −2·10⁻² J | 49 135, 4 294, 32.3 mg; 5.5216 → 5.5297 % |
+| 27 Boiled dry | dry after 59–61 s, crust 114.7014 mg of 114.7014 mg, nothing out; salt −4·10⁻⁷ relative, water 1·10⁻⁹ kg, energy 5·10⁻³ J | dry after 66.0 s, exact |
+| 28 Heat inside a cell | 0.3549 /s (+0.06 %) | 0.3549 /s |
+| 29 Salt inside a cell | from the start +3.16 % (20 °C) and +3.57 % (80 °C); from 1 s on −0.05 % and −0.05 % | −0.01 %, −0.06 % |
+| 30 Salt between cells | −0.56 % of the discrete rate (−3.79 % of D k²); salt exact | +0.16 %, −3.09 % |
+
+Test 29 from the start: in the first 0.3 s the water settles from its lattice, and on the GPU its strain reaches
+0.053/s (the CPU 0.018/s) — above the 0.02/s from which flow counts as stirring, and with τ = 1.4–4.8 min even a short
+burst mixes the cell several times faster for those steps. From 1 s on the rate is the molecular one.
+
+**Found on the way** (the CPU never had these): the vapour diffusion booked its faces in parallel, each limited on its
+own — a cell feeding several neighbours went below zero and the clamp to zero made water (test 27: 8 mg in 120 s, with
+or without salt); now a cell's faces together give at most its vapour. Evaporation from a liquid cell without water
+particles (only its place is liquid) made vapour from nothing; now it needs them, as on the CPU. Droplets in the air
+followed the continued velocity of the liquid and hung in the air; now they fly with gravity (the CPU's stranded
+droplets), droplets in gas cells flash above T_sat, and a particle that would keep almost no water evaporates whole.
+Before them the last drops of test 27 hung on the dish wall and the water budget was off by 8 mg; after, both close.
 
 ## Benchmark
 

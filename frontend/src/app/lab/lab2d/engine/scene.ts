@@ -13,6 +13,7 @@
 import { readRegion, writeRegion, type Region } from './shapes';
 import { liquidIndex, solidIndex } from './materials';
 import { soluteIndex } from './solution';
+import { GRAIN_D, grainIndex } from './grains';
 import { G0, P_ATM, T0 } from './units';
 
 export const SCENE_FORMAT = 'recreatio/lab2d';
@@ -53,6 +54,8 @@ export type Op =
   | { readonly op: 'body'; readonly id: string; readonly region: Region; readonly material: string; readonly T: number; readonly pinned: boolean; readonly angle: number }
   /** Den Gegenstand `id` wegnehmen (gebucht). */
   | { readonly op: 'remove'; readonly id: string }
+  /** Körner (M3c): die Fläche locker mit Körnern des Stoffs (NaCl) und des Durchmessers d (m) schütten. */
+  | { readonly op: 'grains'; readonly region: Region; readonly material: string; readonly d: number; readonly T: number }
   /** Ältere Szenen: den Körper unter (x, y) anheften oder lösen (heute: `pinned` am Gegenstand). */
   | { readonly op: 'pin'; readonly x: number; readonly y: number; readonly pinned: boolean };
 
@@ -185,6 +188,13 @@ function readOp(raw: unknown, warnings: string[], at: number): Op | null {
     }
     case 'pin':
       return { op: 'pin', x: num(r.x, 0), y: num(r.y, 0), pinned: r.pinned !== false };
+    case 'grains': {
+      const region = readRegion(r.region);
+      if (region === null) break;
+      const known = typeof r.material === 'string' && grainIndex(r.material) >= 0;
+      if (r.material !== undefined && !known) warnings.push(`ops[${at}]: unknown grains "${String(r.material)}", using NaCl`);
+      return { op: 'grains', region, material: known ? (r.material as string) : 'NaCl', d: clamp(num(r.d, GRAIN_D), 5e-5, 5e-3), T };
+    }
     default:
       break;
   }
@@ -300,6 +310,8 @@ export function writeOp(op: Op): Record<string, unknown> {
       return { op: 'body', id: op.id, region: writeRegion(op.region), material: op.material, T: round(op.T - T0, 3), ...(op.pinned ? { pinned: true } : {}), ...(op.angle !== 0 ? { angle: round(op.angle, 4) } : {}) };
     case 'pin':
       return { op: 'pin', x: round(op.x), y: round(op.y), pinned: op.pinned };
+    case 'grains':
+      return { op: 'grains', region: writeRegion(op.region), material: op.material, d: round(op.d, 7), T: round(op.T - T0, 3) };
   }
 }
 

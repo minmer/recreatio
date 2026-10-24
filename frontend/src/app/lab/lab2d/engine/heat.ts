@@ -38,6 +38,7 @@
 
 import type { Body2D } from './body';
 import type { Gas } from './gas';
+import type { Grains } from './grains';
 import type { Grid } from './grid';
 import type { Liquid } from './liquid';
 import { cpL, hL, H_EXT, kL, kLiq, kMix, SOLIDS, WATER } from './materials';
@@ -112,6 +113,10 @@ export class Heat {
   readonly last: HeatStats = { solve: { iterations: 0, residual: 0, capped: false }, heater: 0, lossWalls: 0, lossOpen: 0 };
   /** Die Körper der Szene (von der Engine gesetzt): Heizplatten heizen ihre inneren Zellen. */
   bodies: readonly Body2D[] = [];
+  /** Die Körner (M3c; von der Engine gesetzt): ein Teil der Zelle, in der sie liegen. */
+  grains: Grains | null = null;
+  private readonly Cgr: Float64Array;
+  private readonly CTgr: Float64Array;
 
   constructor(grid: Grid, particles: Particles, liquid: Liquid, gas: Gas, solver: GridSolver) {
     this.g = grid;
@@ -138,6 +143,8 @@ export class Heat {
     this.kS = new Float64Array(n);
     this.kF = new Float64Array(n);
     this.dSF = new Float64Array(n);
+    this.Cgr = new Float64Array(n);
+    this.CTgr = new Float64Array(n);
   }
 
   /** Je Zelle in diesem Schritt: Leistung der Heizplatten (W); Leitfähigkeit von Körperstück und Fluid und ihr Temperaturunterschied (gemischte Zellen). */
@@ -287,6 +294,18 @@ export class Heat {
         if (mat !== WATER) { Co[c] += w * Cp; CKo[c] += w * Cp * kp; }
       }
     }
+    /* Körner: Σ m c_p und Σ m c_p T je Zelle, in der sie liegen. */
+    const { Cgr, CTgr } = this;
+    Cgr.fill(0);
+    CTgr.fill(0);
+    const Gr = this.grains;
+    if (Gr !== null) for (let q = 0; q < Gr.count; q += 1) {
+      const c = g.cellAt(Gr.x[q], Gr.y[q]);
+      if (c < 0 || g.solid[c] !== 0) continue;
+      const Cq = Gr.m[q] * Gr.cp(q);
+      Cgr[c] += Cq;
+      CTgr[c] += Cq * Gr.T[q];
+    }
     const qb = this.qb;
     qb.fill(0);
     let heaterW = this.bodyHeat(qb);
@@ -302,13 +321,13 @@ export class Heat {
       }
       const cg = G.cap[c] > 0 && g.solid[c] === 0 ? G.cap[c] : 0;
       const cl = Cl[c];
-      const sum = cs + cg + cl;
+      const sum = cs + cg + cl + Cgr[c];
       Cs[c] = cs;
       Cg[c] = cg;
       C[c] = sum;
       dSF[c] = 0;
       if (sum <= 0) { Tstar[c] = g.T[c]; k[c] = 0; q[c] = 0; continue; }
-      const T = (cs * Tsol + cg * g.T[c] + CTl[c]) / sum;
+      const T = (cs * Tsol + cg * g.T[c] + CTl[c] + CTgr[c]) / sum;
       Tstar[c] = T;
       if (cl > 0) g.Tl[c] = CTl[c] / cl;
       let kc = ks;
@@ -320,7 +339,7 @@ export class Heat {
           kc = fs * ks + (1 - fs) * kf;
           kS[c] = ks;
           kF[c] = kf;
-          if (cg + cl > 0) dSF[c] = Tsol - (cg * g.T[c] + CTl[c]) / (cg + cl);
+          if (cg + cl + Cgr[c] > 0) dSF[c] = Tsol - (cg * g.T[c] + CTl[c] + CTgr[c]) / (cg + cl + Cgr[c]);
         } else kc = kf;
       }
       k[c] = kc;
@@ -428,7 +447,7 @@ export class Heat {
       Tn[c] = share;
       /* Ein Körperstück neben Fluid gleicht sich mit ihm über ihre Grenzfläche aus (exponentiell, genau erhalten). */
       let Q = 0;
-      const Cf = Cg[c] + Cl[c];
+      const Cf = Cg[c] + Cl[c] + Cgr[c];
       if (dSF[c] !== 0 && Cs[c] > 0 && Cf > 0) {
         const fs = Math.min(0.999, Math.max(0.001, g.fs[c]));
         const G = depth / ((0.5 * fs) / Math.max(1e-9, kS[c]) + (0.5 * (1 - fs)) / Math.max(1e-9, kF[c]));
@@ -438,7 +457,7 @@ export class Heat {
       if (Cs[c] > 0) { g.Es[c] += share * Cs[c] - Q; this.deriveSolid(c); }
       if (Cg[c] > 0) g.Hg[c] += share * Cg[c] + (Q * Cg[c]) / Cf;
       /* Für die Teilchen: ΔE/C je Zelle (in Tn zwischengelagert), dazu ihr Teil des Ausgleichs. */
-      if (Q !== 0 && Cl[c] > 0) Tn[c] += Q / Cf;
+      if (Q !== 0 && Cl[c] + Cgr[c] > 0) Tn[c] += Q / Cf;
     }
     for (let p = 0; p < P.count; p += 1) {
       const o = 9 * p;
@@ -460,6 +479,10 @@ export class Heat {
       P.h[p] += P.cp(p) * dT;
       P.derive(p);
       L.dVp[p] += m / P.rho[p] - before;
+    }
+    if (Gr !== null) for (let q = 0; q < Gr.count; q += 1) {
+      const c = g.cellAt(Gr.x[q], Gr.y[q]);
+      if (c >= 0 && g.solid[c] === 0 && C[c] > 0) Gr.T[q] += Tn[c];
     }
     for (let c = 0; c < n; c += 1) if (Cg[c] > 0) G.deriveCell(c);
     src.fill(0);

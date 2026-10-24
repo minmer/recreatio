@@ -65,6 +65,8 @@ export class Grid {
   /* -- je Schritt -- */
   readonly phi: Float32Array;
   readonly alpha: Float32Array;
+  /** Volumenanteil der Körner (M3c, aus ihren Teilchen) — die Flüssigkeit weicht ihm wie dem der Blasen. */
+  readonly grain: Float32Array;
   readonly kind: Uint8Array;
   readonly region: Int32Array;
   /** Druck der Flüssigkeit über p_ref (Pa, mit Hydrostatik) und Abweichung des Gases p′ = p − p_amb(y). */
@@ -121,6 +123,7 @@ export class Grid {
     this.thin = new Uint16Array(n);
     this.phi = new Float32Array(n);
     this.alpha = new Float32Array(n);
+    this.grain = new Float32Array(n);
     this.kind = new Uint8Array(n);
     this.region = new Int32Array(n).fill(-1);
     this.pl = new Float32Array(n);

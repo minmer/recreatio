@@ -66,7 +66,12 @@ These do not change the physics model, but they decide what a student's computer
   sealed box the most). Bubbles that share a cell draw on its heat budget at the same time, and merging does not follow
   the bubbles' order — the statistics of nucleation, merging and collapse differ by a few per cent from the CPU, and
   runs are not repeatable. Heat and vapour diffusion use multigrid there instead of Jacobi preconditioning (same
-  tolerance).
+  tolerance). Salt and water budgets there close to about 1e-6 of what is in the scene (f32 partial sums). It
+  evaluates the water activity of brine exactly instead of from the CPU's table and the heat capacity's E(T) as a
+  Chebyshev series instead of a 0.5 K table (both within 1e-4 K in temperature). A particle evaporates at most half
+  its water per step there unless it would keep almost none (then it evaporates whole, as on the CPU). The water's
+  start-up flow is about three times stronger there: in the first second it stirs the salt of a cell above the
+  molecular rate (test 29 from the start +3 %, from 1 s on exact).
 - Baked clips (B, ARCHITECTURE.md §16) store what is visible at display precision: temperature in 0.5 K steps,
   pressure, speed and the arrow velocities on fixed quadratic 8-bit scales, humidity in 64 steps; the live view draws
   from the same layers, so playback shows exactly what the live view showed. The layers that only the gas overlays

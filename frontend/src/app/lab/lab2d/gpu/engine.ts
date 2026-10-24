@@ -691,7 +691,7 @@ export class GpuEngine {
     const crust = r?.crust ?? 0;
     const floor = r?.floor ?? 0;
     const escaped = this.totals.escapedSalt;
-    return { liquid, crust, floor, escaped, total: liquid + crust + floor + escaped };
+    return { liquid, crust, grains: 0, floor, escaped, total: liquid + crust + floor + escaped };
   }
 
   /** Neue Szene: Gesamtsummen, Bezugswerte, Schreiber von vorn. */

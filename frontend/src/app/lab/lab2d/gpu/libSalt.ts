@@ -258,5 +258,33 @@ fn pDerive(q: ptr<function, Particle>) {
 }
 `;
 
-/** Ruft ein Kern eine dieser Funktionen? Dann bekommt er SALT_WGSL. */
-export const SALT_USE = /\b(?:waterAct|osmoticS|boilPt|satMol|satFrac|hCrys|rhoSol|saltE|saltI|hSol|cpSol|tFromHSol|hSaltIn|hWaterIn|saltDiff|pCp|pDerive)\s*\(/;
+/* SALT_WGSL in Stücke zerlegt: die Konstanten und je Funktion ihr Text (mit dem Kommentar davor) und die Funktionen, die sie ruft. */
+const CONSTS: string[] = [];
+const FNS = new Map<string, string>();
+{
+  let comment: string[] = [];
+  const lines = SALT_WGSL.split('\n');
+  for (let k = 0; k < lines.length; k += 1) {
+    const line = lines[k];
+    if (line.startsWith('const ')) { CONSTS.push(line); comment = []; continue; }
+    if (line.startsWith('/*')) { comment = [line]; continue; }
+    const m = /^fn (\w+)\(/.exec(line);
+    if (m === null) { if (line.trim() === '') comment = []; continue; }
+    const body = [...comment, line];
+    /* Einzeiler enden auf ihrer eigenen Zeile. */
+    if (!line.trimEnd().endsWith('}')) while (k + 1 < lines.length && lines[k] !== '}') { k += 1; body.push(lines[k]); }
+    FNS.set(m[1], body.join('\n'));
+    comment = [];
+  }
+}
+const callRe = (name: string): RegExp => new RegExp(`\\b${name}\\s*\\(`);
+const DEPS = new Map<string, string[]>([...FNS.entries()].map(([name, code]) => [name, [...FNS.keys()].filter((o) => o !== name && callRe(o).test(code))]));
+
+/** Was ein Kern vom Kochsalz braucht: die Konstanten und die gerufenen Funktionen mit allem, was sie rufen. */
+export function saltFor(code: string): string {
+  const need = new Set<string>();
+  const add = (name: string): void => { if (need.has(name)) return; need.add(name); for (const d of DEPS.get(name) ?? []) add(d); };
+  for (const name of FNS.keys()) if (callRe(name).test(code)) add(name);
+  if (need.size === 0) return '';
+  return [...CONSTS, ...[...FNS.keys()].filter((n) => need.has(n)).map((n) => FNS.get(n) as string)].join('\n');
+}

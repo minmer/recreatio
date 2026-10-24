@@ -547,20 +547,32 @@ export function FormCard(props: FormCardProps) {
             0087 — DIE ZUSTIMMUNG AUF PAPIER, AM ENDE DES FORMULARS: kein Häkchen,
             das das Kind statt der Eltern setzt, sondern das Blatt zum
             Unterschreiben — schon jetzt zu drucken, und nach dem Absenden wieder.
+            2026-10-24 — ERST, WENN DAS FORMULAR AUSGEFÜLLT IST (wie „Wyślij"):
+            ein Blatt ohne den Namen des Elternteils oder sein Telefon unterschreibt
+            niemand sinnvoll. Der Hinweis steht schon vorher da — gedruckt wird erst dann.
           */}
           {paperNeeded(form.after, (id) => (outcome.hidden.has(id) ? undefined : answers[id]), { fields, signs: signsShown(layout, outcome.hidden) }) && (
             <div className="wk-paper-note wk-paper-end">
-              <p>
-                <strong>Zgoda do podpisania odręcznie.</strong> Wydrukuj ją, podpisz
-                {form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi. Wydruk będzie też po
-                wysłaniu i pod Twoim linkiem.
-              </p>
+              {missing.length === 0 && wrong.length === 0 ? (
+                <p>
+                  <strong>Zgoda do podpisania odręcznie.</strong> Wydrukuj ją, podpisz
+                  {form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi. Wydruk będzie też po
+                  wysłaniu i pod Twoim linkiem.
+                </p>
+              ) : (
+                <p>
+                  <strong>Zgoda do podpisania odręcznie.</strong> Wydrukujesz ją, gdy formularz będzie wypełniony — potem
+                  podpisz ją{form.after?.signer != null ? ` (${form.after.signer})` : ''} i oddaj organizatorowi. Wydruk
+                  będzie też po wysłaniu i pod Twoim linkiem.
+                </p>
+              )}
               <SignSheetButton
                 formId={partId}
                 values={new Map(fields.filter((f) => !outcome.hidden.has(f.fieldId)).map((f) => [f.fieldId, answers[f.fieldId] ?? '']))}
                 submittedAt={null}
                 className="wk-btn wk-btn-quiet"
                 label="Drukuj zgodę do podpisu"
+                disabled={missing.length > 0 || wrong.length > 0}
               />
             </div>
           )}

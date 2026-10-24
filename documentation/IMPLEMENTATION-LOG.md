@@ -1956,7 +1956,9 @@ the page JSON, and formats that carry other formats must always describe them cu
   nobody chooses. The logic compares the chosen wording, so the need holds those options (read-only in the editor).
 - **New paper rule `sign`**: print when the form shows a statement to sign. The minors need sets it, so the print
   appears for the tick as well as for the birth date, and only for the consent way. `minor` keeps working for forms
-  that have it. A later print evaluates the age on the day of filling.
+  that have it. A later print evaluates the age on the day of filling. **The print at the end of the form works
+  only once the form is filled** (nothing missing, nothing wrong — the same as "Wyślij"): before that the note
+  stands there and the button is off (owner, the same day).
 - **Changing the settings of a need that is on reshapes the form in place**: what both versions need stays (same
   questions, answers kept), the new groups stand where the old ones stood, what the need added and no longer needs
   goes (answered questions are only taken off), questions another need holds stay. Entries from before the settings

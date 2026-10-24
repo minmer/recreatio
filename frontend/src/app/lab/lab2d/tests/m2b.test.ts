@@ -149,7 +149,8 @@ describe('M2b — test 23: sodium chloride against its sources', () => {
     for (let p = 0; p < P.count; p += 1) expect(Math.abs(P.saltFraction(p) - 0.1)).toBeLessThan(1e-12);
     const b = e.measureBudget();
     expect(Math.abs(b.salt.liquid / (b.salt.liquid + b.water.liquid) - 0.1)).toBeLessThan(1e-12);
-    expect(e.needsCpu()).toBe(true);
+    /* Salz rechnet seit 2026-10-24 auch der beschleunigte Weg. */
+    expect(e.needsCpu()).toBe(false);
     const again = readScene(writeScene(readScene(json).scene)).scene;
     const fill = again.ops[0];
     expect(fill.op === 'fill' && fill.composition.NaCl).toBeCloseTo(0.1, 12);

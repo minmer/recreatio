@@ -56,7 +56,9 @@ export function kindNode(def: PartModule): JsonNode {
   return node;
 }
 
-const LAYERS = `Warstwy tła ("cover" strony, "slide.layers" modułu) — od tyłu do przodu:
+const LAYERS = `Warstwy tła ("cover" strony, "slide.layers" modułu, "deck.backdrop").
+KOLEJNOŚĆ = GŁĘBOKOŚĆ: pierwsza warstwa listy leży najgłębiej (na samym dole), każda następna kładzie się NA poprzedniej, ostatnia jest na wierzchu — tuż pod treścią slajdu. Warstwa nieprzezroczysta (gradient, obraz z "opacity" 1 albo bez przezroczystości w pliku) zasłania wszystko, co jest przed nią w liście. Duży napis ("bigtext") ma więc stać PO obrazie, jeśli ma być widać go na obrazie; obraz z "blend": "multiply" potrzebuje jasnej warstwy przed sobą w liście (pod spodem). Tło wspólne ("deck.backdrop") leży pod wszystkimi warstwami wszystkich slajdów. W edytorze lista jest pokazana tak, jak na ekranie: u góry to, co na wierzchu (czyli odwrotnie niż w JSON).
+Rodzaje, od których zwykle się zaczyna (najgłębiej) do tych na wierzchu:
   { "kind": "gradient", "speed": 0.12, "angle": 168, "from": "#12203a", "via": null, "to": "#060a12" }
   { "kind": "image", "speed": 0.34, "url": "https://…/tlo.jpg", "opacity": 0.45, "blend": "normal"|"multiply"|"screen"|"overlay"|"soft-light", "position": "center" }
   { "kind": "bigtext", "speed": 0.95, "lines": ["TRASA"], "opacity": 0.1, "color": null }
@@ -285,7 +287,7 @@ const PAGE_KEYS = (): string => `  "format" — "${PAGE_FORMAT}"
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
   "show" — sceny prezentacji (niżej: Prezentacja)
   "deck" — całość pokazu slajdów (tylko "mode": "slides"): { "backdrop": [warstwy], "nav": "labels"|"dots"|"none", "titleSlide": true|false, "width": 80 }
-      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy leżą w nim i przechodzą płynnie jedna w drugą
+      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami i leżą POD ich własnymi warstwami; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy (na wierzchu tła wspólnego) przechodzą płynnie jedna w drugą — gradient tła wspólnego nie zasłania więc obrazów slajdów
       "nav" — pasek: nazwy slajdów u góry (zwykły), kropki z prawej, bez paska; "titleSlide": false — bez slajdu tytułowego (pierwszy moduł jest pierwszym ekranem)
       "width" — najwyżej tyle rem szerokości sceny: w niej liczą się miejsca modułów przechodzących i "layout" slajdów (null — całe okno)
   "menu" — null (bez menu), lista pozycji albo { "from": "ścieżka" } (to samo menu co na innej Twojej stronie)

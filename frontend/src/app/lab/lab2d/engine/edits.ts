@@ -18,6 +18,7 @@ import type { Bodies } from './bodies';
 import { carveBodies, liftBodies, placeBodies, removeBody } from './bodyTools';
 import type { Bubbles } from './bubbles';
 import type { Gas } from './gas';
+import { GRAIN_MATS, grainIndex, PHI_MAX, type Grains } from './grains';
 import type { Grid } from './grid';
 import type { Heat } from './heat';
 import type { Liquid } from './liquid';
@@ -46,6 +47,8 @@ export interface World {
   readonly gas: Gas;
   readonly heat: Heat;
   readonly liquid: Liquid;
+  /** Die Körner (M3c). */
+  readonly grains: Grains;
   /** Umgebungsluft als Massenanteile (mit Feuchte) und ihre Temperatur. */
   readonly ambientY: Float64Array;
   readonly ambientT: number;
@@ -174,6 +177,19 @@ function unbookCrust(w: World, c: number): void {
   w.grid.crust[c] = 0;
 }
 
+/** Körner in einer Fläche (oder in festen Zellen: region null) entfernen (gebucht). */
+function removeGrains(w: World, region: Region | null): void {
+  const G = w.grains;
+  const g = w.grid;
+  for (let q = 0; q < G.count; q += 1) {
+    if (region !== null ? !inside(region, G.x[q], G.y[q]) : g.solid[Math.max(0, g.cellAt(G.x[q], G.y[q]))] === 0) continue;
+    if (GRAIN_MATS[G.mat[q]].dissolves) w.ledger.salt -= G.m[q];
+    w.ledger.energy -= G.enthalpy(q);
+    G.remove(q);
+    q -= 1;
+  }
+}
+
 /** Teilchen und Blasen in einer Fläche entfernen (gebucht). */
 function removeLiquid(w: World, region: Region): void {
   const P = w.particles;
@@ -223,7 +239,8 @@ function makeSolid(w: World, cells: readonly number[], s: number, T: number, hea
     g.kind[c] = SOLID;
     w.ledger.energy += g.Es[c];
   }
-  /* Teilchen in neuen Feststoffzellen: entfernen. */
+  /* Teilchen und Körner in neuen Feststoffzellen: entfernen. */
+  removeGrains(w, null);
   const P = w.particles;
   for (let p = 0; p < P.count; p += 1) {
     const c = g.cellAt(P.x[p], P.y[p]);
@@ -340,9 +357,33 @@ export function applyOp(w: World, op: Op): string | null {
       if (saltIn > 0 && waterIn <= 0) return 'fill: salt needs water to dissolve in (NaCl dropped)';
       return full ? 'fill: particle capacity reached' : null;
     }
+    case 'grains': {
+      /* 2 × 2 Kornteilchen je Zelle, locker geschüttet (PHI_MAX); jedes steht für N Körner des Durchmessers d. Nicht in Feststoffe und Körper. */
+      const mat = grainIndex(op.material);
+      if (mat < 0) return `grains: unknown material "${op.material}"`;
+      const gm = GRAIN_MATS[mat];
+      const m = (gm.rho * PHI_MAX * g.vCell) / 4;
+      const N = m / ((gm.rho * Math.PI * op.d * op.d * op.d) / 6);
+      let full = false;
+      eachCellBox(g, op.region, (i, j) => {
+        const c = i + j * g.nx;
+        if (g.solid[c] !== 0) return;
+        for (let b = 0; b < 2; b += 1) for (let a = 0; a < 2; a += 1) {
+          const x = (i + 0.25 + 0.5 * a) * g.dx;
+          const y = (j + 0.25 + 0.5 * b) * g.dx;
+          if (!inside(op.region, x, y)) continue;
+          if (g.owner[c] !== 0 && w.bodies.bodyAt(x, y, 0) !== null) continue;
+          if (w.grains.add(x, y, m, N, op.T, mat) < 0) { full = true; continue; }
+          if (gm.dissolves) w.ledger.salt += m;
+          w.ledger.energy += m * gm.cp * (op.T - T0);
+        }
+      });
+      return full ? 'grains: capacity reached' : null;
+    }
     case 'erase': {
       carve(w, op.region);
       removeLiquid(w, op.region);
+      removeGrains(w, op.region);
       const cells: number[] = [];
       eachCell(g, op.region, (c) => { if (g.owner[c] === 0) cells.push(c); });
       clearSolid(w, cells);

@@ -43,6 +43,8 @@ export interface OtherLiquids {
 export interface SaltByState {
   liquid: number;
   crust: number;
+  /** In Körnern (M3c). */
+  grains: number;
   floor: number;
   escaped: number;
   total: number;
@@ -99,10 +101,12 @@ export function emptyFlows(): Flows {
 const NO_FLOOR: FloorSalt = { mass: 0, energy: 0 };
 /** Schmelzwasser, das noch kein Teilchen ist (bodyMelt.ts): Wasser, Enthalpie, Salz. */
 const NO_MELT = { m: 0, H: 0, s: 0 };
+/** Körner (M3c): Salz in ihnen und ihre Enthalpie. */
+const NO_GRAINS = { salt: 0, energy: 0 };
 
 /** Den Inhalt zählen. */
 export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Flows, out: BudgetSnapshot, floor: FloorSalt = NO_FLOOR, bodies: readonly Body2D[] = [],
-  melt: { readonly m: number; readonly H: number; readonly s: number } = NO_MELT): BudgetSnapshot {
+  melt: { readonly m: number; readonly H: number; readonly s: number } = NO_MELT, grains: { readonly salt: number; readonly energy: number } = NO_GRAINS): BudgetSnapshot {
   const n = g.n;
   let solids = 0;
   let gas = 0;
@@ -132,6 +136,8 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
     else otherMass += P.mass[p] - s;
   }
   solids += floor.energy;
+  /* Körner zählen mit ihrer Enthalpie zu den Feststoffen. */
+  solids += grains.energy;
   let ice = 0;
   for (const b of bodies) {
     if (b.gone) continue;
@@ -175,9 +181,10 @@ export function measure(g: Grid, P: Particles, B: Bubbles, R: Regions, flows: Fl
   const sl = out.salt;
   sl.liquid = saltMass;
   sl.crust = crust;
+  sl.grains = grains.salt;
   sl.floor = floor.mass;
   sl.escaped = flows.escapedSalt;
-  sl.total = saltMass + crust + floor.mass + flows.escapedSalt;
+  sl.total = saltMass + crust + grains.salt + floor.mass + flows.escapedSalt;
   out.air = air + flows.escapedAir;
   return out;
 }
@@ -187,6 +194,6 @@ export function emptySnapshot(): BudgetSnapshot {
     energy: 0, solids: 0, liquid: 0, gas: 0, bubbles: 0, pv: 0, air: 0,
     water: { liquid: 0, ice: 0, vapour: 0, fog: 0, film: 0, bubbles: 0, escaped: 0, total: 0 },
     other: { liquid: 0, escaped: 0, total: 0 },
-    salt: { liquid: 0, crust: 0, floor: 0, escaped: 0, total: 0 }
+    salt: { liquid: 0, crust: 0, grains: 0, floor: 0, escaped: 0, total: 0 }
   };
 }

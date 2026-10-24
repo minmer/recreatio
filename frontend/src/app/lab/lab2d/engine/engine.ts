@@ -33,7 +33,11 @@ import { emptyFlows, emptySnapshot, measure, type BudgetSnapshot, type Flows } f
 import { applyOp, type EditLedger, type World } from './edits';
 import { objectKey } from './objects';
 import { Exchange } from './exchange';
+import { surfaceAfterFill } from './fillCheck';
 import { Gas } from './gas';
+import { GrainFlow } from './grainFlow';
+import { Grains } from './grains';
+import { GrainSalt } from './grainSalt';
 import { Grid } from './grid';
 import { Heat, type Heater } from './heat';
 import { pSat } from './if97';
@@ -46,7 +50,6 @@ import { Regions } from './regions';
 import { Rng } from './rng';
 import { Salt } from './salt';
 import { CELL, freshId, isObjectOp, MAX_CELLS, readScene, writeScene, type ExtremeMode, type HeaterMode, type Op, type Quality, type ReadOptions, type Scene, type Side, type SideName } from './scene';
-import { inside } from './shapes';
 import { GridSolver } from './solver';
 import { STAGE_COUNT } from './stages';
 import { GAS, GAS_SPECIES, H2O, LIQUID, N2, O2, R_GAS, SPECIES_SLOTS } from './units';
@@ -173,6 +176,10 @@ export class Engine {
   bubbleModel!: BubbleModel;
   phase!: Phase;
   salt!: Salt;
+  /** Körner (M3c): ihre Teilchen, ihr Kontinuum auf dem Gitter, Lösen und Wachsen. */
+  grains!: Grains;
+  grainFlow!: GrainFlow;
+  grainSalt!: GrainSalt;
   exchange!: Exchange;
   bodies!: Bodies;
   melt!: BodyMelt;
@@ -257,9 +264,13 @@ export class Engine {
     this.bubbleModel = new BubbleModel(this);
     this.phase = new Phase(this);
     this.salt = new Salt(this);
+    this.grains = new Grains(Math.max(1024, 4 * grid.n));
+    this.grainFlow = new GrainFlow(this);
+    this.grainSalt = new GrainSalt(this);
     this.exchange = new Exchange(this);
     this.bodies = new Bodies(this);
     this.heat.bodies = this.bodies.list;
+    this.heat.grains = this.grains;
     this.melt = new BodyMelt(this);
     this.bodies.afterCollect = () => { this.melt.step(); };
     this.liquid.bodyHit = (x0, y0, x, y, out) => this.bodies.hitPoint(x0, y0, x, y, out);
@@ -311,6 +322,7 @@ export class Engine {
     const { grid, liquid } = this;
     liquid.computeWeights();
     liquid.splatVolume();
+    this.grainFlow.splatVolume();
     liquid.classify();
     this.prevKind.set(grid.kind);
     this.regions.update(this.particles, this.bubbles);
@@ -353,6 +365,7 @@ export class Engine {
       gas: this.gas,
       heat: this.heat,
       liquid: this.liquid,
+      grains: this.grains,
       ambientY: this.ambientY,
       ambientT: this.ambientT,
       ledger: this.ledger,
@@ -380,7 +393,7 @@ export class Engine {
   apply(given: Op): string | null {
     /* Ein Gegenstand ohne Namen oder mit einem schon vergebenen bekommt einen neuen. */
     const op: Op = isObjectOp(given) && (given.id === '' || objectKey(this, given.id) >= 0) ? { ...given, id: freshId(this.scene.ops, given.op) } : given;
-    if (op.op === 'fill' && op.phase === 'liquid' && !this.surfaceAfterFill(op)) {
+    if (op.op === 'fill' && op.phase === 'liquid' && !surfaceAfterFill(this, op)) {
       return 'refused: the liquid would have no free surface (no pressure law for a region filled with liquid in M1)';
     }
     /*
@@ -399,43 +412,6 @@ export class Engine {
     if (!this.building) this.bodies.wakeFree();
     if (warning !== null) this.warnings.push(warning);
     return warning;
-  }
-
-  /** Prüfen, ob nach dem Füllen jede zusammenhängende Flüssigkeit an Gas oder eine offene Seite grenzt. */
-  private surfaceAfterFill(op: Extract<Op, { op: 'fill' }>): boolean {
-    const g = this.grid;
-    const { nx, ny } = g;
-    const liquid = new Uint8Array(g.n);
-    /* Grob: eine Zelle ist nach dem Füllen flüssig, wenn ihre Mitte in der Fläche liegt oder sie jetzt flüssig ist. */
-    for (let j = 0; j < ny; j += 1) for (let i = 0; i < nx; i += 1) {
-      const c = i + j * nx;
-      if (g.solid[c] !== 0) continue;
-      if (g.kind[c] === LIQUID || inside(op.region, (i + 0.5) * g.dx, (j + 0.5) * g.dx)) liquid[c] = 1;
-    }
-    const seen = new Uint8Array(g.n);
-    const stack: number[] = [];
-    for (let s = 0; s < g.n; s += 1) {
-      if (liquid[s] === 0 || seen[s] !== 0) continue;
-      let free = false;
-      stack.push(s);
-      seen[s] = 1;
-      while (stack.length > 0) {
-        const c = stack.pop() as number;
-        const i = c % nx;
-        const j = (c - i) / nx;
-        /* Über Flächen, die kein Körper ganz bedeckt (eine dünne Wand trennt). */
-        const gas = this.gas;
-        const nbs = [gas.across(c, i, j, 0), gas.across(c, i, j, 1), gas.across(c, i, j, 2), gas.across(c, i, j, 3)];
-        if ((i === 0 && g.openL) || (i === nx - 1 && g.openR) || (j === 0 && g.openB) || (j === ny - 1 && g.openT)) free = true;
-        for (const nb of nbs) {
-          if (nb < 0 || g.solid[nb] !== 0) continue;
-          if (liquid[nb] === 0) { free = true; continue; }
-          if (seen[nb] === 0) { seen[nb] = 1; stack.push(nb); }
-        }
-      }
-      if (!free) return false;
-    }
-    return true;
   }
 
   setHeater(group: number, mode: HeaterMode, power: number, target: number, on: boolean): void {
@@ -516,7 +492,8 @@ export class Engine {
     }
     stamp[1] = now();
 
-    /* 2. Flüssigkeit. */
+    /* 2. Flüssigkeit (die Körner nehmen ihr Platz weg), dann die Körner (M3c) mit ihrer Geschwindigkeit. */
+    this.grainFlow.splatVolume();
     liquid.splatVolumeChange(dt);
     if (liquid.weightsDirty) liquid.computeWeights();
     liquid.splatVolume();
@@ -533,6 +510,7 @@ export class Engine {
     this.flows.escapedOther += liquid.last.escapedOther;
     this.flows.escapedSalt += liquid.last.escapedSalt;
     this.flows.escapedEnergy += liquid.last.escapedEnergy;
+    this.grainFlow.step(dt);
     stamp[2] = now();
 
     /* 3. Gas: φ hat sich geändert — Volumina und Dichten neu (T bleibt). */
@@ -559,6 +537,8 @@ export class Engine {
     /* 5. Grenzfläche und Phasenwechsel im Gas; übersättigte Lösungen geben Kristalle ab (M2b). */
     this.phase.step(dt);
     this.salt.step();
+    /* Körner lösen sich, nehmen die Temperatur ihrer Zelle an, setzen Blasen frei (M3c). */
+    this.grainSalt.step(dt);
     stamp[5] = now();
 
     /* 6. Wärme. */
@@ -590,7 +570,7 @@ export class Engine {
 
     /* 9. Körper (M3a): Kräfte, Berührungen, neue Lagen. Kein Punkt eines Körpers rückt mehr als eine halbe Zelle je Schritt. */
     this.bodies.finish(dt);
-    this.dt = Math.min(this.dtMax, liquid.last.uMax > 0 ? (0.9 * grid.dx) / liquid.last.uMax : this.dtMax, this.bodies.dtLimit());
+    this.dt = Math.min(this.dtMax, liquid.last.uMax > 0 ? (0.9 * grid.dx) / liquid.last.uMax : this.dtMax, this.bodies.dtLimit(), this.grainFlow.dtLimit());
     stamp[9] = now();
     /* Zeiten: gleitendes Mittel über etwa 30 Schritte. */
     const a = this.steps < 5 ? 1 : 1 / 30;
@@ -635,7 +615,7 @@ export class Engine {
     f.editAir = this.ledger.air;
     f.editOther = this.ledger.other;
     f.editSalt = this.ledger.salt;
-    return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap, this.salt.floorTotals(), this.bodies.list, this.melt.pendingTotals());
+    return measure(this.grid, this.particles, this.bubbles, this.regions, this.flows, this.snap, this.salt.floorTotals(), this.bodies.list, this.melt.pendingTotals(), this.grains.totals());
   }
 
   /** Abweichung der Energiebilanz seit dem Start (J): ΔE − (Heizung − Verluste − Entwichenes + Eingriffe). */
@@ -659,7 +639,7 @@ export class Engine {
 
   /** Braucht die Szene den normalen Weg? Freie Körper (M3a) und Eis, das schmilzt oder wächst (M3b), kennt der beschleunigte Weg noch nicht (andere Flüssigkeiten und Salz seit 2026-10-24). */
   needsCpu(): boolean {
-    return this.bodies.anyFree || this.melt.any();
+    return this.bodies.anyFree || this.melt.any() || this.grains.count > 0;
   }
 
   /** Abweichung der Salzbilanz seit dem Start (kg): gelöst + Kruste + Boden + entwichen gegen den Anfang und die Eingriffe. */
@@ -763,7 +743,7 @@ export class Engine {
       otherMass: ot.mass,
       otherT: ot.mean,
       saltMass: budget.salt.liquid,
-      saltSolid: budget.salt.crust + budget.salt.floor,
+      saltSolid: budget.salt.crust + budget.salt.floor + budget.salt.grains,
       bodies: {
         count: this.bodies.list.filter((b) => !b.gone).length,
         free: this.bodies.list.filter((b) => b.free).length,

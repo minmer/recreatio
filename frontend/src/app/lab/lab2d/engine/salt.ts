@@ -106,7 +106,8 @@ export class Salt {
       P.h[p] = H / P.mass[p];
       P.derive(p);
       L.dVp[p] += P.mass[p] / P.rho[p] - before;
-      this.deposit(P.x[p], P.y[p], x, Hx);
+      /* Ein Korn in derselben oder einer Nachbarzelle wächst (M3c); sonst Kruste. */
+      if (!this.e.grainSalt.grow(P.x[p], P.y[p], x, Hx)) this.deposit(P.x[p], P.y[p], x, Hx);
       this.crystallized += x;
     }
   }

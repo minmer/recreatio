@@ -64,7 +64,7 @@ const BLEND_LABEL: Record<Blend, string> = {
 };
 
 /**
- * Die Schichten hinter einem Slajd, von hinten nach vorn (Altbestand: LayerEditor).
+ * Die Schichten hinter einem Slajd (Altbestand: LayerEditor) — gespeichert von hinten nach vorn, gezeigt von vorn (oben) nach hinten (unten).
  * Leer heisst: das Tuch des Themas — es passt sich an hell und dunkel an.
  */
 export function LayerEditor({ path, theme, label, layers, busy, onChange, blank = false }: {
@@ -102,14 +102,15 @@ export function LayerEditor({ path, theme, label, layers, busy, onChange, blank 
 
   return (
     <div className="se-layers">
-      <p className="wk-hint">Warstwy od tyłu do przodu. Tempo 0 — stoi, 1 — przesuwa się razem z treścią.</p>
-      {layers.map((layer, index) => (
+      <p className="wk-hint">Warstwy jak na ekranie: u góry listy to, co leży na wierzchu, na dole — to, co najgłębiej. Tempo 0 — stoi, 1 — przesuwa się razem z treścią.</p>
+      {/* 2026-10-24 — gezeigt von vorn nach hinten; gespeichert bleibt von hinten nach vorn (JSON, alte Seiten). */}
+      {layers.map((layer, index) => ({ layer, index })).reverse().map(({ layer, index }) => (
         <fieldset key={index} className="se-layer">
           <legend>
-            {index + 1}. {KIND_LABEL[layer.kind]}
+            {layers.length - index}. {KIND_LABEL[layer.kind]}
             <span className="se-tools">
-              <button type="button" aria-label="Warstwa do tyłu" disabled={busy || index === 0} onClick={() => shift(index, -1)}>↑</button>
-              <button type="button" aria-label="Warstwa do przodu" disabled={busy || index === layers.length - 1} onClick={() => shift(index, 1)}>↓</button>
+              <button type="button" aria-label="Warstwa wyżej — bliżej wierzchu" title="Wyżej — na wierzch" disabled={busy || index === layers.length - 1} onClick={() => shift(index, 1)}>↑</button>
+              <button type="button" aria-label="Warstwa niżej — głębiej" title="Niżej — w głąb" disabled={busy || index === 0} onClick={() => shift(index, -1)}>↓</button>
               <button type="button" aria-label="Usuń warstwę" className="se-drop" disabled={busy}
                 onClick={() => onChange(layers.filter((_, i) => i !== index))}>×</button>
             </span>

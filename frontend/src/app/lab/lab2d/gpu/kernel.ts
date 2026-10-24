@@ -9,7 +9,7 @@
  */
 
 import { LIB } from './lib';
-import { SALT_USE, SALT_WGSL } from './libSalt';
+import { saltFor } from './libSalt';
 
 /** u uniform, r/w Speicher, a atomar, t Speichertextur (schreibend), x Textur (lesend), s Sampler. */
 type Mode = 'u' | 'r' | 'w' | 'a' | 't' | 'x' | 's';
@@ -167,7 +167,8 @@ fn cntWG(lid: u32, slot: u32) -> u32 {
 function generate(def: KernelDef, binds: readonly BindSpec[], wg: number): string {
   const lines: string[] = [LIB, `const WG: u32 = ${wg}u;`, COMMON];
   /* Kochsalz (libSalt.ts) nur für Kerne, die es rufen. */
-  if (SALT_USE.test(def.code)) lines.push(SALT_WGSL);
+  const salt = saltFor(def.code);
+  if (salt !== '') lines.push(salt);
   const names = new Set(binds.map((b) => b.name));
   for (const b of binds) if (b.mode === 'a') names.add(`${b.name}!`);
   for (const h of BY_BINDING) if (h.needs.every((n) => names.has(n))) lines.push(h.code);

@@ -380,7 +380,7 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
  *   verlangt (der Mensch); `ruled`: wenn das Formular überhaupt eine Regel für
  *   Papier hat (die Kanzlei druckt auch für den, der sein Blatt vergessen hat).
  */
-export function SignSheetButton({ formId, values, submittedAt, when = 'needed', className = 'wk-btn', label = 'Drukuj do podpisu' }: {
+export function SignSheetButton({ formId, values, submittedAt, when = 'needed', className = 'wk-btn', label = 'Drukuj do podpisu', disabled = false }: {
   formId: string;
   values: ReadonlyMap<string, string>;
   /** `null` — noch nicht abgeschickt (0087: am Ende des Formulars). */
@@ -388,6 +388,8 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
   when?: 'needed' | 'ruled';
   className?: string;
   label?: string;
+  /** 2026-10-24 — noch nicht zu drucken (das Formular ist nicht ausgefüllt): der Knopf steht da, gedruckt wird nicht. */
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState<OpenForm | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -417,8 +419,14 @@ export function SignSheetButton({ formId, values, submittedAt, when = 'needed', 
 
   return (
     <>
-      <button type="button" className={className} onClick={() => setPrinting(true)}>{label}</button>
-      {printing && createPortal(<Sheet open={open} values={values} submittedAt={submittedAt} />, document.body)}
+      <button
+        type="button" className={className} disabled={disabled}
+        title={disabled ? 'Najpierw wypełnij formularz — brakujące pola są wymienione przy „Wyślij”.' : undefined}
+        onClick={() => { if (!disabled) setPrinting(true); }}
+      >
+        {label}
+      </button>
+      {printing && !disabled && createPortal(<Sheet open={open} values={values} submittedAt={submittedAt} />, document.body)}
     </>
   );
 }
