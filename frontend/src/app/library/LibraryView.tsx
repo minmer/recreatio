@@ -42,6 +42,7 @@ import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJ
 import { ids, isLibraryKind, kindOf, LIBRARY_KINDS, quoteOrder, str, type LibEntry } from './libraryKinds';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { TEXT_KINDS } from './sourceText';
+import { WorkWithTextButton, type SourceTargets } from './SourceBox';
 import { audienceWords } from './LibraryAreaBox';
 import { useMe, type Me } from '../core/me';
 import { viewPath } from '../routes';
@@ -263,7 +264,7 @@ function LibraryHome({ me, library, libraries, areas, trail, onChanged }: {
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : tab === 'stare' ? <OldEntries store={store} known={known} writes={library.writes} where="Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Wiedzy." />
-          : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} />}
+          : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} sources={{ libraries, storeFor: (row) => storeOf(me.ring, row) }} />}
       </div>
     </>
   );
@@ -324,7 +325,7 @@ function lineOf(entry: LibEntry, store: LibraryStore): string {
   }
 }
 
-function KindList({ store, library, kind }: { store: LibraryStore; library: OpenLibrary; kind: string }) {
+function KindList({ store, library, kind, sources }: { store: LibraryStore; library: OpenLibrary; kind: string; sources?: SourceTargets }) {
   const def = kindOf(kind)!;
   const [query, setQuery] = useState('');
   /* 2026-10-22 — auch die anderen lesbaren Bibliotheken (jede Zeile sagt, in welcher sie liegt). */
@@ -354,6 +355,8 @@ function KindList({ store, library, kind }: { store: LibraryStore; library: Open
           </label>
         )}
         {library.writes && <a className="wk-btn" href={add}>+ {def.label}</a>}
+        {/* 2026-10-24 — ein Werk mit seinem ganzen Text aus einem Dokument (`SourceBox.tsx`, `sourceImport.ts`). */}
+        {kind === 'work' && <WorkWithTextButton store={store} library={library} targets={sources} />}
       </div>
       <p className="wk-hint">{def.says}</p>
 

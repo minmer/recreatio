@@ -79,6 +79,10 @@ public static partial class AiAccess
         public string? Notes { get; init; }
         public JsonElement Kinds { get; init; }
         public List<Item> Items { get; } = [];
+        /// <summary>2026-10-24 — die vollständigen Texte der Werke, die in diesem Behälter liegen (AiAccess.Texts.cs).</summary>
+        public List<TextDoc> Texts { get; } = [];
+        /// <summary>Der Behälter hat Texte, aber sie waren zu gross für die Abschrift.</summary>
+        public bool TextsOmitted { get; set; }
         /// <summary>Der Bereich des Links, durch den die Abschrift geöffnet wurde (offen wie in der Liste der Bereiche).</summary>
         public Guid AreaId { get; set; }
         public string AreaName { get; set; } = "";
@@ -187,6 +191,7 @@ public static partial class AiAccess
                 });
             }
         }
+        ReadTexts(snap, root);
         return snap;
     }
 
@@ -411,6 +416,20 @@ public static partial class AiAccess
         private Dictionary<string, List<(Item From, Link Link)>>? incoming;
         private readonly Dictionary<string, List<Link>> links = [];
         public IEnumerable<Item> Items => Parts.SelectMany(p => p.Items);
+        public IEnumerable<TextDoc> Texts => Parts.SelectMany(p => p.Texts);
+
+        /// <summary>Wie das Werk eines Textes heisst — aus der Abschrift, sonst aus einem anderen Behälter des Links.</summary>
+        public string WorkTitle(TextDoc text) => text.WorkTitle ?? Get(text.Work)?.Title ?? "(dzieło spoza udostępnionych zbiorów)";
+
+        /// <summary>Ein Text nach seiner Kennung, nach der Kennung oder dem Schlüssel seines Werks.</summary>
+        public TextDoc? Text(string idOrWork)
+        {
+            var wanted = idOrWork.Trim().TrimStart('@').ToLowerInvariant();
+            return Texts.FirstOrDefault(t => t.Id == wanted)
+                ?? Texts.FirstOrDefault(t => t.Work == wanted)
+                ?? Texts.FirstOrDefault(t => t.WorkKey is not null && t.WorkKey.ToLowerInvariant() == wanted)
+                ?? (Get(idOrWork) is Item work ? Texts.FirstOrDefault(t => t.Work == work.Id) : null);
+        }
 
         public Item? Get(string idOrKey)
         {

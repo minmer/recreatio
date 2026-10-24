@@ -12,6 +12,7 @@ import { useState } from 'react';
 
 import type { Nav, NavEntry } from './WorkspaceFrame';
 import { placeOf } from './WorkspaceFrame';
+import { StudiumItems } from './StudiumItems';
 import { Modal } from '../ui/Modal';
 import { viewPath, type Spot } from '../routes';
 import type { Who } from '../core/session';
@@ -60,8 +61,8 @@ export function PhoneBar({ spot, nav, who, onSignOut }: { spot: Spot; nav: Nav; 
             {list(rest)}
             {nav.parish.length > 0 && <li className="wk-nav-label">Parafia</li>}
             {list(nav.parish)}
-            {nav.knowledge.length > 0 && <li className="wk-nav-label">Wiedza</li>}
-            {list(nav.knowledge)}
+            {nav.knowledge.length > 0 && <li className="wk-nav-label">Studium</li>}
+            <StudiumItems entries={nav.knowledge} renderItems={list} />
             {nav.settings.length > 0 && <li className="wk-nav-label">Ustawienia</li>}
             {list(nav.settings)}
             <li className="wk-nav-label">Konto · {who.loginId}</li>

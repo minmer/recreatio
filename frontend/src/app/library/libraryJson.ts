@@ -168,6 +168,10 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
   if (root.format === QUOTES_FORMAT) {
     return { error: `To są cytaty jednej książki ("${QUOTES_FORMAT}") — importuje się je na stronie tej książki: Źródła → książka → „Cytaty z tej książki”.` };
   }
+  /* 2026-10-24 — ein Text eines Werks (mit oder ohne neues Werk) hat seinen eigenen Import. */
+  if (root.format === 'recreatio/source-text') {
+    return { error: 'To jest tekst źródła ("recreatio/source-text") — z nowym dziełem importuje się go w Źródłach: „Dzieło z tekstem (JSON)”; do dzieła, które już jest — na jego stronie, w ramce „Tekst źródła”.' };
+  }
   if (list.length === 0) return { error: `To nie jest dokument w formacie "${spec.format}" — brakuje "entries" (albo "kind" i "data").` };
   if (root.format !== undefined && root.format !== spec.format) {
     const where = root.format === LIBRARY_FORMAT ? 'w Bibliotece' : root.format === SCRIPTORIUM_FORMAT ? 'w Skryptorium' : String(root.format).startsWith('recreatio.cogita') ? 'w Wiedzy (baza wiedzy → Więcej → Import i eksport)' : '';

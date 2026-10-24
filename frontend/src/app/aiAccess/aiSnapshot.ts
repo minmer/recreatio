@@ -18,8 +18,16 @@
  * <code>
  *   { v: 1, library, part: books|writing|knowledge, name, madeAt, notes,
  *     kinds:   [{ id, name, says?, label?, fields: [{ key, label, type, says?, … }] }],
- *     entries: [{ id, kind, kinds?, kindName, typeName?, title, tell?, key?, updatedAt?, refs?, data }] }
+ *     entries: [{ id, kind, kinds?, kindName, typeName?, title, tell?, key?, updatedAt?, refs?, data }],
+ *     texts?:  [{ id, work, workTitle?, workKey?, scheme, edition, parts: [{ key, label, order, first?, last?, pages?,
+ *                 blocks: [{ type, level?, loc?, at?, pages?, text }] }] }] }
  * </code>
+ *
+ * 2026-10-24 — `texts`: die vollständigen Texte der Werke (`library/sourceText.ts`), die IN diesem
+ * Behälter liegen — wer den Behälter liest, liest auch sie; ein Text in einem anderen (privaten)
+ * Behälter kommt nur über ihn. Je Block: seine Stelle, wie sie dasteht (`loc`), die Stelle, zu der
+ * er gehört, einheitlich geschrieben (`at`, auch geerbt), seine Seiten und sein Text — lesbar
+ * gemacht ([s. 46] für einen Seitenwechsel, [^3] für einen Przypis, [?] für Unsicheres).
  */
 
 import { CogitaLibrary } from '../cogita/store';
@@ -32,15 +40,42 @@ import {
   type LibEntry, type LibField, type LibKind, type Lookup
 } from '../library/libraryKinds';
 import { citedKeys } from '../library/libraryMarkup';
+import { blockPages, pieces, placeLabel, readManifest, readPart, type SourceBlock } from '../library/sourceText';
 import type { LibraryStore } from '../library/libraryStore';
 
 export const SNAPSHOT_VERSION = 1;
 
-/** Ein Behälter des Links: sein Speicher, seine Art, sein Name. */
+/** Ein Behälter des Links: sein Speicher, seine Art, sein Name — und (2026-10-24) die Texte, die in ihm liegen, geöffnet. */
 export interface ScopePart {
   readonly store: LibraryStore;
   readonly kind: LibraryKind;
   readonly name: string;
+  readonly texts?: readonly ScopeText[];
+}
+
+/** Ein Text eines Werks: sein Verzeichnis und seine Teile (die schweren Einträge, vorher geholt — `aiAccess.ts`). */
+export interface ScopeText {
+  readonly entry: LibEntry;
+  readonly parts: readonly { readonly id: string; readonly data: Readonly<Record<string, unknown>> }[];
+}
+
+export interface SnapshotBlock {
+  readonly type: string;
+  readonly level?: number;
+  readonly loc?: string;
+  readonly at?: string;
+  readonly pages?: readonly [number, number];
+  readonly text: string;
+}
+
+export interface SnapshotText {
+  readonly id: string;
+  readonly work: string;
+  readonly workTitle?: string;
+  readonly workKey?: string;
+  readonly scheme: string;
+  readonly edition?: Readonly<Record<string, unknown>>;
+  readonly parts: readonly { readonly key: string; readonly label: string; readonly order: number; readonly first?: string; readonly last?: string; readonly pages?: readonly [number, number]; readonly blocks: readonly SnapshotBlock[] }[];
 }
 
 export interface SnapshotEntry {
@@ -76,6 +111,9 @@ export interface SnapshotDoc {
   readonly notes: string;
   readonly kinds: readonly SnapshotKind[];
   readonly entries: readonly SnapshotEntry[];
+  readonly texts?: readonly SnapshotText[];
+  /** Die Texte waren zu gross für eine Abschrift und fehlen (die Einträge sind da). */
+  readonly textsOmitted?: true;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -239,6 +277,69 @@ function baseEntries(part: ScopePart, lib: CogitaLibrary, look: Lookup): Snapsho
   return out;
 }
 
+/* -- 2026-10-24: die vollständigen Texte der Werke ----------------------------------------------------- */
+
+/** Ein Text mit seinen Zeichen, lesbar: [s. 46] ein Seitenwechsel, [^3] ein Przypis, wyraz[?] unsicher, […] eine Lücke. */
+function readable(text: string): string {
+  return pieces(text).map((p) => (p.t === 'text' ? p.v : p.t === 'page' ? `[s. ${p.page}]` : p.t === 'note' ? `[^${p.id}]` : p.t === 'unsure' ? `${p.v}[?]` : '[…]')).join('');
+}
+
+function blockText(b: SourceBlock): string {
+  switch (b.type) {
+    case 'list': return (b.items ?? []).map((item, i) => `${b.ordered === true ? `${i + 1}.` : '-'} ${readable(item)}`).join('\n');
+    case 'table': return [...((b.columns ?? []).length > 0 ? [(b.columns ?? []).map(readable).join(' | ')] : []), ...(b.rows ?? []).map((row) => row.map(readable).join(' | '))].join('\n');
+    case 'note': return `[^${b.id ?? ''}] ${readable(b.text ?? '')}`;
+    case 'page': return `[s. ${b.page ?? ''}${b.pdf === undefined ? '' : ` · PDF ${b.pdf}`}]`;
+    default: return readable(b.text ?? '');
+  }
+}
+
+/**
+ * DIE TEXTE EINES BEHÄLTERS für die Abschrift: je Text sein Werk (Titel und Schlüssel nur, wenn
+ * das Werk im Link ist), seine Regel der Stellen und seine Teile Block für Block. `at` ist die
+ * Stelle, zu der ein Block gehört — auch geerbt —, so geschrieben, wie die App sie schreibt.
+ */
+export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): SnapshotText[] {
+  const out: SnapshotText[] = [];
+  for (const text of texts) {
+    const manifest = readManifest(text.entry.data);
+    const work = look.get(manifest.work);
+    const parts = manifest.parts.map((p) => {
+      const found = text.parts.find((x) => x.id === p.id);
+      const blocks = found === undefined ? [] : readPart(found.data).blocks;
+      const pages = blockPages(blocks);
+      let current = '';
+      return {
+        key: p.key, label: p.label, order: p.order,
+        ...(p.first === undefined ? {} : { first: p.first }), ...(p.last === undefined ? {} : { last: p.last }), ...(p.pages === undefined ? {} : { pages: p.pages }),
+        blocks: blocks.map((b, i): SnapshotBlock => {
+          const own = b.loc !== undefined && b.loc.trim() !== '' ? b.loc.trim() : undefined;
+          if (own !== undefined && b.type !== 'note' && b.type !== 'page') current = own;
+          const at = own ?? (b.type === 'note' || b.type === 'page' ? '' : current);
+          const range = pages[i];
+          return {
+            type: b.type,
+            ...(b.type === 'heading' ? { level: b.level ?? 1 } : {}),
+            ...(own === undefined ? {} : { loc: own }),
+            ...(at === '' ? {} : { at: placeLabel(at, manifest.scheme, manifest.edition) || at }),
+            ...(range === null ? {} : { pages: [range.from, range.to] as const }),
+            text: blockText(b)
+          };
+        })
+      };
+    });
+    out.push({
+      id: text.entry.id,
+      work: manifest.work,
+      ...(work === undefined ? {} : { workTitle: entryTitle(work, look), ...(work.key === undefined ? {} : { workKey: work.key }) }),
+      scheme: manifest.scheme,
+      ...(Object.keys(manifest.edition).length === 0 ? {} : { edition: { ...manifest.edition } }),
+      parts
+    });
+  }
+  return out;
+}
+
 /** Die Arten, die ein Teil braucht, um gelesen zu werden — mit der Bedeutung jedes Feldes. */
 function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: readonly SnapshotEntry[]): SnapshotKind[] {
   if (part.kind === 'knowledge' && lib !== undefined) return lib.kinds.map((k) => cogitaKind(k));
@@ -257,7 +358,7 @@ function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: read
  * (`scripts/app-library-check.mjs`). Holen, packen und versiegeln:
  * `aiAccess.ts`.
  */
-export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string): SnapshotDoc {
+export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string, withTexts = true): SnapshotDoc {
   const part = parts.find((p) => p.store.libraryId === libraryId);
   if (part === undefined) throw new Error('Ten zbiór nie należy do tego dostępu.');
 
@@ -280,7 +381,8 @@ export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, made
     madeAt,
     notes: NOTES[part.kind](),
     kinds: kindsFor(part, lib, entries),
-    entries
+    entries,
+    ...(part.texts === undefined || part.texts.length === 0 ? {} : withTexts ? { texts: snapshotTexts(part.texts, look) } : { textsOmitted: true as const })
   };
 }
 

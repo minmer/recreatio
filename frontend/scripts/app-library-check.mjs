@@ -82,6 +82,7 @@ export { layoutOf } from '${app}scriptorium/archiveLayout';
 export { snapshotDoc, refsOf as snapshotRefs, gzip, SNAPSHOT_VERSION } from '${app}aiAccess/aiSnapshot';
 export * as loc from '${app}library/locations';
 export * as src from '${app}library/sourceText';
+export * as srcImp from '${app}library/sourceImport';
 export { SourceBlockView } from '${app}library/SourceBlocks';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
@@ -1166,6 +1167,53 @@ try {
     assert.ok(m.loc.SCHEMES.every((s) => desc.includes(`"${s.id}"`)) && desc.includes('{{page 46 pdf 52}}') && desc.includes('Nie wymyślaj tekstu'), 'the description names every scheme, the marks and the rule: never invent text');
     assert.ok(S.sourceTextPrompt(BT, 'Biblia Tysiąclecia', 'bible').includes('"@bt"'), 'the prompt names the work by its key');
     ok('source texts: JSON with examples for every scheme, checked import in portions (no duplicates), places → blocks, ambiguity said, links made while reading, invisible to readers without access');
+  }
+
+  /* 2l. 2026-10-24 — Ein Werk mit seinem ganzen Text in EINEM Dokument (`sourceImport.ts`); ein ganzer Text in einem Dokument. */
+  {
+    const S = m.src;
+    const I = m.srcImp;
+    const ex = I.WORK_WITH_TEXT_EXAMPLE;
+    const empty = { get: () => undefined, byKey: () => undefined };
+    const plan = I.planWorkWithText(ex, empty);
+    assert.ok(!('error' in plan), `the example plans: ${plan.error ?? ''}`);
+    assert.deepEqual(plan.warnings, [], 'the example has no warnings');
+    const byKind = (k) => plan.library.drafts.filter((d) => d.kind === k);
+    const person = byKind('person')[0];
+    const periodical = byKind('work').find((d) => d.key === 'przeglad');
+    assert.deepEqual([plan.workIsNew, plan.work.key, plan.work.data.workType, plan.library.drafts.length], [true, 'kowalski2020', 'article', 3], 'a new article, its author and its journal');
+    assert.deepEqual([plan.work.data.authors, plan.work.data.container], [[person.id], periodical.id], 'the article points at its author and journal by id (keys of the same document resolved)');
+    assert.deepEqual([plan.docs.length, plan.lines.filter((l) => l.startsWith('Doda część')).length], [2, 2], 'its text: two parts from "portions"');
+    assert.ok(plan.lines[0].startsWith('Nowe dzieło: „Miłość, która pyta. O J 21,15-17”') && plan.lines[1].includes('Osoba') && plan.lines[1].includes('Źródło „Przegląd Biblijny”'), plan.lines.join(' | '));
+
+    /* Known by key: completed, not doubled; the text checks against it. */
+    const known = { id: '00000000-0000-4000-8000-00000000ab01', kind: 'work', key: 'kowalski2020', data: { workType: 'article', title: 'Miłość, która pyta' } };
+    const base = { get: (id) => (id === known.id ? known : undefined), byKey: (k) => (k.toLowerCase() === 'kowalski2020' ? known : undefined) };
+    const again = I.planWorkWithText(ex, base);
+    assert.deepEqual([again.workIsNew, again.work.id, again.lines[0].startsWith('Uzupełni dzieło')], [false, known.id, true], 'a work with a known key is completed, not doubled');
+    const onlyText = I.planWorkWithText({ ...ex, work: '@kowalski2020', entries: [] }, base);
+    assert.deepEqual([onlyText.work.id, onlyText.library.drafts.length, onlyText.docs.length], [known.id, 0, 2], '"work": "@key" of a known work: only its text');
+    assert.match(I.planWorkWithText({ ...ex, work: '@nieznane' }, empty).error, /Nie ma w bibliotece dzieła/, 'an unknown work key is refused with how to describe it');
+    assert.match(I.planWorkWithText({ ...ex, work: undefined }, empty).error, /"work"/, 'no work: said what is missing');
+    const bare = I.planWorkWithText({ format: S.SOURCE_FORMAT, version: 1, work: { key: 'sam', workType: 'book', title: 'Sama książka' } }, empty);
+    assert.deepEqual([bare.work.data.title, bare.docs.length, bare.warnings.some((w) => /tylko dzieło/.test(w))], ['Sama książka', 0, true], 'a flat work object without text: only the work, said so');
+    const tractatus = I.planWorkWithText({ format: S.SOURCE_FORMAT, version: 1, work: { key: 'tlp', data: { workType: 'book', title: 'Traktat' } }, scheme: 'decimal', portions: [{ portion: S.SOURCE_EXAMPLES.decimal.portion, blocks: S.SOURCE_EXAMPLES.decimal.blocks }] }, empty);
+    assert.deepEqual([tractatus.work.data.scheme, tractatus.warnings], ['decimal', []], 'a new work takes the scheme of its text (not derived from its kind)');
+
+    /* One document with the whole text: "portions" expand to parts; the per-work import takes it too. */
+    const docs = S.portionDocs({ ...ex, work: { key: 'kowalski2020', data: {} } });
+    assert.deepEqual(docs.map((d) => [d.work, d.portion.key, d.blocks.length, d.scheme]), [['@kowalski2020', 'wstep', 4, 'pages'], ['@kowalski2020', 'rozdz-1', 2, 'pages']], 'portions → one document per part, with the work, scheme and edition of the whole');
+    const preview = I.previewPortions(known, undefined, docs);
+    assert.deepEqual([preview.lines.length, preview.warnings], [2, []], 'the text of a whole article previews part by part');
+    assert.deepEqual(S.portionDocs([S.SOURCE_EXAMPLES.bible, S.SOURCE_EXAMPLES.bible]).length, 2, 'a list of documents still works');
+
+    /* The descriptions say how to send a whole source; the library import points to the right place. */
+    const desc = S.sourceTextDescription();
+    assert.ok(desc.includes('"portions"') && desc.includes('## Cały tekst') && desc.includes('Nigdy nie przerywaj części w połowie'), 'the text format describes a whole text and how to split it');
+    const wdesc = I.workWithTextPrompt();
+    assert.ok(wdesc.includes('"entries"') && wdesc.includes('"workType"') && wdesc.includes('"container"') && wdesc.includes('kowalski2020') && wdesc.includes('Nie wymyślaj tekstu'), 'the work-with-text prompt: work fields, entries, the full example, the rule against inventing');
+    assert.match(m.planLibraryImport(ex, empty).error, /Dzieło z tekstem/, 'the library JSON import sends a source text to its own import');
+    ok('a work with its full text in one document: new or known work (no doubles), its author and journal, the text in portions; whole texts and how to split them described');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

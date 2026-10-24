@@ -10,11 +10,14 @@
  * <b>Wo der Text liegt, wählt man</b>: in der Bibliothek des Werks oder in einer anderen, in
  * die man schreiben darf. So bleibt ein Text privat, auch wenn das Werk öffentlich steht —
  * wer nur die Bibliothek des Werks liest, sieht das Werk und seine Zitate, nicht den Text.
+ *
+ * 2026-10-24 — und ohne Werk vorher: „Dzieło z tekstem" (`WorkWithTextButton`, in den Źródła)
+ * nimmt EIN Dokument mit dem Werk (Buch, Artykuł …), seinen Autoren und seinem ganzen Text
+ * (`sourceImport.ts`). Ein Dokument trägt einen Teil oder alle (`portions`).
  */
 
 import { useMemo, useState } from 'react';
 
-import { newId } from '../core/ids';
 import { WorkspaceError } from '../core/session';
 import { ask } from '../ui/dialogs';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
@@ -23,12 +26,10 @@ import { viewPath } from '../routes';
 import { libraryKindOf, type OpenLibrary } from './library';
 import { kindOf } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
-import { schemeOf, workScheme } from './locations';
+import { workScheme } from './locations';
 import { finderOf } from './sourceFind';
-import {
-  documentsOf, exportSourceText, nextManifest, overlapsWith, PART_KIND, pageRangeLabel, partData, planSourceImport, readManifest, readPart,
-  samePart, SOURCE_EXAMPLES, sourceTextPrompt, TEXT_KIND, textsOfWork, type TextManifest
-} from './sourceText';
+import { planWorkWithText, previewPortions, WORK_WITH_TEXT_EXAMPLE, workWithTextPrompt, writePortions } from './sourceImport';
+import { exportSourceText, portionDocs, readManifest, readPart, SOURCE_EXAMPLES, sourceTextPrompt, textsOfWork, type TextManifest } from './sourceText';
 
 /** Wohin ein Text gehen kann: Bibliotheken (keine Bazy wiedzy, keine Skryptoria), in die man schreibt. */
 export interface SourceTargets {
@@ -76,6 +77,42 @@ export function SourceBox({ store, library, work, targets }: { store: LibrarySto
   );
 }
 
+/** Wohin der Text geht — und was das für die heisst, die lesen. */
+function TextLibraryPick({ writable, target, workLibrary, onPick }: { writable: readonly OpenLibrary[]; target: OpenLibrary; workLibrary: OpenLibrary; onPick: (id: string) => void }) {
+  return (
+    <>
+      {writable.length > 1 && (
+        <label className="wk-field">
+          <span>Biblioteka tekstu</span>
+          <select value={target.libraryId} onChange={(e) => onPick(e.target.value)}>
+            {writable.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}{l.areaPublic === true ? ' (publiczna)' : ''}</option>)}
+          </select>
+        </label>
+      )}
+      {target.libraryId !== workLibrary.libraryId && <p className="wk-note">Tekst będzie w bibliotece „{target.name}”, dzieło jest w „{workLibrary.name}”. Kto czyta tylko „{workLibrary.name}”, widzi dzieło i cytaty, ale nie tekst.</p>}
+      {target.areaPublic === true && <p className="wk-note">Biblioteka „{target.name}” jest publiczna — tekst przeczyta każdy, także bez konta.</p>}
+    </>
+  );
+}
+
+/** Ein öffentlicher Text: erst fragen (Urheberrecht). `false`: nicht speichern. */
+const publicOk = async (target: OpenLibrary): Promise<boolean> => target.areaPublic !== true || ask({
+  title: 'Tekst w bibliotece publicznej?',
+  body: `Biblioteka „${target.name}” jest w obszarze publicznym — pełny tekst przeczyta każdy, także bez konta. Udostępniaj tylko teksty, które wolno publikować (prawa autorskie).`,
+  confirm: 'Tak, zapisz publicznie'
+});
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Dane dzieła w dokumencie dla TEGO dzieła: jego klucz musi się zgadzać; pola zostają (zmienia się je na stronie dzieła). */
+function metaOf(doc: unknown, work: Entry): { error?: string; warning?: string } {
+  const one = Array.isArray(doc) ? doc.find(isObject) : doc;
+  if (!isObject(one) || !isObject(one.work)) return {};
+  const key = typeof one.work.key === 'string' ? one.work.key.replace(/^@/, '') : '';
+  if (key !== '' && key.toLowerCase() !== (work.key ?? '').toLowerCase()) return { error: `Ten tekst jest dla innego dzieła („${key}”) — zaimportuj go w Źródłach jako „Dzieło z tekstem” albo otwórz właściwe dzieło.` };
+  return { warning: 'Dane dzieła z dokumentu pominięte — to dzieło już jest; jego pola zmienisz na tej stronie.' };
+}
+
 function SourceImport({ store, library, work, writable, storeFor }: {
   store: LibraryStore;
   library: OpenLibrary;
@@ -94,64 +131,19 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   const scheme = manifest?.scheme ?? workScheme(work.data);
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
-    const lines: string[] = [];
-    const warnings: string[] = [];
-    let running = manifest;
-    const docs = documentsOf(doc);
-    for (const [i, raw] of docs.entries()) {
-      const plan = planSourceImport(raw, { work, ...(running === undefined ? {} : { manifest: running }) });
-      const label = docs.length > 1 ? `Dokument ${i + 1}: ` : '';
-      if ('error' in plan) { if (docs.length === 1) return plan; warnings.push(`${label}${plan.error}`); continue; }
-      const s = plan.summary;
-      const range = s.first === undefined ? '' : `, miejsca ${s.first}${s.last !== s.first ? ` – ${s.last}` : ''}`;
-      const pages = s.pages === undefined ? '' : `, ${pageRangeLabel(s.pages)}`;
-      lines.push(`${label}${plan.replaces ? 'Zastąpi' : 'Doda'} część „${plan.portion.label}” (${plan.portion.key}): ${count(s.blocks, 'blok', 'bloki', 'bloków')}, ${count(s.words, 'słowo', 'słowa', 'słów')}${range}${pages}${s.notes > 0 ? `, ${count(s.notes, 'przypis', 'przypisy', 'przypisów')}` : ''}.`);
-      if (plan.setScheme !== undefined) lines.push(`${label}Układ miejsc dzieła: ${schemeOf(plan.setScheme).label} („${plan.setScheme}”).`);
-      for (const other of overlapsWith(running, plan)) warnings.push(`${label}część „${other}” obejmuje te same miejsca — czy to nie ten sam fragment pod innym kluczem?`);
-      warnings.push(...plan.warnings.map((w) => `${label}${w}`));
-      running = readManifest(nextManifest(running, work.id, plan, 'preview'));
-    }
-    if (lines.length === 0) return { error: warnings[0] ?? 'Nic do zaimportowania.' };
-    return { lines, warnings };
+    const meta = metaOf(doc, work);
+    if (meta.error !== undefined) return { error: meta.error };
+    const said = previewPortions(work, manifest, portionDocs(doc));
+    if ('error' in said) return said;
+    return { lines: said.lines, warnings: [...(meta.warning === undefined ? [] : [meta.warning]), ...said.warnings] };
   };
 
   const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
     if (!target.writes) throw new WorkspaceError('W tej bibliotece możesz tylko czytać.');
-    if (target.areaPublic === true && !(await ask({
-      title: 'Tekst w bibliotece publicznej?',
-      body: `Biblioteka „${target.name}” jest w obszarze publicznym — pełny tekst przeczyta każdy, także bez konta. Udostępniaj tylko teksty, które wolno publikować (prawa autorskie).`,
-      confirm: 'Tak, zapisz publicznie'
-    }))) return { lines: ['Nic nie zapisano.'], warnings: [] };
-    const lines: string[] = [];
-    const warnings: string[] = [];
-    let current = targetStore.ownTexts(work.id)[0];
-    let read = current === undefined ? undefined : readManifest(current.data);
-    const textId = current?.id ?? newId();
-    const docs = documentsOf(doc);
-    for (const [i, raw] of docs.entries()) {
-      const plan = planSourceImport(raw, { work, ...(read === undefined ? {} : { manifest: read }) });
-      if ('error' in plan) { warnings.push(`Dokument ${i + 1}: ${plan.error}`); continue; }
-      const had = read?.parts.find((p) => p.key === plan.portion.key);
-      if (had !== undefined) {
-        const before = await targetStore.heavy(had.id);
-        if (before !== null && samePart(readPart(before.data), plan)) { lines.push(`„${plan.portion.label}”: bez zmian.`); continue; }
-      }
-      stage(`Zapisywanie części ${i + 1} z ${docs.length}…`);
-      const partId = had?.id ?? newId();
-      /* Erst der Teil, dann das Verzeichnis: ein Verzeichnis zeigt nie auf einen Teil, den es nicht gibt. */
-      await targetStore.save({ id: partId, kind: PART_KIND, data: partData(textId, work.id, plan) });
-      current = await targetStore.save({ id: textId, kind: TEXT_KIND, data: nextManifest(read, work.id, plan, partId) });
-      read = readManifest(current.data);
-      lines.push(`„${plan.portion.label}”: ${had === undefined ? 'dodana' : 'zastąpiona'}.`);
-      warnings.push(...plan.warnings);
-      /* Die Regel der Stellen gehört ans Werk — wenn es noch keine hat und man dort schreibt. */
-      if (plan.setScheme !== undefined && typeof work.data.scheme !== 'string' && library.writes && store.own(work.id) !== undefined) {
-        await store.save({ id: work.id, kind: 'work', ...(work.key === undefined ? {} : { key: work.key }), data: { ...work.data, scheme: plan.setScheme } }).catch(() => {
-          warnings.push('Nie udało się zapisać układu miejsc przy dziele — tekst ma go i tak.');
-        });
-      }
-    }
-    return { lines: lines.length === 0 ? ['Nic nie zapisano.'] : lines, warnings };
+    const meta = metaOf(doc, work);
+    if (meta.error !== undefined) throw new WorkspaceError(meta.error);
+    if (!(await publicOk(target))) return { lines: ['Nic nie zapisano.'], warnings: [] };
+    return writePortions({ target: targetStore, work, docs: portionDocs(doc), stage, ...(library.writes ? { workStore: store } : {}) });
   };
 
   const exportDoc = async (): Promise<unknown> => {
@@ -173,20 +165,11 @@ function SourceImport({ store, library, work, writable, storeFor }: {
 
   return (
     <div className="src-import">
-      {writable.length > 1 && (
-        <label className="wk-field">
-          <span>Biblioteka tekstu</span>
-          <select value={target.libraryId} onChange={(e) => setTargetId(e.target.value)}>
-            {writable.map((l) => <option key={l.libraryId} value={l.libraryId}>{l.name}{l.areaPublic === true ? ' (publiczna)' : ''}</option>)}
-          </select>
-        </label>
-      )}
-      {target.libraryId !== library.libraryId && <p className="wk-note">Tekst będzie w bibliotece „{target.name}”, dzieło jest w „{library.name}”. Kto czyta tylko „{library.name}”, widzi dzieło i cytaty, ale nie tekst.</p>}
-      {target.areaPublic === true && <p className="wk-note">Biblioteka „{target.name}” jest publiczna — tekst przeczyta każdy, także bez konta.</p>}
+      <TextLibraryPick writable={writable} target={target} workLibrary={library} onPick={setTargetId} />
       <JsonPanel
         open
         summary={`Tekst: ${title}`}
-        lead={<>Jedna część tekstu na dokument (albo lista dokumentów) — np. przepisana przez AI z PDF-u. Część o tym samym kluczu zastępuje poprzednią, inne zostają; ta sama część drugi raz niczego nie zmienia. Obok jest opis formatu i polecenie do skopiowania.</>}
+        lead={<>Jedna część tekstu, kilka albo cały tekst („portions”) — np. przepisany przez AI z PDF-u. Część o tym samym kluczu zastępuje poprzednią, inne zostają; ta sama część drugi raz niczego nie zmienia. Obok jest opis formatu i polecenie do skopiowania.</>}
         fileName={`tekst-${(work.key ?? work.id).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
         exportDoc={exportDoc}
         description={() => sourceTextPrompt(work, title, scheme)}
@@ -203,3 +186,81 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   );
 }
 
+/* -- 2026-10-24: ein Werk mit seinem Text, in einem Import ------------------------------------------------------ */
+
+/** „Dzieło z tekstem (JSON)" — in den Źródła einer Bibliothek, in der man schreibt. */
+export function WorkWithTextButton({ store, library, targets }: { store: LibraryStore; library: OpenLibrary; targets?: SourceTargets }) {
+  const [open, setOpen] = useState(false);
+  const writable = (targets?.libraries ?? [library]).filter((l) => l.writes && libraryKindOf(l) === 'books');
+  if (!library.writes) return null;
+  return (
+    <>
+      <button type="button" className="wk-btn wk-btn-line" onClick={() => setOpen(true)}>Dzieło z tekstem (JSON)</button>
+      {open && (
+        <Modal title="Dzieło z pełnym tekstem — import JSON" wide onClose={() => setOpen(false)}>
+          <WorkWithTextImport store={store} library={library} writable={writable.length === 0 ? [library] : writable} storeFor={targets?.storeFor ?? (() => store)} />
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/**
+ * EIN WERK UND SEIN TEXT AUS EINEM DOKUMENT: das Werk (und wen es nennt) in DIESE Bibliothek,
+ * der Text in die gewählte. Danach öffnet sich das Werk — mit „Czytaj".
+ */
+function WorkWithTextImport({ store, library, writable, storeFor }: {
+  store: LibraryStore;
+  library: OpenLibrary;
+  writable: readonly OpenLibrary[];
+  storeFor: (row: OpenLibrary) => LibraryStore;
+}) {
+  const [targetId, setTargetId] = useState(library.libraryId);
+  const target = writable.find((l) => l.libraryId === targetId) ?? writable[0]!;
+  const targetStore = target.libraryId === library.libraryId ? store : storeFor(target);
+  const manifestOf = (workId: string): TextManifest | undefined => {
+    const one = targetStore.ownTexts(workId)[0];
+    return one === undefined ? undefined : readManifest(one.data);
+  };
+
+  const preview = (doc: unknown): JsonPreview | { error: string } => {
+    const plan = planWorkWithText(doc, store, manifestOf);
+    return 'error' in plan ? plan : { lines: [...plan.lines], warnings: [...plan.warnings] };
+  };
+
+  const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
+    const plan = planWorkWithText(doc, store, manifestOf);
+    if ('error' in plan) throw new WorkspaceError(plan.error);
+    if (plan.docs.length > 0 && !(await publicOk(target))) return { lines: ['Nic nie zapisano.'], warnings: [] };
+    /* Erst das Werk und wen es nennt (wie der Import der Bibliothek), dann sein Text. */
+    let work: Entry | undefined = store.own(plan.work.id);
+    for (const [i, draft] of plan.library.drafts.entries()) {
+      stage(`Zapisywanie wpisu ${i + 1} z ${plan.library.drafts.length}…`);
+      const saved = await store.save({ id: draft.id, kind: draft.kind, ...(draft.key === undefined ? {} : { key: draft.key }), data: draft.data });
+      if (saved.id === plan.work.id) work = saved;
+    }
+    work ??= store.get(plan.work.id);
+    if (work === undefined) throw new WorkspaceError('Dzieło jest w innej bibliotece — tekst dodasz na jego stronie.');
+    const text = plan.docs.length === 0 ? { lines: [], warnings: [] } : await writePortions({ target: targetStore, work, docs: plan.docs, stage, workStore: store });
+    const opened = work.id;
+    window.setTimeout(() => { window.location.hash = viewPath('library', library.libraryId, opened); }, 1200);
+    return { lines: [...plan.lines.slice(0, 1), ...text.lines, 'Otwieram stronę dzieła…'], warnings: [...plan.library.warnings, ...text.warnings] };
+  };
+
+  return (
+    <div className="src-import">
+      <TextLibraryPick writable={writable} target={target} workLibrary={library} onPick={setTargetId} />
+      <JsonPanel
+        open
+        summary="Dzieło z pełnym tekstem"
+        lead={<>Jeden dokument: opis dzieła (książki, artykułu, rozdziału, dokumentu), jego autorzy i — gdy trzeba — czasopismo albo książka, w której jest, oraz jego tekst w częściach. Dzieło trafia do „{library.name}”; o istniejącym kluczu zostaje uzupełnione, nie zdublowane. Obok opis formatu i polecenie dla AI.</>}
+        fileName="dzielo-z-tekstem.json"
+        exportDoc={() => WORK_WITH_TEXT_EXAMPLE}
+        description={workWithTextPrompt}
+        preview={preview}
+        importLabel="Importuj dzieło z tekstem"
+        onImport={onImport}
+      />
+    </div>
+  );
+}

@@ -18,6 +18,7 @@ import { current as notifyNow, subscribe as notifySubscribe } from '../notify/no
 import { NotifyBell } from '../notify/NotifyBell';
 import { NowPlayingBar } from '../chat/NowPlayingBar';
 import { PhoneBar } from './PhoneBar';
+import { StudiumItems } from './StudiumItems';
 import { tilesPath, viewPath, type Spot, type View } from '../routes';
 import { SEARCH_EVENT, SearchPalette } from './SearchPalette';
 import type { Who } from '../core/session';
@@ -45,7 +46,7 @@ export interface Nav {
   readonly main: readonly NavEntry[];
   /** Die Pfarrei: Messen, Reservierungen, Kartoteka. */
   readonly parish: readonly NavEntry[];
-  /** Bibliothek und Nauka. */
+  /** Bibliothek, Cogita (Wiedza und Nauka), Skryptorium. */
   readonly knowledge: readonly NavEntry[];
   /** Für die, die bauen: alle Bausteine, Rollen, Adressen. */
   readonly settings: readonly NavEntry[];
@@ -105,8 +106,8 @@ export function useNav(): Nav {
       entry('bookings', 'Rezerwacje', 'key', bookings),
       entry('registry', 'Kartoteka i kolęda', 'place')
     ],
-    /* 2026-10-23 — drei Teile: Źródła (Biblioteka), Pisanie (Skryptorium), Wiedza; 2026-10-24 Cogita getrennt in Wiedza und Nauka. */
-    knowledge: [entry('library', 'Biblioteka', 'book'), entry('scriptorium', 'Skryptorium', 'compose'), entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap')],
+    /* Cogita groups Wiedza and Nauka between the library and Skryptorium. */
+    knowledge: [entry('library', 'Biblioteka', 'book'), entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap'), entry('scriptorium', 'Skryptorium', 'compose')],
     settings: [entry('modules', 'Moduły', 'blocks'), entry('roles', 'Role', 'badge'), entry('addresses', 'Adresy i domeny', 'at')]
   };
 }
@@ -131,18 +132,20 @@ const initials = (login: string): string => {
 
 /* -- Die Seitenleiste ---------------------------------------------------------------------- */
 
-function NavList({ entries, at }: { entries: readonly NavEntry[]; at: Place | null }) {
+function NavList({ entries, at, studium = false }: { entries: readonly NavEntry[]; at: Place | null; studium?: boolean }) {
+  const renderItems = (items: readonly NavEntry[]) => items.map((one) => (
+    <li key={one.place}>
+      <a className="wk-nav-item" href={one.href} aria-current={at === one.place ? 'page' : undefined} data-nav={one.place}>
+        <Icon name={one.icon} />
+        <span>{one.label}</span>
+        {one.count !== undefined && <span className="wk-count" aria-label={`${one.count} nowych`}>{one.count > 99 ? '99+' : one.count}</span>}
+      </a>
+    </li>
+  ));
+
   return (
     <ul className="wk-nav">
-      {entries.map((one) => (
-        <li key={one.place}>
-          <a className="wk-nav-item" href={one.href} aria-current={at === one.place ? 'page' : undefined} data-nav={one.place}>
-            <Icon name={one.icon} />
-            <span>{one.label}</span>
-            {one.count !== undefined && <span className="wk-count" aria-label={`${one.count} nowych`}>{one.count > 99 ? '99+' : one.count}</span>}
-          </a>
-        </li>
-      ))}
+      {studium ? <StudiumItems entries={entries} renderItems={renderItems} /> : renderItems(entries)}
     </ul>
   );
 }
@@ -165,7 +168,7 @@ function Sidebar({ nav, spot, who, onSignOut }: { nav: Nav; spot: Spot; who: Who
         {nav.knowledge.length > 0 && (
           <>
             <p className="wk-nav-label">Studium</p>
-            <NavList entries={nav.knowledge} at={at} />
+            <NavList entries={nav.knowledge} at={at} studium />
           </>
         )}
       </nav>

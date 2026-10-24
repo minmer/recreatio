@@ -52,6 +52,20 @@ a.wk-brandmark { color: var(--wk-ink); }
 
 .wk-nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }
 
+.wk-nav-group { padding-block: var(--wk-space-1); }
+.wk-nav-group-label {
+  margin: 0;
+  padding: var(--wk-space-1) var(--wk-space-3);
+  color: var(--wk-muted);
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+}
+.wk-nav-children {
+  margin-left: var(--wk-space-3);
+  padding-left: var(--wk-space-2);
+  border-left: 1px solid var(--wk-line);
+}
+
 .wk-nav-item {
   display: flex;
   align-items: center;

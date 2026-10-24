@@ -31,6 +31,7 @@ import { API, call, WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '../library/library';
 import { storeOf, type LibraryStore } from '../library/libraryStore';
 import type { ScopePart } from './aiSnapshot';
+import { readManifest, TEXT_KIND } from '../library/sourceText';
 
 export interface AiPart {
   readonly libraryId: string;
@@ -250,6 +251,25 @@ async function openScope(ring: Ring, areaId: string, libraryIds: readonly string
   return parts;
 }
 
+/** Wie gross eine gepackte Abschrift höchstens sein darf (der Dienst nimmt 32 MB, mit Rand für ihre Hülle). */
+const MAX_PACKED = 30 * 1024 * 1024;
+
+/**
+ * 2026-10-24 — DIE TEXTE EINES BEHÄLTERS ÖFFNEN: ihre Teile sind schwere Einträge (nur ihre Zeilen
+ * kommen beim Abgleich) — für die Abschrift werden sie geholt. Nur eine Bibliothek hat Texte.
+ */
+async function withTexts(parts: readonly ScopePart[], libraryId: string): Promise<ScopePart[]> {
+  const part = parts.find((p) => p.store.libraryId === libraryId);
+  if (part === undefined || part.kind !== 'books' || part.texts !== undefined) return [...parts];
+  const manifests = part.store.all().filter((e) => e.kind === TEXT_KIND);
+  if (manifests.length === 0) return [...parts];
+  const ids = manifests.flatMap((m) => readManifest(m.data).parts.map((x) => x.id));
+  const opened = await part.store.heavyMany(ids);
+  const byId = new Map(opened.filter((e): e is NonNullable<typeof e> => e !== null).map((e) => [e.id, e]));
+  const texts = manifests.map((entry) => ({ entry, parts: readManifest(entry.data).parts.flatMap((x) => { const e = byId.get(x.id); return e === undefined ? [] : [{ id: e.id, data: e.data }]; }) }));
+  return parts.map((p) => (p === part ? { ...p, texts } : p));
+}
+
 /* -- Auffrischen -------------------------------------------------------------------------------- */
 
 /**
@@ -288,8 +308,16 @@ export async function refreshAiAccess(
     if (parts === undefined) { parts = await openScope(ring, areaId, scopeIds); scopes.set(scopeIds.join(','), parts); }
     for (const part of job.parts) {
       try {
-        const doc = snapshotDoc(parts, part.libraryId, new Date().toISOString());
-        const sealed = await seal(key, snapshotAad(part.libraryId), await gzip(JSON.stringify(doc)));
+        /* 2026-10-24 — mit den vollständigen Texten, die in diesem Behälter liegen; zu gross: ohne sie (die Einträge zuerst). */
+        const scope = await withTexts(parts, part.libraryId);
+        const madeAt = new Date().toISOString();
+        let doc = snapshotDoc(scope, part.libraryId, madeAt);
+        let packed = await gzip(JSON.stringify(doc));
+        if (packed.length > MAX_PACKED && doc.texts !== undefined) {
+          doc = snapshotDoc(scope, part.libraryId, madeAt, false);
+          packed = await gzip(JSON.stringify(doc));
+        }
+        const sealed = await seal(key, snapshotAad(part.libraryId), packed);
         await uploadSnapshot(areaId, job.access.id, part.libraryId, part.mark, doc.entries.length, sealed);
         refreshed += 1;
       } catch (e) {
