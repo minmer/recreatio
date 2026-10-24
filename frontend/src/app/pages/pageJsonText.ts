@@ -3,6 +3,7 @@
  */
 
 import { QUESTION_EXAMPLE, QUESTION_KEYS } from '../forms/formJson';
+import { DEFAULT_ENTRY, MAX_APPOINTMENTS, MAX_DEPTH } from '../calendar/appointmentsJson';
 import { motionDescription } from './motion/motion';
 import { liveDescription } from './motion/liveText';
 import { MODULE_FORMAT, PAGE_FORMAT } from './pageJson';
@@ -198,6 +199,37 @@ export function pageExample(): Record<string, unknown> {
 }
 
 /** Die Beschreibung der Seite — neben dem Import der Seite, und zum Kopieren für ein Sprachmodell. */
+/* 2026-10-24 — Termine, die eine Seite mitbringt (mit Programm), und die Eingänge, über die sie in Kalender gehen. */
+const APPOINTMENTS_SECTION = `Strona może przynieść terminy (rekolekcje, pielgrzymka, festyn) razem z ich programem. Import DODAJE je do kalendarzy — każdy import od nowa (dwa importy to dwa razy te same terminy). Terminy, które już są w kalendarzu, strona pokazuje modułem przez ich identyfikator, nie przez "appointments".
+Wejścia ("calendars"): każde wejście to miejsce, do którego trafiają terminy; przy imporcie osoba importująca wybiera dla każdego wejścia jeden ze swoich kalendarzy, w których może pisać (jak obszar dla odpowiedzi nowych pytań formularza).
+  wejście: { "key": krótka nazwa (litery, cyfry, - i _), "label": jak je zobaczy osoba importująca, "calendar": identyfikator kalendarza — tylko podpowiedź }
+  Termin bez "calendar" trafia do wejścia "${DEFAULT_ENTRY}"; wejście bez opisu w "calendars" też działa (nazwą jest jego "key").
+Termin (wpis w "appointments"):
+  "key" — krótka nazwa, przez którą moduły wskazują ten termin: "@nazwa" (np. "item" modułu "program")
+  "calendar" — wejście (= "key" z "calendars"); punkty programu idą do kalendarza swojego terminu
+  "title" — nazwa terminu (wymagana)
+  "start" — "RRRR-MM-DDTGG:MM" (czas miejscowy) albo "RRRR-MM-DD" (cały dzień); w punkcie programu wystarczy "GG:MM" (dzień jego terminu), a bez "start" punkt zaczyna się razem z terminem
+  "end" — tak samo; "GG:MM" to ten sam dzień; przy całym dniu — ostatni dzień (włącznie); bez "end": godzina, przy całym dniu — jeden dzień
+  "allDay" — true: cały dzień (także gdy "start" ma godzinę)
+  "location", "notes" — miejsce i opis
+  "link", "linkLabel" — „Więcej informacji": adres https://… albo #/ścieżka i napis na przycisku
+  "repeat" — tylko termin (nie punkt): "none", "daily", "weekly", "monthly", "yearly"; "every" — co ile (1–99); "weekdays" — przy "weekly": ["pn", "wt", "śr", "cz", "pt", "so", "nd"] (bez nich — dzień "start"); "until" — "RRRR-MM-DD" ostatni dzień (bez niego — bez końca)
+  "points" — punkty programu: lista terminów (te same klucze, bez "calendar" i "repeat"), także z własnymi "points" — najwyżej ${MAX_DEPTH} poziomy; najwyżej ${MAX_APPOINTMENTS} terminów razem z punktami
+Moduły wskazują terminy i wejścia przez "@nazwa": "program" — "item": "@nazwa terminu" (pusty "calendar" sam dostanie kalendarz tego terminu, albo "calendar": "@wejście"); "calendar" — "calendars": "@wejście" (także obok identyfikatorów, po przecinku). Po imporcie stoją tam prawdziwe identyfikatory.
+Przykład:
+${pretty({
+    calendars: [{ key: 'rekolekcje', label: 'Kalendarz rekolekcji' }],
+    appointments: [{
+      key: 'dzien1', calendar: 'rekolekcje', title: 'Rekolekcje adwentowe — dzień 1', start: '2026-12-05T18:00', end: '21:00', location: 'Kościół',
+      points: [
+        { title: 'Msza święta', start: '18:00', end: '19:00' },
+        { title: 'Konferencja', start: '19:15', end: '20:00', points: [{ title: 'Czas na pytania', start: '19:45' }] },
+        { title: 'Adoracja', start: '20:00', end: '21:00' }
+      ]
+    }],
+    modules: [{ kind: 'program', config: { title: 'Program', calendar: '', item: '@dzien1' } }]
+  })}`;
+
 export function pageDescription(): string {
   return `# Strona jako JSON ("${PAGE_FORMAT}", wersja 1)
 
@@ -233,9 +265,14 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
       "registered"/"confirmed"/"answer"/"mark" mają "formId"; "answer" — "fieldId", "op" ("filled"|"empty"|"eq"|"ne"), "valueHash"; "mark" — "stepId", "markBy" ("office"|"person"); "date" — "when" ("after"|"before"), "date"
       krawędź: { "id", "from", "to", "port": "show"|"done"|"applies"|"in" }
   "modules" — moduły w kolejności czytania
+  "appointments" — terminy do kalendarza, z programem (punktami i podpunktami): import DODAJE je do kalendarzy, które wybiera osoba importująca (niżej: Terminy do kalendarza); eksport ich nie zawiera
+  "calendars" — wejścia dla terminów: do których kalendarzy mają trafić (osoba importująca wybiera kalendarz dla każdego wejścia)
 
 ## Teksty na stronie
 Krótki napis (powitanie, ogłoszenie, kilka zdań) zostaje w module — np. "text". Dłuższy tekst (kazanie, konferencja, rozważanie, rozdział) mieszka w Skryptorium i stamtąd go się pokazuje: moduł "writing" (jeden tekst — z planem, wygłoszeniami, przypisami) albo "writings" (archiwum tekstów jednego skryptorium). Wtedy poprawka w Skryptorium jest od razu na każdej stronie, a kto widzi tekst, decyduje obszar skryptorium. Cytaty pokazuje moduł "quotes" (z Biblioteki).
+
+## Terminy do kalendarza
+${APPOINTMENTS_SECTION}
 
 ## Moduł (wpis w "modules")
 ${keyLines(ENTRY_KEYS)}

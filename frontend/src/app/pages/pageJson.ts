@@ -26,6 +26,7 @@
 import { asArray, asRecord, asText, count } from './event/kit';
 import { type FormContent } from '../forms/formJson';
 import type { VirtualAreaDoc } from '../forms/virtualAreasJson';
+import { describePlan, readAppointments, referencesIn, REFERENCE_FIELDS, type AppointmentsPlan } from '../calendar/appointmentsJson';
 import { newId } from '../core/ids';
 import { BREAKPOINTS, COLUMNS, firstFreeCell, snapColSpan, snapRowSpan, type Breakpoint, type Frame, type Layout } from './layout';
 import type { MenuState } from './menu';
@@ -376,9 +377,15 @@ export interface PagePlan {
   readonly names: ReadonlyMap<string, string>;
   /** Stelle → Fragen und Aufbau eines Formulars. */
   readonly forms: ReadonlyMap<string, { readonly questions?: unknown; readonly design?: unknown }>;
+  /** 2026-10-24 — Termine (mit Programm), die der Import in die gewählten Kalender einträgt (`appointmentsJson.ts`). */
+  readonly appointments?: AppointmentsPlan;
   readonly lines: readonly string[];
   readonly warnings: readonly string[];
 }
+
+/** 2026-10-24 — die Felder eines Bausteins, die auf Kalender oder Termine zeigen (dort darf „@name" stehen). */
+export const referenceFieldsOf = (kind: string): readonly string[] =>
+  (partOf(kind)?.fields ?? []).filter((f) => REFERENCE_FIELDS.includes(f.kind)).map((f) => f.key);
 
 /** Was für ein Dokument das ist. */
 export function documentKind(doc: unknown): 'page' | 'module' | 'part' | 'legacy' | 'unknown' {
@@ -658,6 +665,27 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
         lines.push(decl === null || known === undefined ? 'Wybór na stronie: brak.' : `Wybór na stronie: ${known.label.toLowerCase()}.`);
         const missing = decl === null || known === undefined ? null : known.missing(decl);
         if (missing !== null) warnings.push(`Wybór na stronie: ${missing}`);
+      }
+    }
+  }
+
+  /*
+     2026-10-24 — TERMINE FÜR DEN KALENDER (mit ihrem Programm). Eingetragen
+     werden sie beim Import, je Eingang in den Kalender, den der Importierende
+     wählt; Module zeigen mit „@name" auf sie.
+  */
+  if (kind === 'page') {
+    const appointments = readAppointments(root.appointments, root.calendars, warnings);
+    if (appointments !== undefined && appointments.items.length > 0) {
+      plan.appointments = appointments;
+      lines.push(describePlan(appointments));
+    }
+  }
+  {
+    const known = plan.appointments?.keys ?? new Set<string>();
+    for (const part of parts) {
+      for (const name of referencesIn(part.config, referenceFieldsOf(part.kind))) {
+        if (!known.has(name)) warnings.push(`Moduł „${partOf(part.kind)?.label ?? part.kind}”: „@${name}” — nie ma takiego terminu ani kalendarza w "appointments"/"calendars".`);
       }
     }
   }

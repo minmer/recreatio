@@ -32,6 +32,7 @@ export { QUESTION_EXAMPLE, QUESTION_KEYS, readQuestions } from '${app}forms/form
 export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription, exportEntries, planEntries } from '${app}forms/entriesJson';
 export { BREAKPOINTS } from '${app}pages/layout';
 export { readVirtualAreas, levelOf } from '${app}forms/virtualAreasJson';
+export { readAppointments, referencesIn, resolveReferences, describePlan, DEFAULT_ENTRY } from '${app}calendar/appointmentsJson';
 `);
 await build({
   entryPoints: [entry],
@@ -284,6 +285,70 @@ try {
   assert.equal(example.parts.length, m.pageExample().modules.length);
   assert.ok(example.forms.size === 1, 'the example form carries questions');
   ok('descriptions: every kind and every key, for page, part and module; the page example imports cleanly');
+
+  /* -- 2026-10-24: Termine fürs Kalender im JSON einer Seite ------------------------------- */
+  {
+    const said = [];
+    const plan = m.readAppointments([
+      { key: 'dzien1', calendar: 'rekolekcje', title: 'Rekolekcje — dzień 1', start: '2026-12-05T18:00', end: '21:00', location: 'Kościół',
+        points: [
+          { title: 'Msza', start: '18:00', end: '19:00' },
+          { title: 'Konferencja', start: '19:15', end: '20:00', points: [{ title: 'Pytania' }] }
+        ] },
+      { title: 'Festyn', start: '2027-06-13', end: '2027-06-14' },
+      { title: 'Próba chóru', start: '2026-12-02T19:00', repeat: 'weekly', weekdays: ['śr', 'pt'], until: '2027-01-31' }
+    ], [{ key: 'rekolekcje', label: 'Kalendarz rekolekcji', calendar: 'cal-1' }], said);
+    assert.deepEqual(said, [], 'a clean document reads without a word');
+    assert.deepEqual(plan.entries.map((e) => [e.key, e.label, e.suggested, e.count]), [['rekolekcje', 'Kalendarz rekolekcji', 'cal-1', 1], [m.DEFAULT_ENTRY, 'Kalendarz', null, 2]],
+      'two entries: the described one with its suggestion, and the default for appointments without one');
+    assert.equal(plan.total, 6, 'three appointments, three points');
+    const [day1, fest, choir] = plan.items;
+    assert.deepEqual([day1.date, day1.time, day1.minutes, day1.allDay], ['2026-12-05', '18:00', 180, false], 'start and an end as a time of the same day');
+    assert.deepEqual(day1.points.map((p) => [p.title, p.date, p.time, p.minutes, p.entry]), [['Msza', '2026-12-05', '18:00', 60, 'rekolekcje'], ['Konferencja', '2026-12-05', '19:15', 45, 'rekolekcje']],
+      'points: "GG:MM" on the day of their appointment, into its calendar');
+    assert.deepEqual([day1.points[1].points[0].time, day1.points[1].points[0].minutes], ['19:15', 60], 'a point without a start begins with its appointment, an hour long');
+    assert.deepEqual([fest.allDay, fest.minutes, fest.time], [true, 2880, '00:00'], 'all day: the last day counts');
+    assert.deepEqual([choir.repeat, choir.weekdays, choir.until], ['weekly', 4 | 16, '2027-01-31'], 'weekly on Wednesday and Friday until the given day');
+    assert.ok(plan.keys.has('dzien1') && plan.keys.has('rekolekcje') && plan.keys.has(m.DEFAULT_ENTRY), 'modules may point at appointments and entries');
+
+    const bad = [];
+    const rough = m.readAppointments([
+      { title: '', start: '2026-12-05' },
+      { title: 'Bez daty' },
+      { title: 'Zła data', start: '2026-02-30' },
+      { key: 'x y', title: 'Zły klucz', start: '2026-12-01T10:00', end: '09:00', repeat: 'often', points: [{ title: 'Punkt', start: '10:00', calendar: 'inny', repeat: 'daily' }] }
+    ], [{ key: 'nikt', label: 'Pusty' }], bad);
+    assert.equal(rough.items.length, 1, 'only the readable appointment stays');
+    assert.equal(rough.items[0].minutes, 60, 'an end before the start: an hour');
+    assert.ok(bad.length >= 8, `each dropped thing says so (${bad.length})`);
+    assert.equal(m.readAppointments(undefined, undefined, []), undefined, 'no key: the document brings no appointments');
+
+    /* Im Plan einer Seite: eine Zeile dazu, und Verweise der Module werden geprüft. */
+    const doc = { format: m.PAGE_FORMAT, version: 1, appointments: [{ key: 'dzien1', title: 'Dzień 1', start: '2026-12-05T18:00' }],
+      modules: [{ kind: 'program', config: { title: 'Program', calendar: '', item: '@dzien1' } }, { kind: 'calendar', config: { title: 'Terminy', calendars: '@nieznany' } }] };
+    const planned = m.planImport(doc, { ...now, parts: [], logic: null }, m.DEFAULT_IMPORT);
+    assert.ok(!('error' in planned) && planned.appointments?.items.length === 1, 'the plan carries the appointments');
+    assert.ok(planned.lines.some((l) => l.startsWith('Terminy do kalendarza: 1')), 'and says how many, where');
+    assert.ok(planned.warnings.some((w) => w.includes('„@nieznany”')) && !planned.warnings.some((w) => w.includes('„@dzien1”')), 'an unknown "@name" is reported, a known one not');
+
+    /* Verweise ersetzen — nur in Feldern, die auf Kalender oder Termine zeigen. */
+    const items = new Map([['dzien1', { itemId: 'item-1', calendarId: 'cal-9' }]]);
+    const entries = new Map([['rekolekcje', 'cal-1']]);
+    const program = m.resolveReferences('program', { title: '@dzien1', calendar: '', item: '@dzien1' }, m.referenceFieldsOf('program'), items, entries);
+    assert.deepEqual(program.config, { title: '@dzien1', calendar: 'cal-9', item: 'item-1' }, 'program: the item, its calendar filled in; the title stays text');
+    const calendar = m.resolveReferences('calendar', { title: 'Terminy', calendars: '@rekolekcje, cal-2, @gdzie' }, m.referenceFieldsOf('calendar'), items, entries);
+    assert.deepEqual([calendar.config.calendars, calendar.missing], ['cal-1, cal-2, @gdzie', ['gdzie']], 'calendar: entries replaced in the list, an unknown name stays and is reported');
+    assert.deepEqual(m.referencesIn({ calendars: '@a,b, @c', title: '@x' }, m.referenceFieldsOf('calendar')), ['a', 'c'], 'references only in calendar fields');
+
+    /* Die Beschreibung: beide Schlüssel, und ihr Beispiel liest sich sauber. */
+    const page = m.pageDescription();
+    assert.ok(page.includes('"appointments" — ') && page.includes('"calendars" — ') && page.includes('## Terminy do kalendarza'), 'the description explains appointments and entries');
+    const sample = JSON.parse(page.slice(page.indexOf('Przykład:', page.indexOf('## Terminy do kalendarza')) + 'Przykład:'.length, page.indexOf('\n## ', page.indexOf('## Terminy do kalendarza') + 5)).trim());
+    const sampleWords = [];
+    const samplePlan = m.readAppointments(sample.appointments, sample.calendars, sampleWords);
+    assert.ok(sampleWords.length === 0 && samplePlan.total === 5, 'the example in the description reads cleanly');
+    ok('page JSON (2026-10-24): appointments with their program, entries chosen on import, "@name" references, tolerant reading, description');
+  }
 
   {
   /* -- 0077: eine Erweiterung, die sich wiederholt — im JSON des Moduls ----------------- */

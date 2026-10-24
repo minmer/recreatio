@@ -22,7 +22,11 @@ import { adoptMenuOf, loadMenu, saveMenu } from './menu';
 import { loadModules, readConfig, updateModule } from '../modules/module';
 import { QuestionOptions } from '../modules/ModuleJson';
 import { loadPage, savePage, savePageLogic, savePageLook, savePageSubject, saveParts, type DraftPart } from './page';
-import { configFromJson, DEFAULT_IMPORT, documentKind, exportPage, legacyPagesOf, PART_FORMAT, planImport, replacing, sameConfig, type ImportOptions, type PageNow } from './pageJson';
+import { configFromJson, DEFAULT_IMPORT, documentKind, exportPage, legacyPagesOf, PART_FORMAT, planImport, referenceFieldsOf, replacing, sameConfig, type ImportOptions, type PageNow, type PagePlan } from './pageJson';
+import { AppointmentOptions } from '../calendar/AppointmentOptions';
+import { resolveReferences } from '../calendar/appointmentsJson';
+import { loadCalendars, type CalendarRow } from '../calendar/calendar';
+import { keysFor } from '../core/ringOf';
 import { pageDescription, partDescription } from './pageJsonText';
 import { partOf } from './parts/registry';
 import { asRecord, asText, count } from './event/kit';
@@ -40,6 +44,8 @@ export function PageJson({ now, who, unsaved, onDone }: {
   const [options, setOptions] = useState<ImportOptions>(DEFAULT_IMPORT);
   const [replaceQuestions, setReplaceQuestions] = useState(false);
   const [answersTo, setAnswersTo] = useState('');
+  /* 2026-10-24 — je Eingang der Termine des Dokuments: der Kalender, in den sie gehen. */
+  const [calendarFor, setCalendarFor] = useState<Readonly<Record<string, string>>>({});
 
   const set = (patch: Partial<ImportOptions>) => setOptions((was) => ({ ...was, ...patch }));
   const plan = (doc: unknown) => planImport(doc, { ...now, menu: null }, options);
@@ -59,15 +65,58 @@ export function PageJson({ now, who, unsaved, onDone }: {
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const done = plan(doc);
     if ('error' in done) return done;
-    return { lines: done.lines, warnings: done.warnings };
+    const unchosen = (done.appointments?.entries ?? []).filter((e) => (calendarFor[e.key] ?? '') === '');
+    return {
+      lines: done.lines,
+      warnings: [...done.warnings, ...unchosen.map((e) => `Wybierz kalendarz dla terminów „${e.label}” — bez tego zostaną pominięte.`)]
+    };
+  };
+
+  /*
+     2026-10-24 — DIE TERMINE EINTRAGEN, vor den Bausteinen: erst dann gibt es
+     die Kennungen, auf die „@name" in ihren Tafeln zeigt. Gibt den Plan mit
+     ersetzten Verweisen zurück.
+  */
+  const placeAppointments = async (done: PagePlan, stage: (what: string) => void, lines: string[], warnings: string[]): Promise<PagePlan> => {
+    if (done.appointments === undefined) return done;
+    const { ring, graph } = await keysFor(who);
+    const person = graph.roles.find((r) => r.kind === 'person') ?? null;
+    if (ring === null || person === null) {
+      warnings.push('Terminy pominięte — najpierw podaj hasło.');
+      return done;
+    }
+    const all = await loadCalendars().then((r) => r.calendars, () => [] as readonly CalendarRow[]);
+    const chosen = new Map<string, CalendarRow>();
+    for (const entry of done.appointments.entries) {
+      const found = all.find((c) => c.calendarId === calendarFor[entry.key]);
+      if (found !== undefined) chosen.set(entry.key, found);
+    }
+    const { importAppointments } = await import('../calendar/appointmentsImport');
+    const placed = await importAppointments(ring, person.id, done.appointments, chosen, stage);
+    warnings.push(...placed.warnings);
+    if (placed.created > 0) lines.push(`Kalendarz: dodano ${count(placed.created, 'termin', 'terminy', 'terminów')} (z punktami programu).`);
+
+    const missing = new Set<string>();
+    const resolve = (kind: string, config: Readonly<Record<string, string>>) => {
+      const got = resolveReferences(kind, config, referenceFieldsOf(kind), placed.items, placed.calendars);
+      for (const name of got.missing) missing.add(name);
+      return got.config;
+    };
+    const parts = done.parts.map((p) => ({ ...p, config: resolve(p.kind, p.config) }));
+    const configs = new Map([...done.configs].map(([id, config]) => [id, resolve(done.parts.find((p) => p.id === id)?.kind ?? '', config)] as const));
+    for (const name of missing) warnings.push(`„@${name}” zostało w module — ten termin albo kalendarz nie powstał.`);
+    return { ...done, parts, configs };
   };
 
   const run = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    const done = plan(doc);
-    if ('error' in done) throw new Error(done.error);
+    const planned = plan(doc);
+    if ('error' in planned) throw new Error(planned.error);
     const path = now.path;
-    const warnings = [...done.warnings];
-    const lines = [...done.lines];
+    const warnings = [...planned.warnings];
+    const lines = [...planned.lines];
+
+    /* 2026-10-24 — die Termine zuerst: die Bausteine zeigen dann auf ihre echten Kennungen. */
+    const done = await placeAppointments(planned, stage, lines, warnings);
 
     if (done.title !== undefined || done.lead !== undefined) {
       const title = done.title ?? now.title;
@@ -202,6 +251,11 @@ export function PageJson({ now, who, unsaved, onDone }: {
             )}
             {!('error' in planned) && [...planned.forms.values()].some((f) => f.questions !== undefined) && (
               <QuestionOptions answersTo={answersTo} onAnswersTo={setAnswersTo} replace={replaceQuestions} onReplace={setReplaceQuestions} />
+            )}
+            {/* 2026-10-24 — die Eingänge der Termine: je einer ein Kalender. */}
+            {!('error' in planned) && planned.appointments !== undefined && (
+              <AppointmentOptions entries={planned.appointments.entries} chosen={calendarFor}
+                onChoose={(entry, calendarId) => setCalendarFor((was) => ({ ...was, [entry]: calendarId }))} />
             )}
           </div>
         );
