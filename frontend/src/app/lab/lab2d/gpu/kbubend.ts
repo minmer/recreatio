@@ -303,7 +303,7 @@ ${MAIN} {
   let c = gid.x;
   if (c >= P.n) { return; }
   let n = P.n;
-  let a = at[A_ALPHA * n + c];
+  let a = min(at[A_ALPHA * n + c], max(0.0, 1.0 - cf[F_PHIS * n + c]));
   at[A_ALPHA * n + c] = 0.0;
   let dt = glob[G_DT];
   let cap = ALPHA_RATE * dt;

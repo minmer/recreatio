@@ -613,7 +613,8 @@ export class GpuEngine {
       vapourRate: this.vapourRate,
       ambientT: e.ambientT,
       ambientP: e.pRef,
-      g: e.gy
+      g: e.gy,
+      extremes: e.extremes.stats()
     };
   }
 

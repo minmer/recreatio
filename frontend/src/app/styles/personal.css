@@ -187,7 +187,9 @@
 .wk-cal2-views.is-pasting .wk-cal2-col,
 .wk-cal2-views.is-pasting .wk-cal2-allcell,
 .wk-cal2-views.is-pasting .wk-cal2-cell,
-.wk-cal2-views.is-pasting .wk-cal2-dayhead { cursor: copy; }
+.wk-cal2-views.is-pasting .wk-cal2-dayhead,
+.wk-cal2-views.is-pasting .wk-cal2-cellhead,
+.wk-cal2-views.is-pasting .wk-cal2-listhead { cursor: copy; }
 .wk-cal2-views.is-pasting .wk-cal2-cell:hover,
 .wk-cal2-views.is-pasting .wk-cal2-dayhead:hover { outline: 2px dashed var(--wk-accent); outline-offset: -2px; }
 
@@ -552,7 +554,9 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink); }
+button.wk-taskpill:hover { border-color: var(--wk-accent); color: var(--wk-ink); }
+/* Die stille Marke im Kopf eines Tages: kein eigener Knopf, der Kopf ist es. */
+.wk-taskpill.is-quiet { cursor: inherit; }
 .wk-taskpill:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 .wk-taskpill-tick { font-weight: 700; }
 .wk-taskpill-count { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -585,20 +589,31 @@
 .wk-cal2-cell.is-out { background: var(--wk-ground); }
 .wk-cal2-cell.is-out .wk-cal2-cellday { color: var(--wk-muted); }
 .wk-cal2-cell.is-today { border-color: var(--wk-accent); box-shadow: inset 0 0 0 1px var(--wk-accent); }
-.wk-cal2-cellday {
-  justify-self: start;
+/*
+   2026-10-24 — DER KOPF EINER ZELLE IST EIN KNOPF, über die ganze Breite bis an
+   den Rand der Zelle: das Datum, und still daneben der Stand der Aufgaben
+   (.wk-taskpill.is-quiet). Auf dem Telefon traf der Finger sonst die Pille.
+*/
+.wk-cal2-cellhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-width: 0;
+  min-height: 1.75rem;
+  margin: -0.25rem -0.25rem 0;
+  padding: 0.125rem 0.25rem;
   font: inherit;
-  font-size: var(--wk-text-sm);
-  font-weight: 700;
-  padding: 0 0.25rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--wk-radius-xs) var(--wk-radius-xs) 0 0;
   background: none;
   color: var(--wk-ink);
+  text-align: left;
   cursor: pointer;
 }
-.wk-cal2-cellday:hover { background: var(--wk-soft); }
-.wk-cal2-cellday:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-cal2-cellhead:hover { background: var(--wk-soft); }
+.wk-cal2-cellhead:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-cal2-cellday { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--wk-text-sm); font-weight: 700; }
 .wk-cal2-cell.is-today .wk-cal2-cellday { color: var(--wk-accent); }
 .wk-cal2-cellmon { font-weight: 400; font-size: var(--wk-text-xs); color: var(--wk-muted); }
 .wk-ev.is-line { white-space: nowrap; }
@@ -607,14 +622,34 @@
 /* Die Liste. */
 .wk-cal2-list { display: grid; gap: 1rem; }
 .wk-cal2-listday { display: grid; gap: 0.25rem; }
-.wk-cal2-listday.is-today > .wk-mass-day-name { color: var(--wk-accent); }
+.wk-cal2-listday.is-today .wk-mass-day-name { color: var(--wk-accent); }
 .wk-cal2-listrow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.5rem; padding: 0.25rem 0; border-bottom: 1px solid var(--wk-line); }
 .wk-cal2-listtime { flex: none; min-width: 7rem; font-variant-numeric: tabular-nums; color: var(--wk-muted); font-size: var(--wk-text-sm); }
 .wk-cal2-listtitle { font-weight: 600; text-align: left; }
 .wk-cal2-listtitle.is-cancelled { text-decoration: line-through; }
-.wk-cal2-listhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; }
-.wk-cal2-listhead > .wk-mass-day-name { margin: 0; }
-.wk-cal2-cellhead { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; min-width: 0; }
+/* 2026-10-24 — der Kopf eines Tages in der Liste: auch er ganz das Datum (ein Klick öffnet den Tag). */
+.wk-cal2-listname { margin: 0; }
+.wk-cal2-listhead {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+  width: calc(100% + 0.75rem);
+  margin: 0 -0.375rem;
+  padding: 0.25rem 0.375rem;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  border: 0;
+  border-radius: var(--wk-radius-sm);
+  background: none;
+}
+button.wk-cal2-listhead { min-height: 2.25rem; cursor: pointer; }
+button.wk-cal2-listhead:hover { background: var(--wk-soft); color: var(--wk-ink); }
+button.wk-cal2-listhead:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-cal2-listhead .wk-taskpill { font-variant: normal; letter-spacing: normal; }
 
 @media (max-width: 640px) {
   .wk-cal2-head, .wk-cal2-allday, .wk-cal2-body { grid-template-columns: 2.4rem repeat(var(--days), minmax(0, 1fr)); }
@@ -632,6 +667,73 @@
 .wk-ev-delete { margin-left: auto; }
 .wk-ev-when { margin: 0; font-weight: 600; }
 .wk-ev-notes { white-space: pre-wrap; margin: 0; }
+
+/*
+   2026-10-24 — DER TERMIN, AUFGERÄUMT (EventEditor.tsx): ein grosser Titel,
+   darunter je Zeile links ein Zeichen und rechts der Inhalt — Kiedy,
+   Powtarzanie, Kalendarz, und was man mit „+ …" dazunimmt. Keine
+   Überschriften über den Feldern: das Zeichen sagt, worum es geht.
+*/
+.wk-ev-scoperow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
+.wk-ev-scope-q { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+.wk-ev-kinds { justify-self: start; }
+.wk-ev-title { box-sizing: border-box; width: 100%; font-size: var(--wk-text-lg); font-weight: 600; }
+.wk-ev-row { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: var(--wk-space-3); align-items: start; }
+.wk-ev-row > .ui-icon { margin-top: 0.55rem; color: var(--wk-muted); }
+.wk-ev-row > input,
+.wk-ev-row > textarea,
+.wk-ev-body > select,
+.wk-ev-link > input { box-sizing: border-box; width: 100%; min-width: 0; }
+.wk-ev-body { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-ev-times, .wk-ev-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.wk-ev-times input[type="date"] { flex: 1 1 9.5rem; min-width: 0; }
+.wk-ev-times input[type="time"] { flex: 0 1 6.5rem; min-width: 5.5rem; }
+.wk-ev-dash { color: var(--wk-muted); }
+.wk-ev-inline input[type="number"] { width: 4.5rem; }
+.wk-ev-inline input[type="date"] { flex: 0 1 10rem; min-width: 0; }
+.wk-ev-opts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-4); }
+.wk-ev-calname { margin: 0.45rem 0 0; font-weight: 600; }
+.wk-ev-cals { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
+.wk-ev-cal {
+  max-width: 100%;
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  text-align: left;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-ev-cal:hover { border-color: var(--wk-accent); }
+.wk-ev-cal:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-ev-cal[aria-pressed="true"] { border-color: var(--wk-accent); background: var(--wk-accent-soft); color: var(--wk-accent-hover); font-weight: 600; }
+.wk-ev-seen { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.wk-ev-mini { display: inline-flex; align-items: center; gap: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.wk-ev-label { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-ink-2); }
+.wk-ev-adds { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); padding-left: calc(1.25rem + var(--wk-space-3)); }
+.wk-ev-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.75rem;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  border: 1px dashed var(--wk-line-strong);
+  border-radius: var(--wk-radius-pill);
+  background: none;
+  color: var(--wk-ink-2);
+  cursor: pointer;
+}
+.wk-ev-add:hover { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-ev-add:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+@media (max-width: 40rem) {
+  .wk-ev-adds { padding-left: 0; }
+  .wk-ev-add { min-height: 2.25rem; }
+  .wk-ev-cal { min-height: 2.25rem; }
+}
 .wk-days { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .wk-day-chip {
   font: inherit;

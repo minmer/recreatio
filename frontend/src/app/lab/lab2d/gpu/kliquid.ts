@@ -419,7 +419,7 @@ ${MAIN} {
   var src = at[ati(A_VOLSRC, c)] / P.vcell;
   let surface = gasAt(i - 1, j) || gasAt(i + 1, j) || gasAt(i, j - 1) || gasAt(i, j + 1);
   let err = phiTot - 1.0;
-  if (err > 0.0 || !surface) { src += DRIFT_GAIN * err / dt; }
+  if (err > 0.0 || !surface) { src += DRIFT_GAIN * err / max(dt, DRIFT_DT); }
   var b = src * dx * dx - dx * div;
   let a = dt / rhoRef;
   var dDx = 0.0;

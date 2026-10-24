@@ -240,12 +240,15 @@ export class BubbleModel {
       this.budget[c] = phase.Cl[c] * (phase.Tl[c] - Ts);
     }
     this.Fm.fill(0);
+    e.extremes.beginStep();
     const wt = e.waterTemperature();
     this.bulkCold = wt.mass > 0 && wt.mean <= tSat(e.regions.pAmb) - 5;
     if (B.count > 0 || this.sites.count > 0) {
       this.nucleate(dt);
       for (let b = 0; b < B.count; b += 1) this.advance(b, dt);
       this.coalesce();
+      /* Mildern (extremes.ts): keine Riesenblase — der Überschuss geht ins Gas über der Oberfläche. */
+      if (e.extremes.normalize) for (let b = 0; b < B.count; b += 1) if (B.r[b] > e.extremes.bubbleCap) this.vent(b);
       for (let b = B.count - 1; b >= 0; b -= 1) this.finish(b, dt);
     }
     phase.applyMass(this.Fm, dt);
@@ -273,7 +276,7 @@ export class BubbleModel {
       const Ts = this.tsatCell[fc] > 0 ? this.tsatCell[fc] : tSat(pl);
       if (Tf - Ts < 0) continue;
       const rc = this.sites.r[s];
-      if (Tf - Ts < activation(rc, pl)) continue;
+      if (Tf - Ts < e.extremes.activation(activation(rc, pl))) continue;
       /* Keim: reiner Dampf, gesättigt beim Druck in der Kavitätenmündung. */
       const pb = pl + (2 * sigmaLiq(phase.host[fc], Tf)) / rc;
       const Tb = tSat(pb);
@@ -405,6 +408,8 @@ export class BubbleModel {
         const sc = srcCell;
         const cap = e.heat.solidCap(sc) * Math.max(0, g.Ts[sc] - Tb);
         if (Q > 0) Q = Math.min(Q, Math.max(0, cap - this.used(sc)));
+        /* Und nicht mehr, als die Siedekurve durch die Wand lässt (kritische Wärmestromdichte; beim Mildern ein Zehntel). */
+        if (Q > 0) { const want = Q; Q = Math.min(Q, e.extremes.wallLeft(sc, dt)); e.extremes.takeWall(sc, Q, want); }
       } else {
         let avail = 0;
         for (let q = 0; q < k; q += 1) avail += this.wts[q] * this.budget[this.cells[q]];
@@ -616,6 +621,37 @@ export class BubbleModel {
     if (top < 0 || g.kind[top] === GAS || mid < 0 || g.kind[mid] === GAS) this.drop(b, true, dt);
   }
 
+  /** Mildern: was die Blase b über den grössten Radius hinaus hat, geht ins Gas über der Oberfläche (als platzte dieser Teil dort). */
+  private vent(b: number): void {
+    const e = this.e;
+    const g = e.grid;
+    const B = this.B;
+    const n = g.n;
+    const o = b * SPECIES_SLOTS;
+    const R = e.extremes.bubbleCap;
+    const Vcap = 2 * R <= g.depth ? (4 / 3) * Math.PI * R * R * R : Math.PI * R * R * g.depth;
+    if (!(B.V[b] > Vcap)) return;
+    const f = 1 - Vcap / B.V[b];
+    let c = g.cellAt(B.x[b], Math.min(g.h - 1e-9, B.y[b] + B.r[b]));
+    while (c >= 0 && g.kind[c] !== GAS) c = c + g.nx < n ? c + g.nx : -1;
+    if (c < 0) c = anyGasAbove(g, B.x[b]);
+    if (c < 0) return;
+    const k = gasCellsAround(g, e.gas.vgas, c, f * B.V[b], this.cells, this.wts);
+    for (let q = 0; q < k; q += 1) {
+      const cq = this.cells[q];
+      const w = this.wts[q];
+      for (let s2 = 0; s2 < SPECIES_SLOTS; s2 += 1) g.mg[s2 * n + cq] += w * f * B.m[o + s2];
+      g.Hg[cq] += w * f * B.H[b];
+      e.gas.deriveCell(cq);
+    }
+    e.extremes.vented += f * B.m[o + H2O];
+    this.burstVapour += f * B.m[o + H2O];
+    for (let s2 = 0; s2 < SPECIES_SLOTS; s2 += 1) B.m[o + s2] *= 1 - f;
+    B.H[b] *= 1 - f;
+    B.V[b] = Vcap;
+    B.r[b] = R;
+  }
+
   /** Eine Blase entfernen: geplatzt (Inhalt ins Gas darüber) oder vergangen (Rest kondensiert in die Flüssigkeit). */
   private drop(b: number, burst: boolean, dt: number): void {
     const e = this.e;
@@ -707,11 +743,13 @@ export class BubbleModel {
     const src = e.liquid.volSrc;
     const cap = ALPHA_RATE * dt;
     for (let c = 0; c < g.n; c += 1) {
-      const d = target[c] - alpha[c];
+      /* Mehr als den offenen Teil der Zelle kann die Flüssigkeit nicht räumen (Blasen am Rand, überlappende vor dem Verschmelzen): sonst bliebe ein Fehler, den kein Fluss behebt. */
+      const t = Math.min(target[c], Math.max(0, 1 - g.phiS[c]));
+      const d = t - alpha[c];
       if (d === 0) continue;
       if (d > cap) { src[c] += (cap * g.vCell) / dt; alpha[c] += cap; }
       else if (d < -cap) { src[c] -= (cap * g.vCell) / dt; alpha[c] -= cap; }
-      else { src[c] += (d * g.vCell) / dt; alpha[c] = target[c]; }
+      else { src[c] += (d * g.vCell) / dt; alpha[c] = t; }
     }
   }
 

@@ -1,5 +1,28 @@
 /**
- * Einen Termin anlegen und ändern: Art, Zeit, Wiederholung, wer sieht ihn, wer ist dabei („ten i następne").
+ * EIN TERMIN — anlegen und ändern.
+ *
+ * 2026-10-24 — AUFGERÄUMT: was ein neuer Termin wirklich braucht, steht da —
+ * was (der Titel), wann (der Tag, von–bis oder ganztägig), ob er wiederkehrt,
+ * und in welchem Kalender. Der Kalender bringt den Rest mit (0058): wer den
+ * Termin sieht, wie lange er dauert, was er ist (Treffen, Messe), ob man ihn
+ * reservieren kann. Alles Weitere kommt nur, wenn man es will — „+ Miejsce",
+ * „+ Notatka", „+ Osoby", „+ Link", „+ Program" — und steht beim Ändern offen
+ * da, sobald es etwas enthält. Jede Zeile trägt links ihr Zeichen statt einer
+ * Überschrift.
+ *
+ * Fort sind: die Sichtbarkeit je Termin (wer ihn sieht, sagt sein Kalender;
+ * ein älterer Termin, der es anders hat, behält es beim Speichern und sagt es —
+ * nichts wird stillschweigend breiter sichtbar), die Wahl „Część programu"
+ * (eingehängt wird vom Ganzen aus, „Podłącz istniejący termin") und die Art in
+ * Kalendern, die nur Treffen führen.
+ *
+ * Gespeichert wird wie bisher (`saveEvent`): die Regeln liegen am Kalender, der
+ * Termin trägt nur, was ihm eigen ist — NULL heisst „wie der Kalender".
+ *
+ * Neu beim Bedienen: ein anderer Beginn nimmt das Ende mit (die Dauer bleibt),
+ * ein anderer Tag ebenso; die Wochentage einer wöchentlichen Reihe wandern mit
+ * dem Tag, bis man sie selbst wählt; „Co tydzień / Co miesiąc / Co rok" sind
+ * eine Wahl, „co 2 tygodnie" steht unter „Inaczej…".
  *
  * 2026-10-17 — PUNKTE DES PROGRAMMS TEILEN ALLES MIT IHREM GANZEN: ein neuer
  * Punkt übernimmt Kalender, Sichtbarkeit, Ort, Link und wer dabei ist; wird
@@ -12,35 +35,63 @@ import { useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
-import { PRIVATE, Weekdays, bitOf, fromLocal, groupName, localDate, localTime, writableGroups } from '../areas/WhoSees';
+import { PRIVATE, Weekdays, bitOf, fromLocal, groupName, localDate, localTime } from '../areas/WhoSees';
+import { addDays, monthOfName } from '../core/dayMath';
 import type { Ring } from '../core/keys';
 import type { Me } from '../core/me';
+import { plural } from '../core/plural';
 import { useRecent } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
 import { IntentionsPanel } from '../masses/IntentionsPanel';
 import { DEVOTION_NAMES } from '../masses/mass';
 import { askText } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
 import { Modal } from '../ui/Modal';
 import { type OpenedItem, type RepeatKind, cancelOne, deleteEvent, draftOf, endSeriesBefore, ensurePrivateArea, forever, handover, isLiturgy, moveOne, saveEvent } from './agenda';
-import { CALENDAR_KIND_LABEL, type CalendarRow, ITEM_LABEL, type ItemKind, safeLink, setPeople, setProgramParent } from './calendar';
+import { type CalendarRow, ITEM_LABEL, type ItemKind, safeLink, setPeople, setProgramParent } from './calendar';
 import { calendarLabel } from './calendarLabel';
 import type { CalEvent } from './calendarModel';
 import { ProgramOf } from './EventDetails';
 import type { EventTarget } from './EventDialog';
 import { dutyOf, peopleWord } from './eventWords';
-import { ItemLink } from './ItemLink';
 import { PeoplePicker, type Pinned, useAreaPeople } from './PeoplePicker';
 
-const REPEATS: readonly { value: RepeatKind; label: string }[] = [
-  { value: 'none', label: 'Nie powtarza się' },
-  { value: 'daily', label: 'Codziennie' },
-  { value: 'weekly', label: 'Co tydzień' },
-  { value: 'monthly', label: 'Co miesiąc' },
-  { value: 'yearly', label: 'Co rok' }
+/** Was zu einem Termin dazukommen kann — jedes auf Wunsch („+ Miejsce"), in dieser Reihenfolge. */
+type Extra = 'place' | 'notes' | 'people' | 'link' | 'program';
+
+const EXTRAS: readonly { readonly key: Extra; readonly label: string }[] = [
+  { key: 'place', label: 'Miejsce' },
+  { key: 'notes', label: 'Notatka' },
+  { key: 'people', label: 'Osoby' },
+  { key: 'link', label: 'Link' },
+  { key: 'program', label: 'Program' }
 ];
 
-/** Die Arten, die ein Eintrag in einem Kalender einer Gruppe haben kann — in dieser Reihenfolge angeboten. */
-const KINDS_OFFERED: readonly ItemKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
+/** Die Wahl „Powtarzanie": die üblichen Abstände — und „Inaczej…" für co N, die Wochentage stehen bei „Co tydzień". */
+type RepeatChoice = RepeatKind | 'custom';
+
+type Scope = 'one' | 'following' | 'all';
+
+const SCOPES: readonly { readonly value: Scope; readonly label: string }[] = [
+  { value: 'one', label: 'Ten termin' }, { value: 'following', label: 'Ten i następne' }, { value: 'all', label: 'Całą serię' }
+];
+
+/** Bis zu so vielen Kalendern: Plättchen nebeneinander; mehr — eine Auswahlliste. */
+const CHIP_CALENDARS = 5;
+
+/** Wie ein neuer Eintrag heisst, nach seiner Art. */
+const NEW_TITLE: Partial<Record<ItemKind, string>> = {
+  mass: 'Nowa msza', confession: 'Nowa spowiedź', devotion: 'Nowe nabożeństwo', visit: 'Nowe odwiedziny'
+};
+
+const capital = (text: string) => text.replace(/^./, (c) => c.toUpperCase());
+
+/** Welche Arten ein Eintrag in diesem Kalender haben kann. Nur eine: es gibt nichts zu wählen. */
+function kindsFor(calendarKind: ItemKind | undefined, now: ItemKind): readonly ItemKind[] {
+  const offered: readonly ItemKind[] = isLiturgy(calendarKind) ? ['mass', 'confession', 'devotion', 'appointment']
+    : calendarKind === 'visit' ? ['visit', 'appointment'] : ['appointment'];
+  return offered.includes(now) ? offered : [...offered, now];
+}
 
 /* -- Anlegen und ändern -------------------------------------------------------------- */
 
@@ -64,7 +115,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   /* 2026-10-17 — das Ganze, unter dem ein NEUER Punkt entsteht: von ihm übernimmt er, was er nicht anders sagt. */
   const parentItem = target.at === 'new' && target.parentItemId !== undefined
     ? events?.find((e) => e.item?.occurrence.itemId === target.parentItemId)?.item : undefined;
-  /* Wovon ein bestehender Punkt abhängt — für den Hinweis. */
+  /* Wovon ein bestehender Punkt abhängt — für die Zeile „Punkt programu". */
   const ownParent = occurrence?.parentItemId == null ? undefined
     : events?.find((e) => e.item?.occurrence.itemId === occurrence.parentItemId)?.item;
   /* Die Punkte dieses Termins, je Punkt einmal (eine Reihe steht sonst mit jedem Vorkommen da). */
@@ -109,7 +160,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
    */
   const hasEarlier = series !== undefined && occurrence !== undefined && repeating
     && new Date(occurrence.occurrenceAt).getTime() > new Date(series.startsAt).getTime();
-  const [scope, setScope] = useState<'one' | 'following' | 'all'>(() => (hasEarlier && isLiturgy(occurrence?.kind) ? 'following' : 'all'));
+  const [scope, setScope] = useState<Scope>(() => (hasEarlier && isLiturgy(occurrence?.kind) ? 'following' : 'all'));
 
   /* Ein Eintrag ohne eigenen Namen („Msza") bekommt ein leeres Feld — sonst hiesse er nach dem Speichern so. */
   const [title, setTitle] = useState(item !== undefined && !item.named ? '' : item?.title ?? (target.at === 'new' ? target.title ?? '' : ''));
@@ -126,7 +177,11 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   const [link, setLink] = useState(item?.link ?? parentItem?.link ?? '');
   const [linkLabel, setLinkLabel] = useState(item?.linkLabel ?? parentItem?.linkLabel ?? '');
 
-  /* Wer ihn sieht: was der Kalender sagt — ausser, dieser Termin (oder beim neuen Punkt: sein Ganzes) sagt es anders. */
+  /*
+   * Wer ihn sieht: was der Kalender sagt. Nur ein älterer Termin (oder beim
+   * neuen Punkt: sein Ganzes), der es anders hat, behält das — 2026-10-24
+   * wählt man es nicht mehr je Termin, man nimmt die Ausnahme nur zurück.
+   */
   const seenFrom = occurrence ?? (parentItem?.occurrence.calendarId === calendarId ? parentItem.occurrence : undefined);
   const [visibility, setVisibility] = useState<string | null>(
     seenFrom !== undefined && seenFrom.visibilityAreaId !== defaultVisibility ? seenFrom.visibilityAreaId : null);
@@ -143,16 +198,23 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   const [endDate, setEndDate] = useState(localDate(new Date(opening.e.getTime() - (allDay ? 1 : 0))));
   const [to, setTo] = useState(localTime(opening.e));
   const [endTouched, setEndTouched] = useState(target.at !== 'new');
+  /* 2026-10-24 — der Tag des Endes steht nur da, wenn er ein anderer ist — oder wenn man ihn will. */
+  const [endWanted, setEndWanted] = useState(false);
+  const endShown = endWanted || endDate !== date;
 
   const [repeat, setRepeat] = useState<RepeatKind>(series?.repeatKind ?? 'none');
   const [every, setEvery] = useState(series?.repeatEvery ?? 1);
-  const [weekdays, setWeekdays] = useState(series?.repeatWeekdays ?? bitOf(start));
+  /* „co 2 tygodnie" und ähnliches: unter „Inaczej…". */
+  const [custom, setCustom] = useState((series?.repeatEvery ?? 1) > 1);
+  /* 2026-10-24 — die Wochentage: die eigene Wahl; ohne sie der Tag des Termins (er wandert mit dem Datum). */
+  const [ownWeekdays, setOwnWeekdays] = useState<number | null>(series?.repeatKind === 'weekly' ? series.repeatWeekdays ?? null : null);
+  const weekdays = ownWeekdays ?? (date === '' ? bitOf(start) : bitOf(fromLocal(date, '12:00')));
   const [ends, setEnds] = useState<'never' | 'date' | 'count'>(
     series?.repeatCount != null ? 'count' : series?.repeatUntil != null && new Date(series.repeatUntil).getFullYear() - seriesStart.getFullYear() < 9 ? 'date' : 'never');
   const [until, setUntil] = useState(series?.repeatUntil != null ? localDate(new Date(series.repeatUntil)) : localDate(new Date(start.getTime() + 90 * 86400_000)));
   const [count, setCount] = useState(series?.repeatCount ?? 10);
 
-  /* 0058 — fürs Reservieren: \`null\` heisst „wie der Kalender". */
+  /* 0058 — fürs Reservieren: `null` heisst „wie der Kalender". */
   const [bookable, setBookable] = useState<boolean | null>(occurrence?.bookable ?? null);
   const [capacity, setCapacity] = useState<string>(occurrence?.capacity != null ? String(occurrence.capacity) : '');
   const [reserveArea, setReserveArea] = useState<string>(occurrence?.reserveAreaId ?? '');
@@ -162,32 +224,115 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   const [pinned, setPinned] = useState<readonly Pinned[]>(occurrence?.people ?? parentItem?.occurrence.people ?? []);
   const pinnedChanged = JSON.stringify(pinned) !== JSON.stringify(occurrence?.people ?? []);
 
+  /* 2026-10-24 — was offen dasteht: was etwas enthält, und was man mit „+ …" dazugenommen hat. */
+  const [opened, setOpened] = useState<ReadonlySet<Extra>>(() => new Set<Extra>([
+    ...(location !== '' ? ['place' as const] : []),
+    ...(notes !== '' ? ['notes' as const] : []),
+    ...(pinned.length > 0 ? ['people' as const] : []),
+    ...(link !== '' ? ['link' as const] : []),
+    ...(parts.length > 0 ? ['program' as const] : [])
+  ]));
+  /* Das eben Dazugenommene bekommt den Fokus. */
+  const [fresh, setFresh] = useState<Extra | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
   const booking = isPrivate ? null : calendar?.booking ?? null;
   const bookableNow = bookable ?? booking?.mode === 'all';
+  const onlyTime = item !== undefined && repeating && scope === 'one';
+  const liturgy = !isPrivate && isLiturgy(kind);
+  const kinds = isPrivate ? [] : kindsFor(calendar?.itemKind, kind);
 
-  /* Nur dieses Vorkommen: dann gelten sein Tag und seine Zeit. */
-  const pickScope = (next: 'one' | 'following' | 'all') => {
+  /* Was dazukommen kann: Menschen nur in einem Kalender einer Gruppe, ein Programm nur an einem gespeicherten Termin. */
+  const peopleHere = !isPrivate && calendarArea !== null;
+  const programHere = item !== undefined && item.editable && events !== undefined;
+  const offered = EXTRAS.filter((x) => (x.key !== 'people' || peopleHere) && (x.key !== 'program' || programHere));
+  const shows = (x: Extra) => opened.has(x) && offered.some((o) => o.key === x);
+  /* Bei „ten termin" einer Reihe lässt sich nur die Zeit verschieben und festlegen, wer da sein muss. */
+  const adds = offered.filter((x) => !opened.has(x.key) && (!onlyTime || x.key === 'people'));
+  const add = (x: Extra) => {
+    setOpened((was) => new Set(was).add(x));
+    setFresh(x);
+  };
+
+  /* Nur dieses Vorkommen, diese und die folgenden, die ganze Reihe: die Felder zeigen, was gemeint ist. */
+  const pickScope = (next: Scope) => {
     setScope(next);
     const base = next === 'one' ? { s: start, e: end } : next === 'following' ? { s: followStart, e: followEnd } : { s: seriesStart, e: seriesEnd };
     setDate(localDate(base.s)); setFrom(localTime(base.s));
     setEndDate(localDate(new Date(base.e.getTime() - (allDay ? 1 : 0)))); setTo(localTime(base.e));
   };
 
-  /* Ein anderer Kalender: seine Dauer, solange das Ende nicht von Hand gesetzt wurde. */
+  /* Ein anderer Tag: das Ende rückt mit — ein mehrtägiger Termin bleibt so lang. */
+  const moveDate = (next: string) => {
+    if (next === '' || date === '' || endDate === '') { setDate(next); return; }
+    const shift = Math.round((fromLocal(next, '12:00').getTime() - fromLocal(date, '12:00').getTime()) / 86400_000);
+    setDate(next);
+    setEndDate(localDate(addDays(fromLocal(endDate, '12:00'), shift)));
+  };
+
+  /* Ein anderer Beginn nimmt das Ende mit — die Dauer bleibt, wie in jedem Kalender. */
+  const moveFrom = (next: string) => {
+    if (next === '' || from === '' || to === '' || date === '' || endDate === '') { setFrom(next); return; }
+    const was = fromLocal(date, from).getTime();
+    const length = fromLocal(endDate, to).getTime() - was;
+    setFrom(next);
+    if (length <= 0) return;
+    const endAt = new Date(fromLocal(date, next).getTime() + length);
+    setEndDate(localDate(endAt));
+    setTo(localTime(endAt));
+  };
+
+  /*
+   * Ganztägig — und zurück zu Stunden. Stand darin nichts Brauchbares
+   * (00:00–00:00, wie bei einem Klick in die Zeile „cały dzień"), beginnt er um
+   * 9:00 und dauert, wie sein Kalender sagt.
+   */
+  const toggleAllDay = (on: boolean) => {
+    setAllDay(on);
+    if (on) {
+      if (endDate < date) setEndDate(date);
+      return;
+    }
+    if (date === '' || endDate === '') return;
+    if (from !== '' && to !== '' && fromLocal(endDate, to).getTime() > fromLocal(date, from).getTime()) return;
+    const at = fromLocal(date, from !== '' && from !== '00:00' ? from : '09:00');
+    const endAt = new Date(at.getTime() + (calendar?.durationMinutes ?? 60) * 60_000);
+    setFrom(localTime(at));
+    setEndDate(localDate(endAt));
+    setTo(localTime(endAt));
+  };
+
+  /* Ein anderer Kalender: seine Art (beim neuen), seine Dauer (solange das Ende nicht von Hand gesetzt wurde), seine Sichtbarkeit. */
   const pickCalendar = (next: string) => {
     setCalendarId(next);
     const chosen = calendars.find((c) => c.calendarId === next);
     /* Ein neuer Eintrag ist, was sein Kalender führt (Msze → msza) — man kann es danach ändern. */
     if (item === undefined) setKind(chosen?.itemKind ?? 'appointment');
-    if (!endTouched && !allDay && chosen?.durationMinutes !== undefined) {
+    if (!endTouched && !allDay && chosen?.durationMinutes !== undefined && date !== '' && from !== '') {
       const endAt = new Date(fromLocal(date, from).getTime() + chosen.durationMinutes * 60_000);
       setEndDate(localDate(endAt)); setTo(localTime(endAt));
     }
     setVisibility(null);
   };
+
+  const repeatChoice: RepeatChoice = repeat === 'none' ? 'none' : custom ? 'custom' : repeat;
+  const pickRepeat = (next: RepeatChoice) => {
+    if (next === 'custom') {
+      setCustom(true);
+      if (repeat === 'none') setRepeat('weekly');
+      return;
+    }
+    setCustom(false);
+    setEvery(1);
+    setRepeat(next);
+  };
+  const shownDay = date === '' ? start : fromLocal(date, '12:00');
+
+  /* Gleich beim Tippen: endet er vor seinem Beginn? */
+  const endBeforeStart = date !== '' && endDate !== '' && (allDay || (from !== '' && to !== ''))
+    && (allDay ? endDate < date : fromLocal(endDate, to).getTime() <= fromLocal(date, from).getTime());
 
   const run = async (todo: () => Promise<unknown>) => {
     setBusy(true);
@@ -204,6 +349,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   };
 
   const save = () => run(async () => {
+    if (date === '' || (!allDay && (from === '' || to === '')) || endDate === '') throw new WorkspaceError('Podaj dzień i godziny.');
     const startAt = allDay ? fromLocal(date, '00:00') : fromLocal(date, from);
     const endAt = allDay ? new Date(fromLocal(endDate, '00:00').getTime() + 86400_000) : fromLocal(endDate, to);
     const minutes = Math.round((endAt.getTime() - startAt.getTime()) / 60_000);
@@ -230,7 +376,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
       title, location, notes, link, linkLabel, areaId: seenBy,
       ownerRoleId: me.person.id,
       date, time: from, minutes, allDay,
-      repeat, every, weekdays,
+      repeat, every: repeat === 'none' ? 1 : every, weekdays,
       until: repeat === 'none' ? null : ends === 'never' ? forever(startAt) : ends === 'date' ? until : null,
       count: repeat !== 'none' && ends === 'count' ? count : null,
       calendarId: calendarId === PRIVATE ? undefined : calendarId,
@@ -284,11 +430,21 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
     void run(() => one ? cancelOne(item.occurrence.itemId, item.occurrence.occurrenceAt) : deleteEvent(item.occurrence.itemId));
   };
 
-  const onlyTime = item !== undefined && repeating && scope === 'one';
-  const liturgy = !isPrivate && isLiturgy(kind);
+  /* Die Kalender zur Wahl — „Tylko ja" zuerst; der eigene, falls er (archiviert, ausserhalb des Bausteins) nicht dabei ist, auch. */
+  const calendarOptions = [
+    ...(offerPrivate ? [{ value: PRIVATE, label: 'Tylko ja', mine: true }] : []),
+    ...privateCals.map((c) => ({ value: c.calendarId, label: privateCals.length === 1 ? 'Tylko ja' : calendarLabel(areas, c), mine: true })),
+    ...groupCals.map((c) => ({ value: c.calendarId, label: calendarLabel(areas, c), mine: false }))
+  ];
+  if (calendar !== undefined && !calendarOptions.some((o) => o.value === calendarId)) {
+    calendarOptions.unshift({ value: calendarId, label: calendarLabel(areas, calendar), mine: calendar.areaId === personal?.areaId });
+  }
+
+  const heading = item === undefined ? (NEW_TITLE[kind] ?? 'Nowy termin')
+    : kind === 'appointment' || kind === 'task' ? 'Termin' : capital(ITEM_LABEL[kind] ?? 'termin');
 
   return (
-    <Modal title={item === undefined ? `Nowy wpis: ${ITEM_LABEL[kind] ?? 'termin'}` : liturgy ? (ITEM_LABEL[kind] ?? 'Termin').replace(/^./, (c) => c.toUpperCase()) : 'Termin'} onClose={onClose} wide>
+    <Modal title={heading} onClose={onClose}>
       {/* 0079 — was an dieser Messe gelesen wird, hier und nicht in einer anderen Ansicht. */}
       {item !== undefined && item.occurrence.kind === 'mass' && (
         <IntentionsPanel calendarId={item.occurrence.calendarId} itemId={item.occurrence.itemId}
@@ -297,278 +453,303 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
 
       <form className="wk-form wk-ev-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         {repeating && (
-          <div className="wk-seg wk-ev-scope" role="group" aria-label="Co zmieniasz">
-            <button type="button" aria-pressed={scope === 'one'} className={scope === 'one' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-              onClick={() => pickScope('one')}>Tylko ten termin</button>
-            {hasEarlier && (
-              <button type="button" aria-pressed={scope === 'following'} className={scope === 'following' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-                onClick={() => pickScope('following')}>Ten i następne</button>
-            )}
-            <button type="button" aria-pressed={scope === 'all'} className={scope === 'all' ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
-              onClick={() => pickScope('all')}>Cała seria</button>
+          <div className="wk-ev-scoperow">
+            <span className="wk-ev-scope-q">Zmieniasz</span>
+            <div className="wk-seg" role="group" aria-label="Co zmieniasz">
+              {SCOPES.filter((one) => one.value !== 'following' || hasEarlier).map((one) => (
+                <button key={one.value} type="button" aria-pressed={scope === one.value}
+                  className={scope === one.value ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'} onClick={() => pickScope(one.value)}>{one.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {scope === 'following' && hasEarlier && (
+          <p className="wk-note">Od tego dnia — wcześniejsze terminy zostają, jak były. Intencje, obsada i zapisy przechodzą na nowe godziny według dnia.</p>
+        )}
+        {scope === 'all' && repeating && liturgy && hasEarlier && (
+          <p className="wk-warn">Zmieniasz całą serię — także terminy, które już były. Zwykle właściwe jest „Ten i następne”.</p>
+        )}
+
+        {/* 0079 — was es ist: nur, wo der Kalender mehr als Treffen führt (Msze: msza, spowiedź, nabożeństwo). */}
+        {!onlyTime && kinds.length > 1 && (
+          <div className="wk-seg wk-ev-kinds" role="group" aria-label="Rodzaj">
+            {kinds.map((one) => (
+              <button key={one} type="button" aria-pressed={kind === one} className={kind === one ? 'wk-seg-opt wk-seg-on' : 'wk-seg-opt'}
+                onClick={() => setKind(one)}>{capital(ITEM_LABEL[one])}</button>
+            ))}
           </div>
         )}
 
-        {scope === 'following' && hasEarlier && (
-          <p className="wk-hint">Zmiana obowiązuje od tego dnia — wcześniejsze terminy zostają, jak były. Intencje, obsada i zapisy przechodzą na nowe godziny według dnia.</p>
-        )}
-        {scope === 'all' && repeating && liturgy && hasEarlier && (
-          <p className="wk-hint">Zmieniasz całą serię — także terminy, które już były. Zwykle właściwe jest „Ten i następne".</p>
-        )}
+        <input className="wk-ev-title" value={title} disabled={onlyTime} maxLength={200}
+          aria-label={liturgy ? 'Nazwa (widoczna publicznie)' : 'Tytuł'}
+          list={kind === 'devotion' ? 'wk-devotion-names' : undefined}
+          placeholder={kind === 'mass' ? 'Nazwa, np. Msza św. niedzielna — puste: sama godzina' : kind === 'devotion' ? 'Nazwa, np. Różaniec'
+            : kind === 'confession' ? 'Nazwa — puste: „Spowiedź”' : 'Tytuł, np. Spotkanie z rodzicami'}
+          onChange={(e) => setTitle(e.target.value)} />
+        {kind === 'devotion' && <datalist id="wk-devotion-names">{DEVOTION_NAMES.map((n) => <option key={n} value={n} />)}</datalist>}
+        {liturgy && !onlyTime && <p className="wk-hint">Nazwa jest jawna — stoi w planie i w gablocie. Miejsce i notatka zostają zaszyfrowane.</p>}
 
-        {!isPrivate && !onlyTime && (
-          <label className="wk-field">
-            <span>Rodzaj</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value as ItemKind)}>
-              {(KINDS_OFFERED.includes(kind) ? KINDS_OFFERED : [...KINDS_OFFERED, kind]).map((one) => <option key={one} value={one}>{ITEM_LABEL[one]}</option>)}
-            </select>
-            {kind === 'mass' && <span className="wk-hint">Msza przyjmuje intencje — tutaj i w „Msze i nabożeństwa".</span>}
-          </label>
-        )}
-
-        <label className="wk-field">
-          <span>{liturgy ? 'Nazwa (widoczna w gablocie)' : 'Tytuł'}</span>
-          <input value={title} disabled={onlyTime} maxLength={200} list={kind === 'devotion' ? 'wk-devotion-names' : undefined}
-            placeholder={kind === 'mass' ? 'np. Msza św. niedzielna — puste: sama godzina' : kind === 'devotion' ? 'np. Różaniec' : kind === 'confession' ? 'puste: „Spowiedź"' : 'np. Spotkanie z rodzicami'}
-            onChange={(e) => setTitle(e.target.value)} />
-          {kind === 'devotion' && <datalist id="wk-devotion-names">{DEVOTION_NAMES.map((n) => <option key={n} value={n} />)}</datalist>}
-          {liturgy && <span className="wk-hint">Nazwa jest jawna — stoi w planie i w gablocie. Miejsce i notatka zostają zaszyfrowane.</span>}
-        </label>
-
-        <div className="wk-ev-when-row">
-          <label className="wk-field">
-            <span>{allDay ? 'Od dnia' : 'Początek'}</span>
-            <input type="date" value={date} onChange={(e) => { setDate(e.target.value); if (endDate < e.target.value) setEndDate(e.target.value); }} />
-          </label>
-          {!allDay && (
-            <label className="wk-field">
-              <span>godz.</span>
-              <input type="time" value={from} step={300} onChange={(e) => setFrom(e.target.value)} />
-            </label>
-          )}
-          <label className="wk-field">
-            <span>{allDay ? 'Do dnia' : 'Koniec'}</span>
-            <input type="date" value={endDate} min={date} onChange={(e) => { setEndDate(e.target.value); setEndTouched(true); }} />
-          </label>
-          {!allDay && (
-            <label className="wk-field">
-              <span>godz.</span>
-              <input type="time" value={to} step={300} onChange={(e) => { setTo(e.target.value); setEndTouched(true); }} />
-            </label>
-          )}
+        {/* KIEDY — der Tag, von–bis; der Tag des Endes nur, wenn er ein anderer ist. */}
+        <div className="wk-ev-row">
+          <Icon name="clock" />
+          <div className="wk-ev-body">
+            <div className="wk-ev-times">
+              <input type="date" aria-label={allDay && endShown ? 'Od dnia' : 'Dzień'} value={date} onChange={(e) => moveDate(e.target.value)} />
+              {!allDay && <input type="time" aria-label="Początek" step={300} value={from} onChange={(e) => moveFrom(e.target.value)} />}
+              {(!allDay || endShown) && <span className="wk-ev-dash" aria-hidden="true">–</span>}
+              {endShown && (
+                <input type="date" aria-label={allDay ? 'Do dnia' : 'Dzień końca'} min={date} value={endDate} disabled={onlyTime}
+                  onChange={(e) => { setEndDate(e.target.value); setEndTouched(true); }} />
+              )}
+              {!allDay && (
+                <input type="time" aria-label="Koniec" step={300} value={to} disabled={onlyTime}
+                  onChange={(e) => { setTo(e.target.value); setEndTouched(true); }} />
+              )}
+            </div>
+            {!onlyTime && (
+              <div className="wk-ev-opts">
+                <label className="wk-check">
+                  <input type="checkbox" checked={allDay} onChange={(e) => toggleAllDay(e.target.checked)} />
+                  <span>Cały dzień</span>
+                </label>
+                {!endShown && (
+                  <button type="button" className="wk-link-btn" onClick={() => setEndWanted(true)}>{allDay ? 'Kilka dni' : 'Kończy się innego dnia'}</button>
+                )}
+              </div>
+            )}
+            {endBeforeStart && <p className="wk-error">Koniec musi być po początku.</p>}
+          </div>
         </div>
 
-        <label className="wk-check">
-          <input type="checkbox" checked={allDay} disabled={onlyTime} onChange={(e) => setAllDay(e.target.checked)} />
-          <span>Cały dzień</span>
-        </label>
-
+        {/* POWTARZANIE — die üblichen Abstände; „Inaczej…": co N dni / tygodni / miesięcy / lat. */}
         {!onlyTime && (
-          <>
-            <div className="wk-ev-repeat">
-              <label className="wk-field">
-                <span>Powtarzanie</span>
-                <select value={repeat} onChange={(e) => setRepeat(e.target.value as RepeatKind)}>
-                  {REPEATS.map((one) => <option key={one.value} value={one.value}>{one.label}</option>)}
-                </select>
-              </label>
-
-              {repeat !== 'none' && (
-                <label className="wk-field wk-ev-every">
-                  <span>co ile</span>
-                  <input type="number" min={1} max={52} value={every} onChange={(e) => setEvery(Math.max(1, Number(e.target.value) || 1))} />
-                </label>
-              )}
-
-              {repeat !== 'none' && (
-                <label className="wk-field">
-                  <span>Kończy się</span>
-                  <select value={ends} onChange={(e) => setEnds(e.target.value as typeof ends)}>
-                    <option value="never">nigdy</option>
-                    <option value="date">w dniu…</option>
-                    <option value="count">po … razach</option>
-                  </select>
-                </label>
-              )}
-
-              {repeat !== 'none' && ends === 'date' && (
-                <label className="wk-field">
-                  <span>ostatni dzień</span>
-                  <input type="date" value={until} min={date} onChange={(e) => setUntil(e.target.value)} />
-                </label>
-              )}
-
-              {repeat !== 'none' && ends === 'count' && (
-                <label className="wk-field wk-ev-every">
-                  <span>ile razy</span>
-                  <input type="number" min={1} max={999} value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))} />
-                </label>
-              )}
-            </div>
-
-            {repeat === 'weekly' && <Weekdays value={weekdays} onChange={setWeekdays} />}
-
-            {/* 0058 — der Kalender: er sagt, wer sieht, wie lange, und ob man reservieren kann. */}
-            <label className="wk-field">
-              <span>Kalendarz</span>
-              <select value={calendarId} onChange={(e) => pickCalendar(e.target.value)}>
-                {offerPrivate && <option value={PRIVATE}>Tylko ja (prywatny)</option>}
-                {privateCals.length > 0 && (
-                  <optgroup label="Tylko ja">
-                    {privateCals.map((c) => <option key={c.calendarId} value={c.calendarId}>{calendarLabel(areas, c)}</option>)}
-                  </optgroup>
-                )}
-                {groupCals.length > 0 && (
-                  <optgroup label="Kalendarze grup">
-                    {groupCals.map((c) => <option key={c.calendarId} value={c.calendarId}>{calendarLabel(areas, c)}</option>)}
-                  </optgroup>
-                )}
+          <div className="wk-ev-row">
+            <Icon name="refresh" />
+            <div className="wk-ev-body">
+              <select aria-label="Powtarzanie" value={repeatChoice} onChange={(e) => pickRepeat(e.target.value as RepeatChoice)}>
+                <option value="none">Nie powtarza się</option>
+                <option value="daily">Codziennie</option>
+                <option value="weekly">Co tydzień</option>
+                <option value="monthly">Co miesiąc, {shownDay.getDate()}. dnia</option>
+                <option value="yearly">Co rok, {shownDay.getDate()} {monthOfName(shownDay)}</option>
+                <option value="custom">Inaczej…</option>
               </select>
-              <span className="wk-hint">
-                {isPrivate ? 'Nikt poza Tobą — zaszyfrowane Twoim kluczem.'
-                  : <>Widzą: <strong>{groupName(areas, visibility ?? defaultVisibility)}</strong>
-                    {calendar?.itemKind !== undefined && calendar.itemKind !== 'appointment' && <> · terminy to {CALENDAR_KIND_LABEL[calendar.itemKind]}</>}</>}
-              </span>
-            </label>
-
-            {calendar?.description && <p className="wk-ev-rules">{calendar.description}</p>}
-
-            {!isPrivate && (
-              <details className="wk-ev-more" open={visibility !== null}>
-                <summary>Widoczność tego terminu</summary>
-                <label className="wk-field">
-                  <span>Kto widzi ten termin</span>
-                  <AreaPick
-                    label="Kto widzi ten termin" value={visibility ?? ''} onChange={(v) => setVisibility(v === '' ? null : v)}
-                    areas={areas} only={writableGroups(areas)}
-                    extras={[{ value: '', label: `jak w kalendarzu (${groupName(areas, defaultVisibility)})` }]}
-                  />
-                </label>
-              </details>
-            )}
-
-            {booking !== null && (
-              <fieldset className="wk-ev-booking">
-                <legend>Rezerwacja</legend>
-                <label className="wk-check">
-                  <input type="checkbox" checked={bookableNow}
-                    onChange={(e) => setBookable(e.target.checked === (booking.mode === 'all') ? null : e.target.checked)} />
-                  <span>Ten termin można rezerwować</span>
-                </label>
-                {bookableNow && (
-                  <div className="wk-ev-when-row">
-                    <label className="wk-field wk-ev-every">
-                      <span>Miejsc</span>
-                      <input type="number" min={1} max={10000} value={capacity} placeholder={String(booking.capacity)}
-                        onChange={(e) => setCapacity(e.target.value)} />
-                    </label>
-                    <label className="wk-field">
-                      <span>Kto może rezerwować</span>
-                      <AreaPick
-                        label="Kto może rezerwować" value={reserveArea} onChange={setReserveArea}
-                        areas={areas} only={areas.filter((a) => a.personal !== true)}
-                        extras={[{ value: '', label: `jak w kalendarzu (${booking.reserveAreaId === null ? 'każdy, kto znajdzie termin' : groupName(areas, booking.reserveAreaId)})` }]}
-                      />
-                    </label>
-                  </div>
-                )}
-              </fieldset>
-            )}
-
-            {!isPrivate && calendarArea !== null && (
-              <div className="wk-field">
-                <span>{peopleWord(kind)}</span>
-                <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned}
-                  defaultDuty={dutyOf(kind)} />
-              </div>
-            )}
-
-            <label className="wk-field">
-              <span>Miejsce</span>
-              <input value={location} maxLength={300} placeholder="np. salka parafialna" onChange={(e) => setLocation(e.target.value)} />
-            </label>
-
-            <label className="wk-field">
-              <span>Notatka</span>
-              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
-
-            <div className="wk-ev-link">
-              <label className="wk-field">
-                <span>Link do informacji</span>
-                <input type="text" inputMode="url" autoComplete="url" spellCheck={false} value={link} maxLength={1000} placeholder="https://… albo adres strony na recreatio.pl"
-                  onChange={(e) => setLink(e.target.value)} />
-              </label>
-              <label className="wk-field">
-                <span>Napis na przycisku</span>
-                <input value={linkLabel} maxLength={60} placeholder="Więcej informacji" disabled={link.trim() === ''} onChange={(e) => setLinkLabel(e.target.value)} />
-              </label>
-              {link.trim() !== '' && safeLink(link) === null && <p className="wk-warn">Link musi zaczynać się od https:// (albo #/ dla strony na recreatio.pl).</p>}
-              {link.trim() !== '' && safeLink(link) !== null && <p className="wk-hint">Na terminie: <ItemLink url={link} label={linkLabel} compact /></p>}
+              {repeatChoice === 'custom' && (
+                <div className="wk-ev-inline">
+                  <span>co</span>
+                  <input type="number" min={1} max={52} aria-label="Co ile" value={every}
+                    onChange={(e) => setEvery(Math.max(1, Math.min(52, Number(e.target.value) || 1)))} />
+                  <select aria-label="Jednostka" value={repeat} onChange={(e) => setRepeat(e.target.value as RepeatKind)}>
+                    <option value="daily">{plural(every, 'dzień', 'dni', 'dni')}</option>
+                    <option value="weekly">{plural(every, 'tydzień', 'tygodnie', 'tygodni')}</option>
+                    <option value="monthly">{plural(every, 'miesiąc', 'miesiące', 'miesięcy')}</option>
+                    <option value="yearly">{plural(every, 'rok', 'lata', 'lat')}</option>
+                  </select>
+                </div>
+              )}
+              {repeat === 'weekly' && <Weekdays value={weekdays} onChange={setOwnWeekdays} />}
+              {repeat !== 'none' && (
+                <div className="wk-ev-inline">
+                  <select aria-label="Do kiedy" value={ends} onChange={(e) => setEnds(e.target.value as typeof ends)}>
+                    <option value="never">bez końca</option>
+                    <option value="date">do dnia…</option>
+                    <option value="count">tyle razy…</option>
+                  </select>
+                  {ends === 'date' && <input type="date" aria-label="Ostatni dzień" min={date} value={until} onChange={(e) => setUntil(e.target.value)} />}
+                  {ends === 'count' && (
+                    <>
+                      <input type="number" min={1} max={999} aria-label="Ile razy" value={count} onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))} />
+                      <span>{plural(count, 'raz', 'razy', 'razy')}</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-
-            {/* 0070 — Teil eines Programms, oder ein Ganzes mit Teilen. 2026-10-17: was geteilt wird, steht dabei. */}
-            {target.at === 'new' && target.parentItemId !== undefined && parentItemId === target.parentItemId && (
-              <p className="wk-note">
-                Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong> — kalendarz, widoczność, miejsce, link i osoby
-                są wspólne z nim. Zmień tutaj tylko to, co w tym punkcie ma być inaczej.
-              </p>
-            )}
-            {item !== undefined && ownParent !== undefined && parentItemId === undefined && (
-              <p className="wk-note">
-                Punkt programu: <strong>{ownParent.title}</strong> — to, co ma tak samo jak on, zmienia się razem z nim; to, co tu wpiszesz inaczej, zostaje.
-              </p>
-            )}
-            {target.at === 'new' && target.origin !== undefined && (
-              <p className="wk-note">Z rozmowy — termin zapamięta, z której wiadomości powstał.</p>
-            )}
-            {events !== undefined && (
-              <ProgramOf
-                itemId={item?.occurrence.itemId ?? null}
-                start={fromLocal(date, allDay ? '00:00' : from)}
-                end={allDay ? undefined : fromLocal(endDate, to)}
-                events={events}
-                parentId={parentItemId === undefined ? item?.occurrence.parentItemId ?? null : parentItemId}
-                onParent={setParentItemId}
-                onQuickAdd={item === undefined || !item.editable ? undefined : async (partTitle, at, minutes) => {
-                  /* Der Punkt teilt alles mit dem Ganzen, wie es gespeichert ist — nur Name und Zeit sind seine. */
-                  const id = await saveEvent(me.ring, {
-                    ...draftOf(item), kind: 'appointment', title: partTitle, notes: '',
-                    date: localDate(at), time: localTime(at), minutes, allDay: false,
-                    repeat: 'none', every: 1, weekdays: 0, until: null, count: null,
-                    parentItemId: item.occurrence.itemId
-                  });
-                  const people = item.occurrence.people ?? [];
-                  if (people.length > 0) await setPeople(id, people);
-                  onSaved();
-                }}
-                onOpen={onOpenPart}
-                onLink={item === undefined ? undefined : async (child) => {
-                  try { await setProgramParent(child, item.occurrence.itemId); onSaved(); }
-                  catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się podłączyć terminu.'); }
-                }}
-                onUnlink={item === undefined ? undefined : async (child) => {
-                  try { await setProgramParent(child, null); onSaved(); }
-                  catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odłączyć terminu.'); }
-                }} />
-            )}
-            {parentItemId === null && item?.occurrence.parentItemId != null && (
-              <p className="wk-hint">Po zapisaniu ten termin nie będzie już częścią programu.</p>
-            )}
-          </>
+          </div>
         )}
 
+        {/* KALENDARZ — er sagt, wer den Termin sieht (0058). */}
+        {!onlyTime && (
+          <div className="wk-ev-row">
+            <Icon name="calendar" />
+            <div className="wk-ev-body">
+              {calendarOptions.length <= 1 ? (
+                <p className="wk-ev-calname">{calendarOptions[0]?.label ?? 'Tylko ja'}</p>
+              ) : calendarOptions.length <= CHIP_CALENDARS ? (
+                <div className="wk-ev-cals" role="group" aria-label="Kalendarz">
+                  {calendarOptions.map((o) => (
+                    <button key={o.value} type="button" className="wk-ev-cal" aria-pressed={o.value === calendarId} onClick={() => pickCalendar(o.value)}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <select aria-label="Kalendarz" value={calendarId} onChange={(e) => pickCalendar(e.target.value)}>
+                  {calendarOptions.some((o) => o.mine) && (
+                    <optgroup label="Tylko ja">
+                      {calendarOptions.filter((o) => o.mine).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </optgroup>
+                  )}
+                  {calendarOptions.some((o) => !o.mine) && (
+                    <optgroup label="Kalendarze grup">
+                      {calendarOptions.filter((o) => !o.mine).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </optgroup>
+                  )}
+                </select>
+              )}
+              <p className="wk-ev-seen">
+                {isPrivate ? 'Widzisz tylko Ty — zaszyfrowane Twoim kluczem.' : (
+                  <>
+                    Widzą: <strong>{groupName(areas, visibility ?? defaultVisibility)}</strong>
+                    {visibility !== null && (
+                      <> — inaczej niż kalendarz · <button type="button" className="wk-link-btn" onClick={() => setVisibility(null)}>
+                        jak w kalendarzu ({groupName(areas, defaultVisibility)})
+                      </button></>
+                    )}
+                  </>
+                )}
+              </p>
+              {calendar?.description && <p className="wk-ev-rules">{calendar.description}</p>}
+            </div>
+          </div>
+        )}
+
+        {/* 0058 — reservieren: nur in einem Kalender, der Reservierungen führt. */}
+        {!onlyTime && booking !== null && (
+          <div className="wk-ev-row">
+            <Icon name="bookmark" />
+            <div className="wk-ev-body">
+              <label className="wk-check">
+                <input type="checkbox" checked={bookableNow}
+                  onChange={(e) => setBookable(e.target.checked === (booking.mode === 'all') ? null : e.target.checked)} />
+                <span>Można rezerwować</span>
+              </label>
+              {bookableNow && (
+                <div className="wk-ev-inline">
+                  <label className="wk-ev-mini">
+                    <span>Miejsc</span>
+                    <input type="number" min={1} max={10000} value={capacity} placeholder={String(booking.capacity)}
+                      onChange={(e) => setCapacity(e.target.value)} />
+                  </label>
+                  <AreaPick
+                    label="Kto może rezerwować" value={reserveArea} onChange={setReserveArea}
+                    areas={areas} only={areas.filter((a) => a.personal !== true)}
+                    extras={[{ value: '', label: `rezerwuje: jak w kalendarzu (${booking.reserveAreaId === null ? 'każdy, kto znajdzie termin' : groupName(areas, booking.reserveAreaId)})` }]}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Was dazugenommen wurde — in fester Reihenfolge. */}
+        {!onlyTime && shows('place') && (
+          <div className="wk-ev-row">
+            <Icon name="place" />
+            <input aria-label="Miejsce" value={location} maxLength={300} placeholder="Miejsce, np. salka parafialna" autoFocus={fresh === 'place'}
+              onChange={(e) => setLocation(e.target.value)} />
+          </div>
+        )}
+
+        {!onlyTime && shows('notes') && (
+          <div className="wk-ev-row">
+            <Icon name="compose" />
+            <textarea aria-label="Notatka" rows={3} value={notes} placeholder="Notatka" autoFocus={fresh === 'notes'}
+              onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        )}
+
+        {shows('people') && (
+          <div className="wk-ev-row">
+            <Icon name="users" />
+            <div className="wk-ev-body">
+              <span className="wk-ev-label">{peopleWord(kind)}{onlyTime ? ' — ten termin' : ''}</span>
+              <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned} defaultDuty={dutyOf(kind)} />
+            </div>
+          </div>
+        )}
+
+        {!onlyTime && shows('link') && (
+          <div className="wk-ev-row">
+            <Icon name="link" />
+            <div className="wk-ev-body wk-ev-link">
+              <input type="text" inputMode="url" autoComplete="url" spellCheck={false} aria-label="Link do informacji" value={link} maxLength={1000}
+                placeholder="https://… albo #/strona na recreatio.pl" autoFocus={fresh === 'link'} onChange={(e) => setLink(e.target.value)} />
+              <input aria-label="Napis na przycisku" value={linkLabel} maxLength={60} placeholder="Napis: Więcej informacji" disabled={link.trim() === ''}
+                onChange={(e) => setLinkLabel(e.target.value)} />
+              {link.trim() !== '' && safeLink(link) === null && <p className="wk-warn">Link musi zaczynać się od https:// (albo #/ dla strony na recreatio.pl).</p>}
+            </div>
+          </div>
+        )}
+
+        {/* 0070 — die Punkte des Programms (nur an einem gespeicherten Termin). */}
+        {!onlyTime && shows('program') && item !== undefined && events !== undefined && (
+          <div className="wk-ev-row">
+            <Icon name="list" />
+            <ProgramOf
+              itemId={item.occurrence.itemId}
+              start={fromLocal(date || localDate(start), allDay || from === '' ? '00:00' : from)}
+              end={allDay || to === '' || endDate === '' ? undefined : fromLocal(endDate, to)}
+              events={events}
+              parentId={parentItemId === undefined ? item.occurrence.parentItemId ?? null : parentItemId}
+              onQuickAdd={async (partTitle, at, minutes) => {
+                /* Der Punkt teilt alles mit dem Ganzen, wie es gespeichert ist — nur Name und Zeit sind seine. */
+                const id = await saveEvent(me.ring, {
+                  ...draftOf(item), kind: 'appointment', title: partTitle, notes: '',
+                  date: localDate(at), time: localTime(at), minutes, allDay: false,
+                  repeat: 'none', every: 1, weekdays: 0, until: null, count: null,
+                  parentItemId: item.occurrence.itemId
+                });
+                const people = item.occurrence.people ?? [];
+                if (people.length > 0) await setPeople(id, people);
+                onSaved();
+              }}
+              onOpen={onOpenPart}
+              onLink={async (child) => {
+                try { await setProgramParent(child, item.occurrence.itemId); onSaved(); }
+                catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się podłączyć terminu.'); }
+              }}
+              onUnlink={async (child) => {
+                try { await setProgramParent(child, null); onSaved(); }
+                catch (e) { setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się odłączyć terminu.'); }
+              }} />
+          </div>
+        )}
+
+        {/* 0070 — ein Punkt eines Programms: woran er hängt; 2026-10-24 — und „odłącz" statt der Wahl „Część programu". */}
+        {target.at === 'new' && target.parentItemId !== undefined && parentItemId === target.parentItemId && (
+          <p className="wk-note">
+            Punkt programu: <strong>{target.parentTitle ?? 'termin nadrzędny'}</strong> — kalendarz, widoczność, miejsce, link i osoby
+            są wspólne z nim. Zmień tutaj tylko to, co w tym punkcie ma być inaczej.
+          </p>
+        )}
+        {!onlyTime && item !== undefined && item.occurrence.parentItemId != null && (parentItemId === null ? (
+          <p className="wk-note">
+            Po zapisaniu ten termin nie będzie już punktem programu.{' '}
+            <button type="button" className="wk-link-btn" onClick={() => setParentItemId(undefined)}>Cofnij</button>
+          </p>
+        ) : (
+          <p className="wk-note">
+            Punkt programu: <strong>{ownParent?.title ?? 'termin spoza widoku'}</strong> — to, co ma tak samo jak on, zmienia się razem z nim.{' '}
+            <button type="button" className="wk-link-btn" onClick={() => setParentItemId(null)}>Odłącz</button>
+          </p>
+        ))}
+        {target.at === 'new' && target.origin !== undefined && (
+          <p className="wk-note">Z rozmowy — termin zapamięta, z której wiadomości powstał.</p>
+        )}
         {onlyTime && (
-          <>
-            <p className="wk-hint">Przesuwasz tylko ten jeden termin — reszta serii zostaje, jak była. Rezerwacje przechodzą razem z nim.</p>
-            {!isPrivate && calendarArea !== null && (
-              <div className="wk-field">
-                <span>{peopleWord(kind)} — ten termin</span>
-                <PeoplePicker me={me} candidates={candidates} value={pinned} onChange={setPinned}
-                  defaultDuty={dutyOf(kind)} />
-              </div>
-            )}
-          </>
+          <p className="wk-note">Przesuwasz tylko ten jeden termin — reszta serii zostaje, jak była. Rezerwacje przechodzą razem z nim.</p>
+        )}
+
+        {/* 2026-10-24 — was noch dazukommen kann. */}
+        {adds.length > 0 && (
+          <div className="wk-ev-adds" role="group" aria-label="Dodaj do terminu">
+            {adds.map((x) => (
+              <button key={x.key} type="button" className="wk-ev-add" aria-label={`Dodaj: ${x.label}`} onClick={() => add(x.key)}>
+                <span aria-hidden="true">+</span> {x.label}
+              </button>
+            ))}
+          </div>
         )}
 
         {failed !== null && <p className="wk-error">{failed}</p>}

@@ -171,6 +171,7 @@ const S_CP = array<f32, ${solids.length}>(${fa(solids.map((s) => s.cp.v))});
 const S_K = array<f32, ${solids.length}>(${fa(solids.map((s) => s.k.v))});
 const S_THETA = array<f32, ${solids.length}>(${fa(solids.map((s) => s.contactAngle.v))});
 const DRIFT_GAIN: f32 = 0.1;
+const DRIFT_DT: f32 = 5e-4;
 const RHO_MIN: f32 = 0.05;
 const MIN_MASS: f32 = 1e-3;
 const FRITZ: f32 = 0.0208;

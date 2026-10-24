@@ -26,17 +26,21 @@ import { PeoplePicker, type Pinned, nameOfPinned, useAreaPeople } from './People
  * beginnt und endet — vorgeschlagen: nach dem letzten Punkt des Tages, eine
  * Stunde, höchstens bis zum Ende des Ganzen). Alles andere teilt er mit dem
  * Ganzen (`onQuickAdd`); wer mehr will, öffnet ihn danach aus der Liste.
+ *
+ * 2026-10-24 — nur noch die Punkte. Die Wahl „Część programu" (unter welchem
+ * Termin dieser steht) ist fort: einen Termin hängt man von seinem Ganzen aus
+ * ein („Podłącz istniejący termin"); ob einer ein Punkt ist, sagt der Editor
+ * in einer Zeile, mit „odłącz".
  */
-export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQuickAdd, onOpen, onLink, onUnlink }: {
-  /** `null`: ein neuer Termin — er kann ein Teil werden, aber noch keine haben. */
-  itemId: string | null;
+export function ProgramOf({ itemId, start, end, events, parentId, onQuickAdd, onOpen, onLink, onUnlink }: {
+  /** Der Termin, dessen Punkte es sind (ein gespeicherter — ein neuer hat noch keine). */
+  itemId: string;
   start: Date;
   /** Das Ende des Ganzen — ein neuer Punkt beginnt nicht danach. */
   end?: Date;
   events: readonly CalEvent[];
-  /** Das Ganze, wie es im Formular steht (gespeichert wird mit dem Termin). */
+  /** Das Ganze DIESES Termins, falls er selbst ein Punkt ist — es und seine Ganzen lassen sich nicht als Punkte einhängen. */
   parentId: string | null;
-  onParent: (parentId: string | null) => void;
   /** 2026-10-17 — einen Punkt anlegen: Name, Beginn, Dauer in Minuten; den Rest teilt er mit dem Ganzen. */
   onQuickAdd?: (title: string, at: Date, minutes: number) => Promise<void>;
   /** 2026-10-17 — einen Punkt öffnen (aus der Liste des Programms). */
@@ -60,19 +64,14 @@ export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQu
   const parentOf = (id: string) => (items.get(id) === undefined ? null : programOf(items.get(id)!)?.parentItemId ?? null);
   const ancestors = new Set<string>();
   for (let up = parentId, depth = 0; up !== null && depth < 10; up = parentOf(up), depth += 1) ancestors.add(up);
-  const isBelow = (id: string): boolean => {
-    for (let up: string | null = id, depth = 0; up !== null && depth < 10; up = parentOf(up), depth += 1) if (up === itemId) return true;
-    return false;
-  };
 
-  const parts = itemId === null ? [] : [...items.values()]
+  const parts = [...items.values()]
     .filter((e) => programOf(e)?.parentItemId === itemId)
     .sort((a, b) => ((programOf(a)?.position ?? 1e9) - (programOf(b)?.position ?? 1e9)) || a.start.getTime() - b.start.getTime());
 
   /* Nach Nähe in der Zeit — wer einen Ausflug baut, sucht die Termine desselben Tages. */
   const near = (a: CalEvent, b: CalEvent) => Math.abs(a.start.getTime() - start.getTime()) - Math.abs(b.start.getTime() - start.getTime());
-  const parentChoices = [...items.entries()].filter(([id]) => id !== itemId && (itemId === null || !isBelow(id))).map(([, e]) => e).sort(near).slice(0, 60);
-  const childChoices = itemId === null ? [] : [...items.entries()]
+  const childChoices = [...items.entries()]
     .filter(([id, e]) => id !== itemId && !ancestors.has(id) && programOf(e)?.parentItemId !== itemId)
     .map(([, e]) => e).sort(near).slice(0, 60);
   /* Wo der nächste Punkt beginnt: wo der letzte dieses Tages endet — solange das im Ganzen liegt. */
@@ -114,86 +113,71 @@ export function ProgramOf({ itemId, start, end, events, parentId, onParent, onQu
   const label = (e: CalEvent) => `${e.title} · ${e.allDay ? longDate(e.start) : `${longDate(e.start)} ${time(e.start)}`}`;
 
   return (
-    <section className="wk-ev-program">
-      <label className="wk-field">
-        <span>Część programu</span>
-        <select value={parentId ?? ''} onChange={(e) => onParent(e.target.value === '' ? null : e.target.value)}>
-          <option value="">— osobny termin —</option>
-          {parentId !== null && !items.has(parentId) && <option value={parentId}>(termin spoza widoku)</option>}
-          {parentChoices.map((e) => <option key={programOf(e)!.itemId} value={programOf(e)!.itemId}>{label(e)}</option>)}
-        </select>
-        <span className="wk-hint">Punkt programu pokazuje się w kalendarzu wewnątrz swojego terminu.</span>
-      </label>
-
-      {itemId !== null && (
-        <>
-          <h3 className="wk-h3">Program</h3>
-          {parts.length > 0 ? (
-            <ol className="wk-ev-program-list">
-              {parts.map((p) => (
-                <li key={programOf(p)!.itemId} className="wk-ev-program-row">
-                  {/* Am Tag des Ganzen genügt die Uhrzeit. */}
-                  <span className="wk-ev-part-time">
-                    {p.allDay ? longDate(p.start) : sameDay(p.start, start) ? `${time(p.start)}–${time(p.end)}` : `${longDate(p.start)} ${time(p.start)}`}
-                  </span>
-                  <span className="wk-ev-program-main">
-                    {onOpen !== undefined
-                      ? <button type="button" className="wk-link-btn wk-ev-program-title" onClick={() => onOpen(p)}>{p.title}</button>
-                      : <span className="wk-ev-program-title">{p.title}</span>}
-                    {p.item?.location != null && p.item.location !== '' && <span className="wk-ev-program-place">{p.item.location}</span>}
-                  </span>
-                  {onUnlink !== undefined && (
-                    <button type="button" className="wk-link-btn wk-ev-program-unlink" disabled={linking}
-                      onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>odłącz</button>
-                  )}
-                </li>
-              ))}
-            </ol>
-          ) : <p className="wk-hint">Ten termin nie ma jeszcze punktów programu.</p>}
-
-          {draft !== null && (
-            <div className="wk-ev-program-new">
-              <input aria-label="Nazwa punktu" placeholder="Nazwa punktu, np. Obiad" value={draft.title} maxLength={200} autoFocus disabled={adding}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                onKeyDown={(e) => {
-                  /* Enter dodaje punkt — nie zapisuje całego terminu (to pole stoi w jego formularzu). */
-                  if (e.key === 'Enter') { e.preventDefault(); addPart(); }
-                  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setDraft(null); }
-                }} />
-              <span className="wk-ev-program-span">
-                <input type="time" aria-label="Początek punktu" title="Początek" step={300} value={draft.time} disabled={adding}
-                  onChange={(e) => moveStart(e.target.value)} />
-                <span aria-hidden="true">–</span>
-                <input type="time" aria-label="Koniec punktu" title="Koniec" step={300} value={draft.until} disabled={adding}
-                  onChange={(e) => setDraft({ ...draft, until: e.target.value })} />
+    <section className="wk-ev-program" aria-label="Program">
+      {parts.length > 0 ? (
+        <ol className="wk-ev-program-list">
+          {parts.map((p) => (
+            <li key={programOf(p)!.itemId} className="wk-ev-program-row">
+              {/* Am Tag des Ganzen genügt die Uhrzeit. */}
+              <span className="wk-ev-part-time">
+                {p.allDay ? longDate(p.start) : sameDay(p.start, start) ? `${time(p.start)}–${time(p.end)}` : `${longDate(p.start)} ${time(p.start)}`}
               </span>
-              <button type="button" className="wk-btn wk-btn-small" disabled={adding || draft.title.trim() === '' || draftMinutes <= 0} onClick={addPart}>
-                {adding ? 'Dodawanie…' : 'Dodaj'}
-              </button>
-              <button type="button" className="wk-link-btn" disabled={adding} onClick={() => setDraft(null)}>Anuluj</button>
-              {draftMinutes <= 0 && draft.time !== '' && draft.until !== '' && <p className="wk-error">Koniec musi być po początku.</p>}
-              {addFailed !== null && <p className="wk-error">{addFailed}</p>}
-            </div>
-          )}
+              <span className="wk-ev-program-main">
+                {onOpen !== undefined
+                  ? <button type="button" className="wk-link-btn wk-ev-program-title" onClick={() => onOpen(p)}>{p.title}</button>
+                  : <span className="wk-ev-program-title">{p.title}</span>}
+                {p.item?.location != null && p.item.location !== '' && <span className="wk-ev-program-place">{p.item.location}</span>}
+              </span>
+              {onUnlink !== undefined && (
+                <button type="button" className="wk-link-btn wk-ev-program-unlink" disabled={linking}
+                  onClick={() => { setLinking(true); void onUnlink(programOf(p)!.itemId).finally(() => setLinking(false)); }}>odłącz</button>
+              )}
+            </li>
+          ))}
+        </ol>
+      ) : <p className="wk-empty">Jeszcze bez punktów programu.</p>}
 
-          <div className="wk-actions wk-ev-program-add">
-            {onQuickAdd !== undefined && draft === null && (
-              <button type="button" className="wk-link-btn" onClick={openDraft}>+ Nowy punkt programu</button>
-            )}
-            {onLink !== undefined && childChoices.length > 0 && (
-              <select value="" disabled={linking} aria-label="Podłącz istniejący termin"
-                onChange={(e) => {
-                  if (e.target.value === '') return;
-                  setLinking(true);
-                  void onLink(e.target.value).finally(() => setLinking(false));
-                }}>
-                <option value="">{linking ? 'Podłączanie…' : '+ Podłącz istniejący termin…'}</option>
-                {childChoices.map((e) => <option key={programOf(e)!.itemId} value={programOf(e)!.itemId}>{label(e)}</option>)}
-              </select>
-            )}
-          </div>
-        </>
+      {draft !== null && (
+        <div className="wk-ev-program-new">
+          <input aria-label="Nazwa punktu" placeholder="Nazwa punktu, np. Obiad" value={draft.title} maxLength={200} autoFocus disabled={adding}
+            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            onKeyDown={(e) => {
+              /* Enter dodaje punkt — nie zapisuje całego terminu (to pole stoi w jego formularzu). */
+              if (e.key === 'Enter') { e.preventDefault(); addPart(); }
+              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setDraft(null); }
+            }} />
+          <span className="wk-ev-program-span">
+            <input type="time" aria-label="Początek punktu" title="Początek" step={300} value={draft.time} disabled={adding}
+              onChange={(e) => moveStart(e.target.value)} />
+            <span aria-hidden="true">–</span>
+            <input type="time" aria-label="Koniec punktu" title="Koniec" step={300} value={draft.until} disabled={adding}
+              onChange={(e) => setDraft({ ...draft, until: e.target.value })} />
+          </span>
+          <button type="button" className="wk-btn wk-btn-small" disabled={adding || draft.title.trim() === '' || draftMinutes <= 0} onClick={addPart}>
+            {adding ? 'Dodawanie…' : 'Dodaj'}
+          </button>
+          <button type="button" className="wk-link-btn" disabled={adding} onClick={() => setDraft(null)}>Anuluj</button>
+          {draftMinutes <= 0 && draft.time !== '' && draft.until !== '' && <p className="wk-error">Koniec musi być po początku.</p>}
+          {addFailed !== null && <p className="wk-error">{addFailed}</p>}
+        </div>
       )}
+
+      <div className="wk-actions wk-ev-program-add">
+        {onQuickAdd !== undefined && draft === null && (
+          <button type="button" className="wk-link-btn" onClick={openDraft}>+ Nowy punkt programu</button>
+        )}
+        {onLink !== undefined && childChoices.length > 0 && (
+          <select value="" disabled={linking} aria-label="Podłącz istniejący termin"
+            onChange={(e) => {
+              if (e.target.value === '') return;
+              setLinking(true);
+              void onLink(e.target.value).finally(() => setLinking(false));
+            }}>
+            <option value="">{linking ? 'Podłączanie…' : '+ Podłącz istniejący termin…'}</option>
+            {childChoices.map((e) => <option key={programOf(e)!.itemId} value={programOf(e)!.itemId}>{label(e)}</option>)}
+          </select>
+        )}
+      </div>
     </section>
   );
 }

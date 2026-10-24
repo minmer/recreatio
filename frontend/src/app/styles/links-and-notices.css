@@ -125,7 +125,7 @@ a.wk-toast-body:focus-visible { outline: 2px solid var(--wk-accent); outline-off
 .wk-program-where { color: var(--wk-muted); font-size: var(--wk-text-sm); }
 .wk-program-notes { color: var(--wk-muted); font-size: var(--wk-text-sm); white-space: pre-line; margin: 0; }
 .wk-program-strip { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wk-ev-program { display: grid; gap: 0.375rem; padding-top: 0.5rem; border-top: 1px solid var(--wk-line); }
+.wk-ev-program { display: grid; gap: 0.375rem; }
 /* Das Programm im Termin: je Punkt Zeit · Name (öffnet ihn) und Ort · „odłącz". Nicht `.wk-ev-parts` — das ist die Zahl „+N" im Monat. */
 .wk-ev-program-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); }
 .wk-ev-program-row {

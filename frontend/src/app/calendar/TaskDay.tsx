@@ -77,8 +77,8 @@ export async function toggleMark(mark: TaskMark, byRoleId: string): Promise<void
   else await markDone(mark.task.taskId, byRoleId, mark.occurrence.at);
 }
 
-/** Der Stand eines Tages als kleine Pille — im Raster über dem Tag, in der Monatszelle, in der Liste. */
-export function TaskPill({ marks, onOpen, mini = false }: { marks: readonly TaskMark[]; onOpen: () => void; mini?: boolean }) {
+/** Der Stand eines Tages — in Zahlen, in Worten und als Klassen der Pille. `null`: an dem Tag ist nichts. */
+function dayTally(marks: readonly TaskMark[]) {
   const t = tally(marks);
   if (t.total === 0) return null;
 
@@ -97,20 +97,51 @@ export function TaskPill({ marks, onOpen, mini = false }: { marks: readonly Task
   if (t.pressing > 0) words.push(`${t.pressing} teraz`);
   if (t.behind > 0) words.push(`${t.behind} ${behindWord}`);
 
+  return {
+    t, behindWord,
+    words: `Zadania: ${words.join(', ')}`,
+    classes: `${past ? ' is-past' : ''}${t.pressing > 0 ? ' is-pressing' : ''}${t.behind > 0 ? ' is-behind' : ''}${t.settled === t.total ? ' is-clear' : ''}`
+  };
+}
+
+/** Der Stand eines Tages in Worten („Zadania: zrobione 1 z 3, 1 teraz") — für den Knopf, in dem die stille Marke steht. */
+export const taskWords = (marks: readonly TaskMark[]): string | null => dayTally(marks)?.words ?? null;
+
+/** Der Stand eines Tages als kleine Pille, die die Liste des Tages öffnet — in der Zeile „zadania" über dem Raster. */
+export function TaskPill({ marks, onOpen }: { marks: readonly TaskMark[]; onOpen: () => void }) {
+  const d = dayTally(marks);
+  if (d === null) return null;
+  const { t } = d;
+
   return (
-    <button
-      type="button"
-      className={`wk-taskpill${mini ? ' is-mini' : ''}${past ? ' is-past' : ''}${t.pressing > 0 ? ' is-pressing' : ''}${t.behind > 0 ? ' is-behind' : ''}${t.settled === t.total ? ' is-clear' : ''}`}
-      aria-label={`Zadania: ${words.join(', ')}`}
-      title={`Zadania: ${words.join(', ')}`}
-      onClick={(e) => { e.stopPropagation(); onOpen(); }}
-    >
+    <button type="button" className={`wk-taskpill${d.classes}`} aria-label={d.words} title={d.words}
+      onClick={(e) => { e.stopPropagation(); onOpen(); }}>
       <span className="wk-taskpill-tick" aria-hidden="true">✓</span>
       <span className="wk-taskpill-count">{t.settled}/{t.total}</span>
-      {!mini && t.pressing > 0 && <span className="wk-taskpill-note is-pressing">{t.pressing} teraz</span>}
-      {!mini && t.behind > 0 && <span className="wk-taskpill-note is-behind">{t.behind} {behindWord}</span>}
-      {mini && (t.pressing > 0 || t.behind > 0) && <span className="wk-taskpill-dot" aria-hidden="true" />}
+      {t.pressing > 0 && <span className="wk-taskpill-note is-pressing">{t.pressing} teraz</span>}
+      {t.behind > 0 && <span className="wk-taskpill-note is-behind">{t.behind} {d.behindWord}</span>}
     </button>
+  );
+}
+
+/**
+ * 2026-10-24 — DER STAND EINES TAGES ALS STILLE MARKE, im Kopf eines Tages
+ * (Monatszelle, Liste). Kein eigener Knopf: auf dem Telefon traf der Finger,
+ * der das Datum meinte, die Pille daneben — und es ging die Liste der
+ * Aufgaben auf statt des Tages. Jetzt gehört der ganze Kopf dem Datum; die
+ * Aufgaben stehen im Tag (Zeile „zadania", Schiene).
+ */
+export function TaskTally({ marks }: { marks: readonly TaskMark[] }) {
+  const d = dayTally(marks);
+  if (d === null) return null;
+  const { t } = d;
+
+  return (
+    <span className={`wk-taskpill is-mini is-quiet${d.classes}`} title={d.words} aria-hidden="true">
+      <span className="wk-taskpill-tick">✓</span>
+      <span className="wk-taskpill-count">{t.settled}/{t.total}</span>
+      {(t.pressing > 0 || t.behind > 0) && <span className="wk-taskpill-dot" />}
+    </span>
   );
 }
 

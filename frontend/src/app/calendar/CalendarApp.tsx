@@ -69,7 +69,7 @@ import { useRemembered } from '../core/prefs';
 import { ReservationDialog, WaitingDialog } from '../bookings/ReservationDialog';
 import type { Who } from '../core/session';
 import { WorkspaceError } from '../core/session';
-import { mayTick, maySkip, stateOf, TaskDay, TaskPill, toggleMark, whenOf } from './TaskDay';
+import { mayTick, maySkip, stateOf, TaskDay, TaskPill, TaskTally, taskWords, toggleMark, whenOf } from './TaskDay';
 /* 2026-10-17 — die Dialoge erst, wenn einer aufgeht: ein Kalender auf einer öffentlichen Seite lud beide mit. */
 const EventDialog = lazy(() => import('./EventDialog').then((m) => ({ default: m.EventDialog })));
 const TaskDialog = lazy(() => import('./TaskDialog').then((m) => ({ default: m.TaskDialog })));
@@ -572,13 +572,15 @@ export function Calendar({ me, scope, startNew, at }: {
 
           {view === 'month' && (
             <MonthGrid anchor={anchor} from={range.from} to={range.to} events={events} marks={marks} now={now}
-              onDay={(day) => { if (clip !== null) { paste({ day }); return; } setAnchor(day); setMarkDay(day); setViewText('day'); }} onOpen={open} onTasks={setTaskDay} picked={pickedKeys}
+              onDay={(day) => { if (clip !== null) { paste({ day }); return; } setAnchor(day); setMarkDay(day); setViewText('day'); }} onOpen={open} picked={pickedKeys}
               firstMonth={addMonths(anchor, -shownMore.before)} lastMonth={addMonths(anchor, shownMore.after)} marked={markDay}
               onReveal={shownMore.before + shownMore.after < MAX_MORE ? reveal : undefined} />
           )}
 
           {view === 'list' && (
-            <ListView from={range.from} events={events} marks={marks} now={now} areas={areas} onOpen={open} onTasks={setTaskDay} picked={pickedKeys} />
+            <ListView from={range.from} events={events} marks={marks} now={now} areas={areas} onOpen={open} picked={pickedKeys}
+              /* 2026-10-24 — der Kopf eines Tages öffnet den Tag, wie im Monatsblatt. */
+              onDay={(day) => { if (clip !== null) { paste({ day }); return; } setAnchor(day); setViewText('day'); }} />
           )}
         </div>
         </CutKeys.Provider>
@@ -1072,7 +1074,7 @@ function EventRail({ events, day, areas, onOpen }: { events: readonly CalEvent[]
  * Rozmowy, der Monat, in dem man gerade liest (bei mehreren aufgedeckten der
  * der obersten sichtbaren Woche — nach ihrem Donnerstag, wie die Kalenderwoche).
  */
-export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen, onTasks, readOnly = false, picked, firstMonth = anchor, lastMonth = anchor, marked = null, onReveal }: {
+export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen, readOnly = false, picked, firstMonth = anchor, lastMonth = anchor, marked = null, onReveal }: {
   anchor: Date;
   from: Date;
   /** Bis wohin (ausschliesslich) — fehlt: sechs Wochen. */
@@ -1082,7 +1084,6 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
   now: Date;
   onDay: (day: Date) => void;
   onOpen: (event: CalEvent) => void;
-  onTasks: (day: Date) => void;
   readOnly?: boolean;
   picked?: ReadonlySet<string>;
   /** 2026-10-17 — welche Monate aufgedeckt sind (der erste und der letzte); die Tage daneben treten zurück. */
@@ -1151,17 +1152,22 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
         {days.map((day) => {
           /* 0074 — Teile stehen im Monat nicht einzeln: ihr Ganzes sagt, wie viele es hat. */
           const mine = treeOrder(events.filter((e) => happensOn(e, day))).filter((t) => t.depth === 0);
+          const dayMarks = marksOn(marks, day);
           return (
             <div key={keyOf(day)} data-day={keyOf(day)}
               className={`wk-cal2-cell${inside(day) ? '' : ' is-out'}${sameDay(day, now) ? ' is-today' : ''}${marked !== null && sameDay(day, marked) ? ' is-marked' : ''}`}
               onClick={(e) => { if ((e.target as Element).closest('button, a') === null) onDay(day); }}>
-              <span className="wk-cal2-cellhead">
-                <button type="button" className="wk-cal2-cellday" aria-label={longDate(day)} onClick={() => onDay(day)}>
-                  {/* 2026-10-17 — an jedem Tag der Monat, kurz („31 paź", „1 lis"): an den Rändern und über mehrere Monate weiss man so immer, wo man ist. */}
-                  {day.getDate()} <span className="wk-cal2-cellmon">{monthOfName(day).slice(0, 3)}</span>
-                </button>
-                <TaskPill marks={marksOn(marks, day)} onOpen={() => onTasks(day)} mini />
-              </span>
+              {/*
+                2026-10-24 — DER GANZE KOPF IST DAS DATUM: ein Knopf über die ganze Breite der
+                Zelle, der Stand der Aufgaben still darin (`TaskTally`). Vorher stand die Pille
+                der Aufgaben als eigener Knopf neben dem Datum, und auf dem Telefon öffnete der
+                Finger, der den Tag meinte, die Liste der Aufgaben.
+              */}
+              <button type="button" className="wk-cal2-cellhead" aria-label={dayLabel(day, dayMarks)} onClick={() => onDay(day)}>
+                {/* 2026-10-17 — an jedem Tag der Monat, kurz („31 paź", „1 lis"): an den Rändern und über mehrere Monate weiss man so immer, wo man ist. */}
+                <span className="wk-cal2-cellday">{day.getDate()} <span className="wk-cal2-cellmon">{monthOfName(day).slice(0, 3)}</span></span>
+                <TaskTally marks={dayMarks} />
+              </button>
               {mine.slice(0, SHOWN).map(({ event: e, parts }) => (
                 <button key={e.key} type="button" className={`${chipClass(e, picked, cut)} is-line`} aria-pressed={picked?.has(e.key)} style={{ '--ev-h': hueOfEvent(e) } as CSSProperties}
                   data-pick={pickable(e) ? e.key : undefined}
@@ -1188,16 +1194,23 @@ export function MonthGrid({ anchor, from, to, events, marks, now, onDay, onOpen,
   );
 }
 
+/** Wie der Kopf eines Tages vorgelesen wird: das Datum, und wenn es Aufgaben gibt, ihr Stand. */
+function dayLabel(day: Date, marks: readonly TaskMark[]): string {
+  const words = taskWords(marks);
+  return words === null ? longDate(day) : `${longDate(day)} — ${words}`;
+}
+
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
-export function ListView({ from, events, marks, now, areas, onOpen, onTasks, picked }: {
+export function ListView({ from, events, marks, now, areas, onOpen, onDay, picked }: {
   from: Date;
   events: readonly CalEvent[];
   marks: readonly TaskMark[];
   now: Date;
   areas: readonly AreaRow[];
   onOpen: (event: CalEvent) => void;
-  onTasks: (day: Date) => void;
+  /** 2026-10-24 — der Kopf eines Tages öffnet diesen Tag. Fehlt es, ist der Kopf nur eine Überschrift. */
+  onDay?: (day: Date) => void;
   picked?: ReadonlySet<string>;
 }) {
   const cut = useContext(CutKeys);
@@ -1221,10 +1234,20 @@ export function ListView({ from, events, marks, now, areas, onOpen, onTasks, pic
     <div className="wk-cal2-list">
       {days.map(({ day, list, tasks }) => (
         <section key={keyOf(day)} className={`wk-cal2-listday${sameDay(day, now) ? ' is-today' : ''}`} data-day={keyOf(day)}>
-          <div className="wk-cal2-listhead">
-            <h3 className="wk-mass-day-name">{longDate(day)}</h3>
-            <TaskPill marks={tasks} onOpen={() => onTasks(day)} />
-          </div>
+          {/* 2026-10-24 — wie im Monatsblatt: der ganze Kopf ist das Datum, die Aufgaben stehen still darin. */}
+          <h3 className="wk-mass-day-name wk-cal2-listname">
+            {onDay !== undefined ? (
+              <button type="button" className="wk-cal2-listhead" aria-label={dayLabel(day, tasks)} onClick={() => onDay(day)}>
+                <span className="wk-cal2-listdate">{longDate(day)}</span>
+                <TaskTally marks={tasks} />
+              </button>
+            ) : (
+              <span className="wk-cal2-listhead">
+                <span className="wk-cal2-listdate">{longDate(day)}</span>
+                <TaskTally marks={tasks} />
+              </span>
+            )}
+          </h3>
           {treeOrder(list).map(({ event: e, depth }) => (
             <div key={e.key} className={`wk-cal2-listrow${depth > 0 ? ' is-part' : ''}${picked?.has(e.key) === true ? ' is-picked' : ''}${cut.has(e.key) ? ' is-cut' : ''}`} style={{ '--ev-h': hueOfEvent(e), '--depth': depth } as CSSProperties}>
               {depth > 0 && <span className="wk-cal2-partmark" aria-hidden="true">↳</span>}

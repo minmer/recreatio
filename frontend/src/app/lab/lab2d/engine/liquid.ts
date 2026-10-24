@@ -42,6 +42,11 @@ import { GAS, LIQUID, SOLID } from './units';
 
 /** Driftausgleich: Anteil des Volumenfehlers, der je Schritt behoben wird (Modellparameter). */
 export const DRIFT_GAIN = 0.1;
+/**
+ * …aber nie schneller als über DRIFT_DT (s): sonst wächst die Korrektur mit 1/Δt, die Geschwindigkeit mit ihr, der
+ * nächste Schritt wird kürzer — auf der heissen Platte lief das in 15 Schritten auf 5000 m/s (extremes.ts).
+ */
+export const DRIFT_DT = 5e-4;
 /** Unterhalb dieser Masse (Anteil der Nennmasse) zählt eine Fläche als leer. */
 const EMPTY = 1e-9;
 /** Die Oberfläche rückt höchstens so nah an die Mitte einer Flüssigkeitszelle (Anteil des Abstands der Mitten) — sonst würde das System steif und das Rauschen von φ verstärkt. */
@@ -528,7 +533,7 @@ export class Liquid {
           let src = (this.volSrc[c] * invV);
           const surface = this.gasAt(i - 1, j) || this.gasAt(i + 1, j) || this.gasAt(i, j - 1) || this.gasAt(i, j + 1);
           const err = phiTot - 1;
-          if (err > 0 || !surface) src += (DRIFT_GAIN * err) / dt;
+          if (err > 0 || !surface) src += (DRIFT_GAIN * err) / Math.max(dt, DRIFT_DT);
           let b = src * dx * dx - dx * div;
           /* Rechts (mit dem offenen Anteil der Fläche: was ein Körper bedeckt, koppelt nicht). */
           if (i + 1 < nx) {

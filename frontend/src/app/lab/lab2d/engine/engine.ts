@@ -27,6 +27,7 @@
 import { Bodies } from './bodies';
 import { BodyMelt } from './bodyMelt';
 import { BubbleModel } from './bubbleModel';
+import { Extremes, type ExtremeStats } from './extremes';
 import { Bubbles } from './bubbles';
 import { emptyFlows, emptySnapshot, measure, type BudgetSnapshot, type Flows } from './budget';
 import { applyOp, type EditLedger, type World } from './edits';
@@ -44,7 +45,7 @@ import { liquidsAt, probe } from './probe';
 import { Regions } from './regions';
 import { Rng } from './rng';
 import { Salt } from './salt';
-import { CELL, freshId, isObjectOp, MAX_CELLS, readScene, writeScene, type HeaterMode, type Op, type Quality, type ReadOptions, type Scene, type Side, type SideName } from './scene';
+import { CELL, freshId, isObjectOp, MAX_CELLS, readScene, writeScene, type ExtremeMode, type HeaterMode, type Op, type Quality, type ReadOptions, type Scene, type Side, type SideName } from './scene';
 import { inside } from './shapes';
 import { GridSolver } from './solver';
 import { STAGE_COUNT } from './stages';
@@ -114,6 +115,8 @@ export interface EngineStats {
   ambientT: number;
   ambientP: number;
   g: number;
+  /** Heftige Zustände (extremes.ts): Art der Rechnung, anstehende Frage, grösste Blase, schnellstes Teilchen, was gemildert wurde. */
+  extremes: ExtremeStats;
 }
 
 /** Was der Inspektor an einem Punkt sieht. */
@@ -172,6 +175,7 @@ export class Engine {
   bodies!: Bodies;
   melt!: BodyMelt;
   solver!: GridSolver;
+  readonly extremes = new Extremes(this);
   private prevKind!: Uint8Array;
   private p0Start: Float64Array = new Float64Array(8);
   rng!: Rng;
@@ -270,6 +274,7 @@ export class Engine {
     this.ledger.salt = 0;
     this.flows = emptyFlows();
     this.heaterOps.clear();
+    this.extremes.reset();
     this.setAmbientState(scene.ambient.p, scene.ambient.T, scene.ambient.rh, scene.ambient.g, scene.ambient.air.N2, scene.ambient.air.O2);
     if (this.options.insulated === true) this.heat.hExt = 0;
     /* Die leere Kiste voll Umgebungsluft. */
@@ -482,6 +487,12 @@ export class Engine {
     this.build(scene);
   }
 
+  /** Wie heftige Zustände gerechnet werden (extremes.ts) — jederzeit, ohne neu aufzubauen; eine beantwortete Frage kommt nicht wieder. */
+  setExtremes(mode: ExtremeMode): void {
+    this.scene = { ...this.scene, extremes: mode };
+    this.extremes.pending = null;
+  }
+
   setQuality(q: Quality): void {
     const scene = readScene(this.serialize(), this.options).scene;
     this.load({ ...scene, quality: q });
@@ -570,6 +581,7 @@ export class Engine {
     if (liquid.last.solve.capped) this.cappedCount += 1;
     if (gas.last.solve.capped) this.cappedCount += 1;
     if (heat.last.solve.capped) this.cappedCount += 1;
+    this.extremes.afterStep();
     this.time += dt;
     this.steps += 1;
     stamp[8] = now();
@@ -766,7 +778,8 @@ export class Engine {
       vapourRate: this.vapourRate,
       ambientT: this.ambientT,
       ambientP: this.pRef,
-      g: this.gy
+      g: this.gy,
+      extremes: this.extremes.stats()
     };
   }
 }
