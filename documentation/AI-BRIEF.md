@@ -786,7 +786,7 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
   "show" — sceny prezentacji (niżej: Prezentacja)
   "deck" — całość pokazu slajdów (tylko "mode": "slides"): { "backdrop": [warstwy], "nav": "labels"|"dots"|"none", "titleSlide": true|false, "width": 80 }
-      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami i leżą POD ich własnymi warstwami — gradient tła wspólnego nie zasłania więc obrazów slajdów; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy jadą razem ze swoim slajdem (w jego prostokącie): przy przejściu odjeżdżają z nim w górę, gasną albo zostają zakryte jak on — nic z poprzedniego slajdu nie zostaje na następnym
+      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami i leżą POD ich własnymi warstwami — gradient tła wspólnego nie zasłania więc obrazów slajdów; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy jadą razem ze swoim slajdem (w jego prostokącie): przy przejściu odjeżdżają z nim w górę, gasną albo zostają zakryte jak on — nic z poprzedniego slajdu nie zostaje na następnym; slajd bez własnych warstw jest przezroczysty (widać przez niego tło wspólne)
       "nav" — pasek: nazwy slajdów u góry (zwykły), kropki z prawej, bez paska; "titleSlide": false — bez slajdu tytułowego (pierwszy moduł jest pierwszym ekranem)
       "width" — najwyżej tyle rem szerokości sceny: w niej liczą się miejsca modułów przechodzących i "layout" slajdów (null — całe okno)
   "menu" — null (bez menu), lista pozycji albo { "from": "ścieżka" } (to samo menu co na innej Twojej stronie)
@@ -829,7 +829,7 @@ Warstwy tła ("cover" strony, "slide.layers" modułu) — od tyłu do przodu:
   Kolory warstw mogą być nazwami: "ground", "accent", "ink", "muted" — wtedy idą za kolorami slajdów. "seed" — ta sama liczba daje ten sam obraz za każdym razem; "motion" — ruch warstwy (niżej: Ruch), "[]" — stoi.
 
 Slajd modułu ("slide") — wszystko poza "label" i "layers" jest nieobowiązkowe:
-  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "fade" (przenika), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej), "dissolve" (rozmycie: poprzedni gaśnie, rozmywa się i opada o 12 px, ten wyostrza się, unosząc — jak pokaz Cogita). Idzie za przewijaniem, nie za zegarem
+  "transition" — jak ten slajd zastępuje poprzedni: "scroll" (wjeżdża od dołu, zwykłe), "flow" (przepływ: treść jedzie w górę razem z przewijaniem i jednocześnie się przenika — poprzedni odjeżdża w górę i gaśnie razem ze swoimi warstwami, ten wjeżdża od dołu i się pojawia; warstwy jadą wolniej niż treść, każda swoim tempem), "fade" (przenika w miejscu: treść stoi; gdy nowy slajd jest przezroczysty, poprzedni przy tym gaśnie), "cover" (nakrywa poprzedni, który przygasa), "reveal" (poprzedni odjeżdża i go odsłania), "zoom" (przybliżenie), "side" (z prawej), "dissolve" (rozmycie: poprzedni gaśnie, rozmywa się i opada o 12 px, ten wyostrza się, unosząc — jak pokaz Cogita). Idzie za przewijaniem, nie za zegarem
   "enter" — jak pojawia się treść: "none", "rise", "fade", "zoom", "left", "right"
   "colors" — własne kolory slajdu, przechodzą płynnie między slajdami: { "accent", "ink", "ground", "muted" } ("#rrggbb"; pominięty — jak strona)
   "stage" — moduł NIE ma własnego slajdu: stoi nad wszystkimi i przy zmianie slajdu przesuwa się na swoje miejsce na następnym:

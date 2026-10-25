@@ -41,6 +41,9 @@ export interface GasStats {
   uMax: number;
 }
 
+/** So viele Zellen weit sucht release() nach einer Gaszelle. */
+const RELEASE_REACH = 400;
+
 export class Gas {
   private readonly g: Grid;
   private readonly R: Regions;
@@ -74,6 +77,10 @@ export class Gas {
   readonly escaped = new Float64Array(Q);
   /** Δp0 je Gebiet im letzten Schritt (Pa) — die Engine gibt Teilchen und Blasen ihren Anteil V Δp0. */
   dp0: Float64Array = new Float64Array(8);
+  /* Suche nach der nächsten Gaszelle (release): Warteschlange und Marken (Arbeitsspeicher). */
+  private readonly queue: Int32Array;
+  private readonly seen: Int32Array;
+  private seenTag = 0;
   readonly last: GasStats = { solve: { iterations: 0, residual: 0, capped: false }, substeps: 0, cells: 0, uMax: 0 };
 
   constructor(grid: Grid, regions: Regions, solver: GridSolver) {
@@ -96,6 +103,8 @@ export class Gas {
     this.u1 = new Float32Array(grid.nu);
     this.v1 = new Float32Array(grid.nv);
     this.lim = new Float32Array(2 * (grid.nu + grid.nv));
+    this.queue = new Int32Array(n);
+    this.seen = new Int32Array(n);
     this.mover = new GasTransport(grid, this);
   }
 
@@ -229,9 +238,10 @@ export class Gas {
 
   /**
    * Zellen, die ihre Art gewechselt haben: wird eine Gaszelle flüssig, geht ihr
-   * Gas zu den Gasnachbarn (nach deren Gasvolumen); ohne Gasnachbarn bleibt es
-   * gefangen. Wird eine Zelle zu Gas, holt sie sich von den Gasnachbarn so viel,
-   * wie bei ihrem Druck in ihr Volumen passt. Alles genau erhalten.
+   * Gas zu den Gasnachbarn (nach deren Gasvolumen); ohne Gasnachbarn zur
+   * nächsten Gaszelle über offene Flächen (release). Wird eine Zelle zu Gas,
+   * holt sie sich von den Gasnachbarn so viel, wie bei ihrem Druck in ihr
+   * Volumen passt. Alles genau erhalten.
    */
   transitions(prev: Uint8Array): number {
     const g = this.g;
@@ -250,7 +260,10 @@ export class Gas {
         const nb = this.across(c, i, j, k);
         if (nb >= 0 && kind[nb] === GAS && prev[nb] === GAS) wsum += this.vgas[nb] > 0 ? this.vgas[nb] : g.vCell;
       }
-      if (wsum <= 0) continue;
+      if (wsum <= 0) {
+        if (now === LIQUID) this.release(c);
+        continue;
+      }
       if (now === LIQUID) {
         /* Alles hinaus. */
         for (let k = 0; k < 4; k += 1) {
@@ -286,7 +299,47 @@ export class Gas {
       }
       this.deriveCell(c);
     }
+    /* Gas, das noch in einer flüssigen Zelle sitzt (sie wurde flüssig, ohne dass es fort konnte), zur nächsten Gaszelle. */
+    for (let c = 0; c < n; c += 1) if (kind[c] === LIQUID && this.massOf(c) > 0) this.release(c);
     return changed;
+  }
+
+  /**
+   * Das ganze Gas einer flüssigen Zelle zur nächsten Gaszelle (Breitensuche über
+   * offene Flächen, durch Flüssigkeit, höchstens RELEASE_REACH Zellen). Bis
+   * 2026-10-24 blieb es gefangen: in einer Zelle, die ein Körper fast ganz
+   * bedeckt, war es ein Hauch Gas mit winziger Wärmekapazität; die Wärmeleitung
+   * trieb seine Temperatur ins Unsinnige (unter 150 K, über 3000 K), und neben
+   * einem schmelzenden Eiswürfel auf der Heizplatte explodierte schliesslich das
+   * Gas. Ohne erreichbare Gaszelle (ganz von Flüssigkeit umschlossen) bleibt es.
+   */
+  private release(c: number): void {
+    const g = this.g;
+    const { nx, kind } = g;
+    const tag = ++this.seenTag;
+    const queue = this.queue;
+    const seen = this.seen;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = c;
+    seen[c] = tag;
+    while (head < tail && tail < RELEASE_REACH) {
+      const q = queue[head++];
+      const qi = q % nx;
+      const qj = (q - qi) / nx;
+      for (let k = 0; k < 4; k += 1) {
+        const nb = this.across(q, qi, qj, k);
+        if (nb < 0 || seen[nb] === tag || kind[nb] === SOLID) continue;
+        seen[nb] = tag;
+        if (kind[nb] === GAS) {
+          this.move(c, nb, 1);
+          this.deriveCell(nb);
+          this.deriveCell(c);
+          return;
+        }
+        queue[tail++] = nb;
+      }
+    }
   }
 
   /** Die Nachbarzelle über Seite k (0 links, 1 rechts, 2 unten, 3 oben) — nur, wenn kein Körper diese Fläche ganz bedeckt (sonst −1: eine dünne Wand trennt zwei Gebiete). */

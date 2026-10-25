@@ -27,6 +27,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` 
 | B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
 | M3c grains | tests 49–54 (SANDBOX.md §13) | built on the CPU (2026-10-24): all met — salt piles stand at 33.3° (cited 34 ± 3°), a grain sinks at its Ferguson–Church speed (+0.01 %), dissolves in its mass-transfer time (−0.3 %), the solution cools as its enthalpy says (−0.1 %), salt exact through dissolving and growing, grains in superheated water set off violent boiling (§M3c); position-based friction instead of the planned continuum; a scene with grains runs on the CPU |
 | Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); on the accelerated view too (test 47 there) |
+| Ice on a hot plate, tilted ice (2026-10-25) | tests 55–56 | met — the user's cube on the hot plate kept its meltwater unseen (a quarter of the cube after 40 s), then threw it out at once and flew out of the box; tilting ice shut in small air pockets whose pressure shot it away. Now the water appears beside the cube as it melts and the cube melts away in place (145.9 s, budgets exact), tilted ice lands calmly; trapped gas, slivers beside moving bodies, a doubled condensate and the last sliver fixed on the way (§Ice on a hot plate) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout: the
 CPU step of the benchmark scene at 2 mm takes 22.9 ms since M3b (21.6 ms after M1d; budget 6 ms per step, two steps
@@ -884,6 +885,114 @@ grains).
 
 Not modelled (SIMPLIFICATIONS.md #46–#49): crystal shapes and rolling, grains taking room in the gas, brine
 viscosity, hindered settling of dense clouds as its own law, new crystals in the liquid, crust dissolving.
+
+## Ice on a hot plate, tilted ice (2026-10-25)
+
+The user's report: an ice cube on the cooktop "is getting thinner, but only in one direction — it should get smaller
+in all the directions where it melts"; at some point "it is so slippery that it falls from the cooktop"; and "in the
+moment the cube is tilted the whole simulation collapses — think carefully where the fault is". The scene is the one
+the shell builds: a 2 cm cube at −5 °C on the 40 W plate of the default box, the plate starting at 20 °C.
+
+**What happened** (the committed engine of 2026-10-24):
+
+- *The shape was right; the water was missing.* Each side melts by the heat that comes through it: after 40 s the
+  bottom on the plate had receded 3.34 mm, each side 1.03 mm, the top in air nothing (the cube was still at −1.6 °C,
+  and conduction inside ice is fast compared with the air outside). An ice cube on a pan does melt mostly from below.
+  But after 40 s the cube had lost 0.93 g — a quarter of itself — and not one water particle existed. Meltwater went
+  to the particles in front of its side, else into one store per body, placed at the side that held last and spawned
+  there as one particle once a free spot lay within three cells. Under a 2 cm cube on a plate there was none, so the
+  water of all the sides waited unseen: the cube just got flatter, with no puddle — "thinner".
+- *The water came at once.* At 42.5 s the store found its spot: one particle of 1.0 g (a hundred particles' worth),
+  which halved itself again and again into particles of 15.6 mg within 0.2 s, flying at up to 20 m/s; one of 125 mg
+  came to rest on the box floor, and the gas of the cell above it was squeezed into a volume 1200, later 4800 times
+  too small. From 47.7 s the cube rocked (the step fell to 0.4 ms), by 50 s it had slid 9 mm sideways ("slippery"),
+  and at 54.2 s the gas projection gave −137 kPa around it — 32 N on a cube weighing 22 mN; it left the box at
+  52 m/s, turning over.
+- *Tilting itself was deadly.* When a body tilts against another solid it shuts in a few square millimetres of air: a
+  cube standing 3 mm over the plate's edge blew up as it tipped (8.5 m/s at 0.49 s, then NaN); an ice bar laid at 10°
+  with one end on a steel step was out of the box at 54 m/s after three steps. The engine treated each such pocket as a
+  sealed box and took its pressure from its contents: 2.2 bar after one step, 30 N on 3 g of ice. The gap such a pocket
+  leaks through is thinner than half a cell, so the grid shows it closed — real air escapes through it. With only the
+  rule below added to the old engine, both tilts end calmly.
+
+**The fixes**, each found by running the same scene further once the one before was in place:
+
+1. *Meltwater* (`meltWater.ts`, split out of bodyMelt.ts): held per side; a side with no fluid in front — lying on a
+   plate — squeezes its water out at its two ends, half each, held at the corners; spawned as particles of at most the
+   nominal mass, at most four per step, side by side along the side. The cube's water lies beside it from the first
+   seconds (90 particles after 20 s, 289 after 40 s, at most 7 mg held at any time).
+2. *Pockets*: a pocket of less than 2 cm³ of fluid that only a free body seals is open (`regions.ts`, `VENT_V`).
+3. *Condensate made twice*: at 100 s a particle that evaporated away within the transfer let its cell make the
+   condensate again (+1.0·10⁻⁴ J and +1.0·10⁻⁹ kg of water in one step). Only a cell that had no water particle at the
+   start of the transfer makes a new one (`phase.applyMass`); a liquid cell never gives more vapour than it holds.
+4. *Gas trapped in water*: beside the cube, cells the ice covers by 80–95 % held a whiff of gas (0.005–0.03 µg) with
+   almost no heat capacity; conduction drove it to the temperature clamps (−123 °C and 2727 °C) from 11 s on, and at
+   111–125 s the energy error jumped to 10¹⁰⁷ J, then NaN. Gas left in a liquid cell now goes to the nearest gas cell
+   (`gas.release`).
+5. *Slivers*: at 82.8 s a gas cell beside the cube's top corner emptied in four steps — gas crossed faces 4 % open (the
+   ice covering the rest) at 9 m/s, more than the transport's 16 substeps carry. A free body closes the cells it covers
+   by 90 % (`CLOSED_FREE`); a melting side that still stands in such a cell finds its fluid just behind it
+   (`meltSides.frontGap`). First the 90 % held for every body: the 1 mm Stefan freezing front then stopped at exactly
+   0.900 mm (−42 % after 2 min, the side found no fluid ahead) until `frontGap` came, and the melting front ran 7 %
+   fast between 2 and 4 min (the gate is 5 %); pinned bodies, whose slivers stand still, keep 0.99. `frontGap` skips
+   only a cell closed because its own body covers it almost whole: skipping cells closed by the gap rule at a wall gave
+   the whole top side's meltwater of the Stefan block to the few particles beyond its two end cells.
+6. *The last sliver*: at 147 s the remaining ice, 0.1 mm thick, was flung away at 3.6 m/s by the boiling under it; a
+   rectangle thinner than a quarter cell now melts at once (with its energy).
+7. *Film and crust back to the bodies* (`coverCollect.ts`): a decrease is taken from what each internal cell
+   contributes to the cell, the rest from the whole body (found while trying another classification of the cells,
+   which made 2·10⁻¹³ kg of water after moving the beaker of M0's test).
+
+Tried and dropped: classifying a cell as liquid by the share of its open part, φ/(1 − φ_s) ≥ ½, so that a cell a body
+almost covers is not "liquid" with a trace of water. Alone it broke test 43 (the brine settled at −0.84 °C instead of
+−1.93 °C: the brine in cells beside the floating ice counted as gas) and the water budget of M0; mixed with the old
+rule it lost salt in test 44 (a brine particle was thrown out, 358 µg of salt) or ended the hot-plate run in NaN.
+
+**Now** (the same scene):
+
+| | before | now |
+|---|---|---|
+| after 40 s | 17.93 × 16.66 mm, 0.93 g melted, no water particle | 17.96 × 16.76 mm, 0.91 g melted, 289 water particles |
+| sideways | 9 mm slid by 50 s | at most 1.25 mm in the whole run |
+| end | out of the box at 52 m/s after 54.2 s | melted away after 145.9 s (6.40 × 1.96 mm at 140 s) |
+| budgets at the end | — | energy −9·10⁻¹⁰ J, water 5·10⁻¹⁷ kg |
+
+The tilts: the bar on the step slides off and lies on the plate (fastest 0.18 m/s) and melts away after 31 s; the cube
+over the edge tips off and comes to rest on its side on the floor (0.27 m/s); a cube dropped at 25° lands flat.
+
+**Tests** (m3b.test.ts, m3b.slow.test.ts):
+
+| Test | Result |
+|---|---|
+| 55 an ice cube on a hot plate | a 2 cm cube at −5 °C on a steel plate at 80 °C in an 8 × 6 cm box, 10 s: 600 mg melted, at most **1.75 %** of it held back unseen (the old engine: all 604 mg, no particle), 142 water particles, the cube 18.85 × 17.74 mm, not moved, not turned, fastest 0.47 mm/s; energy −3·10⁻¹² J, water 1·10⁻¹⁷ kg |
+| 56 tilted ice over a hot plate | the bar on the step: lies flat on the plate after 2 s, fastest **184 mm/s** (old: gone after three steps, 54 m/s); the cube over the edge: on its side on the floor, **274 mm/s** (old: blew up at 0.49 s); dropped at 25°: lands flat, 577 mm/s; budgets exact |
+| 55 to the end (slow) | the shell's scene until the cube is gone: melted away after **145.9 s**, every value finite; at most **7 mg** of meltwater held back at a time (the old engine: 1 g); it moved at most **1.25 mm** sideways, fastest 32 mm/s (its last 53 mg, two seconds before the end, kicked by the boiling under it); 1053 water particles; energy −8.6·10⁻¹⁰ J, water 5·10⁻¹⁷ kg |
+
+**What moved in the older tests.** The fast suite has 98 tests in 11 files (all met). Unchanged to the last printed
+digit apart from the rounding noise of a few energy errors: tests 1, 2, 4 (air), 6–9, 13–15, 18–21, 23–25, 28–30, 41
+(2 mm and 1 mm), 45, 50–53. Changed:
+
+- *Ice that floats* (free bodies now close their cells from 90 %): test 42's cube in water at 20 °C loses 0.204 g in
+  8 s instead of 0.246 g (19.29 × 19.58 mm instead of 19.17 × 19.47) — the heat of the water crosses one more face
+  while a side stands in the first tenth of a cell; test 43's brine settles 0.17 K from T_f(w) instead of 0.13 K (the
+  gate is 0.2 K); test 44's ice grows 193.6 mg instead of 196.4 mg; in the slow suite the cooling mixture's brine
+  reaches −19.44 °C instead of −19.39 °C after 3 min, its coldest particle −20.29 °C instead of −21.22 °C (the
+  eutectic is −21.2 °C), with 1.37 g melted instead of 1.49 g; test 37's ceramic square sinks at 0.449 m/s instead of
+  0.456 (+8.1 % of the drag law instead of +9.8 %) and turns up to 33° instead of 24°.
+- *Gas no longer hides in water* (`gas.release`): test 11's boiling plateau is **0.17 K** below T_sat instead of
+  0.47 K (the gate is 0.5 K; the vapour −1.55 % instead of −1.60 % of (P − losses)/h_lv) — gas that sat in liquid
+  cells now goes to the air above; while the bulk of test 10 is ≥ 5 K below T_sat, 27 of 58 774 bubbles reach
+  the surface instead of 102 of 57 529 (0.05 % instead of 0.18 %); test 12 without chips 10.61 K instead of 10.30 K
+  (ΔT_act 9.47 K; with chips 0.27 K as before); test 27's brine is dry after 75.5 s instead of 66.0 s — the vapour of
+  bubbles collapsing where no water was left now reaches the air over the film (10 mg in the first 30 s; before, it
+  stayed in the brine's cells); test 26 49 223 bubbles nucleated, 4 000 burst, 34.4 mg of vapour (were 49 135, 4 294,
+  32.3); test 5 reads 3.527 % instead of 3.418 % — the particles hold the same volume in both runs (103.394 mm of
+  water), the wavy surface is read at a different moment; test 40's bodies give 42.6 J instead of 40.7 J; boiling
+  scenes count other bubbles (test 22 541 collapses instead of 518, test 54 541 bubbles instead of 532, test 33's
+  boiling beaker 229 bubbles in flight at 5 s instead of 312; test 47 in compute mode is chaotic anyway).
+
+In the slow suite test 3 reads −2.43 % instead of −2.57 % (the old engine on the same machine); tests 4 (ten minutes),
+34 (36.0 MB per simulated minute), 41 at 1 mm and 49 (33.3°) are unchanged.
 
 ## Benchmark
 

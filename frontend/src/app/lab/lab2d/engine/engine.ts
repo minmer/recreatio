@@ -269,6 +269,7 @@ export class Engine {
     this.grainSalt = new GrainSalt(this);
     this.exchange = new Exchange(this);
     this.bodies = new Bodies(this);
+    this.regions.freeAt = (o) => { const b = this.bodies.list[o - 1]; return b !== undefined && b.free; };
     this.heat.bodies = this.bodies.list;
     this.heat.grains = this.grains;
     this.melt = new BodyMelt(this);

@@ -17,6 +17,13 @@
  * Projektion zieht für ein rein Neumann'sches Gasgebiet das Mittel der
  * rechten Seite ab — das ist genau der gleichmässige Anteil (1/(γ p0)) dp0/dt.
  * Die Kompressionswärme V_c Δp0 kommt in finish() zur Enthalpie des Gases.
+ *
+ * Eine kleine Tasche (unter VENT_V), die erst ein freier Körper verschliesst —
+ * ein schräg aufgesetzter Stab über einer Kante, ein Klotz, der auf einer Stufe
+ * landet —, ist offen: der Spalt, den das Gitter zuklappt (dünner als eine halbe
+ * Zelle), lässt die Luft hinaus. Bis 2026-10-24 bekam sie p0 aus dem Zustand;
+ * der sinkende Stab presste sie in einem Schritt auf 2 bar, und ihr Druck
+ * schleuderte ihn mit 50 m/s aus der Kiste.
  */
 
 import type { Bubbles } from './bubbles';
@@ -24,6 +31,9 @@ import type { Grid } from './grid';
 import { MOLAR } from './materials';
 import type { Particles } from './particles';
 import { GAS, GAS_SPECIES, R_GAS, SOLID } from './units';
+
+/** Bis zu diesem Fluidvolumen (m³; 2 cm³ — bei 1 cm Tiefe 2 cm²) ist eine Tasche, die ein freier Körper verschliesst, nicht dicht. */
+const VENT_V = 2e-6;
 
 export class Regions {
   private readonly g: Grid;
@@ -46,6 +56,8 @@ export class Regions {
   pAmb = 101325;
   rhoAmb = 1.2;
   gy = 9.81;
+  /** Ist der Körper mit diesem Besitzerwert (Index + 1, grid.owner) frei? (Von der Engine gesetzt; ohne: keiner.) */
+  freeAt: ((owner: number) => boolean) | null = null;
 
   constructor(grid: Grid) {
     this.g = grid;
@@ -82,11 +94,13 @@ export class Regions {
       let top = 0;
       let open = 0;
       let vol = 0;
+      let free = false;
       this.stack[top++] = s;
       this.id[s] = k;
       while (top > 0) {
         const c = this.stack[--top];
         vol += 1 - g.fs[c];
+        if (!free && g.owner[c] > 0 && this.freeAt !== null && this.freeAt(g.owner[c])) free = true;
         const i = c % nx;
         const j = (c - i) / nx;
         /* Über Seitenflächen verbunden, die ein Körper nicht ganz bedeckt (eine dünne Wand quer durch zwei Zellen trennt). */
@@ -98,6 +112,8 @@ export class Regions {
         if (j > 0 && solid[c - nx] === 0 && this.id[c - nx] === -1 && av[fv] > 0) { this.id[c - nx] = k; this.stack[top++] = c - nx; }
         if (j < ny - 1 && solid[c + nx] === 0 && this.id[c + nx] === -1 && av[fv + nx] > 0) { this.id[c + nx] = k; this.stack[top++] = c + nx; }
       }
+      /* Eine kleine Tasche an einem freien Körper ist nicht dicht (siehe oben). */
+      if (open === 0 && free && vol * g.vCell < VENT_V) open = 1;
       this.open[k] = open;
       this.vFluid[k] = vol * g.vCell;
       k += 1;

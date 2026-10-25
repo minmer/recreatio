@@ -7,7 +7,9 @@
  */
 
 import { meltsAt, type Body2D } from './body';
+import { CLOSED, CLOSED_FREE } from './bodyCover';
 import type { Engine } from './engine';
+import type { Grid } from './grid';
 import { kL, kMix, SOLIDS } from './materials';
 import { freezingPoint, M_S } from './solution';
 import { H2O, LIQUID } from './units';
@@ -93,6 +95,29 @@ function along(e: Engine, b: Body2D, seg: number, fn: (wx: number, wy: number, n
 }
 
 /**
+ * Wie weit vor einem Punkt der Seite (längs der Normalen, m) „knapp davor“ liegt: ein Zwanzigstel Δx — es sei denn, dort
+ * ist noch eine Zelle, die dieser Körper selbst geschlossen hat, weil er sie fast ganz bedeckt (zu mindestens `closed`:
+ * CLOSED, bei einem freien Körper CLOSED_FREE — die Seite steckt in ihr, ihr Rest an Fluid zählt nicht); dann knapp
+ * hinter dieser Zelle. Ein freier Körper schliesst seit 2026-10-25 schon ab 0,9, der Rest reicht bis 0,1 Δx vor die
+ * Seite: ohne den Schritt fand eine wachsende Eisseite dort kein Fluid und blieb bei 0,9 Δx stehen. Eine Zelle, die nur
+ * an einer Wand geschlossen ist (SQUEEZE, weniger bedeckt), bleibt wie zuvor „kein Fluid“ — sonst bekäme das Wasser
+ * hinter ihr an den Enden einer Seite das ganze Schmelzwasser der Seite.
+ */
+function frontGap(g: Grid, own: number, closed: number, wx: number, wy: number, nwx: number, nwy: number): number {
+  const eps = 0.05 * g.dx;
+  const c = g.cellAt(wx + eps * nwx, wy + eps * nwy);
+  if (c < 0 || g.solid[c] === 0 || g.owner[c] !== own || g.fs[c] < closed) return eps;
+  const i = c % g.nx;
+  const j = (c - i) / g.nx;
+  let t = Infinity;
+  if (nwx > 1e-9) t = Math.min(t, ((i + 1) * g.dx - wx) / nwx);
+  else if (nwx < -1e-9) t = Math.min(t, (i * g.dx - wx) / nwx);
+  if (nwy > 1e-9) t = Math.min(t, ((j + 1) * g.dx - wy) / nwy);
+  else if (nwy < -1e-9) t = Math.min(t, (j * g.dx - wy) / nwy);
+  return Number.isFinite(t) ? Math.max(eps, t + eps) : eps;
+}
+
+/**
  * Die Fluidzellen vor einem Seitenstück: knapp aussen und eine Zelle weiter
  * (der dünne Fluidteil einer gemischten Zelle hat oft kein Teilchen); dazu die
  * Zelle knapp innen, wenn sie Flüssigkeit enthält — alles nur, wo aussen
@@ -102,16 +127,18 @@ function along(e: Engine, b: Body2D, seg: number, fn: (wx: number, wy: number, n
 export function fluidFront(e: Engine, b: Body2D, seg: number, fn: (c: number, len: number) => void, far = true): void {
   const g = e.grid;
   const eps = 0.05 * g.dx;
+  const closed = b.free ? CLOSED_FREE : CLOSED;
   let last = -1;
   let lastIn = -1;
   let lastFar = -1;
   along(e, b, seg, (wx, wy, nwx, nwy, len) => {
-    const out = g.cellAt(wx + eps * nwx, wy + eps * nwy);
+    const d = frontGap(g, b.index + 1, closed, wx, wy, nwx, nwy);
+    const out = g.cellAt(wx + d * nwx, wy + d * nwy);
     if (out < 0 || g.solid[out] !== 0) { last = out; return; }
     if (out !== last) fn(out, len);
     last = out;
     if (far) {
-      const fc = g.cellAt(wx + (g.dx + eps) * nwx, wy + (g.dx + eps) * nwy);
+      const fc = g.cellAt(wx + (g.dx + d) * nwx, wy + (g.dx + d) * nwy);
       if (fc >= 0 && fc !== out && fc !== lastFar && g.solid[fc] === 0) fn(fc, len);
       lastFar = fc;
     }
@@ -143,12 +170,13 @@ export function supplyAt(e: Engine, b: Body2D, r: number, s: number, tf: number)
   const g = e.grid;
   const ex = e.exchange;
   const n = g.n;
-  const eps = 0.05 * g.dx;
+  const closed = b.free ? CLOSED_FREE : CLOSED;
   let sum = 0;
   for (let seg = 0; seg < b.nseg; seg += 1) {
     if (b.segR[seg] !== r || b.segS[seg] !== s) continue;
     along(e, b, seg, (wx, wy, nwx, nwy, len) => {
-      const c = g.cellAt(wx + eps * nwx, wy + eps * nwy);
+      const d = frontGap(g, b.index + 1, closed, wx, wy, nwx, nwy);
+      const c = g.cellAt(wx + d * nwx, wy + d * nwy);
       if (c < 0) return;
       let T: number;
       let k: number;

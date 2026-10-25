@@ -534,12 +534,15 @@ export class Phase {
             this.ambientExchange(c, F);
           } else if (kind[nb] === LIQUID) {
             if (F > 0) {
+              /* Nie mehr, als die Zelle an Wasser hat (Σ w m_w, abzüglich des schon Verdunsteten) — sonst verlöre ein Teilchen mehr, als es trägt. */
+              const Fv = Math.min(F, Math.max(0, this.acc[nb] + Fm[nb]));
+              if (!(Fv > 0)) continue;
               const T = Tl[nb];
-              g.mg[H2O * n + c] += F;
-              g.Hg[c] += F * hV(T);
-              Fm[nb] -= F;
-              Fe[nb] -= F * hV(T);
-              this.produced += F;
+              g.mg[H2O * n + c] += Fv;
+              g.Hg[c] += Fv * hV(T);
+              Fm[nb] -= Fv;
+              Fe[nb] -= Fv * hV(T);
+              this.produced += Fv;
             } else {
               const take = Math.min(-F, g.mg[H2O * n + c]);
               g.mg[H2O * n + c] -= take;

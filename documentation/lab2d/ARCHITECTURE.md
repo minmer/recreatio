@@ -265,7 +265,12 @@ to liquid or solid cells carry no gas mass. Sub-cycling: the sum of a cell's out
 one substep (a common factor on all its outgoing fluxes) — that protects cells that are only partly gas. Enthalpy
 moves with the same fluxes. Open sides: inflow brings ambient air, outflow is booked as escaped (mass and enthalpy).
 Gas trapped in a cell that becomes liquid moves to its gas neighbours (by their gas volume); a cell that becomes gas
-takes from its neighbours what fits at its pressure — exactly conserved.
+takes from its neighbours what fits at its pressure — exactly conserved. With no gas neighbour the gas goes to the
+nearest gas cell reachable through open faces (breadth first through the liquid, at most 400 cells; `gas.release`), and
+so does any gas still left in a liquid cell after the transitions: a liquid cell holds no gas. Until 2026-10-25 such gas
+stayed trapped — in a cell a body almost covers, a whiff with almost no heat capacity, whose temperature conduction
+drove to the clamps (150 K, 3000 K) until the gas next to a melting ice cube on a hot plate exploded; in a boiling film
+the vapour of bubbles collapsing where no water was left stayed in the brine's cells (test 27 now dries 9.5 s later).
 
 ### 6.2 Velocity
 
@@ -307,6 +312,13 @@ each gas cell gets V_c Δp0 of enthalpy (iterated, since the heating raises p0 a
 bubbles get their V Δp0 too ("pressure work"; about +0.02 K per bar for water). Energy budget: U = H − p0·V_fluid in
 sealed regions. When an edit or a side switch seals, opens or resizes a region, the jump of −p0·V is booked as an
 edit, not a flow (tested).
+
+A small pocket — less than 2 cm³ of fluid (`VENT_V`; 2 cm² at 1 cm depth) — that is sealed only because a free body
+closes it counts as open (since 2026-10-25): a bar laid across an edge, a block landing on a step shut in air through
+a gap the grid closes (thinner than half a cell, §17), and real air leaves through such a gap. Before, the pocket got
+p0 from its state: an ice bar laid at 10° onto a step squeezed the air under it to 2.2 bar in one step, and that
+pressure (30 N on 3 g of ice) flung the bar out of the box at 54 m/s. A box sealed by walls, a lid or pinned bodies is
+unchanged.
 
 ### 6.5 Heat
 
@@ -496,7 +508,12 @@ condenses away (collapse) gives the rest to the liquid of its footprint.
   the liquid–gas face itself (not in the first gas cell), ṁ″ = ρ D (Y_sat − Y_1)/(Δx/2) with the Stefan factor
   (1 − Y); gas–wall: dew into the wall film when the gas is wetter than Y_sat(T_wall), and a film evaporates back while
   it lasts; open sides exchange with ambient air (escaped). Between gas cells vapour moves one way and the same mass of
-  air the other way, each with the enthalpy of its donor cell.
+  air the other way, each with the enthalpy of its donor cell. A liquid cell never gives more vapour than the water it
+  holds (Σ w m minus what has already left it in this step; since 2026-10-25 — a cell bordering gas on several faces
+  could take more from its particles than they carried, and a clamp at zero would make water). Mass to the particles (`phase.applyMass`) goes to the particles in each cell; only a cell
+  that had no water particle at the start of the transfer makes a new one (before, a tiny particle that evaporated
+  away in the same transfer let its cell make the condensate a second time: +10⁻⁴ J and +10⁻⁹ kg in one step beside
+  the melting cube).
 - **Flash** (`flash.ts`): a surface cell whose liquid is above T_sat(p) — over brine T_b(p, m) — turns its excess
   sensible heat into vapour; the particles end exactly there (by their share), their salt stays. Particles in a cell
   that is not liquid (droplets below the cell size) flash the same way into their own cell; a droplet that would boil
@@ -580,9 +597,9 @@ and answers the same host messages, so the shell, the tools, the inspector and t
 
 ## 12. Tests
 
-Vitest, headless in Node on the engine alone: `npm run test:lab2d` (94 tests, ~6 minutes) and
+Vitest, headless in Node on the engine alone: `npm run test:lab2d` (98 tests, ~6 minutes) and
 `npm run test:lab2d:slow` (tests 3, 4 over ten simulated minutes, 10, 11, 12, 34, 41 at 1 mm, 43 with enough salt,
-49).
+49, 55 to the end; ~40 minutes).
 MILESTONES.md records the numbers.
 
 | # | Test | File |
@@ -643,6 +660,8 @@ MILESTONES.md records the numbers.
 | 52 | Cooling: 2.4 % fine salt in water at 20 °C, once dissolved, leaves the solution as much colder as its enthalpy says (±5 %); energy exact | m3c.test.ts |
 | 53 | Salt exact through dissolving and growing: saturated brine with grains, warmed they dissolve, cooled they grow again (no crust while grains are near) | m3c.test.ts |
 | 54 | Salt into superheated water: grains falling into water 4 K above T_sat release bubbles at their crevices, which grow; budgets close | m3c.test.ts |
+| 55 | An ice cube on a hot plate: its meltwater lies beside it as water (at most 5 % of the melted ice held back), it gets lower and narrower and stays where it stands; to the end (slow): the shell's cube on the 40 W plate melts away, every value finite, never more than 20 mg of water held back, never faster than 5 cm/s, at most 3 mm sideways; budgets exact | m3b.test.ts, m3b.slow.test.ts |
+| 56 | Tilted ice over a hot plate: a bar laid at 10° onto a step, a cube standing over the plate's edge, a cube dropped at 25° — each lands and lies still on a side, never faster than a fall; budgets exact | m3b.test.ts |
 | 17 | GPU equivalence on tests 1–3, 6, 11 | browser harness in headless Edge (Node has no WebGPU) and in Firefox (a visible window: headless Firefox gets no WebGPU adapter); numbers in MILESTONES.md (M1e) |
 
 The browser side (tools, overlays, inspector, bubble view, charts, scenes, phone layout) was walked through in
@@ -838,11 +857,16 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   the square (Sutherland–Hodgman, `geom.quadInBox`); a grid cell a rectangle cuts into two separate parts (it meets the
   cell's border in two arcs, `geom.splitsCell`) is marked.
 - *Cells*: `fs` = the covered share (all bodies), `capB` = Σ w C_k, `Es` = Σ w E_k (film and crust likewise), `owner`
-  and `matB` the body with the largest share. A cell is **closed** (kind solid) if fs ≥ 0.99, if it is cut in two, or if
-  fs ≥ ½ next to solid that is not the same body — a box side, a painted solid, another body's closed or half-covered
-  cell (an unresolved gap: a block landing on the floor squeezes the water out instead of leaving an empty liquid cell
-  under it). Cells that close give their gas to the free cells around (through open faces first: a thin wall passes no
-  gas); cells that open become liquid without gas next to them, else gas taken from their neighbours.
+  and `matB` the body with the largest share. A cell is **closed** (kind solid) if fs ≥ 0.99 (`CLOSED`; 0.9 when the
+  body owning it is free, `CLOSED_FREE`), if it is cut in two, or if fs ≥ ½ next to solid that is not the same body — a
+  box side, a painted solid, another body's closed or half-covered cell (an unresolved gap: a block landing on the
+  floor squeezes the water out instead of leaving an empty liquid cell under it). The lower threshold for free bodies
+  dates from 2026-10-25: beside a body that moves step by step (a melting ice cube sinking onto a plate), slivers with
+  1–10 % open space changed every step; their gas had almost no heat capacity and had to pass faces 4 % open, the gas
+  velocity there reached 9 m/s, cells ran empty and the gas finally exploded. Pinned bodies keep 0.99: their slivers
+  stand still, and the Stefan fronts (test 41) run through the cells as before. Cells that close give their gas to the
+  free cells around (through open faces first: a thin wall passes no gas); cells that open become liquid without gas
+  next to them, else gas taken from their neighbours.
 - *Faces*: per u and v face the share the rectangles cover (exact segment clipping) gives the open fraction
   α = 1 − share (`au`, `av`), the covered part's velocity (`usol`, `vsol`) and the body covering most (`faceOwner`);
   when a face closes or opens, the regions are relabelled.
@@ -858,8 +882,13 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   outside its wall and evaporated there (test 11 boiled 3.9 K below T_sat), and particles beside a floating ice block
   reached into cells it almost covers, behind faces it covers whole (single particles 0.1 K below the eutectic).
 - *Heat* (§6.5): the body's share is a part of the cell (capB, Es, Ts); at the end of the step each cell's change goes
-  back to the internal cells — energy by w C_k/capB, film and crust by weight or by what each gave. Nothing is created
-  or lost (test 40).
+  back to the internal cells (`coverCollect.ts`) — energy by w C_k/capB; film and crust that grew, by weight; film and
+  crust that shrank, from what each internal cell contributes to the cell (at most that, over all bodies there), and
+  anything beyond from the whole film or crust of the body owning the cell. Nothing is created or lost (test 40).
+  Until 2026-10-25 a decrease was shared by the cell's synchronised value, which drifts once dew grows in one cell and
+  evaporates in its neighbour (an internal cell lies in both): a cell holding almost no film then took an internal
+  cell's whole film, the rest was cut off at zero — water from nothing (found while trying another classification of
+  the cells: 2·10⁻¹³ kg after moving the beaker of M0's test).
 - *Particles and bubbles* inside a rectangle after a move go back along their path in the body's frame to just before
   the side they entered (Liang–Barsky on the rectangles; already deep inside: the nearest side), their velocity into the
   body removed; the liquid's own transport does the same (`hit`).
@@ -922,7 +951,10 @@ material (ice, `meltsAt`):
 - **The interface.** Every side with a free segment gets T_f from the liquid in front of it — the salt and water of the
   cells just outside and one cell further (the thin fluid part of a mixed cell often holds no particle), `freezingPoint`
   of their molality; no liquid: pure water. A side is *open* when fluid lies in front of it; a side against a wall, a
-  painted solid or another body is not.
+  painted solid or another body is not. "Just in front" is a twentieth of a cell out — or, where the side still stands
+  in a cell its own body closed because it covers it almost whole (§17: from 90 % for a free body), just behind that
+  cell (`meltSides.frontGap`); without that a free ice body growing in cold water would find no fluid ahead of a side at
+  0.9 Δx into a cell and stop there. A cell closed only by the gap rule (half covered next to a wall) stays "no fluid".
 - **Melting — the side the heat comes through.** Every side also gets its *supply*: Σ k (T − T_f)⁺ · length over the
   cells just in front (`meltSides.supplyAt`) — water, air, or a solid such as a hot plate or the wall of a warm beaker
   (outside the box: nothing). An edge cell warmer than T_f gives its excess E − E(T_f) to its adjacent free sides that
@@ -933,17 +965,23 @@ material (ice, `meltsAt`):
   flatter). The ice is never warmer than where it melts; a cell inside gives its heat at once (the conduction to the
   surface is instant, the end state right). A side's excess Q moves it inward by
   δ = Q/(ρ D Σ_k s_k [L(T_f) + c_p (T_f − T_k)]) over its edge cells k (free length s_k). The slice's energy, film and
-  crust, the offset of its mass and Q become meltwater: added to the water particles in the cells just in front by
-  their mass (one cell further only if those hold none; a particle above twice the nominal mass splits), else held per
-  body and spawned as a particle in front of the side — or at the nearest free spot within three cells (beside a block
-  on a plate) — once it reaches a quarter of the nominal mass.
+  crust, the offset of its mass and Q become meltwater (`meltWater.ts`): added to the water particles in the cells just
+  in front by their mass (one cell further only if those hold none; a particle above twice the nominal mass splits),
+  else held per side and spawned in front of it once it reaches a quarter of the nominal mass — as particles of at most
+  the nominal mass, at most four per step, side by side along the side, each at the nearest free spot (within three
+  cells, else just outside the outline). A side with no fluid in front at all — a block lying on a plate — squeezes its
+  water out at its two ends, half each, where it is held at the corners and spawned. Until 2026-10-25 the water was
+  held per body at the middle of the side that made it: under a 2 cm cube on a hot plate it waited unseen (0.93 g
+  after 40 s, a quarter of the cube; no particle at all) and then came out within a fraction of a second as particles of
+  15 mg — the gas around them blew up and flung the cube out of the box.
 - **Freezing.** Water in front of a side colder than T_f freezes m = C_l (T_f − T_l)/L, at most half of a particle's
   water per step; it leaves with the enthalpy of ice (the particles keep the latent heat and warm up), its salt stays.
   Planned first, taken after the side moved: exactly the mass the body grew by. The new slice is ice at T_f; particles
   and bubbles it covers are pushed out.
 - **One rectangle**: the sides move directly (`moveSide`); the outer rows thin or thicken; a row thinner than 0.3 Δx
   merges into its neighbour and one thicker than 1.6 Δx splits (area-weighted regridding); a rectangle thinner than
-  0.05 Δx melts completely, film and crust included.
+  0.25 Δx melts completely, film and crust included (0.05 Δx until 2026-10-25: the last sliver of a cube on a hot plate,
+  a tenth of a millimetre thick, was flung away by the boiling under it).
 - **Several rectangles** (a carved block, an ice beaker): the moves become slabs along the free segments — inside for
   melting, outside for growth — and the body is recomposed (`geom.recompose`): the old rectangles minus the melt slabs
   plus the growth slabs, on the grid of all their coordinates, read as horizontal runs per row with equal runs above

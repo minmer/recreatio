@@ -31,7 +31,7 @@ export const SCRATCH: ReadonlySet<string> = new Set<string>([
   '.e.exchange.cap', '.e.exchange.capA', '.e.exchange.capT', '.e.exchange.cell', '.e.exchange.cpp', '.e.exchange.ds',
   '.e.exchange.fH', '.e.exchange.fS', '.e.exchange.hs', '.e.exchange.inH', '.e.exchange.inS', '.e.exchange.outH',
   '.e.exchange.outS', '.e.exchange.salt', '.e.exchange.water',
-  '.e.gas.R.stack', '.e.gas.gasU', '.e.gas.gasV', '.e.gas.lim', '.e.gas.mover.conc', '.e.gas.mover.fu',
+  '.e.gas.R.stack', '.e.gas.queue', '.e.gas.seen', '.e.gas.gasU', '.e.gas.gasV', '.e.gas.lim', '.e.gas.mover.conc', '.e.gas.mover.fu',
   '.e.gas.mover.fv', '.e.gas.mover.outM', '.e.gas.mover.scale', '.e.gas.mu', '.e.gas.nmol', '.e.gas.u0', '.e.gas.u1',
   '.e.gas.v0', '.e.gas.v1', '.e.gas.veos', '.e.gas.veosMid',
   '.e.grid.Cl', '.e.grid.Sg', '.e.grid.Sl', '.e.grid.Tl', '.e.grid.phi', '.e.grid.region', '.e.grid.thin',
@@ -56,7 +56,7 @@ export const SCRATCH: ReadonlySet<string> = new Set<string>([
   '.e.phase.rd',
   '.e.prevKind',
   /* Körper (M3a): Arbeitsspeicher der Kräfte und der Berührungen (die Teile werden aus den Körpern neu gebaut, der Warmstart steht in contacts.warm*); das Schmelzen (bodyMelt.ts) baut seine Listen der Teilchen je Zelle in jedem Schritt neu. */
-  '.e.melt.head', '.e.melt.next', '.e.melt.water.sg',
+  '.e.melt.head', '.e.melt.next', '.e.melt.water.sg', '.e.bodies.cover.work.gF', '.e.bodies.cover.work.gK', '.e.bodies.cover.work.restF', '.e.bodies.cover.work.restK',
   /* Körner (M3c): Nachbarlisten und Lagen der Teilschritte, Radien, Listen je Zelle (in jedem Schritt neu), ihre Wärmekapazität je Zelle. */
   '.e.grainFlow.head', '.e.grainFlow.next', '.e.grainFlow.px', '.e.grainFlow.py', '.e.grainFlow.rad', '.e.grainFlow.w', '.e.grainFlow.vel', '.e.grainFlow.hit',
   '.e.grainFlow.lm', '.e.grainFlow.lmT', '.e.grainFlow.lv', '.e.grainFlow.loc',

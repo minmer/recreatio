@@ -528,7 +528,8 @@ export interface Show {
    * 0108 — DAS GEMEINSAME TUCH: Schichten hinter ALLEN Szenen, die stehen
    * bleiben (Nici, Fale, Dunst). Sind welche da, sind die Szenen durchsichtig,
    * und ihre eigenen Schichten liegen darin: beim Wechsel gehen sie fliessend
-   * ineinander über (wie bei den Slajdy, `DeckLook.backdrop`).
+   * ineinander über (so lagen bis 2026-10-24 auch die eigenen Schichten der Slajdy;
+   * seither gehen sie mit ihrem Slajd, `slideSheets.ts`).
    */
   readonly backdrop: readonly Layer[];
   /** 0108 — wie breit die Bühne höchstens ist (rem): die Plätze rechnen darin, der Hintergrund bleibt ganz. `null`: das Fenster. */

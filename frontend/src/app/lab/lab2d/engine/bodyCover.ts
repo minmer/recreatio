@@ -12,7 +12,7 @@
  *   Energie nach Wärmekapazität, Film und Kruste nach Anteil (collect). Nichts
  *   geht verloren; die inneren Zellen sind zwischen den Schritten der Zustand.
  * - <b>Feste und gemischte Zellen</b>: eine Zelle, die zu mindestens CLOSED
- *   bedeckt ist oder die ein Rechteck in zwei Teile schneidet (eine dünne Wand
+ *   bedeckt ist (CLOSED_FREE bei einem freien Körper) oder die ein Rechteck in zwei Teile schneidet (eine dünne Wand
  *   quer durch die Zelle), ist fest (grid.solid, owner); jede andere ist eine
  *   Fluidzelle mit dem Volumen V (1 − fs) — darin können Wasser, Gas und ein
  *   Stück Körper zugleich liegen.
@@ -29,6 +29,7 @@
 
 import { Body2D } from './body';
 import type { Bubbles } from './bubbles';
+import { collectBodies, CollectWork } from './coverCollect';
 import type { Gas } from './gas';
 import { clipSegment, quadInBox, splitsCell } from './geom';
 import type { Grid } from './grid';
@@ -36,8 +37,16 @@ import type { Heat } from './heat';
 import type { Particles } from './particles';
 import { GAS, LIQUID, SOLID } from './units';
 
-/** Ab diesem bedeckten Anteil ist eine Zelle fest (ihr Rest an Fluid zählt nicht). */
+/** Ab diesem bedeckten Anteil ist eine Zelle eines angehefteten Körpers fest (ihr Rest an Fluid zählt nicht). */
 export const CLOSED = 0.99;
+/**
+ * Dasselbe für einen freien Körper (seit 2026-10-25; vorher auch 0,99): neben einem Körper, der sich Schritt für Schritt
+ * bewegt (ein schmelzender Eiswürfel sinkt nach), blieben Splitter mit 1–10 % offenem Raum, die sich in jedem Schritt
+ * änderten — ihr Gas hatte fast keine Wärmekapazität und musste durch Seitenflächen mit 4 % Öffnung, die
+ * Gasgeschwindigkeit dort stieg auf 9 m/s, Zellen liefen leer, und schliesslich explodierte das Gas. Angeheftete Körper
+ * behalten 0,99: ihre Splitter stehen still, und die Stefan-Front (Test 41) läuft durch die Zellen wie zuvor.
+ */
+export const CLOSED_FREE = 0.9;
 /**
  * Ein Spalt zwischen einem Körper und etwas anderem Festem (dem Boden, einer
  * Wand, einem anderen Körper), dünner als eine halbe Zelle, ist nicht
@@ -64,6 +73,8 @@ export class BodyCover {
   readonly filmSync: Float64Array;
   readonly crustSync: Float64Array;
   readonly wsum: Float64Array;
+  /** Arbeitsfelder für collect (coverCollect.ts). */
+  private readonly work: CollectWork;
   /* Arbeitsspeicher. */
   private readonly best: Float64Array;
   private readonly acc: Float64Array;
@@ -106,6 +117,7 @@ export class BodyCover {
     this.filmSync = new Float64Array(n);
     this.crustSync = new Float64Array(n);
     this.wsum = new Float64Array(n);
+    this.work = new CollectWork(n);
     this.best = new Float64Array(n);
     this.acc = new Float64Array(n);
     this.split = new Uint8Array(n);
@@ -328,7 +340,7 @@ export class BodyCover {
       const c = list[q];
       if (g.fs[c] > 1) g.fs[c] = 1;
       const painted = g.solid[c] !== 0 && g.owner[c] === 0 && this.was[c] === 0;
-      this.now[c] = !painted && g.owner[c] !== 0 && (g.fs[c] >= CLOSED || this.split[c] !== 0) ? 1 : 0;
+      this.now[c] = !painted && g.owner[c] !== 0 && (g.fs[c] >= (bodies[g.owner[c] - 1]?.free ? CLOSED_FREE : CLOSED) || this.split[c] !== 0) ? 1 : 0;
     }
     /* Unaufgelöste Spalte: zu mindestens SQUEEZE bedeckt und neben Festem, das nicht derselbe Körper ist. */
     for (let q = 0; q < N; q += 1) {
@@ -436,47 +448,9 @@ export class BodyCover {
     else { g.av[f] = open; g.vsol[f] = cover > 0 ? vel : 0; }
   }
 
-  /**
-   * Was Wärmeleitung, Tau, Kristalle und Blasen seit dem letzten Abgleich an
-   * den Körperteilen der Zellen geändert haben, an die inneren Zellen: die
-   * Energie nach Wärmekapazität (w C_k / capB), Film und Kruste — was
-   * dazukommt nach dem Gewicht, was abnimmt nach dem, was jeder gab.
-   */
+  /** Was Wärmeleitung, Tau, Kristalle und Blasen an den Körperteilen der Zellen änderten, an die inneren Zellen (coverCollect.ts). */
   collect(bodies: readonly Body2D[]): void {
-    const g = this.w.grid;
-    for (const b of bodies) {
-      if (b.gone || b.nw === 0) continue;
-      const C = this.capK[b.index];
-      const dE = scratch(0, b.ncell);
-      const dF = scratch(1, b.ncell);
-      const dK = scratch(2, b.ncell);
-      let any = false;
-      for (let e = 0; e < b.nw; e += 1) {
-        const c = b.wc[e];
-        const k = b.wk[e];
-        const wgt = b.ww[e];
-        const de = g.Es[c] - this.esSync[c];
-        if (de !== 0 && g.capB[c] > 0) { dE[k] += (de * wgt * C[k]) / g.capB[c]; any = true; }
-        const df = g.film[c] - this.filmSync[c];
-        if (df > 0 && this.wsum[c] > 0) { dF[k] += (df * wgt) / this.wsum[c]; any = true; }
-        else if (df < 0 && this.filmSync[c] > 0) { dF[k] += (df * wgt * b.film[k]) / this.filmSync[c]; any = true; }
-        const dk = g.crust[c] - this.crustSync[c];
-        if (dk > 0 && this.wsum[c] > 0) { dK[k] += (dk * wgt) / this.wsum[c]; any = true; }
-        else if (dk < 0 && this.crustSync[c] > 0) { dK[k] += (dk * wgt * b.crust[k]) / this.crustSync[c]; any = true; }
-      }
-      if (!any) continue;
-      for (let k = 0; k < b.ncell; k += 1) {
-        b.E[k] += dE[k];
-        b.film[k] = Math.max(0, b.film[k] + dF[k]);
-        b.crust[k] = Math.max(0, b.crust[k] + dK[k]);
-      }
-    }
-    for (let c = 0; c < g.n; c += 1) {
-      if (g.capB[c] <= 0) continue;
-      this.esSync[c] = g.Es[c];
-      this.filmSync[c] = g.film[c];
-      this.crustSync[c] = g.crust[c];
-    }
+    collectBodies(this.w.grid, bodies, this, this.capK, this.work);
   }
 
   /** Der Körper verlässt das Gitter (er ist weg oder wird gleich neu gelegt): seine Gewichte leer; die Zellen baut rebuild neu. */
@@ -755,13 +729,4 @@ function nearestSide(d0: number, d1: number, d2: number, d3: number): number {
   if (d2 < d) { s = 2; d = d2; }
   if (d3 < d) s = 3;
   return s;
-}
-
-/* Drei wiederverwendete Arbeitsfelder für collect (je Körper neu auf null). */
-const pools: Float64Array[] = [new Float64Array(64), new Float64Array(64), new Float64Array(64)];
-function scratch(slot: number, n: number): Float64Array {
-  if (pools[slot].length < n) pools[slot] = new Float64Array(2 * n);
-  const a = pools[slot];
-  a.fill(0, 0, n);
-  return a;
 }

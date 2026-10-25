@@ -2006,3 +2006,63 @@ the page JSON, and formats that carry other formats must always describe them cu
 
 **Owner:** no migration and no API deploy (the service reads `config.needs` as before); deploy the site. Forms with
 the minors need on keep their behaviour (birth date, written consent, paper `minor`) until their settings change.
+
+## S1 — Slides leave at the top: a slide is one sheet; the reader stays put (2026-10-25)
+
+The owner asked, pointing at a slide set to "Przewinięcie" with "Wynurza się z dołu": the slides should disappear
+completely at the top when revealing and going to the next slide. Their deck ("Patriotyczna wycieczka") has a shared
+backdrop (`deck.backdrop`) and photos, glows and a big word on every slide.
+
+**Found**
+- With a shared backdrop the slides' own layers lay in the viewport-fixed cloth and only crossfaded (`backdropAt`):
+  while a slide's text left at the top, its photo and big word stayed on the whole screen, mixed with the next.
+  "Odsłonięcie" uncovered nothing (the leaving section was transparent); fade, cover and side left the old text
+  under the new one until the last frame and then dropped it. Plain decks were clean.
+- Separately, in every deck: when an earlier slide changed height while the reader rested (a picture, a calendar, a
+  form loading) or the window changed (rotation, a phone keyboard), the track kept its number and rested between two
+  slides — the bottom of the previous slide stayed at the top until the next scroll.
+
+**Decided** (three designs and a judge, `wf_d84e399b`; the winner with parts of the others)
+- **A slide is one sheet**: its own layers and its content in its `<section>`, in every deck (plain decks as always).
+  The shared backdrop is the first child of the track, pushed back by the track's position so it stands, and paints
+  the ground itself — a "multiply" photo of a slide still mixes with it (at rest, while scrolling).
+- **Who lies over whom cuts** (`slideSheets.sheetsAt`): reveal — the new one only below the leaving one's lower edge
+  (no z-index any more); cover — the old one only above the new one's top, in its own shrunk measure; side — the old
+  one only left of the new one. Transparent sheets can therefore no longer show what lies under them.
+- **Przenikanie by coverage** (`layerCover`: a gradient of solid colours 1, a "normal" image its opacity ≤ .98,
+  anything else 0): the old slide stands when the new one covers fully (0084 unchanged); otherwise it fades so that
+  exactly 1 − e of it is left — nothing at the end, no jump.
+- **Layers drift with the track** at their tempo even while their slide is pinned (the owner's wish of 2026-10-24),
+  arrive where they rest without a jump and always cover what shows of their slide. Less motion: they go with their
+  slide and cover it whole (also a tall one).
+- **Staying put** (`useSlideScroll`, a marked block): while nothing moves the track, changed measures keep the reader
+  on the same slide at the same place; a move under way goes on to where its slide is now; a hand on the track keeps
+  its place in its slide; and the track never rests between two slides.
+- `backdropAt` now serves only presentation scenes.
+
+**Accepted**
+- A "multiply" layer mixes with the backdrop only while its slide is unstyled (at rest, scrolling, leaving by reveal,
+  arriving by cover); in the other changes it is on its own and settles by a few levels at the end (≈ 8 per channel on
+  the owner-like replica, invisible on a near-white cloth). If ever needed: a copy of the cloth in such a section.
+- While its slide is cut or fading, a card's frosted glass sees only its own slide's layers.
+
+**Built**
+- `pages/slides/slideSheets.ts` (new: `sheetsAt`, `layerCover`, `layerPlace`), `SlideDeck.tsx` (one path, the cloth in
+  the track), `slideMotion.ts` (comments), `useSlideScroll.ts` ("Staying put"), `styles/motion.css` (the cloth paints
+  the ground, `will-change`), texts: `pageJsonText.ts` (layers, flow, fade, `deck.backdrop`), `LayerEditor.tsx` hint,
+  `slideLook.ts`, `presentation.ts`, `AI-BRIEF.md`.
+
+**Checks**
+- `app-slides-check`: cuts (also a tall old one), fade by coverage (exactly 1 − e, nothing at the end), less motion;
+  every kind × three stacks leaves nothing behind (forward, back, onto a tall slide); layers drift while pinned and
+  arrive without a jump; every layer covers what shows (every kind, six tempi, the whole deck); `layerCover`; the
+  server draws the cloth first in the track, the layers in their slides (with and without a cloth).
+- `app-platform-check` unchanged (the old one stands under a fade).
+- LocalDB drives (headless Edge, held clock): `slides3-verify.mjs` — four decks (plain, dark cloth, the owner-like
+  replica, cloth without own layers) × desktop, phone, less motion, 16 changes each way: structure, who is on screen,
+  texts never both opaque on each other, nothing of the old colour on arrival, the edge mid-way, no jump at the end,
+  the multiply photo mixes at rest — all green. `slides-anchor.mjs` — 15 checks (resize, growth above, growth during
+  a move and during a wheel scroll, peek, keys); without "Staying put" 5 of them fail. Firefox 157 (the owner's
+  browser, WebDriver BiDi, `slides-firefox.mjs`): structure, reveal and scroll edges, multiply at rest — 10/10.
+
+**Owner:** no migration, no API deploy; rebuild and deploy the site.

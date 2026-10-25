@@ -84,6 +84,8 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  /* 2026-10-25 — nur neu zeichnen, wenn eine Baza wiedzy da ist; `tick` lädt alles neu (und lief so im Kreis). */
+  const [, setSynced] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -99,7 +101,7 @@ function Libraries({ me, trail }: { me: Me; trail: readonly string[] }) {
         setKnowledge(new Set(opened.filter((one) => libraryKindOf(one) === 'knowledge').map((one) => one.libraryId)));
         setWriting(new Set(opened.filter((one) => libraryKindOf(one) === 'writing').map((one) => one.libraryId)));
         /* 2026-10-22 (Schritt 11) — und die Bazy wiedzy: worauf ein Kazanie in ihnen verweist (ein Słowo, ein Widok), findet es so. */
-        for (const one of opened.filter((o) => libraryKindOf(o) === 'knowledge')) void storeOf(me.ring, one).sync().then(() => { if (alive) setTick((n) => n + 1); }, () => undefined);
+        for (const one of opened.filter((o) => libraryKindOf(o) === 'knowledge')) void storeOf(me.ring, one).sync().then(() => { if (alive) setSynced((n) => n + 1); }, () => undefined);
         setAreas(found.areas);
         setFailed(null);
       } catch (e) {

@@ -63,6 +63,8 @@ function Scriptoria({ me, who, trail }: { me: Me; who: Who; trail: readonly stri
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  /* 2026-10-25 — eine fertige Quelle zeichnet nur neu; `tick` lädt die Liste neu (nach Anlegen und Einstellungen). */
+  const [, setSynced] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -75,14 +77,13 @@ function Scriptoria({ me, who, trail }: { me: Me; who: Who; trail: readonly stri
         setAreas(found.areas);
         setFailed(null);
         /* Die anderen Skryptoria und die Bibliotheken im Hintergrund — Zitate, Schlüssel und Rückverweise gehen durch sie hindurch; die Bazy wiedzy für Słowa und Widoki im Text. */
-        for (const one of opened) void storeOf(me.ring, one).sync().then(() => { if (alive && libraryKindOf(one) !== 'writing') setTick((n) => n + 1); }, () => undefined);
+        for (const one of opened) void storeOf(me.ring, one).sync().then(() => { if (alive && libraryKindOf(one) !== 'writing') setSynced((n) => n + 1); }, () => undefined);
       } catch (e) {
         if (alive) setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać skryptoriów.');
       }
     })();
     return () => { alive = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me.ring, tick === 0]);
+  }, [me.ring, tick]);
 
   const scriptoria = useMemo(() => (rows ?? []).filter((one) => libraryKindOf(one) === 'writing'), [rows]);
   const id = trail[0];

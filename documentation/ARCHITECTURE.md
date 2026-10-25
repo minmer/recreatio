@@ -78,7 +78,8 @@ Conventions:
 
 - **One concern per module, about 800 lines at most.** A long component keeps its state in a hook beside it
   (`useFormOffice.tsx`, `useFormCard.ts`). One exception on purpose: `pages/slides/useSlideScroll.ts` is a
-  line-for-line port of tuned gesture code. A few modules are still a little above the mark (`useFormOffice.tsx`,
+  line-for-line port of tuned gesture code (plus two marked additions: `keyboard`, and "Staying put", which keeps
+  the reader on their slide when slide sizes change). A few modules are still a little above the mark (`useFormOffice.tsx`,
   `cogita/schema.ts`, `pages/presentation/PresentationView.tsx` and `presentation.ts`, which the fixture
   generators read by name).
 - **Import what is declared, where it is declared.** No pass-through re-exports.

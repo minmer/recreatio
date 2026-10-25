@@ -4,7 +4,8 @@
  *   1. Die Schichten der Luft: Vorgaben des Altbestands, `motion: []` bleibt still.
  *   2. Der Slajd: Bewegung, Aufbau, Begleiter, neue Kennungen nach dem Import;
  *      der Wechsel „dissolve"; Plätze für hohe Schirme und eine Grenze in rem;
- *      das gemeinsame Tuch blendet von Slajd zu Slajd.
+ *      2026-10-25 der Slajd als Blatt (`slideSheets`): Schnitte, Przenikanie nach
+ *      der Deckung des neuen, Schichten mit der Bahn, nichts bleibt zurück.
  *   3. Die Folge als Ganzes (deck): lesen, knapp schreiben, im Aussehen der Seite.
  *   4. Ein Dokument mit Slajdy: ein wanderndes Zeichen, ein Bild neben seinem
  *      Text, das Tuch — importiert ohne Warnung, kommt unverändert heraus, und

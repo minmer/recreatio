@@ -44,7 +44,7 @@ export class Grid {
   readonly sdf: Float32Array;
   /** Körper (bodyCover.ts): Nummer + 1 des Körpers mit dem grössten Anteil an der Zelle (0: keiner — dann ist eine feste Zelle ein Bau aus „solid“). */
   readonly owner: Int16Array;
-  /** Anteil der Zelle, den Körper bedecken (0–1, genau aus ihren Rechtecken); ab CLOSED (oder durchschnitten) ist die Zelle fest. */
+  /** Anteil der Zelle, den Körper bedecken (0–1, genau aus ihren Rechtecken); ab CLOSED (CLOSED_FREE bei einem freien Körper; oder durchschnitten) ist die Zelle fest. */
   readonly fs: Float32Array;
   /** Wärmekapazität der Körperteile einer Zelle (J/K, aus ihren inneren Zellen; 0: keine — eine feste Zelle hat dann die ihres Werkstoffs). */
   readonly capB: Float64Array;

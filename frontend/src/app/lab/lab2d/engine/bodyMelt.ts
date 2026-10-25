@@ -69,8 +69,12 @@ import type { Engine } from './engine';
 /** Eine Randreihe, die dünner wird als das (Anteil der Zellkante), geht in der Nachbarreihe auf; dicker als THICK teilt sie sich. */
 const THIN = 0.3;
 const THICK = 1.6;
-/** Ein Rechteck, das dünner als das wird (Anteil der Zellkante), schmilzt ganz. */
-const GONE = 0.05;
+/**
+ * Ein Rechteck, das dünner als das wird (Anteil der Zellkante), schmilzt ganz — dünner kann das Gitter es nicht
+ * tragen: ein Splitter von 0,1 mm auf der Heizplatte (bis 2026-10-24 GONE 0,05) wog fast nichts, und jeder Druckstoss
+ * des siedenden Wassers schleuderte ihn aus der Kiste.
+ */
+const GONE = 0.25;
 /** Höchstens dieser Anteil des Wassers eines Teilchens friert je Schritt an. */
 const FREEZE_MAX = 0.5;
 /** Rechtecke, die sich so nah berühren (Anteil der Zellkante), gelten als verbunden — wie in body.ts. */

@@ -3,8 +3,11 @@
  * 2026-10-23 bleibt ein Eisblock ein Rechteck, seine Seiten rücken). Die
  * Fronten gegen Neumann, der Eiswürfel in warmem Wasser, Eis in Sole an ihrem
  * Gefrierpunkt, gefrierende Sole behält ihr Salz, ein ausgeschnittener Block
- * schmilzt als Rechtecke, Eis auf einer warmen Platte schmilzt von unten. Die
- * genaueren Fronten (1 mm) und die Kältemischung bis ans Eutektikum stehen in
+ * schmilzt als Rechtecke, Eis auf einer warmen Platte schmilzt von unten; seit
+ * 2026-10-25 ein Eiswürfel auf der heissen Platte (sein Schmelzwasser liegt
+ * sichtbar daneben, er bleibt stehen) und schräges Eis über ihr (nichts
+ * explodiert). Die genaueren Fronten (1 mm), die Kältemischung bis ans
+ * Eutektikum und der Würfel auf der Platte bis zum letzten Rest stehen in
  * m3b.slow.test.ts.
  */
 
@@ -168,6 +171,108 @@ describe('M3b — test 46: the side the heat comes through melts', () => {
     expect(10 - (y1 - y0) * 1000).toBeGreaterThan(1);
     expect(Math.abs(bottom - top)).toBeLessThan(0.2);
     expect(b.nr).toBe(1);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+});
+
+/** Eine Heizplatte aus Stahl bei 80 °C in der Mitte einer 8 cm breiten Kiste (Tests 55 und 56). */
+const HOT_PLATE = { op: 'hotplate', x: 0.04, y: 0, w: 0.06, h: 0.006, material: 'steel', mode: 'power', power: 10, target: 150, on: true, T: 80 };
+
+describe('M3b — test 55: an ice cube on a hot plate', () => {
+  it('a 2 cm cube at −5 °C on a steel plate at 80 °C: its meltwater lies beside it as water (none is held back unseen), it gets lower and narrower and stays where it stands; energy and water exact', () => {
+    const e = new Engine(scene({
+      box: { w: 0.08, h: 0.06, depth: 0.01 },
+      ops: [HOT_PLATE, { op: 'body', region: { rect: [0.03, 0.006, 0.05, 0.026] }, material: 'ice', T: -5 }]
+    }));
+    const [plate, b] = e.bodies.list;
+    const x0 = b.x;
+    /* Der grösste Anteil des geschmolzenen Eises, der noch nicht als Wasser zu sehen war; die grösste Geschwindigkeit des Würfels. */
+    let held = 0;
+    let fastest = 0;
+    while (e.time < 10) {
+      e.step();
+      fastest = Math.max(fastest, Math.hypot(b.vx, b.vy));
+      if (e.time > 1) held = Math.max(held, e.melt.pendingTotals().m / e.melt.melted);
+    }
+    const [bx0, by0, bx1, by1] = b.bounds(0);
+    const top = (plate.y + plate.bounds(0)[3]) * 1000;
+    const bottom = (b.y + by0) * 1000;
+    console.log(`test 55: cube ${((bx1 - bx0) * 1000).toFixed(2)} × ${((by1 - by0) * 1000).toFixed(2)} mm (was 20 × 20), its bottom ${(bottom - top).toFixed(3)} mm above the plate, moved ${((b.x - x0) * 1000).toFixed(3)} mm, turned ${(b.a * 180 / Math.PI).toFixed(3)}°, fastest ${(fastest * 1000).toFixed(2)} mm/s; melted ${(e.melt.melted * 1e6).toFixed(1)} mg, at most ${(100 * held).toFixed(2)} % of it held back, ${e.particles.count} water particles; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
+    /* Bis 2026-10-24 wartete das ganze Schmelzwasser unsichtbar (held 100 %, kein Teilchen) und kam später auf einmal. */
+    expect(held).toBeLessThan(0.05);
+    expect(e.particles.count).toBeGreaterThan(20);
+    expect(20 - (by1 - by0) * 1000).toBeGreaterThan(1.5);
+    expect(20 - (bx1 - bx0) * 1000).toBeGreaterThan(0.5);
+    expect(Math.abs(bottom - top)).toBeLessThan(0.2);
+    expect(Math.abs(b.x - x0)).toBeLessThan(5e-4);
+    expect(Math.abs(b.a)).toBeLessThan(0.01);
+    expect(fastest).toBeLessThan(0.01);
+    expect(b.nr).toBe(1);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+});
+
+describe('M3b — test 56: tilted ice over a hot plate', () => {
+  /** Dieselbe Platte, 8 mm hoch. */
+  const PLATE = { ...HOT_PLATE, h: 0.008 };
+  /** 2 s laufen lassen: der freie Körper, seine grösste Geschwindigkeit, ob alles endlich blieb, seine Weltbox am Ende. */
+  function tilt(w: number, ops: Record<string, unknown>[]): { e: Engine; fastest: number; finite: boolean; box: Float64Array; b: Engine['bodies']['list'][number] } {
+    const e = new Engine(scene({ box: { w, h: 0.06, depth: 0.01 }, ops }));
+    const b = e.bodies.list.find((q) => q.free) as Engine['bodies']['list'][number];
+    let fastest = 0;
+    let finite = true;
+    while (e.time < 2 && !b.gone) {
+      e.step();
+      fastest = Math.max(fastest, Math.hypot(b.vx, b.vy));
+      if (!Number.isFinite(b.x + b.y + b.a + b.w + e.energyError())) { finite = false; break; }
+    }
+    const box = new Float64Array(4);
+    if (!b.gone && finite) b.worldBox(b.x, b.y, b.a, box);
+    console.log(`test 56: after ${e.time.toFixed(2)} s ${b.gone ? 'GONE' : `at (${(b.x * 1000).toFixed(2)}, ${(b.y * 1000).toFixed(2)}) mm, ${(b.a * 180 / Math.PI).toFixed(2)}°, its lowest point ${(box[1] * 1000).toFixed(3)} mm`}, fastest ${(fastest * 1000).toFixed(0)} mm/s, now ${(Math.hypot(b.vx, b.vy) * 1000).toFixed(2)} mm/s; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
+    return { e, fastest, finite, box, b };
+  }
+  /** Liegt der Körper auf einer Seite (Winkel ein Vielfaches von 90°, auf 1° genau)? */
+  const square = (a: number): boolean => Math.abs(a - (Math.PI / 2) * Math.round(a / (Math.PI / 2))) < Math.PI / 180;
+
+  it('a 4 × 0.8 cm ice bar laid at 10° with one end on a steel step slides off onto the plate and lies there (until 2026-10-24 the air it shut in under itself flung it out of the box at 54 m/s within three steps); energy and water exact', () => {
+    const { e, fastest, finite, box, b } = tilt(0.08, [
+      PLATE,
+      { op: 'body', region: { rect: [0.055, 0.008, 0.075, 0.016] }, material: 'steel', T: 60, pinned: true },
+      { op: 'body', region: { rect: [0.025, 0.014, 0.065, 0.022] }, material: 'ice', T: -5, angle: 10 }
+    ]);
+    expect(finite).toBe(true);
+    expect(b.gone).toBe(false);
+    expect(fastest).toBeLessThan(0.5);
+    expect(Math.hypot(b.vx, b.vy)).toBeLessThan(0.005);
+    expect(square(b.a)).toBe(true);
+    expect(Math.abs(box[1] - 0.008)).toBeLessThan(2e-4);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+
+  it('a 2 cm cube standing 3 mm over the edge of the plate tips off and comes to rest on the floor beside it (until 2026-10-24 the run blew up as it tipped); energy and water exact', () => {
+    const { e, fastest, finite, box, b } = tilt(0.1, [PLATE, { op: 'body', region: { rect: [0.063, 0.008, 0.083, 0.028] }, material: 'ice', T: -5 }]);
+    expect(finite).toBe(true);
+    expect(b.gone).toBe(false);
+    expect(fastest).toBeLessThan(0.6);
+    expect(Math.hypot(b.vx, b.vy)).toBeLessThan(0.005);
+    expect(square(b.a)).toBe(true);
+    expect(box[1]).toBeLessThan(2e-4);
+    expect(box[0]).toBeGreaterThan(0.07);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+
+  it('a 2 cm cube dropped at 25° lands on the plate and lies flat; energy and water exact', () => {
+    const { e, fastest, finite, box, b } = tilt(0.08, [PLATE, { op: 'body', region: { rect: [0.03, 0.03, 0.05, 0.05] }, material: 'ice', T: -5, angle: 25 }]);
+    expect(finite).toBe(true);
+    expect(b.gone).toBe(false);
+    expect(fastest).toBeLessThan(1);
+    expect(Math.hypot(b.vx, b.vy)).toBeLessThan(0.005);
+    expect(square(b.a)).toBe(true);
+    expect(Math.abs(box[1] - 0.008)).toBeLessThan(2e-4);
     expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
     expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
   });
