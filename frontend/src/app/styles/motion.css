@@ -33,8 +33,13 @@
 @media (max-width: 640px) { .wk-deck.is-nav-dots .wk-deck-content-layer { padding-right: 2.5rem; } }
 
 /* -- Das gemeinsame Tuch -------------------------------------------------------- */
-.wk-deck-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.wk-deck-backdrop-slide { position: absolute; inset: 0; }
+/*
+   2026-10-25 — das Tuch liegt als erstes IN der Bahn (um ihre Stelle zurückgeschoben, es
+   steht): nur so mischt sich ein „multiply" eines Slajds mit ihm. Die Bahn ist eine eigene
+   Ebene, der Grund der Folge erreicht ihr Inneres nicht — darum malt das Tuch ihn selbst.
+   `will-change`: das Zurückschieben bleibt beim Compositor.
+*/
+.wk-deck-backdrop { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: var(--deck-ground); will-change: transform; }
 .wk-deck-backdrop .wk-deck-layer { position: absolute; inset: 0; will-change: auto; }
 /* Ein Slajd über dem Tuch ist durchsichtig — ohne die eigene Schattierung, die sonst einen vom nächsten trennt. */
 .wk-deck-slide.is-clear::after { display: none; }

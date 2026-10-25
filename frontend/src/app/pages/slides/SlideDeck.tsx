@@ -32,9 +32,8 @@ import { LayerArt, layerBackground } from '../presentation/deckLayers';
 import { SlidePhase, type Phase } from '../motion/MotionBox';
 import { addressWithSlide, anchorInAddress, anchorOf, layoutFor, slideByAnchor, slideInAddress, type Enter, type SlideColors, type SlideLayout, type StageFrame, type Transition } from './slides';
 import { defaultLayers, NO_DECK, resolveTheme, type DeckLook, type Layer, type Theme } from './slideLook';
-import {
-  backdropAt, colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt, motionOf, pinnedPosition
-} from './slideMotion';
+import { colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt } from './slideMotion';
+import { layerCover, layerPlace, sheetsAt } from './slideSheets';
 import { useSlideScroll } from './useSlideScroll';
 
 export interface DeckSlide {
@@ -121,7 +120,8 @@ function LayerFace({ layer, style, className = '', shift = 0 }: { layer: Layer; 
  * langsamer als die Bahn (0 steht, 1 läuft mit dem Inhalt), und so viel höher als der Schirm, dass sie ihn
  * auf dem ganzen Weg bedeckt (ein Bild wird dafür grösser gezogen). Verschiedene Tempi geben die Tiefe.
  * Der Schriftzug steht in seiner Ebene und wandert um seine Strecke („Długość przejazdu").
- * `from` und `length`: der Abschnitt der Bahn, über den sie wandert.
+ * `from` und `length`: der Abschnitt der Bahn, über den sie wandert. 2026-10-25: nur noch für das
+ * gemeinsame Tuch — die eigenen Schichten eines Slajds liegen in ihm (`layerPlace`).
  */
 function drift(layer: Layer, position: number, from: number, length: number, vh: number): { style: CSSProperties; shift: number } {
   const span = Math.max(1, length);
@@ -213,7 +213,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
   const { scrollToSlide, geometry, measured, viewportRef } = scroll;
   const reduced = usePrefersReducedMotion();
   const tall = useTall(viewportRef);
-  /* 0107 — ein gemeinsames Tuch: die Slajdy rollen durchsichtig darüber, ihre eigenen Schichten liegen darin. */
+  /* 0107 — ein gemeinsames Tuch: die Slajdy rollen durchsichtig darüber, ihre eigenen Schichten liegen darin (2026-10-25: im Fenster ihres Slajds). */
   const shared = deck.backdrop.length > 0;
 
   useEffect(() => {
@@ -313,6 +313,14 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
   const vh = scroll.viewportHeight;
   const at = deckAt(geometry, scroll.position, vh);
   const kinds = slides.map((slide) => slide.transition ?? 'scroll');
+  /* Die eigenen Schichten jedes Slajds — ohne eigene: mit Tuch keine (das Tuch scheint durch), sonst der Grund des Themas und sein Name. */
+  const drawn = slides.map((slide) => (slide.layers.length > 0 ? slide.layers : shared ? [] : defaultLayers(slide.label, look)));
+  /* 2026-10-25 — wie jedes Blatt steht, mit dem, was ein anderer von ihm bedeckt (`slideSheets.ts`). */
+  const sheets = sheetsAt(geometry, scroll.position, vh, kinds, drawn.map(layerCover), reduced);
+  const last = geometry[geometry.length - 1];
+  const travel = last === undefined ? 0 : Math.max(0, last.start + last.height - vh);
+  /* Das Tuch liegt in der Bahn und wird um ihre Stelle zurückgeschoben — so steht es. */
+  const cloth: CSSProperties = { transform: `translate3d(0, ${scroll.position}px, 0)` };
 
   /* Die Farben gehen mit: zwischen zwei Slajdy mit eigenen Farben fliessend. */
   const pageColors = { accent: look.accent, ink: look.ink, ground: look.ground, muted: look.muted };
@@ -360,65 +368,51 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
       {deck.nav === 'labels' && <nav className="wk-deck-nav" aria-label="Slajdy">{labels}</nav>}
 
       <div className="wk-deck-viewport" ref={viewportRef}>
-        {/*
-          0107 — DAS GEMEINSAME TUCH: steht, während die Slajdy darüber rollen.
-          2026-10-24: ganz unten die gemeinsamen Schichten, darüber die eigenen
-          des jetzigen und des nächsten Slajds (übereinander geblendet) — ein
-          deckendes gemeinsames Tuch verdeckte sonst jedes Bild eines Slajds.
-        */}
-        {shared && (
-          <div className="wk-deck-backdrop" aria-hidden="true">
-            {/* Die gemeinsamen wandern über die ganze Folge — langsam, wie ihr Tempo sagt (0 steht). */}
-            {deck.backdrop.map((layer, n) => {
-              const last = geometry[geometry.length - 1];
-              const travel = last === undefined ? 0 : Math.max(0, last.start + last.height - vh);
-              const d = drift(layer, scroll.position, 0, travel, vh);
-              return <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={d.style} shift={d.shift} />;
-            })}
-            {backdropAt(slides.map((slide) => slide.layers.length > 0), at).map(({ index, opacity }) => (
-              <div key={slides[index].key} className="wk-deck-backdrop-slide" style={{ opacity }}>
-                {slides[index].layers.map((layer, n) => {
-                  /*
-                     Die eigenen eines Slajds wandern über seinen Weg durch den Schirm:
-                     vom Hereinkommen unten (Bahn = Anfang − Schirm) bis zum Verlassen
-                     oben (Anfang + Höhe) — auch im Wechsel, damit die Tiefe bleibt.
-                  */
-                  const frame = geometry[index];
-                  const d = frame === undefined
-                    ? drift(layer, 0, 0, 0, vh)
-                    : drift(layer, scroll.position, frame.start - vh, frame.height + vh, vh);
-                  return <LayerFace key={n} layer={layer} style={d.style} shift={d.shift} />;
-                })}
-              </div>
-            ))}
-          </div>
-        )}
-
         <div className="wk-deck-track" style={{ transform: `translate3d(0, ${-scroll.position}px, 0)` }} onClick={onTrackClick}>
+          {/*
+            0107 — DAS GEMEINSAME TUCH: steht, während die Slajdy darüber rollen.
+            2026-10-24: ganz unten die gemeinsamen Schichten, darüber die eigenen der
+            Slajdy — ein deckendes gemeinsames Tuch verdeckte sonst jedes Bild eines Slajds.
+            2026-10-25: als erstes IN der Bahn, um ihre Stelle zurückgeschoben — es steht
+            und liegt doch in derselben Ebene wie die Slajdy, ein „multiply" mischt sich
+            mit ihm. Die eigenen Schichten liegen im Slajd und gehen mit ihm — oben ganz
+            hinaus, statt im Tuch stehen zu bleiben und nur überzublenden (Wunsch des Nutzers).
+          */}
+          {shared && (
+            <div className="wk-deck-backdrop" style={cloth} aria-hidden="true">
+              {/* Die gemeinsamen wandern über die ganze Folge — langsam, wie ihr Tempo sagt (0 steht). */}
+              {deck.backdrop.map((layer, n) => {
+                const d = drift(layer, scroll.position, 0, travel, vh);
+                return <LayerFace key={`shared-${n}`} layer={layer} className=" is-shared" style={d.style} shift={d.shift} />;
+              })}
+            </div>
+          )}
+
           {slides.map((slide, index) => {
             const frame = geometry[index];
-            if (frame === undefined) return null;
-            /* Ohne eigene Schichten: der Grund des Themas und der Name als blasser Schriftzug — passt sich an hell und dunkel an. Mit Tuch: nichts (es liegt dahinter). */
-            const layers = shared ? [] : slide.layers.length > 0 ? slide.layers : defaultLayers(slide.label, look);
+            const sheet = sheets[index];
+            if (frame === undefined || sheet === undefined) return null;
 
             /*
              * 0084 — IM WECHSEL. Ein festgehaltener Slajd läuft nicht mit der
-             * Bahn: er steht auf dem Schirm (seine eigene Stelle, `pinned`), und
-             * seine Schichten rechnen von dort. Dazu Deckkraft, Grösse, Seite,
-             * Abdunkeln — je nach Art des Wechsels.
+             * Bahn: er steht auf dem Schirm (seine eigene Stelle, `pinned`). Dazu
+             * Deckkraft, Grösse, Seite, Abdunkeln — je nach Art des Wechsels.
+             * 2026-10-25: das ganze Blatt — Schichten und Inhalt — geht so. Was ein
+             * anderer von ihm bedeckt, schneidet `cut` ab; wer über wem liegt, sagt
+             * nur noch die Folge (kein z-index: der gehende beim Odsłonięcie bleibt
+             * ungestylt, und sein „multiply" mischt sich weiter mit dem Tuch). Nur
+             * was sich ändert, wird gesetzt: ein ruhendes Blatt ist keine eigene Ebene.
              */
-            const motion = motionOf(geometry, index, scroll.position, vh, kinds, reduced);
-            const pinned = motion.pin ? pinnedPosition(frame, scroll.position, vh) : scroll.position;
-            const moved = scroll.position - pinned;
+            const { motion, pinned, cut } = sheet;
             const sectionStyle: CSSProperties = { height: `${frame.height}px` };
-            if (motion !== undefined && (motion.pin || motion.scale !== 1 || motion.shift !== 0 || motion.opacity !== 1 || motion.dim !== 0 || motion.above || motion.lift !== 0)) {
-              sectionStyle.transform = `translate3d(${motion.shift}%, ${moved + motion.lift}px, 0) scale(${motion.scale})`;
+            if (motion.pin || motion.scale !== 1 || motion.shift !== 0 || motion.lift !== 0) {
+              sectionStyle.transform = `translate3d(${motion.shift}%, ${scroll.position - pinned + motion.lift}px, 0) scale(${motion.scale})`;
               sectionStyle.transformOrigin = `50% ${pinned - frame.start + vh / 2}px`;
-              sectionStyle.opacity = motion.opacity;
-              const filters = [motion.dim > 0 ? `brightness(${1 - motion.dim})` : '', motion.blur > 0.01 ? `blur(${motion.blur.toFixed(2)}px)` : ''].filter((f) => f !== '');
-              if (filters.length > 0) sectionStyle.filter = filters.join(' ');
-              if (motion.above) sectionStyle.zIndex = 3;
             }
+            if (motion.opacity !== 1) sectionStyle.opacity = motion.opacity;
+            const filters = [motion.dim > 0 ? `brightness(${1 - motion.dim})` : '', motion.blur > 0.01 ? `blur(${motion.blur.toFixed(2)}px)` : ''].filter((f) => f !== '');
+            if (filters.length > 0) sectionStyle.filter = filters.join(' ');
+            if (cut !== null) sectionStyle.clipPath = `inset(${cut.top}px ${cut.right}% ${cut.bottom}px 0)`;
             const appear = enterStyle(slide.enter ?? 'none', entering(geometry, index, scroll.position, vh), reduced);
             const contentStyle: CSSProperties | undefined = slide.enter === undefined || slide.enter === 'none' ? undefined : {
               opacity: appear.opacity,
@@ -436,30 +430,15 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
                 data-transition={slide.transition ?? 'scroll'}
                 aria-label={slide.label}
               >
-                {layers.map((layer, n) => {
-                  /*
-                     Der Schriftzug ist keine Ebene der Parallaxe, sondern eine
-                     Zeile, die über den Schirm wandert: seine Ebene steht, der
-                     Text darin bewegt sich (Altbestand, EventShell).
-                  */
-                  const speed = layer.kind === 'bigtext' ? 0 : layer.speed;
-                  const local = pinned - frame.start;
-                  const span = frame.height + scroll.viewportHeight;
-                  const style: CSSProperties = {
-                    ...layerBackground(layer),
-                    height: `${scroll.viewportHeight + speed * span}px`,
-                    transform: `translate3d(0, ${local * (1 - speed) - speed * scroll.viewportHeight}px, 0)`
-                  };
-
-                  return (
-                    <div key={n} className={`wk-deck-layer is-${layer.kind}`} style={style} aria-hidden="true">
-                      {/* 0107 — Dunst, Nici, Fale: mehr als ein Grund. */}
-                      <LayerArt layer={layer} />
-                      {layer.kind === 'bigtext' && (
-                        <BigText layer={layer} shift={(0.5 - Math.min(1, Math.max(0, (pinned - frame.start + vh) / (frame.height + vh)))) * scroll.viewportHeight * layer.speed} />
-                      )}
-                    </div>
-                  );
+                {/*
+                  Die eigenen Schichten, jede mit eigenem Tempo — auch während der Slajd festgehalten
+                  steht (Wunsch des Nutzers, 2026-10-24). Der Schriftzug ist keine Ebene der
+                  Parallaxe, sondern eine Zeile, die über den Schirm wandert (Altbestand, EventShell).
+                */}
+                {drawn[index].map((layer, n) => {
+                  const at = layerPlace(layer.speed, layer.kind === 'bigtext', frame, pinned, scroll.position, vh, reduced);
+                  const face: CSSProperties = reduced ? { height: `${at.height}px` } : { height: `${at.height}px`, transform: `translate3d(0, ${at.top}px, 0)` };
+                  return <LayerFace key={n} layer={layer} style={face} shift={at.shift} />;
                 })}
 
                 {/* Der Inhalt läuft mit Geschwindigkeit 1: keine Verschiebung, so hoch wie der Slajd. */}

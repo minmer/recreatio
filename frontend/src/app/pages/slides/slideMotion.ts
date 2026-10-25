@@ -61,7 +61,9 @@ export function pinnedPosition(frame: DeckFrame, position: number, viewport: num
  *   scale     1 — seine Grösse
  *   shift     waagrecht, in Prozent seiner Breite
  *   dim       0–1, wie sehr er nachdunkelt (unter einem, der ihn bedeckt)
- *   above     über seinem Nachbarn (beim Odsłonięcie liegt der gehende oben)
+ *   above     über seinem Nachbarn (beim Odsłonięcie liegt der gehende oben) — SlideDeck
+ *             hebt ihn seit 2026-10-25 nicht mehr an: der kommende ist unter seiner
+ *             Unterkante abgeschnitten (`slideSheets.ts`)
  *   lift      0107 — senkrecht, in Pixeln (beim Rozmycie: der gehende sinkt, der kommende steigt)
  *   blur      0107 — Unschärfe in Pixeln
  * </code>
@@ -109,6 +111,11 @@ function outgoing(kind: Transition, t: number): Motion {
   switch (kind) {
     /* 2026-10-24 — der gehende fährt mit der Bahn hinaus und blendet dabei aus. */
     case 'flow': return { ...STILL, opacity: 1 - e };
+    /*
+     * Der alte steht, der neue blendet auf ihm ein. 2026-10-25: ist der neue
+     * durchsichtig, blendet `slideSheets.ts` den alten so aus, dass genau 1 − e
+     * von ihm bleibt — am Ende nichts, kein Sprung im letzten Bild.
+     */
     case 'fade': return { ...STILL, pin: true };
     case 'cover': return { ...STILL, pin: true, scale: 1 - 0.06 * e, dim: 0.45 * e };
     case 'reveal': return { ...STILL, above: true };
@@ -195,6 +202,9 @@ export function frameAt(frames: ReadonlyMap<number, StageFrame>, at: number, tal
  * der jetzige aus — dann bleibt das gemeinsame Tuch allein.
  *
  * `has[i]`: hat Slajd i eigene Schichten.
+ *
+ * Seit 2026-10-25 nur noch für die Szenen einer Präsentation: Slajdy nehmen ihre
+ * Schichten in ihrem Abschnitt mit (`slideSheets.ts`).
  */
 export function backdropAt(has: readonly boolean[], at: number): { readonly index: number; readonly opacity: number }[] {
   if (has.length === 0) return [];

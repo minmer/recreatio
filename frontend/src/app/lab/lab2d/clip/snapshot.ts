@@ -52,11 +52,11 @@ export const SCRATCH: ReadonlySet<string> = new Set<string>([
   '.e.liquid.vsolver', '.e.liquid.wt',
   '.e.phase.Cl', '.e.phase.Fe', '.e.phase.Fm', '.e.phase.Tl', '.e.phase.Y0', '.e.phase.acc', '.e.phase.accAll',
   '.e.phase.accH', '.e.phase.accMat', '.e.phase.accS', '.e.phase.aw', '.e.phase.bG', '.e.phase.bY', '.e.phase.dm',
-  '.e.phase.edge', '.e.phase.hnC', '.e.phase.hoC', '.e.phase.host', '.e.phase.hvC', '.e.phase.mol', '.e.phase.mtot',
+  '.e.phase.edge', '.e.phase.fed', '.e.phase.hnC', '.e.phase.hoC', '.e.phase.host', '.e.phase.hvC', '.e.phase.mol', '.e.phase.mtot',
   '.e.phase.rd',
   '.e.prevKind',
   /* Körper (M3a): Arbeitsspeicher der Kräfte und der Berührungen (die Teile werden aus den Körpern neu gebaut, der Warmstart steht in contacts.warm*); das Schmelzen (bodyMelt.ts) baut seine Listen der Teilchen je Zelle in jedem Schritt neu. */
-  '.e.melt.head', '.e.melt.next', '.e.melt.sg',
+  '.e.melt.head', '.e.melt.next', '.e.melt.water.sg',
   /* Körner (M3c): Nachbarlisten und Lagen der Teilschritte, Radien, Listen je Zelle (in jedem Schritt neu), ihre Wärmekapazität je Zelle. */
   '.e.grainFlow.head', '.e.grainFlow.next', '.e.grainFlow.px', '.e.grainFlow.py', '.e.grainFlow.rad', '.e.grainFlow.w', '.e.grainFlow.vel', '.e.grainFlow.hit',
   '.e.grainFlow.lm', '.e.grainFlow.lmT', '.e.grainFlow.lv', '.e.grainFlow.loc',

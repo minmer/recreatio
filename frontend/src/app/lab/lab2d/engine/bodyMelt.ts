@@ -50,11 +50,9 @@
  * wie die andere Wand zurückweicht. Ein einzelnes Rechteck rückt seine Seiten direkt: seine
  * inneren Zellen bleiben, nur die Randreihe wird dünner oder dicker.
  *
- * Schmelzwasser geht in die Teilchen vor der Seite (sie werden schwerer; ein
- * Teilchen über der doppelten Nennmasse teilt sich); ist dort keine
- * Flüssigkeit (eine Seite auf der Heizplatte), sammelt es sich und wird ein
- * neues Teilchen vor der Seite oder am nächsten freien Ort neben dem Block,
- * sobald es ein Viertel der Nennmasse erreicht; der Block sinkt nach. Wird
+ * Schmelzwasser geht in die Teilchen vor der Seite (meltWater.ts); liegt die
+ * Seite auf etwas (auf der Heizplatte), quillt es an ihren Enden hervor; der
+ * Block sinkt nach. Wird
  * eine Randreihe dünner als 0,3 Δx, geht sie in der Nachbarreihe auf; ein
  * Rechteck, das dünner als 0,05 Δx wird, schmilzt ganz.
  */
@@ -64,8 +62,8 @@ import { regrid, separate, type RectLocal } from './bodyTools';
 import { recompose, type Rect4, type Slab } from './geom';
 import { hL, SOLIDS, WATER } from './materials';
 import { edgeCells, fluidFront, freeLength, freeOn, freezingAt, sideLength, supplyAt, widestFree } from './meltSides';
-import { NACL } from './solution';
-import { LIQUID, T0 } from './units';
+import { MeltWater } from './meltWater';
+import { T0 } from './units';
 import type { Engine } from './engine';
 
 /** Eine Randreihe, die dünner wird als das (Anteil der Zellkante), geht in der Nachbarreihe auf; dicker als THICK teilt sie sich. */
@@ -73,16 +71,10 @@ const THIN = 0.3;
 const THICK = 1.6;
 /** Ein Rechteck, das dünner als das wird (Anteil der Zellkante), schmilzt ganz. */
 const GONE = 0.05;
-/** Ein Teilchen über dieser Masse (Vielfaches der Nennmasse) teilt sich; neues Schmelzwasser ab diesem Anteil wird ein Teilchen. */
-const SPLIT = 2;
-const SPAWN = 0.25;
 /** Höchstens dieser Anteil des Wassers eines Teilchens friert je Schritt an. */
 const FREEZE_MAX = 0.5;
 /** Rechtecke, die sich so nah berühren (Anteil der Zellkante), gelten als verbunden — wie in body.ts. */
 const JOIN = 1e-6;
-
-/** Schmelzwasser, das noch kein Teilchen ist (je Körper): Masse samt Salz (kg), Enthalpie (J), Salz (kg), Ort und Normale der Seite, an der es entstand. */
-export interface Pending { m: number; H: number; s: number; x: number; y: number; nx: number; ny: number }
 
 /** Geplantes Anfrieren an einer Seite: die Teilchen und wie viel Wasser jedes gibt (kg). */
 interface Freeze { p: number[]; dm: number[]; total: number }
@@ -91,8 +83,8 @@ interface Freeze { p: number[]; dm: number[]; total: number }
 interface Move { r: number; s: number; d: number; Q: number; Tf: number; hIce: number; freeze: Freeze | null }
 
 export class BodyMelt {
-  /** Je Körper das Schmelzwasser, das noch kein Teilchen ist (Index wie bodies.list). */
-  pending: Pending[] = [];
+  /** Wohin das Schmelzwasser geht (und was davon noch kein Teilchen ist). */
+  readonly water: MeltWater;
   /** Seit dem Start geschmolzen und angefroren (kg) — für die Anzeige und die Prüfungen. */
   melted = 0;
   frozen = 0;
@@ -101,20 +93,18 @@ export class BodyMelt {
   private next = new Int32Array(0);
   private listed = false;
 
-  constructor(private readonly e: Engine) {}
+  constructor(private readonly e: Engine) {
+    this.water = new MeltWater(e, (c, fn) => this.inCell(c, fn));
+  }
 
   /** Wasser (ohne Salz), Enthalpie und Salz des noch nicht verteilten Schmelzwassers (für die Bilanzen). */
   pendingTotals(): { m: number; H: number; s: number } {
-    let m = 0;
-    let H = 0;
-    let s = 0;
-    for (const p of this.pending) if (p !== undefined) { m += p.m - p.s; H += p.H; s += p.s; }
-    return { m, H, s };
+    return this.water.totals();
   }
 
   /** Gibt es einen schmelzbaren Körper oder noch nicht verteiltes Schmelzwasser? */
   any(): boolean {
-    return this.e.bodies.list.some((b, q) => (!b.gone && meltsAt(b.mat) > 0) || (this.pending[q]?.m ?? 0) > 0);
+    return this.e.bodies.list.some((b, q) => (!b.gone && meltsAt(b.mat) > 0) || this.water.any(q));
   }
 
   /** Ein Schritt (nach collect, vor den Kräften): schmelzen und anfrieren; liefert, ob ein Körper seine Form änderte. */
@@ -126,8 +116,7 @@ export class BodyMelt {
     for (let q = 0; q < count; q += 1) {
       const b = list[q];
       if (!b.gone && meltsAt(b.mat) > 0 && this.body(b)) changed = true;
-      const p = this.pending[q];
-      if (p !== undefined && p.m > 0) this.spawn(b, p);
+      this.water.spawnAll(b);
     }
     return changed;
   }
@@ -402,7 +391,7 @@ export class BodyMelt {
     this.moveSide(b, r, s, -dd);
     if (!(m > 0)) { this.giveBack(b, r, s, Q + E); return; }
     this.melted += m;
-    this.give(b, r, s, m + film + crust, E + m * latentPerKg(b.mat) + Q, crust);
+    this.water.give(b, r, s, m + film + crust, E + m * latentPerKg(b.mat) + Q, crust);
   }
 
   /** Die Seite s des Rechtecks r wächst um die Masse m (kg) nach aussen — die Dicke aus der jetzigen Länge der Seite; die Randzellen bekommen die Scheibe Eis bei T_f. */
@@ -500,7 +489,7 @@ export class BodyMelt {
       if (mv.freeze !== null || !(mA[q] > 0)) continue;
       const m = rho * D * mA[q];
       this.melted += m;
-      this.give(b, mv.r, mv.s, m + mF[q] + mK[q], mE[q] + m * e0 + mv.Q, mK[q]);
+      this.water.give(b, mv.r, mv.s, m + mF[q] + mK[q], mE[q] + m * e0 + mv.Q, mK[q]);
     }
     regrid(b, res.rects);
     const ad = res.added;
@@ -637,133 +626,6 @@ export class BodyMelt {
     }
   }
 
-  /* -- Schmelzwasser -------------------------------------------------------------------------------- */
-
-  /**
-   * Schmelzwasser (Masse m samt Salz, Enthalpie H) an die Wasserteilchen vor
-   * der Seite: nach ihrer Masse dazu (ein Teilchen über SPLIT Nennmassen teilt
-   * sich); ohne Teilchen dort sammelt es sich (pending).
-   */
-  private give(b: Body2D, r: number, s: number, m: number, H: number, salt = 0): void {
-    const g = this.e.grid;
-    const P = this.e.particles;
-    const L = this.e.liquid;
-    const takers: number[] = [];
-    const seen = new Set<number>();
-    let wsum = 0;
-    /* Erst die Zellen direkt vor der Seite; nur wenn dort kein Wasserteilchen ist, auch die nächste Lage. */
-    for (let pass = 0; pass < 2 && takers.length === 0; pass += 1) {
-      for (let e = 0; e < b.nseg; e += 1) {
-        if (b.segR[e] !== r || b.segS[e] !== s) continue;
-        fluidFront(this.e, b, e, (c) => {
-          if (g.kind[c] !== LIQUID || seen.has(c)) return;
-          seen.add(c);
-          this.inCell(c, (p) => { if (P.mat[p] === WATER) { takers.push(p); wsum += P.mass[p]; } });
-        }, pass === 1);
-      }
-    }
-    if (takers.length === 0 || !(wsum > 0)) {
-      this.hold(b, r, s, m, H, salt);
-      return;
-    }
-    const nominal = (L.rhoRef * g.vCell) / 4;
-    for (const p of takers) {
-      const share = P.mass[p] / wsum;
-      const before = P.mass[p] / P.rho[p];
-      const Hp = P.mass[p] * P.h[p] + share * H;
-      P.mass[p] += share * m;
-      if (salt > 0) { P.smass[2 * p] += share * salt; P.spc[2 * p] = NACL; }
-      P.h[p] = Hp / P.mass[p];
-      P.derive(p);
-      L.dVp[p] += P.mass[p] / P.rho[p] - before;
-      if (P.mass[p] > SPLIT * nominal) this.split(p);
-    }
-  }
-
-  /** Ein schweres Teilchen in zwei gleiche teilen (das neue ein Viertel Zelle daneben, nicht in einem Körper oder Bau). */
-  private split(p: number): void {
-    const P = this.e.particles;
-    const L = this.e.liquid;
-    const g = this.e.grid;
-    const side = P.id[p] % 2 === 0 ? 1 : -1;
-    let x = NaN;
-    for (const sg of [side, -side]) {
-      const cx = Math.min(g.w - 1e-6, Math.max(1e-6, P.x[p] + 0.25 * g.dx * sg));
-      const c = g.cellAt(cx, P.y[p]);
-      if (c >= 0 && g.solid[c] === 0 && this.e.bodies.bodyAt(cx, P.y[p], 0) === null) { x = cx; break; }
-    }
-    if (Number.isNaN(x)) return;
-    const half = 0.5 * P.mass[p];
-    const s = 0.5 * P.smass[2 * p];
-    const q = P.add(x, P.y[p], half, P.h[p], P.mat[p], s);
-    if (q < 0) return;
-    P.mass[p] = half;
-    P.smass[2 * p] = s;
-    P.derive(p);
-    P.vx[q] = P.vx[p];
-    P.vy[q] = P.vy[p];
-    L.placeParticle(q);
-  }
-
-  /** Schmelzwasser ohne Teilchen davor sammeln (je Körper, mit dem Ort der Seite). */
-  private hold(b: Body2D, r: number, s: number, m: number, H: number, salt = 0): void {
-    const [x0, y0, x1, y1] = b.bounds(r);
-    const lx = s === 0 ? x0 : s === 1 ? x1 : 0.5 * (x0 + x1);
-    const ly = s === 2 ? y0 : s === 3 ? y1 : 0.5 * (y0 + y1);
-    const nlx = s === 0 ? -1 : s === 1 ? 1 : 0;
-    const nly = s === 2 ? -1 : s === 3 ? 1 : 0;
-    const c = Math.cos(b.a);
-    const sn = Math.sin(b.a);
-    const p = this.pending[b.index] ?? (this.pending[b.index] = { m: 0, H: 0, s: 0, x: 0, y: 0, nx: 0, ny: 1 });
-    p.m += m;
-    p.H += H;
-    p.s += salt;
-    p.x = b.x + c * lx - sn * ly;
-    p.y = b.y + sn * lx + c * ly;
-    p.nx = c * nlx - sn * nly;
-    p.ny = sn * nlx + c * nly;
-  }
-
-  /** Gesammeltes Schmelzwasser wird ein Teilchen vor der Seite (oder am nächsten freien Ort), sobald es SPAWN Nennmassen erreicht (ist der Körper weg, sofort). */
-  private spawn(b: Body2D, p: Pending): void {
-    const g = this.e.grid;
-    const P = this.e.particles;
-    const L = this.e.liquid;
-    const nominal = (L.rhoRef * g.vCell) / 4;
-    if (p.m < SPAWN * nominal && !b.gone) return;
-    const at = this.freeSpot(p.x + 0.3 * g.dx * p.nx, p.y + 0.3 * g.dx * p.ny);
-    if (at === null) return;
-    const q = P.add(at[0], at[1], p.m, p.H / p.m, WATER, p.s);
-    if (q < 0) return;
-    P.vx[q] = b.gone ? 0 : b.vx;
-    P.vy[q] = b.gone ? 0 : b.vy;
-    L.placeParticle(q);
-    L.dVp[q] = p.m / P.rho[q];
-    p.m = 0;
-    p.H = 0;
-    p.s = 0;
-  }
-
-  /** Ein Ort in Fluid (in der Kiste, nicht in einem Bau oder Körper) bei (x, y): dort, sonst in Ringen von Zellen bis drei weit, oben zuerst. */
-  private freeSpot(x: number, y: number): [number, number] | null {
-    const g = this.e.grid;
-    const ok = (px: number, py: number): boolean => {
-      if (!(px > 0 && py > 0 && px < g.w && py < g.h)) return false;
-      const c = g.cellAt(px, py);
-      return c >= 0 && g.solid[c] === 0 && this.e.bodies.bodyAt(px, py, 0) === null;
-    };
-    if (ok(x, y)) return [x, y];
-    for (let ring = 1; ring <= 3; ring += 1) {
-      for (let j = ring; j >= -ring; j -= 1) {
-        for (let i = -ring; i <= ring; i += 1) {
-          if (Math.max(Math.abs(i), Math.abs(j)) !== ring) continue;
-          if (ok(x + i * g.dx, y + j * g.dx)) return [x + i * g.dx, y + j * g.dx];
-        }
-      }
-    }
-    return null;
-  }
-
   /* -- Ordnung der inneren Zellen ------------------------------------------------------------------- */
 
   /** Dünne Randreihen in die Nachbarreihe, dicke teilen; dünne Rechtecke schmelzen ganz (mit Film und Kruste). */
@@ -793,7 +655,7 @@ export class BodyMelt {
       let K = 0;
       for (let k = b.off[r]; k < b.off[r] + b.ni[r] * b.nj[r]; k += 1) { E += b.E[k]; F += b.film[k]; K += b.crust[k]; }
       this.melted += m;
-      this.give(b, r, widestFree(b, r), m + F + K, E + m * e0, K);
+      this.water.give(b, r, widestFree(b, r), m + F + K, E + m * e0, K);
     }
     regrid(b, rects);
     if (b.nr === 0 || b.ncell === 0) {

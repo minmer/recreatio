@@ -3,7 +3,9 @@
  * (`legacy/pages/events/shell/useSlideScroll.ts`), Zeile für Zeile. Er ist das
  * Ergebnis vieler Runden an echten Trackpads, Mausrädern und Telefonen; ihn neu
  * zu schreiben hiesse, jede dieser Runden noch einmal zu drehen. Neu ist nur
- * `keyboard`: in der Vorschau des Editors gehören die Pfeiltasten der Seite.
+ * `keyboard`: in der Vorschau des Editors gehören die Pfeiltasten der Seite —
+ * und (2026-10-25) „Staying put": ändern sich die Masse, während nichts die Bahn
+ * bewegt, bleibt der Leser auf seinem Slajd, statt mitten im Wechsel zu stehen.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -436,6 +438,101 @@ export function useSlideScroll(slideCount: number, options: { readonly keyboard?
     return () => observer.disconnect();
   }, [slideCount, viewportHeight]);
 
+  // ── Staying put (2026-10-25) ──────────────────────────────────────────────
+
+  /**
+   * Where the reader is, kept when the measures change.
+   *
+   * A picture loads, a calendar arrives, the window shrinks (a phone's keyboard,
+   * a rotation): the starts of the slides move, and the track, keeping its
+   * number, used to stand in the middle of a change from then on — the end of
+   * the previous slide still showing at the top until the next scroll. While
+   * nothing moves the track, it now moves along: on the slide the reader was on,
+   * at the same place in it. And the track never comes to rest between two
+   * slides (a move that ended on a start which has since moved): it goes to the
+   * nearer one.
+   */
+  // The slide the reader rests on, how far into it, and at which track position that was seen.
+  const anchorRef = useRef<{ index: number; offset: number; at: number } | null>(null);
+  // Where the move under way is going: the start (or the end) of which slide. Set by tweenTo.
+  const goalRef = useRef<{ index: number; end: boolean } | null>(null);
+  const measuresRef = useRef('');
+  const measures = geometry.map((slide) => `${slide.start}:${slide.travel}`).join(',');
+
+  useLayoutEffect(() => {
+    const idle = rafRef.current === null && settleRafRef.current === null && resolveTimerRef.current === null
+      && peekRef.current === null && touchYRef.current === null;
+    const changed = measuresRef.current !== measures;
+    measuresRef.current = measures;
+    if (geometry.length === 0) return;
+
+    const tween = tweenRef.current;
+    if (changed && tween !== null) {
+      // A move under way goes on to where its slide is now.
+      const goal = goalRef.current;
+      const slide = goal === null ? undefined : geometry[goal.index];
+      if (goal !== null && slide !== undefined) {
+        tween.to = clamp(goal.end ? slide.start + slide.travel : slide.start, 0, maxScroll);
+        targetRef.current = tween.to;
+      }
+      return;
+    }
+    if (changed && !idle) {
+      // A hand on the track (a finger, the wheel, a throw): the slide under it moves, its place in that slide stays.
+      // slidesRef still holds the measures from before — it is refreshed after this.
+      const before = slidesRef.current;
+      const found = before.findIndex((slide) => targetRef.current <= slide.innerEnd + 0.5);
+      const index = found === -1 ? before.length - 1 : found;
+      const delta = (geometry[index]?.start ?? 0) - (before[index]?.start ?? 0);
+      if (Math.abs(delta) > 0.5) {
+        targetRef.current += delta;
+        positionRef.current += delta;
+        setPosition(positionRef.current);
+      }
+      return;
+    }
+    if (!idle) return;
+
+    const at = positionRef.current;
+    const jump = (to: number) => {
+      const next = clamp(to, 0, maxScroll);
+      if (Math.abs(next - at) <= 0.5) return;
+      positionRef.current = next;
+      targetRef.current = next;
+      setPosition(next);
+    };
+
+    // Moved under a reader who has not moved: back onto the same place.
+    const anchor = anchorRef.current;
+    const held = anchor === null ? undefined : geometry[anchor.index];
+    if (changed && anchor !== null && held !== undefined && Math.abs(anchor.at - at) <= 0.5) {
+      jump(held.start + Math.min(anchor.offset, held.travel));
+      return;
+    }
+
+    const index = geometry.findIndex((slide) => at >= slide.start - 0.5 && at <= slide.start + slide.travel + 0.5);
+    if (index >= 0) {
+      anchorRef.current = { index, offset: clamp(at - geometry[index].start, 0, geometry[index].travel), at };
+      return;
+    }
+    // Between two slides with nothing moving: to the slide the last move was going to, if it is one of the two,
+    // else to the nearer edge of a slide.
+    const goal = goalRef.current;
+    const above = geometry.findIndex((slide, i) => at > slide.start + slide.travel && i + 1 < geometry.length && at < geometry[i + 1].start);
+    if (goal !== null && above >= 0 && (goal.index === above || goal.index === above + 1)) {
+      const slide = geometry[goal.index];
+      jump(goal.end ? slide.start + slide.travel : slide.start);
+      return;
+    }
+    let best = 0;
+    for (const slide of geometry) {
+      for (const edge of [slide.start, slide.start + slide.travel]) {
+        if (Math.abs(edge - at) < Math.abs(best - at)) best = edge;
+      }
+    }
+    jump(best);
+  }, [geometry, maxScroll, measures, position]);
+
   // ── Animation ─────────────────────────────────────────────────────────────
 
   const animate = useCallback(() => {
@@ -507,6 +604,10 @@ export function useSlideScroll(slideCount: number, options: { readonly keyboard?
       const to = clamp(value, 0, maxScrollRef.current);
       targetRef.current = to;
       tweenRef.current = { from: positionRef.current, to, start: performance.now(), duration, ease };
+      // 2026-10-25 — which slide's start or end this is, so a move can follow it if it shifts ("Staying put").
+      const slides = slidesRef.current;
+      const index = slides.findIndex((slide) => Math.abs(slide.start - to) <= 0.5 || Math.abs(slide.innerEnd - to) <= 0.5);
+      goalRef.current = index === -1 ? null : { index, end: Math.abs(slides[index].start - to) > 0.5 };
       animate();
     },
     [animate]

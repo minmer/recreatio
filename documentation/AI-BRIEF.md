@@ -786,7 +786,7 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   "cover" — tło slajdu tytułowego: lista warstw (niżej)
   "show" — sceny prezentacji (niżej: Prezentacja)
   "deck" — całość pokazu slajdów (tylko "mode": "slides"): { "backdrop": [warstwy], "nav": "labels"|"dots"|"none", "titleSlide": true|false, "width": 80 }
-      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy leżą w nim i przechodzą płynnie jedna w drugą
+      "backdrop" — tło wspólne: warstwy (jak niżej), które stoją za wszystkimi slajdami i leżą POD ich własnymi warstwami — gradient tła wspólnego nie zasłania więc obrazów slajdów; slajdy przesuwają się nad nim przezroczyste, a ich własne warstwy jadą razem ze swoim slajdem (w jego prostokącie): przy przejściu odjeżdżają z nim w górę, gasną albo zostają zakryte jak on — nic z poprzedniego slajdu nie zostaje na następnym
       "nav" — pasek: nazwy slajdów u góry (zwykły), kropki z prawej, bez paska; "titleSlide": false — bez slajdu tytułowego (pierwszy moduł jest pierwszym ekranem)
       "width" — najwyżej tyle rem szerokości sceny: w niej liczą się miejsca modułów przechodzących i "layout" slajdów (null — całe okno)
   "menu" — null (bez menu), lista pozycji albo { "from": "ścieżka" } (to samo menu co na innej Twojej stronie)

@@ -149,7 +149,9 @@ export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'c
   /* 0070 — ein Termin eines Kalenders (`of` nennt das Feld mit dem Kalender). */
   | 'calendarItem'
   /* 0082 — eine Seite (ihr Pfad), gewählt aus den eigenen. */
-  | 'page';
+  | 'page'
+  /* 2026-10-25 — „Co pokazuje": Häkchen je Möglichkeit (`options`); gespeichert ist, was WEGBLEIBT, leer — alles (`HideField.tsx`). */
+  | 'hide';
 
 export interface FieldDef {
   readonly key: string;
@@ -170,6 +172,9 @@ export interface FieldDef {
 
   /** 0104 — bei `questions`: auch die Fragen der Unterformulare (die Spalten der „Lista osób"). */
   readonly subforms?: boolean;
+
+  /** 2026-10-25 — bei `hide`: was sich weglassen lässt, mit dem Satz am Häkchen. */
+  readonly options?: readonly { readonly value: string; readonly label: string }[];
 }
 
 /* -- Ein Baustein, so wie ihn das Verzeichnis hält -------------------------- */
@@ -369,7 +374,7 @@ export interface ExtraKey {
 
 /** Wie ein Feld der Tafel im JSON steht. */
 const shapeOfField = (kind: FieldKind): JsonShape =>
-  kind === 'text' ? 'lines' : kind === 'calendars' || kind === 'questions' ? 'ids' : 'line';
+  kind === 'text' ? 'lines' : kind === 'calendars' || kind === 'questions' || kind === 'hide' ? 'ids' : 'line';
 
 /** Was eine Feldart im JSON heisst — für die Beschreibung. */
 const FIELD_SAYS: Record<FieldKind, string> = {
@@ -386,7 +391,8 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   knowledge: 'identyfikator bazy wiedzy (Cogita) — najprościej wybrać w edytorze',
   libraryEntry: 'identyfikator wpisu biblioteki, skryptorium albo bazy wiedzy — najprościej wybrać w edytorze',
   calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
-  page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze'
+  page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze',
+  hide: 'lista tego, czego moduł NIE pokazuje (brak albo pusta lista — pokazuje wszystko)'
 };
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */
@@ -452,7 +458,11 @@ export function flatJson(fields: readonly FieldDef[], extra: readonly ExtraKey[]
   };
 
   const keys: Record<string, string> = {};
-  for (const f of fields) keys[f.key] = `${f.label} — ${FIELD_SAYS[f.kind]}${f.hint === undefined ? '' : ` (${f.hint})`}`;
+  for (const f of fields) {
+    keys[f.key] = `${f.label} — ${FIELD_SAYS[f.kind]}${f.hint === undefined ? '' : ` (${f.hint})`}`
+      /* 2026-10-25 — die Möglichkeiten einer Auswahl, je mit ihrem Satz. */
+      + (f.options === undefined || f.options.length === 0 ? '' : `; możliwe: ${f.options.map((o) => `"${o.value}" (${o.label})`).join(', ')}`);
+  }
   for (const e of extra) {
     keys[e.key] = e.says;
     for (const [path, says] of Object.entries(e.inside ?? {})) keys[`${e.key}${path}`] = says;

@@ -83,6 +83,8 @@ export class Phase {
   private readonly Fm: Float64Array;
   private readonly Fe: Float64Array;
   private readonly dm: Float64Array;
+  /** Je Zelle: hatte sie beim Eintritt in applyMass Wasserteilchen (Arbeitsspeicher)? */
+  private readonly fed: Uint8Array;
   readonly side = new Int32Array(4);
   /** Rand der Diffusion je Zelle und Seite (Leitwert, Wert) — beim Aufbau berechnet, bei den Flüssen gelesen. */
   private readonly bG: Float64Array;
@@ -113,6 +115,7 @@ export class Phase {
     this.Fm = new Float64Array(n);
     this.Fe = new Float64Array(n);
     this.dm = new Float64Array(engine.particles.cap);
+    this.fed = new Uint8Array(n);
     this.bG = new Float64Array(4 * n);
     this.bY = new Float64Array(4 * n);
     this.edge = new Uint8Array(n);
@@ -246,7 +249,13 @@ export class Phase {
   applyMass(Fm: Float64Array, dt: number): void {
     const { grid: g, particles: P, liquid: L } = this.e;
     const { nx, ny } = g;
-    const { acc, dm } = this;
+    const { acc, dm, fed } = this;
+    /*
+     * Welche Zellen beim Eintritt Wasserteilchen hatten: nur dort geht das Wasser an Teilchen, in die übrigen kommt ein
+     * neues. Ein Teilchen, das unten zu klein wird und verschwindet, macht seine Zelle nicht nachträglich leer — bis
+     * 2026-10-24 bekam sie dann ihr Wasser ein zweites Mal (ein winziges Tröpfchen, auf dem Dampf kondensierte).
+     */
+    for (let c = 0; c < g.n; c += 1) fed[c] = acc[c] > 0 ? 1 : 0;
     dm.fill(0, 0, P.count);
     for (let p = 0; p < P.count; p += 1) {
       if (P.mat[p] !== WATER) continue;
@@ -282,7 +291,7 @@ export class Phase {
     }
     /* Wasser in Zellen ohne Wasserteilchen: ein neues Teilchen (mit waterH, wie die Aufrufer gebucht haben). */
     for (let c = 0; c < g.n; c += 1) {
-      if (Fm[c] <= 0 || acc[c] > 0) continue;
+      if (Fm[c] <= 0 || fed[c] !== 0) continue;
       const i = c % nx;
       const j = (c - i) / nx;
       const q = P.add((i + 0.5) * g.dx, (j + 0.5) * g.dx, Fm[c], this.waterH(c), WATER);

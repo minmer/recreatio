@@ -17,16 +17,44 @@
 import { useEffect, useState } from 'react';
 
 import { ItemLink } from '../../calendar/ItemLink';
+import { hiddenOf } from '../HideField';
 import { definePart, text, type PartContext, type RawConfig } from '../part';
 import { countParts, loadProgram, openProgram, type ProgramNode } from '../../calendar/program';
 import { keysFor } from '../../core/ringOf';
 import { whoIsThere } from '../../core/session';
 import { Loading } from '../../ui/Loading';
 
+/**
+ * 2026-10-25 — WAS DIE KACHEL ZEIGT, ausser den Punkten mit ihren Zeiten (die
+ * stehen immer): Wunsch des Nutzers — auf der Seite des Ereignisses selbst
+ * führte der Knopf des Termins („Informacje i zapisy") nur wieder hierher.
+ */
+const PROGRAM_BITS = [
+  { value: 'whole', label: 'Nazwa, data i miejsce całego terminu' },
+  { value: 'notes', label: 'Opis całego terminu' },
+  { value: 'link', label: 'Przycisk z linkiem całego terminu' },
+  { value: 'places', label: 'Miejsca punktów' },
+  { value: 'pointNotes', label: 'Uwagi przy punktach' },
+  { value: 'pointLinks', label: 'Przyciski z linkami przy punktach' }
+] as const;
+
+type ProgramBit = (typeof PROGRAM_BITS)[number]['value'];
+
 interface ProgramConfig {
   readonly title: string;
   readonly calendar: string;
   readonly item: string;
+  /** Was weggelassen ist — leer: alles. */
+  readonly hidden: ReadonlySet<string>;
+}
+
+const shown = (config: ProgramConfig, bit: ProgramBit): boolean => !config.hidden.has(bit);
+
+/** Was an den Punkten steht — die Zeit und der Name immer. */
+interface PointBits {
+  readonly places: boolean;
+  readonly notes: boolean;
+  readonly links: boolean;
 }
 
 const day = (at: Date) => at.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -39,7 +67,7 @@ function when(node: ProgramNode, withDay: boolean): string {
   return withDay ? `${day(node.start)}, ${span}` : span;
 }
 
-function Points({ nodes, deep, parentDay }: { nodes: readonly ProgramNode[]; deep: boolean; parentDay: string | null }) {
+function Points({ nodes, deep, parentDay, bits }: { nodes: readonly ProgramNode[]; deep: boolean; parentDay: string | null; bits: PointBits }) {
   if (nodes.length === 0) return null;
   return (
     <ol className="wk-program-list">
@@ -51,11 +79,11 @@ function Points({ nodes, deep, parentDay }: { nodes: readonly ProgramNode[]; dee
             <span className="wk-program-what">
               <strong>{node.title}</strong>
               {node.cancelled && <span className="wk-tag">odwołane</span>}
-              {node.location !== null && <span className="wk-program-where">{node.location}</span>}
-              {deep && node.notes !== null && <span className="wk-program-notes">{node.notes}</span>}
-              {node.link !== null && <ItemLink url={node.link} label={node.linkLabel} compact />}
+              {bits.places && node.location !== null && <span className="wk-program-where">{node.location}</span>}
+              {bits.notes && deep && node.notes !== null && <span className="wk-program-notes">{node.notes}</span>}
+              {bits.links && node.link !== null && <ItemLink url={node.link} label={node.linkLabel} compact />}
             </span>
-            {deep && <Points nodes={node.children} deep={deep} parentDay={node.start.toDateString()} />}
+            {deep && <Points nodes={node.children} deep={deep} parentDay={node.start.toDateString()} bits={bits} />}
             {!deep && node.children.length > 0 && <span className="wk-hint"> · {node.children.length} pkt.</span>}
           </li>
         );
@@ -95,30 +123,35 @@ function ProgramView({ config, ctx }: { config: ProgramConfig; ctx: PartContext 
   if (strip) {
     return (
       <p className="wk-program-strip">
-        <strong>{config.title !== '' ? config.title : node.title}</strong> · {when(node, true)} · {parts} {parts === 1 ? 'punkt' : 'punktów'}
+        <strong>{config.title !== '' ? config.title : node.title}</strong>
+        {shown(config, 'whole') && <> · {when(node, true)}</>} · {parts} {parts === 1 ? 'punkt' : 'punktów'}
       </p>
     );
   }
 
+  const bits: PointBits = { places: shown(config, 'places'), notes: shown(config, 'pointNotes'), links: shown(config, 'pointLinks') };
+
   return (
     <div className="wk-program">
       {head}
-      <p className="wk-program-head">
-        {config.title !== '' && config.title !== node.title && <strong>{node.title} · </strong>}
-        {when(node, true)}
-        {node.location !== null && <> · {node.location}</>}
-      </p>
-      {deep && node.notes !== null && <p className="wk-program-notes">{node.notes}</p>}
-      {node.link !== null && <p><ItemLink url={node.link} label={node.linkLabel} /></p>}
+      {shown(config, 'whole') && (
+        <p className="wk-program-head">
+          {config.title !== '' && config.title !== node.title && <strong>{node.title} · </strong>}
+          {when(node, true)}
+          {node.location !== null && <> · {node.location}</>}
+        </p>
+      )}
+      {shown(config, 'notes') && deep && node.notes !== null && <p className="wk-program-notes">{node.notes}</p>}
+      {shown(config, 'link') && node.link !== null && <p><ItemLink url={node.link} label={node.linkLabel} /></p>}
       {parts === 0 ? <p className="wk-card-muted">Program jeszcze nie jest gotowy.</p>
-        : <Points nodes={node.children} deep={deep} parentDay={node.start.toDateString()} />}
+        : <Points nodes={node.children} deep={deep} parentDay={node.start.toDateString()} bits={bits} />}
     </div>
   );
 }
 
 export const programPart = definePart<ProgramConfig>({
   kind: 'program',
-  example: { title: 'Program rekolekcji', calendar: '<id-kalendarza>', item: '<id-terminu>' },
+  example: { title: 'Program rekolekcji', calendar: '<id-kalendarza>', item: '<id-terminu>', hide: 'link,notes' },
   label: 'Program wydarzenia',
   use: 'Termin z kalendarza razem z jego punktami (i podpunktami) — rekolekcje, pielgrzymka, festyn. Zmiany w kalendarzu od razu widać na stronie.',
   box: { colSpan: 3, rowSpan: 4 },
@@ -126,10 +159,14 @@ export const programPart = definePart<ProgramConfig>({
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'pusty: nazwa terminu' },
     { key: 'calendar', label: 'Kalendarz', kind: 'calendar' },
-    { key: 'item', label: 'Termin', kind: 'calendarItem', of: 'calendar' }
+    { key: 'item', label: 'Termin', kind: 'calendarItem', of: 'calendar' },
+    /* 2026-10-25 — Häkchen: was ausser den Punkten dasteht (gespeichert: was wegbleibt). */
+    { key: 'hide', label: 'Co pokazuje (oprócz punktów z godzinami)', kind: 'hide', options: PROGRAM_BITS }
   ],
 
-  read: (raw: RawConfig): ProgramConfig => ({ title: text(raw, 'title'), calendar: text(raw, 'calendar'), item: text(raw, 'item') }),
+  read: (raw: RawConfig): ProgramConfig => ({
+    title: text(raw, 'title'), calendar: text(raw, 'calendar'), item: text(raw, 'item'), hidden: hiddenOf(text(raw, 'hide'))
+  }),
 
   hasContent: (config) => config.item !== '',
   missing: (config) => config.calendar === '' ? 'Wybierz kalendarz, a potem termin — jego program pojawi się na stronie.'
@@ -137,11 +174,15 @@ export const programPart = definePart<ProgramConfig>({
     : null,
 
   fullscreen: true,
-  shows: (_config, size) => size.height === 'strip'
-    ? 'Nazwa, data i liczba punktów w jednym wierszu.'
-    : size.height === 'tall'
-      ? 'Cały program: wszystkie poziomy z miejscem i uwagami.'
-      : 'Punkty pierwszego poziomu z godzinami; podpunkty jako liczba.',
+  shows: (config, size) => {
+    const left = PROGRAM_BITS.filter((one) => config.hidden.has(one.value)).map((one) => one.label.toLowerCase());
+    const without = left.length === 0 ? '' : ` Bez: ${left.join(', ')}.`;
+    return (size.height === 'strip'
+      ? `Nazwa${shown(config, 'whole') ? ', data' : ''} i liczba punktów w jednym wierszu.`
+      : size.height === 'tall'
+        ? 'Cały program: wszystkie poziomy z miejscem i uwagami.'
+        : 'Punkty pierwszego poziomu z godzinami; podpunkty jako liczba.') + (size.height === 'strip' ? '' : without);
+  },
 
   View: ProgramView
 });

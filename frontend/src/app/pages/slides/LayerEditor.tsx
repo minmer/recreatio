@@ -43,7 +43,7 @@ export function DeckEditor({ path, theme, deck, busy, onChange }: {
       <details className="wk-fold">
         <summary>Tło wspólne{deck.backdrop.length > 0 ? ` (${deck.backdrop.length})` : ''}</summary>
         <p className="wk-hint">
-          Stoi za wszystkimi slajdami. Gdy jest, slajdy przesuwają się nad nim przezroczyste, a ich własne tła leżą w nim i przechodzą płynnie jedno w drugie (kolory, poświata) — nici, fale i mgła zostają.
+          Stoi za wszystkimi slajdami i pod ich własnymi tłami. Gdy jest, slajdy przesuwają się nad nim przezroczyste, a ich własne tła jadą razem z nimi i znikają razem z nimi — tło wspólne (kolory, nici, fale, mgła) zostaje.
         </p>
         <LayerEditor path={path} theme={theme} label="" layers={deck.backdrop} busy={busy} blank onChange={(backdrop) => onChange({ ...deck, backdrop })} />
       </details>

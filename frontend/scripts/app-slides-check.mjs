@@ -26,8 +26,9 @@ const entry = join(workspace, 'entry.tsx');
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export { readSlideValue, slideJson, remapSlide, frameFor, layoutFor } from '${app}pages/slides/slides';
-export { readLayers, layerJson, layersJson, readLook, writeLook, readDeck, deckJson, NO_DECK } from '${app}pages/slides/slideLook';
+export { readLayers, layerJson, layersJson, readLook, writeLook, readDeck, deckJson, NO_DECK, defaultLayers, resolveTheme } from '${app}pages/slides/slideLook';
 export { motionOf, frameAt, backdropAt, deckAt, DISSOLVE, STILL } from '${app}pages/slides/slideMotion';
+export { sheetsAt, layerPlace, layerCover } from '${app}pages/slides/slideSheets';
 export { seeded, waves, meshMotions, layerBackground, layerPaint } from '${app}pages/presentation/deckLayers';
 export { planImport, exportPage, DEFAULT_IMPORT } from '${app}pages/pageJson';
 export { pageDescription } from '${app}pages/pageJsonText';
@@ -126,12 +127,138 @@ try {
     assert.equal(m.frameAt(places, 0.5, false).max, 32.5, 'the cap travels');
     assert.ok(close(m.frameAt(places, 0.5, false).scale, 0.79), 'half way between ×1.08 and ×0.5');
 
-    /* Das Tuch: der jetzige unten, der nächste blendet darüber ein; ohne eigenes blendet der jetzige aus. */
+    /* Das Tuch der Präsentation (Szenen): der jetzige unten, der nächste blendet darüber ein; ohne eigenes blendet der jetzige aus.
+       Slajdy nutzen es seit 2026-10-25 nicht mehr — ihre Schichten liegen in ihrem Abschnitt (slideSheets). */
     assert.deepEqual(m.backdropAt([true, true, false, true], 0), [{ index: 0, opacity: 1 }]);
     assert.deepEqual(m.backdropAt([true, true, false, true], 0.5), [{ index: 0, opacity: 1 }, { index: 1, opacity: 0.5 }]);
     assert.deepEqual(m.backdropAt([true, true, false, true], 1.5), [{ index: 1, opacity: 0.5 }], 'the next has none: this one fades');
     assert.deepEqual(m.backdropAt([true, true, false, true], 2.5), [{ index: 3, opacity: 0.5 }], 'from nothing: the next fades in');
-    ok('slides: motion, layout (and tall), companions (remapped), dissolve (both at once, 12 px, 2 px), tall places with a cap, the backdrop crossfade');
+    ok('slides: motion, layout (and tall), companions (remapped), dissolve (both at once, 12 px, 2 px), tall places with a cap, the scenes’ backdrop crossfade');
+  }
+
+  /* -- 2026-10-25: ein Slajd ist ein Blatt — er nimmt seine Schichten oben mit hinaus (slideSheets) ------------- */
+  {
+    const vh = 800;
+    const F = [{ start: 0, height: 800 }, { start: 800, height: 800 }, { start: 1600, height: 1200 }];
+    const at = (p, kinds, cover = [], reduced = false) => m.sheetsAt(F, p, vh, kinds, cover, reduced);
+    const KINDS = ['scroll', 'flow', 'fade', 'cover', 'reveal', 'zoom', 'side', 'dissolve'];
+    const near = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+    const topOf = (k, s) => F[k].start - s.pinned + s.motion.lift;
+
+    /* Przewinięcie: beide fahren mit der Bahn, aneinander — nichts zu schneiden. */
+    const scroll = at(400, ['scroll', 'scroll', 'scroll']);
+    assert.ok(scroll[0].cut === null && scroll[1].cut === null && !scroll[0].motion.pin && !scroll[1].motion.pin, 'scroll: nothing cut, nothing pinned');
+    assert.deepEqual([topOf(0, scroll[0]), topOf(1, scroll[1])], [-400, 400], 'scroll: the old above, the new below, touching');
+
+    /* Odsłonięcie: der alte fährt hinauf, der neue steht — von ihm nur, was unter dem alten liegt. */
+    const reveal = at(400, ['scroll', 'reveal', 'scroll']);
+    assert.ok(reveal[0].motion.above && reveal[1].motion.pin);
+    assert.deepEqual(reveal[1].cut, { top: 400, bottom: 0, right: 0 }, 'reveal: uncovered only below the leaving one');
+    assert.equal(at(720, ['scroll', 'reveal', 'scroll'])[1].cut.top, 80, 'the uncovered part grows as the old one goes up');
+    assert.ok(near(at(0.25, ['scroll', 'reveal', 'scroll'])[1].cut.top, 799.75), 'at the very start only what the old one has uncovered');
+    assert.ok(at(0, ['scroll', 'reveal', 'scroll'])[1].cut === null && at(800, ['scroll', 'reveal', 'scroll'])[1].cut === null, 'before and after: nothing cut');
+
+    /* Nakrycie: der neue kommt über den stehenden alten (der kleiner wird) — vom alten nur, was darüber liegt, in seinen Massen. */
+    assert.ok(near(at(400, ['scroll', 'cover', 'scroll'])[0].cut.bottom, 400), 'cover: the old one cut where the new one lies');
+    const deeper = at(600, ['scroll', 'cover', 'scroll']);
+    const visibleEnd = topOf(0, deeper[0]) + 400 + (800 - deeper[0].cut.bottom - 400) * deeper[0].motion.scale;
+    assert.ok(near(deeper[0].cut.bottom, 610.6649111257407, 1e-6) && near(visibleEnd, topOf(1, deeper[1]), 1e-6), `cut in the shrunk old one’s own measure — its visible end is the new one’s top (${deeper[0].cut.bottom})`);
+    assert.ok(near(at(799.9, ['scroll', 'cover', 'scroll'])[0].cut.bottom, 800, 1e-3), 'just before arriving: all of it covered');
+    const tallOld = m.sheetsAt([{ start: 0, height: 1200 }, { start: 1200, height: 800 }], 800, vh, ['scroll', 'cover']);
+    assert.ok(tallOld[0].pinned === 400 && near(tallOld[0].cut.bottom, 400), `a tall old one: its last screen, cut under the new one (${JSON.stringify(tallOld[0].cut)})`);
+
+    /* Z boku: der neue von rechts über den alten, der nach links weicht. */
+    assert.ok(near(at(400, ['scroll', 'side', 'scroll'])[0].cut.right, 32.5), 'side: the old one shows only left of the new one');
+
+    /* Was sich nur berührt oder überblendet, schneidet nicht. */
+    for (const kind of ['scroll', 'flow', 'fade', 'zoom', 'dissolve']) {
+      const w = at(400, ['scroll', kind, 'scroll']);
+      assert.ok(w[0].cut === null && w[1].cut === null, `${kind}: nothing cut`);
+    }
+
+    /* Przenikanie: der alte steht, solange der neue ganz deckt; sonst bleibt von ihm genau 1 − e. */
+    const fadeOld = (p, cover) => at(p, ['scroll', 'fade', 'scroll'], cover)[0].motion.opacity;
+    assert.deepEqual([fadeOld(400, [1, 1, 1]), fadeOld(400, [])], [1, 1], 'fade over a covering one: the old one stands (0084)');
+    assert.ok(near(fadeOld(400, [1, 0, 1]), 0.5) && near(fadeOld(400, [1, 0.45, 1]), 0.5 / 0.775), 'fade over a see-through one: exactly 1 − e of the old one left');
+    assert.ok(fadeOld(799.99, [1, 0.45, 1]) < 1e-6 && fadeOld(0.01, [1, 0, 1]) > 0.999999, 'nothing left at the end, all of it at the start');
+    assert.ok(near(at(400, ['scroll', 'zoom', 'scroll'], [1, 0, 1])[0].motion.opacity, 0.5), 'zoom: fades anyway');
+    /* Weniger Bewegung: alles wird Przenikanie — nichts geschnitten, beide stehen, der alte unter einem durchsichtigen blendet aus. */
+    for (const kind of ['reveal', 'cover', 'side']) {
+      const w = at(400, ['scroll', kind, 'scroll'], [1, 0, 1], true);
+      assert.ok(w[0].cut === null && w[1].cut === null && w[0].motion.pin && w[1].motion.pin && near(w[0].motion.opacity, 0.5), `${kind}, less motion: a fade in place`);
+    }
+
+    /* Jeder Wechsel, mit jedem Stapel: angekommen ist vom alten nichts mehr zu sehen — vorwärts, rückwärts, auf einen hohen. */
+    /* Zu sehen: mehr als ein halbes Pixel hoch, ein halbes Prozent breit, mit Deckkraft — unter einem überblendenden so weit, wie der es nicht bedeckt. */
+    const seen = (k, s, other, cover) => {
+      const top = topOf(k, s);
+      const shown = Math.min(top + F[k].height - (s.cut?.bottom ?? 0), vh) - Math.max(top + (s.cut?.top ?? 0), 0);
+      const wide = Math.min(100, s.motion.shift + 100 - (s.cut?.right ?? 0)) - Math.max(0, s.motion.shift);
+      const opacity = s.motion.opacity * (other === undefined ? 1 : 1 - cover * other.motion.opacity);
+      return shown > 0.5 && wide > 0.5 && opacity > 0.01;
+    };
+    for (const kind of KINDS) {
+      for (const cover of [[1, 0, 1], [1, 1, 1], [1, 0.45, 1]]) {
+        const crossfade = ['fade', 'zoom', 'dissolve'].includes(kind);
+        const end = at(799.99, ['scroll', kind, 'scroll'], cover);
+        assert.ok(!seen(0, end[0], crossfade ? end[1] : undefined, cover[1]), `${kind} (${cover}): arrived, nothing of the old one`);
+        const back = at(0.01, ['scroll', kind, 'scroll'], cover);
+        assert.ok(!seen(1, back[1], undefined, 0), `${kind} (${cover}): back on the first, nothing of the second`);
+        const tall = at(1599.99, ['scroll', 'scroll', kind], cover);
+        assert.ok(!seen(1, tall[1], crossfade ? tall[2] : undefined, cover[2]), `${kind} (${cover}): arrived at a tall one, nothing of the old one`);
+        const mid = at(1200, ['scroll', 'scroll', kind], cover);
+        assert.ok(seen(1, mid[1], undefined, 0) && seen(2, mid[2], undefined, 0), `${kind} (${cover}): mid-way both are there`);
+      }
+    }
+
+    /* Die Schichten: auf dem Schirm −Tempo × Weg — ob der Slajd fährt oder steht (nichts friert ein), stetig beim Ankommen. */
+    const screen = (k, s, place) => topOf(k, s) + place.top;
+    const moving = at(400, ['scroll', 'scroll', 'scroll'])[1];
+    const pinnedB = (p) => at(p, ['scroll', 'reveal', 'scroll'])[1];
+    const placeAt = (s, p, speed = 0.5, bigtext = false) => m.layerPlace(speed, bigtext, F[1], s.pinned, p, vh);
+    assert.equal(screen(1, moving, placeAt(moving, 400)), -200, 'moving: −0.5 × 400 on the screen');
+    assert.equal(placeAt(moving, 400).height, 1600, 'taller by its tempo over the whole way');
+    assert.deepEqual([screen(1, pinnedB(400), placeAt(pinnedB(400), 400)), screen(1, pinnedB(500), placeAt(pinnedB(500), 500))], [-200, -250], 'pinned: it keeps drifting with the track');
+    const rest = at(800, ['scroll', 'reveal', 'scroll'])[1];
+    assert.equal(screen(1, rest, placeAt(rest, 800)), -400, 'and arrives where it rests — no jump');
+    for (const p of [400, 800, 1200]) {
+      const s = at(p, ['scroll', 'scroll', 'scroll'])[1];
+      assert.ok(near(placeAt(s, p, 0.34).top, (s.pinned - 800) * (1 - 0.34) - 0.34 * vh), `unpinned: as before 2026-10-25 (${p})`);
+    }
+    assert.deepEqual(m.layerPlace(0.5, false, F[1], -2000, -2000, vh), m.layerPlace(0.5, false, F[1], -900, -900, vh), 'off the screen: nothing changes');
+    const word = placeAt(moving, 400, 0.6, true);
+    assert.ok(screen(1, moving, word) === 0 && near(word.shift, 120), 'a big word: its plane stands on the screen, it wanders by its way');
+    assert.deepEqual([m.layerPlace(0.5, false, F[2], 1600, 1600, vh, true), m.layerPlace(0.6, true, F[2], 1600, 1600, vh, true)], [{ top: 0, height: 1200, shift: 0 }, { top: 0, height: 800, shift: 0 }], 'less motion: the layer covers its whole slide and goes with it');
+    /* Jede Schicht bedeckt, was von ihrem Slajd zu sehen ist — jede Art, jedes Tempo, über die ganze Folge. */
+    for (const kind of KINDS) {
+      for (let p = 0; p <= 2000; p += 7.3) {
+        const sheets = at(p, ['scroll', kind, kind]);
+        sheets.forEach((s, k) => {
+          const top = topOf(k, s);
+          const from = Math.max(s.cut?.top ?? 0, -top);
+          const to = Math.min(F[k].height - (s.cut?.bottom ?? 0), vh - top);
+          if (to <= from) return;
+          for (const speed of [0, 0.05, 0.12, 0.34, 0.5, 1]) {
+            const place = m.layerPlace(speed, false, F[k], s.pinned, p, vh);
+            assert.ok(place.top <= from + 1e-6 && place.top + place.height >= to - 1e-6, `${kind} @${p} slide ${k} speed ${speed}: the layer covers what shows (${place.top}…${place.top + place.height} vs ${from}…${to})`);
+          }
+        });
+      }
+    }
+
+    /* Wie viel ein Stapel deckt. */
+    const g = (from, to, via = null) => ({ kind: 'gradient', speed: 0, angle: 0, from, via, to });
+    const img = (opacity, blend = 'normal', url = 'x.jpg') => ({ kind: 'image', speed: 0, url, opacity, blend, position: 'center' });
+    const glow = { kind: 'glow', speed: 0, color: 'rgba(0,0,0,.2)', x: 50, y: 50, size: 60, opacity: 1, blend: 'normal' };
+    const big = { kind: 'bigtext', speed: 0, lines: ['A'], opacity: 1, color: null };
+    assert.deepEqual([
+      m.layerCover([]), m.layerCover([g('#000000', '#ffffff')]), m.layerCover([g('ground', 'accent', 'ink')]), m.layerCover([g('rgba(0, 0, 0, 1)', '#fff')]),
+      m.layerCover([g('transparent', '#fff')]), m.layerCover([g('rgba(0,0,0,0.4)', '#fff')]), m.layerCover([g('#00000080', '#fff')]), m.layerCover([g('hsl(0 0% 0% / 50%)', '#fff')]),
+      m.layerCover([img(0.45)]), m.layerCover([img(1)]), m.layerCover([img(1, 'normal', ' ')]), m.layerCover([glow, big, img(0.76, 'multiply')]), m.layerCover([glow, big, img(0.45)])
+    ].map((x) => Math.round(x * 1000) / 1000), [0, 1, 1, 1, 0, 0, 0, 0, 0.45, 0.98, 0, 0, 0.45]);
+    assert.ok(near(m.layerCover([img(0.45), img(0.5)]), 0.725), 'two photos: 1 − .55 × .5');
+    assert.ok(m.layerCover(m.defaultLayers('X', m.resolveTheme(null, true))) === 1 && m.layerCover(m.defaultLayers('X', m.resolveTheme(null, false))) === 1, 'a slide without layers of its own (no cloth) covers');
+    ok('slides as sheets (2026-10-25): reveal uncovers below the leaving one, cover and side cut the covered one (also a tall one), fade over a see-through one leaves exactly 1 − e, less motion fades in place; every kind × every stack leaves nothing behind (forward, back, tall); layers drift with the track even while pinned, arrive without a jump, cover what shows; stacks: how much they cover');
   }
 
   /* -- 3. Die Folge -------------------------------------------------------------------------- */
@@ -215,12 +342,25 @@ try {
     const said = console.error;
     console.error = (...args) => { if (!String(args[0]).includes('useLayoutEffect does nothing on the server')) said(...args); };
     let html = '';
+    let bare = '';
     try {
       html = m.renderToStaticMarkup(m.createElement(m.PageSlides, { parts: plan.parts, look: plan.look, title: plan.title ?? 'Pokaz', lead: null, embedded: true }));
+      const plainLook = { ...plan.look, deck: { ...plan.look.deck, backdrop: [] } };
+      bare = m.renderToStaticMarkup(m.createElement(m.PageSlides, { parts: plan.parts, look: plainLook, title: plan.title ?? 'Pokaz', lead: null, embedded: true }));
     } finally {
       console.error = said;
     }
-    assert.ok(html.includes('wk-deck-backdrop'), 'the shared backdrop is drawn');
+    /* 2026-10-25 — ein Slajd ist ein Blatt: seine Schichten in seinem Abschnitt; das Tuch als erstes in der Bahn. */
+    const sectionOf = (markup, label) => { const from = markup.indexOf(`aria-label="${label}"`); return markup.slice(from, markup.indexOf('</section>', from)); };
+    assert.ok(/<div class="wk-deck-track"[^>]*><div class="wk-deck-backdrop"/.test(html), 'the shared backdrop is drawn — the first thing in the track');
+    assert.equal((html.match(/class="wk-deck-layer is-[a-z]+ is-shared/g) ?? []).length, 2, 'with its two layers');
+    assert.ok(sectionOf(html, 'Wejście').includes('wk-deck-layer is-gradient'), 'the own gradient lies in its slide');
+    assert.ok(!sectionOf(html, 'Mapa').includes('wk-deck-layer'), 'a slide without layers of its own lets the cloth through');
+    /* Ohne Tuch (wie immer): kein Tuch; die eigenen Schichten, sonst der Grund und der Name. */
+    assert.ok(!bare.includes('wk-deck-backdrop'), 'plain: no cloth');
+    assert.ok(sectionOf(bare, 'Wejście').includes('wk-deck-layer is-gradient'), 'plain: the own gradient in its slide');
+    assert.ok(sectionOf(bare, 'Mapa').includes('wk-deck-layer is-gradient') && sectionOf(bare, 'Mapa').includes('>MAPA<'), 'plain: a slide without layers gets the ground and its name');
+    assert.equal((bare.match(/class="wk-deck-slide/g) ?? []).length, 2);
     assert.ok(html.includes('wk-deck-dots'), 'dots instead of names');
     assert.equal((html.match(/class="wk-deck-slide/g) ?? []).length, 2, 'two slides — no title slide');
     assert.ok(html.includes('wk-deck-row') && html.includes('<svg class="dr"'), 'the drawing beside its text');

@@ -370,10 +370,10 @@ export interface Look {
  *
  * <code>
  *   backdrop    Schichten hinter ALLEN Slajdy, die stehen bleiben. Sind welche da,
- *               rollen die Slajdy durchsichtig darüber, und ihre eigenen Schichten
- *               liegen ebenfalls im Tuch: sie gehen beim Wechsel fliessend ineinander
- *               über (der Altbestand von Cogita: ein Hintergrund, dessen Farben sich
- *               je Slajd ändern, und Nici, Fale, Dunst darüber).
+ *               rollen die Slajdy durchsichtig darüber. 2026-10-25: das Tuch liegt
+ *               als erstes in der Bahn (zurückgeschoben, es steht); die eigenen
+ *               Schichten eines Slajds liegen in seinem Abschnitt über dem Tuch und
+ *               gehen mit ihm — wer oben hinausfährt, nimmt sie mit (`slideSheets.ts`).
  *   nav         die Leiste: Namen oben (Vorgabe), Punkte rechts, keine
  *   titleSlide  false: kein Titelslajd, auch wenn die Seite Titel und Vorspann hat
  *               — der erste Baustein ist der erste Bildschirm
