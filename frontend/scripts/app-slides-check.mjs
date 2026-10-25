@@ -28,8 +28,8 @@ const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
 await writeFile(entry, `
 export { readSlideValue, slideJson, remapSlide, frameFor, layoutFor } from '${app}pages/slides/slides';
 export { readLayers, layerJson, layersJson, readLook, writeLook, readDeck, deckJson, NO_DECK, defaultLayers, resolveTheme } from '${app}pages/slides/slideLook';
-export { motionOf, frameAt, backdropAt, deckAt, DISSOLVE, STILL } from '${app}pages/slides/slideMotion';
-export { sheetsAt, layerPlace, layerCover } from '${app}pages/slides/slideSheets';
+export { motionOf, frameAt, backdropAt, deckAt, DISSOLVE, STILL, edgeOf } from '${app}pages/slides/slideMotion';
+export { sheetsAt, layerPlace, layerCover, layerRoom, ROOM_ANY } from '${app}pages/slides/slideSheets';
 export { seeded, waves, meshMotions, layerBackground, layerPaint } from '${app}pages/presentation/deckLayers';
 export { planImport, exportPage, DEFAULT_IMPORT } from '${app}pages/pageJson';
 export { pageDescription } from '${app}pages/pageJsonText';
@@ -230,20 +230,51 @@ try {
     const word = placeAt(moving, 400, 0.6, true);
     assert.ok(screen(1, moving, word) === 0 && near(word.shift, 120), 'a big word: its plane stands on the screen, it wanders by its way');
     assert.deepEqual([m.layerPlace(0.5, false, F[2], 1600, 1600, vh, true), m.layerPlace(0.6, true, F[2], 1600, 1600, vh, true)], [{ top: 0, height: 1200, shift: 0 }, { top: 0, height: 800, shift: 0 }], 'less motion: the layer covers its whole slide and goes with it');
-    /* Jede Schicht bedeckt, was von ihrem Slajd zu sehen ist — jede Art, jedes Tempo, über die ganze Folge. */
+    /*
+       2026-10-25 — SO GROSS WIE NÖTIG, NICHT GRÖSSER (Wunsch des Nutzers): ein Slajd von einem Schirm zwischen zwei
+       Przewinięcia braucht für seine Schichten nichts als den Schirm; ein hoher dazu Tempo × Überlänge; jedes
+       festgehaltene Ende Tempo × Schirm; ein hoher, den ein Wechsel verkleinert oder sinken lässt, einen Rand dort.
+    */
+    const roomOf = (kinds, k) => m.layerRoom(F, k, vh, kinds);
+    const plainKinds = ['scroll', 'scroll', 'scroll'];
+    const sized = (k, p, speed, kinds) => m.layerPlace(speed, false, F[k], at(p, kinds)[k].pinned, p, vh, false, roomOf(kinds, k));
+    assert.equal(sized(1, 800, 0.5, plainKinds).height, vh, 'one screen between two scrolls: the layer is the screen, the picture is not enlarged');
+    assert.equal(sized(2, 1600, 0.5, plainKinds).height, vh + 0.5 * 400, 'a tall last slide: the screen and tempo × its extra length');
+    assert.equal(sized(1, 800, 0.5, ['scroll', 'fade', 'fade']).height, 1600, 'held at both ends: as large as before');
+    assert.equal(sized(1, 800, 0.5, ['scroll', 'reveal', 'scroll']).height, vh + 0.5 * 800, 'held on arrival only: tempo × one screen more');
+    const onScreen = (k, p, speed, kinds) => topOf(k, at(p, kinds)[k]) + sized(k, p, speed, kinds).top;
+    assert.ok(near(onScreen(1, 500, 0.5, plainKinds) - onScreen(1, 400, 0.5, plainKinds), -50), 'it still drifts at its tempo: −0.5 × 100');
+    assert.ok(near(onScreen(1, 800, 0.34, plainKinds), 0), 'arriving by scroll, its top meets the slide top — nothing wasted above');
+    assert.ok(!roomOf(['fade', 'scroll', 'scroll'], 0).entryPinned && !roomOf(['scroll', 'scroll', 'fade'], 2).exitPinned, 'the first never arrives, the last never leaves');
+    assert.ok(near(roomOf(['scroll', 'scroll', 'zoom'], 2).below, (1 / 0.88 - 1) * vh / 2) && roomOf(['scroll', 'zoom', 'scroll'], 1).below === 0, 'zooming in shows more of a tall slide below — only a tall one has rows there');
+    assert.ok(near(m.layerRoom([{ start: 0, height: 1200 }, { start: 1200, height: 800 }], 0, vh, ['scroll', 'cover']).above, (1 / 0.94 - 1) * vh / 2)
+      && near(m.layerRoom([{ start: 0, height: 1200 }, { start: 1200, height: 800 }], 0, vh, ['scroll', 'dissolve']).above, m.DISSOLVE.lift), 'covered (shrinks) or dissolving (sinks): a margin above a tall leaving slide');
+    assert.deepEqual([m.edgeOf('entry', 'scroll').pin, m.edgeOf('entry', 'flow').pin, m.edgeOf('entry', 'fade').pin, m.edgeOf('exit', 'reveal').pin, m.edgeOf('exit', 'cover').pin], [false, false, true, false, true], 'which changes hold a slide, read from the motions themselves');
+    const moved = m.layerPlace(0.6, true, F[1], 800, 800, vh, false, roomOf(plainKinds, 1));
+    assert.deepEqual([moved.height, moved.top], [vh, 0], 'a big word keeps its plane of one screen');
+
+    /*
+       Jede Schicht bedeckt, was von ihrem Slajd zu sehen ist — jede Art, jedes Tempo, über die ganze Folge, mit dem Raum,
+       den die Seite ihr gibt. Gesehen wird durch die Verkleinerung hindurch (um die Mitte des Schirms): ein hoher Slajd,
+       der beim Przybliżenie kleiner beginnt, zeigt mehr Zeilen als einen Schirm.
+    */
     for (const kind of KINDS) {
-      for (let p = 0; p <= 2000; p += 7.3) {
-        const sheets = at(p, ['scroll', kind, kind]);
-        sheets.forEach((s, k) => {
-          const top = topOf(k, s);
-          const from = Math.max(s.cut?.top ?? 0, -top);
-          const to = Math.min(F[k].height - (s.cut?.bottom ?? 0), vh - top);
-          if (to <= from) return;
-          for (const speed of [0, 0.05, 0.12, 0.34, 0.5, 1]) {
-            const place = m.layerPlace(speed, false, F[k], s.pinned, p, vh);
-            assert.ok(place.top <= from + 1e-6 && place.top + place.height >= to - 1e-6, `${kind} @${p} slide ${k} speed ${speed}: the layer covers what shows (${place.top}…${place.top + place.height} vs ${from}…${to})`);
-          }
-        });
+      for (const kinds of [['scroll', kind, kind], [kind, 'scroll', kind]]) {
+        for (let p = 0; p <= 2000; p += 7.3) {
+          const sheets = at(p, kinds);
+          sheets.forEach((s, k) => {
+            const top = topOf(k, s);
+            const origin = s.pinned - F[k].start + vh / 2;
+            const scale = s.motion.scale;
+            const from = Math.max(s.cut?.top ?? 0, origin + (-top - origin) / scale, 0);
+            const to = Math.min(F[k].height - (s.cut?.bottom ?? 0), origin + (vh - top - origin) / scale);
+            if (to <= from) return;
+            for (const speed of [0, 0.05, 0.12, 0.34, 0.5, 1]) {
+              const place = m.layerPlace(speed, false, F[k], s.pinned, p, vh, false, roomOf(kinds, k));
+              assert.ok(place.top <= from + 1e-6 && place.top + place.height >= to - 1e-6, `${kinds} @${p} slide ${k} speed ${speed}: the layer covers what shows (${place.top}…${place.top + place.height} vs ${from}…${to})`);
+            }
+          });
+        }
       }
     }
 

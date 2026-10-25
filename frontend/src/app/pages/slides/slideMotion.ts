@@ -128,6 +128,23 @@ function outgoing(kind: Transition, t: number): Motion {
 }
 
 /**
+ * 2026-10-25 — WAS EIN WECHSEL MIT EINEM SLAJD TUT, für die Grösse seiner Schichten
+ * (`slideSheets.layerRoom`): ob er ihn beim Kommen (`entry`) oder Gehen (`exit`)
+ * festhält, wie klein er ihn höchstens macht (kleiner heisst: von ihm ist mehr als
+ * ein Schirm zu sehen) und wie weit er ihn höchstens sinken lässt. Abgelesen an
+ * `incoming`/`outgoing` selbst, damit es nur eine Quelle gibt.
+ */
+export function edgeOf(side: 'entry' | 'exit', kind: Transition): { readonly pin: boolean; readonly scale: number; readonly sink: number } {
+  const at = (t: number): Motion => (side === 'entry' ? incoming(kind, t) : outgoing(kind, t));
+  const samples = [0, 0.25, 0.5, 0.75, 1].map(at);
+  return {
+    pin: at(0.5).pin,
+    scale: Math.min(...samples.map((m) => m.scale)),
+    sink: Math.max(0, ...samples.map((m) => m.lift))
+  };
+}
+
+/**
  * Was Slajd `k` gerade tut. Ein Slajd hat zwei Kanten: die, an der er kommt
  * (seine eigene Art), und die, an der er geht (die Art des NÄCHSTEN). Die
  * beiden Strecken berühren sich höchstens, sie überlappen nie.

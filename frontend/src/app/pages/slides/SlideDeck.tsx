@@ -33,7 +33,7 @@ import { SlidePhase, type Phase } from '../motion/MotionBox';
 import { addressWithSlide, anchorInAddress, anchorOf, layoutFor, slideByAnchor, slideInAddress, type Enter, type SlideColors, type SlideLayout, type StageFrame, type Transition } from './slides';
 import { defaultLayers, NO_DECK, resolveTheme, type DeckLook, type Layer, type Theme } from './slideLook';
 import { colorsAt, colorsOf, deckAt, enterStyle, entering, frameAt } from './slideMotion';
-import { layerCover, layerPlace, sheetsAt } from './slideSheets';
+import { layerCover, layerPlace, layerRoom, sheetsAt } from './slideSheets';
 import { useSlideScroll } from './useSlideScroll';
 
 export interface DeckSlide {
@@ -317,6 +317,8 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
   const drawn = slides.map((slide) => (slide.layers.length > 0 ? slide.layers : shared ? [] : defaultLayers(slide.label, look)));
   /* 2026-10-25 — wie jedes Blatt steht, mit dem, was ein anderer von ihm bedeckt (`slideSheets.ts`). */
   const sheets = sheetsAt(geometry, scroll.position, vh, kinds, drawn.map(layerCover), reduced);
+  /* 2026-10-25 — wie viel Raum die Schichten jedes Slajds bei seinen Wechseln brauchen: ein Bild wird nicht grösser gezogen, als seine Wanderung verlangt. */
+  const rooms = geometry.map((_, k) => layerRoom(geometry, k, vh, kinds, reduced));
   const last = geometry[geometry.length - 1];
   const travel = last === undefined ? 0 : Math.max(0, last.start + last.height - vh);
   /* Das Tuch liegt in der Bahn und wird um ihre Stelle zurückgeschoben — so steht es. */
@@ -436,7 +438,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
                   Parallaxe, sondern eine Zeile, die über den Schirm wandert (Altbestand, EventShell).
                 */}
                 {drawn[index].map((layer, n) => {
-                  const at = layerPlace(layer.speed, layer.kind === 'bigtext', frame, pinned, scroll.position, vh, reduced);
+                  const at = layerPlace(layer.speed, layer.kind === 'bigtext', frame, pinned, scroll.position, vh, reduced, rooms[index]);
                   const face: CSSProperties = reduced ? { height: `${at.height}px` } : { height: `${at.height}px`, transform: `translate3d(0, ${at.top}px, 0)` };
                   return <LayerFace key={n} layer={layer} style={face} shift={at.shift} />;
                 })}

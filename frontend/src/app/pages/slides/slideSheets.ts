@@ -27,7 +27,7 @@
  * Rein und ohne Oberfläche — geprüft in `app-slides-check`.
  */
 
-import { calmer, ease, entering, motionOf, pinnedPosition, type DeckFrame, type Motion } from './slideMotion';
+import { calmer, ease, edgeOf, entering, motionOf, pinnedPosition, type DeckFrame, type Motion } from './slideMotion';
 import type { Layer } from './slideLook';
 import type { Transition } from './slides';
 
@@ -129,29 +129,82 @@ export function sheetsAt(
 }
 
 /**
+ * 2026-10-25 — WIE VIEL RAUM DIE SCHICHTEN EINES SLAJDS BRAUCHEN (Wunsch des Nutzers:
+ * „so gross, wie es für den Slajd und die Bewegung darin reicht — und das Bild dabei so
+ * gross wie möglich"). Ein Slajd ist ein Blatt: von seinen Schichten ist nur zu sehen,
+ * was in seinem Rechteck auf dem Schirm liegt. Fährt er herein (nicht festgehalten), ist
+ * sein unterer Teil noch nicht zu sehen; fährt er hinaus, sein oberer nicht mehr — dort
+ * braucht die Schicht nichts zu bedecken. Nur wo ein Wechsel ihn festhält, steht er
+ * weiter auf dem ganzen Schirm, während seine Schichten weiterwandern.
+ *
+ * <code>
+ *   entryPinned  er steht beim Kommen (Przenikanie, Odsłonięcie, …) — der erste kommt nie
+ *   exitPinned   er steht beim Gehen (Przenikanie, Nakrycie, …) — der letzte geht nie
+ *   above        Rand oben: ein hoher Slajd, den das Gehen verkleinert oder sinken lässt, zeigt mehr von oben
+ *   below        Rand unten: ein hoher Slajd, den das Kommen verkleinert (Przybliżenie), zeigt mehr von unten
+ * </code>
+ */
+export interface LayerRoom {
+  readonly entryPinned: boolean;
+  readonly exitPinned: boolean;
+  readonly above: number;
+  readonly below: number;
+}
+
+/** Der grösste Bedarf — so rechnete `layerPlace` bis 2026-10-25 für jeden Slajd. */
+export const ROOM_ANY: LayerRoom = { entryPinned: true, exitPinned: true, above: 0, below: 0 };
+
+/** Der Raum, den Slajd `k` bei diesen Wechseln braucht — gleich über seinen ganzen Weg (eine Höhe, kein Neuzeichnen). */
+export function layerRoom(frames: readonly DeckFrame[], k: number, viewport: number, kinds: readonly Transition[], reduced = false): LayerRoom {
+  const frame = frames[k];
+  if (frame === undefined) return ROOM_ANY;
+  const entry = k > 0 ? edgeOf('entry', calmer(kinds[k] ?? 'scroll', reduced)) : null;
+  const exit = k + 1 < frames.length ? edgeOf('exit', calmer(kinds[k + 1] ?? 'scroll', reduced)) : null;
+  /* Verkleinert um die Mitte des Schirms: so viel mehr ist auf jeder Seite zu sehen. Nur ein hoher Slajd hat dort noch Zeilen. */
+  const shrink = (scale: number): number => (scale < 1 ? (1 / Math.max(0.01, scale) - 1) * viewport / 2 : 0);
+  const tall = frame.height > viewport + 0.5;
+  return {
+    entryPinned: entry?.pin ?? false,
+    exitPinned: exit?.pin ?? false,
+    above: tall && exit !== null ? shrink(exit.scale) + exit.sink : 0,
+    below: tall && entry !== null ? shrink(entry.scale) : 0
+  };
+}
+
+/**
  * EINE SCHICHT IN IHREM SLAJD: wo sie darin steht und wie hoch sie ist. Auf dem
  * Schirm wandert sie um ihr Tempo langsamer als die Bahn (0 steht, 1 läuft mit dem
  * Inhalt) — über den ganzen Weg des Slajds, vom Hereinkommen unten bis zum Verlassen
- * oben —, und sie ist um ihr Tempo höher als der Schirm, damit sie den Slajd auf
- * diesem ganzen Weg bedeckt (ein Bild wird dafür grösser gezogen). Gerechnet aus der
- * Bahn: auch ein festgehaltener Slajd behält seine Tiefe. Ausserhalb des Schirms
- * ändert sich nichts (keine Arbeit für Slajdy, die keiner sieht).
+ * oben. Gerechnet aus der Bahn: auch ein festgehaltener Slajd behält seine Tiefe.
+ * Ausserhalb des Schirms ändert sich nichts (keine Arbeit für Slajdy, die keiner sieht).
+ *
+ * 2026-10-25 — SO HOCH WIE NÖTIG, NICHT HÖHER (`room`, siehe `LayerRoom`): ein Bild
+ * wird nur so weit gestreckt, wie seine Wanderung es verlangt. Ein Slajd von einem
+ * Schirm zwischen zwei Przewinięcia braucht nichts als den Schirm; ein hoher dazu sein
+ * Tempo mal seine Überlänge; jedes festgehaltene Ende dazu sein Tempo mal einen Schirm.
+ * Kommt er herein, ohne festgehalten zu werden, steht die Schicht um Tempo × Schirm
+ * tiefer — beim Ankommen trifft ihre Oberkante genau die des Slajds. Ohne `room`: der
+ * grösste Bedarf (`ROOM_ANY`), wie vorher.
  *
  * Bei „weniger Bewegung" läuft sie mit ihrem Slajd und bedeckt ihn ganz (slides.css
  * nimmt dort jedes transform weg). `shift`: wie weit ein Schriftzug gerade über den
  * Schirm gewandert ist (px).
  */
 export function layerPlace(
-  speed: number, bigtext: boolean, frame: DeckFrame, pinned: number, position: number, viewport: number, reduced = false
+  speed: number, bigtext: boolean, frame: DeckFrame, pinned: number, position: number, viewport: number, reduced = false,
+  room: LayerRoom = ROOM_ANY
 ): { top: number; height: number; shift: number } {
   if (reduced) return { top: 0, height: bigtext ? viewport : Math.max(frame.height, viewport), shift: 0 };
   const span = frame.height + viewport;
   const local = clamp(pinned - frame.start, -viewport, frame.height);
   const along = clamp(position - frame.start + viewport, 0, span);
-  const pace = bigtext ? 0 : speed;
+  /* Ein Schriftzug steht in seiner Ebene, die genau einen Schirm hoch ist — nur sein Text wandert. */
+  if (bigtext) return { top: local, height: viewport, shift: (0.5 - along / span) * viewport * speed };
+  const lead = room.entryPinned ? 0 : speed * viewport;
+  const reach = room.exitPinned ? span : frame.height;
   return {
-    top: local - pace * along,
-    height: viewport + pace * span,
-    shift: bigtext ? (0.5 - along / span) * viewport * speed : 0
+    top: local - speed * along + lead - room.above,
+    height: viewport - lead + speed * reach + room.above + room.below,
+    shift: 0
   };
 }
