@@ -417,6 +417,23 @@ function DeleteAccount({ who }: { who: Who }) {
                 </div>
               )}
 
+              {/* 0129 — wer danach für die Daten nicht mehr geradesteht. */}
+              {(preview.endingControllers ?? []).length > 0 && (
+                <div className="wk-note wk-delete-warn" data-ending-controllers="">
+                  <p>
+                    Ci administratorzy danych przestaną obowiązywać — formularze, rezerwacje i rozmowy tych obszarów niczego
+                    nie przyjmą, dopóki ktoś nie wskaże nowego:
+                  </p>
+                  <ul>
+                    {preview.endingControllers!.map((c) => (
+                      <li key={c.name}>
+                        <strong>{c.name}</strong>{c.areas.length > 0 && <> — {c.areas.map((a) => `„${a}”`).join(', ')}</>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <label className="wk-field">
                 <span>Wpisz nazwę konta: <strong>{who.loginId}</strong></span>
                 <input value={typed} autoComplete="off" autoCapitalize="none" onChange={(e) => setTyped(e.target.value)} />

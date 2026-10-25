@@ -87,7 +87,12 @@ export class Body2D {
   vx = 0;
   vy = 0;
   w = 0;
-  /** Die Geschwindigkeit, mit der die Flüssigkeit den Körper in diesem Schritt sah (Randwert der Projektionen). */
+  /**
+   * Die Geschwindigkeit, mit der die Flüssigkeit den Körper in diesem Schritt sieht (Randwert der Projektionen, die
+   * Seitenflächen in bodyCover.ts): seit 2026-10-25 die vorhergesagte, v + der Zuwachs des letzten Schritts aus
+   * Flüssigkeit und Schwerkraft, wenn ihn keine Berührung änderte (bodies.ts) — so weicht die Flüssigkeit dem Volumen,
+   * das der Körper in diesem Schritt wirklich überstreicht.
+   */
   ux = 0;
   uy = 0;
   uw = 0;

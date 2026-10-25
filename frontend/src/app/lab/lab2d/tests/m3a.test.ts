@@ -256,6 +256,66 @@ describe('M3a — test 40: budgets close with moving solids', () => {
   });
 });
 
+/* -- Freie Körper in einer Zlewka, deren Wände von 2 mm quer über zwei Zellen liegen (die Zlewkas der Vorlagen bei 2 mm) -- */
+
+describe('M3a — free bodies in a beaker whose walls lie across cells (2026-10-25)', () => {
+  /** Eine Zlewka 4 × 5 cm, Wände 2 mm bei x 31–33 und 69–71 mm (halbe Zellen), Wasser 3 cm hoch; der Körper aus `body`. */
+  const beakerScene = (Tw: number, body: Record<string, unknown>): ReturnType<typeof scene> => scene({
+    box: { w: 0.1, h: 0.07, depth: 0.01 },
+    ambient: { p: 101.325, T: Tw, rh: 0.5, g: 9.81 },
+    ops: [
+      { op: 'beaker', x: 0.051, y: 0.004, w: 0.04, h: 0.05, wall: 0.002, material: 'glass', T: Tw },
+      { op: 'fill', region: { rect: [0.033, 0.006, 0.069, 0.036] }, composition: { H2O: 1 }, phase: 'liquid', T: Tw },
+      body
+    ]
+  });
+  /** Wasser ausserhalb des Umrisses der Zlewka (kg). */
+  const outside = (e: Engine): number => {
+    let m = 0;
+    for (let p = 0; p < e.particles.count; p += 1) { const x = e.particles.x[p]; if (x < 0.031 || x > 0.071 || e.particles.y[p] < 0.004) m += e.particles.mass[p]; }
+    return m;
+  };
+
+  it('a pine block dropped 2 mm onto the water settles: nothing leaves through the walls, no jets, bobbing and tilt small, budgets exact', () => {
+    const H = 0.012;
+    const want = (rhoOf('wood') / rhoL(T0 + 20)) * H;
+    const e = new Engine(beakerScene(20, { op: 'body', region: { rect: [0.041, 0.038 - want, 0.061, 0.038 - want + H] }, material: 'wood', T: 20 }));
+    const b = e.bodies.list[1];
+    expect(b.free).toBe(true);
+    let out = 0, uMax = 0, ymin = Infinity, ymax = -Infinity, tilt = 0;
+    while (e.time < 3) {
+      e.step();
+      out = Math.max(out, outside(e));
+      if (e.time > 2) { uMax = Math.max(uMax, e.liquid.last.uMax); ymin = Math.min(ymin, b.y); ymax = Math.max(ymax, b.y); tilt = Math.max(tilt, Math.abs(b.a)); }
+    }
+    console.log(`walls across cells (wood): water outside the beaker ${(out * 1e6).toFixed(3)} mg; in the third second fastest water ${(uMax * 1000).toFixed(1)} mm/s, bobbing ${((ymax - ymin) * 1000).toFixed(3)} mm, tilt ${(tilt * 180 / Math.PI).toFixed(2)}°; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
+    /* Bis 2026-10-25: das Wasser holte den Körper einen Schritt zu spät ein und gewann dabei Energie (in der dritten Sekunde Wasser mit
+       0,48 m/s, der Klotz schwankte 5 mm und kippte 25°); das Abstandsfeld schob Wasser aus dem zugeklappten Spalt quer durch die Wand (50 mg).
+       Was bleibt (bis 0,04 m/s, 0,3 mm), kommt vom Abklingen des Falls und von den halb bedeckten Zellen des Klotzes an der Wasserlinie. */
+    expect(out).toBe(0);
+    expect(uMax).toBeLessThan(0.1);
+    expect(ymax - ymin).toBeLessThan(0.001);
+    expect(tilt).toBeLessThan((2 * Math.PI) / 180);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+
+  it('an ice cube melting against such a wall in water at 80 °C keeps its meltwater inside; budgets exact', () => {
+    const W = 0.012;
+    const want = (rhoOf('ice') / rhoL(T0 + 80)) * W;
+    const x1 = 0.069 - 0.0005;
+    const e = new Engine(beakerScene(80, { op: 'body', region: { rect: [x1 - W, 0.036 - want, x1, 0.036 - want + W] }, material: 'ice', T: -10 }));
+    let out = 0;
+    while (e.time < 3) { e.step(); out = Math.max(out, outside(e)); }
+    const ice = e.bodies.list[1];
+    console.log(`walls across cells (ice): melted ${((1 - ice.m / (rhoOf('ice') * W * W * 0.01)) * 100).toFixed(1)} %, water outside the beaker ${(out * 1e6).toFixed(3)} mg; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
+    /* Bis 2026-10-25 kam Schmelzwasser, das vor der Seite keinen Platz fand, zwei Millimeter weiter heraus — hinter der Wand (7 mg in 4 s). */
+    expect(out).toBe(0);
+    expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
+    expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
+  });
+});
+
 describe('M3a — bodies in the scene format and on the accelerated view', () => {
   it('body and pin round-trip through JSON; beakers and plates stay pinned unless told; older scenes write without the settings they do not use', () => {
     const raw = scene({

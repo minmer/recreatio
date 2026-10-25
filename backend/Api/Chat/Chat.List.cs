@@ -284,6 +284,17 @@ public static partial class Chat
         }
 
         /*
+         * 0129 — EINE ROZMOWA DES BEREICHS braucht jemanden, der für ihre Daten geradesteht
+         * (auch ein Kanał, auch die mit einem Menschen vom Formular). Gespräche zu zweit,
+         * Gruppen und Notatki gehören ihren Leuten — dort niemand.
+         */
+        if (kind is "area" or "channel" or "seat" && await Controllers.OfAreaAsync(connection, areaId, ctx.RequestAborted) is null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
+            return;
+        }
+
+        /*
          * 0062 — NOTATKI: die Rozmowa mit sich selbst. Sie liegt im EIGENEN
          * Bereich dieser Person (0054) — dort ist niemand sonst, und je Person
          * gibt es ihn nur einmal, also auch nur eine solche Rozmowa.

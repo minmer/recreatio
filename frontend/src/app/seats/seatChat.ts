@@ -26,6 +26,7 @@ import {
 } from '../core/crypto';
 import { personName, sealName, seatOwnNameAad } from '../core/names';
 import { call, WorkspaceError } from '../core/session';
+import type { Controller } from '../forms/intake';
 
 export interface SeatIdentitySealed {
   readonly wrapPublicKey: string;
@@ -224,6 +225,8 @@ export interface AskTarget {
   readonly areaId: string;
   readonly name: string;
   readonly chatId: string | null;
+  /** 0129 — wer für die Daten dieser Rozmowa geradesteht (ohne ihn fängt der Dienst keine an). */
+  readonly controller?: Controller | null;
 }
 
 export const loadAsk = (token: string, moduleId: string): Promise<{ to: readonly AskTarget[] }> =>

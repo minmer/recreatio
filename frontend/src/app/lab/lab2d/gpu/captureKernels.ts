@@ -371,7 +371,8 @@ ${MAIN} {
   },
   {
     /* Die Vierecke der (angehefteten) Körper, wie GpuState.download → fromStair → collect sie hinterliesse (der lineare Teil von coverCollect.ts):
-       T_k = T_k(0) + Σ w (T_c − T_c(0)) über ihre Treppenzellen, Kruste_k = Kruste_k(0) + Σ (w/Σw) (Kruste_c − Kruste_c(0)), mindestens 0. */
+       T_k = T_k(0) + Σ w (T_c − T_c(0)) über ihre Treppenzellen, Kruste_k = Kruste_k(0) + Σ (w/Σw) (Kruste_c − Kruste_c(0)), mindestens 0;
+       der Bezug (0) vom letzten Schlüsselbild, c0: erst T_c aller Zellen, dann ihre Kruste. */
     name: 'bkQuads', wg: 64,
     bind: 'P:u K:u<Bk> bkc:r<u32> cf:r bkm:r<u32> qs:r<u32> qc:r<u32> qw:r qx:r q0:r c0:r bko:w<u32>',
     code: `${COMMON}
@@ -384,8 +385,8 @@ ${MAIN} {
   for (var e = qs[qd]; e < qs[qd + 1u]; e++) {
     let c = qc[e];
     if (bkm[c] == 0u) { continue; }
-    T += qw[e] * (cf[F_T * P.n + c] - c0[2u * c]);
-    Kc += qx[e] * (cf[F_CRUST * P.n + c] - c0[2u * c + 1u]);
+    T += qw[e] * (cf[F_T * P.n + c] - c0[c]);
+    Kc += qx[e] * (cf[F_CRUST * P.n + c] - c0[P.n + c]);
   }
   let gl = u8q((T - T0 - 60.0) / 340.0);
   let cr = u8q(crustCov(max(Kc, 0.0), q0[3u * qd + 2u]));

@@ -31,6 +31,7 @@ import { partLabel, partOf } from '../parts/registry';
 import { SlideDeck, type DeckActor, type DeckSlide } from './SlideDeck';
 import { COVER_KEY, readSlide, type SlideCompanion, type StageFrame } from './slides';
 import { deckOf, type Look } from './slideLook';
+import { BLOCKED_KIND, BLOCKED_PART_TEXT } from '../../reports/reportPath';
 
 /** Diese Arten brauchen Breite — ein Kalender in 52 rem ist ein gequetschter Kalender. */
 const WIDE = new Set(['calendar', 'masses', 'slots', 'chat', 'form', 'hero', 'shortinfos', 'plan', 'map', 'costs', 'people', 'gallery', 'writing', 'writings', 'quotes']);
@@ -120,6 +121,9 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
         <article className={`wk-card wk-card-${part.kind} wk-deck-card${canFull ? ' has-full' : ''}`} data-w={size.width} data-h={size.height}>
           {hidden.has(part.id) ? (
             <p className="wk-card-muted">{messages.get(part.id)}</p>
+          ) : part.kind === BLOCKED_KIND ? (
+            /* 0130 — nach einer Meldung gesperrt. */
+            <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
           ) : def === undefined ? (
             <p className="wk-card-unknown">Moduł „{part.kind}" nie jest znany tej wersji strony.</p>
           ) : (

@@ -313,10 +313,11 @@ public static partial class Reports
                 await Run("""
                     DECLARE @mods TABLE (id uniqueidentifier);
                     INSERT INTO @mods SELECT p.module_id FROM app.slug_part p JOIN app.module m ON m.id = p.module_id
-                     WHERE p.slug_id = @id AND m.area_id IS NULL
+                     WHERE p.slug_id = @id AND m.area_id IS NULL AND m.kind <> N'form'
                        AND NOT EXISTS (SELECT 1 FROM app.slug_part o WHERE o.module_id = p.module_id AND o.slug_id <> @id);
                     DELETE FROM app.slug_part WHERE slug_id = @id;
-                    DELETE FROM app.module WHERE id IN (SELECT id FROM @mods);
+                    /* Der Inhalt der Bausteine, die nur hier standen, geht; die Zeilen bleiben leer (an ihnen kann etwas hängen). */
+                    UPDATE app.module SET config = NULL WHERE id IN (SELECT id FROM @mods);
                     DELETE FROM app.slug_menu WHERE slug_id = @id;
                     UPDATE app.slug_page SET image_id = NULL WHERE slug_id = @id;
                     DELETE FROM app.page_image WHERE slug_id = @id;
@@ -325,11 +326,18 @@ public static partial class Reports
                 break;
 
             case "part":
+                /*
+                 * Der Platz geht und mit ihm der Inhalt — auch dort, wo derselbe Baustein sonst
+                 * noch steht (er ist derselbe Inhalt). Der Baustein selbst bleibt leer stehen (an ihm
+                 * können Fragen, Schritte, Einsendungen hängen; ohne Platz räumt ihn 0063 beim
+                 * nächsten Speichern weg). Ein Formular behält seine Einsendungen (die gehören dem
+                 * Verantwortlichen) — für das Formular selbst gibt es „form".
+                 */
                 await Run("""
                     DECLARE @module uniqueidentifier = (SELECT module_id FROM app.slug_part WHERE id = @id);
                     DELETE FROM app.slug_part WHERE id = @id;
-                    DELETE FROM app.module WHERE id = @module AND area_id IS NULL
-                       AND NOT EXISTS (SELECT 1 FROM app.slug_part WHERE module_id = @module);
+                    UPDATE app.module SET config = NULL WHERE id = @module AND kind <> N'form';
+                    UPDATE app.slug_part SET config = NULL WHERE module_id = @module AND kind <> N'form';
                     """);
                 break;
 

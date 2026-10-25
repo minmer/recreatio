@@ -89,6 +89,7 @@ lab/lab2d/
     codec.ts           frames as bytes: chunks of two seconds, deltas, layer-major, deflate (CompressionStream)
     snapshot.ts        a keyframe: the whole engine state by a walk through its object graph, scratch left out
     session.ts         baking, playback and going live inside the worker
+    gpuBake.ts         baking on the graphics card (since 2026-10-25): batches, capture readback, lazy keyframes
     store.ts           IndexedDB (headers, chunks, keyframes; the least recently played go first)
   gpu/                 the accelerated view (M1e, §15): WebGPU kernels as WGSL in TypeScript strings, the state on the GPU
     kernel.ts          GpuCtx: device, kernels with explicit bind layouts, dispatch, a per-dispatch profiler
@@ -100,6 +101,8 @@ lab/lab2d/
                        and phase change (kphase), heat and diagnostics (kheat); kernels.ts lists them all
     render.ts          the WebGPU renderer (fields and cells built by compute kernels, bubbles and particles from storage)
     charts.ts          chart samples from the readouts
+    capture*.ts        baking (§16): the capture kernels, their buffers and readout, the pinned bodies' statics
+    handoff.ts         going live from a keyframe of a GPU clip: totals seeded from the mirror, budget errors carried
   engine.worker.ts     the worker: owns the Engine and (OffscreenCanvas) the renderer; two rhythms (steps, frames)
   gpu.worker.ts        the accelerated view's worker: a CPU Engine for the tools and the GpuEngine; draws with WebGPU
   host.ts              main thread: starts the worker, forwards commands, receives stats and fallback frames
@@ -768,7 +771,25 @@ in the other (§15, solves). Checked on 2026-10-21 by running every kernel with 
   (MILESTONES.md).
 - **Frames**: up to eight steps per frame, at most three frames in flight; compute kernels build the field and cell
   textures and the liquid coverage, render pipelines draw them, the bubbles from the bubble buffer and the particles
-  from the particle buffer — nothing is copied to the CPU per frame.
+  from the particle buffer — nothing is copied to the CPU per frame. Every upload sorts the particles by cell once (as a
+  step does): the renderer reads the per-cell lists, which before 2026-10-25 only the next step filled — paused after a
+  tool, on switching or on going live from a keyframe the water was missing from the picture.
+- **Capture for baking** (since 2026-10-25, §16; `gpu/capture.ts`, `captureKernels.ts`, `captureBodies.ts`): a pass
+  after each step that writes the bytes of the clip layers (`render/layers.ts`) into a slot when a frame is due —
+  `bkClock` (one thread; the frame clock in fixed point: a u64 as two u32 in units of 1/(60·2²⁴) s, so frames at
+  15/30/60 per second are exact multiples, adding the Δt it noted from `glob.DT` before the step — the f32 `glob.TIME`
+  would drift about 0.2 s in 600 s), `bkCells` (four cells per thread, one u32 per byte layer; pressure and speed
+  maxima by atomicMax), `bkLiqSplat` → `bkLiqExt` ×3 (ping-pong) → `bkLiqBlurX` → `bkLiqOut` (the liquid as
+  `sampleLiquid`), `bkArrows`, `bkBubbles`, `bkQuads`. The overlay layers (flags, temperature, pressure, speed,
+  humidity, vapour, arrows) are written only in every third frame, where the clip stores them. Every kernel returns at
+  once when no frame is due and writes only its own outputs; everything that depends on the scene is in a uniform, so
+  the WGSL text is the same for every scene (the browser's shader cache applies). Pinned bodies are kept in one place
+  (`captureBodies.ts`), from the mirror at the start: the staircase cells get the kind without material (their quads
+  draw them), a texel mask continues the liquid under them, and each quad's temperature, glow and crust come from its
+  staircase cells with the cover weights — the linear part of `collect`, re-based at every keyframe as `collect` runs
+  on from each download; moving bodies on the GPU (C4) would replace these statics with per-step values. A probe mode
+  captures the current state into an extra slot without touching the clock (the harness compares it with
+  `sampleLayers` of the downloaded state).
 
 ## 16. Clips: baking and playback (B)
 
@@ -814,13 +835,15 @@ bakes when chosen). Restart and choosing a scenario also come back paused.
   continued live.
 - *Going live* loads the keyframe before the frame on screen into a fresh engine and computes on to that frame (in
   slices, with progress) — the CPU engine is deterministic, so the state is bit for bit the state the frame was baked
-  from (test 33).
+  from (test 33). A clip baked on the graphics card resumes from the keyframe itself (below).
 
 **The store** (`clip/store.ts`): IndexedDB `recreatio-lab2d` — headers in `clips`, packed chunks in `chunks`, keyframes
 in `keys`, so playback fetches only what it needs (the chunk on screen and the next; three chunks in memory). The key
 of a clip is SHA-256 over the format and the canonical scene: the same scene in the same quality finds its clip again
-— also after an edit is undone, never for a changed scene. The frame rate and the keyframe spacing are not part of
-the key: baking the same scene again with other ones replaces its clip. More than 16 clips or 600 MB: the least recently played go
+— also after an edit is undone, never for a changed scene. A clip baked on the graphics card has the engine in its
+key as well (`clipKey(scene, 'gpu')`; CPU keys are unchanged), so the two clips of one scene stay side by side. The
+frame rate and the keyframe spacing are not part of the key: baking the same scene again with other ones on the same
+engine replaces its clip. More than 16 clips or 600 MB: the least recently played go
 first. Without IndexedDB (a private window) the clip lives as long as the lab is open.
 
 **In the worker** (`clip/session.ts`): three states. *Live*: as before. *Baking*: the engine is rebuilt from the scene
@@ -832,8 +855,53 @@ changes). Tools act only live; in playback a note points to "Na żywo od tej chw
 
 **Sizes and speed** (MILESTONES.md §B): the boiling beaker at 2 mm — 11.6 kB per frame and 980 kB per keyframe, 33.6 MB
 per simulated minute (34.0 MB since M3a: the grid's body arrays); baking it runs at 0.13× real time on the reference laptop (a minute in about eight minutes),
-calmer scenes several times faster (convection: 0.43×). Baking runs on the CPU only; the accelerated view neither bakes
-nor plays clips (its button is off while a clip plays or bakes).
+calmer scenes several times faster (convection: 0.43×). On the graphics card (below) the same scene bakes at 1.55×
+(RTX 3070) or 1.12× (integrated AMD GPU).
+
+**Baking on the graphics card** (since 2026-10-25; `clip/gpuBake.ts`, MILESTONES.md "GPU baking"). The dialog offers
+"Licz na: procesor | karta graficzna" when the browser has WebGPU and the scene runs on the accelerated view (free
+bodies, ice and grains still bake on the CPU — the dialog says so); the choice defaults to the graphics card and is
+remembered with the frame rate and the keyframe spacing. Opening the dialog already prepares the device and compiles
+the kernels (`bakePrepare`: 4–7 s cold in Edge, 0.3–1.1 s warm on the RTX, 2.6–3.6 s on the integrated GPU); the progress
+says "Przygotowuję kartę graficzną…" while they compile.
+
+- *Where*: in the CPU worker's session. `gpuBake.ts` is imported only when needed and builds a headless `GpuEngine`
+  on the session's own engine, which becomes its mirror — no worker swap for baking or playback; the preview is the
+  captured layers, drawn by the compositor that plays clips. "Upiecz…" and "Nagranie" in the accelerated view switch
+  to the normal view first (the scene keeps its resolution, so its clip is found).
+- *Steps and frames*: batches of 8 steps, after each the capture pass (§15), at the end of the batch the clock, the
+  slot heads and slots and the usual readback copied to staging; at most three batches in flight, processed in
+  order (f64 totals, chart samples every 0.25 s, frames into the unchanged `ChunkWriter`) — nothing waits for a step,
+  and waiting wakes the worker instead of spinning. Frame 0 and keyframe 0 come from the CPU engine (the scene's
+  start, as on the CPU). Near the end the batches get shorter (Δt ≤ Δt_max bounds how far the GPU can be ahead), and
+  what the GPU captured beyond the last frame is kept (a few frames at most).
+- *Keyframes*, lazily: when a batch shows that the frame of the next keyframe is captured, the batches are drained,
+  the state comes into the mirror (`GpuState.download`), the chart sampler takes the GPU's marks, `Engine.rebaseline`
+  sets the budgets to the GPU's errors (without it a keyframe showed the staircase's offset, +5.8 J after 5 s) and the
+  snapshot is taken. It carries the last captured frame; the state lies less than one frame after it (keyframes at
+  5 s land at frame 154 instead of 150). The GPU idles 13–30 ms per keyframe at 2 mm, 56–110 ms at 1 mm.
+- *Header*: the same format and version 2, with `engine: 'gpu'`, `exact: false` and the adapter. `ClipInfo` tells the
+  surface which engine baked a clip, whether it resumes exactly (`exact`) and the clip of the other engine (`alt`).
+- *Side by side*: when both clips of a scene exist, the player shows which one plays ("CPU | GPU") and switches at
+  the same moment; "Nagranie" plays the CPU clip in the normal view and the GPU clip when started from the
+  accelerated view, otherwise whichever exists.
+- *Going live* from a GPU clip: GPU runs are not reproducible, so it resumes from the keyframe at or before the frame
+  on screen, without computing forward (the button says so). Where WebGPU works it goes on in the accelerated view:
+  the CPU worker sends the scene and the unpacked keyframe (`resume`), the page starts `gpu.worker.ts` with
+  `init.resume`, which restores the keyframe into its mirror, uploads it (the safe upload recomputes the gas fields a
+  keyframe leaves out, §15), seeds the totals from the mirror (the inverse of `download`: time, steps, heater, flows,
+  phase and bubble counters — otherwise time and heater restarted at 0) and carries the energy, water, oil and salt
+  errors into its first readback (`gpu/handoff.ts`), and the chart sampler takes the mirror's marks. If the GPU fails
+  there, the CPU worker restores the same keyframe; without WebGPU it restores it at once. CPU clips keep the exact path.
+- *Fallbacks*: no WebGPU, a compile error or a device lost before two frames → the CPU bakes the scene from its start
+  with a note; a device lost mid-bake keeps the shorter clip (like stopping), with a note.
+
+A GPU clip shows the GPU's physics (SIMPLIFICATIONS.md): its frames are the bytes `sampleLayers` would take from the
+GPU's state — measured identical outside bodies except humidity (±1 in up to 8 cells of 6268) and bubble positions
+(±1 in 16 bits in a few of 250), the liquid next to bodies (the CPU continues it under a body in place, the GPU from a
+copy) and the staircase cells the CPU keeps open (78 at 2 mm in "Wrzenie", hidden under the quads). Sizes: 24–28 MB per
+simulated minute of boiling at 2 mm (keyframes 78–84 bytes per cell), 78–86 MB at 1 mm (70–72 bytes per cell); the
+dialog's estimate uses these and warns near the store's 600 MB.
 
 ## 17. Bodies (M3a; exact rectangles since 2026-10-23)
 
@@ -877,8 +945,13 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   free cells around (through open faces first: a thin wall passes no gas); cells that open become liquid without gas
   next to them, else gas taken from their neighbours.
 - *Faces*: per u and v face the share the rectangles cover (exact segment clipping) gives the open fraction
-  α = 1 − share (`au`, `av`), the covered part's velocity (`usol`, `vsol`) and the body covering most (`faceOwner`);
-  when a face closes or opens, the regions are relabelled.
+  α = 1 − share (`au`, `av`), the covered part's velocity (`usol`, `vsol`: the boundary value U of the body covering
+  most, see *Coupling*) and that body (`faceOwner`); when a face closes or opens, the regions are relabelled. A face
+  between a closed cell of a body and a fluid cell moves with that body and counts for its added mass also where the
+  body does not cover it (`closedFace`, since 2026-10-25): the closed cell stands for the body. Since a free body closes
+  a cell from 90 %, the face of such a cell toward the fluid had stood still and belonged to no body — under a floating
+  block whose bottom lay in the lowest tenth of a cell row the water saw a resting floor, and the measured added mass
+  fell from 14 g to 0 in 23 % of the steps (the 4 cm pine block in the preset beaker).
 - *Projections*: the liquid's pressure solve and divergence weight every face by α and take the covered part's
   velocity as known — the cut cells of Batty, Bertails & Bridson 2007 (the solid part of a face moves with the body);
   the gas likewise (fluxes and projection × α, gas volume (1 − fs − φ − α_b) V); regions connect through open faces and
@@ -890,6 +963,15 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   whether a cell borders gas look only through open faces. Without it the water inside a beaker also stood in the cell
   outside its wall and evaporated there (test 11 boiled 3.9 K below T_sat), and particles beside a floating ice block
   reached into cells it almost covers, behind faces it covers whole (single particles 0.1 K below the eutectic).
+  A partly covered cell beside a thin wall (`grid.besideThin`) is liquid when its open part is at least half full,
+  φ/(1 − φ_s) ≥ ½ — the fill θ uses for the surface (§7) — not φ + φ_s ≥ ½ (since 2026-10-25). Its own covered share
+  is part of φ_s: with the old rule the half cell of a wall lying across two cells counted as liquid once an eighth of
+  its open part was wet, and at the surface it flipped between liquid and gas every step. Still water in the 2 mm
+  preset beaker kept currents of up to 57 mm/s at its walls (1 mm/s with the beaker shifted onto whole cells); now
+  below 1 mm/s after the first second. Only these cells: for every partly covered cell the rule broke test 43 (the brine
+  in the slivers beside the floating ice counted as gas; tried and dropped before, see MILESTONES.md), so the half-
+  covered sides of a floating block at its waterline keep the old rule (spikes of 10–40 mm/s, harmless since the
+  coupling below is consistent).
 - *Heat* (§6.5): the body's share is a part of the cell (capB, Es, Ts); at the end of the step each cell's change goes
   back to the internal cells (`coverCollect.ts`) — energy by w C_k/capB; film and crust that grew, by weight; film and
   crust that shrank, from what each internal cell contributes to the cell (at most that, over all bodies there), and
@@ -900,7 +982,14 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   the cells: 2·10⁻¹³ kg after moving the beaker of M0's test).
 - *Particles and bubbles* inside a rectangle after a move go back along their path in the body's frame to just before
   the side they entered (Liang–Barsky on the rectangles; already deep inside: the nearest side), their velocity into the
-  body removed; the liquid's own transport does the same (`hit`).
+  body removed; the liquid's own transport does the same (`hit`). A particle that hit no body but ends in a solid cell
+  is pushed along the distance field as before — and since 2026-10-25 that push, too, stops before the first body on
+  its way (`liquidMove.ts`). The field knows only whole solid cells: when a floating body came within a cell of a wall
+  lying across two cells, the gap between them closed (the gap rule), the wall's inner half cell with it, and the
+  nearest fluid cell lay outside the beaker. The water of the gap was pushed into the outer half of the glass (to the
+  cell boundary + 0.05 Δx) and in the next step out of it by the "already inside" rule — tens of milligrams through the
+  wall below the rim (bl, blp; 160 mg with a free beaker, where the beaker's own push-out finished the job; with the
+  walls on whole cells a hard push could cross a whole wall cell in one step).
 - Then φ_s (the covered shares smoothed like solid cells), the distance field, the regions (−p0·V of sealed regions
   jumps: booked as `flows.bodyWork`) and the cavities are refreshed in the box of what changed. Cavities sit on the free
   segments in the body's frame (one draw per piece of about Δx) and move with it; they are drawn anew only when cells
@@ -914,9 +1003,20 @@ the step, and mixing the two gave a floating body a spurious net force that grew
 in a closed box flew out of it). In water at rest this is the buoyancy of the submerged part, continuous in the
 position — a floating body no longer bobs by rows of cells (test 36: 0.06 mm instead of ±1.4 mm).
 
-**Coupling** (partitioned): as before — the projections of step n see V^n, their pressure gives F^n; the added mass is
-measured after every liquid projection with three more solves on the faces the body covers (`faceOwner`, weighted by
-the covered share): (M + M_a)(V_free − V^n) = Δt (m g + F^n) + M_a D^{n−1}.
+**Coupling** (partitioned): the projections of step n see the boundary value U^n = V^n + P^n (`body.ux`, `uy`, `uw`),
+their pressure gives F^n; the added mass is measured after every liquid projection with three more solves on the faces
+the body covers (`faceOwner`, weighted by the covered share): (M + M_a)(V_free − V^n) = Δt (m g + F^n) +
+M_a (D^{n−1} + P^n − P^{n−1}), D the increment from fluid and gravity of the last step (contacts excluded, as before).
+P^n is the prediction D^{n−1} when no contact changed the body's velocity in the last step, else 0 (since 2026-10-25;
+before, U = V and the compensation was M_a D^{n−1}). With U = V the fluid made room for the volume Δt V^n, the body
+then swept Δt V^{n+1}: the water lagged one step behind the body. For heave in a container (block width B, water
+width W, β = B/(W − B) the rise of the level beside it per unit of sinking) a linear model of this staggering grows at
+≈ ω² Δt β/(2(1 + β)) per second — 1.4/s for the 4 cm pine block in the 6.6 cm preset beaker at Δt = 1/120 s (ω ≈
+23 s⁻¹); the run grew at about 0.7/s, damped at Δt = 1/240 s, and the block bobbed over 18 mm, rolled to 27° and
+threw jets of 2.6 m/s up the walls (in the open box of test 36, β ≈ 0, numerical damping won). With the prediction the
+two volumes agree to second order and the same block rests within 0.06 mm. A body lying on something predicts
+nothing: the contact cancels its increment every step, and with P = D the water saw a beaker standing on the floor
+sink at g Δt each step (it flew out of the box).
 
 **Contacts** (`bodyContacts.ts`): each rectangle is a box part of the physics lab's solver (separating axes, clipped
 manifolds, two-point block solver, warm starting, Coulomb friction; slop 0.1 Δx, speculative gap Δx). Static: closed
@@ -978,7 +1078,10 @@ material (ice, `meltsAt`):
   in front by their mass (one cell further only if those hold none; a particle above twice the nominal mass splits),
   else held per side and spawned in front of it once it reaches a quarter of the nominal mass — as particles of at most
   the nominal mass, at most four per step, side by side along the side, each at the nearest free spot (within three
-  cells, else just outside the outline). A side with no fluid in front at all — a block lying on a plate — squeezes its
+  cells, else just outside the outline). The cell one further and the free spot count only where no other body lies
+  between them and the side (`Bodies.blocks`, since 2026-10-25: a cube floating against the wall of the 2 mm preset
+  beaker, whose wall lies across two cells, spawned its water at the nearest free spot 2 mm on — outside the beaker,
+  27.6 mg in 20 s). A side with no fluid in front at all — a block lying on a plate — squeezes its
   water out at its two ends, half each, where it is held at the corners and spawned. Until 2026-10-25 the water was
   held per body at the middle of the side that made it: under a 2 cm cube on a hot plate it waited unseen (0.93 g
   after 40 s, a quarter of the cube; no particle at all) and then came out within a fraction of a second as particles of

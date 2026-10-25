@@ -34,6 +34,7 @@ import { WorkspaceError } from '../core/session';
 import { createTopic, loadTopics, openTopics, type Topic } from './chatTopics';
 import { TopicBar } from './TopicBar';
 import { Loading } from '../ui/Loading';
+import { ControllerClause } from '../areas/ControllerClause';
 
 /*
  * 0069 — wie eine Rozmowa für den Menschen mit dem Link heisst, und wer darin liest.
@@ -228,6 +229,8 @@ export function SeatAskBody({ seat, moduleId }: { seat: SeatView; moduleId: stri
                 </div>
               )}
             <p className="wk-hint">Rozmowę widzisz Ty i osoby prowadzące „{target.name}" — inni, którzy wypełnili formularz, jej nie widzą.</p>
+            {/* 0129 — „Napisz do nas" ist eine Rozmowa des Bereichs: wer für ihre Daten geradesteht. */}
+            {target.controller !== undefined && <ControllerClause controller={target.controller} context="collect" />}
           </section>
         );
       })}

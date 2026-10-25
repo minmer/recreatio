@@ -27,6 +27,14 @@ export interface Controller {
   readonly name: string;
   readonly address: string | null;
   readonly email: string | null;
+  /* 0129 — der Datensatz mit Geschichte (`areas/controllers.ts`); ein Dienst von vorher schickt das nicht. */
+  readonly id?: string;
+  readonly version?: number;
+  readonly phone?: string | null;
+  readonly dpo?: { readonly name: string | null; readonly contact: string | null } | null;
+  readonly authority?: 'uodo' | 'kiod' | null;
+  readonly homeAreaId?: string;
+  readonly fromAreaId?: string;
 }
 
 /* -- Anlegen ---------------------------------------------------------------- */

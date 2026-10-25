@@ -2253,3 +2253,26 @@ names on the next import of each file.
 
 **Owner:** rebuild and deploy the site (no API change since W1). Re-import `templates/cogita/wywod.json` in each base
 that has it: the review lists the kind changes to accept. The old self-assessed card template stays until deleted.
+
+## W3 — Short or whole theses in the Struktura view (2026-10-26)
+
+**Asked:** the steps' theses were cut with „…”; the owner wanted to choose at the top whether they are short or
+whole.
+
+**Built**
+- A group „Tezy skrócone | Całe tezy” in each root's tools row, beside „Wywód | Kolejność tekstu”
+  (`cogita/StructureView.tsx`).
+  - Short (the default): as before, a thesis is cut after 90 characters with „…”, like every name in lists.
+  - Whole: the leading question and every step show the whole first sentence, not the paragraph, wrapped over
+    several lines. References stay short („↳ do:”, the path „W strukturze”).
+  - One choice for every root on the screen, remembered per browser (`cg-structure-theses`); without storage it
+    holds for the tab.
+- `labelOf` / `fill` / `fieldText` / `valueText` and `blocksTitle` take an optional `whole` (default off, so
+  every other list is unchanged).
+
+**Checks:** `app-cogita-check` 557 (3 new: short by default, whole when remembered, the unclipped label);
+`app-library-check` and the style ratchet pass; vite build passes. Browser drive 33/33, with 4 new checks (short
+by default; whole on click; kept over a real reload and wrapped on a phone with no sideways scroll; short again).
+`tsc` passes.
+
+**Owner:** rebuild and deploy the site; nothing else.

@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { areaReader, type AccountWay } from '../areas/areaRead';
+import { clauseText } from '../areas/clause';
 import {
   consentGiven, consentText, isYes, loadForm, openFields, type AfterSend, type OpenField, type PublicForm
 } from './form';
@@ -316,9 +317,7 @@ function Sheet({ open, values, submittedAt }: { open: OpenForm; values: Readonly
       <header>
         <h1>{open.form.title ?? open.name ?? 'Formularz'}</h1>
         {c !== null && (
-          <p className="wk-print-org">
-            Administrator danych: {c.name}{c.address !== null ? `, ${c.address}` : ''}{c.email !== null ? ` (${c.email})` : ''}
-          </p>
+          <p className="wk-print-org">{clauseText(c, 'collect')}</p>
         )}
       </header>
 

@@ -38,6 +38,19 @@ internal static class Takedowns
     internal static string Exists(string kind, string column) =>
         $"EXISTS (SELECT 1 FROM app.takedown tdn WHERE tdn.item_kind = N'{kind}' AND tdn.item_at IS NULL AND tdn.item_id = {column})";
 
+    /// <summary>
+    /// SQL: ist dieser Platz einer Seite (<paramref name="p"/> = Alias von <c>app.slug_part</c>) gesperrt? Er selbst,
+    /// sein Baustein (gemeldet als Teil oder als Formular) — oder ein anderer Platz desselben Bausteins: derselbe
+    /// Inhalt auf einer zweiten Seite ist derselbe Inhalt.
+    /// </summary>
+    internal static string PartBlocked(string p) => $"""
+        EXISTS (SELECT 1 FROM app.takedown tp WHERE tp.item_at IS NULL
+            AND ((tp.item_kind = N'part' AND (tp.item_id = {p}.id OR tp.item_id = {p}.module_id))
+              OR (tp.item_kind = N'form' AND tp.item_id = {p}.module_id)
+              OR (tp.item_kind = N'part' AND {p}.module_id IS NOT NULL
+                  AND EXISTS (SELECT 1 FROM app.slug_part bp WHERE bp.id = tp.item_id AND bp.module_id = {p}.module_id))))
+        """;
+
     internal static Task BlockedResponse(HttpContext ctx)
     {
         /* 451: Unavailable For Legal Reasons — die Sache gibt es, sie geht nach einer Meldung nicht hinaus. */

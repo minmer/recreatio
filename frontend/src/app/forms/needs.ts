@@ -137,7 +137,7 @@ const INFO =
   + 'powyżej. Służą udziałowi w wydarzeniu, kontaktowi w sprawach organizacyjnych i bezpieczeństwu uczestników, a dane '
   + 'o zdrowiu i diecie — tylko opiece nad uczestnikiem, na podstawie wyraźnej zgody. Przysługuje prawo dostępu do danych, '
   + 'ich sprostowania, usunięcia i ograniczenia przetwarzania; zgody można wycofać w każdej chwili przez swój link albo u '
-  + 'organizatora. Przysługuje skarga do Prezesa Urzędu Ochrony Danych Osobowych.';
+  + 'organizatora. Gdzie możesz złożyć skargę, podaje informacja o administratorze danych na początku formularza.';
 
 export const NEED_SIGNER = 'czytelny podpis rodzica / opiekuna prawnego';
 

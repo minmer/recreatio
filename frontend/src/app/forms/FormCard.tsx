@@ -30,6 +30,7 @@ import { PEOPLE_TAB, formPath } from '../routes';
 import { bindSeat, seatPath } from '../seats/seat';
 import { filledNow, loadSteps } from '../steps/steps';
 import { Loading } from '../ui/Loading';
+import { ControllerClause } from '../areas/ControllerClause';
 import { deskChanged } from './entryDesk';
 import type { EntrySubject } from './entrySubject';
 import { ExtensionEntry, ExtensionSheet } from './ExtensionSheet';
@@ -392,14 +393,8 @@ export function FormCard(props: FormCardProps) {
     <>
       {title !== '' && <h2 className="wk-card-title">{title}</h2>}
 
-      {/* EINE Klausel für das ganze Formular (0042), nicht eine je Bereich. */}
-      {form.controller !== null && (
-        <p className="wk-hint">
-          Administratorem danych jest <strong>{form.controller.name}</strong>
-          {form.controller.address !== null && `, ${form.controller.address}`}
-          {form.controller.email !== null && ` (${form.controller.email})`}.
-        </p>
-      )}
+      {/* EINE Klausel für das ganze Formular (0042) — 0129: mit Kontakt, Inspektor, Organ und Betreiber. */}
+      {form.controller !== null && <ControllerClause controller={form.controller} context="collect" report={{ kind: 'form', id: partId }} />}
 
       {leads !== null && !extension && (
         <p className="wk-hint wk-form-leads">
@@ -427,8 +422,8 @@ export function FormCard(props: FormCardProps) {
 
       {nameless && (
         <p className="wk-error">
-          Ten formularz nie mówi, kto odpowiada za dane, więc nic nie zbiera.
-          Prowadzący stronę musi to uzupełnić.
+          Nikt nie odpowiada tu za dane osobowe, więc ten formularz nic nie zbiera.
+          Administratora danych wskazuje ten, kto prowadzi obszar (Ustawienia obszaru).
         </p>
       )}
 

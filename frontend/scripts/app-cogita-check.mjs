@@ -2186,6 +2186,7 @@ check('goals and lines follow the one logic', [
         "export { StructureView } from './src/app/cogita/StructureView';",
         "export { CogitaContext } from './src/app/cogita/ui';",
         "export { CogitaLibrary } from './src/app/cogita/store';",
+        "export { labelOf } from './src/app/cogita/schema';",
         "export { renderToStaticMarkup } from 'react-dom/server';",
         "export { createElement } from 'react';"
       ].join('\n'),
@@ -2231,6 +2232,33 @@ check('goals and lines follow the one logic', [
   truth('a classic root says its cut too', flat(draw([{ id: U(4), groups: [], cut: 2100 }], { chip: '', tie: '' })).includes('▸ 2100 wpisów niżej nie pokazano'));
   check('roots are keyed by their id (and the owner’s order), not by their place in the list',
     UI.StructureView({ roots: [{ id: U(5), groups: [] }, { id: U(4), groups: [] }], display: { chip: '', tie: '', order: 'tree' }, onOpen: () => undefined }).props.children[0].map((x) => x.key), [`${U(5)}:tree`, `${U(4)}:tree`]);
+
+  /* 2026-10-26 — „Tezy skrócone | Całe tezy": eine Teza (Bausteine) steht gekürzt wie jeder Name in Listen, oder ganz — die Wahl merkt sich der Browser. */
+  const K2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const question = 'Czy naprzemienność czasowników agapao i phileo w rozmowie nad jeziorem oznacza dwa różne stopnie miłości ucznia?';
+  const thesis = 'Czasowniki nie oznaczają dwóch stopni miłości; ich naprzemienność wskazuje na więź miłości, którą Jezus odnawia po trzykrotnym zaparciu.';
+  map.set(K2, { id: K2, kind: 'kind', data: { name: 'Krok z treścią', label: '{tresc}', fields: [
+    { key: 'tresc', label: 'Treść', type: 'blocks' }, { key: 'nalezy', label: 'Należy do', type: 'ref', to: [K2], structure: 'up' }
+  ] } });
+  map.set(U(6), { id: U(6), kind: 'entity', data: { _kinds: [K2], tresc: [{ type: 'paragraph', text: question }] } });
+  map.set(U(7), { id: U(7), kind: 'entity', data: { _kinds: [K2], tresc: [{ type: 'paragraph', text: `${thesis} Dalej uzasadnienie.` }], nalezy: U(6) } });
+  store.revision = 2;
+  const longRoot = [{ id: U(6), groups: [{ label: '', structure: true, nodes: [{ id: U(7), groups: [] }] }] }];
+  const lengths = (html) => ({
+    title: flat(html.match(/<h3 class="cg-wy-title">.*?<\/h3>/)?.[0] ?? ''),
+    step: flat(html.match(/<button[^>]*class="cg-wy-label"[^>]*>[^<]*/)?.[0] ?? ''),
+    picked: [...html.matchAll(/aria-pressed="true"[^>]*>([^<]*)</g)].map((m) => m[1])
+  });
+  const short = lengths(draw(longRoot, { chip: '', tie: '', order: 'tree' }));
+  check('theses short by default: cut after 90 characters with „…”, „Tezy skrócone” pressed in the group „Długość tez”',
+    [short.title, short.step, short.picked], [`${question.slice(0, 89).trimEnd()}…`, `${thesis.slice(0, 89).trimEnd()}…`, ['Wywód', 'Tezy skrócone']]);
+  globalThis.window = { localStorage: { getItem: (k) => (k === 'cg-structure-theses' ? 'whole' : null), setItem: () => undefined } };
+  let whole;
+  try { whole = lengths(draw(longRoot, { chip: '', tie: '', order: 'tree' })); } finally { delete globalThis.window; }
+  check('„Całe tezy” remembered by the browser: the question and every thesis whole (the first sentence, not the paragraph)',
+    [whole.title, whole.step, whole.picked], [question, thesis, ['Wywód', 'Całe tezy']]);
+  check('… the whole name is the label pattern unclipped (references inside stay short)',
+    [UI.labelOf(lib.entity(U(7)), lib.look, 0, true), lib.label(lib.entity(U(7)))], [thesis, `${thesis.slice(0, 89).trimEnd()}…`]);
 }
 
 await rm(workspace, { recursive: true, force: true });

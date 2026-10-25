@@ -36,3 +36,6 @@
 @import './styles/form-groups.css';
 @import './styles/motion.css';
 @import './styles/chat-send.css';
+@import './styles/controllers.css';
+@import './styles/reports.css';
+@import './styles/events.css';

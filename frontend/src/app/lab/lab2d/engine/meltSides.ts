@@ -123,6 +123,8 @@ function frontGap(g: Grid, own: number, closed: number, wx: number, wy: number, 
  * Zelle knapp innen, wenn sie Flüssigkeit enthält — alles nur, wo aussen
  * Fluid ist (an einer Wand gehört eine gemischte Zelle innen zur
  * Nachbarseite). Jede Zelle einmal je Lauf, mit der Länge, die auf sie fällt.
+ * Die Zelle eine weiter nur, wenn kein anderer Körper dazwischen liegt (seit
+ * 2026-10-25: an einer Becherwand quer über zwei Zellen lag sie draussen).
  */
 export function fluidFront(e: Engine, b: Body2D, seg: number, fn: (c: number, len: number) => void, far = true): void {
   const g = e.grid;
@@ -138,8 +140,10 @@ export function fluidFront(e: Engine, b: Body2D, seg: number, fn: (c: number, le
     if (out !== last) fn(out, len);
     last = out;
     if (far) {
-      const fc = g.cellAt(wx + (g.dx + d) * nwx, wy + (g.dx + d) * nwy);
-      if (fc >= 0 && fc !== out && fc !== lastFar && g.solid[fc] === 0) fn(fc, len);
+      const fx = wx + (g.dx + d) * nwx;
+      const fy = wy + (g.dx + d) * nwy;
+      const fc = g.cellAt(fx, fy);
+      if (fc >= 0 && fc !== out && fc !== lastFar && g.solid[fc] === 0 && !e.bodies.blocks(b, wx, wy, fx, fy)) fn(fc, len);
       lastFar = fc;
     }
     const inn = g.cellAt(wx - eps * nwx, wy - eps * nwy);

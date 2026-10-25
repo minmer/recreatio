@@ -28,6 +28,7 @@ public static partial class Notify
         var decided = new List<object>();
         var nobody = new List<object>();
         var missing = new List<object>();
+        var pages = new List<object>();
 
         if (mine.Count > 0)
         {
@@ -96,6 +97,14 @@ public static partial class Notify
                 WHERE d.closed_at IS NULL AND d.home_area_id IN ({adminAreas})
                   AND (v.authority_confirmed_at IS NULL OR v.address IS NULL OR v.email IS NULL OR v.authority IS NULL
                        OR NOT EXISTS (SELECT 1 FROM app.controller_terms t WHERE t.controller_id = d.id AND t.terms_version = @terms));
+
+                /* Öffentliche Seiten, die ich führe und für die kein Bereich geradesteht (sie selbst und keine darüber). */
+                SELECT TOP 30 s.path FROM app.slug s
+                WHERE s.claimed_by_role_id IN ({names}) AND s.alias_of IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM app.slug_area sa WHERE sa.slug_id = s.id)
+                  AND NOT EXISTS (SELECT 1 FROM app.slug up WHERE up.controller_area_id IS NOT NULL
+                                   AND (up.path = s.path OR s.path LIKE up.path + N'/%'))
+                ORDER BY s.path;
                 """, connection);
             cmd.Parameters.AddWithValue("@now", now);
             cmd.Parameters.AddWithValue("@since", now - DutyNotice);
@@ -121,6 +130,9 @@ public static partial class Notify
                     controllerId = Ids.ToText(reader.GetGuid(0)), name = reader.GetString(1), homeAreaId = Ids.ToText(reader.GetGuid(2)),
                     terms = reader.GetInt32(3) == 1, confirmed = reader.GetInt32(4) == 1, complete = reader.GetInt32(5) == 1
                 });
+            await reader.NextResultAsync(ct);
+            while (await reader.ReadAsync(ct))
+                pages.Add(new { path = reader.GetString(0) });
         }
 
         /* Der Betreiber: was auf ihn wartet. */
@@ -139,7 +151,7 @@ public static partial class Notify
         return new
         {
             count = asks.Count + offers.Count + reports + listings.Count,
-            controllers = new { asks, offers, decided, nobody, missing },
+            controllers = new { asks, offers, decided, nobody, missing, pages },
             reports = new { count = reports, isOperator },
             takedowns,
             listings

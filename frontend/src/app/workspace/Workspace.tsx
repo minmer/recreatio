@@ -57,6 +57,8 @@ const ScriptoriumView = lazy(() => import('../scriptorium/ScriptoriumView').then
 const SmsApp = lazy(() => import('../phone/SmsApp'));
 const ContactsApp = lazy(() => import('../phone/ContactsApp'));
 const LampsApp = lazy(() => import('../lamps/LampsApp'));
+/* 0129–0131 — Sprawy: Meldungen (der Betreiber), eigene gesperrte Inhalte, Bitten um einen Platz in einer Liste. */
+const SprawyView = lazy(() => import('../reports/Sprawy').then((m) => ({ default: m.SprawyView })));
 
 export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
   /* 0111 — angemeldet und die Seite zu sehen: „w aplikacji" (für „Wyślij, gdy będzie online" und wer es teilt). */
@@ -231,6 +233,7 @@ function Inside({ view, trail, desk, who, onChanged }: {
   if (view === 'contacts') return <Suspense fallback={<Loading />}><ContactsApp who={who} trail={trail} /></Suspense>;
   if (view === 'lamps') return <Suspense fallback={<Loading />}><LampsApp who={who} trail={trail} /></Suspense>;
   if (view === 'registry') return <Kartoteka who={who} trail={trail} />;
+  if (view === 'sprawy') return <Suspense fallback={<Loading />}><SprawyView who={who} trail={trail} /></Suspense>;
 
   /* Jede Ansicht steht oben; was hier ankommt, gibt es (noch) nicht. */
   return <p className="wk-note">Tej części warsztatu jeszcze nie ma.</p>;

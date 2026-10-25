@@ -40,6 +40,7 @@ import { pageSteps, viewPath } from '../routes';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
 import { readLook } from './slides/slideLook';
+import { PageFooter } from '../reports/PageFooter';
 
 /*
  * 2026-10-17 — DIE LEISTE EINES PLATZES (Bestätigen, Rozmowy, Kroki) nur, wenn
@@ -67,6 +68,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   /* Nur mit Zugang — und ohne ihn (0050): „trzeba mieć dostęp", nicht „nic tu nie ma". */
   const [denied, setDenied] = useState<'needsaccess' | 'noaccess' | null>(null);
 
+  /* 0130 — nach einer Meldung gesperrt: das wird gesagt, nicht „nic tu nie ma". */
+  const [blocked, setBlocked] = useState(false);
+
   /* Neu laden, sobald ein Link hier bestätigt wurde — dann gilt er. */
   const [round, setRound] = useState(0);
 
@@ -86,6 +90,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     let alive = true;
     setPage(undefined);
     setDenied(null);
+    setBlocked(false);
 
     /*
      * DIE LINKS DIESES BROWSERS gehen mit: auf einer Seite nur mit Zugang
@@ -103,6 +108,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
         if (!alive) return;
         const verdict = e instanceof WorkspaceError ? e.verdict : null;
         if (verdict === 'needsaccess' || verdict === 'noaccess') setDenied(verdict);
+        if (verdict === 'blocked') setBlocked(true);
         setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać strony.');
         setPage(null);
       });
@@ -125,6 +131,17 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
         <UntilConfirmed path={path}><NoAccess verdict={denied} /></UntilConfirmed>
         <ReloadWhenConfirmed path={path} onConfirmed={() => setRound((n) => n + 1)} />
       </WithSeat>
+    );
+  }
+
+  /* 0130 — die Seite ist nach einer Meldung gesperrt (der Dienst antwortet 451). */
+  if (page === null && blocked) {
+    return (
+      <div className="ui-empty" data-page-blocked="">
+        <h1 className="wk-h1">Strona niedostępna</h1>
+        <p className="wk-blocked">Treść zablokowana po zgłoszeniu.</p>
+        <a className="wk-btn" href="#/">Strona główna</a>
+      </div>
     );
   }
 
@@ -241,6 +258,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
               <PageParts parts={parts} />
             </PersonAccessGate>
           </UntilConfirmed>
+
+          {/* 0129/0130 — wer für die Seite geradesteht, wer den Dienst betreibt, „Zgłoś treść". */}
+          <PageFooter pageId={page.id} responsible={page.responsible} restricted={page.access?.restricted === true} />
           </>)}
         </PageLogicProvider>
         </PageSubjectProvider>

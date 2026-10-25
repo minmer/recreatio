@@ -293,6 +293,8 @@ export class GpuBaker {
     const errors: BudgetErrors = { energy: s.energyError, water: s.waterError, other: s.otherError, salt: s.saltError };
     e.rebaseline(errors);
     if (this.onKey !== null) await this.onKey({ frame, e, gpu: G, errors, probe: () => this.capture.probe() });
+    /* Die Vierecke der Körper rechnen ab hier vom Stand der CPU-Engine weiter (wie collect beim nächsten Zurückholen). */
+    this.capture.rebase();
     this.keys.push({ frame, t: frame / this.fps, data: pack(takeSnapshot(rootOf(e, this.charts))) });
     this.keyStallMs.push(performance.now() - t0);
     this.nextKey = (Math.floor(frame / this.keyFrames) + 1) * this.keyFrames;

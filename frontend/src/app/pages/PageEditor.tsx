@@ -32,6 +32,8 @@ import { PageHeader } from '../ui/PageHeader';
 import { ShareButton } from '../links/Share';
 import { toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
+import { PageResponsible } from './PageResponsible';
+import type { PageResponsible as Responsible } from '../areas/controllers';
 
 export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   path: string;
@@ -75,6 +77,8 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
   const [locked, setLocked] = useState(false);
   /* 0121 — versiegelt (und offen, weil der Schlüssel da ist): der Satz unter Titel und Text sagt es. */
   const [sealedPage, setSealedPage] = useState(false);
+  /* 0129 — wer für die Seite geradesteht (`undefined`: nicht geladen). */
+  const [responsible, setResponsible] = useState<Responsible | null | undefined>(undefined);
 
   /* `quiet`: ohne „Wczytywanie…" dazwischen — nach einem Import bleibt das JSON-Fach mit seinem Ergebnis stehen. */
   const look = useCallback(async (quiet = false) => {
@@ -92,6 +96,8 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
       setMode(pageModeOf(page.mode));
       setPageLook(readLook(page.theme));
       setSubject(readSubject(page.subject ?? null));
+      /* `undefined` (ein Dienst von vorher schickt es nicht) ist kein „niemand". */
+      setResponsible(page.responsible);
     } catch {
       // Eine Adresse ohne Seite ist der Normalfall beim ersten Mal.
       setTitle('');
@@ -101,6 +107,7 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
       setMode('page');
       setPageLook(NO_LOOK);
       setSubject(null);
+      setResponsible(undefined);
     }
 
     setDirty(false);
@@ -160,6 +167,8 @@ export function PageEditor({ path, who, onOpenModule, accessAreaIds = [] }: {
           </>
         )}
       />
+
+      <PageResponsible path={path} isPublic={accessAreaIds.length === 0} responsible={responsible} />
 
       {/*
         0054 — DAS MENÜ, über allem anderen: es steht auch über der Seite, und

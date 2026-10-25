@@ -17,6 +17,7 @@ import { askNameFor, holderNameFor, hostPair, openHolderNames } from '../core/ho
 import { newId } from '../core/ids';
 import { nameText, writeKey, claimHolderAad, sealName } from '../core/names';
 import { call, WorkspaceError } from '../core/session';
+import type { Controller } from '../forms/intake';
 
 /** Wer die Zeit wählt: die Kanzlei (`offered`) oder wer fragt (`open`). */
 export type Mode = 'offered' | 'open';
@@ -57,6 +58,9 @@ export interface Rules {
    * an alle zurückfällt — und ab wann der Gastgeber ihn schliessen darf (0049).
    */
   readonly minPersons: number;
+
+  /** 0129 — wer für die Daten der Reservierungen geradesteht; `null`: niemand — dann nimmt der Dienst nichts an. */
+  readonly controller?: Controller | null;
 }
 
 /**

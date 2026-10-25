@@ -316,6 +316,18 @@ left out, and "the same engine version" is the same set of state paths (the layo
 Measured: 33.6 MB per simulated minute of boiling at 2 mm (frames 11.6 kB, keyframes 980 kB every 5 s), baking at
 0.13–0.5× real time on the reference laptop.
 
+**GPU baking (2026-10-25)** — ARCHITECTURE.md §15–16, MILESTONES.md "GPU baking". The design's "on the CPU or the
+GPU" is built: the bake dialog offers "Licz na: procesor | karta graficzna", the graphics card by default wherever
+WebGPU works and the scene runs on the accelerated view (free bodies, ice and grains still bake on the CPU, and the
+dialog says so); no WebGPU, a compile error or a lost device fall back to the CPU with a note (a device lost mid-bake
+keeps the shorter clip). The format is unchanged: GPU kernels capture the very layers the CPU sampler writes, read
+back in batches without waiting, so a GPU clip plays through the same player. The owner's decisions: CPU and GPU clips
+of one scene are kept side by side (the engine is in the key of GPU clips only — CPU keys are as before), the player
+shows which one plays and switches between them; "Na żywo od tej chwili" on a GPU clip resumes from the keyframe at or
+before the shown frame (GPU runs are not reproducible), in the accelerated view where WebGPU works, else on the CPU.
+Measured: boiling at 2 mm bakes at 1.55× real time on the RTX 3070 and 1.12× on the integrated AMD GPU (6.3× and 4.7×
+the CPU bake), at 1 mm 0.80× and 0.32× (19× and 8×); 24–28 MB per simulated minute at 2 mm, 78–86 MB at 1 mm.
+
 ## 10. The step loop after the change
 
 1. Inputs (tools, heaters, ambient).

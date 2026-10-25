@@ -21,6 +21,10 @@ import { partSize, type PartSize } from './part';
 import { partOf } from './parts/registry';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { BLOCKED_KIND, BLOCKED_PART_TEXT, reportPath } from '../reports/reportPath';
+
+/** 0130 — die ganze Seite ist nach einer Meldung gesperrt. */
+const BLOCKED_PAGE = 'Treść zablokowana po zgłoszeniu.';
 
 const WIDTHS: Record<string, number> = { narrow: 2, medium: 3, wide: 4, full: 6 };
 const HEIGHTS: Record<string, number> = { strip: 1, block: 3, tall: 5 };
@@ -85,6 +89,7 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
         const verdict = e instanceof WorkspaceError ? e.verdict : null;
         setFailed(verdict === 'needsaccess' || verdict === 'noaccess'
           ? 'Ta strona nie jest publiczna — widżet pokazuje tylko to, co widzi każdy.'
+          : verdict === 'blocked' ? BLOCKED_PAGE
           : 'Nie udało się wczytać.');
       });
     return () => { alive = false; };
@@ -130,18 +135,28 @@ export function Widget({ partId, pagePath }: { partId: string | null; pagePath: 
 
   const def = part == null ? undefined : partOf(part.kind);
 
+  /* 0130 — „Zgłoś" führt auf recreatio.pl (woher das Widget kommt), auf die Meldung DIESES Teils. */
+  const reportHref = part == null ? null : `${window.location.origin}${window.location.pathname}${reportPath('part', part.id)}`;
+
   return (
     <div className="wk-widget" ref={box}>
       {part === undefined ? <Loading label="Wczytywanie…" />
+        : part !== null && part.kind === BLOCKED_KIND ? <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
+        : failed === BLOCKED_PAGE ? <p className="wk-blocked">{BLOCKED_PAGE}</p>
         : part === null || def === undefined ? <p className="wk-hint">{failed ?? 'Tego modułu nie da się pokazać.'}</p>
         : (
           <article className={`wk-card wk-card-${part.kind} wk-widget-card`} data-w={size.width} data-h={size.height} onClick={onClick}>
             <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size }} />
           </article>
         )}
-      <a className="wk-widget-foot" href={target} target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); go(); }}>
-        recreatio.pl<span aria-hidden="true"> ↗</span>
-      </a>
+      <div className="wk-widget-bottom">
+        {reportHref !== null && part?.kind !== BLOCKED_KIND && (
+          <a className="wk-widget-report" href={reportHref} target="_blank" rel="noopener" data-report="part">Zgłoś</a>
+        )}
+        <a className="wk-widget-foot" href={target} target="_blank" rel="noopener" onClick={(e) => { e.preventDefault(); go(); }}>
+          recreatio.pl<span aria-hidden="true"> ↗</span>
+        </a>
+      </div>
     </div>
   );
 }

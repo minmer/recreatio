@@ -9,7 +9,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { accessWords, linkSecrets, redeemLink, showLink, type LinkInfo } from './linkAccess';
+import { accessWords, linkSecrets, redeemLink, showLink, type LinkArea, type LinkInfo } from './linkAccess';
+import { ControllerClause } from '../areas/ControllerClause';
 import { loadCalendars } from '../calendar/calendar';
 import { useLinkMe } from './linkMe';
 import type { SealedRole } from '../core/keys';
@@ -109,6 +110,8 @@ export function JoinLink({ token, who }: { token: string | null; who: Who }) {
         {info.once && <div className="wk-fact"><dt>Link</dt><dd>jednorazowy</dd></div>}
         {info.aim !== null && <div className="wk-fact"><dt>Otwiera</dt><dd><a href={`#/${info.aim}`}>recreatio.pl/#/{info.aim}</a></dd></div>}
       </dl>
+
+      <LinkClauses areas={info.areas} invitationId={info.invitationId} />
 
       {info.state !== null ? (
         <p className="wk-warn">{STATE_WORD[info.state] ?? 'Ten link już nie działa.'}</p>
@@ -210,6 +213,8 @@ export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; 
         <div className="wk-fact"><dt>Ważny do</dt><dd>{new Date(info.expiresAt).toLocaleDateString('pl-PL')}</dd></div>
       </dl>
 
+      <LinkClauses areas={info.areas} invitationId={info.invitationId} />
+
       {info.state !== null ? (
         <p className="wk-warn">{STATE_WORD[info.state] ?? 'Ten link już nie działa.'}</p>
       ) : (
@@ -236,3 +241,28 @@ export function JoinWithoutAccount({ token, onSignIn }: { token: string | null; 
 }
 
 export default JoinLink;
+
+/**
+ * 0129 — WER FÜR DIE DATEN DER BEREICHE GERADESTEHT, in die der Link führt: je
+ * Administrator eine Klausel (mehrere Bereiche teilen oft denselben). Gesperrt
+ * wird ein Link dafür nie — er sagt es nur. Dazu „Zgłoś" für den Link selbst.
+ */
+export function LinkClauses({ areas, invitationId }: { areas: readonly LinkArea[]; invitationId: string }) {
+  if (areas.every((a) => a.controller === undefined)) return null;
+  const seen = new Set<string>();
+  const shown: { key: string; controller: LinkArea['controller'] }[] = [];
+  for (const a of areas) {
+    const key = a.controller === null || a.controller === undefined ? 'none' : (a.controller.id ?? a.controller.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    shown.push({ key, controller: a.controller ?? null });
+  }
+  return (
+    <section className="wk-link-clauses">
+      {shown.map((one, i) => (
+        <ControllerClause key={one.key} controller={one.controller ?? null} context="collect"
+          report={i === shown.length - 1 ? { kind: 'link', id: invitationId } : null} />
+      ))}
+    </section>
+  );
+}

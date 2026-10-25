@@ -10,6 +10,20 @@ import { Attachments, kindOf } from './Attachments';
 import type { Opened, SealedMessage } from './chat';
 import type { Features, Mark } from './chatFeatures';
 import { type Anchor, Avatar, Icon, type MenuItem, PopMenu, type Shown, authorOf, clock, cls, dayKey, dayLabel, failure, full, hueOf, whenLong } from './ChatKit';
+import { later } from '../ui/later';
+
+/* 0130 — das Fenster „Zgłoś" erst, wenn jemand meldet. */
+const ReportDialog = later(() => import('../reports/ReportDialog').then((m) => m.ReportDialog), null);
+
+/** Was der Meldende an einer Nachricht sieht — der Betreiber hat dazu keinen Schlüssel. */
+const quoteOf = (item: Shown, author: string): string => {
+  const files = item.opened?.attachments ?? [];
+  return [
+    `${author}, ${full(item.message.createdAt)}:`,
+    item.opened?.text ?? '',
+    files.length === 0 ? '' : `Załączniki: ${files.map((a) => a.name).join(', ')}`
+  ].filter((line) => line.trim() !== '').join('\n');
+};
 
 /* -- Text ---------------------------------------------------------------------------- */
 
@@ -131,6 +145,8 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   const [fresh, setFresh] = useState(0);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [confirm, setConfirm] = useState<SealedMessage | null>(null);
+  /* 0130 — welche Nachricht gerade gemeldet wird, mit dem Namen, wie ihn der Meldende sieht. */
+  const [report, setReport] = useState<{ item: Shown; author: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [pinAt, setPinAt] = useState(0);
@@ -477,6 +493,14 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
           onDelete={setConfirm}
           onPick={(id) => setPicked(new Set([id]))}
           onRestore={(message) => { void on.restore(message).then(() => say('Przywrócono.')).catch((e: unknown) => say(failure(e, 'Nie udało się przywrócić.'))); }}
+          onReport={(item, author) => setReport({ item, author })}
+        />
+      )}
+
+      {report !== null && (
+        <ReportDialog
+          what={{ itemKind: 'message', itemId: report.item.message.messageId, quote: quoteOf(report.item, report.author) }}
+          onClose={() => setReport(null)}
         />
       )}
 
@@ -501,7 +525,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   );
 }
 
-function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete, onRestore, onPick }: {
+function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete, onRestore, onPick, onReport }: {
   menu: OpenMenu;
   marks: readonly Mark[];
   rules: MessageRules;
@@ -513,14 +537,20 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
   onRestore: (message: SealedMessage) => void;
   /** 0101 — Markieren beginnen, mit dieser Nachricht. */
   onPick: (id: string) => void;
+  /** 0130 — eine Nachricht eines anderen dem Betreiber melden. */
+  onReport: (item: Shown, author: string) => void;
 }) {
   const { message, opened } = menu.item;
   const id = message.messageId;
   const gone = message.deletedAt !== null;
   const items: MenuItem[] = [];
 
+  /* 0130 — melden kann, wer sie lesen kann: auch nur lesend, nie die eigene, nie eine schon gesperrte. */
+  const reportable = !gone && opened !== null && message.blocked !== true && !rules.mine(message);
+
   if (!gone && opened !== null && rules.readOnly === true) {
     if (opened.text !== '') items.push({ label: 'Kopiuj tekst', icon: 'copy', onSelect: () => onCopy(opened.text) });
+    if (reportable) items.push({ label: 'Zgłoś', icon: 'alert', onSelect: () => onReport(menu.item, menu.author) });
   } else if (!gone && opened !== null) {
     items.push({ label: 'Odpowiedz', icon: 'reply', onSelect: () => on.reply(message, opened, menu.author) });
     items.push({ label: 'Zaznacz', icon: 'check', onSelect: () => onPick(id) });
@@ -549,6 +579,7 @@ function MessageMenu({ menu, marks, rules, on, onClose, onMark, onCopy, onDelete
       const move = on.moveTopic;
       items.push({ label: 'Przenieś do tematu', icon: 'hash', onSelect: () => move(message) });
     }
+    if (reportable) items.push({ label: 'Zgłoś', icon: 'alert', onSelect: () => onReport(menu.item, menu.author) });
   }
   if (gone && rules.canRestore(message)) items.push({ label: 'Przywróć', icon: 'history', onSelect: () => onRestore(message) });
   if (!gone && rules.canDelete(message)) items.push({ label: 'Usuń', icon: 'trash', danger: true, onSelect: () => onDelete(message) });
@@ -706,6 +737,9 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
           <div className="ch-text ch-gone">
             <Icon name="ban" /> {message.deletedBy === 'moderator' ? 'Wiadomość usunięta przez prowadzącego' : 'Wiadomość usunięta'}{pad}
           </div>
+        ) : message.blocked === true ? (
+          /* 0130 — nach einer Meldung gesperrt: der Dienst schickt keinen Inhalt. */
+          <div className="ch-text ch-gone" data-message-blocked=""><Icon name="ban" /> Wiadomość zablokowana po zgłoszeniu.{pad}</div>
         ) : opened === null ? (
           <div className="ch-text ch-gone"><Icon name="lock" /> Nie do odczytania — brak klucza tej epoki.{pad}</div>
         ) : (

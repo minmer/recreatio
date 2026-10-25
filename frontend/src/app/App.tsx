@@ -44,6 +44,7 @@ const SeatPortal = lazy(() => import('./seats/SeatPortal').then((m) => ({ defaul
 const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Verify })));
 const AiConnect = lazy(() => import('./aiAccess/AiConnect').then((m) => ({ default: m.AiConnect })));
 const SharedFile = lazy(() => import('./phone/SharedFile').then((m) => ({ default: m.SharedFile })));
+const ReportPage = lazy(() => import('./reports/ReportPage').then((m) => ({ default: m.ReportPage })));
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -150,6 +151,14 @@ export function App() {
    */
   if (address.route === 'plik') {
     return <PlainFrame><Suspense fallback={<Loading />}><SharedFile secret={address.slug ?? ''} /></Suspense></PlainFrame>;
+  }
+
+  /*
+   * 0130 — ZGŁOŚ: ohne Anmeldung (melden kann jeder, was er sieht); ist jemand
+   * angemeldet, reist seine Sitzung mit, und er kann auch melden, was nur er sieht.
+   */
+  if (address.route === 'zglos') {
+    return <PlainFrame><Suspense fallback={<Loading />}><ReportPage slug={address.slug} tail={address.tail} /></Suspense></PlainFrame>;
   }
 
   /*

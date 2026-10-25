@@ -490,7 +490,7 @@
 .cg-wy-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); min-height: 2.75rem; padding: var(--wk-space-1) 0; }
 .cg-wy-twist { min-width: 2.75rem; min-height: 2.75rem; margin: calc(-1 * var(--wk-space-2)) 0; padding: 0; border: 0; background: none; color: var(--wk-ink-2); cursor: pointer; font-size: var(--wk-text-sm); }
 .cg-wy-chip { font-size: var(--wk-text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--wk-accent); }
-.cg-wy-label { flex: 1 1 18rem; padding: 0; border: 0; background: none; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; }
+.cg-wy-label { flex: 1 1 18rem; padding: 0; border: 0; background: none; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .cg-wy-label:hover, .cg-wy-label:focus-visible { text-decoration: underline; }
 .cg-wy-place { font-size: var(--wk-text-sm); color: var(--wk-ink-2); white-space: nowrap; }
 .cg-wy-kicker .cg-wy-place { text-transform: none; letter-spacing: 0; font-weight: 600; }

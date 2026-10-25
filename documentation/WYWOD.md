@@ -110,6 +110,10 @@ Nothing about arguments. It knows four general things, all declared by the owner
     `aria-controls`, one tab stop per step); the arrow before it is for the mouse. ↑ ↓ move between steps, → opens one
     and ← closes it. „Rozwiń wszystko” opens every step; each can still be closed. In text order the heading of an
     Aquinas piece is read before its first step.
+  - **„Tezy skrócone | Całe tezy”** (2026-10-26), beside the order. Short: a thesis is cut after 90 characters
+    with „…”, like every name in lists. Whole: the question and every step show the whole first sentence (not the
+    paragraph), wrapped over several lines. It is the reader's choice for every root on the screen, remembered per
+    browser; references stay short („↳ do:”, the path „W strukturze”).
   - Each step shows its chip, thesis, relative place, and a mark when it differs from reporting the source
     („dopowiedziane”, „Interpretacja”). Comments fetched by the view (e.g. „← O czym”) appear only when the step is
     opened, with a count „● n”.
@@ -290,18 +294,19 @@ lasting names for the kinds, card templates and forms of `komentarz.json`, `kome
 and `psalterz.json`.
 
 **Checks:**
-- `app-cogita-check`: 104 checks. They import all four guide examples as they stand. They cover the second round:
+- `app-cogita-check`: 107 checks. They import all four guide examples as they stand. They cover the second round:
   one event in three structures, the time order, concepts above works, all four card kinds checked against the
   steps of the same work, the correction with its review (default, accept, edit, reject, unreadable edit), kinds by
   lasting name, and Appendix A equal to the app. They also cover the import after the review: older imports recognised, two passes, name spaces and the sort guard, kind names and renamed kinds,
   completed kinds, `down` answers, merged names, case, references only in reference fields, circles and steps that
   point nowhere, anchors, documents reaching another document's entries, export into another base with axes. They
   also cover the structure view: relative places for outlines, one collator, the budget per root, one tab stop per
-  step, piece headings, keys.
+  step, piece headings, keys, short and whole theses.
 - `app-library-check`: the „W Wiedzy” computation, and parts after „;” (frames, merging, bare numbers, pages).
-- The browser drive `scratchpad/argdesign/wywod-browser.mjs` (headless Edge, local API on LocalDB): 29 checks.
+- The browser drive `scratchpad/argdesign/wywod-browser.mjs` (headless Edge, local API on LocalDB): 33 checks.
   They run from the schema import to the parishioner who sees nothing, and include the novel's chronology in the
-  time of the story and a correction accepted and edited in the review.
+  time of the story, a correction accepted and edited in the review, and „Tezy skrócone | Całe tezy” (kept over a
+  reload, wrapped on a phone).
 
 ## 7. Found on the way
 

@@ -21,6 +21,7 @@ import { AreaOverview } from '../workspace/WorkspaceHome';
 import { AddRole } from './AddRole';
 import { type AreaRow, type Member, PUBLIC_LEVELS, type PublicLevel, SEAT_LEVELS, dropFromArea, loadMembers, myEpochKeys, setPublicLevel, setSeatLevel } from './area';
 import { AreaControllerSettings } from './AreaController';
+import { AreaEventSettings } from '../events/AreaEventSettings';
 import { daysLeft, memberUntil, noteRenewal, RENEW_BEFORE_DAYS, renewalFailure, renewArea, WARN_BEFORE_DAYS } from './renew';
 import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './areaWords';
 
@@ -224,9 +225,16 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
         <div className="wk-narrow ui-page">
           <section aria-labelledby="area-controller-h">
             <h2 className="wk-h2" id="area-controller-h">Administrator danych</h2>
-            <p className="wk-hint">Stoi pod każdym formularzem tego obszaru i obszarów w nim, zanim ktoś coś wpisze.</p>
-            <AreaControllerSettings areaId={area.areaId} editable={area.myLevel === 'admin'} />
+            <AreaControllerSettings areaId={area.areaId} areaName={area.name} editable={area.myLevel === 'admin'} ring={ring} />
           </section>
+
+          {/* 0131 — der Bereich als Wydarzenie: Hauptseite, Haupttermin, Bild, Listen. */}
+          {area.personal !== true && (
+            <section aria-labelledby="area-event-h">
+              <h2 className="wk-h2" id="area-event-h">Wydarzenie</h2>
+              <AreaEventSettings area={area} ring={ring} editable={area.myLevel === 'admin'} />
+            </section>
+          )}
 
           <section aria-labelledby="area-chat-h">
             <h2 className="wk-h2" id="area-chat-h">Rozmowa obszaru</h2>

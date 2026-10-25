@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 
 import { BakePanel, PlayerBar, type BakeProgress } from './ClipControls';
-import type { ClipInfo } from './clip/clip';
+import type { ClipEngine, ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import type { ExtremeEvent } from './engine/extremes';
 import { GRAIN_D } from './engine/grains';
@@ -61,8 +61,12 @@ const load = (key: string): string | null => { try { return window.localStorage.
 const store = (key: string, value: string): void => { try { window.localStorage.setItem(key, value); } catch { /* ohne Speicher gilt die Wahl nur jetzt */ } };
 const savedQuality = (): Quality | null => { const v = load(QUALITY_KEY); return isQuality(v) ? v : null; };
 const savedLevel = (): Level => (load(LEVEL_KEY) === 'secondary' ? 'secondary' : 'primary');
-function savedBake(): { fps: number; keyEvery: number } {
-  try { const v = JSON.parse(load(BAKE_KEY) ?? '{}') as { fps?: unknown; keyEvery?: unknown }; return { fps: typeof v.fps === 'number' ? v.fps : 30, keyEvery: typeof v.keyEvery === 'number' ? v.keyEvery : 5 }; } catch { return { fps: 30, keyEvery: 5 }; }
+/** Wie zuletzt gebacken wurde: Bilder je Sekunde, Schlüsselbilder, wer rechnet (Vorgabe seit 2026-10-25: die Grafikkarte). */
+function savedBake(): { fps: number; keyEvery: number; engine: ClipEngine } {
+  try {
+    const v = JSON.parse(load(BAKE_KEY) ?? '{}') as { fps?: unknown; keyEvery?: unknown; engine?: unknown };
+    return { fps: typeof v.fps === 'number' ? v.fps : 30, keyEvery: typeof v.keyEvery === 'number' ? v.keyEvery : 5, engine: v.engine === 'cpu' ? 'cpu' : 'gpu' };
+  } catch { return { fps: 30, keyEvery: 5, engine: 'gpu' }; }
 }
 function withQuality(raw: unknown, q: Quality): unknown {
   return raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>), quality: q } : { quality: q };
@@ -115,6 +119,10 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   /* Der beschleunigte Weg (WebGPU): ein anderer Arbeiter; die Szene wandert beim Umschalten mit (nextScene). */
   const [accel, setAccel] = useState(false);
   const nextScene = useRef<unknown>(null);
+  /* B (seit 2026-10-25): ein Schlüsselbild, ab dem der nächste Arbeiter live weitergeht (Nachweis von der GPU); was nach dem Wechsel aus dem beschleunigten Weg zu tun ist. */
+  const resumeRef = useRef<Uint8Array | null>(null);
+  const pendingRef = useRef<'bake' | 'play' | null>(null);
+  const bakeNoteRef = useRef<string | undefined>(undefined);
   const [clip, setClip] = useState<ClipInfo | null>(null);
   const [bake, setBake] = useState<BakeProgress | null>(null);
   const [playSpeed, setPlaySpeed] = useState(1);
@@ -169,6 +177,8 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     const dark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
     const startScene = nextScene.current ?? withQuality(config.scene, qualityRef.current);
     nextScene.current = null;
+    const resume = resumeRef.current ?? undefined;
+    resumeRef.current = null;
     const h = new LabHost(canvas, accel ? createAccelWorker : createWorker, {
       onReady: () => {
         setReady(true);
@@ -178,6 +188,11 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
         if (s.overlay !== 'none') h.overlay(s.overlay);
         if (s.particles) h.particles(true);
         if (s.paused) h.pause(true);
+        /* Aus dem beschleunigten Weg gekommen, um zu backen oder abzuspielen (dort bevorzugt der Nachweis von der GPU). */
+        const pending = pendingRef.current;
+        pendingRef.current = null;
+        if (pending === 'bake') setBakeOpen(true);
+        else if (pending === 'play') h.clipOpen(true, 'gpu');
       },
       onStats: (s) => {
         setStats(s);
@@ -201,12 +216,30 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
         if (startRef.current === 'bake' && autoRef.current !== scenarioRef.current) {
           autoRef.current = scenarioRef.current;
           if (c !== null) h.clipOpen(true);
-          else h.bake({ seconds: secondsRef.current, ...savedBake(), quality: qualityRef.current, extremes: 'normalize' });
+          else { const s = savedBake(); h.bake({ seconds: secondsRef.current, ...s, engine: HAS_WEBGPU ? s.engine : 'cpu', quality: qualityRef.current, extremes: 'normalize' }); }
         }
       },
       onBake: (m) => {
-        setBake(m.state === 'done' || m.state === 'failed' ? null : { state: m.state, t: m.t, seconds: m.seconds, rate: m.rate, message: m.message });
+        setBake(m.state === 'done' || m.state === 'failed' ? null : { state: m.state, t: m.t, seconds: m.seconds, rate: m.rate, message: m.message, engine: m.engine, note: m.note });
         if (m.state === 'failed') setNote(m.message === 'engine' ? t('clipEngine') : m.message === 'short' ? t('bakeShort') : `${t('bakeFailed')}${m.message ? ` (${m.message})` : ''}`);
+        /* Warum die CPU backt (oder die Karte aufgab) — einmal je Backen. */
+        if (m.state === 'preparing') bakeNoteRef.current = undefined;
+        if (m.note !== undefined && m.note !== bakeNoteRef.current) {
+          bakeNoteRef.current = m.note;
+          setNote(t(m.note === 'cpu-only' ? 'bakeCpuOnly' : m.note === 'no-webgpu' ? 'bakeNoWebgpu' : m.note === 'gpu-lost' ? 'bakeGpuLost' : 'bakeGpuFailed'));
+        }
+        if (m.state === 'done' || m.state === 'failed') bakeNoteRef.current = undefined;
+      },
+      onResume: (scene, snapshot) => {
+        /* „Na żywo“ aus einem Nachweis von der GPU: im beschleunigten Weg weiter, ab seinem Schlüsselbild (mit der Auflösung des Nachweises). */
+        nextScene.current = scene;
+        resumeRef.current = snapshot;
+        setupRef.current = null;
+        setQuality(readScene(scene).scene.quality);
+        lagRef.current = 0;
+        setLagging(null);
+        setStats(null);
+        setAccel(true);
       },
       onLive: (time) => {
         setBake(null);
@@ -218,6 +251,14 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
       onExtreme: (ev) => { setExtreme(ev); setPaused(true); },
       onGpu: (ok, _adapter, message, scene) => {
         if (ok) return;
+        if (resume !== undefined) {
+          /* Live weiter aus einem Nachweis von der GPU, aber der beschleunigte Weg ging nicht: dasselbe Schlüsselbild auf der CPU. */
+          nextScene.current = startScene;
+          resumeRef.current = resume;
+          setNote(`${t('accelFailed')}${message ? ` (${message})` : ''}`);
+          setAccel(false);
+          return;
+        }
         /* WebGPU fehlt, die Karte gibt auf oder die Szene enthält, was der beschleunigte Weg noch nicht kann: zurück zur CPU — mit der Szene, die er zurückgibt (samt Handgriffen). */
         const q = savedQuality() ?? readScene(config.scene).scene.quality;
         nextScene.current = withQuality(scene ?? startScene, q);
@@ -228,7 +269,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     });
     hostRef.current = h;
     const r = box.getBoundingClientRect();
-    void h.start(startScene, r.width, r.height, window.devicePixelRatio || 1, dark, settingsRef.current.paused);
+    void h.start(startScene, r.width, r.height, window.devicePixelRatio || 1, dark, settingsRef.current.paused || resume !== undefined, resume);
     const ro = new ResizeObserver(() => {
       const q = box.getBoundingClientRect();
       h.resize(q.width, q.height, window.devicePixelRatio || 1);
@@ -453,15 +494,21 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   };
   const changeParticles = (on: boolean): void => { setParticles(on); host()?.particles(on); };
   const answerExtreme = (m: 'compute' | 'normalize'): void => { host()?.setExtremes(m); setExtreme(null); setPaused(false); host()?.pause(false); };
-  /* Umschalten zwischen dem normalen und dem beschleunigten Weg: die jetzige Szene (Aufbau samt Handgriffen) geht mit; beschleunigt mit 1 mm. */
-  const toggleAccel = (): void => {
+  /*
+   * Umschalten zwischen dem normalen und dem beschleunigten Weg: die jetzige Szene (Aufbau samt Handgriffen) geht mit; beschleunigt mit 1 mm.
+   * then (B, seit 2026-10-25): aus dem beschleunigten Weg zum Backen oder Abspielen — die Szene behält ihre Auflösung (so findet sich ihr
+   * Nachweis), danach öffnet sich das Fenster bzw. spielt der Nachweis von der GPU.
+   */
+  const toggleAccel = (then: 'bake' | 'play' | null = null): void => {
     const h = host();
     const next = !accel;
     const q: Quality = next ? 'very-high' : savedQuality() ?? readScene(config.scene).scene.quality;
+    pendingRef.current = next ? null : then;
     const go = (scene: unknown): void => {
-      nextScene.current = withQuality(scene, q);
+      const own = !next && then !== null ? readScene(scene).scene.quality : q;
+      nextScene.current = withQuality(scene, own);
       setupRef.current = null;
-      setQuality(q);
+      setQuality(own);
       lagRef.current = 0;
       setLagging(null);
       samplesRef.current = [];
@@ -477,7 +524,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   /* Backen beginnt beim Aufbau vom Start (nicht bei der Zeit, die gerade läuft). */
   const startBake = (o: BakeOptions): void => {
     setBakeOpen(false);
-    store(BAKE_KEY, JSON.stringify({ fps: o.fps, keyEvery: o.keyEvery }));
+    store(BAKE_KEY, JSON.stringify({ fps: o.fps, keyEvery: o.keyEvery, engine: o.engine ?? savedBake().engine }));
     const h = host();
     if (h === null) return;
     lagRef.current = 0;
@@ -485,7 +532,8 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
     setPaused(true);
     h.pause(true);
     if (phase === 'simulate' && setupRef.current !== null) h.load(setupRef.current);
-    h.bake(o);
+    /* Ohne WebGPU auf dieser Seite backt die CPU ohne Hinweis (die Wahl war nicht zu sehen; gemerkt bleibt sie). */
+    h.bake({ ...o, engine: HAS_WEBGPU ? o.engine : 'cpu' });
   };
   /* Szenen als Dateien: Speichern lädt ein JSON herunter (mit dem Samen), Laden liest eins ein. */
   const save = (): void => {
@@ -568,6 +616,8 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   }
 
   const cpuOnly = stats?.engine.cpuOnly ?? false;
+  /* Das Fenster des Backens ist offen: die Grafikkarte schon vorbereiten (ihre Kerne übersetzen Sekunden lang; B). */
+  useEffect(() => { if (bakeOpen && ready && !accel && HAS_WEBGPU && !cpuOnly) hostRef.current?.bakePrepare(); }, [bakeOpen, ready, accel, cpuOnly]);
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const cells = (q: Quality): number => {
     const e = stats?.engine;
@@ -606,7 +656,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
         {toolOpts && live && <ToolOptions tool={tool} s={ts} onChange={(p) => setTs({ ...ts, ...p })} onClose={() => setToolOpts(false)} />}
         {sheet === 'settings' && (
           <SettingsSheet quality={quality} onQuality={changeQuality} extremes={extremesMode} onExtremes={(m) => host()?.setExtremes(m)}
-            accel={accel} accelBlocked={!live ? t('clipAccel') : cpuOnly ? t('accelNoOther') : null} showAccel={HAS_WEBGPU || accel} onAccel={toggleAccel}
+            accel={accel} accelBlocked={!live ? t('clipAccel') : cpuOnly ? t('accelNoOther') : null} showAccel={HAS_WEBGPU || accel} onAccel={() => toggleAccel()}
             ambient={ambient} onAmbient={changeAmbient} walls={view?.walls ?? null} onSide={(s, wall) => host()?.setBoundary(s, wall ? 'wall' : 'open')}
             particles={particles} particlesBlocked={mode === 'playback'} onParticles={changeParticles} level={level} onLevel={changeLevel} hud={hud} onHud={setHud}
             onSave={save} onLoadFile={loadFile} onEmpty={emptyBox} onScenarioStart={scenarioStart} busy={!live} onClose={() => setSheet(null)} />
@@ -628,17 +678,17 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
       ) : phase === 'clip' && clipStats !== null ? (
         <footer className="l2d-time is-wide">
           <PlayerBar clip={clip} stats={clipStats} speed={playSpeed} onPlay={(p) => host()?.clipPlay(p)} onSeek={(x) => host()?.clipSeek(x)}
-            onSpeed={(s) => { setPlaySpeed(s); host()?.setSpeed(s); }} onLoop={(on) => host()?.clipLoop(on)} onLive={() => host()?.clipLive()}
-            onClose={() => { host()?.clipClose(); setPaused(true); }} onDelete={() => host()?.clipDelete()} />
+            onSpeed={(s) => { setPlaySpeed(s); host()?.setSpeed(s); }} onLoop={(on) => host()?.clipLoop(on)} onLive={() => host()?.clipLive(HAS_WEBGPU)}
+            onClose={() => { host()?.clipClose(); setPaused(true); }} onDelete={() => host()?.clipDelete()} onEngine={(e) => host()?.clipEngine(e)} />
         </footer>
       ) : (
         <TimeBar phase={phase} paused={paused} time={time} speed={SPEEDS[speedAt]} onPlay={togglePlay} onStep={() => host()?.step()} onSpeed={cycleSpeed} onRestart={restart}
-          overlay={overlay} onOverlay={changeOverlay} chartsOn={chartsOn} onCharts={toggleCharts} canBake={!accel} onBake={() => setBakeOpen(true)}
-          clip={accel ? null : clip} onPlayClip={() => host()?.clipOpen(true)} lagging={lagging} onLower={lower !== undefined ? () => changeQuality(lower) : undefined} />
+          overlay={overlay} onOverlay={changeOverlay} chartsOn={chartsOn} onCharts={toggleCharts} canBake={ready} accel={accel} onBake={() => (accel ? toggleAccel('bake') : setBakeOpen(true))}
+          clip={clip} onPlayClip={() => (accel ? toggleAccel('play') : host()?.clipOpen(true))} lagging={lagging} onLower={lower !== undefined ? () => changeQuality(lower) : undefined} />
       )}
       {bakeOpen && (
         <BakeDialog initial={{ seconds: secondsRef.current, ...savedBake(), quality, extremes: extremesMode === 'compute' ? 'compute' : 'normalize' }} cells={cells}
-          onBake={startBake} onCancel={() => setBakeOpen(false)} />
+          gpu={!HAS_WEBGPU ? 'none' : cpuOnly ? 'cpu-only' : 'yes'} onBake={startBake} onCancel={() => setBakeOpen(false)} />
       )}
       {extreme !== null && <ExtremeDialog event={extreme} onChoose={answerExtreme} />}
     </div>

@@ -23,8 +23,9 @@ import type { Engine } from '../engine/engine';
 import { arrowPoints, arrowStep, presOf, speedOf, velOf, type Layers } from '../render/layers';
 import { OVERLAY_EVERY } from '../clip/codec';
 import { BK_WORDS, BKC, BKC_WORDS, CLOCK_UNITS, HEAD, HEAD_WORDS } from './captureKernels';
-import { bodyStatics, fillQuads, type BodyStatics } from './captureBodies';
+import { bodyStatics, fillQuads, rebaseQuads, type BodyStatics } from './captureBodies';
 import type { GpuEngine } from './engine';
+import { F } from './slots';
 
 /** Wo im Platz eines Bildes welche Ebene beginnt (Wörter), und sein Umfang. */
 export interface SlotLayout {
@@ -75,6 +76,9 @@ export class Capture {
   private readonly bkc: GPUBuffer;
   private readonly bko: GPUBuffer;
   private readonly bkh: GPUBuffer;
+  /** Der Bezug der Vierecke (je Viereck T_k, Kruste_k, Seite) und der Treppenzellen (T_c, dann Kruste_c). */
+  private readonly q0: GPUBuffer;
+  private readonly c0: GPUBuffer;
   private readonly groups: Record<string, GPUBindGroup>;
   /** Die Vierecke eines Bildes (feste Lage, Wörter 6 und 7 je Bild) — wiederverwendet. */
   private readonly quads: Uint16Array;
@@ -116,11 +120,13 @@ export class Capture {
     K.set([L.sw, this.kmax, Math.round(CLOCK_UNITS / fps), S.d.bcap, L.flags, L.crust, L.glow, L.temp, L.pres, L.speed, L.hum, L.vap, L.fog, L.liq, L.arw, L.bub, L.quad, st.nq, L.na, L.nax, L.astep, L.ahalf, OVERLAY_EVERY, 0]);
     const kbuf = ctx.uniform('bk', K.buffer);
     this.own.push(kbuf);
+    this.q0 = buf('q0', st.q0.length, st.q0);
+    this.c0 = buf('c0', st.c0.length, st.c0);
     const res = {
       P: S.params, K: kbuf, glob: S.glob, cnt: S.cnt, cf: S.cf, cu: S.cu, ff: S.ff, reg: S.reg, parts: S.partsA, ccount: S.ccountB, cstart: S.cstart,
       bsum: S.bsum, bubs: S.bubs, bkc: this.bkc, bko: this.bko, bkh: this.bkh, lq, lq2,
       bkm: buf('bkm', n, st.cellMask), bkt: buf('bkt', 4 * n, st.texMask), qs: buf('qs', st.qs.length, st.qs), qc: buf('qc', st.qc.length, st.qc),
-      qw: buf('qw', st.qw.length, st.qw), qx: buf('qx', st.qx.length, st.qx), q0: buf('q0', st.q0.length, st.q0), c0: buf('c0', st.c0.length, st.c0)
+      qw: buf('qw', st.qw.length, st.qw), qx: buf('qx', st.qx.length, st.qx), q0: this.q0, c0: this.c0
     };
     const bind = (name: string, extra: Record<string, GPUBuffer> = {}): GPUBindGroup => ctx.bind(name, { ...res, ...extra });
     this.groups = {
@@ -139,6 +145,24 @@ export class Capture {
     init[BKC.FRAMES] = 1;
     init[BKC.DT] = Math.round(Math.fround(Math.fround(this.e.dt) * CLOCK_UNITS));
     this.g.ctx.device.queue.writeBuffer(this.bkc, 0, init);
+  }
+
+  /**
+   * An einem Schlüsselbild, nach GpuState.download (die Bündel sind leer): der neue Bezug der Vierecke — T_k und
+   * Kruste_k, wie collect sie eben in der CPU-Engine hinterliess; T_c und Kruste_c der Zellen, wie sie auf der GPU stehen.
+   */
+  rebase(): void {
+    const st = this.bodies;
+    if (st.nq === 0) return;
+    rebaseQuads(this.e, st);
+    const dev = this.g.ctx.device;
+    dev.queue.writeBuffer(this.q0, 0, st.q0 as BufferSource);
+    const n = this.e.grid.n;
+    const cf = this.g.state.cf;
+    const enc = dev.createCommandEncoder();
+    enc.copyBufferToBuffer(cf, 4 * F.T * n, this.c0, 0, 4 * n);
+    enc.copyBufferToBuffer(cf, 4 * F.CRUST * n, this.c0, 4 * n, 4 * n);
+    dev.queue.submit([enc.finish()]);
   }
 
   /** Ein Bündel beginnt: noch kein Bild darin. */

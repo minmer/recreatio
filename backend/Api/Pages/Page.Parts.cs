@@ -183,6 +183,27 @@ public static partial class Page
             while (await reader.ReadAsync(ctx.RequestAborted)) here.Add(reader.GetGuid(0));
         }
 
+        /*
+         * 0130 — EIN GESPERRTER PLATZ BLEIBT, WIE ER IST. Der Editor bekommt ihn nur als
+         * Platzhalter (ohne Baustein und Inhalt); schriebe er das zurück, wäre der Inhalt
+         * vom Platz gelöst, ohne dass jemand entschieden hätte. Verschieben darf man ihn;
+         * entfernen oder wiederherstellen kann ihn nur der Betreiber.
+         */
+        var blockedHere = new HashSet<Guid>();
+        await using (var blockedCmd = new SqlCommand(
+            $"SELECT p.id FROM app.slug_part p WHERE p.slug_id = @slug AND {Takedowns.PartBlocked("p")};", connection, tx))
+        {
+            blockedCmd.Parameters.AddWithValue("@slug", slugId);
+            await using var reader = await blockedCmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) blockedHere.Add(reader.GetGuid(0));
+        }
+        if (blockedHere.Any(id => !ids.Contains(id)))
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Ten moduł zablokowano po zgłoszeniu — usunąć albo przywrócić go może tylko operator serwisu. Możesz się odwołać w „Sprawach”.");
+            return;
+        }
+
         /* 0063 — die Bausteine der Stellen, die gehen (siehe unten, vor dem Abschluss). */
         var dropped = new List<Guid>();
 
@@ -221,6 +242,17 @@ public static partial class Page
         for (var i = 0; i < parts.Count; i++)
         {
             var id = Guid.Parse(parts[i].Id);
+
+            /* 0130 — gesperrt: nur die Stelle auf der Seite folgt dem Entwurf, Baustein und Inhalt nicht. */
+            if (blockedHere.Contains(id))
+            {
+                await using var move = new SqlCommand("UPDATE app.slug_part SET position = @position, layout = @layout WHERE id = @id;", connection, tx);
+                move.Parameters.AddWithValue("@id", id);
+                move.Parameters.AddWithValue("@position", i);
+                move.Parameters.AddWithValue("@layout", parts[i].Layout);
+                await move.ExecuteNonQueryAsync(ctx.RequestAborted);
+                continue;
+            }
 
             /*
              * JEDE VERWENDUNG HAT EINEN BAUSTEIN (0036).
@@ -386,7 +418,7 @@ public static partial class Page
     {
         var parts = new List<object>();
 
-        await using var cmd = new SqlCommand("""
+        await using var cmd = new SqlCommand($"""
             SELECT p.id,
                    CASE WHEN blk.hit = 1 THEN N'blocked' ELSE COALESCE(m.kind, p.kind) END AS kind,
                    p.layout,
@@ -400,11 +432,8 @@ public static partial class Page
                 nur, wo ein Baustein (noch) fehlt.
             */
             LEFT JOIN app.module m ON m.id = p.module_id
-            /* 0130 — ein nach einer Meldung gesperrter Teil (oder sein Baustein) steht nur noch als Platzhalter da. */
-            OUTER APPLY (SELECT TOP 1 1 AS hit FROM app.takedown t
-                          WHERE t.item_at IS NULL
-                            AND ((t.item_kind = N'part' AND t.item_id = p.id)
-                              OR (t.item_kind IN (N'part', N'form') AND t.item_id = p.module_id))) blk
+            /* 0130 — ein nach einer Meldung gesperrter Teil (oder sein Baustein, auch an anderer Stelle) steht nur noch als Platzhalter da. */
+            OUTER APPLY (SELECT CASE WHEN {Takedowns.PartBlocked("p")} THEN 1 ELSE 0 END AS hit) blk
             WHERE p.slug_id = @slug
             ORDER BY p.position;
             """, connection);

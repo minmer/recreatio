@@ -315,13 +315,21 @@ public static class PageImage
             ctx.Response.Headers.ContentSecurityPolicy = "default-src 'none'; sandbox";
         }
 
-        ctx.Response.ContentType = type;
         /*
-         * 0130 — einen Tag, nicht ein Jahr „unveränderlich": eine nach einer Meldung gesperrte
-         * Datei soll aus den Browsern verschwinden können. Eine Datei ändert sich trotzdem nie,
-         * sie wird ersetzt.
+         * 0130 — FÜNF MINUTEN, DANN NACHFRAGEN, nicht ein Jahr „unveränderlich": eine nach
+         * einer Meldung gesperrte Datei soll aus den Browsern verschwinden. Eine Datei ändert
+         * sich nie (sie wird ersetzt) — das Nachfragen kostet deshalb nur ein 304.
          */
-        ctx.Response.Headers.CacheControl = "public, max-age=86400";
+        var etag = $"\"{id:N}\"";
+        ctx.Response.Headers.CacheControl = "public, max-age=300";
+        ctx.Response.Headers.ETag = etag;
+        if (ctx.Request.Headers.IfNoneMatch.ToString().Contains(etag, StringComparison.Ordinal))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+
+        ctx.Response.ContentType = type;
         ctx.Response.Headers.XContentTypeOptions = "nosniff";
         ctx.Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
 

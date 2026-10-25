@@ -11,8 +11,10 @@
  * `createLink`) — nichts davon ist eigens für diesen Weg gebaut.
  *
  * <code>
- *   Zapisy na wydarzenie   Bereich · Formular (Imię, Nazwisko, Telefon, E-mail)
+ *   Nowe wydarzenie        Bereich · Haupttermin im Kalender des Bereichs
+ *                          · Formular (Imię, Nazwisko, Telefon, E-mail)
  *                          · Seite mit dem Formular · Rola uczestników
+ *                          · die Marke Wydarzenie (0131: Seite + Haupttermin)
  *   Nowa grupa             Bereich · Rola członków · Rozmowa · Link zaproszenia
  *   Kurs (0109)            Bereich · Baza wiedzy · Rola uczących się · Przyjęcia
  *                          für die Antworten · Powtórka codzienna · Link zum Kurs
@@ -44,12 +46,18 @@ import { createModule } from '../modules/module';
 import { call, WorkspaceError, type Who } from '../core/session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
 import { AreaPick } from '../areas/AreaPick';
+import { saveEvent } from '../calendar/agenda';
+import { loadAreaEvent, setAreaEvent } from '../events/events';
+import { leadOf, mainTermOf } from '../events/mainTerm';
 
 type Starter = 'signup' | 'group' | 'course';
 
+/** 0131 — was nach dem Anlegen noch zu tun ist, mit dem Weg dorthin. */
+interface Note { readonly text: string; readonly href: string; readonly link: string }
+
 const STARTERS: readonly { id: Starter; title: string; says: string; makes: string }[] = [
-  { id: 'signup', title: 'Zapisy na wydarzenie', says: 'Rekolekcje, wyjazd, warsztaty — formularz zgłoszeń na stronie.',
-    makes: 'Powstanie: obszar wydarzenia, formularz (imię, nazwisko, telefon, e-mail), strona z formularzem i rola uczestników.' },
+  { id: 'signup', title: 'Nowe wydarzenie', says: 'Rekolekcje, wyjazd, warsztaty — strona, termin i formularz zgłoszeń.',
+    makes: 'Powstanie: obszar wydarzenia, jego główny termin, formularz (imię, nazwisko, telefon, e-mail), strona z formularzem i rola uczestników — a obszar zostanie oznaczony jako wydarzenie.' },
   { id: 'group', title: 'Nowa grupa', says: 'Schola, oaza, rada — miejsce, rozmowa i link dla członków.',
     makes: 'Powstanie: obszar grupy, rola członków, rozmowa grupy i link zaproszenia.' },
   { id: 'course', title: 'Kurs do nauki', says: 'Słówka, katechizm, przygotowanie do egzaminu — powtórki dla uczących się.',
@@ -90,7 +98,14 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
   const [pages, setPages] = useState<readonly PageCard[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const [done, setDone] = useState<{ open: string; label: string; link?: string } | null>(null);
+  const [done, setDone] = useState<{ open: string; label: string; link?: string; notes?: readonly Note[] } | null>(null);
+  /* 0131 — der Haupttermin und die Art des Wydarzenie. */
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [place, setPlace] = useState('');
+  const [kind, setKind] = useState('');
 
   useEffect(() => {
     void areasNow().then(setAreas).catch(() => undefined);
@@ -146,13 +161,32 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
       if (starter === 'group') {
         const role = await createCommonRole(ring, person, { name: `Członkowie: ${name.trim()}`, areas: [{ areaId: area.areaId, capability: 'write' }] }, setBusy);
         setBusy('Zakładanie rozmowy grupy…');
-        await startAreaChat(area.areaId, person.id).catch(() => null);
+        /* 0129 — eine Rozmowa des Bereichs braucht einen Administrator danych; ohne ihn sagt es der Abschluss. */
+        const chatMade = await startAreaChat(area.areaId, person.id).then(() => true, () => false);
         setBusy('Tworzenie linku zaproszenia…');
         const link = await createLink(role.ring, person, { label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 90, aim: null });
         invalidate();
         refreshDesk();
-        setDone({ open: viewPath('areas', area.areaId), label: 'Otwórz grupę', link: link.url });
+        setDone({
+          open: viewPath('areas', area.areaId), label: 'Otwórz grupę', link: link.url,
+          notes: chatMade ? [] : [{
+            text: 'Rozmowa grupy jeszcze nie powstała: obszar nie ma administratora danych.',
+            href: viewPath('areas', area.areaId, 'ustawienia'), link: 'Wskaż go w ustawieniach obszaru'
+          }]
+        });
         return;
+      }
+
+      /* 0131 — der Haupttermin im Kalender des Bereichs (der Kalender entsteht dabei, wenn es keinen gibt). */
+      const term = mainTermOf({ date, time, endDate, endTime });
+      let itemId: string | null = null;
+      if (term !== null) {
+        setBusy('Główny termin w kalendarzu…');
+        itemId = await saveEvent(ring, {
+          title: name.trim(), location: place.trim(), notes: '', areaId: area.areaId, ownerRoleId: person.id,
+          date: term.date, time: term.time, minutes: term.minutes, allDay: term.allDay,
+          repeat: 'none', every: 1, weekdays: 0, until: null, count: null
+        });
       }
 
       /* Zapisy: das Formular im Bereich des Ereignisses, seine Fragen, die Seite, die Rolle. */
@@ -174,7 +208,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         setBusy('Tworzenie strony…');
         page = `${under}/${slugOf(name)}`;
         await call('/workspace/subpage', { method: 'POST', body: JSON.stringify({ path: page, roleId: person.id }) });
-        await savePage(page, { title: name.trim(), lead: null });
+        await savePage(page, { title: name.trim(), lead: leadOf(term, place) });
         const frame = (colSpan: number) => ({ position: { row: 1, col: 1 }, size: { colSpan, rowSpan: 5 } });
         await saveParts(page, [{ id: newId(), moduleId: formId, kind: 'form', layout: { desktop: frame(6), tablet: frame(4), mobile: frame(2) }, config: {} }]);
       }
@@ -185,10 +219,28 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         await setMemberRole(formId, role.roleId);
       }
 
+      /* 0131 — die Marke: dieser Bereich IST das Wydarzenie, mit Seite und Haupttermin. */
+      const notes: Note[] = [];
+      const settings = viewPath('areas', area.areaId, 'ustawienia');
+      setBusy('Oznaczanie wydarzenia…');
+      try {
+        await setAreaEvent(area.areaId, { path: page, itemId, kind: kind.trim() === '' ? null : kind.trim() });
+        const now = await loadAreaEvent(area.areaId);
+        if (now.controller === null) {
+          notes.push({ text: 'Formularz nie przyjmie zgłoszeń, dopóki obszar nie ma administratora danych.', href: settings, link: 'Wskaż go w ustawieniach obszaru' });
+        }
+        if (!now.public || page === null) {
+          notes.push({ text: 'Na listach „Wydarzenia” pokaże się, gdy obszar będzie jawny, a strona publiczna — co jeszcze brakuje, widać w ustawieniach obszaru.', href: settings, link: 'Ustawienia wydarzenia' });
+        }
+      } catch (e) {
+        notes.push({ text: `Obszaru nie udało się oznaczyć jako wydarzenie: ${e instanceof WorkspaceError ? e.message : 'błąd'}`, href: settings, link: 'Spróbuj w ustawieniach obszaru' });
+      }
+      if (term === null) notes.push({ text: 'Bez daty nie powstał główny termin — dodaj go w kalendarzu i wybierz w ustawieniach wydarzenia.', href: settings, link: 'Ustawienia wydarzenia' });
+
       forgetKeys();
       invalidate();
       refreshDesk();
-      setDone({ open: page === null ? formPath(formId) : viewPath('pages', ...pageSteps(page)), label: page === null ? 'Otwórz formularz' : 'Otwórz stronę w edytorze', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}` });
+      setDone({ open: page === null ? formPath(formId) : viewPath('pages', ...pageSteps(page)), label: page === null ? 'Otwórz formularz' : 'Otwórz stronę w edytorze', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}`, notes });
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się — część mogła już powstać; sprawdź w Obszarach.');
     } finally {
@@ -202,6 +254,11 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         <div className="wk-starter-done">
           <p className="wk-done" role="status">Gotowe.</p>
           {done.link !== undefined && <LinkShare url={done.link} />}
+          {(done.notes ?? []).map((one) => (
+            <p key={one.text} className="wk-note" data-starter-note="">
+              {one.text} <a className="wk-link" href={one.href} onClick={onClose}>{one.link}</a>
+            </p>
+          ))}
           <div className="wk-actions">
             <a className="wk-btn" href={done.open} onClick={onClose}>{done.label}</a>
             <button type="button" className="wk-link-btn" onClick={onClose}>Zamknij</button>
@@ -230,6 +287,32 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
                   <option value="">— bez strony (dodasz formularz później) —</option>
                   {(pages ?? []).map((p) => <option key={p.path} value={p.path}>recreatio.pl/{p.path}/{slugOf(name || 'wydarzenie')}</option>)}
                 </select>
+              </label>
+              <div className="wk-starter-when">
+                <label className="wk-field">
+                  <span>Początek</span>
+                  <input type="date" value={date} data-starter-date="" onChange={(e) => setDate(e.target.value)} />
+                </label>
+                <label className="wk-field">
+                  <span>Godzina (puste: cały dzień)</span>
+                  <input type="time" value={time} data-starter-time="" onChange={(e) => setTime(e.target.value)} />
+                </label>
+                <label className="wk-field">
+                  <span>Koniec (opcjonalnie)</span>
+                  <input type="date" value={endDate} min={date === '' ? undefined : date} onChange={(e) => setEndDate(e.target.value)} />
+                </label>
+                <label className="wk-field">
+                  <span>Godzina końca</span>
+                  <input type="time" value={endTime} disabled={time === ''} onChange={(e) => setEndTime(e.target.value)} />
+                </label>
+              </div>
+              <label className="wk-field">
+                <span>Miejsce (opcjonalnie)</span>
+                <input value={place} autoComplete="off" placeholder="np. Dom rekolekcyjny w Limanowej" onChange={(e) => setPlace(e.target.value)} />
+              </label>
+              <label className="wk-field">
+                <span>Rodzaj (opcjonalnie)</span>
+                <input value={kind} autoComplete="off" maxLength={40} placeholder="np. rekolekcje" onChange={(e) => setKind(e.target.value)} />
               </label>
               <label className="wk-check">
                 <input type="checkbox" checked={withRole} onChange={(e) => setWithRole(e.target.checked)} />

@@ -79,12 +79,17 @@ export function useNav(): Nav {
   const fresh = digest?.registrations.count ?? 0;
   const bookings = digest?.bookings?.count ?? 0;
 
+  /* 0129–0131 — Sprawy: nur, wenn etwas wartet (oder für den Betreiber, der Meldungen entscheidet). */
+  const duties = digest?.duties;
+  const sprawy = duties !== undefined && (duties.count > 0 || duties.reports.isOperator || duties.takedowns.length > 0)
+    ? [entry('sprawy', 'Sprawy', 'shield', duties.count)] : [];
+
   /* 2026-10-17 — SMS und Kontakte (Ausgabe „sms"): neben den Rozmowy, nicht in ihnen. Auf dem Telefon steht SMS unten in der Leiste. */
   const phone = usePhoneShown() ? [entry('sms', 'SMS', 'phone'), entry('contacts', 'Kontakty', 'users'), entry('lamps', 'Lampy', 'bulb')] : [];
 
   if (basic) {
     return {
-      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers')],
+      main: [entry('home', 'Teraz', 'home'), entry('calendar', 'Kalendarz', 'calendar'), entry('chat', 'Rozmowy', 'chat', chats), ...phone, entry('areas', 'Obszary', 'layers'), ...sprawy],
       parish: [],
       knowledge: [entry('knowledge', 'Wiedza', 'branch'), entry('learn', 'Nauka', 'cap')],
       settings: []
@@ -99,7 +104,8 @@ export function useNav(): Nav {
       ...phone,
       entry('forms', 'Formularze', 'form', fresh),
       entry('areas', 'Obszary', 'layers'),
-      entry('pages', 'Strony', 'globe')
+      entry('pages', 'Strony', 'globe'),
+      ...sprawy
     ],
     parish: [
       entry('masses', 'Msze i nabożeństwa', 'cross'),

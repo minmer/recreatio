@@ -43,6 +43,7 @@ import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
 import { addHolder, createRoleWithKeys, signEdge } from '../roles/roles';
 import { call, WorkspaceError } from '../core/session';
+import type { Controller } from '../forms/intake';
 
 export type LinkLevel = 'read' | 'write' | 'admin';
 
@@ -56,6 +57,8 @@ export interface LinkArea {
   readonly areaId: string;
   readonly name: string;
   readonly capability: string;
+  /** 0129 — wer für die Daten dieses Bereichs geradesteht (`null`: niemand; ein Dienst von vorher schickt es nicht). */
+  readonly controller?: Controller | null;
 }
 
 export interface LinkRow {

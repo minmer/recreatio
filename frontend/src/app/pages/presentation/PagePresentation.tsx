@@ -31,6 +31,7 @@ import { inline, RichLine } from '../../ui/richText';
 import type { Look } from '../slides/slideLook';
 import type { DriveControl } from './usePresentationDrive';
 import type { Learner } from '../../cogita/learn';
+import { BLOCKED_KIND, BLOCKED_PART_TEXT } from '../../reports/reportPath';
 
 /** Diese Arten zeigen sich ohne Tafel — ein Bild ist ein Bild, ein Kształt eine Fläche. */
 const BARE = new Set(['image', 'shape', 'animation', 'layers']);
@@ -135,6 +136,9 @@ export function PagePresentation({
     let content: ReactNode;
     if (hidden.has(part.id) && messages.has(part.id)) {
       content = <p className="wk-card-muted">{messages.get(part.id)}</p>;
+    } else if (part.kind === BLOCKED_KIND) {
+      /* 0130 — nach einer Meldung gesperrt. */
+      content = <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>;
     } else if (def === undefined) {
       content = <p className="wk-card-unknown">Moduł „{part.kind}" nie jest znany tej wersji strony.</p>;
     } else if (part.kind === 'text' && piece.type !== 'auto') {

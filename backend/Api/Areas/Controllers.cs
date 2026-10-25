@@ -187,7 +187,7 @@ public static partial class Controllers
             if ((int)(await cmd.ExecuteScalarAsync(ct))! > 0) return null;
         }
         return (await OfPageAsync(connection, path, ct)).Info is null
-            ? "Ta strona jest publiczna, a nikt nie odpowiada za jej treść. Wskaż obszar, który za nią odpowiada (Strony → Ustawienia strony → Kto odpowiada za tę stronę)."
+            ? "Ta strona jest publiczna, a nikt nie odpowiada za jej treść. Wskaż obszar, który za nią odpowiada („Kto odpowiada za tę stronę” w edytorze strony)."
             : null;
     }
 

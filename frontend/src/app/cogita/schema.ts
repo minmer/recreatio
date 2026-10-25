@@ -822,8 +822,8 @@ export function plainOf(markup: string): string {
   return plainText(markup.replace(/!\[@[^\]]+\]/g, '')).replace(/\s+/g, ' ').replace(/ +([.,;:!?])/g, '$1').trim();
 }
 
-/** Ein Wert in Worten, wie er in Listen, Etiketten und Karten steht. */
-export function valueText(field: FieldDef, value: FieldValue | null, look: Lookup, depth = 0): string {
+/** Ein Wert in Worten, wie er in Listen, Etiketten und Karten steht. `whole` (2026-10-26): eine Aussage ungekürzt. */
+export function valueText(field: FieldDef, value: FieldValue | null, look: Lookup, depth = 0, whole = false): string {
   if (value === null) return '';
   switch (field.type) {
     case 'markup': return typeof value === 'string' ? plainOf(value) : '';
@@ -848,7 +848,7 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'range': return isObject(value) && 'segments' in value ? rangeText(value as RangeValue, field.rangeOf ?? 'number') : '';
     case 'outline': return Array.isArray(value) ? `${value.length} poz.` : '';
     /* Eine Aussage heisst nach ihrer Teza (dem ersten Satz) — sonst nach dem Anfang ihrer Liste oder Tabelle. */
-    case 'blocks': return blocksTitle(blocksIn(value));
+    case 'blocks': return blocksTitle(blocksIn(value), whole);
   }
 }
 
@@ -867,11 +867,11 @@ export function placeText(target: Entity | undefined, locator: string, label: st
   return label === '' || label === '…' ? locator : `${label}, ${locator}`;
 }
 
-export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth = 0): string {
+export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth = 0, whole = false): string {
   return valuesOf(entity, field)
     .map((v) => {
       /* 2026-10-23 (Schritt 13) — eine Grösse zeigt sich so, wie sie eingegeben wurde. */
-      const plain = v.entered !== undefined ? enteredText(v.entered) : valueText(field, v.value, look, depth);
+      const plain = v.entered !== undefined ? enteredText(v.entered) : valueText(field, v.value, look, depth, whole);
       const text = v.locator === undefined || typeof v.value !== 'string' ? plain : placeText(look.entity(v.value), v.locator, plain);
       if (v.value === null) return `(${VALUE_STATE_LABEL[v.state]})`;
       return v.state === 'approximate' ? `ok. ${text}` : v.state === 'disputed' ? `${text} (?)` : text;
@@ -896,11 +896,11 @@ function tidy(text: string): string {
 }
 
 /** Ein Muster mit den Werten eines Eintrags gefüllt. */
-export function fill(pattern: string, entity: Entity, look: Lookup, depth = 0): string {
+export function fill(pattern: string, entity: Entity, look: Lookup, depth = 0, whole = false): string {
   const fields = new Map(fieldsOf(entity, look).map((f) => [f.key, f]));
   return tidy(pattern.replace(new RegExp(PLACEHOLDER.source, 'g'), (_whole, key: string) => {
     const field = fields.get(key);
-    return field === undefined ? '' : fieldText(entity, field, look, depth);
+    return field === undefined ? '' : fieldText(entity, field, look, depth, whole);
   }));
 }
 
@@ -908,12 +908,13 @@ export function fill(pattern: string, entity: Entity, look: Lookup, depth = 0): 
  * DAS ETIKETT eines Eintrags — immer aus einem Muster [B8], und zwar dem der
  * ersten Art, die eines hat. Steht nichts darin, heisst er nach seiner Art und
  * einem Stück seiner Kennung, damit er in keiner Liste leer dasteht.
+ * 2026-10-26 — `whole`: eine Aussage darin ungekürzt (die Struktura mit „Całe tezy"); Verweise bleiben kurz.
  */
-export function labelOf(entity: Entity, look: Lookup, depth = 0): string {
+export function labelOf(entity: Entity, look: Lookup, depth = 0, whole = false): string {
   const kinds = kindsOf(entity, look);
   for (const kind of kinds) {
     if (kind.label === '') continue;
-    const text = fill(kind.label, entity, look, depth);
+    const text = fill(kind.label, entity, look, depth, whole);
     if (text !== '') return text;
   }
   /* Das ENDE der Kennung: der Anfang einer UUIDv7 ist die Zeit und bei Einträgen derselben Stunde gleich. */

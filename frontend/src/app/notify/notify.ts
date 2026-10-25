@@ -119,7 +119,38 @@ export interface Digest {
   readonly steps: DigestWaiting;
   /** 0109 — Powtórka czeka: je Bibliothek, wie viele Karten jetzt dran sind. */
   readonly learn: { readonly count: number; readonly list: readonly { readonly libraryId: string; readonly count: number; readonly dueAt: string }[] };
+  /** 0129–0131 — Sprawy do decyzji (ein Dienst von vorher schickt es nicht). */
+  readonly duties?: Duties;
   readonly nextPollSeconds: number;
+}
+
+/** 0129–0131 — was ein Mensch entscheiden oder wissen muss (`Notify.Duties.cs`). */
+export interface Duties {
+  /** Was zählt: Bitten, Angebote, Meldungen, Bitten um einen Platz in einer Liste. */
+  readonly count: number;
+  readonly controllers: {
+    /** Bitten an Administratoren mit Heimat in meinen Bereichen. */
+    readonly asks: readonly { readonly attachmentId: string; readonly areaName: string | null; readonly controllerName: string; readonly homeAreaId: string }[];
+    /** Angebote an Bereiche, die ich führe. */
+    readonly offers: readonly { readonly attachmentId: string; readonly areaId: string; readonly areaName: string | null; readonly controllerName: string }[];
+    /** Was aus meinen Bitten und Angeboten wurde. */
+    readonly decided: readonly { readonly attachmentId: string; readonly areaId: string; readonly areaName: string | null; readonly controllerName: string; readonly state: 'live' | 'refused' }[];
+    /** Bereiche, die ich führe und für die seit Kurzem niemand mehr geradesteht. */
+    readonly nobody: readonly { readonly areaId: string; readonly areaName: string }[];
+    /** Administratoren mit Heimat bei mir, denen etwas fehlt. */
+    readonly missing: readonly { readonly controllerId: string; readonly name: string; readonly homeAreaId: string; readonly terms: boolean; readonly confirmed: boolean; readonly complete: boolean }[];
+    /** Öffentliche Seiten, die ich führe und für die kein Bereich geradesteht. */
+    readonly pages?: readonly { readonly path: string }[];
+  };
+  /** Der Betreiber: neue Meldungen und Widersprüche. */
+  readonly reports: { readonly count: number; readonly isOperator: boolean };
+  /** Was von mir nach einer Meldung gesperrt ist. */
+  readonly takedowns: readonly {
+    readonly id: string; readonly itemKind: string; readonly itemId: string; readonly state: 'blocked' | 'deleted'; readonly reason: string;
+    readonly since: string; readonly path: string | null; readonly objectedAt: string | null; readonly objectUntil: string; readonly reportId: string;
+  }[];
+  /** Bitten um einen Platz in einer Liste, über die ich entscheide. */
+  readonly listings: readonly { readonly areaId: string; readonly moduleId: string; readonly name: string; readonly path: string | null; readonly catalogue: boolean }[];
 }
 
 /* -- Einstellungen (je Gerät) ------------------------------------------------ */

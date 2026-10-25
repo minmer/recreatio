@@ -13,9 +13,10 @@
  *   Flüssigkeit darunter, render/layers.ts extendUnderBodies);
  * - die Lage der Vierecke und Rechtecke (aus dem ersten Bild, sampleLayers) und
  *   je Viereck seine Treppenzellen mit den Gewichten der Bedeckung (b.wk, wc,
- *   ww): T_k(0), Kruste_k(0) und T_c(0), Kruste_c(0) als Bezug — bkQuads
- *   rechnet daraus Temperatur, Glühen und Kruste jedes Bildes (der lineare Teil
- *   von coverCollect.ts; ein Mittel nach der Fläche traf nur 275 von 353
+ *   ww): T_k(0), Kruste_k(0) und T_c(0), Kruste_c(0) als Bezug (an jedem
+ *   Schlüsselbild neu, wie collect dort weiterrechnet) — bkQuads rechnet daraus
+ *   Temperatur, Glühen und Kruste jedes Bildes (der lineare Teil von
+ *   coverCollect.ts; ein Mittel nach der Fläche traf nur 275 von 353
  *   Vierecken, um bis zu 4 K daneben).
  *
  * Bewegen sich Körper einmal auf der GPU (C4), ersetzt ein Kern je Schritt die
@@ -45,9 +46,12 @@ export interface BodyStatics {
   readonly qc: Uint32Array;
   readonly qw: Float32Array;
   readonly qx: Float32Array;
-  /** Je Viereck T_k(0), Kruste_k(0), seine kleinere Seite (m); je Zelle T_c(0), Kruste_c(0). */
+  /** Je Viereck T_k(0), Kruste_k(0), seine kleinere Seite (m); T_c(0) aller Zellen, dann Kruste_c(0) aller Zellen. */
   readonly q0: Float32Array;
   readonly c0: Float32Array;
+  /** Je Viereck sein Körper (Index in e.bodies.list) und seine innere Zelle — für den neuen Bezug an jedem Schlüsselbild (rebaseQuads). */
+  readonly quadBody: Int32Array;
+  readonly quadCell: Int32Array;
 }
 
 const nonEmpty = <T extends Float32Array | Uint32Array>(a: T, make: (n: number) => T, n = 1): T => (a.length > 0 ? a : make(n));
@@ -90,9 +94,11 @@ export function bodyStatics(e: Engine, stair: Stair, L0: Layers): BodyStatics {
   const qw: number[] = [];
   const qx: number[] = [];
   const q0: number[] = [];
+  const quadBody: number[] = [];
+  const quadCell: number[] = [];
   const wsum = new Float64Array(n);
   for (const b of e.bodies.list) { if (b.gone) continue; for (let i = 0; i < b.nw; i += 1) wsum[b.wc[i]] += b.ww[i]; }
-  for (const b of e.bodies.list) {
+  for (const [bi, b] of e.bodies.list.entries()) {
     if (b.gone) continue;
     const byCell = new Map<number, [number, number][]>();
     for (let i = 0; i < b.nw; i += 1) {
@@ -110,18 +116,37 @@ export function bodyStatics(e: Engine, stair: Stair, L0: Layers): BodyStatics {
           for (const [c, w] of byCell.get(cell) ?? []) { qc.push(c); qw.push(w); qx.push(wsum[c] > 0 ? w / wsum[c] : 0); }
           qs.push(qc.length);
           q0.push(b.cellT(cell), b.crust[cell], Math.max(1e-6, Math.min(xs[ii + 1] - xs[ii], ys[jj + 1] - ys[jj])));
+          quadBody.push(bi);
+          quadCell.push(cell);
         }
       }
     }
   }
   if (qs.length - 1 !== nq) throw new Error(`capture: ${qs.length - 1} quads from the bodies, ${nq} in the frame`);
   const c0 = new Float32Array(2 * n);
-  for (let c = 0; c < n; c += 1) { c0[2 * c] = stair.T[c]; c0[2 * c + 1] = g.crust[c]; }
+  for (let c = 0; c < n; c += 1) { c0[c] = stair.T[c]; c0[n + c] = g.crust[c]; }
   return {
     cellMask, texMask, texInBody, nq, nr, quadGeo, rects, qs: Uint32Array.from(qs),
     qc: nonEmpty(Uint32Array.from(qc), (k) => new Uint32Array(k)), qw: nonEmpty(Float32Array.from(qw), (k) => new Float32Array(k)),
-    qx: nonEmpty(Float32Array.from(qx), (k) => new Float32Array(k)), q0: nonEmpty(Float32Array.from(q0), (k) => new Float32Array(k), 3), c0
+    qx: nonEmpty(Float32Array.from(qx), (k) => new Float32Array(k)), q0: nonEmpty(Float32Array.from(q0), (k) => new Float32Array(k), 3), c0,
+    quadBody: Int32Array.from(quadBody), quadCell: Int32Array.from(quadCell)
   };
+}
+
+/**
+ * Der neue Bezug der Vierecke an einem Schlüsselbild (nach GpuState.download): T_k und Kruste_k, wie collect sie eben in
+ * der CPU-Engine hinterliess. collect rechnet bei jedem Zurückholen von dort weiter, nicht vom Anfang des Backens — mit
+ * Film und Kruste ist das nicht ganz linear (Solanka: ein Viereck lag nach zwei Schlüsselbildern eine Stufe daneben).
+ * Die Treppenzellen bekommen ihren Bezug auf der GPU (capture.ts rebase).
+ */
+export function rebaseQuads(e: Engine, st: BodyStatics): void {
+  const list = e.bodies.list;
+  for (let k = 0; k < st.nq; k += 1) {
+    const b = list[st.quadBody[k]];
+    const cell = st.quadCell[k];
+    st.q0[3 * k] = b.cellT(cell);
+    st.q0[3 * k + 1] = b.crust[cell];
+  }
 }
 
 /** Die Vierecke eines Bildes: die feste Lage, dazu je Viereck Glühen | Kruste << 8 und Temperatur aus dem Wort der GPU. */

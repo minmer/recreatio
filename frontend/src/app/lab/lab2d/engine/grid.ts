@@ -162,6 +162,15 @@ export class Grid {
     return k === 0 ? this.au[i + j * (this.nx + 1)] : k === 1 ? this.au[i + 1 + j * (this.nx + 1)] : k === 2 ? this.av[c] : this.av[c + this.nx];
   }
 
+  /** Liegt die Zelle an einer dünnen Wand — eine Seite, die ein Körper ganz deckt, zu einem Nachbarn, der nicht fest ist? (Aus au, av und solid, nicht aus thin: das gilt auch gleich nach einem Schlüsselbild.) */
+  besideThin(c: number): boolean {
+    const { nx, ny } = this;
+    const i = c % nx;
+    const j = (c - i) / nx;
+    return (i > 0 && this.au[i + j * (nx + 1)] <= 0 && this.solid[c - 1] === 0) || (i < nx - 1 && this.au[i + 1 + j * (nx + 1)] <= 0 && this.solid[c + 1] === 0)
+      || (j > 0 && this.av[c] <= 0 && this.solid[c - nx] === 0) || (j < ny - 1 && this.av[c + nx] <= 0 && this.solid[c + nx] === 0);
+  }
+
   /**
    * Dünne Wände: je Zelle die Nachbarn ihrer 3×3-Umgebung (Bit k = a + 1 + 3 (b + 1)), die eine ganz bedeckte Fläche
    * von ihr trennt, obwohl beide nicht fest sind (eine Becherwand quer durch zwei Zellen) — über Eck, wenn beide Wege

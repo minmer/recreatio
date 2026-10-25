@@ -1,0 +1,119 @@
+/*
+ * 0130 — ZGŁOŚ und was daraus wird: die Meldung (`reports/ReportPage.tsx`,
+ * `ReportDialog.tsx`), Sprawy (`reports/Sprawy.tsx`), gesperrte Inhalte.
+ */
+
+/* -- Gesperrt nach einer Meldung: an der Stelle des Inhalts ------------------------------ */
+
+.wk-blocked {
+  margin: 0;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px dashed var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-sunk);
+  font-size: var(--wk-text-sm);
+  color: var(--wk-muted);
+}
+
+/* -- Die Meldung: Seite, Formular, Quittung ---------------------------------------------- */
+
+.wk-report-page { display: grid; gap: var(--wk-space-4); max-width: 40rem; min-width: 0; }
+.wk-report-page > p { margin: 0; }
+.wk-report-form { max-width: 40rem; }
+.wk-report-what { margin: 0; overflow-wrap: anywhere; }
+.wk-report-legend { margin: 0 0 var(--wk-space-1); padding: 0; color: var(--wk-ink-2); font-size: var(--wk-text-sm); font-weight: 600; }
+.wk-report-small { margin: 0; font-size: var(--wk-text-sm); line-height: 1.5; color: var(--wk-muted); }
+.wk-report-quote textarea { font-size: var(--wk-text-sm); background: var(--wk-sunk); }
+
+.wk-report-sent {
+  display: grid; gap: var(--wk-space-3);
+  padding: var(--wk-space-4);
+  border: 1px solid var(--wk-line);
+  border-left: 3px solid var(--wk-ok);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+}
+.wk-report-sent p { margin: 0; }
+.wk-report-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.wk-report-receipt code {
+  flex: 1 1 18rem;
+  min-width: 0;
+  padding: var(--wk-space-2) var(--wk-space-3);
+  border: 1px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-sunk);
+  font-family: var(--wk-mono);
+  font-size: var(--wk-text-md);
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.wk-report-code { font-family: var(--wk-mono); }
+
+.wk-report-status { display: grid; gap: var(--wk-space-2); margin: 0; }
+.wk-report-status > div { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
+.wk-report-status dt { min-width: 6rem; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.wk-report-status dd { margin: 0; }
+
+/* -- „Zgłoś" an Ort und Stelle ---------------------------------------------------------------- */
+
+/* Unter einer öffentlichen Seite (die Klausel selbst: controllers.css). */
+.wk-page-footer { margin-top: var(--wk-space-6); }
+
+/* Im ganzen Fenster unter dem Baustein. */
+.wk-full-report { margin: var(--wk-space-3) 0 0; font-size: var(--wk-text-sm); color: var(--wk-muted); text-align: right; }
+
+/* Im Widget neben „recreatio.pl ↗". */
+.wk-widget-bottom { display: flex; justify-content: flex-end; align-items: baseline; gap: var(--wk-space-3); }
+.wk-widget-bottom .wk-widget-foot { justify-self: auto; }
+.wk-widget-report { font-size: var(--wk-text-xs); color: var(--wk-muted); text-decoration: none; }
+.wk-widget-report:hover { color: var(--wk-accent); }
+
+/* -- Sprawy: Fälle des Betreibers, Listen, eigene gesperrte Inhalte ------------------------------ */
+
+.wk-case { display: grid; min-width: 0; }
+.wk-case-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2);
+  padding: var(--wk-space-3) var(--wk-space-4) 0;
+  min-width: 0;
+}
+.wk-case-when { margin-left: auto; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.wk-case-body { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-4) var(--wk-space-4); min-width: 0; }
+.wk-case-body > p { margin: 0; overflow-wrap: anywhere; }
+.wk-case-meta { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
+.wk-case-id { font-size: var(--wk-text-xs); overflow-wrap: anywhere; }
+.wk-case-group { margin: var(--wk-space-3) 0 0; }
+.wk-case-list { display: grid; gap: var(--wk-space-3); }
+
+.wk-case-letter {
+  display: grid; gap: var(--wk-space-2);
+  padding: var(--wk-space-3);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-sunk);
+  min-width: 0;
+}
+.wk-case-letter p { margin: 0; }
+.wk-case-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.wk-case-quote {
+  margin: 0;
+  padding: var(--wk-space-2) var(--wk-space-3);
+  border-left: 3px solid var(--wk-line-strong);
+  background: var(--wk-surface);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--wk-text-sm);
+}
+.wk-case-objection { display: grid; gap: var(--wk-space-1); padding-top: var(--wk-space-2); border-top: 1px solid var(--wk-line); }
+.wk-case-decide { display: grid; gap: var(--wk-space-2); padding-top: var(--wk-space-2); border-top: 1px solid var(--wk-line); }
+.wk-case-reason { max-width: 24rem; }
+.wk-case-object { max-width: none; }
+.wk-ledger { margin-top: var(--wk-space-2); }
+
+/* Die Karte eines Wydarzenie, bevor sie in eine Liste kommt. */
+.wk-case-card { display: grid; grid-template-columns: minmax(0, 8rem) minmax(0, 1fr); gap: var(--wk-space-3); align-items: start; }
+.wk-case-card:not(:has(img)) { grid-template-columns: minmax(0, 1fr); }
+.wk-case-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--wk-radius-sm); background: var(--wk-sunk); }
+.wk-case-card p { margin: 0; }
+@media (max-width: 30rem) {
+  .wk-case-card { grid-template-columns: minmax(0, 1fr); }
+}

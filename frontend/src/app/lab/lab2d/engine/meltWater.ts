@@ -177,7 +177,7 @@ export class MeltWater {
       const t = (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * 0.3 * g.dx;
       const x = p.x + 0.3 * g.dx * p.nx - t * p.ny;
       const y = p.y + 0.3 * g.dx * p.ny + t * p.nx;
-      const at = this.freeSpot(x, y) ?? (b.gone ? null : this.outlineSpot(b, x, y));
+      const at = this.freeSpot(b, p.x, p.y, x, y) ?? (b.gone ? null : this.outlineSpot(b, x, y));
       if (at === null) return;
       const take = Math.min(p.m, nominal);
       const f = take / p.m;
@@ -202,22 +202,27 @@ export class MeltWater {
     return c >= 0 && g.solid[c] === 0 && this.e.bodies.bodyAt(x, y, 0) === null;
   }
 
-  /** Ein Ort in Fluid bei (x, y): dort, sonst in Ringen von Zellen bis drei weit, oben zuerst. */
-  private freeSpot(x: number, y: number): [number, number] | null {
+  /**
+   * Ein Ort in Fluid bei (x, y): dort, sonst in Ringen von Zellen bis drei weit, oben zuerst — nur einer, den von der
+   * Stelle der Seite (ox, oy) kein anderer Körper trennt (seit 2026-10-25: lag ein Eiswürfel an der Wand einer
+   * Zlewka, deren Wand quer über zwei Zellen liegt, kam sein Schmelzwasser zwei Millimeter weiter — ausserhalb).
+   */
+  private freeSpot(b: Body2D, ox: number, oy: number, x: number, y: number): [number, number] | null {
     const g = this.e.grid;
-    if (this.fluidAt(x, y)) return [x, y];
+    const ok = (px: number, py: number): boolean => this.fluidAt(px, py) && !this.e.bodies.blocks(b, ox, oy, px, py);
+    if (ok(x, y)) return [x, y];
     for (let ring = 1; ring <= 3; ring += 1) {
       for (let j = ring; j >= -ring; j -= 1) {
         for (let i = -ring; i <= ring; i += 1) {
           if (Math.max(Math.abs(i), Math.abs(j)) !== ring) continue;
-          if (this.fluidAt(x + i * g.dx, y + j * g.dx)) return [x + i * g.dx, y + j * g.dx];
+          if (ok(x + i * g.dx, y + j * g.dx)) return [x + i * g.dx, y + j * g.dx];
         }
       }
     }
     return null;
   }
 
-  /** Der freie Ort knapp vor dem Umriss des Körpers, der (x, y) am nächsten liegt (wenn um die Stelle selbst alles fest ist). */
+  /** Der freie Ort knapp vor dem Umriss des Körpers, der (x, y) am nächsten liegt (wenn um die Stelle selbst alles fest ist; nicht hinter einem anderen Körper). */
   private outlineSpot(b: Body2D, x: number, y: number): [number, number] | null {
     const dx = this.e.grid.dx;
     const sg = this.sg;
@@ -231,12 +236,14 @@ export class MeltWater {
       const n = Math.max(1, Math.ceil(len / (0.5 * dx)));
       for (let q = 0; q < n; q += 1) {
         const t = (q + 0.5) / n;
-        const lx = sg[0] + t * (sg[2] - sg[0]) + 0.3 * dx * sg[4];
-        const ly = sg[1] + t * (sg[3] - sg[1]) + 0.3 * dx * sg[5];
+        const sx = sg[0] + t * (sg[2] - sg[0]);
+        const sy = sg[1] + t * (sg[3] - sg[1]);
+        const lx = sx + 0.3 * dx * sg[4];
+        const ly = sy + 0.3 * dx * sg[5];
         const wx = b.x + cs * lx - sn * ly;
         const wy = b.y + sn * lx + cs * ly;
         const d = (wx - x) * (wx - x) + (wy - y) * (wy - y);
-        if (d < bd && this.fluidAt(wx, wy)) { bd = d; best = [wx, wy]; }
+        if (d < bd && this.fluidAt(wx, wy) && !this.e.bodies.blocks(b, b.x + cs * sx - sn * sy, b.y + sn * sx + cs * sy, wx, wy)) { bd = d; best = [wx, wy]; }
       }
     }
     return best;

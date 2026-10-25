@@ -216,6 +216,14 @@ export class GpuEngine {
     this.salty = this.cpu.particles.hasSalt();
     this.sealed = false;
     for (let r = 0; r < this.cpu.regions.count; r += 1) if (this.cpu.regions.open[r] === 0) this.sealed = true;
+    /* Die Teilchen gleich nach Zellen sortieren (A → B → A, wie in einem Schritt): Zeichner und Aufnahme lesen die Listen je Zelle, die sonst
+       erst der nächste Schritt füllt — ruhend nach dem Hochladen fehlte das Wasser (auch beim Weiterrechnen aus einem Schlüsselbild, B). */
+    const enc = this.ctx.device.createCommandEncoder();
+    const p = enc.beginComputePass();
+    this.sort(p, 1);
+    this.sort(p, 2);
+    p.end();
+    this.ctx.device.queue.submit([enc.finish()]);
   }
 
   /** Den Zustand in die CPU-Engine zurückholen (vor einem Handgriff, für den Inspektor, zum Speichern). */

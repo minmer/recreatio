@@ -29,6 +29,7 @@ import { usePageLogic } from './pageLogic';
 import { slideLabelOf } from './slides/PageSlides';
 import { partOf } from './parts/registry';
 import { anchorInAddress, anchorOf } from './slides/slides';
+import { BLOCKED_KIND as BLOCKED, BLOCKED_PART_TEXT, reportPath } from '../reports/reportPath';
 
 /**
  * 0063 — „#zapisy" IM RASTER. Ein Knopf im Tytuł oder ein Verweis im Text, der
@@ -209,6 +210,9 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
           >
             {hidden.has(part.id) ? (
               <p className="wk-card-muted">{messages.get(part.id)}</p>
+            ) : part.kind === BLOCKED ? (
+              /* 0130 — nach einer Meldung gesperrt: an seiner Stelle nur dieser Satz. */
+              <p className="wk-blocked">{BLOCKED_PART_TEXT}</p>
             ) : def === undefined ? (
               <p className="wk-card-unknown">
                 Moduł „{part.kind}" nie jest znany tej wersji strony.
@@ -255,6 +259,8 @@ export function PageParts({ parts }: { parts: readonly DraftPart[] }) {
             <article className={`wk-card wk-card-${part.kind} is-whole`} data-w={full.width} data-h={full.height}>
               <def.View raw={part.config} ctx={{ moduleId: part.moduleId ?? part.id, size: full, whole: true }} />
             </article>
+            {/* 0130 — im ganzen Fenster, leise: diesen Teil melden. */}
+            <p className="wk-full-report"><a className="wk-link" href={reportPath('part', part.id)} data-report="part">Zgłoś ten fragment</a></p>
           </Fullscreen>
         );
       })()}

@@ -456,7 +456,16 @@ public enum Field
     /// 0125 — ein Programm, das Pliki przez link anlegt (Thunderbird): der Schlüssel
     /// seiner Etiketten und sein Name, unter dem Schlüssel des Bereichs.
     /// </summary>
-    ShareDevice
+    ShareDevice,
+
+    /// <summary>
+    /// 0130 — eine Meldung an den Betreiber und der Widerspruch des Verfassers: der Text unter
+    /// einem Zufallsschlüssel, dieser verpackt für die Rolle des Betreibers. Der Dienst öffnet nichts davon.
+    /// </summary>
+    ReportText,
+    ReportKey,
+    ReportObjection,
+    ReportObjectionKey
 }
 
 /// <summary>
@@ -659,6 +668,10 @@ public readonly record struct Aad
         Field.PageModuleConfig        => "page_module_config",
         Field.PageMenu                => "page_menu",
         Field.ShareDevice             => "share_device",
+        Field.ReportText              => "report_text",
+        Field.ReportKey               => "report_key",
+        Field.ReportObjection         => "report_objection",
+        Field.ReportObjectionKey      => "report_objection_key",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

@@ -13,6 +13,7 @@ import { readConfig } from '../modules/module';
 import { call, WorkspaceError } from '../core/session';
 import type { Aad } from '../core/crypto';
 import type { PageKey, PageSealInfo } from './pageSeal';
+import type { PageResponsible } from '../areas/controllers';
 
 /**
  * Ein Baustein, so wie er gespeichert liegt.
@@ -106,6 +107,13 @@ export interface PageContent {
    * Inhalt und Menü sind leer. Die Oberfläche sagt das, statt „nic tu nie ma".
    */
   readonly locked?: boolean;
+
+  /**
+   * 0129 — WER FÜR DIE SEITE GERADESTEHT: der Bereich, den sie (oder die nächste
+   * darüber, `fromPath`) nennt, und sein Administrator danych. `null`: niemand —
+   * eine öffentliche Seite lässt sich dann nicht speichern.
+   */
+  readonly responsible?: PageResponsible | null;
 }
 
 /** Die drei Arten einer Seite (0062, 0085). */

@@ -19,6 +19,10 @@ import { call } from '../core/session';
 /** Die heutige Fassung der Bedingungen der Auftragsverarbeitung — dieselbe wie `Controllers.TermsVersion`. */
 export const TERMS_VERSION = '2026-10';
 
+/** Nach jeder Änderung an einem Administrator danych — wer davon abhängt (die Einstellung „Wydarzenie"), liest neu. */
+export const CONTROLLER_EVENT = 'recreatio:controller';
+export const controllerChanged = (areaId: string): void => { window.dispatchEvent(new CustomEvent(CONTROLLER_EVENT, { detail: areaId })); };
+
 export type Authority = 'uodo' | 'kiod';
 
 export const AUTHORITY_NAME: Record<Authority, string> = {
@@ -125,8 +129,16 @@ export interface AreaControllerState {
   readonly termsVersion: string;
 }
 
-export const loadAreaControllerState = (areaId: string, at?: string): Promise<AreaControllerState> =>
-  call(`/workspace/area/${encodeURIComponent(areaId)}/controller${at === undefined ? '' : `?at=${encodeURIComponent(at)}`}`);
+/** Duldsam gelesen: ein Dienst von vorher (ohne 0129) sagt nur, was gilt — dann ohne Handgriffe. */
+export async function loadAreaControllerState(areaId: string, at?: string): Promise<AreaControllerState> {
+  const raw = await call<Partial<AreaControllerState> & { areaId: string }>(
+    `/workspace/area/${encodeURIComponent(areaId)}/controller${at === undefined ? '' : `?at=${encodeURIComponent(at)}`}`);
+  return {
+    areaId: raw.areaId, at: raw.at ?? null, controller: raw.controller ?? null, own: raw.own ?? null,
+    waiting: raw.waiting ?? [], home: raw.home ?? [], admin: raw.admin ?? false,
+    signerRoleId: raw.signerRoleId ?? null, signerRoleIds: raw.signerRoleIds ?? [], termsVersion: raw.termsVersion ?? ''
+  };
+}
 
 /** Was dieses Konto wählen kann: Datensätze aus seinen Bereichen und die, die in deren Ketten gelten. */
 export interface ControllerChoice {

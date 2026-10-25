@@ -24,7 +24,7 @@ Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` 
 | M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; on the accelerated view since 2026-10-24 (tests 24–30 met there except 29 measured from the start, +3.2 % and +3.6 %: the start-up flow of the GPU stirs; from 1 s on −0.05 %) |
 | M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU; objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
 | M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
-| B baking and playback | tests 31–34 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B) |
+| B baking and playback | tests 31–34 (SANDBOX.md §13); GPU baking: harness gates G31–G34 | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B). Baking on the graphics card (2026-10-25): G31–G34 met on the RTX 3070 and the integrated AMD GPU in five scenes — frames identical to the CPU sampler of the GPU state outside bodies (±1 rounding in humidity and bubble positions), lossless through the player, keyframes restore to the GPU's errors exactly, going on on the GPU keeps time, heater and errors; boiling bakes at 1.55× real time (RTX) and 1.12× (integrated) at 2 mm, 0.80× and 0.32× at 1 mm — 4.7–19× the CPU; CPU and GPU clips side by side (§GPU baking) |
 | M3c grains | tests 49–54 (SANDBOX.md §13) | built on the CPU (2026-10-24): all met — salt piles stand at 33.3° (cited 34 ± 3°), a grain sinks at its Ferguson–Church speed (+0.01 %), dissolves in its mass-transfer time (−0.3 %), the solution cools as its enthalpy says (−0.1 %), salt exact through dissolving and growing, grains in superheated water set off violent boiling (§M3c); position-based friction instead of the planned continuum; a scene with grains runs on the CPU |
 | Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); on the accelerated view too (test 47 there) |
 | Ice on a hot plate, tilted ice (2026-10-25) | tests 55–56 | met — the user's cube on the hot plate kept its meltwater unseen (a quarter of the cube after 40 s), then threw it out at once and flew out of the box; tilting ice shut in small air pockets whose pressure shot it away. Now the water appears beside the cube as it melts and the cube melts away in place (145.9 s, budgets exact), tilted ice lands calmly; trapped gas, slivers beside moving bodies, a doubled condensate and the last sliver fixed on the way (§Ice on a hot plate) |
@@ -1037,6 +1037,69 @@ instead of escaping in cold pockets while the brine boils (a run whose mirror re
 gave the same shift). Two gaps between the engines stay, both inside their gates: test 27 dries at about 57 s on the
 GPU against 75.5 s on the CPU (the CPU's half-covered wall cells, a model difference of the staircase), and test 11's
 plateau is −0.31 K against −0.17 K. Firefox was not run (headless Firefox has no WebGPU).
+
+## GPU baking (2026-10-25)
+
+The owner approved baking on the graphics card as designed and prototyped the same day, with three decisions: bake on
+the GPU by default where WebGPU works and the scene runs on the accelerated view (free bodies, ice and grains still on
+the CPU, said in the dialog; no WebGPU, a compile error or a lost device → the CPU with a note); CPU and GPU clips of a
+scene kept side by side (the engine in the key of GPU clips only) with a switch in the player; "Na żywo od tej chwili"
+on a GPU clip from the keyframe at or before the frame on screen, in the accelerated view when WebGPU works.
+ARCHITECTURE.md §15 (the capture pass) and §16 ("Baking on the graphics card") describe it; files `clip/gpuBake.ts`,
+`gpu/capture.ts`, `captureKernels.ts`, `captureBodies.ts`, `handoff.ts`.
+
+Gates as harness pages in headless Edge built from the tree (production `GpuBaker`; a probe captures the state at every
+keyframe without touching the clock): five scenes — "Wrzenie" at 2 and 1 mm, "Woda pod olejem", "Solanka wrze później",
+"Szybkowar" — 10 s, keyframes every 5 s, on the RTX 3070 (`--force_high_performance_gpu`, adapter "nvidia ampere") and
+on the default adapter (the integrated AMD GPU, "amd gcn-5", which the owner's Edge probably uses):
+
+| Gate | Asked | Result (RTX and AMD, every keyframe) |
+|---|---|---|
+| G31 sampler fidelity | the captured frame against `sampleLayers` of the downloaded state | code, flags, crust, glow, temperature, pressure, speed, vapour, fog, arrows and the four scales **identical** outside body cells in all 20 keyframe checks; humidity ±1 in 0–9 of 5864–6268 gas cells at 2 mm and 9–22 of 25 288 at 1 mm (f32 p_sat against the CPU's table; ≤ 0.15 %); liquid away from bodies 0–6 bytes ±1 of 120 000–480 000 (oil: 121–316, its share's rounding), next to bodies 134–1418 bytes (the CPU continues under a body in place, the GPU from a copy — accepted, the CPU's in-place form was left unchanged); bubbles all within ±1 per 16-bit field, 99.6–100 % identical (once 253 of 256: x/w·65535 in f32 at a .5 boundary); quads: geometry and rects identical, temperature, glow and crust identical except one quad one 0.5 K step off in one run at 1 mm (1411 of 1412); the frame time 0.25–0.52 µs from the mirror's |
+| G31b lossless | frames decoded by the unchanged player draw what was written | **50 of 50** frames (all eight overlays on every third) in every run |
+| G32 seeking | test 32 on a GPU clip | frames out of order equal frames in sequence; t → floor(t·fps) exact |
+| G33a restore | layers equal the mirror's, errors equal the GPU's | every keyframe: layers equal, energy and water errors **identical** (relative difference 0) |
+| G33b on the CPU | 240 steps finite; drift < 1e-3 J in open boxes | finite; drift 2·10⁻¹²–2.3·10⁻¹⁰ J (the sealed box 0.26 J — the CPU's own bookkeeping of a GPU state, as designed) |
+| G33c on the GPU | time and heater continuous, error carried ±1 mJ, p0 of the sealed box within 1 % after 2.4 s | time and heater go on from the keyframe (monotonic), the error at the first readback equals the carried one exactly; "Szybkowar" p0 after 2.4 s −1.2·10⁻⁶ (AMD) and +2.7·10⁻⁵ (RTX) of the uninterrupted run; after the upload every particle sits in its cell's list |
+| G34 size and rate | MB per simulated minute; rate ≥ 3× the CPU bake | 19.5–26.9 MB per simulated minute at 2 mm over 10 s (boiling 23.6–24.0; 27.4–27.6 over 30 s), 77–79 at 1 mm (85–86 over 20 s); keyframes 75–94 bytes per cell at 2 mm, 69–72 at 1 mm; **5.3–9.9×** the CPU bake at 2 mm, **6.0–18.8×** at 1 mm (with the checks running) |
+
+The production loop alone (no checks, "Wrzenie", 30 s at 2 mm and 20 s at 1 mm):
+
+| | RTX 3070 | integrated AMD GPU | CPU bake |
+|---|---|---|---|
+| 2 mm | **1.55×** real time, 5.37 ms per step | **1.12×**, 7.42 ms | 0.15–0.25× |
+| 1 mm | **0.80×**, 10.1 ms | **0.32×**, 25.9 ms | 0.039–0.06× |
+| GPU idle per keyframe (drain, download, snapshot) | 13–30 ms (2 mm), 56–90 ms (1 mm) | 23–56 ms, 82–110 ms | — |
+| CPU per frame (the worker's thread) | 0.8 ms, 3.8 ms | 1.8 ms, 6.1 ms | — |
+| kernel compile | 4.2 s cold, 0.3–1.1 s warm (shader cache) | 6.4 s cold, 2.6–3.6 s warm | — |
+
+No frame was lost in any run. Lazy keyframes land a few frames after their nominal frame (5 s → frame 154 or 155),
+the state less than one frame after the label; near the end the GPU does not run past the last frame (keyframes at
+exactly 10 s).
+
+In the real shell (headless Edge, a bundle of the tree; 48 checks, on both adapters): the dialog shows "Licz na" with
+the graphics card chosen and explains the GPU clip, with a bake time; baking shows "Przygotowuję kartę graficzną…",
+then the progress with "karta graficzna" and its rate (1.52× at 2 mm on the RTX); playback starts with "GPU" in the
+player; the choice is remembered; baking the same scene on the processor (no "preparing") leaves both clips and the
+player switches "CPU | GPU" at the same moment; at 7 s of the GPU clip "Na żywo od tej chwili" (its tooltip says it
+resumes from the keyframe before) starts the accelerated view at 5.13 s, the GPU's own worker, which then runs on;
+"Upiecz…" in the accelerated view switches to the normal view and opens the dialog; "Lód w ciepłej wodzie" offers no
+choice, says the processor bakes it, bakes on the CPU with the note and plays with "CPU"; no errors in the console.
+
+Found and fixed on the way:
+
+- **The water was missing in the paused accelerated view** after any upload (switching to it, a tool, going live from
+  a keyframe): the renderer splats the liquid from the per-cell particle lists, which only a step filled. Every upload
+  now sorts the particles once (as a step does) — an older gap of the accelerated view, made visible by "Na żywo".
+- **A quad of the brine one 0.5 K step off at the second keyframe**: `collect` runs on from each download (with film
+  and crust it is not quite linear), the capture from the start of the bake; the capture's reference is now re-based
+  at every keyframe.
+- **Frame 0 from the GPU would have no liquid** (the particles are not yet sorted before the first step); frame 0 and
+  keyframe 0 come from the CPU engine, the scene's exact start.
+- **Grids with n not divisible by four** (3 mm: 67 × 50 cells): the cell kernel handles the last group of four.
+
+Not done: a Firefox run (headless Firefox has no WebGPU; the owner checks it in a visible window); the CPU's
+`extendUnderBodies` stays in place (CPU clips byte-identical; the GPU's liquid differs next to bodies, under the quads).
 
 ## Benchmark
 

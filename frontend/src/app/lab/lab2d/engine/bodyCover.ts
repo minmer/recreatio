@@ -17,8 +17,9 @@
  *   Fluidzelle mit dem Volumen V (1 − fs) — darin können Wasser, Gas und ein
  *   Stück Körper zugleich liegen.
  * - <b>Seitenflächen</b>: der offene Anteil jeder Fläche (grid.au, av) und die
- *   Geschwindigkeit ihres bedeckten Teils (usol, vsol) — die Projektionen
- *   rechnen damit wie Batty, Bertails & Bridson (2007): Fluss α u + (1 − α) u_Körper.
+ *   Geschwindigkeit ihres bedeckten Teils (usol, vsol; der Randwert des Körpers, body.ux) — die Projektionen
+ *   rechnen damit wie Batty, Bertails & Bridson (2007): Fluss α u + (1 − α) u_Körper. Eine Fläche zwischen einer
+ *   festen Zelle eines Körpers und Fluid bewegt sich mit diesem Körper, auch wo er sie nicht bedeckt (closedFace).
  * - <b>Werden Zellen fest</b>, geht ihr Gas zu den Fluidnachbarn; <b>werden
  *   sie frei</b>, holen sie Gas von ihnen oder werden Flüssigkeit.
  * - <b>Teilchen und Blasen</b> bleiben genau aus den Rechtecken: wer auf
@@ -366,6 +367,17 @@ export class BodyCover {
         this.vacate(c);
       }
     }
+    /* Flächen fester Körperzellen zum Fluid: mit dem Körper, dem die Zelle gehört (closedFace). */
+    const ctag = ++this.ftag;
+    for (let q = 0; q < N; q += 1) {
+      const c = list[q];
+      const i = c % nx;
+      const j = (c - i) / nx;
+      this.closedFace(bodies, i, j, true, ctag);
+      this.closedFace(bodies, i + 1, j, true, ctag);
+      this.closedFace(bodies, i, j, false, ctag);
+      this.closedFace(bodies, i, j + 1, false, ctag);
+    }
     /* Abgleich und Temperaturen der Körperteile. */
     const heat = this.w.heat;
     for (let q = 0; q < N; q += 1) {
@@ -437,7 +449,7 @@ export class BodyCover {
         owner = b.index + 1;
         const mx = 0.5 * (ax + ex);
         const my = 0.5 * (ay + ey);
-        vel = isU ? b.vx - b.w * (my - b.y) : b.vy + b.w * (mx - b.x);
+        vel = isU ? b.ux - b.uw * (my - b.y) : b.uy + b.uw * (mx - b.x);
       }
     }
     const open = cover >= 1 - 1e-9 ? 0 : Math.max(0, 1 - cover);
@@ -446,6 +458,34 @@ export class BodyCover {
     this.faceOwner[key] = owner;
     if (isU) { g.au[f] = open; g.usol[f] = cover > 0 ? vel : 0; }
     else { g.av[f] = open; g.vsol[f] = cover > 0 ? vel : 0; }
+  }
+
+  /**
+   * Eine Fläche zwischen einer festen Zelle eines Körpers und einer Fluidzelle: die feste Zelle steht für den Körper,
+   * ihre Fläche bewegt sich mit ihm (sein Randwert an der Mitte der Fläche) und zählt für seine mitbewegte Masse
+   * (faceOwner). Seit 2026-10-25: ein freier Körper schliesst eine Zelle schon zu 90 % bedeckt (CLOSED_FREE); lag
+   * seine Seite in ihr, deckte er ihre Fläche zum Fluid nicht — sie stand still (0) und gehörte keinem. Unter einem
+   * schwimmenden Klotz, dessen Unterseite in den untersten 10 % einer Zellreihe lag, sah das Wasser einen ruhenden
+   * Boden, und die gemessene mitbewegte Masse fiel von 14 g auf 0 (in 23 % der Schritte).
+   */
+  private closedFace(bodies: readonly Body2D[], i: number, j: number, isU: boolean, ftag: number): void {
+    const g = this.w.grid;
+    const { nx, ny, dx } = g;
+    if (isU ? i > nx || j >= ny : i >= nx || j > ny) return;
+    const f = isU ? i + j * (nx + 1) : i + j * nx;
+    const key = isU ? f : g.nu + f;
+    if (this.fstamp[key] === ftag) return;
+    this.fstamp[key] = ftag;
+    const a = isU ? (i > 0 ? f - 1 - j : -1) : (j > 0 ? f - nx : -1);
+    const c = isU ? (i < nx ? f - j : -1) : (j < ny ? f : -1);
+    const sa = a >= 0 && g.solid[a] !== 0;
+    if (sa === (c >= 0 && g.solid[c] !== 0)) return;
+    const own = g.owner[sa ? a : c];
+    const b = own > 0 ? bodies[own - 1] : undefined;
+    if (b === undefined || b.gone) return;
+    this.faceOwner[key] = own;
+    if (isU) g.usol[f] = b.ux - b.uw * ((j + 0.5) * dx - b.y);
+    else g.vsol[f] = b.uy + b.uw * ((i + 0.5) * dx - b.x);
   }
 
   /** Was Wärmeleitung, Tau, Kristalle und Blasen an den Körperteilen der Zellen änderten, an die inneren Zellen (coverCollect.ts). */

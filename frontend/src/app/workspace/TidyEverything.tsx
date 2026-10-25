@@ -6,8 +6,9 @@
  * <ul>
  *   <li>die Antworten aller Formulare (Fragen „Adres" und „Telefon"),
  *       `answerTidy.ts`, wie in der Kanzlei eines Formulars;</li>
- *   <li>die Adresse des Verantwortlichen (Administrator danych) an den
- *       Bereichen — Klartext, sie steht unter jedem Formular.</li>
+ *   <li>die Adresse der Administratoren danych mit Heimat in Bereichen, die ich
+ *       führe (0129: nur dort lassen sie sich ändern — als neue Fassung) —
+ *       Klartext, sie steht über jedem Formular.</li>
  * </ul>
  * Die Kartoteka selbst ist schon normalisiert (0071); Steckbriefe und neue
  * Antworten bekommen die Form beim Eintippen (`PostalInput`).
@@ -21,7 +22,7 @@ import { useState } from 'react';
 import { crookedOf, seatKeyFinder, straighten, type Crooked } from '../forms/answerTidy';
 import { loadAreas } from '../areas/area';
 import { readForm, type ReadForm } from '../forms/formRead';
-import { loadPublicIntake, setController } from '../forms/intake';
+import { fieldsOf, loadAreaControllerState, writeVersion } from '../areas/controllers';
 import type { Ring } from '../core/keys';
 import { loadModules } from '../modules/module';
 import { normalizeAddressLines } from '../registry/postal';
@@ -73,15 +74,24 @@ export function TidyEverything({ ring }: { ring: Ring }) {
         }
       }
 
-      /* Der Verantwortliche — an den Bereichen, im Klartext. */
+      /*
+       * 0129 — die Administratoren danych mit Heimat in Bereichen, die ich führe: je
+       * Datensatz einmal, als neue Fassung. Einem unvollständigen (ohne E-Mail oder
+       * Organ) fehlt mehr als die Form — er wird in den Ustawienia obszaru ergänzt.
+       */
       const raw: { key: string; where: string; before: string; apply: (address: string) => Promise<unknown> }[] = [];
-      for (const a of (await loadAreas()).areas.filter((one) => one.myLevel === 'admin' || one.myLevel === 'write')) {
-        const c = await loadPublicIntake(a.areaId).then((r) => r.controller).catch(() => null);
-        if (c === null || c.address === null || c.address === undefined || c.address.trim() === '') continue;
-        raw.push({
-          key: `area|${a.areaId}`, where: `Administrator danych: ${a.name}`, before: c.address,
-          apply: (address) => setController(a.areaId, { name: c.name, address, email: c.email ?? undefined })
-        });
+      const seen = new Set<string>();
+      for (const a of (await loadAreas()).areas.filter((one) => one.myLevel === 'admin')) {
+        const state = await loadAreaControllerState(a.areaId).catch(() => null);
+        for (const r of state?.home ?? []) {
+          if (r.closed || seen.has(r.id)) continue;
+          seen.add(r.id);
+          if (r.address === null || r.address.trim() === '' || r.email === null || r.authority === null) continue;
+          raw.push({
+            key: `controller|${r.id}`, where: `Administrator danych: ${r.name}`, before: r.address,
+            apply: (address) => writeVersion(r.id, { ...fieldsOf(r), address }, false)
+          });
+        }
       }
       const tidied = await normalizeAddressLines(raw.map((r) => r.before));
       const ctrl = raw.map((r, i) => ({ ...r, after: tidied[i].tidy, doubt: tidied[i].doubt })).filter((r) => r.after !== r.before);

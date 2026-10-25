@@ -6,8 +6,12 @@
  * dessen eigene Form: das Teilchen geht im Rahmen des Körpers auf seinem Weg
  * zurück vor die Seite, durch die es kam (bodyRaster.ts) — so dringt es auch
  * durch eine schräge Wand von einer Zelle Dicke nicht; seine Geschwindigkeit
- * in den Körper hinein (relativ zu ihm) fällt weg. Tropfen fern der
- * Flüssigkeit fliegen ballistisch und bleiben liegen, wo sie landen.
+ * in den Körper hinein (relativ zu ihm) fällt weg. Auch der Schub längs des
+ * Abstandsfelds endet vor einem Körper (seit 2026-10-25): das Feld kennt nur
+ * ganze feste Zellen und schob Wasser aus einer zugeklappten Zelle zwischen
+ * einem schwimmenden Körper und einer Becherwand quer durch die Wand hinaus.
+ * Tropfen fern der Flüssigkeit fliegen ballistisch und bleiben liegen, wo sie
+ * landen.
  */
 
 import type { Grid } from './grid';
@@ -94,6 +98,8 @@ export function moveParticles(
       /* Feststoffe: längs des Abstandsfelds hinaus, die Normalgeschwindigkeit fällt weg (ein fliegender Tropfen bleibt liegen). */
       let d = g.sdfAt(x, y);
       if (d < 0.05 * dx) {
+        const xs = x;
+        const ys = y;
         for (let it = 0; it < 3 && d < 0.05 * dx; it += 1) {
           const e = 0.25 * dx;
           let nxv = g.sdfAt(x + e, y) - g.sdfAt(x - e, y);
@@ -111,6 +117,16 @@ export function moveParticles(
           x = Math.min(W - m, Math.max(m, x));
           y = Math.min(H - m, Math.max(m, y));
           d = g.sdfAt(x, y);
+        }
+        /* Der Schub endet vor dem ersten Körper auf seinem Weg (er lag ausserhalb aller: near === 0); ein Teilchen in einer zugeklappten Zelle neben einer dünnen Wand ginge sonst durch sie hindurch. */
+        if (bodyHit !== null && (x !== xs || y !== ys) && bodyHit(xs, ys, x, y, hit) === 1) {
+          x = hit[0];
+          y = hit[1];
+          if (fly) { P.vx[p] = hit[4]; P.vy[p] = hit[5]; }
+          else {
+            const vn = (P.vx[p] - hit[4]) * hit[2] + (P.vy[p] - hit[5]) * hit[3];
+            if (vn < 0) { P.vx[p] -= vn * hit[2]; P.vy[p] -= vn * hit[3]; }
+          }
         }
       }
     }

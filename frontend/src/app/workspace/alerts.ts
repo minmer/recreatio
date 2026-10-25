@@ -23,9 +23,9 @@
 import type { Digest } from '../notify/notify';
 import { chatLabel } from '../notify/notify';
 import { useRemembered } from '../core/prefs';
-import { formNewsPath, viewPath, formsPath } from '../routes';
+import { formNewsPath, pageSteps, viewPath, formsPath } from '../routes';
 
-export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn';
+export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn' | 'duties';
 
 export interface AlertKindDef {
   readonly kind: AlertKind;
@@ -44,7 +44,9 @@ export const ALERT_KINDS: readonly AlertKindDef[] = [
   { kind: 'today', label: 'Terminy dziś', says: 'Spotkania i msze, które są dzisiaj.', counts: false },
   /* 0109 — was in den eigenen Bibliotheken wieder dran ist: wie „dziś", etwas für jeden Tag. */
   { kind: 'learn', label: 'Powtórka czeka', says: 'Karty, na które przyszła pora w Twoich bazach wiedzy.', counts: false },
-  { kind: 'links', label: 'Dołączenia przez link', says: 'Ktoś dołączył przez Twój link.', counts: true }
+  { kind: 'links', label: 'Dołączenia przez link', says: 'Ktoś dołączył przez Twój link.', counts: true },
+  /* 0129–0131 — was entschieden werden muss: Administrator danych, gemeldete Inhalte, Bitten um einen Platz in einer Liste. */
+  { kind: 'duties', label: 'Sprawy do decyzji', says: 'Administrator danych, zgłoszenia treści, prośby o miejsce na liście wydarzeń.', counts: true }
 ];
 
 const KNOWN = new Set<string>(ALERT_KINDS.map((one) => one.kind));
@@ -180,7 +182,63 @@ export function alertItems(
       if (scope === null && learn !== undefined && learn.count > 0) {
         out.push({ kind, key: 'learn', label: 'Powtórka czeka', count: learn.count, detail: `${learn.count} ${plural(learn.count, 'karta', 'karty', 'kart')}`, href: viewPath('learn') });
       }
+    } else if (kind === 'duties') {
+      out.push(...dutyItems(digest, inScope, scope === null));
     }
+  }
+  return out;
+}
+
+/**
+ * 0129–0131 — SPRAWY: was den Administrator danych betrifft, führt in die
+ * Ustawienia des Bereichs (dort wird unterschrieben); Meldungen, eigene gesperrte
+ * Inhalte und Bitten um einen Platz in einer Liste nach „Sprawy".
+ */
+function dutyItems(digest: Digest | null, inScope: (areaId: string | null | undefined) => boolean, everything: boolean): AlertItem[] {
+  const d = digest?.duties;
+  if (d === undefined) return [];
+  const out: AlertItem[] = [];
+  const settings = (areaId: string) => viewPath('areas', areaId, 'ustawienia');
+  const kind = 'duties' as const;
+
+  for (const a of d.controllers.asks) {
+    if (!inScope(a.homeAreaId)) continue;
+    out.push({ kind, key: `da${a.attachmentId}`, label: `${a.areaName ?? 'Obszar'} prosi o administratora „${a.controllerName}”`, count: null, detail: 'do podpisu', href: settings(a.homeAreaId) });
+  }
+  for (const o of d.controllers.offers) {
+    if (!inScope(o.areaId)) continue;
+    out.push({ kind, key: `do${o.attachmentId}`, label: `Propozycja: „${o.controllerName}” dla ${o.areaName ?? 'obszaru'}`, count: null, detail: 'do przyjęcia', href: settings(o.areaId) });
+  }
+  for (const x of d.controllers.decided) {
+    if (!inScope(x.areaId)) continue;
+    out.push({ kind, key: `dd${x.attachmentId}`, label: `„${x.controllerName}” dla ${x.areaName ?? 'obszaru'}`, count: null, detail: x.state === 'live' ? 'przyjęte' : 'odmowa', href: settings(x.areaId) });
+  }
+  for (const n of d.controllers.nobody) {
+    if (!inScope(n.areaId)) continue;
+    out.push({ kind, key: `dn${n.areaId}`, label: `${n.areaName}: nikt nie odpowiada za dane`, count: null, detail: 'wskaż administratora', href: settings(n.areaId) });
+  }
+  for (const m of d.controllers.missing) {
+    if (!inScope(m.homeAreaId)) continue;
+    const what = !m.terms ? 'zaakceptuj warunki' : !m.confirmed ? 'potwierdź uprawnienie' : 'uzupełnij dane';
+    out.push({ kind, key: `dm${m.controllerId}`, label: m.name, count: null, detail: what, href: settings(m.homeAreaId) });
+  }
+
+  if (!everything) return out;
+
+  for (const p of d.controllers.pages ?? []) {
+    out.push({ kind, key: `dp${p.path}`, label: `Strona ${p.path === '' ? 'recreatio.pl' : p.path}: nikt nie odpowiada za treść`, count: null, detail: 'wskaż obszar', href: viewPath('pages', ...pageSteps(p.path)) });
+  }
+  if (d.reports.isOperator && d.reports.count > 0) {
+    out.push({ kind, key: 'dr', label: 'Zgłoszenia treści', count: d.reports.count, detail: `${d.reports.count} do decyzji`, href: viewPath('sprawy') });
+  }
+  for (const t of d.takedowns.filter((one) => one.state === 'blocked')) {
+    out.push({
+      kind, key: `dt${t.id}`, label: `Zablokowano po zgłoszeniu: ${t.path ?? 'Twoja treść'}`, count: null,
+      detail: t.objectedAt === null ? `odwołanie do ${new Date(t.objectUntil).toLocaleDateString('pl-PL')}` : 'odwołanie wysłane', href: viewPath('sprawy')
+    });
+  }
+  for (const l of d.listings) {
+    out.push({ kind, key: `dl${l.areaId}${l.moduleId}`, label: `${l.name} prosi o miejsce na liście${l.path === null ? '' : ` ${l.path}`}`, count: null, detail: l.catalogue ? 'katalog' : 'lista', href: viewPath('sprawy') });
   }
   return out;
 }
@@ -194,7 +252,8 @@ export function alertCount(digest: Digest | null, settings: AlertSettings): numb
     + (counted('forms') ? digest.registrations.count : 0)
     + (counted('links') ? digest.links : 0)
     + (counted('bookings') ? digest.bookings?.count ?? 0 : 0)
-    + (counted('steps') ? digest.steps?.count ?? 0 : 0);
+    + (counted('steps') ? digest.steps?.count ?? 0 : 0)
+    + (counted('duties') ? digest.duties?.count ?? 0 : 0);
 }
 
 export const alertLabel = (kind: AlertKind): string => ALERT_KINDS.find((one) => one.kind === kind)?.label ?? kind;

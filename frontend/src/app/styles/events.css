@@ -1,0 +1,96 @@
+/*
+ * 0131 — WYDARZENIA: die Karten der Liste und des einen Wydarzenie
+ * (`pages/parts/events.tsx`), die Einstellung im Bereich (`events/AreaEventSettings.tsx`).
+ */
+
+/* -- Eine Karte ------------------------------------------------------------------------- */
+
+.wk-events { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-3); min-width: 0; }
+
+.wk-event { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.wk-event.has-image { grid-template-columns: minmax(5rem, 8rem) minmax(0, 1fr); align-items: start; }
+
+.wk-event-body { display: grid; gap: var(--wk-space-1); align-content: start; min-width: 0; }
+.wk-event-title { font-weight: 600; color: var(--wk-ink); text-decoration: none; overflow-wrap: anywhere; }
+.wk-event-title:hover, .wk-event-title:focus-visible { color: var(--wk-accent); text-decoration: underline; }
+.wk-event-when { font-size: var(--wk-text-sm); color: var(--wk-ink-2); font-variant-numeric: tabular-nums; }
+.wk-event-where, .wk-event-who { font-size: var(--wk-text-sm); color: var(--wk-muted); overflow-wrap: anywhere; }
+.wk-event-lead { margin: 0; font-size: var(--wk-text-sm); line-height: 1.5; color: var(--wk-ink-2); }
+
+.wk-event-image { display: block; overflow: hidden; border-radius: var(--wk-radius-sm); background: var(--wk-sunk); aspect-ratio: 4 / 3; }
+.wk-event-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Knapp: Zeilen mit Strich dazwischen, ohne Bild. */
+.wk-events.is-compact { gap: 0; }
+.wk-events.is-compact > .wk-event { padding: var(--wk-space-2) 0; border-top: 1px solid var(--wk-line); }
+.wk-events.is-compact > .wk-event:first-child { border-top: 0; padding-top: 0; }
+
+/* Über die ganze Breite: ein Raster aus Karten, das Bild oben. */
+.wk-events.is-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: var(--wk-space-4); }
+.wk-events.is-grid > .wk-event { grid-template-columns: minmax(0, 1fr); align-content: start; border-top: 0; padding: 0; }
+.wk-events.is-grid .wk-event-image { aspect-ratio: 16 / 9; }
+
+/* Im Streifen: eines in einer Zeile. */
+.wk-events-strip { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-1) var(--wk-space-3); margin: 0; min-width: 0; }
+
+/* -- Eines, grösser ----------------------------------------------------------------------- */
+
+.wk-event-one { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.wk-event-one .wk-event-title { font-size: var(--wk-text-lg); }
+.wk-event-one .wk-event-image { aspect-ratio: 16 / 9; }
+.wk-event-one.is-side { grid-template-columns: minmax(8rem, 2fr) minmax(0, 3fr); align-items: start; }
+.wk-event-one.is-side .wk-event-image { aspect-ratio: 4 / 3; }
+.wk-event-one.is-tall .wk-event-title { font-size: var(--wk-text-xl); }
+.wk-event-go { justify-self: start; margin-top: var(--wk-space-2); }
+
+@media (max-width: 40rem) {
+  .wk-event-one.is-side { grid-template-columns: minmax(0, 1fr); }
+  .wk-event.has-image { grid-template-columns: minmax(4rem, 6rem) minmax(0, 1fr); }
+}
+
+/* -- In den Ustawienia des Bereichs --------------------------------------------------------- */
+
+.wk-event-settings { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.wk-event-settings .wk-actions { margin: 0; }
+
+.wk-event-settings-image { margin: 0; max-width: 16rem; overflow: hidden; border-radius: var(--wk-radius-sm); aspect-ratio: 16 / 9; background: var(--wk-sunk); }
+.wk-event-settings-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.wk-event-ready { margin: 0; }
+.wk-event-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.wk-event-checks > li { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: baseline; }
+.wk-event-check-mark { font-weight: 700; text-align: center; }
+.wk-event-checks > li.is-ok .wk-event-check-mark { color: var(--wk-ok); }
+.wk-event-checks > li.is-missing .wk-event-check-mark { color: var(--wk-warn); }
+.wk-event-checks > li.is-unknown { color: var(--wk-muted); }
+
+.wk-event-mark { margin: 0; }
+
+/* Das Bild der Karte, aus den Bildern der Hauptseite. */
+.wk-event-images { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
+.wk-event-pick {
+  position: relative;
+  display: grid; place-items: center;
+  width: 6.5rem; aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 2px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-sunk);
+  cursor: pointer;
+}
+.wk-event-pick.is-on { border-color: var(--wk-accent); }
+.wk-event-pick input { position: absolute; inset: var(--wk-space-1) auto auto var(--wk-space-1); margin: 0; }
+.wk-event-pick img { width: 100%; height: 100%; object-fit: cover; }
+.wk-event-pick-none { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+.wk-event-listings { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-event-listings > .wk-h3 { margin: 0; }
+.wk-event-listing-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.wk-event-listing-rows > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-1) var(--wk-space-3); min-width: 0; overflow-wrap: anywhere; }
+.wk-event-ask { display: grid; gap: var(--wk-space-2); }
+.wk-event-ask .wk-actions { margin: 0; flex-wrap: wrap; }
+
+/* -- „Nowe wydarzenie": Beginn und Ende nebeneinander ---------------------------------------- */
+
+.wk-starter-when { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--wk-space-2) var(--wk-space-3); }
+@media (max-width: 40rem) { .wk-starter-when { grid-template-columns: minmax(0, 1fr); } }

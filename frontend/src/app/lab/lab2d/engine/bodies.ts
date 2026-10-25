@@ -16,16 +16,26 @@
  *     mitbewegte Masse; die Berührungen (bodyContacts.ts); dann die neue Lage.
  *     Ruht er eine halbe Sekunde auf etwas, schläft er ein.
  *
- * Partitionierte Kopplung: die Projektionen sehen die Geschwindigkeit V^n,
- * ihr Druck gibt die Kraft F^n. Darin steckt −M_a (V^n − V^{n−1})/Δt — die
+ * Partitionierte Kopplung: die Projektionen sehen die Randgeschwindigkeit U^n,
+ * ihr Druck gibt die Kraft F^n. Darin steckt −M_a (U^n − U^{n−1})/Δt — die
  * Flüssigkeit, die der Körper eben anders bewegt. Der Körper rechnet darum mit
  * der gemessenen mitbewegten Masse M_a (probe):
- *   (M + M_a)(V_frei − V^n) = Δt (m g + F^n) + M_a D^{n−1},
+ *   (M + M_a)(V_frei − V^n) = Δt (m g + F^n) + M_a (D^{n−1} + P^n − P^{n−1}),
  * D = V_frei − V der Zuwachs aus Flüssigkeit und Schwerkraft im letzten
  * Schritt — so ist auch Holz in Wasser stabil, und im Gleichgewicht gilt genau
  * F = −m g. Die Stösse der Berührungen (mit der eigenen Masse) zählen nicht zu
  * D: was die Flüssigkeit tut, wenn ein Körper aufschlägt, kommt im nächsten
  * Schritt als Kraft.
+ *
+ * Vorhergesagter Rand (seit 2026-10-25): U^n = V^n + P^n mit P^n = D^{n−1}, wenn
+ * im letzten Schritt keine Berührung die Geschwindigkeit änderte (sonst 0). Mit
+ * U = V wich die Flüssigkeit in Schritt n dem Volumen Δt V^n aus, der Körper
+ * überstrich danach Δt V^{n+1}: die Flüssigkeit hinkte ihm einen Schritt nach,
+ * und in einer engen Zlewka gewann das Schwanken jedes Mal Energie (ein Klotz
+ * von 4 cm in 6,6 cm: Anwachsen 1,4/s bei Δt = 1/120 s, Strahlen von 2,6 m/s
+ * an den Wänden). Mit der Vorhersage stimmen beide Volumen bis auf zweite
+ * Ordnung überein; ein aufliegender Körper (die Berührung hebt den Zuwachs
+ * jedes Mal auf) sagt nichts vorher.
  */
 
 import { Body2D, meltsAt, type RectWorld } from './body';
@@ -35,6 +45,7 @@ import { BodyForces, type ForceWorld } from './bodyForces';
 import type { BubbleModel } from './bubbleModel';
 import type { Flows } from './budget';
 import type { EditLedger } from './edits';
+import { clipSegment } from './geom';
 import type { Liquid } from './liquid';
 import type { Regions } from './regions';
 import type { GridSolver } from './solver';
@@ -68,6 +79,12 @@ export class Bodies {
   version = 0;
   /** Zuwachs der Geschwindigkeit aus Flüssigkeit und Schwerkraft im letzten Schritt, je Körper (vx, vy, ω) — für die mitbewegte Masse. */
   prev = new Float64Array(0);
+  /** Je Körper die Vorhersage P (vx, vy, ω) für die nächste Projektion, die der laufenden (P^n) und die der vorigen (P^{n−1}). */
+  private pred = new Float64Array(0);
+  private predNow = new Float64Array(0);
+  private predOld = new Float64Array(0);
+  /** Je Körper die Geschwindigkeit vor den Berührungen dieses Schritts (änderten sie sie, gibt es keine Vorhersage). */
+  private vPre = new Float64Array(0);
   /** Wie viele Körper in diesem Schritt wach sind (zu Beginn gezählt). */
   awakeNow = 0;
   /** Hat ein Körper seine Form geändert (neu, gedreht, beschnitten)? Dann werden die Kavitäten neu ausgelegt. */
@@ -181,6 +198,14 @@ export class Bodies {
       if (!b.awake) continue;
       this.awakeNow += 1;
       moved = true;
+      /* Der Randwert dieses Schritts (vor dem Neubau der Flächen): die Geschwindigkeit samt Vorhersage (siehe oben). */
+      const o = 3 * b.index;
+      this.predNow[o] = this.pred[o];
+      this.predNow[o + 1] = this.pred[o + 1];
+      this.predNow[o + 2] = this.pred[o + 2];
+      b.ux = b.vx + this.pred[o];
+      b.uy = b.vy + this.pred[o + 1];
+      b.uw = b.w + this.pred[o + 2];
       /* Die Zellen der alten Lage und der neuen. */
       this.cover.addCells(b);
       this.cover.weigh(b);
@@ -194,9 +219,6 @@ export class Bodies {
       b.rx = b.x;
       b.ry = b.y;
       b.ra = b.a;
-      b.ux = b.vx;
-      b.uy = b.vy;
-      b.uw = b.w;
     }
     return true;
   }
@@ -229,9 +251,15 @@ export class Bodies {
         m6[3] = b.ma;
         m6[5] = b.Ia;
       }
-      const r0 = dt * F[0] + m6[0] * prev[o] + m6[1] * prev[o + 1] + m6[2] * prev[o + 2];
-      const r1 = dt * (F[1] - b.m * e.gy) + m6[1] * prev[o] + m6[3] * prev[o + 1] + m6[4] * prev[o + 2];
-      const r2 = dt * F[2] + m6[2] * prev[o] + m6[4] * prev[o + 1] + m6[5] * prev[o + 2];
+      /* Was die Projektion an Rückstoss enthält, ausser dem der Berührungen: D^{n−1} + P^n − P^{n−1} (siehe oben). */
+      const p = this.predNow;
+      const q = this.predOld;
+      const c0 = prev[o] + p[o] - q[o];
+      const c1 = prev[o + 1] + p[o + 1] - q[o + 1];
+      const c2 = prev[o + 2] + p[o + 2] - q[o + 2];
+      const r0 = dt * F[0] + m6[0] * c0 + m6[1] * c1 + m6[2] * c2;
+      const r1 = dt * (F[1] - b.m * e.gy) + m6[1] * c0 + m6[3] * c1 + m6[4] * c2;
+      const r2 = dt * F[2] + m6[2] * c0 + m6[4] * c1 + m6[5] * c2;
       solve3(b.m + m6[0], m6[1], m6[2], b.m + m6[3], m6[4], b.I + m6[5], r0, r1, r2, this.dv);
       b.vx += this.dv[0];
       b.vy += this.dv[1];
@@ -239,8 +267,23 @@ export class Bodies {
       prev[o] = this.dv[0];
       prev[o + 1] = this.dv[1];
       prev[o + 2] = this.dv[2];
+      q[o] = p[o];
+      q[o + 1] = p[o + 1];
+      q[o + 2] = p[o + 2];
+      this.vPre[o] = b.vx;
+      this.vPre[o + 1] = b.vy;
+      this.vPre[o + 2] = b.w;
     }
     this.contacts.step(dt, this.list, this.version, SLOP * g.dx, SPEC * g.dx);
+    /* Die Vorhersage für die nächste Projektion: der Zuwachs aus Flüssigkeit und Schwerkraft, wenn keine Berührung die Geschwindigkeit änderte. */
+    for (const b of this.list) {
+      if (!b.awake) continue;
+      const o = 3 * b.index;
+      const hit = Math.abs(b.vx - this.vPre[o]) + Math.abs(b.vy - this.vPre[o + 1]) + Math.abs(b.w - this.vPre[o + 2]) * b.rmax > 1e-9;
+      this.pred[o] = hit ? 0 : prev[o];
+      this.pred[o + 1] = hit ? 0 : prev[o + 1];
+      this.pred[o + 2] = hit ? 0 : prev[o + 2];
+    }
     for (const k of this.contacts.toWake) this.wake(this.list[k]);
     for (const b of this.list) {
       if (!b.awake) continue;
@@ -258,6 +301,31 @@ export class Bodies {
     return this.cover.hit(this.list, x0, y0, x, y, out);
   }
 
+  /**
+   * Führt die Strecke von (x0, y0) nach (x1, y1) durch das Innere eines anderen Körpers als `self` (eine Wand liegt
+   * dazwischen)? Ränder zählen nicht: ein Punkt auf der Innenseite einer Becherwand sieht ins Becherinnere.
+   */
+  blocks(self: Body2D | null, x0: number, y0: number, x1: number, y1: number): boolean {
+    const eps = 1e-6 * this.e.grid.dx;
+    const a = this.la;
+    const c = this.lb;
+    for (const b of this.list) {
+      if (b === self || b.gone || b.nw === 0) continue;
+      const box = this.cover.boxOf(b);
+      if (Math.max(x0, x1) < box[0] || Math.min(x0, x1) > box[2] || Math.max(y0, y1) < box[1] || Math.min(y0, y1) > box[3]) continue;
+      Body2D.toLocal(b.x, b.y, b.a, x0, y0, a);
+      Body2D.toLocal(b.x, b.y, b.a, x1, y1, c);
+      for (let r = 0; r < b.nr; r += 1) {
+        const rx0 = b.xs[r][0] + eps, ry0 = b.ys[r][0] + eps, rx1 = b.xs[r][b.ni[r]] - eps, ry1 = b.ys[r][b.nj[r]] - eps;
+        if (rx1 > rx0 && ry1 > ry0 && clipSegment(a[0], a[1], c[0], c[1], rx0, ry0, rx1, ry1, this.seg) > 0) return true;
+      }
+    }
+    return false;
+  }
+
+  private readonly la = new Float64Array(2);
+  private readonly lb = new Float64Array(2);
+  private readonly seg = new Float64Array(2);
   private readonly dv = new Float64Array(3);
   private readonly probeS: number[] = [];
   private readonly probeJ: number[] = [];
@@ -358,10 +426,13 @@ export class Bodies {
     b.asleep = false;
     b.rest = 0;
     b.maOk = false;
+    this.forget(b);
+  }
+
+  /** Kein Zuwachs und keine Vorhersage aus früheren Schritten (beim Aufwecken und Einschlafen). */
+  private forget(b: Body2D): void {
     const o = 3 * b.index;
-    this.prev[o] = 0;
-    this.prev[o + 1] = 0;
-    this.prev[o + 2] = 0;
+    for (let k = o; k < o + 3; k += 1) { this.prev[k] = 0; this.pred[k] = 0; this.predNow[k] = 0; this.predOld[k] = 0; }
   }
 
   /** Einschlafen: stillstehen; seine Flächen stehen still (die Zellen bleiben, wie sie sind). */
@@ -374,6 +445,7 @@ export class Bodies {
     b.ux = 0;
     b.uy = 0;
     b.uw = 0;
+    this.forget(b);
     this.cover.addCells(b);
     this.cover.weigh(b);
     this.cover.addCells(b);
@@ -438,9 +510,13 @@ export class Bodies {
   /** Feld je Körper auf die Zahl der Körper bringen. */
   grow(): void {
     if (this.prev.length < 3 * this.list.length) {
-      const p = new Float64Array(3 * this.list.length + 24);
-      p.set(this.prev);
-      this.prev = p;
+      const n = 3 * this.list.length + 24;
+      const more = (a: Float64Array): Float64Array<ArrayBuffer> => { const p = new Float64Array(n); p.set(a); return p; };
+      this.prev = more(this.prev);
+      this.pred = more(this.pred);
+      this.predNow = more(this.predNow);
+      this.predOld = more(this.predOld);
+      this.vPre = more(this.vPre);
     }
   }
 }

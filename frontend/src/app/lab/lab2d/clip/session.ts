@@ -127,7 +127,8 @@ export class ClipSession {
     if (seq !== this.checkSeq || this.mode === 'baking') return;
     this.keys = keys;
     this.found = found;
-    this.info = this.infoFor(this.pick(this.prefer));
+    /* Bei der Wiedergabe bleibt es der gezeigte Nachweis (eine Frage nach einem abgelehnten Handgriff darf ihn nicht vertauschen). */
+    this.info = this.infoFor(this.mode === 'playback' && this.player !== null ? this.player.header : this.pick(this.prefer));
     this.host.post({ type: 'clip', info: this.info });
   }
 

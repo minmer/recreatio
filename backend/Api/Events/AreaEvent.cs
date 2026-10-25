@@ -209,7 +209,11 @@ public static class AreaEvent
         return (int)(await cmd.ExecuteScalarAsync(ct))! == 1;
     }
 
-    /// <summary>Die Wydarzenia, wie eine Karte sie zeigt — nur öffentliche, nur ungesperrte.</summary>
+    /// <summary>
+    /// Die Wydarzenia, wie eine Karte sie zeigt — nur mit öffentlicher, unversiegelter, ungesperrter Hauptseite.
+    /// Der Haupttermin steht nur darauf, wenn er für jeden sichtbar und nicht gesperrt ist; sonst zeigt die Karte
+    /// die Seite ohne Datum (ein Datum eines nicht öffentlichen Termins ginge sonst hinaus).
+    /// </summary>
     private const string CardsSql = """
         SELECT e.area_id, e.kind, a.name, s.path, p.title, p.lead, p.image_id, p.updated_at,
                i.id, i.starts_at, i.ends_at, i.all_day, i.status, i.updated_at,
@@ -219,14 +223,13 @@ public static class AreaEvent
         JOIN app.slug s ON s.id = e.slug_id
         JOIN app.slug_page p ON p.slug_id = s.id
         LEFT JOIN app.calendar_item i ON i.id = e.item_id
+             AND EXISTS (SELECT 1 FROM app.area va WHERE va.id = i.visibility_area_id AND va.public_level <> N'none'
+                          AND EXISTS (SELECT 1 FROM app.area_epoch ve WHERE ve.area_id = va.id AND ve.key_public IS NOT NULL))
+             AND NOT EXISTS (SELECT 1 FROM app.takedown ti WHERE ti.item_kind = N'item' AND ti.item_id = i.id AND ti.item_at IS NULL)
         WHERE NOT EXISTS (SELECT 1 FROM app.slug_area sa WHERE sa.slug_id = s.id)
           AND s.page_seal IS NULL
           AND NOT EXISTS (SELECT 1 FROM app.takedown t WHERE t.item_at IS NULL
-                           AND ((t.item_kind = N'page' AND t.item_id = s.id) OR (t.item_kind = N'event' AND t.item_id = e.area_id)
-                             OR (t.item_kind = N'item' AND t.item_id = e.item_id)))
-          AND (i.id IS NULL OR EXISTS (
-                SELECT 1 FROM app.area va WHERE va.id = i.visibility_area_id AND va.public_level <> N'none'
-                   AND EXISTS (SELECT 1 FROM app.area_epoch ve WHERE ve.area_id = va.id AND ve.key_public IS NOT NULL)))
+                           AND ((t.item_kind = N'page' AND t.item_id = s.id) OR (t.item_kind = N'event' AND t.item_id = e.area_id)))
         """;
 
     private sealed record Card(

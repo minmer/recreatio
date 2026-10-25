@@ -17,6 +17,9 @@
  * der Pfeil davor nur für die Maus (2026-10-25: ein Halt je Schritt für den Tabulator, nicht zwei);
  * ↑ ↓ wandern zwischen den Schritten, → klappt auf, ← zu.
  *
+ * 2026-10-26 — „Tezy skrócone | Całe tezy" oben bei jeder Wurzel: eine Teza steht gekürzt (wie jeder Name in
+ * Listen nach 90 Zeichen „…") oder ganz. Eine Wahl des Lesers für alle Wurzeln auf dem Schirm, gemerkt im Browser.
+ *
  * 2026-10-25 — „pokaż w tekście" bekommt die Bibliothek seines Werks, in jedem Bild neu gefragt
  * (`workLook`): ist sie nach einem frischen Laden noch nicht da, kommt sie später als neues `look`, und
  * jede Änderung eines offenen Speichers (auch das Laden der privaten Texte) erhöht ihre `revision` —
@@ -24,14 +27,14 @@
  * ihm: jeder Abgleich (ein Wechsel des Tabs, ein Speichern) klappte einen offenen Abschnitt zu.
  */
 
-import { Fragment, useId, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useId, useMemo, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 
 import { EntityGlance } from './CardFace';
 import { TextJump } from '../library/SourceJump';
 import { workLook } from '../library/sourceFind';
 import { statementOf, statementRole } from '../library/statement';
 import { plural } from '../core/plural';
-import { fieldsOf, fieldText, placeText, valuesOf, type Entity } from './schema';
+import { fieldsOf, fieldText, labelOf, placeText, valuesOf, type Entity } from './schema';
 import { authorNumber, childrenOf, isStructured, parentsOf, pathFromRoot, pieceOf, PIECE_HEADING, placeLabel, placeOf, relativePlace, schemeFor, textOrder, type StructNode } from './structure';
 import { readView, viewOutline, type OutlineDisplay, type OutlineGroup, type OutlineNode } from './views';
 import { anchorsAt } from './anchors';
@@ -44,6 +47,22 @@ const savedOrder = (): Order | null => {
   try { const v = window.localStorage.getItem(ORDER_KEY); return v === 'tree' || v === 'text' ? v : null; } catch { return null; }
 };
 const keepOrder = (order: Order) => { try { window.localStorage.setItem(ORDER_KEY, order); } catch { /* ohne Speicher: nur für jetzt */ } };
+
+/* Wie lang die Tezy stehen — eine Wahl für alle Wurzeln: was in dieser Karte gewählt wurde, sonst was der Browser sich merkte. */
+type Theses = 'short' | 'whole';
+const THESES_KEY = 'cg-structure-theses';
+let pickedTheses: Theses | null = null;
+const thesesHeard = new Set<() => void>();
+const thesesNow = (): Theses => {
+  if (pickedTheses !== null) return pickedTheses;
+  try { return window.localStorage.getItem(THESES_KEY) === 'whole' ? 'whole' : 'short'; } catch { return 'short'; }
+};
+const keepTheses = (next: Theses) => {
+  pickedTheses = next;
+  try { window.localStorage.setItem(THESES_KEY, next); } catch { /* ohne Speicher: nur für jetzt */ }
+  thesesHeard.forEach((heard) => heard());
+};
+const hearTheses = (heard: () => void) => { thesesHeard.add(heard); return () => { thesesHeard.delete(heard); }; };
 
 /** Der Baum einer Wurzel, wie `textOrder` ihn braucht: nur die Schritte der Struktur. */
 const toStruct = (n: OutlineNode): StructNode => ({
@@ -105,6 +124,7 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
   /* „Rozwiń wszystko": alles offen — ausser dem, was man danach wieder zuklappt. */
   const [all, setAll] = useState(false);
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  const whole = useSyncExternalStore(hearTheses, thesesNow, thesesNow) === 'whole';
   if (entity === undefined) return null;
   const entry = lib.entry(root.id);
   const statement = entry === undefined ? null : statementOf(entry, lib.markupLook);
@@ -117,7 +137,8 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
     const field = display?.chip ? fieldsOf(e, lib.look).find((f) => f.key === display.chip) : undefined;
     return field === undefined ? '' : fieldText(e, field, lib.look);
   };
-  const ctx: NodeCtx = { root: place?.locator ?? '', work: place?.work ?? '', scheme, chipOf, onOpen, isOpen, toggle };
+  const nameOf = (e: Entity): string => (whole ? labelOf(e, lib.look, 0, true) : lib.label(e));
+  const ctx: NodeCtx = { root: place?.locator ?? '', work: place?.work ?? '', scheme, chipOf, nameOf, onOpen, isOpen, toggle };
   const kids = root.groups.filter((g) => g.structure === true).flatMap((g) => g.nodes);
   const side = root.groups.filter((g) => g.structure !== true);
   const setOrderKept = (next: Order) => { setOrder(next); keepOrder(next); };
@@ -129,7 +150,7 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
           <span>{statement?.question === true ? 'Pytanie wiodące' : chipOf(entity) || 'Na górze'}</span>
           {place !== null && scheme !== null && <span className="cg-wy-place">{place.locator === '' ? 'całe dzieło' : placeLabel(place.locator, scheme.scheme, scheme.options)}</span>}
         </p>
-        <h3 className="cg-wy-title"><button type="button" className="cg-ref" onClick={() => onOpen(root.id)}>{lib.label(entity)}</button></h3>
+        <h3 className="cg-wy-title"><button type="button" className="cg-ref" onClick={() => onOpen(root.id)}>{nameOf(entity)}</button></h3>
         {/*
           2026-10-25 — „jeszcze bez kroków" nur, wenn nichts abgeschnitten ist. Blieb für diese Wurzel im Mass aller
           Wurzeln zusammen nichts übrig (nur so hat sie keinen Schritt und doch `cut`), sagt sie, wie viel fehlt und
@@ -154,6 +175,10 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
               <button type="button" className={order === 'tree' ? 'is-on' : ''} aria-pressed={order === 'tree'} onClick={() => setOrderKept('tree')}>Wywód</button>
               <button type="button" className={order === 'text' ? 'is-on' : ''} aria-pressed={order === 'text'} onClick={() => setOrderKept('text')}>Kolejność tekstu</button>
             </span>
+            <span className="cg-subtabs" role="group" aria-label="Długość tez">
+              <button type="button" className={whole ? '' : 'is-on'} aria-pressed={!whole} onClick={() => keepTheses('short')}>Tezy skrócone</button>
+              <button type="button" className={whole ? 'is-on' : ''} aria-pressed={whole} onClick={() => keepTheses('whole')}>Całe tezy</button>
+            </span>
             <button type="button" className="wk-link-btn" aria-pressed={all} onClick={() => { setAll(!all); setOpen(new Set()); setClosed(new Set()); }}>{all ? 'Tylko tezy' : 'Rozwiń wszystko'}</button>
           </div>
         )}
@@ -172,6 +197,8 @@ interface NodeCtx {
   readonly work: string;
   readonly scheme: ReturnType<typeof schemeFor> | null;
   readonly chipOf: (e: Entity) => string;
+  /** Der Name eines Schritts: gekürzt oder ganz, wie der Leser oben gewählt hat. */
+  readonly nameOf: (e: Entity) => string;
   readonly onOpen: (id: string) => void;
   readonly isOpen: (key: string) => boolean;
   readonly toggle: (key: string) => void;
@@ -222,7 +249,7 @@ function StepLine({ id, ctx, path, bodyId, before, extra }: { id: string; ctx: N
       {before}
       <button type="button" className="cg-wy-twist" tabIndex={-1} aria-hidden="true" onClick={() => ctx.toggle(path)}>{open ? '▾' : '▸'}</button>
       {chip !== '' && <span className="cg-wy-chip">{chip}{number !== null ? ` ${number}` : ''}</span>}
-      <button type="button" className="cg-wy-label" data-wy-label="" aria-expanded={open} aria-controls={bodyId} onClick={() => ctx.toggle(path)}>{lib.label(entity)}</button>
+      <button type="button" className="cg-wy-label" data-wy-label="" aria-expanded={open} aria-controls={bodyId} onClick={() => ctx.toggle(path)}>{ctx.nameOf(entity)}</button>
       {rel !== '' && <span className="cg-wy-place">{rel}</span>}
       {loose && <span className="cg-tag" title="Krok bez miejsca w dziele — dopowiedziany przy rekonstrukcji">dopowiedziane</span>}
       {interp && <span className="cg-tag is-interp" title="Opiera się na innej wypowiedzi albo nie wskazuje źródła">Interpretacja</span>}
@@ -256,7 +283,7 @@ function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: N
   const bodyId = `wy-${useId().replace(/:/g, '')}`;
   if (node.again === true) {
     const e = lib.entity(node.id);
-    return <li className="cg-wy-node is-again"><span className="cg-muted">↺ {e === undefined ? '' : lib.label(e)} (już wyżej)</span></li>;
+    return <li className="cg-wy-node is-again"><span className="cg-muted">↺ {e === undefined ? '' : ctx.nameOf(e)} (już wyżej)</span></li>;
   }
   const kids = node.groups.filter((g) => g.structure === true).flatMap((g) => g.nodes);
   const comments = sideCount(node);

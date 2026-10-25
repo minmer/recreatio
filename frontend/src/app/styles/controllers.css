@@ -1,0 +1,90 @@
+/*
+ * 0129 — WER FÜR DIE DATEN GERADESTEHT: die Klausel (`areas/ControllerClause.tsx`)
+ * und die Einstellungen im Bereich (`areas/AreaController.tsx`).
+ */
+
+/* -- Die Klausel: über Formularen, an Reservierungen, unter Seiten ------------------- */
+
+.wk-clause {
+  display: grid; gap: var(--wk-space-1);
+  margin: 0;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  font-size: var(--wk-text-sm);
+  line-height: 1.5;
+  color: var(--wk-ink-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.wk-clause p { margin: 0; }
+.wk-clause-who { color: var(--wk-ink); }
+.wk-clause-operator { color: var(--wk-muted); }
+.wk-clause[data-clause='nobody'] { border-left: 3px solid var(--wk-warn); background: var(--wk-warn-soft); }
+
+/* Unter einer öffentlichen Seite: leiser, ohne Kasten. */
+.wk-clause.is-footer { border: 0; background: transparent; padding: var(--wk-space-3) 0 0; border-top: 1px solid var(--wk-line); border-radius: 0; }
+.wk-clause.is-footer[data-clause='nobody'] { background: transparent; border-left: 0; }
+
+/* Auf der Seite eines Links: je Administrator eine Klausel. */
+.wk-link-clauses { display: grid; gap: var(--wk-space-2); margin: var(--wk-space-3) 0; }
+
+/* -- Die Einstellungen im Bereich ---------------------------------------------------- */
+
+.wk-ctl { gap: var(--wk-space-3); }
+.wk-ctl-lines { display: grid; gap: 0.125rem; min-width: 0; overflow-wrap: anywhere; }
+.wk-ctl-lines p { margin: 0; line-height: 1.5; }
+.wk-ctl-from { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-ctl-meta { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+
+/* Was auf eine Antwort wartet: der Satz und daneben der Knopf. */
+.wk-ctl-wait { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--wk-space-2) var(--wk-space-3); }
+.wk-ctl-wait > p { margin: 0; flex: 1 1 18rem; }
+
+/* Zwei Felder nebeneinander, auf dem Telefon untereinander. */
+.wk-ctl-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--wk-space-3); }
+
+.wk-ctl-terms { display: grid; gap: var(--wk-space-2); }
+.wk-ctl-terms-text { font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.wk-ctl-terms-text > summary { cursor: pointer; color: var(--wk-accent); font-weight: 600; }
+.wk-ctl-terms-text ul { margin: var(--wk-space-2) 0 0; padding-left: 1.25rem; display: grid; gap: var(--wk-space-1); }
+
+.wk-ctl-new, .wk-ctl-home { display: grid; gap: var(--wk-space-3); }
+.wk-ctl-new > .wk-h3, .wk-ctl-home > .wk-h3 { margin: 0; }
+
+/* Die Wahl: eine Zeile je Datensatz, der Knopf rechts. */
+.wk-ctl-choices { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.wk-ctl-choices > li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--wk-space-2);
+  padding: var(--wk-space-2) 0; border-top: 1px solid var(--wk-line); min-width: 0;
+}
+.wk-ctl-choices > li:first-child { border-top: 0; }
+.wk-ctl-choices > li > div { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+
+/* Ein Datensatz mit Heimat hier. */
+.wk-ctl-record {
+  display: grid; gap: var(--wk-space-3); min-width: 0;
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface);
+}
+.wk-ctl-record[data-closed='yes'] { background: var(--wk-sunk); color: var(--wk-muted); }
+.wk-ctl-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--wk-space-2); }
+.wk-ctl-head > .wk-ctl-lines { flex: 1 1 16rem; }
+.wk-ctl-missing { display: grid; gap: var(--wk-space-2); }
+.wk-ctl-missing > p { margin: 0; }
+
+.wk-ctl-uses { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.wk-ctl-uses > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--wk-space-2); min-width: 0; }
+.wk-ctl-uses > li > span:first-child { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+
+.wk-ctl-offer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.wk-ctl-offer > :first-child { flex: 1 1 14rem; min-width: 0; }
+
+.wk-ctl-history .wk-actions { margin: 0; }
+
+/* -- Wer für eine Seite geradesteht (`pages/PageResponsible.tsx`) ------------------------ */
+
+.wk-page-responsible { display: grid; gap: var(--wk-space-3); }
+.wk-page-responsible-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); }
+.wk-page-responsible-pick > :first-child { flex: 1 1 14rem; min-width: 0; }

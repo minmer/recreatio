@@ -34,6 +34,7 @@ import { loadOffers, type Holder, type MyClaim, type Offers, type Rules } from '
 import { useSeats } from '../seats/seatContext';
 import { WorkspaceError } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { ControllerClause } from '../areas/ControllerClause';
 import { type Act, type Fresh, people, span } from './slotText';
 import { OpenAsk, OpenMine } from './OpenClaims';
 import { MyTerm } from './MyTerm';
@@ -172,6 +173,9 @@ export function SlotCard({ title, resource }: {
     </>
   );
 
+  /* 0129 — wer für die Daten der Reservierung geradesteht (ein Dienst von vorher schickt es nicht: dann nichts). */
+  const clause = rules.controller === undefined ? null : <ControllerClause controller={rules.controller} context="collect" />;
+
   if (rules.mode === 'open') {
     return (
       <>
@@ -187,6 +191,7 @@ export function SlotCard({ title, resource }: {
           busy={busy !== null}
           onAct={act}
         />
+        {clause}
       </>
     );
   }
@@ -277,6 +282,7 @@ export function SlotCard({ title, resource }: {
           />
         </>
       )}
+      {clause}
     </>
   );
 }

@@ -159,6 +159,9 @@ export interface SealedMessage {
    * Nachrichten und bei Plätzen.
    */
   readonly authorPersonId?: string | null;
+
+  /** 0130 — nach einer Meldung gesperrt: der Dienst schickt keinen Inhalt (`bodySealed` ist `null`). */
+  readonly blocked?: boolean;
 }
 
 /** Eine Fassung aus der Geschichte einer Nachricht (0058). */

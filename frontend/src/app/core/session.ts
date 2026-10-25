@@ -464,6 +464,11 @@ export interface DeletionPreview {
   readonly orphanedAreas: readonly { id: string; name: string }[];
   /** Seiten, die dieses Konto führt — sie bleiben online. */
   readonly pages: readonly string[];
+  /**
+   * 0129 — Administratoren danych, die mit dem Konto aufhören zu gelten (ihre Heimat
+   * geht mit, oder die Bereiche selbst): Name und die Bereiche, für die sie standen.
+   */
+  readonly endingControllers?: readonly { readonly name: string; readonly areas: readonly string[] }[];
 }
 
 export const deletionPreview = (): Promise<DeletionPreview> =>

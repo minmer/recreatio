@@ -35,6 +35,7 @@ import { cogitaFlowPart, cogitaLivePart, cogitaRevisionPart, entityCardPart, ent
 import { contactPart } from './contact';
 import { costsPart } from './costs';
 import { entryListPart, entryPanelPart } from './entries';
+import { eventPart, eventsPart } from './events';
 import { factsPart } from './facts';
 import { faqPart } from './faq';
 import { filesPart } from './files';
@@ -129,6 +130,9 @@ export const PARTS: readonly PartModule[] = [
   calendarPart,
   /* 0070 — ein Termin mit seinen Teilen (Rekolekcje, Pielgrzymka, Festyn). */
   programPart,
+  /* 0131 — Wydarzenia als Karten: eine Liste (nach Bereichen und auf Bitte) und eines. */
+  eventsPart,
+  eventPart,
   formPart,
   slotsPart,
   chatPart,
@@ -164,7 +168,8 @@ const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));
 export const partOf = (kind: string): PartModule | undefined => BY_KIND.get(kind);
 
 /** Der Name einer Art — oder ihr Wort, wenn es sie hier nicht gibt. */
-export const partLabel = (kind: string): string => partOf(kind)?.label ?? kind;
+export const partLabel = (kind: string): string =>
+  partOf(kind)?.label ?? (kind === 'blocked' ? 'Zablokowane po zgłoszeniu (decyduje operator serwisu)' : kind);
 
 /** Erzeugt diese Art Plätze? Dann muss dastehen, wem sie gehören (0038). */
 export const takesEntries = (kind: string): boolean => partOf(kind)?.takes === true;

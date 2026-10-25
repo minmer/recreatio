@@ -228,16 +228,20 @@ export function blocksText(blocks: readonly CommentBlock[]): string {
   return blocks.filter((b): b is Extract<CommentBlock, { type: 'paragraph' }> => b.type === 'paragraph').map((b) => b.text).join('\n\n');
 }
 
-/** Der Name einer Aussage in Listen: ihr Anfang (die Teza, sonst das erste Wort einer Liste oder Tabelle). */
-export function blocksTitle(blocks: readonly CommentBlock[]): string {
+/**
+ * Der Name einer Aussage in Listen: ihr Anfang (die Teza, sonst das erste Wort einer Liste oder Tabelle),
+ * nach 90 Zeichen mit „…" gekürzt. 2026-10-26 — `whole`: ungekürzt (die Struktura mit „Całe tezy").
+ */
+export function blocksTitle(blocks: readonly CommentBlock[], whole = false): string {
   const plain = (text: string): string =>
     text.replace(/!?\[@[^\]]*\]/g, ' ').replace(/\^\[[^\]]*\]/g, ' ').replace(/[*_#>`]/g, '').replace(/\s+/g, ' ').trim();
+  const clip = (text: string): string => (whole || text.length <= 90 ? text : `${text.slice(0, 89).trimEnd()}…`);
   const thesis = thesisOf(blocks);
-  if (thesis !== '') return thesis.length > 90 ? `${thesis.slice(0, 89).trimEnd()}…` : thesis;
+  if (thesis !== '') return clip(thesis);
   for (const block of blocks) {
     const first = block.type === 'paragraph' ? plain(block.text)
       : cellsOf(block).flat().map((run) => ('text' in run ? plain(run.text) : '')).find((t) => t !== '') ?? '';
-    if (first !== '') return first.length > 90 ? `${first.slice(0, 89).trimEnd()}…` : first;
+    if (first !== '') return clip(first);
   }
   return '';
 }
