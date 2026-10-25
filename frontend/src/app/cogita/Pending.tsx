@@ -16,9 +16,8 @@ import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadReports, type Report } from './learn';
 import { linkedOf } from './store';
 import { EntityPicker, entityName, originPath, useAsync, useBusy, useCtx } from './ui';
-import { blockMarkups, blockRefs, isQuestion, thesisProblem, THESIS_LIMIT } from '../library/blocks';
-import { citedKeys } from '../library/libraryMarkup';
-import { blocksField, entityAbout, entityBlocks, isStatementKind } from './statements';
+import { isQuestion, thesisProblem, THESIS_LIMIT } from '../library/blocks';
+import { blocksField, entityBlocks, isStatementKind } from './statements';
 import { Loading } from '../ui/Loading';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -49,12 +48,8 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   */
   const statements = lib.entities().filter((e) => blocksField(e, look) !== undefined);
   const thesisTodo = statements.filter((e) => thesisProblem(entityBlocks(e, look)) !== null);
-  const answered = new Set<string>();
-  for (const s of statements) {
-    const blocks = entityBlocks(s, look);
-    const tokens = [...blockRefs(blocks).map((r) => r.ref), ...citedKeys(...blockMarkups(blocks)), ...entityAbout(s, look).map((a) => a.ref)];
-    for (const token of tokens) { const id = lib.resolve(token); if (id !== undefined && id !== s.id) answered.add(id); }
-  }
+  /* 2026-10-25 — dieselbe Rechnung wie die Marke an der Aussage (`CogitaLibrary.answeredIds`), auch über eine Struktur. */
+  const answered = lib.answeredIds();
   const openQuestions = statements.filter((e) => isQuestion(entityBlocks(e, look)) && !answered.has(e.id));
   const pathOf = (id: string) => { const from = lib.origin(id); return from === undefined ? '#' : originPath(from, id, 'wpisy'); };
 

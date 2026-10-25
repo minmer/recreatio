@@ -124,7 +124,13 @@ ${MAIN} {
     if (k == SOLID) { deriveSolid(c); }
   }`}
   if (k == SOLID) { cf[F_VGAS * n + c] = 0.0; cf[F_RHO * n + c] = 0.0; cf[F_VEOS * n + c] = 0.0; ${mode === 2 ? 'cf[F_SRCV * n + c] = 0.0;' : ''} return; }
-  ${mode === 2 ? '' : `if (k == LIQUID && massOf(c) <= 0.0) { cf[F_VGAS * n + c] = 0.0; cf[F_VEOS * n + c] = 0.0; ${mode === 1 ? 'cf[F_VEOSMID * n + c] = 0.0;' : ''} return; }
+  ${mode === 2 ? '' : `/* Flüssige Zelle ohne Gas, auch eben geleert (release, Wechsel der Zellart): Mole, Wärmekapazität und Dichte 0, wie Gas.deriveCell
+     nach move — sonst zählte heatPrep die alte Wärmekapazität mit, und heatShare liesse Enthalpie in der leeren Zelle. */
+  if (k == LIQUID && massOf(c) <= 0.0) {
+    cf[F_VGAS * n + c] = 0.0; cf[F_VEOS * n + c] = 0.0; cf[F_NMOL * n + c] = 0.0; cf[F_CAP * n + c] = 0.0; cf[F_RHO * n + c] = 0.0;
+    ${mode === 1 ? 'cf[F_VEOSMID * n + c] = 0.0;' : ''}
+    return;
+  }
   deriveCell(c);`}
   var veos = 0.0;
   if (cf[F_VGAS * n + c] > 0.0) { veos = cf[F_NMOL * n + c] * R_GAS * cf[F_T * n + c] / pAt(c); }
@@ -134,9 +140,10 @@ ${MAIN} {
 }`
   })),
   {
-    /* Wechsel der Zellart (wie Gas.transitions): wird eine Gaszelle flüssig, geht ihr Gas an die Gasnachbarn; wird eine Zelle Gas, holt sie sich Gas. */
+    /* Wechsel der Zellart (wie Gas.transitions): wird eine Gaszelle flüssig, geht ihr Gas an die Gasnachbarn; wird eine Zelle Gas, holt sie sich Gas.
+       Gas, das in einer flüssigen Zelle bliebe (flüssig geworden ohne Gasnachbarn, oder flüssig geblieben mit Gas), gibt release fort. */
     name: 'transitions', wg: WG,
-    bind: 'P:u cf:r cu:r at:a',
+    bind: 'P:u cf:r cu:r at:a cnt:a',
     code: `fn nbOf(c: u32, k: u32) -> u32 {
   let i = ci(c);
   let j = cj(c);
@@ -156,16 +163,77 @@ fn moveGas(a: u32, b: u32, share: f32) {
   addF_at(A_DN * n + a, -dN); addF_at(A_DO * n + a, -dO); addF_at(A_DV * n + a, -dV); addF_at(A_DF * n + a, -dF); addF_at(A_DH * n + a, -dH);
   addF_at(A_DN * n + b, dN); addF_at(A_DO * n + b, dO); addF_at(A_DV * n + b, dV); addF_at(A_DF * n + b, dF); addF_at(A_DH * n + b, dH);
 }
+/* Die nächste Gaszelle im Fenster 9 × 9 um c (Ringe 1…4), wie die Breitensuche von Gas.release: von Zelle zu Zelle über ihre
+   Seiten (links, rechts, unten, oben wie die CPU), nur durch nicht feste Zellen desselben Gebiets und nur im Fenster; die erste
+   Gaszelle ist das Ziel, NONE, wenn keine. Es zählt der Weg, nicht die Lage: dieselbe Nummer allein hiesse nur „irgendwo verbunden“,
+   eine Gaszelle hinter einer dünnen Wand wäre sonst nah. Marken (81 Bit) und Warteschlange liegen im Speicher des Fadens. */
+fn nearGas(c: u32) -> u32 {
+  let n = P.n;
+  let r = cu[U_RID * n + c];
+  if (r == NONE) { return NONE; }
+  /* Fensterzelle w = a + 9 b (a, b = 0…8); c ist w = 40. */
+  let i0 = ci(c) - 4;
+  let j0 = cj(c) - 4;
+  var seen = array<u32, 3>(0u, 1u << 8u, 0u);
+  var queue: array<u32, 81>;
+  queue[0] = 40u;
+  var head = 0u;
+  var tail = 1u;
+  loop {
+    if (head >= tail) { break; }
+    let w = queue[head];
+    head += 1u;
+    for (var k = 0u; k < 4u; k++) {
+      var a = i32(w % 9u);
+      var b = i32(w / 9u);
+      if (k == 0u) { a -= 1; } else if (k == 1u) { a += 1; } else if (k == 2u) { b -= 1; } else { b += 1; }
+      if (a < 0 || b < 0 || a > 8 || b > 8 || !inGrid(i0 + a, j0 + b)) { continue; }
+      let v = u32(a + 9 * b);
+      let bit = 1u << (v & 31u);
+      if ((seen[v >> 5u] & bit) != 0u) { continue; }
+      seen[v >> 5u] = seen[v >> 5u] | bit;
+      let q = cellOf(i0 + a, j0 + b);
+      let kq = cu[U_KIND * n + q];
+      if (kq == SOLID || cu[U_RID * n + q] != r) { continue; }
+      if (kq == GAS) { return q; }
+      queue[tail] = v;
+      tail += 1u;
+    }
+  }
+  return NONE;
+}
+/* Wie Gas.release: das ganze Gas der flüssigen Zelle c zur ersten Gaszelle gerade darüber (durch nicht feste Zellen); versperren ein
+   Feststoff oder der Deckel der Kiste den Weg, zur nächsten Gaszelle, die im Fenster um c erreichbar ist (nearGas). Ohne Ziel bleibt
+   es (gezählt). Nur atomare Beiträge in at und cnt: gasApply bucht sie in der nächsten Dispatch. */
+fn release(c: u32) {
+  let m = mass(c);
+  if (!(m > 0.0)) { return; }
+  var t = NONE;
+  var q = c;
+  for (var k = 0u; k < P.ny; k++) {
+    if (cj(q) + 1 >= i32(P.ny)) { break; }
+    q += P.nx;
+    let kq = cu[U_KIND * P.n + q];
+    if (kq == SOLID) { break; }
+    if (kq == GAS) { t = q; break; }
+  }
+  if (t == NONE) { t = nearGas(c); }
+  if (t == NONE) { atomicAdd(&cnt[C_REL_MISS], 1u); return; }
+  moveGas(c, t, 1.0);
+  addF_cnt(C_REL_MASS, m);
+  atomicAdd(&cnt[C_REL_N], 1u);
+}
 ${MAIN} {
   let c = gid.x;
   if (c >= P.n) { return; }
   let n = P.n;
   let was = cu[U_KPREV * n + c];
   let now = cu[U_KIND * n + c];
+  if (now == LIQUID && was == LIQUID) { release(c); return; }
   if (was == now || now == SOLID || was == SOLID) { return; }
   var wsum = 0.0;
   for (var k = 0u; k < 4u; k++) { let nb = nbOf(c, k); if (stableGas(nb)) { wsum += vol(nb); } }
-  if (wsum <= 0.0) { return; }
+  if (wsum <= 0.0) { if (now == LIQUID) { release(c); } return; }
   if (now == LIQUID) {
     for (var k = 0u; k < 4u; k++) { let nb = nbOf(c, k); if (stableGas(nb)) { moveGas(c, nb, vol(nb) / wsum); } }
     return;

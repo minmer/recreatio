@@ -206,4 +206,4 @@ Not tested in this repository: anything over the air (no BLE hardware on the bui
 
 Everything for the store is in [`play/`](play/): listing texts (pl-PL, en-US), icon, feature graphic, phone screenshots, release notes, and [`play/PLAY_CONSOLE.md`](play/PLAY_CONSOLE.md). That file walks through the Play Console step by step: app signing, the answers for App content and Data safety, the review account, the first manual upload, and the service account for automatic uploads.
 
-The account deletion Google requires is in the app and on the web: *Konto → Usunięcie konta* (`backend/Api/AccountDeletion.cs`), and `https://recreatio.pl/usun-konto/`. The privacy policy is at `https://recreatio.pl/prywatnosc/`.
+The account deletion Google requires is in the app and on the web: *Konto → Usunięcie konta* (`backend/Api/AccountDeletion.cs`), and `https://recreatio.pl/usun-konto/`.

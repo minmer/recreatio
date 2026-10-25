@@ -38,6 +38,7 @@ public static class AiMcp
         "Recreatio: read-only access to the Library (sources), Scriptorium (own texts) and knowledge bases (Cogita) the user authorized. " +
         "Start with list_collections, read entry types with get_schema, find entries with search_entries (all words; a short reference like \"J 21\" matches as a phrase), " +
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
+        "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", or part by part) and search_text. " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish.";
 

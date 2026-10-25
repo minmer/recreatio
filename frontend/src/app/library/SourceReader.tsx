@@ -25,6 +25,7 @@ import { kindOf, type LibEntry } from './libraryKinds';
 import { loadedStores, type Entry, type LibraryStore } from './libraryStore';
 import { overlap, parsePlace, type Span } from './locations';
 import { SourceBlockView } from './SourceBlocks';
+import { ReaderAnchors } from './LibraryKnowledge';
 import { finderOf, openPart } from './sourceFind';
 import {
   alignEditions, editionsOf, findBlocks, pageRangeLabel, placeInManifest, placeOptions, readPart, searchParts, selectionLocator, textsOfWork,
@@ -165,6 +166,8 @@ function Reading({ store, library, work, text, at, writable }: {
         </div>
         {atPlace !== null && atPlace.status !== 'found' && chosen === null && <p className="wk-note">„{at}”: {atPlace.why}</p>}
         {atPlace !== null && atPlace.status === 'found' && atPlace.why !== '' && chosen === null && <p className="wk-note">{atPlace.why}</p>}
+        {/* 2026-10-25 (Wywód) — die Wejścia z Biblioteki, die diesen Teil berühren (aus lesbaren Bazy wiedzy, nichts gespeichert). */}
+        <ReaderAnchors store={store} work={work} part={part} scheme={manifest.scheme} />
         <h2 className="src-part-h">{part.label}</h2>
         {data === undefined ? <Loading lines={4} label="Otwieranie tekstu…" />
           : data === null ? <p className="wk-empty">Tej części nie da się teraz otworzyć.</p>

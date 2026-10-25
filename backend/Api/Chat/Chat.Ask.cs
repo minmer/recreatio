@@ -87,7 +87,12 @@ public static partial class Chat
         foreach (var (area, name) in found.Value.To)
         {
             var chat = await SeatChatAtAsync(connection, found.Value.Seat, area, ctx.RequestAborted);
-            to.Add(new { areaId = Ids.ToText(area), name, chatId = chat is null ? null : Ids.ToText(chat.Value) });
+            to.Add(new
+            {
+                areaId = Ids.ToText(area), name, chatId = chat is null ? null : Ids.ToText(chat.Value),
+                /* 0129 — die Klausel über „Napisz do: …"; null: niemand steht dafür gerade, dann fängt nichts an. */
+                controller = Controllers.Json(await Controllers.OfAreaAsync(connection, area, ctx.RequestAborted))
+            });
         }
 
         await ctx.Response.WriteAsJsonAsync(new { to });
@@ -106,6 +111,13 @@ public static partial class Chat
         if (!Guid.TryParse(body.AreaId, out var areaId) || !found.Value.To.Any(t => t.Area == areaId))
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Z Twojego linku nie można tu napisać.");
+            return;
+        }
+
+        /* 0129 — „Napisz do nas" ist eine Rozmowa im Bereich: ohne jemanden, der für ihn geradesteht, fängt sie nicht an. */
+        if (await Controllers.OfAreaAsync(connection, areaId, ctx.RequestAborted) is null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
             return;
         }
 

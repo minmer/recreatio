@@ -12,7 +12,8 @@
 import type { Engine } from '../engine/engine';
 import { FORCE_SLOTS } from '../engine/bubbles';
 import { tSat } from '../engine/if97';
-import { H2O, N2, O2, SPECIES_SLOTS } from '../engine/units';
+import { MOLAR, muMix } from '../engine/materials';
+import { H2O, N2, O2, R_GAS, SOLID, SPECIES_SLOTS } from '../engine/units';
 import type { GpuCtx } from './kernel';
 import { fromStair, stairOf, type Stair } from './staircase';
 import { BUBBLE_WORDS, NONE, PARAMS_WORDS, PARTICLE_WORDS, SITE_WORDS } from './lib';
@@ -43,9 +44,29 @@ export interface Dims {
 export const MEAS_K = 16;
 const ST = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
 
+/** Mole, Zähigkeit und V_eos jeder Zelle aus Massen, T und Druck der Engine (wie Gas.deriveCell und Gas.updateEos; die Engine bleibt, wie sie ist). */
+function derivedGas(e: Engine): { nmol: Float64Array; mu: Float64Array; veos: Float64Array } {
+  const g = e.grid;
+  const n = g.n;
+  const nmol = new Float64Array(n);
+  const mu = new Float64Array(n);
+  const veos = new Float64Array(n);
+  for (let c = 0; c < n; c += 1) {
+    const mN = g.mg[N2 * n + c];
+    const mO = g.mg[O2 * n + c];
+    const mV = g.mg[H2O * n + c];
+    nmol[c] = mN / MOLAR[N2] + mO / MOLAR[O2] + mV / MOLAR[H2O];
+    mu[c] = mN + mO + mV + g.mfog[c] <= 1e-30 ? 1.8e-5 : muMix(mN, mO, mV, g.T[c]);
+    veos[c] = g.kind[c] === SOLID || e.gas.vgas[c] <= 0 ? 0 : (nmol[c] * R_GAS * g.T[c]) / e.regions.pAt(c);
+  }
+  return { nmol, mu, veos };
+}
+
 export class GpuState {
   /** Die Treppe der Körper beim letzten Hochladen (staircase.ts) — beim Zurückholen gebraucht. */
   private stair: Stair | null = null;
+  /** Die Treppe beim letzten Hochladen (die Aufnahme beim Backen, capture.ts, braucht ihre Zellen und Temperaturen). */
+  get staircase(): Stair | null { return this.stair; }
   readonly ctx: GpuCtx;
   readonly d: Dims;
   readonly plan: Plan;
@@ -265,8 +286,12 @@ export class GpuState {
     put(F.MN, g.mg, N2 * n); put(F.MO, g.mg, O2 * n); put(F.MV, g.mg, H2O * n); put(F.MF, g.mfog); put(F.HG, g.Hg);
     put(F.ES, st.es); put(F.FILM, st.film); put(F.T, st.T); put(F.TL, g.Tl); put(F.CL, g.Cl);
     const G0 = e.gas;
-    put(F.VGAS, G0.vgas); put(F.RHO, G0.rho); put(F.NMOL, G0.nmol); put(F.CAP, G0.cap); put(F.MU, G0.mu);
-    put(F.VEOS, G0.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, G0.veosMid); put(F.PHIS, st.phiS); put(F.SDF, st.sdf);
+    /* Mole, Zähigkeit und V_eos nicht aus der Engine, sondern aus ihrem Zustand neu (V_eos zur Mitte = V_eos): ein Schlüsselbild trägt
+       sie nicht (Arbeitsspeicher, snapshot.ts SCRATCH) — mit den Feldern einer daraus gebauten Engine lief der Druck eines
+       verschlossenen Gebiets auf der GPU davon (bis 8 bar). */
+    const der = derivedGas(e);
+    put(F.VGAS, G0.vgas); put(F.RHO, G0.rho); put(F.NMOL, der.nmol); put(F.CAP, G0.cap); put(F.MU, der.mu);
+    put(F.VEOS, der.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, der.veos); put(F.PHIS, st.phiS); put(F.SDF, st.sdf);
     put(F.PTL, st.T);
     /* Salz (M2b): Kruste je Zelle (Körperteile: ihr Spiegel), Salz am Boden der Kiste je Spalte; a_w = 1 bis zur ersten Sammlung. */
     put(F.CRUST, g.crust);

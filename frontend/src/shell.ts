@@ -42,7 +42,7 @@ function ownLink(url: string): URL | null {
  * Einen eigenen Link hier öffnen.
  *
  * Eine blosse Raute wechselt ohne Neuladen (der Schlüssel im Speicher bleibt);
- * ein anderer Pfad (etwa /prywatnosc/) lädt die Seite von hier neu — die
+ * ein anderer Pfad (etwa /usun-konto/) lädt die Seite von hier neu — die
  * App liefert sie aus sich selbst, nicht aus dem Netz.
  */
 function openHere(link: URL, starting: boolean): void {

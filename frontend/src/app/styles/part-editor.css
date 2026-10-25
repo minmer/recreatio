@@ -184,6 +184,8 @@ span.pe-item-title { cursor: default; }
 
 .wk-json-plan { display: grid; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--wk-line); border-radius: 4px; background: var(--wk-ground); }
 .wk-json-plan ul { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); }
+/* 2026-10-25 — der Baum einer Struktur im Plan trägt seine Einrückung in Leerzeichen. */
+.wk-json-plan li { white-space: pre-wrap; }
 .wk-json-plan p { margin: 0; }
 .wk-json-warn { color: var(--wk-held-ink); }
 .wk-json-options { display: grid; gap: 0.5rem; }

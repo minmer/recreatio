@@ -4,7 +4,7 @@
   "name": "Słownik",
   "kinds": [
     {
-      "ref": "@jezyk",
+      "ref": "@slownik/jezyk",
       "name": "Język",
       "label": "{nazwa}",
       "fields": [
@@ -21,7 +21,7 @@
       ]
     },
     {
-      "ref": "@slowo",
+      "ref": "@slownik/slowo",
       "name": "Słowo",
       "label": "{tekst}",
       "tells": "jezyk",
@@ -36,7 +36,7 @@
           "label": "Język",
           "type": "ref",
           "to": [
-            "@jezyk"
+            "@slownik/jezyk"
           ]
         },
         {
@@ -47,7 +47,7 @@
       ]
     },
     {
-      "ref": "@tlumaczenie",
+      "ref": "@slownik/tlumaczenie",
       "name": "Tłumaczenie",
       "label": "{slowa}",
       "fields": [
@@ -57,7 +57,7 @@
           "type": "ref",
           "multi": true,
           "to": [
-            "@slowo"
+            "@slownik/slowo"
           ],
           "says": "Słowa w różnych językach, które znaczą to samo"
         },
@@ -69,7 +69,7 @@
       ]
     },
     {
-      "ref": "@synonimy",
+      "ref": "@slownik/synonimy",
       "name": "Synonimy",
       "label": "{slowa}",
       "fields": [
@@ -79,14 +79,14 @@
           "type": "ref",
           "multi": true,
           "to": [
-            "@slowo"
+            "@slownik/slowo"
           ],
           "says": "Słowa jednego języka o tym samym znaczeniu"
         }
       ]
     },
     {
-      "ref": "@antonimy",
+      "ref": "@slownik/antonimy",
       "name": "Antonimy",
       "label": "{slowa}",
       "fields": [
@@ -96,7 +96,7 @@
           "type": "ref",
           "multi": true,
           "to": [
-            "@slowo"
+            "@slownik/slowo"
           ],
           "says": "Słowa o przeciwnym znaczeniu"
         }
@@ -105,9 +105,10 @@
   ],
   "templates": [
     {
+      "ref": "@slownik/t-kierunek",
       "name": "Słowa: z języka na język",
       "kinds": [
-        "@tlumaczenie"
+        "@slownik/tlumaczenie"
       ],
       "direction": "slowa:jezyki",
       "graph": {
@@ -304,9 +305,10 @@
       }
     },
     {
+      "ref": "@slownik/t-pary",
       "name": "Połącz w pary",
       "kinds": [
-        "@tlumaczenie"
+        "@slownik/tlumaczenie"
       ],
       "direction": "slowa:pary",
       "graph": {
@@ -367,7 +369,7 @@
             "x": 0,
             "y": 300,
             "config": {
-              "kind": "@tlumaczenie",
+              "kind": "@slownik/tlumaczenie",
               "self": true,
               "count": 12
             }
@@ -532,9 +534,10 @@
       }
     },
     {
+      "ref": "@slownik/t-jezyk",
       "name": "Jaki to język?",
       "kinds": [
-        "@slowo"
+        "@slownik/slowo"
       ],
       "direction": "jezyk:jaki-jezyk",
       "graph": {
@@ -561,7 +564,7 @@
             "x": 230,
             "y": 150,
             "config": {
-              "kind": "@slowo",
+              "kind": "@slownik/slowo",
               "key": "tekst"
             }
           },
@@ -612,7 +615,7 @@
             "x": 230,
             "y": 450,
             "config": {
-              "kind": "@slowo"
+              "kind": "@slownik/slowo"
             }
           },
           {
@@ -780,9 +783,10 @@
       }
     },
     {
+      "ref": "@slownik/t-przetlumacz",
       "name": "Przetłumacz słowo",
       "kinds": [
-        "@slowo"
+        "@slownik/slowo"
       ],
       "direction": "slowa:wpisz",
       "graph": {
@@ -818,7 +822,7 @@
             "x": 230,
             "y": 0,
             "config": {
-              "kind": "@tlumaczenie",
+              "kind": "@slownik/tlumaczenie",
               "key": "slowa"
             }
           },

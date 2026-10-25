@@ -10,7 +10,7 @@
 import { createContext, Fragment, useContext, useMemo, type MouseEvent, type ReactNode } from 'react';
 
 import { blocksKeyOf, blocksOf, THESIS_LIMIT } from './blocks';
-import { aboutLine, answersTo, statementOf, statementRole } from './statement';
+import { aboutLine, isAnswered, statementOf, statementRole } from './statement';
 import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState, type Seg } from './libraryCite';
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
@@ -230,7 +230,7 @@ export function StatementMarks({ entry, look, author = false }: { entry: LibEntr
   const statement = statementOf(entry, look);
   if (statement === null) return null;
   const role = statementRole(entry, look);
-  const answered = statement.question && answersTo(entry, look).length > 0;
+  const answered = statement.question && isAnswered(entry, look);
   const problem = author ? statement.problem : null;
   return (
     <p className="lib-stmts">

@@ -18,7 +18,7 @@
 import type { Engine, EngineStats } from '../engine/engine';
 import { tSat } from '../engine/if97';
 import { STAGE_COUNT } from '../engine/stages';
-import { GpuCtx, type Resource } from './kernel';
+import { GpuCtx, type KernelDef, type Resource } from './kernel';
 import { ALL_KERNELS } from './kernels';
 import { GpuSolver, SOLVE_DIFF, SOLVE_GAS, SOLVE_HEAT, SOLVE_LIQUID } from './solver';
 import { C, CNT_SIZE, G, GLOB_SIZE, H, HEAT_STRIDE, INTERVAL_END, INTERVAL_FIRST, R, REG_STRIDE } from './slots';
@@ -65,7 +65,7 @@ export interface Readout {
 
 type IntervalKey = 'heater' | 'lossWalls' | 'lossOpen' | 'escapedEnergy' | 'escapedWater' | 'escapedAir' | 'escapedOther' | 'escapedSalt' | 'crystallized' | 'produced' | 'condensed' | 'dew' | 'fogMade'
   | 'burstVapour' | 'fluxSL' | 'fluxLG' | 'fluxSG' | 'lossSolids' | 'nucleated' | 'departed' | 'merged' | 'burst' | 'collapsed'
-  | 'burstCold' | 'burstWarm' | 'collapsedCold' | 'collapsedWarm';
+  | 'burstCold' | 'burstWarm' | 'collapsedCold' | 'collapsedWarm' | 'releasedGas' | 'releases' | 'releaseMisses' | 'evapCapped';
 /** Platz in cnt und Art (f: f32-Summe, u: u32-Zähler) jeder Zwischensumme. */
 const INTERVALS: readonly (readonly [IntervalKey, number, 'f' | 'u'])[] = [
   ['heater', C.HEATER_E, 'f'], ['lossWalls', C.LOSS_WALLS, 'f'], ['lossOpen', C.LOSS_OPEN, 'f'], ['escapedEnergy', C.ESC_ENERGY, 'f'],
@@ -73,7 +73,8 @@ const INTERVALS: readonly (readonly [IntervalKey, number, 'f' | 'u'])[] = [
   ['dew', C.DEW, 'f'], ['fogMade', C.FOGMADE, 'f'], ['burstVapour', C.BURSTVAP, 'f'], ['fluxSL', C.FLUX_SL, 'f'], ['fluxLG', C.FLUX_LG, 'f'],
   ['fluxSG', C.FLUX_SG, 'f'], ['lossSolids', C.LOSS_SOLIDS, 'f'], ['nucleated', C.NUCLEATED, 'u'], ['departed', C.DEPARTED, 'u'],
   ['merged', C.MERGED, 'u'], ['burst', C.BURST, 'u'], ['collapsed', C.COLLAPSED, 'u'], ['burstCold', C.BURST_COLD, 'u'],
-  ['burstWarm', C.BURST_WARM, 'u'], ['collapsedCold', C.COLL_COLD, 'u'], ['collapsedWarm', C.COLL_WARM, 'u']
+  ['burstWarm', C.BURST_WARM, 'u'], ['collapsedCold', C.COLL_COLD, 'u'], ['collapsedWarm', C.COLL_WARM, 'u'],
+  ['releasedGas', C.REL_MASS, 'f'], ['releases', C.REL_N, 'u'], ['releaseMisses', C.REL_MISS, 'u'], ['evapCapped', C.EVAP_CAP, 'u']
 ];
 
 /** Gesamtsummen seit dem Start (f64), wie Engine.flows, Phase und BubbleModel sie führen. */
@@ -86,13 +87,16 @@ export interface Totals {
   burstCold: number; burstWarm: number; collapsedCold: number; collapsedWarm: number;
   fluxSL: number; fluxLG: number; fluxSG: number; lossSolids: number; capped: number;
   slowed: number; vented: number;
+  /** Nur auf der GPU: Gas, das flüssige Zellen abgaben (kg), wie oft, wie oft ohne erreichbare Gaszelle (es blieb liegen), und wie oft
+   *  das Verdunsten einer flüssigen Zelle auf ihr Wasser gekürzt wurde (je Schritt und Zelle). */
+  releasedGas: number; releases: number; releaseMisses: number; evapCapped: number;
 }
 
 const emptyTotals = (): Totals => ({
   time: 0, steps: 0, heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, escapedWater: 0, escapedAir: 0, escapedOther: 0, escapedSalt: 0, crystallized: 0,
   produced: 0, condensed: 0, dew: 0, fogMade: 0, burstVapour: 0, nucleated: 0, departed: 0, merged: 0, burst: 0, collapsed: 0,
   burstCold: 0, burstWarm: 0, collapsedCold: 0, collapsedWarm: 0, fluxSL: 0, fluxLG: 0, fluxSG: 0, lossSolids: 0, capped: 0,
-  slowed: 0, vented: 0
+  slowed: 0, vented: 0, releasedGas: 0, releases: 0, releaseMisses: 0, evapCapped: 0
 });
 
 /** Wo im Zwischenpuffer einer Ablesung was liegt (Bytes). */
@@ -139,6 +143,8 @@ export class GpuEngine {
   private water0: number | null = null;
   private other0: number | null = null;
   private salt0: number | null = null;
+  /** Live weiter aus einem Schlüsselbild (B): die Abweichungen, mit denen die Bilanzen an der ersten Ablesung weitergehen (sonst null). */
+  private carry: { readonly energy: number; readonly water: number; readonly other: number; readonly salt: number } | null = null;
   private sealed = false;
   /** Gelöstes Salz in der Szene (M2b): Kristalle und Austausch laufen nur dann. */
   private salty = false;
@@ -166,9 +172,19 @@ export class GpuEngine {
 
   /** Ein Gerät holen und alle Kerne übersetzen (wirft, wenn WebGPU fehlt oder ein Kern nicht übersetzt). */
   static async create(cpu: Engine): Promise<GpuEngine> {
+    return GpuEngine.on(await GpuEngine.prepare(), cpu);
+  }
+
+  /** Nur Gerät und Kerne, noch ohne Szene (Backen: schon beim Öffnen des Fensters); extra: weitere Kerne (die der Aufnahme). */
+  static async prepare(extra: readonly KernelDef[] = []): Promise<GpuCtx> {
     const ctx = await GpuCtx.create();
-    const errors = await ctx.compile(ALL_KERNELS);
+    const errors = await ctx.compile([...ALL_KERNELS, ...extra]);
     if (errors.length > 0) { ctx.destroy(); throw new Error(`WGSL: ${errors.slice(0, 3).join(' | ')}`); }
+    return ctx;
+  }
+
+  /** Die Engine auf einem vorbereiteten Gerät (prepare) für die CPU-Engine cpu (lädt ihren Zustand hoch). */
+  static on(ctx: GpuCtx, cpu: Engine): GpuEngine {
     return new GpuEngine(ctx, cpu);
   }
 
@@ -467,6 +483,7 @@ export class GpuEngine {
     enc.clearBuffer(S.cnt, 4 * INTERVAL_FIRST, 4 * (INTERVAL_END - INTERVAL_FIRST));
     enc.clearBuffer(S.cnt, 4 * C.VMAXP, 4 * 4);
     enc.clearBuffer(S.cnt, 4 * C.ESC_OTHER, 4 * 3);
+    enc.clearBuffer(S.cnt, 4 * C.REL_MASS, 4 * 4);
     this.busy.add(buf);
     const regions: number[] = [];
     for (let k = 0; k < this.cpu.regions.count; k += 1) regions.push(S.gpuRegion(k));
@@ -706,6 +723,7 @@ export class GpuEngine {
     this.vapourMark = 0;
     this.vapourLast = 0;
     this.vapourRate = 0;
+    this.carry = null;
   }
 
   /** Die Bezugswerte der Bilanzen jetzt setzen (nach dem ersten Hochladen und nach jedem Neuaufbau). */
@@ -716,16 +734,24 @@ export class GpuEngine {
     this.salt0 = null;
   }
 
-  /** Nach einer Ablesung: die Bezugswerte, falls noch keine da sind. */
+  /** Live weiter aus einem Schlüsselbild: an der ersten Ablesung zeigen die Bilanzen genau diese Abweichungen (die der CPU-Engine nach dem Wiederherstellen). */
+  carryErrors(c: { readonly energy: number; readonly water: number; readonly other: number; readonly salt: number }): void {
+    this.resetBaseline();
+    this.carry = c;
+  }
+
+  /** Nach einer Ablesung: die Bezugswerte, falls noch keine da sind (mit den mitgenommenen Abweichungen). */
   baselineFromLast(): void {
     if (this.last === null || this.energy0 !== null) return;
     const b = this.budget();
     const t = this.totals;
     const e = this.cpu;
-    this.energy0 = b.energy - (t.heater - t.lossWalls - t.lossOpen - t.escapedEnergy + e.ledger.energy);
-    this.water0 = b.water.total - e.ledger.water;
-    this.other0 = b.other.total - e.ledger.other;
-    this.salt0 = b.salt.total - e.ledger.salt;
+    const c = this.carry ?? { energy: 0, water: 0, other: 0, salt: 0 };
+    this.energy0 = b.energy - (t.heater - t.lossWalls - t.lossOpen - t.escapedEnergy + e.ledger.energy) - c.energy;
+    this.water0 = b.water.total - e.ledger.water - c.water;
+    this.other0 = b.other.total - e.ledger.other - c.other;
+    this.salt0 = b.salt.total - e.ledger.salt - c.salt;
+    this.carry = null;
   }
 
   /** Die Siedetemperatur an der Oberfläche (Umgebungsdruck). */

@@ -24,7 +24,7 @@ namespace Api;
 /// liegt; er öffnet nur diese Zahlen.
 /// </para>
 /// </summary>
-public static class Notify
+public static partial class Notify
 {
     private const int MaxDevices = 20;
 
@@ -106,7 +106,8 @@ public static class Notify
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsJsonAsync(await BuildAsync(connection, who.Value.AccountId, Asked(since), ctx.RequestAborted));
+        await ctx.Response.WriteAsJsonAsync(await BuildAsync(connection, who.Value.AccountId, Asked(since), ctx.RequestAborted,
+            config: ctx.RequestServices.GetRequiredService<IConfiguration>()));
     }
 
     /// <summary>
@@ -267,7 +268,8 @@ public static class Notify
     /// rücken, nie etwas wieder neu machen.
     /// </para>
     /// </summary>
-    internal static async Task<object> BuildAsync(SqlConnection connection, Guid account, DateTimeOffset? asked, CancellationToken ct, bool countsOnly = false)
+    internal static async Task<object> BuildAsync(SqlConnection connection, Guid account, DateTimeOffset? asked, CancellationToken ct, bool countsOnly = false,
+        IConfiguration? config = null)
     {
         var now = DateTimeOffset.UtcNow;
         var marks = await MarksAsync(connection, account, now, ct);
@@ -599,6 +601,9 @@ public static class Notify
         }
 
         var tasks = await Tasks.OpenNowAsync(connection, held, now, ct);
+
+        /* 0129–0131 — was auf eine Entscheidung wartet: Administrator danych, Meldungen, gesperrte eigene Sachen, Listen. */
+        var duties = countsOnly ? null : await DutiesAsync(connection, account, mine, now, config, ct);
         var unreadTotal = chats.Sum(c => c.Unread);
         var loudTotal = chats.Where(c => !c.Quiet).Sum(c => c.Unread);
         var formsTotal = forms.Sum(f => f.Count);
@@ -704,6 +709,9 @@ public static class Notify
                     areaId = x.AreaId is null ? null : Ids.ToText(x.AreaId.Value), count = x.Count
                 }).ToList()
             },
+
+            /* 0129–0131 — Sprawy do decyzji (Administrator danych, zgłoszone treści, zablokowane, listy wydarzeń). */
+            duties,
 
             /* Ein Rat, kein Befehl: ist etwas offen, lohnt eine Minute; sonst reichen zwei. */
             nextPollSeconds = unreadTotal + formsTotal > 0 ? 60 : 120

@@ -111,6 +111,13 @@ public static partial class Bookings
             return;
         }
 
+        /* 0129 — eine Reservierung sammelt Daten über Menschen: ohne jemanden, der für den Bereich geradesteht, nicht. */
+        if (await Controllers.OfAreaAsync(connection, resource.AreaId, ctx.RequestAborted) is null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
+            return;
+        }
+
         var now = DateTimeOffset.UtcNow;
 
         /*

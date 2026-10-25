@@ -457,6 +457,37 @@ const PAIRS: Kind = {
   }
 };
 
+/**
+ * 2026-10-25 (Wywód) — PAARE AUS ZWEI FELDERN DERSELBEN EINTRÄGE, für „Odpowiedź: dopasowanie par":
+ * je Eintrag links das eine Feld (etwa ein wichtiger Fragment des Textes), rechts das andere — ohne
+ * Feld die Teza des Eintrags. Fünf Fragmente eines Werks und ihre fünf Tezy, richtig zu verbinden.
+ * Wem eine Seite fehlt, fällt weg; kein Text steht zweimal auf einer Seite.
+ */
+const FIELD_PAIRS: Kind = {
+  type: 'pairs.fields', label: 'Pary z dwóch pól', group: 'Wybór',
+  says: 'Z każdego wpisu para: pole po lewej (np. fragment tekstu) i pole po prawej (puste: teza wpisu) — do „dopasowania par”, np. pięć fragmentów jednego dzieła i ich pięć tez. Wpis bez którejś strony odpada.',
+  ports: () => ({ inputs: [port('items', 'Wpisy', 'items', true)], outputs: [port('left', 'Lewa strona'), port('right', 'Prawa strona')] }),
+  run: ({ config, inputs, ctx }) => {
+    const most = Math.max(2, Math.min(12, Math.round(num(config.count, 5))));
+    const side = (e: Entity, key: string): string => (key === '' ? thesisOf(entityBlocks(e, ctx.look)) : texts(readField(ctx, [e], key)).join(' ')).replace(/\s+/g, ' ').trim();
+    const left: Item[] = [];
+    const right: Item[] = [];
+    const seen = new Set<string>();
+    for (const e of sourcesOf(ctx, itemsAt(inputs, 'items'))) {
+      if (left.length >= most) break;
+      if (seen.has(e.id)) continue;
+      seen.add(e.id);
+      const l = side(e, str(config.left));
+      const r = side(e, str(config.right));
+      if (l === '' || r === '' || norm(l) === norm(r)) continue;
+      if (left.some((x) => norm(x.text) === norm(l)) || right.some((x) => norm(x.text) === norm(r))) continue;
+      left.push({ text: l, entity: e.id });
+      right.push({ text: r, entity: e.id });
+    }
+    return { left, right };
+  }
+};
+
 const RANDOM: Kind = {
   type: 'random', label: 'Losowa wartość', group: 'Liczby',
   says: 'Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy — dla pytań, które za każdym razem liczą co innego.',
@@ -554,7 +585,8 @@ const WHEN: Kind = {
   run: ({ config, inputs }) => {
     const items = itemsAt(inputs, 'items');
     const want = str(config.value).trim().toLowerCase();
-    const has = items.some((i) => i.text.trim().toLowerCase() === want);
+    /* 2026-10-25 — auch der gespeicherte Wert einer Wahl („odpowiedz"), nicht nur ihr Name: ein umbenanntes Etikett hält die Karte nicht mehr an. */
+    const has = items.some((i) => i.text.trim().toLowerCase() === want || (typeof i.value === 'string' && i.value.trim().toLowerCase() === want));
     const test = str(config.test) || 'filled';
     const pass = test === 'empty' ? items.length === 0 : test === 'equals' ? has : test === 'differs' ? !has : items.length > 0;
     return { items, pass };
@@ -799,7 +831,7 @@ export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
   FIELD, MEDIA, FOLLOW, LIST, SELF, ENTRIES, FILTER, UNIQUE,
   STATEMENT_THESIS, STATEMENT_PART, STATEMENT_TABLE, STATEMENT_SUBJECTS,
   PATTERN, MASK, FRAGMENTS,
-  PICK, DISTRACTORS, EACH, PAIRS,
+  PICK, DISTRACTORS, EACH, PAIRS, FIELD_PAIRS,
   RANDOM, MATH, COMPARE, WHEN, PYTHON,
   PROMPT, ANSWER_TEXT, ANSWER_GAP, ANSWER_NUMBER, ANSWER_DATE, ANSWER_ONE, ANSWER_MANY, ANSWER_TRUEFALSE, ANSWER_ORDER, ANSWER_MATCH, ANSWER_FLASH, ANSWER_CODE, ANSWER_POINT,
   CARD

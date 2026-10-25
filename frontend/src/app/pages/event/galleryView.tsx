@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from 'react';
 import { Fullscreen } from './Fullscreen';
+import { FadeImg } from '../../ui/fadeImage';
 import { photoCount } from './galleryCount';
 import { FIT, clampView, zoomAbout, type View } from './galleryZoom';
 
@@ -142,7 +143,7 @@ export function Carousel({
             // means. One more tap opens it.
             onClick={() => (offset === 0 ? onOpen(picture.key) : onFront(index))}
           >
-            <img src={picture.url} alt={picture.alt} loading="lazy" draggable={false} />
+            <FadeImg src={picture.url} alt={picture.alt} loading="lazy" draggable={false} />
           </button>
         ))}
 
@@ -465,7 +466,7 @@ export function Viewer({
             if (gestureRef.current?.kind === 'pan') gestureRef.current = null;
           }}
         >
-          <img
+          <FadeImg
             src={picture.url}
             alt={picture.alt}
             draggable={false}
@@ -534,7 +535,7 @@ export function Viewer({
                   aria-label={`Zdjęcie ${index + 1}`}
                   onClick={() => go(index)}
                 >
-                  <img src={entry.url} alt="" loading="lazy" />
+                  <FadeImg src={entry.url} alt="" loading="lazy" />
                 </button>
               ))}
             </div>

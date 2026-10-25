@@ -180,8 +180,7 @@ export function SignIn({ onDone }: { onDone: (who: Who) => void }) {
           </label>
 
           <p className="wk-hint">
-            Imię widzą tylko ci, którym dasz dostęp. Zakładając konto, przyjmujesz{' '}
-            <a href="/prywatnosc/">politykę prywatności</a>; usuniesz je sam w każdej chwili.
+            Imię widzą tylko ci, którym dasz dostęp. Konto usuniesz sam w każdej chwili.
           </p>
         </>
       )}

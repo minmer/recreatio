@@ -303,6 +303,8 @@ public static partial class Phone
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var row = await ShareRowAsync(connection, id, ctx.RequestAborted);
         if (await ShareGoneAsync(ctx, row)) return;
+        /* 0130 — nach einer Meldung gesperrt: der Link gibt nichts mehr heraus. */
+        if (await Takedowns.IsBlockedAsync(connection, "share", id, ctx.RequestAborted)) { await Takedowns.BlockedResponse(ctx); return; }
         ctx.Response.Headers.CacheControl = "no-store";
         await ctx.Response.WriteAsJsonAsync(new { id = Ids.ToText(id), size = row!.Value.Size, createdAt = row.Value.Created, expiresAt = row.Value.Expires });
     }
@@ -313,6 +315,8 @@ public static partial class Phone
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var row = await ShareRowAsync(connection, id, ctx.RequestAborted);
         if (await ShareGoneAsync(ctx, row)) return;
+        /* 0130 — nach einer Meldung gesperrt: der Link gibt nichts mehr heraus. */
+        if (await Takedowns.IsBlockedAsync(connection, "share", id, ctx.RequestAborted)) { await Takedowns.BlockedResponse(ctx); return; }
 
         var path = SharePath(config, row!.Value.Area, id);
         if (!File.Exists(path))

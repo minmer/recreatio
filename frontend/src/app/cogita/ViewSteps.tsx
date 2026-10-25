@@ -169,7 +169,7 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
   const sources = Math.max(1, leading);
   const setStep = (i: number, step: Step) => onChange({ ...view, steps: steps.map((s, j) => (j === i ? step : s)) });
   const remove = (i: number) => onChange({ ...view, steps: steps.filter((_, j) => j !== i) });
-  const add = (type: StepType) => onChange({ ...view, steps: [...steps, { type, config: type === 'filter.rule' ? { rule: { op: 'and', items: [] } } : {} }] });
+  const add = (type: StepType) => onChange({ ...view, steps: [...steps, { type, config: type === 'filter.rule' ? { rule: { op: 'and', items: [] } } : type === 'structure' ? { dir: 'down' } : {} }] });
   const addSource = () => onChange({ ...view, steps: [...steps.slice(0, sources), { type: 'source.kind', config: {} }, ...steps.slice(sources)] });
   const fields = (step: Step, i: number) => configFields('view', step.type).map((field) => (
     <ConfigInput key={field.key} field={field} value={step.config[field.key]} fieldKeys={refs} readOnly={false}
@@ -207,6 +207,7 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
       <span className="cg-row">
         <button type="button" className="wk-link-btn" onClick={addSource}>+ Źródło (razem)</button>
         <button type="button" className="wk-link-btn" onClick={() => add('follow')}>+ Idź po odwołaniu</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('structure')}>+ Idź po strukturze</button>
         <button type="button" className="wk-link-btn" onClick={() => add('filter.rule')}>+ Filtr</button>
       </span>
       {view.retired.map((line) => <p key={line} className="wk-warn">{line}</p>)}

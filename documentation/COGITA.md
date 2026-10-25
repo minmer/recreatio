@@ -93,6 +93,14 @@ Formula, code and duration are not field types.
 - A reference field names the other side (“wrote” / “written by”), and the other side shows it as a backlink [B9]. Since 2026-10-22 "Odwołują się tutaj" also lists what points without a field ("Wspominają go"): `[[…|@…]]` in markup and statements, revisions, flows, views, collections and texts of Scriptoria — from the one reference index (LIBRARY.md, "References and places in the Scripture").
 - A symmetric relation is stored once [B10].
 - A relation with data of its own is an entry of a relation kind [B9].
+- **A link of a structure** (2026-10-25, [WYWOD.md](WYWOD.md)): the owner may declare a reference field as
+  „Połączenie w strukturze” (`structure`).
+  - `up`: this entry lies under the one it points at („Należy do”, „Odpowiada na”).
+  - `down`: the entries it names lie under it („Argumenty za”).
+  - Such fields build trees: the step „Idź po strukturze” and the mode Struktura (§2.3) follow them.
+  - They do not count for Informacja / Interpretacja (§3), they stay out of „o: …” and card subjects, and they are not
+    a content dependency in „Do zrobienia”.
+  - Fields are matched by this declaration only, never by their key or role.
 
 **Several kinds per entity** [B11]. The entity has the union of their fields, and its label comes from its first kind.
 
@@ -118,6 +126,9 @@ Formula, code and duration are not field types.
 - **`slownik.json`**: Język, Słowo (tekst, język), Tłumaczenie (słowa), Synonimy, Antonimy, with four "Słówka" templates.
 - **`psalterz.json`**: the breviary schema with "Miejsce w Piśmie" as a reference with a place.
 - `app-cogita-check` imports all three and checks that the templates in `komentarz.json` are the presets.
+- **Importing a file again** (2026-10-25, [WYWOD.md](WYWOD.md) §4): its kinds, card templates and forms carry lasting names (`@komentarz/rodzaj`, `@komentarz/t-teza`, `@psalterz/f-nieszpory` …) and are changed in place — a kind the owner renamed is found again instead of a second, empty one being made. A template or form imported before the files had names is recognised by its name and kinds, only when exactly one such exists, and only after every document has taken what it names (two passes). Kinds that exist are completed: the document's fields in its order, the others kept behind their old neighbours; name, label, `tells` and `system` kept unless named, and the review says what changes. An import never removes a field.
+- **The import review** (2026-10-25, `importReview.ts`, `ImportReviewPanel.tsx`): under the plan of every import (Wiedza → JSON, Schematy), each change to an existing entry, document or kind is listed field by field (before, after) and saved only when accepted; its proposed value can be edited first. New entries are ticked and can be unticked. An import completes an existing entry: fields it does not name stay, `null` removes one, its kinds stay and the document's are added.
+- **Name spaces of an import:** kinds and entries share one; each sort of document has its own, and a reference inside a document goes first to the sort its key names (`collection`, `view` …). A stored entry never changes its sort (`CogitaLibrary` refuses). A name with „/” is a reference only in a reference field or a cell's `ref`; in a text field it is text. Entries from a document of steps remember it (`_refDoc`), and the review says when another document reaches them. Merged entries keep both names (`_refs`); a row reaching the kept entry by the dropped name only fills what is empty. Export writes `@name` for the base's own ids inside views (steps, groups, axes, `#axis:` columns), templates, revisions, flows, collections and forms, so it can be imported into another base.
 
 **Schema changes** keep the values of removed or retyped fields, marked “outside the schema”, until someone resolves them [B13].
 
@@ -144,7 +155,24 @@ Formula, code and duration are not field types.
 - **A view is a selection in steps** (2026-10-22, step 9; `views.ts`, `selection.ts`). The steps are the ones a revision graph uses, with the same settings and the same code:
   - a source: everything, a kind (also a kind of a source library or Scriptorium — a text type too —, optionally from one source), a collection, a list, **Z wpisu** (what one entry points at);
   - **Idź po odwołaniu** (`follow`): along one reference field or all of them, or backwards to whatever points at the entries (fields and markup, library material too);
+  - **Idź po strukturze** (`structure`, 2026-10-25): along the structure fields (§2.2), down or up, to the end or one level;
   - **Filtr** (`filter.rule`): the collections' rule.
+- **Struktura as a whole** (2026-10-25, `StructureView.tsx`; [WYWOD.md](WYWOD.md)). The roots are the source entries;
+  a question is headed „Pytanie wiodące”.
+  - **Below a root:** a structure step's descendants. Siblings are ordered by their place in the work: the first
+    reference with a place to a Library work, read with that work's place scheme. When the work cannot be read, the
+    scheme is recognised from the places.
+  - **Choices and display:**
+    - a tree or text order (Aquinas articles divided into Zarzuty · Sed contra · Odpowiedź · Odpowiedzi na zarzuty);
+    - places shown relative to the root;
+    - steps after a structure step to the end (e.g. „← O czym”: comments) apply at every step.
+  - **The view's `outline`:** `{chip, order?, by?, tie}` sets the field shown above each step, the order (left out: the
+    reader's last choice, else text order for Aquinas and the tree for the rest), a field that orders one level first
+    (`by`, e.g. the time of a story; else the place in the work), and the field for ties at one place.
+  - **Several parents:** a structure field with `multi` puts one entry into several trees (an event in its chapter,
+    in the chronology, in a stage of a character).
+  - **Opened at a node:** a view can be opened at an entry (`wpisy/widok/<view>/<entry>`). Everything before its
+    first „Idź po…” becomes that entry.
 - The tree groups by kind, by the values of a field, or by an **axis** (2026-10-23, decision 8; `selection.ts` `Axis`). **An axis is a kind**: its entries are the values (20 entries of "Tajemnica"), ordered by a number field of the values (`sort: { field }`) or by the order in which another entry lists them in a multi-reference field (`sort: { list, field }`), otherwise by name; optionally under **headings** — a reference field of the values (Tajemnica by "część", Obszar by "grupa"). **An entry belongs to a value** if it points at it through a chosen reference field (`via`; none chosen: any), directly or through one step (`through`: first along this field to another entry, which points at the value). An entry can stand in several groups. Topics and "axes of topics" are gone; an old grouping by topics is shown as a notice in Wpisy and on pages.
 - In **Wpisy**, "Rodzaj" and "Filtr" are short cuts into the steps; "Wybór i grupy" edits them all (`ViewSteps.tsx`). A view saved before step 9 (`kind` + `rule`) reads as steps and is written in the new shape; the JSON export and import do the same.
 - **On a page**: the module **Widok** (`view`) shows a saved view as a table or a tree, with search, sorting and a clicked entry opened below it. Each module keeps its state in the address under its own scope (`?<scope>.q=…`, `pages/partQuery.ts`), so two views on one page do not disturb each other and a link carries the state.
@@ -192,7 +220,7 @@ Since 2026-10-23 the engine knows one fixed learning kind; everything else is th
 | kind | what it is |
 |---|---|
 | `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. It stays built in because grading depends on it: cards, sessions, flows, proposals and the page module "Pytanie" ask it. |
-| **statements** | **Any entry whose kind has a field of type `blocks`** (decision 4; `library/blocks.ts`, `library/statement.ts`, `cogita/statements.ts`) — the ready kind is "Komentarz" from `templates/cogita/komentarz.json`. Computed, never stored: **the thesis** is the first sentence of the first paragraph of the first `blocks` field (`firstSentence` skips abbreviations such as "św.", "np.", initials, and ignores markup and citations); it names the entry and is the front of a card; missing or longer than 200 characters is a warning in the editor and under "Do zrobienia". **A question** is a statement whose thesis ends with "?"; it is answered as soon as another readable statement points at it. **The badge** "Informacja" / "Interpretacja" comes from references only: only Library sources → information; another statement, or no source → interpretation (a table alone no longer makes an interpretation). In texts `![@id]` embeds a statement whole (tables included); `[@id]` or `[[words\|@id]]` links to it. |
+| **statements** | **Any entry whose kind has a field of type `blocks`** (decision 4; `library/blocks.ts`, `library/statement.ts`, `cogita/statements.ts`) — the ready kind is "Komentarz" from `templates/cogita/komentarz.json`. Computed, never stored: **the thesis** is the first sentence of the first paragraph of the first `blocks` field (`firstSentence` skips abbreviations such as "św.", "np.", initials, and ignores markup and citations); it names the entry and is the front of a card; missing or longer than 200 characters is a warning in the editor and under "Do zrobienia". **A question** is a statement whose thesis ends with "?"; it is answered as soon as another readable statement points at it (2026-10-25: also when a step lies under it in a structure; computed once per state of the base, so Cogita no longer shows every question as „Pytanie otwarte”). **The badge** "Informacja" / "Interpretacja" comes from references only: only Library sources → information; another statement, or no source → interpretation (a table alone no longer makes an interpretation; since 2026-10-25 links through structure fields do not count — a reconstructed step under its question still reports the source). In texts `![@id]` embeds a statement whole (tables included); `[@id]` or `[[words\|@id]]` links to it. |
 | `text` | A text of a Scriptorium: material and a narrative [C2, K1]; it embeds statements the way it embeds quotes. |
 
 - The former `knowledge` (one statement in markup), the library `comment` and the `topic` with its learning fields, aspects and perspectives are gone (2026-10-23). Order comes from the owner's kinds linked by reference fields; views order by kind axes (§2.3).
@@ -542,7 +570,11 @@ does, not of the data (`cogita/parts.ts`):
     schema JSON), **Sposoby dodawania** (the forms for adding, §2.4), **Sposoby wyświetlania** (views, §2.3: name,
     *co* and *jak*, a live result below; delete). None belongs to a kind: a form makes entries of several kinds, several
     forms make the same kind, a view combines kinds through their references, and a kind needs neither.
-  - Under **Więcej**: Ustawienia, Import i eksport (JSON), Do zrobienia, Propozycje, Stare wpisy.
+  - Under **Więcej**: Ustawienia, Import i eksport (JSON), Do zrobienia, Propozycje, **Wejścia z Biblioteki**
+    (2026-10-25: documents `anchor` — a work, whole or in parts, → an entry in a view; the Library shows them as
+    buttons „W Wiedzy”, [WYWOD.md](WYWOD.md)), Stare wpisy.
+  - An entry whose kinds have structure fields shows the path from its root and the structure below it, then its
+    „Wejścia z Biblioteki”.
 - **Nauka** — learning from that knowledge without copies: **Ucz się** (what is due: revisions, flows), Powtórki,
   Przebiegi, Sesje, Postępy; under Więcej Szablony kart (learning cards are not ways of presenting knowledge), Mapa,
   Ustawienia. Cards lead back to their entries in Wiedza.

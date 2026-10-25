@@ -7,7 +7,7 @@
  * des Arbeiters in Meter um.
  */
 
-import type { ClipInfo } from './clip/clip';
+import type { ClipEngine, ClipInfo } from './clip/clip';
 import type { ProbeInfo } from './engine/engine';
 import type { ObjectPatch } from './engine/objects';
 import type { ExtremeEvent } from './engine/extremes';
@@ -30,6 +30,8 @@ export interface HostEvents {
   readonly onClip?: (info: ClipInfo | null) => void;
   readonly onBake?: (m: Extract<WorkerMessage, { type: 'bake' }>) => void;
   readonly onLive?: (t: number) => void;
+  /** Live weiter aus einem Nachweis von der GPU im beschleunigten Weg: Szene und Schlüsselbild für dessen Arbeiter. */
+  readonly onResume?: (scene: unknown, snapshot: Uint8Array, t: number) => void;
   /** Ein heftiger Zustand bei „ask“: der Arbeiter hat angehalten und wartet auf setExtremes. */
   readonly onExtreme?: (event: ExtremeEvent) => void;
 }
@@ -56,8 +58,8 @@ export class LabHost {
     this.worker.addEventListener('error', (e) => events.onError(e.message || 'Silnik przestał działać.'));
   }
 
-  /** paused: ruhend beginnen (das Labor startet nie von selbst). */
-  async start(scene: unknown, width: number, height: number, dpr: number, dark: boolean, paused = true): Promise<void> {
+  /** paused: ruhend beginnen (das Labor startet nie von selbst); resume: ein Schlüsselbild, ab dem es weitergeht (eine Kopie geht hin, die Seite behält ihres). */
+  async start(scene: unknown, width: number, height: number, dpr: number, dark: boolean, paused = true, resume?: Uint8Array): Promise<void> {
     this.width = width;
     this.height = height;
     this.dpr = dpr;
@@ -65,7 +67,7 @@ export class LabHost {
     if (this.disposed) return;
     if (webgl2 && typeof this.canvas.transferControlToOffscreen === 'function') {
       const off = this.canvas.transferControlToOffscreen();
-      this.post({ type: 'init', canvas: off, width, height, dpr, scene, dark, paused }, [off]);
+      this.post({ type: 'init', canvas: off, width, height, dpr, scene, dark, paused, resume }, [off]);
       return;
     }
     const gl = this.canvas.getContext('webgl2', { antialias: true, premultipliedAlpha: true, alpha: false });
@@ -75,7 +77,7 @@ export class LabHost {
       this.theme(dark);
     }
     this.sizeCanvas();
-    this.post({ type: 'init', canvas: null, width, height, dpr, scene, dark, paused });
+    this.post({ type: 'init', canvas: null, width, height, dpr, scene, dark, paused, resume });
   }
 
   private probe(): Promise<boolean> {
@@ -145,6 +147,9 @@ export class LabHost {
       case 'live':
         this.events.onLive?.(m.t);
         break;
+      case 'resume':
+        this.events.onResume?.(m.scene, m.snapshot, m.t);
+        break;
       case 'extreme':
         this.events.onExtreme?.(m.event);
         break;
@@ -206,11 +211,16 @@ export class LabHost {
   /* Nachweise (B). */
   bake(options: BakeOptions): void { this.post({ type: 'bake', options }); }
   stopBake(): void { this.post({ type: 'bakeStop' }); }
-  clipOpen(play: boolean): void { this.post({ type: 'clipOpen', play }); }
+  /** Das Fenster des Backens ist offen: Grafikkarte und Kerne schon vorbereiten. */
+  bakePrepare(): void { this.post({ type: 'bakePrepare' }); }
+  clipOpen(play: boolean, prefer?: ClipEngine): void { this.post({ type: 'clipOpen', play, prefer }); }
+  /** Bei der Wiedergabe den Nachweis der anderen Engine zeigen. */
+  clipEngine(engine: ClipEngine): void { this.post({ type: 'clipEngine', engine }); }
   clipPlay(playing: boolean): void { this.post({ type: 'clipPlay', playing }); }
   clipSeek(t: number): void { this.post({ type: 'clipSeek', t }); }
   clipLoop(on: boolean): void { this.post({ type: 'clipLoop', on }); }
-  clipLive(): void { this.post({ type: 'clipLive' }); }
+  /** accel: ein Nachweis von der GPU darf im beschleunigten Weg weitergehen. */
+  clipLive(accel = false): void { this.post({ type: 'clipLive', accel }); }
   clipClose(): void { this.post({ type: 'clipClose' }); }
   clipDelete(): void { this.post({ type: 'clipDelete' }); }
 

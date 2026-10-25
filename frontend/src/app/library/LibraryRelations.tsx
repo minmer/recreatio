@@ -43,16 +43,24 @@ function rowsOf(hits: readonly Hit<LibraryStore>[]): Row[] {
   return [...rows.values()];
 }
 
+/** 2026-10-25 — so viele Zeilen je Gruppe zuerst; ein ganzer Wywód (die Summa: Tausende Schritte) bleibt sonst eine endlose Liste. */
+const FIRST_ROWS = 8;
+
 function RowList({ rows }: { rows: readonly Row[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, FIRST_ROWS);
   return (
-    <ul className="lib-rel">
-      {rows.map((row) => (
-        <li key={row.entry.id}>
-          <a href={hitHref(row.entry, row.store)}>{hitTitle(row.entry, row.store)}</a>
-          {row.places.length > 0 && <span className="lib-rel-where"> — {row.places.join('; ')}</span>}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="lib-rel">
+        {shown.map((row) => (
+          <li key={row.entry.id}>
+            <a href={hitHref(row.entry, row.store)}>{hitTitle(row.entry, row.store)}</a>
+            {row.places.length > 0 && <span className="lib-rel-where"> — {row.places.join('; ')}</span>}
+          </li>
+        ))}
+      </ul>
+      {rows.length > FIRST_ROWS && <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>{all ? 'Pokaż mniej' : `Pokaż wszystkie (${rows.length})`}</button>}
+    </>
   );
 }
 
@@ -112,7 +120,8 @@ const KIND_ORDER = ['quote', 'text', 'delivery', 'project', 'work', 'person'];
 
 export function Relations({ store, library, entry }: { store: LibraryStore; library: OpenLibrary; entry: Entry }) {
   const index = referenceIndex(loadedStores(), isBooks);
-  const hits = index.to(entry.id).filter((h) => h.from.id !== entry.id);
+  /* 2026-10-25 (Wywód) — ein Wejście z Biblioteki steht als Knopf im Kasten „W Wiedzy", nicht noch einmal hier. */
+  const hits = index.to(entry.id).filter((h) => h.from.id !== entry.id && h.from.kind !== 'anchor');
   const fromBooks = hits.filter((h) => isBooks(h.store));
   const fromBases = hits.filter((h) => !isBooks(h.store));
   const quotes = fromBooks.filter((h) => h.from.kind === 'quote');

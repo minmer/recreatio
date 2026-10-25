@@ -4,7 +4,7 @@
   "name": "Komentarz biblijny",
   "kinds": [
     {
-      "ref": "@komentarz",
+      "ref": "@komentarz/rodzaj",
       "name": "Komentarz",
       "label": "{content}",
       "fields": [
@@ -19,7 +19,7 @@
           "label": "Argumenty za",
           "type": "ref",
           "multi": true,
-          "to": ["@komentarz"],
+          "to": ["@komentarz/rodzaj"],
           "says": "Inne komentarze, które ten komentarz wspierają"
         },
         {
@@ -27,13 +27,13 @@
           "label": "Zarzuty",
           "type": "ref",
           "multi": true,
-          "to": ["@komentarz"],
+          "to": ["@komentarz/rodzaj"],
           "says": "Inne komentarze, które mu przeczą"
         }
       ]
     },
     {
-      "ref": "@komentarz-biblijny",
+      "ref": "@komentarz-biblijny/rodzaj",
       "name": "Komentarz biblijny",
       "label": "{passage}",
       "fields": [
@@ -49,7 +49,7 @@
           "key": "comment",
           "label": "Komentarz",
           "type": "ref",
-          "to": ["@komentarz"],
+          "to": ["@komentarz/rodzaj"],
           "says": "Komentarz do tego fragmentu — ten sam komentarz może służyć też innym fragmentom i innym komentarzom"
         }
       ]
@@ -57,14 +57,14 @@
   ],
   "forms": [
     {
-      "ref": "@f-komentarz-biblijny",
+      "ref": "@komentarz-biblijny/f-fragment",
       "name": "Komentarz do fragmentu Pisma",
       "says": "Na początek wybierasz przekład Pisma Świętego. W każdym wierszu wpisujesz miejsce (np. Łk 1,35) i treść komentarza — powstają dwa połączone wpisy: Komentarz i Komentarz biblijny, który wskazuje fragment i komentarz.",
       "graph": {
         "nodes": [
           { "id": "pismo", "type": "pick", "x": 0, "y": 0, "config": { "label": "Pismo Święte", "kinds": ["work"], "many": false, "optional": false, "value": [] } },
-          { "id": "kom", "type": "entry", "x": 0, "y": 180, "config": { "kind": "@komentarz", "label": "Komentarz", "many": false, "reuse": "same", "fields": { "content": { "from": "type" } } } },
-          { "id": "kb", "type": "entry", "x": 320, "y": 90, "config": { "kind": "@komentarz-biblijny", "label": "Komentarz biblijny", "many": false, "reuse": "same", "fields": { "passage": { "from": "type" } } } }
+          { "id": "kom", "type": "entry", "x": 0, "y": 180, "config": { "kind": "@komentarz/rodzaj", "label": "Komentarz", "many": false, "reuse": "same", "fields": { "content": { "from": "type" } } } },
+          { "id": "kb", "type": "entry", "x": 320, "y": 90, "config": { "kind": "@komentarz-biblijny/rodzaj", "label": "Komentarz biblijny", "many": false, "reuse": "same", "fields": { "passage": { "from": "type" } } } }
         ],
         "edges": [
           { "id": "e1", "from": "pismo", "out": "out", "to": "kb", "in": "passage" },

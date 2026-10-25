@@ -22,6 +22,9 @@ public static partial class Form
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        /* 0130 — nach einer Meldung gesperrt: das Formular geht an niemanden hinaus. */
+        if (await Takedowns.IsBlockedAsync(connection, "form", id, ctx.RequestAborted)) { await Takedowns.BlockedResponse(ctx); return; }
+
         /*
          * WAS NUR DIE KANZLEI AUSFÜLLT (0047), geht nicht hinaus — keine Frage,
          * keine Annahme. Nur DASS es so ist: die Seite, auf der es steht, zeigt
@@ -59,28 +62,14 @@ public static partial class Form
 
         foreach (var areaId in fields.Select(f => f.AreaId).Distinct())
         {
-            await using var cmd = new SqlCommand("""
-                SELECT i.public_key, c.name, c.address, c.email
-                FROM app.intake i
-                LEFT JOIN app.area_controller c ON c.area_id = i.area_id
-                WHERE i.area_id = @area;
-                """, connection);
-
-            cmd.Parameters.AddWithValue("@area", areaId);
-
-            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            if (!await reader.ReadAsync(ctx.RequestAborted)) continue;
+            var publicKey = await Intake.PublicKeyAsync(connection, areaId, ctx.RequestAborted);
+            if (publicKey is null) continue;
 
             areas.Add(new
             {
                 areaId = Ids.ToText(areaId),
-                publicKey = Base64Url.Encode((byte[])reader[0]),
-                controller = reader.IsDBNull(1) ? null : new
-                {
-                    name = reader.GetString(1),
-                    address = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    email = reader.IsDBNull(3) ? null : reader.GetString(3)
-                }
+                publicKey = Base64Url.Encode(publicKey),
+                controller = Controllers.Json(await Controllers.OfAreaAsync(connection, areaId, ctx.RequestAborted))
             });
         }
 
@@ -103,12 +92,7 @@ public static partial class Form
             closed = whole?.Closed ?? false,
 
             /* EINE Klausel fuer das ganze Formular (0042). */
-            controller = whole?.Controller is null ? null : new
-            {
-                name = whole.Controller.Value.Name,
-                address = whole.Controller.Value.Address,
-                email = whole.Controller.Value.Email
-            },
+            controller = Controllers.Json(whole?.Controller),
 
             fields = fields.Select(Told),
             areas,

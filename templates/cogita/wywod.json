@@ -1,0 +1,477 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Opis dzieła — kroki (wywód, przebieg) i elementy stałe",
+  "kinds": [
+    {
+      "ref": "@wywod/krok",
+      "name": "Krok wywodu",
+      "label": "{tresc}",
+      "tells": "miejsce",
+      "fields": [
+        {
+          "key": "rola",
+          "label": "Rola",
+          "type": "choice",
+          "options": [
+            { "value": "pytanie", "label": "Pytanie" },
+            { "value": "odpowiedz", "label": "Odpowiedź (teza autora)" },
+            { "value": "argument", "label": "Argument" },
+            { "value": "zarzut", "label": "Zarzut" },
+            { "value": "sedcontra", "label": "Sed contra" },
+            { "value": "replika", "label": "Odpowiedź na zarzut" },
+            { "value": "rozroznienie", "label": "Rozróżnienie" },
+            { "value": "przyklad", "label": "Przykład" },
+            { "value": "wniosek", "label": "Wniosek" },
+            { "value": "opis", "label": "Opis" },
+            { "value": "streszczenie", "label": "Streszczenie" },
+            { "value": "czesc", "label": "Część utworu" },
+            { "value": "watek", "label": "Wątek" },
+            { "value": "wydarzenie", "label": "Wydarzenie" },
+            { "value": "etap", "label": "Etap" }
+          ],
+          "says": "Co ten krok robi w dziele. W tekście, który dowodzi: Pytanie (teza kończy się „?”), Odpowiedź — teza autora, Argument — racja za tym, pod czym stoi, Zarzut — racja przeciw, Sed contra, Odpowiedź na zarzut, Rozróżnienie, Przykład, Wniosek. W tekście, który opowiada albo opisuje: Wątek (początek równoległej struktury: budowa utworu, chronologia, rozwój postaci), Część utworu (rozdział, scena), Wydarzenie, Etap (etap rozwoju), Opis, Streszczenie. Listę można rozszerzać — każda nowa możliwość to nowa pozycja, nie nowy schemat."
+        },
+        {
+          "key": "miejsce",
+          "label": "Miejsce w dziele",
+          "type": "ref",
+          "to": ["work"],
+          "locator": true,
+          "says": "Dzieło z Biblioteki i miejsce kroku w jego układzie miejsc: „s. 46–47”, „I q. 2 a. 3 arg. 1”, „rozdz. 3”. Początek struktury: cały zakres (np. „s. 45–60”). Bez miejsca — całe dzieło. Przesłanka, której autor nie wypowiada wprost: bez wartości."
+        },
+        {
+          "key": "tresc",
+          "label": "Treść",
+          "type": "blocks",
+          "says": "Pierwsze zdanie to teza kroku — własnymi słowami, najwyżej 200 znaków, bez miejsca w nawiasie. Dalej krótkie streszczenie. Tekstu źródła się tu nie przepisuje; dosłowny fragment idzie do pola „Ważny fragment”. Własna ocena to osobny Komentarz."
+        },
+        {
+          "key": "fragment",
+          "label": "Ważny fragment",
+          "type": "text",
+          "says": "Najważniejsze zdanie (najwyżej trzy) z tego miejsca — dokładnie tak, jak w tekście, bez cudzysłowu. Z niego i z tezy powstają karty: które fragmenty należą do których tez."
+        },
+        {
+          "key": "nalezy",
+          "label": "Należy do",
+          "type": "ref",
+          "to": ["@wywod/krok"],
+          "multi": true,
+          "structure": "up",
+          "inverse": "Kroki niżej",
+          "says": "Krok bezpośrednio wyżej: pytanie, na które ten krok odpowiada; teza, którą wspiera albo atakuje; zarzut, na który odpowiada; rozdział, w którym jest wydarzenie; wątek, do którego należy. Krok może należeć do kilku struktur naraz (wydarzenie w rozdziale i w chronologii). Puste tylko na początku struktury."
+        },
+        {
+          "key": "elementy",
+          "label": "Elementy stałe",
+          "type": "ref",
+          "to": ["@wywod/element"],
+          "multi": true,
+          "says": "Elementy stałe dzieła, o których ten krok mówi albo których używa: pojęcie (np. wolność w tym tekście), postać, miejsce."
+        },
+        {
+          "key": "czas",
+          "label": "Czas opowieści",
+          "type": "number",
+          "says": "Tylko w opowieści: kolejność w czasie samej historii (1 — najwcześniej; to samo, gdy dzieje się naraz). Wspomnienie z końca książki, które opowiada o dzieciństwie, ma mały numer. Według tego pola układa się widok „Wywód — w czasie opowieści”."
+        },
+        {
+          "key": "nr",
+          "label": "Nr w tym samym miejscu",
+          "type": "number",
+          "says": "Tylko gdy kilka kroków pod tym samym krokiem ma to samo miejsce (np. pięć dróg w „co.”): 1, 2, 3 w kolejności tekstu."
+        }
+      ]
+    },
+    {
+      "ref": "@wywod/element",
+      "name": "Element stały",
+      "label": "{nazwa}",
+      "tells": "miejsce",
+      "fields": [
+        {
+          "key": "nazwa",
+          "label": "Nazwa",
+          "type": "line",
+          "says": "Jak element nazywa się w dziele: słowo („wolność”), imię postaci, nazwa miejsca. Bez dzieła (pojęcie ponad dziełami): jego zwykła nazwa („Wolność”)."
+        },
+        {
+          "key": "czym",
+          "label": "Czym jest",
+          "type": "choice",
+          "options": [
+            { "value": "pojecie", "label": "Pojęcie" },
+            { "value": "postac", "label": "Postać" },
+            { "value": "miejsce", "label": "Miejsce" },
+            { "value": "przedmiot", "label": "Przedmiot" },
+            { "value": "grupa", "label": "Grupa / instytucja" },
+            { "value": "motyw", "label": "Motyw" },
+            { "value": "pytanie", "label": "Pytanie" }
+          ],
+          "says": "Co to za element. Listę można rozszerzać (np. „Symbol”, „Zwierzę”) — nowa możliwość to nowa pozycja, nie nowy schemat."
+        },
+        {
+          "key": "opis",
+          "label": "Opis",
+          "type": "blocks",
+          "says": "Pierwsze zdanie: jak TO dzieło rozumie albo przedstawia element (najwyżej 200 znaków, własnymi słowami). Dalej szczegóły: cechy, zmiany, relacje. Bez dzieła: co znaczy ogólnie."
+        },
+        {
+          "key": "miejsce",
+          "label": "Miejsce w dziele",
+          "type": "ref",
+          "to": ["work"],
+          "multi": true,
+          "locator": true,
+          "says": "Gdzie dzieło wprowadza albo opisuje element (dzieło z Biblioteki i miejsce; kilka miejsc — kilka wartości). Pusty: element ponad dziełami (np. „Wolność” w ogóle), na który wskazują elementy z dzieł."
+        },
+        {
+          "key": "fragment",
+          "label": "Ważny fragment",
+          "type": "text",
+          "says": "Zdanie (najwyżej trzy), w którym dzieło najlepiej pokazuje element — dokładnie jak w tekście."
+        },
+        {
+          "key": "ogolnie",
+          "label": "Ogólnie",
+          "type": "ref",
+          "to": ["@wywod/element"],
+          "multi": true,
+          "inverse": "W dziełach",
+          "says": "Element ponad dziełami, do którego ten się odnosi: „wolność” u Kanta i „wolność” u Milla wskazują na „Wolność”. W komentarzu można potem pokazać, czym się różnią."
+        },
+        {
+          "key": "nalezy",
+          "label": "Część albo aspekt",
+          "type": "ref",
+          "to": ["@wywod/element"],
+          "structure": "up",
+          "inverse": "Aspekty i części",
+          "says": "Element szerszy, którego ten jest aspektem albo częścią: „wolność wyboru” pod „Wolność”, pokój pod domem, członek pod rodziną."
+        }
+      ]
+    },
+    {
+      "ref": "@komentarz/rodzaj",
+      "name": "Komentarz",
+      "label": "{content}",
+      "fields": [
+        {
+          "key": "about",
+          "label": "O czym",
+          "type": "ref",
+          "multi": true,
+          "locator": true,
+          "says": "Czego dotyczy komentarz: krok, element stały, werset Pisma (dzieło z biblioteki i miejsce), cytat, osoba, inny wpis — dowolny rodzaj, z tej bazy, z bibliotek i baz, z których korzysta"
+        },
+        {
+          "key": "content",
+          "label": "Treść",
+          "type": "blocks",
+          "says": "Pierwsze zdanie pierwszego akapitu to teza (nazwa wpisu). Własna myśl — o kroku, o elemencie, o całym dziele, o czymkolwiek w Cogicie — zawsze „interpretacja”, osobno od tego, co mówi dzieło."
+        }
+      ]
+    }
+  ],
+  "views": [
+    {
+      "ref": "@wywod/widok",
+      "name": "Wywód",
+      "mode": "outline",
+      "steps": [
+        { "type": "source.kind", "config": { "kind": "@wywod/krok" } },
+        { "type": "filter.rule", "config": { "rule": { "op": "and", "items": [{ "field": "nalezy", "cmp": "empty" }] } } },
+        { "type": "structure", "config": { "dir": "down" } },
+        { "type": "follow", "config": { "field": "about", "back": true } }
+      ],
+      "query": "",
+      "columns": [],
+      "positions": {},
+      "outline": { "chip": "rola", "order": "tree", "tie": "nr" }
+    },
+    {
+      "ref": "@wywod/widok-tekst",
+      "name": "Wywód — kolejność tekstu",
+      "mode": "outline",
+      "steps": [
+        { "type": "source.kind", "config": { "kind": "@wywod/krok" } },
+        { "type": "filter.rule", "config": { "rule": { "op": "and", "items": [{ "field": "nalezy", "cmp": "empty" }] } } },
+        { "type": "structure", "config": { "dir": "down" } },
+        { "type": "follow", "config": { "field": "about", "back": true } }
+      ],
+      "query": "",
+      "columns": [],
+      "positions": {},
+      "outline": { "chip": "rola", "order": "text", "tie": "nr" }
+    },
+    {
+      "ref": "@wywod/widok-czas",
+      "name": "Wywód — w czasie opowieści",
+      "mode": "outline",
+      "steps": [
+        { "type": "source.kind", "config": { "kind": "@wywod/krok" } },
+        { "type": "filter.rule", "config": { "rule": { "op": "and", "items": [{ "field": "nalezy", "cmp": "empty" }] } } },
+        { "type": "structure", "config": { "dir": "down" } },
+        { "type": "follow", "config": { "field": "about", "back": true } }
+      ],
+      "query": "",
+      "columns": [],
+      "positions": {},
+      "outline": { "chip": "rola", "order": "tree", "by": "czas", "tie": "nr" }
+    },
+    {
+      "ref": "@wywod/pytania",
+      "name": "Pytania wiodące i inne początki",
+      "mode": "table",
+      "steps": [
+        { "type": "source.kind", "config": { "kind": "@wywod/krok" } },
+        { "type": "filter.rule", "config": { "rule": { "op": "and", "items": [{ "field": "nalezy", "cmp": "empty" }] } } }
+      ],
+      "query": "",
+      "columns": ["miejsce", "rola"],
+      "positions": {}
+    },
+    {
+      "ref": "@wywod/elementy",
+      "name": "Elementy stałe",
+      "mode": "outline",
+      "steps": [
+        { "type": "source.kind", "config": { "kind": "@wywod/element" } },
+        { "type": "filter.rule", "config": { "rule": { "op": "and", "items": [{ "field": "nalezy", "cmp": "empty" }, { "field": "ogolnie", "cmp": "empty" }] } } },
+        { "type": "structure", "config": { "dir": "down" } },
+        { "type": "follow", "config": { "field": "ogolnie", "back": true } },
+        { "type": "follow", "config": { "field": "about", "back": true } }
+      ],
+      "query": "",
+      "columns": [],
+      "positions": {},
+      "outline": { "chip": "czym", "order": "tree", "tie": "" }
+    },
+    {
+      "ref": "@wywod/elementy-tabela",
+      "name": "Elementy stałe — tabela",
+      "mode": "table",
+      "steps": [
+        { "type": "source.kind", "config": { "kind": "@wywod/element" } }
+      ],
+      "query": "",
+      "columns": ["czym", "miejsce", "ogolnie"],
+      "positions": {}
+    }
+  ],
+  "forms": [
+    {
+      "ref": "@wywod/f-pytania",
+      "name": "Pytania dzieła — wiersz po wierszu",
+      "says": "Na początek dzieło. W każdym wierszu pytanie i jego miejsce (np. „Czy Bóg istnieje? | I q. 2 a. 3”) — powstaje pytanie wiodące, pod które potem dopisuje się kroki.",
+      "graph": {
+        "nodes": [
+          { "id": "dzielo", "type": "pick", "x": 0, "y": 0, "config": { "label": "Dzieło", "kinds": ["work"], "many": false, "optional": false, "value": [] } },
+          { "id": "pyt", "type": "entry", "x": 320, "y": 0, "config": { "kind": "@wywod/krok", "label": "Pytanie", "many": false, "reuse": "same", "fields": { "rola": { "from": "fixed", "value": "pytanie" }, "tresc": { "from": "type" }, "miejsce": { "from": "type" } } } }
+        ],
+        "edges": [{ "id": "e1", "from": "dzielo", "out": "out", "to": "pyt", "in": "miejsce" }]
+      },
+      "keys": { "enter": "next", "ctrlEnter": "more", "shiftEnter": "save" },
+      "paste": { "columns": "|", "values": ";", "header": false }
+    },
+    {
+      "ref": "@wywod/f-kroki",
+      "name": "Kroki pod krokiem — wiersz po wierszu",
+      "says": "Na początek dzieło i krok, pod którym dopisujesz (np. pytanie wiodące albo rozdział). W każdym wierszu: rola, treść (pierwsze zdanie to teza), pełne miejsce w dziele („I q. 2 a. 3 arg. 1”, „s. 47”), ważny fragment (dosłownie) i — gdy kilka kroków ma to samo miejsce — numer.",
+      "graph": {
+        "nodes": [
+          { "id": "dzielo", "type": "pick", "x": 0, "y": 0, "config": { "label": "Dzieło", "kinds": ["work"], "many": false, "optional": false, "value": [] } },
+          { "id": "nad", "type": "pick", "x": 0, "y": 160, "config": { "label": "Pod krokiem", "kinds": ["@wywod/krok"], "many": false, "optional": false, "value": [] } },
+          { "id": "krok", "type": "entry", "x": 320, "y": 80, "config": { "kind": "@wywod/krok", "label": "Krok wywodu", "many": false, "reuse": "same", "fields": { "rola": { "from": "type" }, "tresc": { "from": "type" }, "miejsce": { "from": "type" }, "fragment": { "from": "type" }, "nr": { "from": "type" } } } }
+        ],
+        "edges": [
+          { "id": "e1", "from": "dzielo", "out": "out", "to": "krok", "in": "miejsce" },
+          { "id": "e2", "from": "nad", "out": "out", "to": "krok", "in": "nalezy" }
+        ]
+      },
+      "keys": { "enter": "next", "ctrlEnter": "more", "shiftEnter": "save" },
+      "paste": { "columns": "|", "values": ";", "header": false }
+    },
+    {
+      "ref": "@wywod/f-elementy",
+      "name": "Elementy stałe dzieła — wiersz po wierszu",
+      "says": "Na początek dzieło. W każdym wierszu: czym jest element (pojęcie, postać, miejsce…), jego nazwa w dziele, opis (pierwsze zdanie — jak dzieło go rozumie) i miejsce, gdzie dzieło go wprowadza.",
+      "graph": {
+        "nodes": [
+          { "id": "dzielo", "type": "pick", "x": 0, "y": 0, "config": { "label": "Dzieło", "kinds": ["work"], "many": false, "optional": false, "value": [] } },
+          { "id": "el", "type": "entry", "x": 320, "y": 0, "config": { "kind": "@wywod/element", "label": "Element stały", "many": false, "reuse": "same", "fields": { "czym": { "from": "type" }, "nazwa": { "from": "type" }, "opis": { "from": "type" }, "miejsce": { "from": "type" } } } }
+        ],
+        "edges": [{ "id": "e1", "from": "dzielo", "out": "out", "to": "el", "in": "miejsce" }]
+      },
+      "keys": { "enter": "next", "ctrlEnter": "more", "shiftEnter": "save" },
+      "paste": { "columns": "|", "values": ";", "header": false }
+    }
+  ],
+  "templates": [
+    {
+      "ref": "@wywod/k-pary",
+      "name": "Fragmenty i tezy jednego dzieła — połącz w pary",
+      "kinds": ["@wywod/krok"],
+      "direction": "fragment↔teza",
+      "graph": {
+        "nodes": [
+          { "id": "n1", "type": "entity", "x": 0, "y": 0, "config": {} },
+          { "id": "n2", "type": "field", "x": 230, "y": 0, "config": { "key": "fragment" } },
+          { "id": "n3", "type": "when", "x": 460, "y": 0, "config": { "test": "filled" } },
+          { "id": "n4", "type": "field", "x": 230, "y": 120, "config": { "key": "miejsce" } },
+          { "id": "n5", "type": "entries", "x": 460, "y": 120, "config": { "kind": "@wywod/krok", "key": "miejsce", "self": true, "count": 16 } },
+          { "id": "n6", "type": "pairs.fields", "x": 690, "y": 60, "config": { "left": "fragment", "right": "", "count": 5 } },
+          { "id": "n7", "type": "pattern", "x": 690, "y": 240, "config": { "text": "Połącz fragmenty z ich tezami — {0}", "inputs": 2 } },
+          { "id": "n8", "type": "prompt", "x": 920, "y": 240, "config": {} },
+          { "id": "n9", "type": "answer.match", "x": 920, "y": 60, "config": {} },
+          { "id": "n10", "type": "card", "x": 1150, "y": 120, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "n1", "out": "entities", "to": "n2", "in": "of" },
+          { "id": "e2", "from": "n2", "out": "values", "to": "n3", "in": "items" },
+          { "id": "e3", "from": "n1", "out": "entities", "to": "n4", "in": "of" },
+          { "id": "e4", "from": "n4", "out": "values", "to": "n5", "in": "like" },
+          { "id": "e5", "from": "n1", "out": "entities", "to": "n6", "in": "items" },
+          { "id": "e6", "from": "n5", "out": "entities", "to": "n6", "in": "items" },
+          { "id": "e7", "from": "n4", "out": "values", "to": "n7", "in": "p0" },
+          { "id": "e8", "from": "n3", "out": "items", "to": "n7", "in": "p1" },
+          { "id": "e9", "from": "n7", "out": "text", "to": "n8", "in": "parts" },
+          { "id": "e10", "from": "n6", "out": "left", "to": "n9", "in": "left" },
+          { "id": "e11", "from": "n6", "out": "right", "to": "n9", "in": "right" },
+          { "id": "e12", "from": "n8", "out": "prompt", "to": "n10", "in": "prompt" },
+          { "id": "e13", "from": "n9", "out": "answer", "to": "n10", "in": "answer" },
+          { "id": "e14", "from": "n1", "out": "entities", "to": "n10", "in": "explain" }
+        ]
+      }
+    },
+    {
+      "ref": "@wywod/k-teza",
+      "name": "Do tego fragmentu — która teza?",
+      "kinds": ["@wywod/krok"],
+      "direction": "fragment→teza",
+      "graph": {
+        "nodes": [
+          { "id": "n1", "type": "entity", "x": 0, "y": 0, "config": {} },
+          { "id": "n2", "type": "field", "x": 230, "y": 0, "config": { "key": "fragment" } },
+          { "id": "n3", "type": "when", "x": 460, "y": 0, "config": { "test": "filled" } },
+          { "id": "n4", "type": "statement.thesis", "x": 230, "y": 120, "config": {} },
+          { "id": "n5", "type": "field", "x": 230, "y": 240, "config": { "key": "miejsce" } },
+          { "id": "n6", "type": "entries", "x": 460, "y": 240, "config": { "kind": "@wywod/krok", "key": "miejsce", "self": true, "count": 12 } },
+          { "id": "n7", "type": "statement.thesis", "x": 690, "y": 240, "config": {} },
+          { "id": "n8", "type": "distractors", "x": 920, "y": 240, "config": { "from": "list", "count": 3 } },
+          { "id": "n9", "type": "when", "x": 1150, "y": 240, "config": { "test": "filled" } },
+          { "id": "n10", "type": "pattern", "x": 690, "y": 0, "config": { "text": "„{0}” — która teza należy do tego fragmentu? ({1})", "inputs": 2 } },
+          { "id": "n11", "type": "prompt", "x": 920, "y": 0, "config": {} },
+          { "id": "n12", "type": "answer.one", "x": 1150, "y": 120, "config": {} },
+          { "id": "n13", "type": "card", "x": 1380, "y": 60, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "n1", "out": "entities", "to": "n2", "in": "of" },
+          { "id": "e2", "from": "n2", "out": "values", "to": "n3", "in": "items" },
+          { "id": "e3", "from": "n1", "out": "entities", "to": "n4", "in": "of" },
+          { "id": "e4", "from": "n1", "out": "entities", "to": "n5", "in": "of" },
+          { "id": "e5", "from": "n5", "out": "values", "to": "n6", "in": "like" },
+          { "id": "e6", "from": "n6", "out": "entities", "to": "n7", "in": "of" },
+          { "id": "e7", "from": "n4", "out": "text", "to": "n8", "in": "expected" },
+          { "id": "e8", "from": "n7", "out": "text", "to": "n8", "in": "list" },
+          { "id": "e9", "from": "n8", "out": "distractors", "to": "n9", "in": "items" },
+          { "id": "e10", "from": "n3", "out": "items", "to": "n10", "in": "p0" },
+          { "id": "e11", "from": "n5", "out": "values", "to": "n10", "in": "p1" },
+          { "id": "e12", "from": "n10", "out": "text", "to": "n11", "in": "parts" },
+          { "id": "e13", "from": "n4", "out": "text", "to": "n12", "in": "expected" },
+          { "id": "e14", "from": "n9", "out": "items", "to": "n12", "in": "distractors" },
+          { "id": "e15", "from": "n11", "out": "prompt", "to": "n13", "in": "prompt" },
+          { "id": "e16", "from": "n12", "out": "answer", "to": "n13", "in": "answer" },
+          { "id": "e17", "from": "n1", "out": "entities", "to": "n13", "in": "explain" }
+        ]
+      }
+    },
+    {
+      "ref": "@wywod/k-dzielo",
+      "name": "Z którego dzieła jest ta teza?",
+      "kinds": ["@wywod/krok"],
+      "direction": "teza→dzieło",
+      "graph": {
+        "nodes": [
+          { "id": "n1", "type": "entity", "x": 0, "y": 0, "config": {} },
+          { "id": "n2", "type": "statement.thesis", "x": 230, "y": 0, "config": {} },
+          { "id": "n3", "type": "when", "x": 460, "y": 0, "config": { "test": "filled" } },
+          { "id": "n4", "type": "field", "x": 230, "y": 120, "config": { "key": "miejsce" } },
+          { "id": "n5", "type": "when", "x": 460, "y": 120, "config": { "test": "filled" } },
+          { "id": "n6", "type": "entries", "x": 230, "y": 240, "config": { "kind": "@wywod/krok", "count": 40 } },
+          { "id": "n7", "type": "field", "x": 460, "y": 240, "config": { "key": "miejsce" } },
+          { "id": "n8", "type": "unique", "x": 690, "y": 240, "config": {} },
+          { "id": "n9", "type": "distractors", "x": 920, "y": 240, "config": { "from": "list", "count": 3 } },
+          { "id": "n10", "type": "when", "x": 1150, "y": 240, "config": { "test": "filled" } },
+          { "id": "n11", "type": "pattern", "x": 690, "y": 0, "config": { "text": "Z którego dzieła jest ta teza: „{0}”?", "inputs": 1 } },
+          { "id": "n12", "type": "prompt", "x": 920, "y": 0, "config": {} },
+          { "id": "n13", "type": "answer.one", "x": 1150, "y": 120, "config": {} },
+          { "id": "n14", "type": "card", "x": 1380, "y": 60, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "n1", "out": "entities", "to": "n2", "in": "of" },
+          { "id": "e2", "from": "n2", "out": "text", "to": "n3", "in": "items" },
+          { "id": "e3", "from": "n1", "out": "entities", "to": "n4", "in": "of" },
+          { "id": "e4", "from": "n4", "out": "values", "to": "n5", "in": "items" },
+          { "id": "e5", "from": "n6", "out": "entities", "to": "n7", "in": "of" },
+          { "id": "e6", "from": "n7", "out": "values", "to": "n8", "in": "items" },
+          { "id": "e7", "from": "n4", "out": "values", "to": "n9", "in": "expected" },
+          { "id": "e8", "from": "n8", "out": "items", "to": "n9", "in": "list" },
+          { "id": "e9", "from": "n9", "out": "distractors", "to": "n10", "in": "items" },
+          { "id": "e10", "from": "n3", "out": "items", "to": "n11", "in": "p0" },
+          { "id": "e11", "from": "n11", "out": "text", "to": "n12", "in": "parts" },
+          { "id": "e12", "from": "n5", "out": "items", "to": "n13", "in": "expected" },
+          { "id": "e13", "from": "n10", "out": "items", "to": "n13", "in": "distractors" },
+          { "id": "e14", "from": "n12", "out": "prompt", "to": "n14", "in": "prompt" },
+          { "id": "e15", "from": "n13", "out": "answer", "to": "n14", "in": "answer" },
+          { "id": "e16", "from": "n1", "out": "entities", "to": "n14", "in": "explain" }
+        ]
+      }
+    },
+    {
+      "ref": "@wywod/k-element",
+      "name": "Co znaczy w tym dziele…?",
+      "kinds": ["@wywod/element"],
+      "direction": "nazwa→opis",
+      "graph": {
+        "nodes": [
+          { "id": "n1", "type": "entity", "x": 0, "y": 0, "config": {} },
+          { "id": "n2", "type": "field", "x": 230, "y": 0, "config": { "key": "nazwa" } },
+          { "id": "n3", "type": "statement.thesis", "x": 230, "y": 120, "config": {} },
+          { "id": "n4", "type": "when", "x": 460, "y": 120, "config": { "test": "filled" } },
+          { "id": "n5", "type": "field", "x": 230, "y": 240, "config": { "key": "miejsce" } },
+          { "id": "n6", "type": "when", "x": 460, "y": 240, "config": { "test": "filled" } },
+          { "id": "n7", "type": "entries", "x": 460, "y": 360, "config": { "kind": "@wywod/element", "key": "miejsce", "self": true, "count": 12 } },
+          { "id": "n8", "type": "statement.thesis", "x": 690, "y": 360, "config": {} },
+          { "id": "n9", "type": "distractors", "x": 920, "y": 360, "config": { "from": "list", "count": 3 } },
+          { "id": "n10", "type": "when", "x": 1150, "y": 360, "config": { "test": "filled" } },
+          { "id": "n11", "type": "pattern", "x": 690, "y": 0, "config": { "text": "„{0}” w dziele {1} — który opis pasuje?", "inputs": 2 } },
+          { "id": "n12", "type": "prompt", "x": 920, "y": 0, "config": {} },
+          { "id": "n13", "type": "answer.one", "x": 1150, "y": 120, "config": {} },
+          { "id": "n14", "type": "card", "x": 1380, "y": 60, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "n1", "out": "entities", "to": "n2", "in": "of" },
+          { "id": "e2", "from": "n1", "out": "entities", "to": "n3", "in": "of" },
+          { "id": "e3", "from": "n3", "out": "text", "to": "n4", "in": "items" },
+          { "id": "e4", "from": "n1", "out": "entities", "to": "n5", "in": "of" },
+          { "id": "e5", "from": "n5", "out": "values", "to": "n6", "in": "items" },
+          { "id": "e6", "from": "n5", "out": "values", "to": "n7", "in": "like" },
+          { "id": "e7", "from": "n7", "out": "entities", "to": "n8", "in": "of" },
+          { "id": "e8", "from": "n3", "out": "text", "to": "n9", "in": "expected" },
+          { "id": "e9", "from": "n8", "out": "text", "to": "n9", "in": "list" },
+          { "id": "e10", "from": "n9", "out": "distractors", "to": "n10", "in": "items" },
+          { "id": "e11", "from": "n2", "out": "values", "to": "n11", "in": "p0" },
+          { "id": "e12", "from": "n6", "out": "items", "to": "n11", "in": "p1" },
+          { "id": "e13", "from": "n11", "out": "text", "to": "n12", "in": "parts" },
+          { "id": "e14", "from": "n4", "out": "items", "to": "n13", "in": "expected" },
+          { "id": "e15", "from": "n10", "out": "items", "to": "n13", "in": "distractors" },
+          { "id": "e16", "from": "n12", "out": "prompt", "to": "n14", "in": "prompt" },
+          { "id": "e17", "from": "n13", "out": "answer", "to": "n14", "in": "answer" },
+          { "id": "e18", "from": "n1", "out": "entities", "to": "n14", "in": "explain" }
+        ]
+      }
+    }
+  ]
+}

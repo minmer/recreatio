@@ -129,6 +129,17 @@ public static partial class Area
             return;
         }
 
+        /*
+         * 0129 — WAS ÖFFENTLICH IST, BRAUCHT JEMANDEN, DER DAFÜR GERADESTEHT: ein jawny Bereich
+         * zeigt jedem seine Formulare, Termine und Bibliotheken. Zurück auf „nur mit Zugang" geht immer.
+         */
+        if (level != "none" && await Controllers.OfAreaAsync(connection, id, ctx.RequestAborted) is null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Obszar może być jawny dopiero wtedy, gdy ktoś odpowiada za jego dane — wpisz administratora danych w ustawieniach obszaru.");
+            return;
+        }
+
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
 
         try

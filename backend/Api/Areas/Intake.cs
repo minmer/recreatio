@@ -48,14 +48,7 @@ public static class Intake
          */
         app.MapGet("/workspace/area/{id:guid}/intake", OfficeAsync);
 
-        app.MapPost("/workspace/area/{id:guid}/controller", ControllerAsync);
-
-        /*
-         * 2026-10-17 — wer fuer die Daten dieses Bereichs geradesteht: sein
-         * eigener Eintrag, oder der des naechsten Bereichs darueber. Fuer die
-         * Einstellungen des Bereichs und die eines Formulars darin.
-         */
-        app.MapGet("/workspace/area/{id:guid}/controller", ControllerOfAsync);
+        /* 0129 — wer fuer die Daten geradesteht, liegt jetzt bei Controllers (Datensatz, Fassungen, Unterschrift). */
 
         /*
          * Was ein Formular braucht, um sich zu verschliessen — OHNE Konto.
@@ -215,120 +208,6 @@ public static class Intake
         });
     }
 
-    /* -- Die Klausel -------------------------------------------------------- */
-
-    public sealed record ControllerRequest(string Name, string? Address, string? Email);
-
-    /// <summary>
-    /// Wer fuer die Daten geradesteht.
-    ///
-    /// <para>
-    /// Klartext, notwendigerweise: die Klausel steht unter dem Formular, BEVOR
-    /// jemand etwas eingegeben hat. Sie zu verschluesseln hiesse, sie dem
-    /// vorzuenthalten, fuer den sie da ist.
-    /// </para>
-    /// </summary>
-    private static async Task ControllerAsync(HttpContext ctx, Db db, Guid id, ControllerRequest body)
-    {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        var name = (body.Name ?? string.Empty).Trim();
-
-        if (name.Length is 0 or > 200)
-        {
-            await Fail(ctx, StatusCodes.Status400BadRequest, "Podaj, kto odpowiada za dane.");
-            return;
-        }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Admin, ctx.RequestAborted))
-        {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
-            return;
-        }
-
-        await using var cmd = new SqlCommand("""
-            UPDATE app.area_controller
-               SET name = @name, address = @address, email = @email, updated_at = @now
-             WHERE area_id = @area;
-
-            IF @@ROWCOUNT = 0
-                INSERT INTO app.area_controller (area_id, name, address, email, updated_at)
-                VALUES (@area, @name, @address, @email, @now);
-            """, connection);
-
-        var address = (body.Address ?? string.Empty).Trim();
-        var email = (body.Email ?? string.Empty).Trim();
-
-        cmd.Parameters.AddWithValue("@area", id);
-        cmd.Parameters.AddWithValue("@name", name);
-        cmd.Parameters.AddWithValue("@address", address == "" ? DBNull.Value : address);
-        cmd.Parameters.AddWithValue("@email", email == "" ? DBNull.Value : email);
-        cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-
-        await cmd.ExecuteNonQueryAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), name });
-    }
-
-    /// <summary>
-    /// Der Administrator danych, der fuer einen Bereich GILT: sein eigener,
-    /// sonst der des naechsten Bereichs darueber (<c>parent_area_id</c>) —
-    /// dieselbe Kette, nach der ein Formular seine Klausel findet.
-    /// <c>fromAreaId</c> sagt, wo er eingetragen ist.
-    /// </summary>
-    private static async Task ControllerOfAsync(HttpContext ctx, Db db, Guid id)
-    {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
-        await using var connection = await db.OpenAsync(ctx.RequestAborted);
-
-        if (!await Area.MayAsync(connection, who.Value.AccountId, id, Capability.Read, ctx.RequestAborted))
-        {
-            await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
-            return;
-        }
-
-        await using var cmd = new SqlCommand("""
-            WITH chain AS (
-                SELECT a.id, a.parent_area_id, 0 AS depth FROM app.area a WHERE a.id = @area
-                UNION ALL
-                SELECT p.id, p.parent_area_id, c.depth + 1
-                  FROM app.area p
-                  JOIN chain c ON p.id = c.parent_area_id
-                 WHERE c.depth < 16
-            )
-            SELECT TOP 1 ch.id, ac.name, ac.address, ac.email
-              FROM chain ch
-              JOIN app.area_controller ac ON ac.area_id = ch.id
-             ORDER BY ch.depth;
-            """, connection);
-
-        cmd.Parameters.AddWithValue("@area", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-
-        if (!await reader.ReadAsync(ctx.RequestAborted))
-        {
-            await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), controller = (object?)null });
-            return;
-        }
-
-        await ctx.Response.WriteAsJsonAsync(new
-        {
-            areaId = Ids.ToText(id),
-            controller = new
-            {
-                fromAreaId = Ids.ToText(reader.GetGuid(0)),
-                name = reader.GetString(1),
-                address = reader.IsDBNull(2) ? null : reader.GetString(2),
-                email = reader.IsDBNull(3) ? null : reader.GetString(3)
-            }
-        });
-    }
-
     /* -- Fuer das Formular -------------------------------------------------- */
 
     /// <summary>
@@ -345,27 +224,20 @@ public static class Intake
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
-        await using var cmd = new SqlCommand("""
-            SELECT i.public_key, c.name, c.address, c.email
-            FROM app.intake i
-            LEFT JOIN app.area_controller c ON c.area_id = i.area_id
-            WHERE i.area_id = @area;
-            """, connection);
-
-        cmd.Parameters.AddWithValue("@area", id);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-
-        if (!await reader.ReadAsync(ctx.RequestAborted))
+        var publicKey = await PublicKeyAsync(connection, id, ctx.RequestAborted);
+        if (publicKey is null)
         {
             await Fail(ctx, StatusCodes.Status404NotFound, "Tu nic się nie przyjmuje.");
             return;
         }
 
+        /* 0129 — was für den Bereich GILT (sein Datensatz oder der eines Bereichs darüber), nicht nur eine eigene Zeile. */
+        var controller = await Controllers.OfAreaAsync(connection, id, ctx.RequestAborted);
+
         await ctx.Response.WriteAsJsonAsync(new
         {
             areaId = Ids.ToText(id),
-            publicKey = Base64Url.Encode((byte[])reader[0]),
+            publicKey = Base64Url.Encode(publicKey),
 
             /*
              * `null` heisst: niemand ist benannt. Die Oberflaeche muss das
@@ -373,12 +245,7 @@ public static class Intake
              * keine personenbezogenen Daten sammeln, und ein erfundener Name
              * waere schlimmer als gar keiner.
              */
-            controller = reader.IsDBNull(1) ? null : new
-            {
-                name = reader.GetString(1),
-                address = reader.IsDBNull(2) ? null : reader.GetString(2),
-                email = reader.IsDBNull(3) ? null : reader.GetString(3)
-            }
+            controller = Controllers.Json(controller)
         });
     }
 

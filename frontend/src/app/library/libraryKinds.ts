@@ -65,6 +65,12 @@ export interface Lookup {
    */
   texts?(workId: string): readonly LibEntry[];
   heavy?(id: string): Promise<LibEntry | null>;
+  /**
+   * 2026-10-25 — ist diese Frage beantwortet? Eine Baza wiedzy rechnet es für alle ihre Einträge
+   * auf einmal (eine Aussage zeigt auf sie, oder ein Schritt liegt in der Struktur unter ihr);
+   * `undefined`: weiss es nicht — dann rechnet `answersTo` aus `readable`.
+   */
+  answered?(id: string): boolean | undefined;
 }
 
 /**

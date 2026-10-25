@@ -410,7 +410,10 @@ public static partial class Bookings
             perPerson = found.PerPerson,
             minPersons = found.MinPersons,
             reserveAreaId = found.ReserveAreaId is null ? null : Ids.ToText(found.ReserveAreaId.Value),
-            bookableDefault = found.BookableDefault
+            bookableDefault = found.BookableDefault,
+
+            /* 0129 — wer für die Daten der Reservierung geradesteht (die Klausel auf der Karte); null: niemand, dann nimmt sie nichts an. */
+            controller = Controllers.Json(await Controllers.OfAreaAsync(connection, found.AreaId, ctx.RequestAborted))
         };
 
         if (found.Mode == "offered")

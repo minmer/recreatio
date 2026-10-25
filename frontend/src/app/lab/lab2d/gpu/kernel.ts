@@ -217,6 +217,8 @@ export class GpuCtx {
   readonly device: GPUDevice;
   readonly kernels = new Map<string, Kernel>();
   readonly timestamps: boolean;
+  /** Die Karte (Hersteller, Bauart, Beschreibung; leer, wenn der Browser es nicht sagt) — steht im Kopf eines Nachweises von der GPU. */
+  adapter = '';
   private readonly bufs: GPUBuffer[] = [];
 
   constructor(device: GPUDevice) {
@@ -243,7 +245,10 @@ export class GpuCtx {
         maxComputeInvocationsPerWorkgroup: Math.min(1024, lim.maxComputeInvocationsPerWorkgroup)
       }
     });
-    return new GpuCtx(device);
+    const ctx = new GpuCtx(device);
+    const i = adapter.info;
+    if (i !== undefined) ctx.adapter = [i.vendor, i.architecture, i.description].filter(Boolean).join(' ');
+    return ctx;
   }
 
   /** Alle Kerne übersetzen; liefert die Fehlermeldungen (leer: alles gut). */

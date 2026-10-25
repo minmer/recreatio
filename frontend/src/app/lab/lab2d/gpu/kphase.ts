@@ -390,10 +390,19 @@ ${MAIN} {
 }`
   },
   {
-    /* Jede Gaszelle bucht ihre Flächen und ihre Ränder: Verdunsten/Kondensieren an der Flüssigkeit, Tau an Wänden, die Umgebung an offenen Seiten. */
+    /* Der Faktor jeder abgebenden Zelle für diffApply (F_SCALE): eine Gaszelle gibt über ihre Flächen nie mehr Dampf ab, als sie hat;
+       eine flüssige Zelle lässt nie mehr verdunsten, als sie Wasser hat. */
     name: 'diffOut', wg: WG,
-    bind: 'P:u cf:w cu:r ff:r',
-    code: `${MAIN} {
+    bind: 'P:u glob:r cnt:a cf:w cu:r ff:r cgv:r',
+    code: `/* Was die Gaszelle g über ihre Seite k aus der Flüssigkeit verdunsten lässt (genau das F, das diffApply bucht; sonst 0). */
+fn evapFrom(g: u32, k: u32) -> f32 {
+  let n = P.n;
+  if (cu[U_KIND * n + g] != GAS || cu[U_EDGE * n + g] == 0u || !(cf[F_MTOT * n + g] > 0.0)) { return 0.0; }
+  let G = cf[(F_BG + k) * n + g];
+  if (!(G > 0.0)) { return 0.0; }
+  return max(0.0, glob[G_DT] * G * (cf[(F_BY + k) * n + g] - cgv[s0(g)]));
+}
+${MAIN} {
   let c = gid.x;
   if (c >= P.n) { return; }
   let n = P.n;
@@ -405,6 +414,20 @@ ${MAIN} {
     let out = max(ff[ffi(FF_DV, uF(i, j))], 0.0) + max(ff[ffi(FF_DV, vF(i, j))], 0.0) + max(-ff[ffi(FF_DV, uF(i + 1, j))], 0.0) + max(-ff[ffi(FF_DV, vF(i, j + 1))], 0.0);
     let mv = cf[F_MV * n + c];
     if (out > mv && out > 0.0) { sc = mv / out; }
+  } else if (cu[U_KIND * n + c] == LIQUID) {
+    /* Wie phase.ts (Fv): eine flüssige Zelle lässt nie mehr verdunsten, als sie Wasser hat (Σ w m_w). Anders als die CPU: im
+       Verhältnis gekürzt, und was andere Seiten in dieselbe Zelle kondensieren, zählt nicht mit (etwas strenger). */
+    let acc = cf[F_ACC * n + c];
+    if (acc > 0.0) {
+      let i = ci(c);
+      let j = cj(c);
+      var dem = 0.0;
+      if (i > 0) { dem += evapFrom(c - 1u, 1u); }
+      if (i + 1 < i32(P.nx)) { dem += evapFrom(c + 1u, 0u); }
+      if (j > 0) { dem += evapFrom(c - P.nx, 3u); }
+      if (j + 1 < i32(P.ny)) { dem += evapFrom(c + P.nx, 2u); }
+      if (dem > acc) { sc = acc / dem; atomicAdd(&cnt[C_EVAP_CAP], 1u); }
+    }
   }
   cf[F_SCALE * n + c] = sc;
 }`
@@ -487,12 +510,14 @@ ${MAIN} {
         let kn = cu[U_KIND * n + nb];
         if (kn == LIQUID) {
           if (F > 0.0) {
+            /* Gekürzt mit dem Faktor der flüssigen Zelle (diffOut). */
+            let Fv = F * cf[F_SCALE * n + nb];
             let hv = hV(cf[F_PTL * n + nb]);
-            mV += F;
-            H += F * hv;
-            addF_at(A_FM * n + nb, -F);
-            addF_at(A_FE * n + nb, -F * hv);
-            prod += F;
+            mV += Fv;
+            H += Fv * hv;
+            addF_at(A_FM * n + nb, -Fv);
+            addF_at(A_FE * n + nb, -Fv * hv);
+            prod += Fv;
           } else {
             let take = min(-F, mV);
             let hv = hV(T);

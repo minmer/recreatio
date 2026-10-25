@@ -229,20 +229,27 @@
 
 /* Das Gespräch füllt das Fenster unter der Kopfleiste — wie eine Rozmowa auf dem Telefon. Die Klasse an
    <html> setzt das Gespräch selbst (useRoomFrame): :has() kennen ältere WebViews nicht, und dort läge
-   die untere Leiste über dem Feld. */
-.ph-in-room .wk-app .wk-main { padding: var(--wk-space-1) var(--wk-space-1) 0; }
+   die untere Leiste über dem Feld.
+   Es hängt ohne Abstand an der Kopfleiste und ohne eigene Linie oben — deren Linie trennt schon; zwei
+   Linien übereinander sahen doppelt aus (2026-10-25). Auf dem Telefon über die ganze Breite, breiter mit
+   je einer Linie an den Seiten. */
+.ph-in-room .wk-app .wk-main { padding: 0 var(--wk-space-1); }
 .ph-room {
-  height: calc(100vh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-1));
+  height: calc(100vh - var(--ph-top, var(--wk-bar-h)));
   min-height: 18rem;
   border: 1px solid var(--wk-line);
+  border-top: 0;
   border-bottom: 0;
-  border-radius: var(--wk-radius) var(--wk-radius) 0 0;
   overflow: hidden;
 }
 /* dvh (die Höhe ohne die Leisten des Browsers) nur, wo es sie gibt: mit var() darin fiele eine
    unbekannte Einheit nicht auf die Zeile davor zurück, sondern auf „auto" — und das Gespräch wüchse. */
 @supports (height: 100dvh) {
-  .ph-room { height: calc(100dvh - var(--ph-top, var(--wk-bar-h)) - var(--wk-space-1)); }
+  .ph-room { height: calc(100dvh - var(--ph-top, var(--wk-bar-h))); }
+}
+@media (max-width: 40rem) {
+  .ph-in-room .wk-app .wk-main { padding: 0; }
+  .ph-room { border-left: 0; border-right: 0; }
 }
 @media (max-width: 63.99rem) {
   .ph-in-room .wk-phone-bar { display: none; }

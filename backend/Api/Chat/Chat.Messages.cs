@@ -191,7 +191,8 @@ public static partial class Chat
 
         await using (var cmd = new SqlCommand($"""
             SELECT TOP {take} id, author_role_id, epoch, body_sealed, created_at, deleted_at, signature, signed_at,
-                   author_access_id, version, edited_at, deleted_by_role_id, deleted_by_access_id, topic_id, author_person_id
+                   author_access_id, version, edited_at, deleted_by_role_id, deleted_by_access_id, topic_id, author_person_id,
+                   CASE WHEN {Takedowns.Exists("message", "chat_message.id")} THEN 1 ELSE 0 END
             FROM app.chat_message
             WHERE chat_id = @chat AND schedule_state = N'sent'
               {(topic is null ? "" : "AND topic_id = @topic")}
@@ -216,13 +217,17 @@ public static partial class Chat
                 Guid? bySeat = reader.IsDBNull(12) ? null : reader.GetGuid(12);
                 var deleted = !reader.IsDBNull(5);
 
+                /* 0130 — nach einer Meldung gesperrt: der Inhalt geht an niemanden hinaus, die Stelle bleibt. */
+                var blocked = reader.GetInt32(15) == 1;
+
                 messages.Add(new
                 {
                     messageId = Ids.ToText(reader.GetGuid(0)),
                     authorRoleId = authorRole is null ? null : Ids.ToText(authorRole.Value),
                     authorSeatId = authorSeat is null ? null : Ids.ToText(authorSeat.Value),
                     epoch = reader.GetInt32(2),
-                    bodySealed = reader.IsDBNull(3) ? null : Base64Url.Encode((byte[])reader[3]),
+                    bodySealed = blocked || reader.IsDBNull(3) ? null : Base64Url.Encode((byte[])reader[3]),
+                    blocked,
                     createdAt = reader.GetDateTimeOffset(4),
                     deletedAt = deleted ? reader.GetDateTimeOffset(5) : (DateTimeOffset?)null,
                     signature = Base64Url.Encode((byte[])reader[6]),
@@ -339,6 +344,17 @@ public static partial class Chat
         HttpContext ctx, SqlConnection connection, ChatRow chat, Incoming message, Guid? authorRole, Guid? authorSeat, DateTimeOffset? sendAt = null,
         string? topicText = null, Guid? authorPerson = null, Guid? waitOnlineFrom = null, bool silent = false)
     {
+        /*
+         * 0129 — DIE ROZMOWA EINES BEREICHS (auch „Napisz do nas" und die eines Platzes) sammelt
+         * Daten über Menschen: ohne jemanden, der für den Bereich geradesteht, nimmt sie nichts an.
+         * Ein Gespräch zweier Menschen, eine eigene Gruppe, die eigenen Notizen brauchen niemanden.
+         */
+        if (chat.Kind is "area" or "channel" or "seat" && await Controllers.OfAreaAsync(connection, chat.AreaId, ctx.RequestAborted) is null)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, Controllers.Nobody);
+            return null;
+        }
+
         /* 0111 — wer auf „online" wartet, wartet höchstens ein Jahr (dann geht sie trotzdem hinaus). */
         if (waitOnlineFrom is not null) sendAt = DateTimeOffset.UtcNow.AddDays(364);
         /* 0068 — das Thema muss in DIESER Rozmowa liegen. */

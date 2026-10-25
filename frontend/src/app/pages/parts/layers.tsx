@@ -24,6 +24,7 @@ import { MOTION_NAMES, motionsJson, readMotions, type MotionUse } from '../motio
 import { definePart, text, type EditorProps, type RawConfig } from '../part';
 import { textLink } from '../presentation/presentation';
 import { imageUrl } from '../slides/slideLook';
+import { FadeImg } from '../../ui/fadeImage';
 
 interface Ply {
   readonly url: string;
@@ -76,7 +77,7 @@ function LayersView({ config, still }: { config: Config; still: boolean }) {
       {config.layers.map((ply, index) => (
         <div key={index} className={`wk-layers-ply${index === 0 ? ' is-base' : ''}`} style={{ zIndex: ply.z }}>
           <MotionBox motions={still ? [] : ply.motion} className="wk-layers-move">
-            <img src={imageUrl(ply.url)} alt="" draggable={false} decoding="async"
+            <FadeImg src={imageUrl(ply.url)} alt="" draggable={false} decoding="async"
               style={ply.shadow === null ? undefined : { filter: `drop-shadow(${ply.shadow})` }} />
           </MotionBox>
         </div>

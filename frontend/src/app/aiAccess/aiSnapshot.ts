@@ -129,6 +129,7 @@ Odwołanie to id innego wpisu (z tytułem w "refs" wpisu); odwołanie z miejscem
 Pole "blocks" to wypowiedź: akapity {"type": "paragraph", "text"}, listy {"type": "ordered"|"unordered", "items"}, tabele {"type": "table", "columns", "rows"}; komórka to lista kawałków {"text"} albo {"ref": id, "locator"}. Teza = pierwsze zdanie pierwszego akapitu.
 Pytanie (rodzaj "question"): "form", "prompt", "answers", "options", "correct".
 Daty: "1999", "1999-05", "1999-05-03", "-1000" (przed Chr.); zakres: {"segments": [{"from", "to"}]}.
+Struktura (np. wywód artykułu): pole odwołania z "structure": "up" — ten wpis leży POD tym, na co wskazuje (krok pod pytaniem, odpowiedź na zarzut pod zarzutem); "structure": "down" — wskazane wpisy leżą pod nim. Korzeń (bez wartości w polu "up") to zwykle pytanie wiodące. Jego drzewo: przez MCP get_related(id korzenia, direction "in", fields: [klucz pola "up"], depth 3), potem znowu od każdego wpisu z głębokości 3 (najwyżej 60 wpisów na wywołanie; przy "truncated" krawędzie nazywają też te, które się nie zmieściły — od nich dalej); przez REST /entry/{id}: wpisy w "linkedFrom" z tym polem leżą bezpośrednio niżej — i tak dalej od każdego z nich (albo, przeglądając wszystkie wpisy: pod wpisem X leżą te, których pole "up" ma wartość X). Kolejność kroków to kolejność ich miejsc w dziele (pole odwołania z miejscem do dzieła z biblioteki). Wpisy wskazujące krok polem bez "structure" (np. komentarz: "O czym") nie należą do rekonstrukcji — to cudze lub własne uwagi.
 
 ${MARKUP_DOC}`;
 

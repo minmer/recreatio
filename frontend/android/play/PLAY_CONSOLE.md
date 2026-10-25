@@ -20,8 +20,7 @@ The scripts that use them:
 Do these in this order:
 
 1. **Deploy the API.** It contains account deletion (`AccountDeletion.cs`). Use the usual Webio publish (`-p:PublishProfile=Webio -p:IsGetPasswordEnabled=true`).
-2. **Deploy the website** (`deploy-web.bat`, then commit and push `docs/`). It brings three things online:
-   - `https://recreatio.pl/prywatnosc/`, the privacy policy. **Have the parish review it**: controller, age limit, contacts.
+2. **Deploy the website** (`deploy-web.bat`, then commit and push `docs/`). It brings two things online:
    - `https://recreatio.pl/usun-konto/`, the account deletion page.
    - `https://recreatio.pl/.well-known/assetlinks.json`, so recreatio.pl links open in the app. `public/.nojekyll` makes GitHub Pages serve the dot-folder.
 3. **Check the review account.** Its credentials are in `~/.recreatio/android/play-review.txt`: account `demo`, with sample groups, events, tasks and a chat. The screenshots were taken with it. Keep it, because Google reviews every update with it.
@@ -60,7 +59,7 @@ Copy the fields from `listings/`, or upload them with `npm run android:publish -
 ### 5. App content
 | Section | Answer |
 | --- | --- |
-| Privacy policy | `https://recreatio.pl/prywatnosc/` |
+| Privacy policy | the page `/prywatnosc/` was removed on 2026-10-25 by the owner's decision; the console asks for a privacy policy address before the next review |
 | App access | *All or some functionality is restricted.* Instructions: "Log in with the account below. Everything else is reachable from the Warsztat (workspace) screen." Credentials from `play-review.txt`. |
 | Ads | No ads. |
 | Content rating (IARC) | Category *Social / communication*. Violence, sexuality, language, drugs, gambling: **no**. Users can interact and exchange content: **yes**. Shares location: **no**. Digital purchases: **no**. |

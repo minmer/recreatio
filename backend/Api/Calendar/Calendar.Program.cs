@@ -230,6 +230,8 @@ public static partial class Calendar
             FROM tree t
             JOIN app.calendar_item i ON i.id = t.id
             JOIN app.calendar cal ON cal.id = i.calendar_id
+            /* 0130 — ein gesperrter Punkt fehlt im Programm (der ganze Termin, wenn er selbst gesperrt ist). */
+            WHERE NOT {Takedowns.Exists("item", "i.id")}
             ORDER BY t.depth, COALESCE(i.position, 2147483647), i.starts_at;
             """, connection))
         {

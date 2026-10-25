@@ -22,6 +22,7 @@ import { QuoteIntake } from './QuoteIntake';
 import { AreaBox } from './LibraryAreaBox';
 import { DeleteBox, EntryJson, KeyBox, type EntryFormat } from './LibraryEntryBoxes';
 import { PassageBox, Relations } from './LibraryRelations';
+import { KnowledgeBox, KnowledgeLine } from './LibraryKnowledge';
 import { FieldList } from './LibraryFields';
 import { useEntryDraft } from './entryDraft';
 import { SourceBox, type SourceTargets } from './SourceBox';
@@ -100,6 +101,7 @@ function Editor({ store, library, existing, kind, preset, sources }: {
         <a className="wk-link" href={here(LIBRARY_TAB[kind] ?? '')}>← {def.plural}</a>
         <span className="lib-editor-kind">{def.label}</span>
         <h1 className="wk-h1 lib-editor-title">{kind === 'quote' ? <q>{title}</q> : title}</h1>
+        {saved !== undefined && kind === 'work' && <KnowledgeLine store={store} work={saved} />}
         <p className={`lib-state is-${state}`} role="status">{draft.status}</p>
         {state === 'stale' && (
           <div className="wk-actions">
@@ -132,6 +134,8 @@ function Editor({ store, library, existing, kind, preset, sources }: {
           {saved !== undefined && <AreaBox store={store} library={library} entry={saved} readOnly={readOnly} />}
           {saved !== undefined && kind === 'work' && <SourceBox store={store} library={library} work={saved} targets={sources} />}
           {saved !== undefined && kind === 'work' && saved.data.workType === 'bible' && <PassageBox store={store} work={saved} />}
+          {/* 2026-10-25 (Wywód) — was eine lesbare Baza wiedzy über dieses Werk erklärt (ihre Wejścia), als Knöpfe; nichts davon liegt hier. */}
+          {saved !== undefined && kind === 'work' && <KnowledgeBox store={store} work={saved} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
           {!readOnly || saved !== undefined ? <EntryJson store={store} entry={saved ?? live} isNew={saved === undefined} format={libraryFormat(store, library.name)} home={(made) => here(made)} /> : null}

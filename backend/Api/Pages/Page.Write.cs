@@ -82,6 +82,13 @@ public static partial class Page
             seal = reader.IsDBNull(11) ? null : reader.GetString(11);
         }
 
+        /* 0130 — nach einer Meldung gesperrt: an niemanden, auch nicht an die, die sie führen. */
+        if (await Takedowns.IsBlockedAsync(connection, "page", slugId, ctx.RequestAborted))
+        {
+            await Takedowns.BlockedResponse(ctx);
+            return;
+        }
+
         /*
          * NUR MIT ZUGANG — und das wird GESAGT (auf Wunsch der Kanzlei, 2026-09-28).
          *
@@ -146,6 +153,9 @@ public static partial class Page
         if (await Auth.WhoAsync(ctx, db) is { } me)
             editable = (await Access.OfAsync(connection, me.AccountId, aliasOf ?? wanted, ctx.RequestAborted)).MayWrite;
 
+        /* 0129 — wer für die Seite geradesteht: der Bereich, den sie (oder eine darüber) nennt, und sein Datensatz. */
+        var (responsible, responsibleArea, responsibleFrom) = await Controllers.OfPageAsync(connection, aliasOf ?? wanted, ctx.RequestAborted);
+
         /* 0048 — die Karte der Seite: was wann zu sehen ist, und die Schritte. */
         await ctx.Response.WriteAsJsonAsync(new
         {
@@ -166,7 +176,13 @@ public static partial class Page
              * damit der Editor eine offene Seite versiegeln kann.
              */
             id = Ids.ToText(slugId),
-            seal = SealOut(slugId, seal)
+            seal = SealOut(slugId, seal),
+            responsible = responsible is null ? null : new
+            {
+                areaId = Ids.ToText(responsibleArea!.Value),
+                fromPath = responsibleFrom,
+                controller = Controllers.Json(responsible)
+            }
         });
     }
 
@@ -249,6 +265,13 @@ public static partial class Page
         }
 
         var slugId = row.Value.Id;
+
+        /* 0129 — eine öffentliche Seite braucht jemanden, der für ihren Inhalt geradesteht. */
+        if (await Controllers.PageGateAsync(connection, slugId, wanted, ctx.RequestAborted) is { } nobody)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, nobody);
+            return;
+        }
 
         var sealedPage = await SealOfAsync(connection, slugId, ctx.RequestAborted) is not null;
         if (!Fits(sealedPage, title) || !Fits(sealedPage, lead))

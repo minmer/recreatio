@@ -210,14 +210,6 @@ function AccountPage({ who }: { who: Who }) {
           </span>
           <span className="wk-line-end"><Icon name="next" /></span>
         </a>
-        <a className="wk-line" href="/prywatnosc/">
-          <span className="wk-line-ic"><Icon name="lock" /></span>
-          <span className="wk-line-text">
-            <span className="wk-line-title">Polityka prywatności</span>
-            <span className="wk-line-sub">Co przechowujemy, kto jest administratorem danych, Twoje prawa</span>
-          </span>
-          <span className="wk-line-end"><Icon name="external" /></span>
-        </a>
       </section>
 
       {ring !== null && <MySeats ring={ring} />}

@@ -13,7 +13,7 @@
  * Nichts wird kopiert, und der Dienst gibt durch einen Verweis nichts frei.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { storeOf, type LibraryStore } from '../library/libraryStore';
@@ -65,10 +65,16 @@ export function accountSources(me: Me): OpenSource {
   };
 }
 
-/** Die Quellen laden und mitzeichnen — neu, wenn die eigenen Einstellungen andere nennen; abgeglichen, wenn die Karte wieder sichtbar wird. */
+/**
+ * Die Quellen laden und mitzeichnen — neu, wenn die eigenen Einstellungen andere nennen; abgeglichen, wenn die Karte wieder sichtbar wird.
+ * 2026-10-25 — `loading` gilt schon im ersten Bild, solange die genannten Quellen dieser Baza noch nicht geladen sind
+ * (vorher hiess ein Eintrag aus einer Quelle einen Augenblick lang „nie ma").
+ */
 export function useSources(lib: CogitaLibrary | null, open: OpenSource | null): SourceState {
   const key = lib === null ? '' : JSON.stringify(lib.settings().sources.map((s) => [s.id, s.kind]));
-  const [state, setState] = useState<SourceState>({ missing: [], loading: false });
+  /* Ein Zeichen je Baza, Öffner und Liste der Quellen — geladen ist, was für dieses Zeichen fertig wurde. */
+  const ticket = useMemo(() => ({ lib, open, key }), [lib, open, key]);
+  const [state, setState] = useState<SourceState & { readonly for?: object }>({ missing: [], loading: false });
   const [, setTick] = useState(0);
   useEffect(() => {
     if (lib === null || open === null) return undefined;
@@ -81,9 +87,9 @@ export function useSources(lib: CogitaLibrary | null, open: OpenSource | null): 
       lib.setSources(loaded);
       stores = loaded.map((s) => s.store);
       for (const s of loaded) offs.push(s.store.subscribe(() => setTick((n) => n + 1)));
-      setState({ missing, loading: false });
+      setState({ missing, loading: false, for: ticket });
       setTick((n) => n + 1);
-    }, () => { if (alive) setState({ missing: [], loading: false }); });
+    }, () => { if (alive) setState({ missing: [], loading: false, for: ticket }); });
     const again = () => {
       if (document.visibilityState === 'visible') for (const store of stores) void store.sync().catch(() => undefined);
     };
@@ -92,5 +98,7 @@ export function useSources(lib: CogitaLibrary | null, open: OpenSource | null): 
     // Die Quellen hängen an dem, was die Einstellungen nennen (\`key\`), nicht an jeder Änderung.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lib, open, key]);
-  return state;
+  const loading = state.loading || (lib !== null && open !== null && key !== '[]' && state.for !== ticket);
+  /* Dasselbe Objekt, solange sich nichts ändert — es steht in Kontexten und Abhängigkeiten. */
+  return useMemo(() => ({ missing: state.missing, loading }), [state.missing, loading]);
 }

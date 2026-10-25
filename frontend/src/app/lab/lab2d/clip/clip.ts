@@ -41,6 +41,9 @@ export const BAKE_KEYS: readonly number[] = [1, 5, 10];
 /** Probe der Schreiber alle so viele Sekunden (wie live). */
 const SAMPLE_EVERY = 0.25;
 
+/** Wer gebacken hat: die CPU-Engine (genau, wiederholbar) oder die Grafikkarte (gpuBake.ts; seit 2026-10-25). */
+export type ClipEngine = 'cpu' | 'gpu';
+
 export interface ClipHeader {
   readonly format: typeof CLIP_FORMAT;
   readonly version: number;
@@ -72,6 +75,10 @@ export interface ClipHeader {
   readonly bytes: number;
   /** Zuletzt abgespielt (ms seit 1970) — die ältesten weichen zuerst. */
   used: number;
+  /** Seit 2026-10-25, fehlt bei der CPU: wer gebacken hat; false: live weiter nur ab einem Schlüsselbild (die GPU rechnet nicht Bit für Bit gleich); die Karte. */
+  readonly engine?: ClipEngine;
+  readonly exact?: boolean;
+  readonly adapter?: string;
 }
 
 /** Was die Oberfläche von einem Nachweis wissen muss. */
@@ -85,15 +92,22 @@ export interface ClipInfo {
   readonly created: number;
   readonly bakeMs: number;
   readonly quality: Quality;
-  /** Kann man an jeder Stelle live weiterrechnen (gleicher Bau der Engine)? */
+  /** Kann man live weiterrechnen (gleicher Bau der Engine)? */
   readonly resumable: boolean;
+  /** Genau ab dem gezeigten Bild (CPU) — sonst ab dem Schlüsselbild davor (GPU). */
+  readonly exact: boolean;
+  readonly engine: ClipEngine;
   readonly samples: readonly ChartSample[];
+  /** Der Nachweis derselben Szene von der anderen Engine (beide bleiben nebeneinander), sonst null. */
+  readonly alt: ClipInfo | null;
 }
 
-export function infoOf(h: ClipHeader, layout: string): ClipInfo {
+export function infoOf(h: ClipHeader, layout: string, alt: ClipHeader | null = null): ClipInfo {
+  const engine = h.engine ?? 'cpu';
   return {
     key: h.key, duration: h.duration, seconds: h.seconds, frames: h.frames, fps: h.fps, bytes: h.bytes, created: h.created,
-    bakeMs: h.bakeMs, quality: h.quality, resumable: h.layout === layout, samples: h.samples
+    bakeMs: h.bakeMs, quality: h.quality, resumable: h.layout === layout, exact: engine === 'cpu' && h.exact !== false, engine, samples: h.samples,
+    alt: alt === null ? null : infoOf(alt, layout)
   };
 }
 
@@ -102,9 +116,13 @@ export function canonicalScene(raw: unknown): Record<string, unknown> {
   return writeScene(readScene(raw).scene);
 }
 
-/** Der Schlüssel eines Nachweises: SHA-256 über Format und Szene (mit Auflösung, Samen und allen Handgriffen). */
-export async function clipKey(scene: Record<string, unknown>): Promise<string> {
-  const text = `${CLIP_FORMAT}/${CLIP_VERSION}\n${JSON.stringify(scene)}`;
+/**
+ * Der Schlüssel eines Nachweises: SHA-256 über Format und Szene (mit Auflösung, Samen und allen Handgriffen). Ein
+ * Nachweis von der Grafikkarte hat seinen eigenen (die Engine im Text): beide bleiben nebeneinander; die der CPU sind
+ * dieselben wie vor 2026-10-25.
+ */
+export async function clipKey(scene: Record<string, unknown>, engine: ClipEngine = 'cpu'): Promise<string> {
+  const text = `${CLIP_FORMAT}/${CLIP_VERSION}${engine === 'gpu' ? '/gpu' : ''}\n${JSON.stringify(scene)}`;
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }

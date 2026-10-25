@@ -9,7 +9,8 @@ import { useState } from 'react';
 
 import { JsonPanel } from '../ui/JsonPanel';
 import { WorkspaceError } from '../core/session';
-import { aiPrompt, applyImport, courseDescription, exportCourse, exportFlow, planImport } from './json';
+import { aiPrompt, applyImport, courseDescription, exportCourse, exportFlow, planImport, structurePreview } from './json';
+import { useImportReview } from './ImportReviewPanel';
 import { useCtx } from './ui';
 
 export function CogitaJson() {
@@ -19,22 +20,23 @@ export function CogitaJson() {
   const [copied, setCopied] = useState(false);
   const [flow, setFlow] = useState(lib.docs('flow')[0]?.id ?? '');
   const file = name.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+  /* 2026-10-25 — jede Änderung an Bestehendem einzeln annehmen (und vorher korrigieren), Neues abwählen. */
+  const review = useImportReview(lib);
 
   return (
     <div className="cg">
       <JsonPanel
         summary="Kurs jako JSON — eksport i import"
-        lead={<>Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import zmienia istniejące w miejscu i dodaje nowe; niczego nie usuwa.</>}
+        lead={<>Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import dodaje nowe i zmienia istniejące w miejscu; niczego nie usuwa. Przed zapisem widać każdą zmianę: nowe są zaznaczone, a zmiany w tym, co już jest, trzeba przyjąć — każdą można też poprawić.</>}
         fileName={`kurs-${file}.json`}
         exportDoc={() => exportCourse(lib, name)}
         description={() => courseDescription(lib)}
-        preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: p.lines, warnings: p.warnings }; }}
-        importLabel="Importuj i zapisz"
+        preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: [...p.lines, ...structurePreview(lib, p)], warnings: p.warnings }; }}
+        options={review.options}
+        importLabel="Zapisz przyjęte"
         onImport={async (doc, stage) => {
           if (!writes) throw new WorkspaceError('W tej bazie wiedzy możesz tylko czytać.');
-          const p = planImport(lib, doc);
-          if ('error' in p) throw new WorkspaceError(p.error);
-          return applyImport(lib, p, stage);
+          return applyImport(lib, review.decide(doc), stage);
         }}
       />
 

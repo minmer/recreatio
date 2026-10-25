@@ -83,6 +83,10 @@ export { snapshotDoc, refsOf as snapshotRefs, gzip, SNAPSHOT_VERSION } from '${a
 export * as loc from '${app}library/locations';
 export * as src from '${app}library/sourceText';
 export * as srcImp from '${app}library/sourceImport';
+export * as hits from '${app}library/anchorHits';
+export { anchorProblems } from '${app}cogita/anchors';
+export { recogniseScheme } from '${app}cogita/structure';
+export { baseEntryTitle } from '${app}library/refLabels';
 export { SourceBlockView } from '${app}library/SourceBlocks';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
@@ -1006,7 +1010,7 @@ try {
 
   /* -- 2j. Dostęp dla AI (0126): die Abschrift eines Behälters — lesbar, und nur innerhalb des Links ------- */
   {
-    const store = (libraryId, entries) => ({ libraryId, areaId: 'area', revision: 1, all: () => entries, get: (id) => entries.find((e) => e.id === id), byKey: (k) => entries.find((e) => e.key === k) });
+    const store = (libraryId, entries) => ({ libraryId, areaId: 'area', revision: 1, all: () => entries, get: (id) => entries.find((e) => e.id === id), own: (id) => entries.find((e) => e.id === id), byKey: (k) => entries.find((e) => e.key === k), ownByKey: (k) => entries.find((e) => e.key === k) });
     const U = (n) => `01a00000-0000-7000-8000-${String(n).padStart(12, '0')}`;
     const person = { id: U(1), kind: 'person', key: 'augustyn', data: { givenNames: 'Aureliusz', surname: 'Augustyn' }, updatedAt: '2026-10-24T10:00:00Z' };
     const work = { id: U(2), kind: 'work', key: 'wyznania', data: { title: 'Wyznania', authors: [U(1)] } };
@@ -1068,6 +1072,40 @@ try {
     assert.ok(hit('4.1–4.116', 'decimal', '4.11') && !hit('4.1–4.116', 'decimal', '4.2') && hit('2.01', 'decimal', '2.0121'), 'Tractatus: decimal levels, ranges, a proposition holds its comments');
     assert.ok(hit('§§ 1–5', 'sections', '§ 3') && P('cz. II, xi', 'sections').spans.length === 1 && !hit('§ 3', 'sections', 'cz. II, iii'), 'Investigations: §§ of part I, the sections of part II apart');
     assert.ok(hit('t. 2, cz. 1, rozdz. 3', 'outline', 'rozdz. 3') && !hit('t. 2, cz. 1, rozdz. 3', 'outline', 'rozdz. 4'), 'an outline: levels may be missing; what both name must meet');
+    /* 2026-10-25 — mehrere Stücke mit „;": ein Stück, das tiefer beginnt, steht im Rahmen des Stücks davor. */
+    assert.deepEqual(['I q. 2 a. 3; a. 4', 'I q. 2 a. 3 arg. 1; ad 1', 'I q. 2 a. 3; q. 3 a. 1', 'I q. 2 a. 3; I-II q. 90 a. 1'].map((t) => F(t, 'aquinas')),
+      ['I, q. 2, a. 3; I, q. 2, a. 4', 'I, q. 2, a. 3, arg. 1; I, q. 2, a. 3, ad 1', 'I, q. 2, a. 3; I, q. 3, a. 1', 'I, q. 2, a. 3; I-II, q. 90, a. 1'],
+      'Aquinas pieces with „;": a piece without its own question or article stays in the frame of the one before; one with its own part restarts');
+    assert.deepEqual(['t. 2, rozdz. 1; rozdz. 9', 'rozdz. 3, § 2; § 4', 'rozdz. 1; rozdz. 9'].map((t) => F(t, 'outline')),
+      ['t. 2, rozdz. 1; t. 2, rozdz. 9', 'rozdz. 3, § 2; rozdz. 3, § 4', 'rozdz. 1; rozdz. 9'], 'outline pieces with „;": the levels above a piece come from the piece before');
+    assert.deepEqual(P('s. 45–46; 58–60', 'pages').pages, [{ from: 45, to: 46 }, { from: 58, to: 60 }], 'pages with „;": beginning and end');
+    /* 2026-10-25 (Prüfung) — ein Stück, das NUR tiefer geht, ist dieselbe Stelle, genauer (alte Daten: „;" zwischen Ebenen einer Stelle). */
+    assert.deepEqual(['cz. 1; rozdz. 2', 't. 2; rozdz. 3', 'cz. 1; rozdz. 2; § 3'].map((t) => [P(t, 'outline').spans.length, F(t, 'outline')]),
+      [[1, 'cz. 1, rozdz. 2'], [1, 't. 2, rozdz. 3'], [1, 'cz. 1, rozdz. 2, § 3']], 'outline: a piece that only goes deeper replaces the one before — one span');
+    assert.deepEqual(['I q. 2; a. 3', 'I q. 2 a. 3; ad 1', 'I-II, q. 90, a. 1; ad 2', 'I q. 2 a. 3; co.'].map((t) => [P(t, 'aquinas').spans.length, F(t, 'aquinas')]),
+      [[1, 'I, q. 2, a. 3'], [1, 'I, q. 2, a. 3, ad 1'], [1, 'I-II, q. 90, a. 1, ad 2'], [1, 'I, q. 2, a. 3, co.']], 'Aquinas: likewise (question → article → piece)');
+    assert.deepEqual([hit('cz. 1; rozdz. 2', 'outline', 'cz. 1, rozdz. 5'), hit('t. 2; rozdz. 3', 'outline', 't. 2, rozdz. 7'), hit('I q. 2 a. 3; ad 1', 'aquinas', 'I q. 2 a. 3 arg. 2'), hit('I q. 2 a. 3; ad 1', 'aquinas', 'I q. 2 a. 3 ad 1')],
+      [false, false, false, true], '… so such a place no longer means the whole part or the whole article');
+    assert.deepEqual([...['rozdz. 1; rozdz. 9', 't. 2, rozdz. 1; rozdz. 9', 'rozdz. 3, § 2; § 4'].map((t) => P(t, 'outline').spans.length), ...['I q. 2 a. 3; a. 4', 'I q. 2 a. 3 arg. 1; ad 1', 'I q. 2 a. 3; I q. 3 a. 1'].map((t) => P(t, 'aquinas').spans.length)],
+      [2, 2, 2, 2, 2, 2], 'siblings and higher levels stay two spans');
+    /* Eine nackte Zahl: auf der tiefsten Ebene des Stücks davor (Seiten, wenn es Seiten nannte); nach co. gibt es keine Nummer. */
+    assert.deepEqual([F('rozdz. 3; 5', 'outline'), F('rozdz. 3, § 2; 4', 'outline'), F('rozdz. 3; 5–7', 'outline'), F('rozdz. 3, s. 45; 52', 'outline'), P('rozdz. 3; 5', 'outline').rest],
+      ['rozdz. 3; rozdz. 5', 'rozdz. 3, § 2; rozdz. 3, § 4', 'rozdz. 3; rozdz. 5–7', 'rozdz. 3, s. 45, 52', ''], 'outline: a bare number is read at the deepest level the piece before named');
+    assert.deepEqual([F('I q. 2 a. 3 arg. 1; 2', 'aquinas'), F('I q. 2 a. 3; 4', 'aquinas'), F('I q. 2; 3', 'aquinas'), F('I q. 2 a. 3, s. 45; 46', 'aquinas'), P('I q. 2 a. 3 co.; 2', 'aquinas').rest],
+      ['I, q. 2, a. 3, arg. 1; I, q. 2, a. 3, arg. 2', 'I, q. 2, a. 3; I, q. 2, a. 4', 'I, q. 2; I, q. 3', 'I, q. 2, a. 3, s. 45, 46', '2'], 'Aquinas: likewise; after co. a bare number stays unread');
+    /* Seiten zuerst heraus: ein Stück nur aus Seiten bekommt keinen Rahmen (sonst: der ganze Artikel), Seiten wandern in kein anderes Stück. */
+    assert.deepEqual([P('I q. 2 a. 3 arg. 1; s. 45', 'aquinas').spans.length, hit('I q. 2 a. 3 arg. 1; s. 45', 'aquinas', 'I q. 2 a. 3 co.'), F('I q. 2 a. 3; s. 45', 'aquinas'), P('s. 45, q. 2 a. 3; a. 4', 'aquinas').pages, P('I q. 2 a. 3; zob. też', 'aquinas').rest],
+      [1, false, 'I, q. 2, a. 3, s. 45', [{ from: 45, to: 45 }], 'zob. też'], 'Aquinas pieces: a page alone touches no article, pages are not copied, a piece without any level of Aquinas stays unread');
+    assert.deepEqual([F('II-II q. 23 a. 1 arg. 1; s. c.', 'aquinas'), F('I q. 2 a. 3 s. c.', 'aquinas'), F('s. c.', 'aquinas')],
+      ['II-II, q. 23, a. 1, arg. 1; II-II, q. 23, a. 1, sed contra', 'I, q. 2, a. 3, sed contra', 's. c'], '„s. c." in a place of Aquinas is sed contra, not the roman page c (alone, without a question, it stays a page)');
+    /* Was eine Gliederung nicht liest, bleibt als Rest — „cz. II, xi" ist dann keine Gliederung, sondern Paragrafy (Dociekania). */
+    assert.deepEqual([P('cz. II, xi', 'outline').rest, P('rozdz. 3, przypis 2', 'outline').rest, P('I.2.3', 'outline').rest, F('rozdz. 3, przypis 2', 'outline')], ['xi', 'przypis 2', '', 'rozdz. 3, przypis 2'], 'an outline keeps what it cannot read as rest (nothing dropped silently)');
+    assert.deepEqual([['§ 43', 'cz. II, xi'], ['cz. II, xi', 'cz. II, xii'], ['I q. 2 a. 3', 'I q. 2 a. 3 arg. 1', 'I q. 2 a. 3 co.'], ['s. 46', 's. 47–49'], ['rozdz. 1', 'rozdz. 10'], ['J 21,15', 'J 21,16'], ['rozdz. 3; 5', 'rozdz. 4']].map((l) => m.recogniseScheme(l)),
+      ['sections', 'sections', 'aquinas', 'pages', 'outline', 'bible', 'outline'], 'the scheme recognised from the places: part II of the Investigations is not an outline');
+    const anchorLib = { entity: (id) => (id === 'w' ? { id, kinds: ['work'], data: { workType: 'book', title: 'K', scheme: 'outline' } } : id === 'e' ? { id, kinds: ['k'], data: {} } : undefined), docs: () => [] };
+    const anchorSays = (locator) => m.anchorProblems(anchorLib, { name: 'W', work: 'w', locator, entry: 'e', view: '', note: '' });
+    assert.deepEqual([anchorSays('rozdz. 3; 5'), anchorSays('rozdz. 3, przypis 2').map((p) => p.includes('„przypis 2”')), anchorSays('gdzieś w środku').filter((p) => p.includes('nie da się odczytać')).length, anchorSays('gdzieś w środku').length],
+      [[], [true], 1, 1], 'an anchor names the part of its place that could not be read (once — a place read not at all says only that)');
     const both = P('rozdz. 3, s. 45', 'pages');
     assert.ok(m.loc.isStructural(both) && both.pages[0].from === 45 && !m.loc.isStructural(P('s. 23–25', 'pages')), 'structure and page in one place; pages alone belong to this edition only');
     assert.ok(P('s. xii', 'pages').pages[0].from < P('s. 1', 'pages').pages[0].from, 'roman pages (front matter) come before page 1');
@@ -1077,7 +1115,7 @@ try {
     const AL = look([AQ, ...aqq]);
     assert.deepEqual([...aqq].sort((x, y) => m.quoteOrder(x, AL).localeCompare(m.quoteOrder(y, AL))).map((q) => q.id), ['a', 'b', 'd', 'c'], 'quotes ordered by the scheme of their work (part, question, article, answer)');
     assert.ok(m.kindOf('work').fields.some((f) => f.key === 'scheme' && f.options.length === m.loc.SCHEMES.length) && m.kindOf('work').fields.some((f) => f.key === 'editionOf' && f.type === 'ref'), 'a work says its scheme and of which work it is an edition');
-    ok('places in a work: Scripture (both Psalm numberings), documents, Aquinas, Tractatus, Investigations, outlines, pages — structure vs. edition');
+    ok('places in a work: Scripture (both Psalm numberings), documents, Aquinas, Tractatus, Investigations, outlines, pages — structure vs. edition; pieces with „;" (deeper ones merged, bare numbers, pages first), unread parts kept and named');
   }
 
   /* 2k. 2026-10-24 — Tekst źródła (`sourceText.ts`): JSON, Prüfung, Teile, Verknüpfung beim Lesen, Datenschutz. */
@@ -1229,6 +1267,47 @@ try {
       'marks made readable ([s. 34], [^1], word[?], […]), pages per block; a work outside the link keeps no title');
     assert.ok(m.snapshotDoc([{ store: libStore, kind: 'books', name: 'B', texts: [{ entry: manifestEntry, parts: [] }] }], 'LT', 'now', false).textsOmitted === true, 'too large: the snapshot says the texts are left out');
     ok('a work with its full text in one document: new or known work (no doubles), its author and journal, the text in portions; whole texts and how to split them described');
+  }
+
+  /* 2026-10-25 (Wywód) — „W Wiedzy" an einem Werk: gerechnet aus den Speichern, die dieser Tab offen hat; nichts in der Bibliothek. */
+  {
+    const store = (libraryId, entries) => {
+      const byKey = (k) => entries.find((e) => (e.key ?? '').toLowerCase() === k.toLowerCase());
+      return { libraryId, revision: 1, all: () => entries, ownByKey: byKey, get: (id) => entries.find((e) => e.id === id), byKey, readable: () => entries };
+    };
+    const W = '01a1c0de-0000-7000-8000-00000000000a';
+    const S = '01a1c0de-0000-7000-8000-00000000000b';
+    const S2 = '01a1c0de-0000-7000-8000-00000000000c';
+    const ROOT = '01a1c0de-0000-7000-8000-00000000000d';
+    const VIEW = '01a1c0de-0000-7000-8000-00000000000e';
+    const books = store('L', [
+      { id: W, kind: 'work', key: 'kowalski2020', data: { workType: 'article', title: 'Miłość, która pyta' } },
+      { id: S, kind: 'work', key: 'sth', data: { workType: 'book', title: 'Summa theologiae', scheme: 'aquinas' } },
+      { id: S2, kind: 'work', key: 'sth-pl', data: { workType: 'book', title: 'Suma teologiczna', scheme: 'aquinas', editionOf: [S] } }
+    ]);
+    const anchor = (id, name, work, locator) => ({ id, kind: 'anchor', data: { name, work, ...(locator === '' ? {} : { locator }), entry: ROOT, view: VIEW } });
+    const base = store('K', [
+      anchor('a-end', 'Zakończenie', W, 's. 58–60'),
+      anchor('a-all', 'Wywód całego artykułu', W, 's. 45–60'),
+      anchor('a-start', 'Wstęp', W, 's. 45–47'),
+      anchor('a-both', 'Teza i wniosek', W, 's. 45–46; 58–60'),
+      anchor('a-sth', 'Czy Bóg istnieje?', S, 'I q. 2 a. 3'),
+      anchor('a-sth-pages', 'Strony łacińskie', S, 's. 12'),
+      { id: ROOT, kind: 'entity', data: { _kinds: ['k'], tresc: [{ type: 'paragraph', text: 'Czy?' }] } }
+    ]);
+    const books2 = (s) => s.libraryId === 'L';
+    const work = books.get(W);
+    const found = m.hits.anchorsForWork(work, books, [books, base], books2);
+    assert.deepEqual(found.map((h) => h.anchor.name), ['Wywód całego artykułu', 'Wstęp', 'Teza i wniosek', 'Zakończenie'], 'anchors of a work, in the order of the work (first page, then name)');
+    assert.equal(found[0].href, `#/workspace/knowledge/K/wpisy/widok/${VIEW}/${ROOT}`, 'a button opens the view at its entry');
+    assert.deepEqual(m.hits.anchorsForWork(work, books, [books], books2), [], 'a reader who cannot open the base sees nothing — not even that it exists');
+    const touching = (pages) => m.hits.anchorsTouching(found, { place: null, pages }).map((h) => h.anchor.name);
+    assert.deepEqual([touching([45, 46]), touching([50, 52]), touching([59, 60])], [['Wywód całego artykułu', 'Wstęp', 'Teza i wniosek'], ['Wywód całego artykułu'], ['Wywód całego artykułu', 'Teza i wniosek', 'Zakończenie']],
+      'in the reader: the anchors that touch the part being read — the beginning, the middle, the end; one anchor can name several parts');
+    const pl = m.hits.anchorsForWork(books.get(S2), books, [books, base], books2);
+    assert.deepEqual(pl.map((h) => [h.anchor.name, h.edition?.id]), [['Czy Bóg istnieje?', S]], 'another edition shows anchors with a place of the structure (an article), never pages of that edition');
+    assert.equal(m.baseEntryTitle({ id: ROOT, kind: 'entity', libraryId: 'K', data: { _kinds: ['k'], tresc: [{ type: 'paragraph', text: 'Czy Bóg istnieje? Tak.' }] } }, store('K', [{ id: 'k', kind: 'kind', data: { name: 'Krok', fields: [{ key: 'tresc', label: 'Treść', type: 'blocks' }] } }])), 'Czy Bóg istnieje?', 'a statement row in „Powiązania" is titled by its thesis, not „Wpis"');
+    ok('„W Wiedzy": anchors found through the readable stores only, ordered by place, matched to the part being read, across editions for structural places; statement rows titled by thesis');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

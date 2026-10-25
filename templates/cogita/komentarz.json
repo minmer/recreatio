@@ -4,7 +4,7 @@
   "name": "Komentarz",
   "kinds": [
     {
-      "ref": "@komentarz",
+      "ref": "@komentarz/rodzaj",
       "name": "Komentarz",
       "label": "{content}",
       "fields": [
@@ -27,9 +27,10 @@
   ],
   "templates": [
     {
+      "ref": "@komentarz/t-teza",
       "name": "Teza",
       "kinds": [
-        "@komentarz"
+        "@komentarz/rodzaj"
       ],
       "direction": "o czym→teza",
       "graph": {
@@ -151,9 +152,10 @@
       }
     },
     {
+      "ref": "@komentarz/t-tabela",
       "name": "Tabela z treści",
       "kinds": [
-        "@komentarz"
+        "@komentarz/rodzaj"
       ],
       "direction": "pary",
       "graph": {

@@ -7,7 +7,7 @@
  * er je Bild die Puffer (übertragbar), und die Seite gibt sie zurück.
  */
 
-import type { ClipInfo } from '../clip/clip';
+import type { ClipEngine, ClipInfo } from '../clip/clip';
 import type { FrameBuffers, Overlay } from '../render/frame';
 import type { Walls } from '../render/glRenderer';
 import type { View } from '../render/view';
@@ -19,8 +19,8 @@ import type { Region } from './shapes';
 
 export type HostMessage =
   | { readonly type: 'probe' }
-  /** paused: ruhend beginnen (das Labor startet nie von selbst, B). */
-  | { readonly type: 'init'; readonly canvas: OffscreenCanvas | null; readonly width: number; readonly height: number; readonly dpr: number; readonly scene: unknown; readonly dark: boolean; readonly paused?: boolean }
+  /** paused: ruhend beginnen (das Labor startet nie von selbst, B); resume: ein Schlüsselbild der Szene, ab dem es live weitergeht (B, Nachweis von der GPU). */
+  | { readonly type: 'init'; readonly canvas: OffscreenCanvas | null; readonly width: number; readonly height: number; readonly dpr: number; readonly scene: unknown; readonly dark: boolean; readonly paused?: boolean; readonly resume?: Uint8Array }
   | { readonly type: 'resize'; readonly width: number; readonly height: number; readonly dpr: number }
   | { readonly type: 'op'; readonly op: Op }
   | { readonly type: 'addLiquid'; readonly region: Region; readonly composition: Readonly<Record<string, number>>; readonly T: number }
@@ -45,14 +45,20 @@ export type HostMessage =
   | { readonly type: 'load'; readonly scene: unknown }
   | { readonly type: 'theme'; readonly dark: boolean }
   | { readonly type: 'frameDone'; readonly frame: FrameBuffers }
-  /* -- Nachweise (B): backen, abspielen, live weiter (nur der normale Weg) -- */
+  /* -- Nachweise (B): backen, abspielen, live weiter (backen und abspielen nur der normale Weg) -- */
   | { readonly type: 'bake'; readonly options: BakeOptions }
   | { readonly type: 'bakeStop' }
-  | { readonly type: 'clipOpen'; readonly play: boolean }
+  /** Das Fenster des Backens ist offen: Grafikkarte und Kerne schon vorbereiten (die Übersetzung dauert Sekunden). */
+  | { readonly type: 'bakePrepare' }
+  /** prefer: welcher Nachweis spielt, wenn es beide gibt (sonst der da ist). */
+  | { readonly type: 'clipOpen'; readonly play: boolean; readonly prefer?: ClipEngine }
+  /** Bei der Wiedergabe den Nachweis der anderen Engine abspielen (an derselben Stelle). */
+  | { readonly type: 'clipEngine'; readonly engine: ClipEngine }
   | { readonly type: 'clipPlay'; readonly playing: boolean }
   | { readonly type: 'clipSeek'; readonly t: number }
   | { readonly type: 'clipLoop'; readonly on: boolean }
-  | { readonly type: 'clipLive' }
+  /** accel: ein Nachweis von der GPU geht im beschleunigten Weg weiter (der Arbeiter schickt resume), sonst hier. */
+  | { readonly type: 'clipLive'; readonly accel?: boolean }
   | { readonly type: 'clipClose' }
   | { readonly type: 'clipDelete' };
 
@@ -68,7 +74,12 @@ export interface BakeOptions {
   readonly keyEvery: number;
   readonly quality: Quality;
   readonly extremes: Exclude<ExtremeMode, 'ask'>;
+  /** Wer rechnet (seit 2026-10-25; fehlt: die CPU): die Grafikkarte, wo WebGPU geht und die Szene es erlaubt — sonst die CPU mit einem Hinweis. */
+  readonly engine?: ClipEngine;
 }
+
+/** Warum die CPU backt, obwohl die Grafikkarte gewählt war: Körper in Bewegung, Eis, Körner; kein WebGPU; Karte oder Kerne versagten. Mitten im Backen verloren: ein kürzerer Nachweis. */
+export type BakeNote = 'cpu-only' | 'no-webgpu' | 'gpu-failed' | 'gpu-lost';
 
 /** Der Stand eines Nachweises in den Kennzahlen: beim Backen (t: aufgenommen) oder bei der Wiedergabe (t: gezeigt). */
 export interface ClipStats {
@@ -147,9 +158,14 @@ export type WorkerMessage =
   | { readonly type: 'error'; readonly message: string }
   /** Der Nachweis der jetzigen Szene (null: keiner) — nach dem Start, nach Änderungen, nach dem Backen. */
   | { readonly type: 'clip'; readonly info: ClipInfo | null }
-  /** Backen: läuft (t von seconds, rate: Simulations- je echte Sekunde), wird gespeichert, fertig, fehlgeschlagen; seeking: auf dem Weg zum gezeigten Bild (live weiter). */
-  | { readonly type: 'bake'; readonly state: 'running' | 'saving' | 'done' | 'failed' | 'seeking'; readonly t: number; readonly seconds: number; readonly rate: number; readonly message?: string }
+  /**
+   * Backen: bereitet die Grafikkarte vor (Kerne übersetzen), läuft (t von seconds, rate: Simulations- je echte Sekunde), wird gespeichert,
+   * fertig, fehlgeschlagen; seeking: auf dem Weg zum gezeigten Bild (live weiter). engine: wer backt; note: warum die CPU statt der Karte.
+   */
+  | { readonly type: 'bake'; readonly state: 'preparing' | 'running' | 'saving' | 'done' | 'failed' | 'seeking'; readonly t: number; readonly seconds: number; readonly rate: number; readonly message?: string; readonly engine?: ClipEngine; readonly note?: BakeNote }
   /** Live weiter ab t (die Wiedergabe ist vorbei; das Labor ruht). */
   | { readonly type: 'live'; readonly t: number }
+  /** Live weiter aus einem Nachweis von der GPU im beschleunigten Weg: die Szene und das Schlüsselbild (ungepackt) für dessen Arbeiter (init.resume); t: seine Zeit. */
+  | { readonly type: 'resume'; readonly scene: unknown; readonly snapshot: Uint8Array; readonly t: number }
   /** Ein heftiger Zustand bei „ask“: der Arbeiter hat angehalten und wartet auf setExtremes. */
   | { readonly type: 'extreme'; readonly event: ExtremeEvent };

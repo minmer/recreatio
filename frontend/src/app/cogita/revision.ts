@@ -179,7 +179,7 @@ const FILTER: Kind = {
 function throughEntities(ctx: RevisionContext, flow: CardFlow, step: Step): CardFlow {
   if (ctx.select === undefined) return flow;
   const kept = pick(ctx.select, step, new Set(flow.cards.map(entityOfCard)));
-  const from = step.type === 'follow' ? ctx.cards : flow.cards;
+  const from = step.type === 'follow' || step.type === 'structure' ? ctx.cards : flow.cards;
   return { cards: from.filter((c) => kept.has(entityOfCard(c))), gate: flow.gate };
 }
 
@@ -188,6 +188,14 @@ const FOLLOW: Kind = {
   says: `${STEP_WORDS.follow.says} Daje karty tamtych wpisów.`,
   ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
   run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'follow', config }) })
+};
+
+/* 2026-10-25 (Wywód) — dieselbe Struktur wie in „Wpisy": die Karten der Schritte unter (oder über) diesen Einträgen. */
+const STRUCTURE: Kind = {
+  type: 'structure', label: STEP_WORDS.structure.label, group: 'Zawężenie',
+  says: `${STEP_WORDS.structure.says} Daje karty tamtych wpisów.`,
+  ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
+  run: ({ config, inputs, ctx }) => ({ cards: throughEntities(ctx, merge(flowsAt(inputs, 'cards')), { type: 'structure', config }) })
 };
 
 const FILTER_RULE: Kind = {
@@ -269,7 +277,7 @@ const STRATEGY: Kind = {
   }
 };
 
-export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_LIST, BY_FROM, FILTER, FOLLOW, FILTER_RULE, UNION, GATE, STRATEGY]);
+export const REVISION_PALETTE = paletteOf<RevisionContext>('revision', [ALL, BY_KIND, BY_COLLECTION, BY_LIST, BY_FROM, FILTER, FOLLOW, STRUCTURE, FILTER_RULE, UNION, GATE, STRATEGY]);
 
 /** Der Plan einer Wiederholung aus ihrem Graphen — genau ein „Sposób pytania". */
 export async function planOf(graph: Graph, ctx: RevisionContext): Promise<{ plan: Plan | null; problems: string[] }> {

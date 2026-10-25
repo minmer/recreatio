@@ -13,6 +13,7 @@ import { containerPath, openedLibraryKind, openedLibraryNames } from '../library
 import { kindOf } from '../library/libraryKinds';
 import { loadedStores } from '../library/libraryStore';
 import { viewPath } from '../routes';
+import { anchorPath, readAnchor } from './anchors';
 import { cogitaPath } from './parts';
 import type { SearchEntry } from '../shell/search';
 import { DOC_LABEL, type DocKind } from './kinds';
@@ -29,7 +30,9 @@ const DOC_TAB: Partial<Record<DocKind, readonly string[]>> = {
   kind: ['schemat'],
   view: ['wpisy', 'widok'],
   /* 2026-10-17 — ein Formularz dodawania führt zum Ausfüllen, nicht zum Bauen. */
-  addform: ['wpisy', 'dodaj']
+  addform: ['wpisy', 'dodaj'],
+  /* 2026-10-25 (Wywód) — ein Wejście z Biblioteki: in seiner Liste. */
+  anchor: ['wejscia']
 };
 
 export function libraryHits(): SearchEntry[] {
@@ -63,7 +66,9 @@ export function libraryHits(): SearchEntry[] {
       for (const doc of lib.docs(kind)) {
         if (doc.data.builtin !== undefined || !lib.isOwn(doc.id)) continue;
         const name = typeof doc.data.name === 'string' && doc.data.name.trim() !== '' ? doc.data.name : DOC_LABEL[kind];
-        out.push({ id: `doc:${doc.id}`, label: name, kind: DOC_LABEL[kind], href: cogitaPath(store.libraryId, ...tab, doc.id), hint: where });
+        /* 2026-10-25 (Wywód) — ein Wejście führt in seinen Widok an seinem Eintrag (bearbeitet wird es unter „Wejścia z Biblioteki"). */
+        const to = kind === 'anchor' ? anchorPath(store.libraryId, readAnchor(doc.id, doc.data)) : cogitaPath(store.libraryId, ...tab, doc.id);
+        out.push({ id: `doc:${doc.id}`, label: name, kind: DOC_LABEL[kind], href: to, hint: where });
       }
     }
   }

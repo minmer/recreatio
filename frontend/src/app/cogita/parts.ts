@@ -10,7 +10,7 @@
  *       schematy/rodzaje              Rodzaje wpisów — was es gibt, welche Felder und Verweise
  *       schematy/dodawanie            Sposoby dodawania — die Formularze dodawania
  *       schematy/wyswietlanie         Sposoby wyświetlania — was gezeigt wird und wie (die Widoki)
- *       (Więcej) ustawienia, json, do-zrobienia, propozycje, stare; wer nur liest: zaproponuj
+ *       (Więcej) ustawienia, json, do-zrobienia, propozycje, wejscia (Wejścia z Biblioteki), stare; wer nur liest: zaproponuj
  *   #/workspace/learn/&lt;baza&gt;/…       NAUKA — aus diesem Wissen lernen
  *       nauka                         was jetzt dran ist: Powtórki, Przebiegi
  *       powtorki, przebiegi, sesje, postepy
@@ -37,7 +37,9 @@ export const KNOWLEDGE_TABS = [
 ] as const;
 /** Was die Wiedza ausserdem hat — unter „Więcej", nicht neben den drei. */
 export const KNOWLEDGE_MORE = [
-  ['ustawienia', 'Ustawienia'], ['json', 'Import i eksport (JSON)'], ['do-zrobienia', 'Do zrobienia'], ['propozycje', 'Propozycje']
+  ['ustawienia', 'Ustawienia'], ['json', 'Import i eksport (JSON)'], ['do-zrobienia', 'Do zrobienia'], ['propozycje', 'Propozycje'],
+  /* 2026-10-25 (Wywód) — die Wege aus der Bibliothek (`anchors.ts`). */
+  ['wejscia', 'Wejścia z Biblioteki']
 ] as const;
 /** Die Reiter der Nauka. */
 export const LEARN_TABS = [
@@ -57,7 +59,7 @@ export const SCHEMA_PARTS = [
 ] as const;
 export type SchemaPart = (typeof SCHEMA_PARTS)[number]['slug'];
 
-const KNOWLEDGE: ReadonlySet<string> = new Set(['wpisy', 'dodaj', 'schematy', 'schemat', 'json', 'do-zrobienia', 'propozycje', 'zaproponuj', 'stare', 'ustawienia']);
+const KNOWLEDGE: ReadonlySet<string> = new Set(['wpisy', 'dodaj', 'schematy', 'schemat', 'json', 'do-zrobienia', 'propozycje', 'zaproponuj', 'stare', 'ustawienia', 'wejscia']);
 const LEARN: ReadonlySet<string> = new Set(['nauka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty']);
 
 /** Zu welchem Teil ein Reiter gehört — `ustawienia` zu beiden (die Wiedza zuerst). */

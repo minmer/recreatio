@@ -119,6 +119,9 @@ public static partial class Form
          * Formular nichts (0042). Beides stand bisher nur im Browser; ein
          * Aufruf an ihm vorbei haette trotzdem eingesandt.
          */
+        /* 0130 — ein gesperrtes Formular nimmt nichts an. */
+        if (await Takedowns.IsBlockedAsync(connection, "form", id, ctx.RequestAborted)) { await Takedowns.BlockedResponse(ctx); return; }
+
         var whole = await WholeAsync(connection, id, ctx.RequestAborted);
 
         if (whole?.Closed == true)

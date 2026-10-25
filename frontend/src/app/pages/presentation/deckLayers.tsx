@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { MotionBox } from '../motion/MotionBox';
 import { readMotionUse, type MotionUse } from '../motion/motion';
 import { imageUrl, type Layer, type MeshLayer, type WavesLayer } from '../slides/slideLook';
+import { useImageReady } from '../../ui/fadeImage';
 
 /** Eine Farbe einer Schicht: die vier Namen des Themas als seine Variablen — sie gehen mit den Slajdy mit. */
 export function layerPaint(color: string): string {
@@ -38,11 +39,9 @@ export function layerBackground(layer: Layer): CSSProperties {
       const stops = layer.via ? `${layerPaint(layer.from)}, ${layerPaint(layer.via)}, ${layerPaint(layer.to)}` : `${layerPaint(layer.from)}, ${layerPaint(layer.to)}`;
       return { background: `linear-gradient(${layer.angle}deg, ${stops})` };
     }
+    /* 2026-10-25 — das Bild selbst malt `LayerArt` (`LayerImage`): es blendet ein, sobald es geladen ist. Hier nur, wie die Schicht deckt und mischt. */
     case 'image':
-      return layer.url === '' ? {} : {
-        backgroundImage: `url(${JSON.stringify(imageUrl(layer.url))})`, backgroundSize: 'cover',
-        backgroundPosition: layer.position, opacity: layer.opacity, mixBlendMode: layer.blend
-      };
+      return layer.url === '' ? {} : { opacity: layer.opacity, mixBlendMode: layer.blend };
     case 'glow':
       return {
         background: `radial-gradient(closest-side at ${layer.x}% ${layer.y}%, ${layerPaint(layer.color)}, transparent ${layer.size}%)`,
@@ -297,12 +296,27 @@ export function waves(layer: WavesLayer): Wave[] {
 }
 
 /**
+ * 2026-10-25 — DAS BILD EINER SCHICHT, unter ihrer Deckkraft und Mischung: unsichtbar,
+ * solange es lädt, dann blendet es ein (Wunsch des Nutzers; `ui/fadeImage.tsx`). Was
+ * schon geladen ist, steht sofort da — ein Wechsel blendet nichts neu ein.
+ */
+function LayerImage({ layer }: { layer: Extract<Layer, { kind: 'image' }> }) {
+  const src = imageUrl(layer.url);
+  const ready = useImageReady(src);
+  const look: CSSProperties = { backgroundImage: `url(${JSON.stringify(src)})`, backgroundPosition: layer.position };
+  return <div className={ready ? 'wk-layer-image is-ready' : 'wk-layer-image'} style={look} />;
+}
+
+/**
  * WAS IN EINER SCHICHT LIEGT — bei den Schichten der Luft, die mehr sind als
- * ein Grund: Dunst, Nici, Fale. Die anderen malen nur ihren Grund (`layerBackground`).
+ * ein Grund: Dunst, Nici, Fale; 2026-10-25 auch das Bild (es blendet ein, sobald es
+ * geladen ist). Die anderen malen nur ihren Grund (`layerBackground`).
  */
 export function LayerArt({ layer }: { layer: Layer }) {
   const wavesOf = useMemo(() => (layer.kind === 'waves' ? waves(layer) : []), [layer]);
   const meshOf = useMemo(() => (layer.kind === 'mesh' ? meshMotions(layer) : []), [layer]);
+
+  if (layer.kind === 'image') return layer.url === '' ? null : <LayerImage layer={layer} />;
 
   if (layer.kind === 'haze') {
     const style: CSSProperties = {

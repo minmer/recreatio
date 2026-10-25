@@ -23,5 +23,4 @@ Brak reklam, analityki i bibliotek śledzących. Aplikacja łączy się tylko z 
 KONTO
 Do korzystania potrzebne jest konto — zakładasz je w aplikacji (od 16 lat). Konto usuniesz sam w każdej chwili: Konto → Usunięcie konta.
 
-Polityka prywatności: https://recreatio.pl/prywatnosc/
 Kontakt: kontakt@recreatio.pl

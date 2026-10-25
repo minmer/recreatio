@@ -114,6 +114,13 @@ public static partial class Page
 
         var slugId = row.Value.Id;
 
+        /* 0129 — eine öffentliche Seite braucht jemanden, der für ihren Inhalt geradesteht; leeren darf man sie immer. */
+        if (parts.Count > 0 && await Controllers.PageGateAsync(connection, slugId, wanted, ctx.RequestAborted) is { } nobody)
+        {
+            await Fail(ctx, StatusCodes.Status409Conflict, nobody);
+            return;
+        }
+
         /*
          * 0121 — VERSIEGELT ODER OFFEN, und zwar ganz: auf einer versiegelten
          * Seite kommen Anordnung und Inhalt jedes Bausteins als Hülle (ein
@@ -380,8 +387,11 @@ public static partial class Page
         var parts = new List<object>();
 
         await using var cmd = new SqlCommand("""
-            SELECT p.id, COALESCE(m.kind, p.kind) AS kind, p.layout,
-                   COALESCE(m.config, p.config) AS config, p.module_id
+            SELECT p.id,
+                   CASE WHEN blk.hit = 1 THEN N'blocked' ELSE COALESCE(m.kind, p.kind) END AS kind,
+                   p.layout,
+                   CASE WHEN blk.hit = 1 THEN NULL ELSE COALESCE(m.config, p.config) END AS config,
+                   CASE WHEN blk.hit = 1 THEN NULL ELSE p.module_id END
             FROM app.slug_part p
             /*
                 DER BAUSTEIN GEWINNT (0036). Steht derselbe auf zwei Seiten,
@@ -390,6 +400,11 @@ public static partial class Page
                 nur, wo ein Baustein (noch) fehlt.
             */
             LEFT JOIN app.module m ON m.id = p.module_id
+            /* 0130 — ein nach einer Meldung gesperrter Teil (oder sein Baustein) steht nur noch als Platzhalter da. */
+            OUTER APPLY (SELECT TOP 1 1 AS hit FROM app.takedown t
+                          WHERE t.item_at IS NULL
+                            AND ((t.item_kind = N'part' AND t.item_id = p.id)
+                              OR (t.item_kind IN (N'part', N'form') AND t.item_id = p.module_id))) blk
             WHERE p.slug_id = @slug
             ORDER BY p.position;
             """, connection);

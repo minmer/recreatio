@@ -67,6 +67,12 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
     f('rightValue', 'Prawa strona, gdy nic nie przychodzi', 'lines', { hint: 'puste: wszystkie pozostałe' }),
     f('count', 'Najwyżej par', 'number', { hint: '5' })
   ],
+  /* 2026-10-25 (Wywód) — zwei Felder derselben Einträge: Fragment ↔ Teza. */
+  'pairs.fields': [
+    f('left', 'Pole po lewej', 'field', { hint: 'np. fragment; puste: teza wpisu' }),
+    f('right', 'Pole po prawej', 'field', { hint: 'puste: teza wpisu' }),
+    f('count', 'Najwyżej par', 'number', { hint: '5' })
+  ],
   pattern: [f('text', 'Wzór', 'text', { hint: 'Kto napisał {0}?' }), f('inputs', 'Ile wejść', 'number'), f('joiner', 'Łącznik wielu wartości', 'text', { hint: ', ' })],
   mask: [f('mode', 'Co zakryć', 'select', { options: opts([['prefix', 'koniec (zostaje początek)'], ['suffix', 'początek (zostaje koniec)'], ['random', 'losowe słowa']]) }), f('keep', 'Ile zostaje widoczne (0–1)', 'number'), f('gap', 'Znak luki', 'text', { hint: '…' })],
   fragments: [f('min', 'Najkrótszy kawałek (znaki)', 'number'), f('max', 'Najdłuższy kawałek (znaki)', 'number')],
@@ -112,6 +118,11 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   filter: [f('templates', 'Tylko szablony', 'templates'), f('directions', 'Tylko kierunki', 'lines'), f('forms', 'Tylko formy', 'forms'), f('levels', 'Tylko stany', 'levels'), f('dueOnly', 'Tylko te, na które przyszła pora', 'bool')],
   /* 2026-10-22 (Schritt 9) — dieselben Schritte wie ein Widok (`selection.ts`). */
   follow: [f('field', 'Po którym polu', 'field', { hint: 'puste: po wszystkich odwołaniach' }), f('back', 'Wstecz: do tego, co wskazuje na te wpisy', 'bool')],
+  /* 2026-10-25 (Wywód) — entlang der Strukturfelder, die der Rodzaj erklärt. */
+  structure: [
+    f('dir', 'Kierunek', 'select', { options: opts([['down', 'w dół — to, co leży pod nimi'], ['up', 'w górę — to, pod czym leżą']]) }),
+    f('one', 'Tylko jeden poziom', 'bool', { hint: 'bez zaznaczenia: do samego końca, wszystkie poziomy' })
+  ],
   'filter.rule': [f('rule', 'Reguła', 'query')],
   union: [],
   gate: [f('threshold', 'Od jakiej znajomości (1 = umie)', 'number')],

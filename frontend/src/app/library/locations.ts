@@ -266,21 +266,27 @@ export const OUTLINE_LEVELS: readonly { readonly key: string; readonly label: st
   { key: 'paragraph', label: 'ak.', words: /^(?:ak|akapit|par|para|¶|abs)\.?$/i }
 ];
 
-/** „t. 2, cz. 1, rozdz. 3" → [2, 1, null, 3, null, null]; Ebenen ohne Angabe sind `null`, auch als Bereich am Ende. */
+/**
+ * „t. 2, cz. 1, rozdz. 3" → [2, 1, null, 3, null, null]; Ebenen ohne Angabe sind `null`, auch als Bereich am Ende.
+ * 2026-10-25: Was dabei nicht gelesen wird („cz. II, xi" → „xi"), bleibt als `rest` — es fiel sonst still
+ * weg, und die Stelle galt als ganz gelesen (die Erkennung des Układ zählt nur, was ganz gelesen ist).
+ */
 function outlineSpans(text: string): { spans: Span[]; rest: string } {
   const from: (number | null)[] = OUTLINE_LEVELS.map(() => null);
   const to: (number | null)[] = OUTLINE_LEVELS.map(() => null);
+  const unread: string[] = [];
   let found = false;
   const t = text.replace(DASH, '-').replace(/§\s*/g, '§ ');
   const tokens = t.split(/[,;]\s*|\s+(?=(?:t|tom|vol|cz|część|ks|księga|lib|rozdz|rozdział|r|cap|c|ch|chap|§|art|ak|akapit|par|¶)\.?\s)/i);
   for (const token of tokens) {
     const m = /^\s*(\S+?)\.?\s*([0-9ivxlcdm]+)(?:\s*-\s*([0-9ivxlcdm]+))?\s*$/i.exec(token);
-    if (m === null) continue;
-    const level = OUTLINE_LEVELS.findIndex((l) => l.words.test(m[1]!) || l.words.test(`${m[1]}.`));
-    if (level < 0) continue;
+    const level = m === null ? -1 : OUTLINE_LEVELS.findIndex((l) => l.words.test(m[1]!) || l.words.test(`${m[1]}.`));
     const read = (s: string | undefined) => (s === undefined ? null : /^\d+$/.test(s) ? Number(s) : roman(s) || null);
-    const a = read(m[2]);
-    if (a === null) continue;
+    const a = m === null || level < 0 ? null : read(m[2]);
+    if (m === null || a === null) {
+      if (token.trim() !== '') unread.push(token.trim());
+      continue;
+    }
     from[level] = a;
     to[level] = read(m[3]) ?? a;
     found = true;
@@ -291,10 +297,10 @@ function outlineSpans(text: string): { spans: Span[]; rest: string } {
     if (dotted !== null) {
       const bits = dotted[1]!.split('.');
       bits.forEach((b, i) => { const n = /^\d+$/.test(b) ? Number(b) : roman(b); from[3 + i] = n; to[3 + i] = n; });
-      found = from.some((x) => x !== null);
+      if (from.some((x) => x !== null)) return { spans: [{ from, to }], rest: '' };
     }
   }
-  return found ? { spans: [{ from, to }], rest: '' } : { spans: [], rest: text };
+  return found ? { spans: [{ from, to }], rest: unread.join(', ') } : { spans: [], rest: text };
 }
 
 const READERS: Readonly<Record<SchemeId, ((text: string) => { spans: Span[]; rest: string }) | null>> = {
@@ -314,7 +320,144 @@ const READERS: Readonly<Record<SchemeId, ((text: string) => { spans: Span[]; res
 export function parsePlace(text: string, scheme: SchemeId, options: PlaceOptions = {}): Place {
   const source = ws(text ?? '');
   if (source === '') return { scheme, spans: [], pages: [], rest: '' };
-  const { pages, rest } = takePages(source);
+  /*
+    2026-10-25 — MEHRERE STÜCKE, durch „;" getrennt (Anfang, Mitte, Ende): „s. 45–47; 52; 58–60",
+    „rozdz. 1; rozdz. 9", „I q. 2 a. 3; I q. 3 a. 1" — jedes für sich gelesen. Ein Stück, das tiefer
+    beginnt als das davor, gehört in dessen Rahmen: „I q. 2 a. 3; a. 4" ist Artikel 4 derselben
+    Quaestio, „I q. 2 a. 3 arg. 1; ad 1" die Antwort im selben Artikel, „t. 2, rozdz. 1; rozdz. 9"
+    Kapitel 9 desselben Bandes. Die Schrift, Nummern, Paragraphen und Dezimalzahlen lesen „;" schon selbst.
+    2026-10-25, nach der Prüfung: Ein Stück, das NUR tiefer geht, als das davor aufhörte, ist dieselbe
+    Stelle, genauer — so standen in alten Daten Ebenen einer Stelle („cz. 1; rozdz. 2" = Teil 1, Kapitel 2;
+    „I q. 2 a. 3; ad 1" = nur ad 1). Es ersetzt das Stück davor, statt als zweites daneben zu stehen (sonst
+    meinte die Stelle den ganzen Teil, den ganzen Artikel). Eine nackte Zahl („rozdz. 3; 5", „I q. 2 a. 3; 4")
+    steht auf der tiefsten Ebene, die das Stück davor nannte — Seiten, wenn es Seiten nannte.
+  */
+  if ((scheme === 'pages' || scheme === 'outline' || scheme === 'aquinas') && source.includes(';')) {
+    const parts = source.split(';').map((s) => s.trim()).filter((s) => s !== '');
+    if (parts.length > 1) return scheme === 'aquinas' ? aquinasPieces(parts) : outlinePieces(parts, scheme, options);
+  }
+  return parseOne(source, scheme, options);
+}
+
+/** Eine nackte Zahl oder ein Bereich, ohne Wort einer Ebene („5", „5–7", „IV"). */
+const BARE = /^[0-9ivxlcdm]+(?:\s*[-–—]\s*[0-9ivxlcdm]+)?$/i;
+
+/** Die tiefste Ebene, die ein Pfad nennt (-1: keine). */
+function deepestOf(path: Path): number {
+  for (let i = path.length - 1; i >= 0; i -= 1) if (path[i] !== null && path[i] !== undefined) return i;
+  return -1;
+}
+
+/**
+ * Ein Buch, Stück für Stück. Beginnt ein Stück tiefer, als das davor aufhörte („cz. 1; rozdz. 2"), ist es
+ * dieselbe Stelle, genauer: es ersetzt das Stück davor. Daneben oder höher („rozdz. 1; rozdz. 9",
+ * „rozdz. 3, § 2; § 4") steht es daneben und behält die Ebenen darüber vom Stück davor.
+ */
+function outlinePieces(parts: readonly string[], scheme: SchemeId, options: PlaceOptions): Place {
+  const spans: Span[] = [];
+  const pages: PageSpan[] = [];
+  const rest: string[] = [];
+  let pagesBefore = false;
+  for (const raw of parts) {
+    const last = spans[spans.length - 1];
+    const level = last === undefined ? -1 : deepestOf(last.from);
+    /* Eine nackte Zahl (bei `pages` ist sie ohnehin eine Seite): auf der tiefsten Ebene des Stücks davor. */
+    const text = scheme !== 'outline' || !BARE.test(raw) ? raw
+      : pagesBefore ? `s. ${raw}` : level >= 0 ? `${OUTLINE_LEVELS[level]!.label} ${raw}` : raw;
+    const place = parseOne(text, scheme, options);
+    pagesBefore = place.pages.length > 0;
+    pages.push(...place.pages);
+    if (place.rest !== '') rest.push(place.rest);
+    const span = place.spans.length === 1 ? place.spans[0]! : undefined;
+    if (span === undefined || last === undefined) {
+      spans.push(...place.spans);
+      continue;
+    }
+    const top = span.from.findIndex((x) => x !== null);
+    if (top > level) {
+      spans[spans.length - 1] = { from: last.from.map((x, i) => span.from[i] ?? x), to: last.to.map((x, i) => span.to[i] ?? x) };
+    } else {
+      const fill = (path: Path): Path => path.map((x, i) => (i < top && x === null ? last.to[i] ?? null : x));
+      spans.push({ from: fill(span.from), to: fill(span.to) });
+    }
+  }
+  return { scheme, spans, pages, rest: rest.join('; ') };
+}
+
+/* Tomasz: woran ein Stück seine Ebene zeigt — Quaestio, Artikel, ein Stück des Artikels (wie `aquinasSpans` sie liest). */
+const AQ_Q = /\bq(?:uaestio)?\.?\s*\d+(?:\s*-\s*\d+)?/i;
+const AQ_A = /\ba(?:rt(?:iculus)?)?\.?\s*\d+(?:\s*-\s*\d+)?/i;
+const AQ_PIECE = /\bad\s*\d|\b(?:arg|obj|ob)\.?\s*\d|\bsed\s+contra\b|\b(?:co|c|resp|respondeo|corpus)\b/i;
+
+/**
+ * 2026-10-25: „s. c." am Ende einer Stelle Tomasz' (oder vor einem Trenner) heisst sed contra, nicht die
+ * römische Seite c — die Seiten nahmen es bisher weg, bevor `aquinasSpans` es lesen konnte.
+ */
+const sedContra = (text: string): string => text.replace(/(^|[\s,;(])s\.\s*c\.?(?=\s*(?:[,;)]|$))/gi, '$1sed contra');
+
+/** Womit eine nackte Zahl nach diesem Pfad weiterzählt: q., a., arg., ad — nach co. und sed contra nichts. */
+function aquinasWord(path: Path): string {
+  if (path.length === 2) return 'q.';
+  if (path.length === 3) return 'a.';
+  return path.length === 5 ? (path[3] === 1 ? 'arg.' : path[3] === 4 ? 'ad' : '') : '';
+}
+
+/**
+ * Tomasz, Stück für Stück. Die Seiten kommen zuerst heraus: sie sind kein Rahmen und wandern in kein
+ * anderes Stück. Was bleibt, steht im Rahmen des Stücks davor (Teil, Quaestio, Artikel), soweit es ihn
+ * nicht selbst nennt — aber nur, wenn es eine Ebene Tomasz' nennt; sonst bliebe allein der Rahmen,
+ * also der ganze Artikel („…arg. 1; s. 45"). Geht es nur tiefer, als das Stück davor aufhörte
+ * („I q. 2; a. 3", „I q. 2 a. 3; ad 1"), ersetzt es dieses; daneben („a. 3; a. 4", „arg. 1; ad 1") bleiben beide.
+ */
+function aquinasPieces(parts: readonly string[]): Place {
+  const spans: Span[] = [];
+  const pages: PageSpan[] = [];
+  const rest: string[] = [];
+  let head = '';
+  let upToQ = '';
+  let upToA = '';
+  let pagesBefore = false;
+  for (const raw of parts) {
+    const last = spans[spans.length - 1];
+    let text = raw.replace(DASH, '-');
+    if (/^\d+(?:\s*-\s*\d+)?$/.test(text)) {
+      const word = pagesBefore ? 's.' : last === undefined ? '' : aquinasWord(last.from);
+      if (word !== '') text = `${word} ${text}`;
+    }
+    const taken = takePages(AQ_Q.test(text) || upToQ !== '' ? sedContra(text) : text);
+    pages.push(...taken.pages);
+    pagesBefore = taken.pages.length > 0;
+    const piece = taken.rest;
+    if (piece === '') continue;
+    const own = AQ_Q.exec(piece);
+    const article = AQ_A.test(piece);
+    if (own === null && !article && !AQ_PIECE.test(piece)) {
+      rest.push(piece);
+      continue;
+    }
+    /* Die Ebene, auf der das Stück beginnt: 0 Teil (oder etwas vor der Quaestio), 1 Quaestio, 2 Artikel, 3 Stück des Artikels. */
+    const top = own !== null ? (piece.slice(0, own.index).trim() === '' ? 1 : 0) : article ? 2 : 3;
+    const frame = top === 1 ? head : top === 2 ? upToQ : top === 3 ? upToA || upToQ : '';
+    const full = frame === '' ? piece : `${frame} ${piece}`;
+    const read = aquinasSpans(full);
+    const q = AQ_Q.exec(full);
+    if (read.spans.length === 0 || q === null) {
+      rest.push(piece);
+      continue;
+    }
+    head = full.slice(0, q.index).trim();
+    upToQ = full.slice(0, q.index + q[0].length);
+    const a = AQ_A.exec(full.slice(upToQ.length));
+    upToA = a === null ? '' : full.slice(0, upToQ.length + a.index + a[0].length);
+    /* Die tiefste Ebene des Stücks davor: [Teil, Quaestio] 1, [… Artikel] 2, [… Stück (, Nummer)] 3. */
+    if (last !== undefined && top > Math.min(last.from.length, 4) - 1) spans.splice(spans.length - 1, 1, ...read.spans);
+    else spans.push(...read.spans);
+  }
+  return { scheme: 'aquinas', spans, pages, rest: rest.join('; ') };
+}
+
+function parseOne(source: string, scheme: SchemeId, options: PlaceOptions): Place {
+  const { pages, rest } = takePages(scheme === 'aquinas' && AQ_Q.test(source) ? sedContra(source) : source);
   if (scheme === 'pages') {
     if (pages.length === 0) {
       const bare = ranges(rest, pageNumber);
@@ -485,8 +628,9 @@ export function formatPlace(place: Place, original = ''): string {
     if (place.scheme === 'bible') parts.push(formatBible(place.spans.map(spanToBible).filter((s): s is BibleSpan => s !== null)));
     else parts.push(place.spans.map((s) => writeSpan(s, place.scheme)).join('; '));
   }
+  /* 2026-10-25 — was keine Regel las, vor den Seiten (hinter „s. 45" läse man ein „xi" wieder als Seite); übrige Satzzeichen („)") nicht. */
+  if (/[\p{L}\p{N}]/u.test(place.rest)) parts.push(place.rest);
   if (place.pages.length > 0) parts.push(`s. ${place.pages.map((p) => (p.from === p.to ? pageWord(p.from) : `${pageWord(p.from)}–${pageWord(p.to)}`)).join(', ')}`);
-  if (place.rest !== '') parts.push(place.rest);
   return parts.join(', ');
 }
 

@@ -249,7 +249,17 @@ export const Field = {
    * 0125 — ein Programm, das Pliki przez link anlegt (Thunderbird, `phone/shareSeal.ts`):
    * der Schlüssel seiner Etiketten und sein Name, unter dem Schlüssel des Bereichs.
    */
-  ShareDevice: 'share_device'
+  ShareDevice: 'share_device',
+
+  /*
+   * 0130 — EINE MELDUNG (`reports/reports.ts`): ihr Text unter einem
+   * Zufallsschlüssel, und dieser verpackt für die Rolle des Betreibers; der
+   * Widerspruch des Verfassers genauso. Der Dienst öffnet keines davon.
+   */
+  ReportText: 'report_text',
+  ReportKey: 'report_key',
+  ReportObjection: 'report_objection',
+  ReportObjectionKey: 'report_objection_key'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

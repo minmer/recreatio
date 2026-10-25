@@ -7,10 +7,12 @@
  * für jede Seite, die es braucht.
  */
 
+import { anchorPath, readAnchor } from '../cogita/anchors';
 import { cogitaPath } from '../cogita/parts';
 import { containerPath, openedLibraryKind } from './library';
-import { entryTitle, kindOf, str, type LibEntry } from './libraryKinds';
+import { entryTitle, kindOf, str, type LibEntry, type Lookup } from './libraryKinds';
 import { plainText } from './libraryMarkup';
+import { blocksKeyOf, blocksOf, thesisOf } from './blocks';
 import type { Entry, LibraryStore } from './libraryStore';
 import type { Hit } from './refIndex';
 import { planOf, pointNumbers } from '../scriptorium/sermon';
@@ -32,7 +34,8 @@ export function entryLine(entry: LibEntry, store: LibraryStore): string {
 /** Die Dokumente einer Baza wiedzy — mit Namen und Weg. */
 export const DOC_LABEL: Readonly<Record<string, string>> = {
   template: 'Szablon karty', revision: 'Powtórka', flow: 'Przebieg', view: 'Widok', collection: 'Zbiór',
-  addform: 'Formularz dodawania', kind: 'Rodzaj', rules: 'Zasady', values: 'Wartości', look: 'Wygląd', contribution: 'Propozycja'
+  addform: 'Formularz dodawania', kind: 'Rodzaj', rules: 'Zasady', values: 'Wartości', look: 'Wygląd', contribution: 'Propozycja',
+  anchor: 'Wejście z Biblioteki'
 };
 const DOC_TAB: Readonly<Record<string, readonly string[]>> = {
   template: ['karty'], revision: ['powtorki'], flow: ['przebiegi'], view: ['wpisy', 'widok'], addform: ['schemat', 'formularz']
@@ -43,11 +46,19 @@ const clip = (text: string, length: number) => (text.length > length ? `${text.s
 /** Der Name dessen, der zeigt — ein Eintrag der Bibliothek, ein Eintrag oder ein Dokument der Bazy wiedzy. */
 export function hitTitle(entry: Entry, store: LibraryStore): string {
   if (isBooksStore(store)) return entry.kind === 'quote' ? `„${store.title(entry)}”` : entryLine(entry, store);
+  return baseEntryTitle(entry, store);
+}
+
+/** Ein Eintrag oder Dokument einer Baza wiedzy, wie er in Listen der Bibliothek heisst. */
+export function baseEntryTitle(entry: LibEntry, store: Lookup): string {
   const doc = DOC_LABEL[entry.kind];
   const name = str(entry.data, 'name') || str(entry.data, 'title') || str(entry.data, 'label');
   if (doc !== undefined) return name === '' ? doc : `${doc}: „${name}”`;
   if (kindOf(entry.kind) !== undefined) return entryTitle(entry, store);
-  const said = name || str(entry.data, 'prompt') || [str(entry.data, 'givenNames'), str(entry.data, 'surname')].filter(Boolean).join(' ')
+  /* 2026-10-25 — eine Aussage (Rodzaj mit Feld blocks) heisst nach ihrer Teza, nicht „Wpis". */
+  const blocksKey = name === '' ? blocksKeyOf(entry, store) : null;
+  const thesis = blocksKey === null ? '' : thesisOf(blocksOf(entry.data, blocksKey));
+  const said = name || thesis || str(entry.data, 'prompt') || [str(entry.data, 'givenNames'), str(entry.data, 'surname')].filter(Boolean).join(' ')
     || plainText(str(entry.data, 'text')).replace(/\s+/g, ' ');
   return said === '' ? 'Wpis' : clip(said, 90);
 }
@@ -55,6 +66,8 @@ export function hitTitle(entry: Entry, store: LibraryStore): string {
 /** Wohin ein Klick führt: in die Bibliothek, ins Skryptorium (2026-10-23) oder in die Baza wiedzy (ihr Reiter). */
 export function hitHref(entry: Entry, store: LibraryStore): string {
   if (isBooksStore(store)) return containerPath(entry.libraryId, entry.id);
+  /* 2026-10-25 (Wywód) — ein Wejście z Biblioteki führt dorthin, wohin es führt: in seinen Widok, an seinen Eintrag. */
+  if (entry.kind === 'anchor') return anchorPath(entry.libraryId, readAnchor(entry.id, entry.data));
   const tab = DOC_TAB[entry.kind];
   if (tab !== undefined) return cogitaPath(entry.libraryId, ...tab, entry.id);
   if (DOC_LABEL[entry.kind] !== undefined) return cogitaPath(entry.libraryId, entry.kind === 'kind' ? 'schemat' : 'wpisy');

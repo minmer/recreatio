@@ -297,7 +297,7 @@ public static partial class Form
 
 /// <summary>Das Formular als Ganzes: wovon es handelt, ob es offen ist, wer fuer die Daten steht.</summary>
     private sealed record Whole(
-        string ForKind, bool Closed, (string Name, string? Address, string? Email)? Controller,
+        string ForKind, bool Closed, Controllers.Info? Controller,
 
         /// <summary>Wie das Formular heisst — die Ueberschrift auf der Seite (fuer den Ausdruck). Sonst sein Name, den der Browser oeffnet (0097).</summary>
         string? Title = null,
@@ -391,46 +391,38 @@ public static partial class Form
     /// </summary>
     private static async Task<Whole?> WholeAsync(SqlConnection connection, Guid moduleId, CancellationToken ct)
     {
-        await using var cmd = new SqlCommand("""
-            WITH chain AS (
-                SELECT a.id, a.parent_area_id, 0 AS depth
-                  FROM app.area a
-                  JOIN app.module mm ON mm.area_id = a.id
-                 WHERE mm.id = @id
-                UNION ALL
-                SELECT p.id, p.parent_area_id, c.depth + 1
-                  FROM app.area p
-                  JOIN chain c ON p.id = c.parent_area_id
-                 WHERE c.depth < 16
-            )
-            SELECT m.for_kind, m.closed_at,
-                   m.config, m.area_id, m.name_sealed, m.name_epoch,
-                   h.name, h.address, h.email
+        string forKind;
+        bool closed;
+        string? config;
+        Guid? areaId;
+        byte[]? nameSealed;
+        int? nameEpoch;
+
+        await using (var cmd = new SqlCommand("""
+            SELECT m.for_kind, m.closed_at, m.config, m.area_id, m.name_sealed, m.name_epoch
             FROM app.module m
-            OUTER APPLY (
-                SELECT TOP 1 ac.name, ac.address, ac.email
-                  FROM chain ch
-                  JOIN app.area_controller ac ON ac.area_id = ch.id
-                 ORDER BY ch.depth
-            ) h
             WHERE m.id = @id;
-            """, connection);
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@id", moduleId);
 
-        cmd.Parameters.AddWithValue("@id", moduleId);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)) return null;
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
+            forKind = reader.GetString(0);
+            closed = !reader.IsDBNull(1);
+            config = reader.IsDBNull(2) ? null : reader.GetString(2);
+            areaId = reader.IsDBNull(3) ? null : reader.GetGuid(3);
+            nameSealed = reader.IsDBNull(4) ? null : (byte[])reader[4];
+            nameEpoch = reader.IsDBNull(5) ? null : reader.GetInt32(5);
+        }
 
-        string? Text(int i) => reader.IsDBNull(i) ? null : reader.GetString(i);
+        /* 0129 — der Datensatz, der für den Bereich des Formulars gilt (eigen oder darüber). */
+        var controller = areaId is null ? null : await Controllers.OfAreaAsync(connection, areaId.Value, ct);
 
-        (string, string?, string?)? controller = Text(6) is string name ? (name, Text(7), Text(8)) : null;
-
-        var config = Text(2);
-        return new Whole(reader.GetString(0), !reader.IsDBNull(1), controller,
+        return new Whole(forKind, closed, controller,
             Title: TitleOf(config), After: AfterOf(config),
-            AreaId: reader.IsDBNull(3) ? null : reader.GetGuid(3),
-            NameSealed: reader.IsDBNull(4) ? null : (byte[])reader[4],
-            NameEpoch: reader.IsDBNull(5) ? null : reader.GetInt32(5));
+            AreaId: areaId, NameSealed: nameSealed, NameEpoch: nameEpoch);
     }
 
 /// <summary>Die zu bestaetigenden Fragen als Text — oder <c>null</c>, wenn keine.</summary>

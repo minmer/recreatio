@@ -163,7 +163,7 @@ function crustCover(m: number, dx: number, depth: number): number {
  * Ergibt LWC_ref = 4·ρ_w·r/(3·Q·L) ≈ 14 g/m³: 3 g/m³ → 19 %, 10 g/m³ → 50 %,
  * 15 g/m³ → 65 % (über heissem Wasser bildet die Engine 1–15 g/m³).
  */
-const FOG_REF = (4 * 1000 * 1.5e-6) / (3 * 2 * 0.07);
+export const FOG_REF = (4 * 1000 * 1.5e-6) / (3 * 2 * 0.07);
 const u8 = (x: number): number => Math.round(255 * Math.min(1, Math.max(0, x)));
 
 let lw = new Float32Array(0);

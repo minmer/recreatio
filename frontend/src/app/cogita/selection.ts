@@ -36,6 +36,10 @@
 
 import { fieldKind, fieldsOf, fieldText, fieldUnit, labelOf, plainOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 import { convert, measures, parseQuantity } from '../core/quantities';
+import { childrenOf, parentsOf } from './structure';
+
+/** 2026-10-25 — wie viele Einträge „Idź po strukturze" höchstens erreicht (ein Kreis endet ohnehin). */
+const STRUCTURE_CAP = 5000;
 
 /**
  * 2026-10-23 (Schritt 13) — DIE ZAHL EINER REGEL in der Einheit des Feldes:
@@ -160,7 +164,8 @@ export interface SelectContext {
 
 export const SOURCE_TYPES = ['source.all', 'source.kind', 'source.collection', 'source.list', 'source.from'] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
-export type StepType = SourceType | 'follow' | 'filter.rule';
+/** 2026-10-25 (Wywód) — `structure`: entlang der Felder, die der Rodzaj als Verbindung einer Struktur erklärt (`structure.ts`). */
+export type StepType = SourceType | 'follow' | 'structure' | 'filter.rule';
 
 export interface Step {
   readonly type: StepType;
@@ -175,10 +180,11 @@ export const STEP_WORDS: Readonly<Record<StepType, { readonly label: string; rea
   'source.list': { label: 'Lista', says: 'Wybrane wpisy (identyfikatory, jeden w wierszu).' },
   'source.from': { label: 'Z wpisu', says: 'To, na co wskazuje wybrany wpis — np. kazanie: jego cytaty, komentarze, słowa, miejsca z planu.' },
   follow: { label: 'Idź po odwołaniu', says: 'Od wybranych wpisów dalej: do tego, na co wskazują (jedno pole albo wszystkie) — albo wstecz: do tego, co wskazuje na nie.' },
+  structure: { label: 'Idź po strukturze', says: 'Od wybranych wpisów w dół struktury — po polach, które ich rodzaje oznaczają jako „połączenie w strukturze” — do samego końca albo o jeden poziom; albo w górę, do wpisów, pod którymi leżą. W „Strukturze” rysuje drzewo w kolejności miejsc w dziele.' },
   'filter.rule': { label: 'Filtr', says: 'Zostawia wpisy spełniające regułę: pole, porównanie, grupy warunków (I / LUB).' }
 };
 
-const STEP_TYPES: readonly StepType[] = [...SOURCE_TYPES, 'follow', 'filter.rule'];
+const STEP_TYPES: readonly StepType[] = [...SOURCE_TYPES, 'follow', 'structure', 'filter.rule'];
 export const isSource = (type: string): type is SourceType => (SOURCE_TYPES as readonly string[]).includes(type);
 
 /** 2026-10-23 (Schritt 5) — ein Schritt, den es nicht mehr gibt: was er war, für den Hinweis. */
@@ -235,6 +241,29 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
           const entity = ctx.entity(id);
           if (entity !== undefined) for (const target of targetsOf(entity, ctx.look, field)) out.add(target);
         }
+      }
+      return out;
+    }
+    case 'structure': {
+      /* 2026-10-25 (Wywód) — unter (oder über) den gewählten Einträgen, so weit die Struktur reicht. */
+      const up = c.dir === 'up';
+      /* „Tylko jeden poziom" (`one`) — ein Häkchen kann nur `true` speichern; ein altes `deep: false` gilt weiter. */
+      const deep = !(c.one === true || c.deep === false);
+      const src = { entity: ctx.entity, look: ctx.look, pointing: ctx.pointing };
+      const out = new Set<string>();
+      /* Was schon aufgeklappt wurde (gegen Kreise) — getrennt vom Ergebnis: ein gewählter Eintrag unter einem anderen gewählten gehört dazu. */
+      const expanded = new Set(input ?? []);
+      let layer = [...expanded];
+      while (layer.length > 0 && out.size < STRUCTURE_CAP) {
+        const next: string[] = [];
+        for (const id of layer) {
+          for (const x of up ? parentsOf(id, src) : childrenOf(id, src).map((k) => k.id)) {
+            out.add(x);
+            if (!expanded.has(x)) { expanded.add(x); next.push(x); }
+          }
+        }
+        if (!deep) break;
+        layer = next;
       }
       return out;
     }

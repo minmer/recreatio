@@ -20,14 +20,13 @@ import ReactFlow, { Background, Controls, type Edge, type Node, type NodeChange 
 import 'reactflow/dist/style.css';
 
 import { MenuButton } from '../ui/Menu';
-import { fieldsOf, fieldText, placeText, valuesOf, type Entity } from './schema';
+import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { SelectionBar } from './EntitySelection';
 import { RuleEditor } from './RuleEditor';
 import { OriginTag, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
-import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColumns, viewGroups, viewJson, viewList, viewMatrix, viewOutline, withRule, withSourceKind, type OutlineNode, type ViewDoc } from './views';
-import { EntityGlance } from './CardFace';
-import { TextJump } from '../library/SourceJump';
+import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline, withRule, withSourceKind, type OutlineDisplay, type ViewDoc } from './views';
+import { StructureView } from './StructureView';
 import type { Group } from './selection';
 import { MatrixGrid } from './MatrixGrid';
 import { addToPlan, contextOf, createHere, learn } from './viewActions';
@@ -44,8 +43,10 @@ export type { ListMode } from './views';
  * Sposoby wyświetlania" (`design`) wird ein Sposób gebaut: Name, dieselben Teile offen, Zapisz,
  * Usuń — und darunter, was er zeigt. Hinzugefügt wird in „Dodaj", nicht hier.
  */
-export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = false, onSaved, onRemoved }: {
+export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDesign, design = false, onSaved, onRemoved }: {
   viewId: string | null;
+  /** 2026-10-25 (Wywód) — der Widok, geöffnet an diesem Eintrag (`wpisy/widok/<widok>/<eintrag>`, ein Wejście z Biblioteki). */
+  startAt?: string | null;
   onOpen: (id: string) => void;
   onView: (id: string | null) => void;
   /** Zum Reiter „Dodaj". */
@@ -72,8 +73,11 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
     return () => window.removeEventListener('keydown', esc);
   }, [picked.size]);
 
+  /* 2026-10-25 — an einem Eintrag geöffnet: was vor dem ersten „Idź po…" steht, ist dieser Eintrag. */
+  const start = startAt === null ? undefined : lib.entity(startAt);
+  const shown = useMemo(() => (start === undefined ? view : viewFrom(view, start.id)), [view, start?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const list = useMemo(() => viewList(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort)]);
+  const list = useMemo(() => viewList(lib, shown), [lib, lib.revision, shown.query, JSON.stringify(shown.steps), JSON.stringify(shown.sort)]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const groups = useMemo(() => (view.mode === 'tree' && view.group !== null ? viewGroups(lib, view, list) : null), [list, view.mode, JSON.stringify(view.group)]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,7 +119,8 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
     toast(`Dodano ${n} punktów do planu „${lib.label(text)}”.`);
   });
   const toRevision = (ids?: readonly string[], name?: string) => run(async () => {
-    const id = await learn(lib, view, ids, name);
+    /* 2026-10-25 — geöffnet an einem Eintrag: gelernt wird, was da steht (sein Teil der Struktur), nicht der ganze Widok. */
+    const id = await learn(lib, start === undefined ? view : { ...shown, name: `${view.name}: ${lib.label(start)}`.slice(0, 120) }, ids, name);
     window.location.hash = href('powtorki', id);
   });
   const setV = (patch: Partial<ViewDoc>) => setView((v) => ({ ...v, ...patch }));
@@ -146,18 +151,26 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
     <>
       <div className="cg-adjust-part">
         <h4 className="cg-adjust-h">Co pokazać</h4>
-        <details open={design || undefined}>
-          <summary>Filtr {rule !== null && rule.items.length > 0 ? `(${rule.items.length})` : ''}</summary>
-          <RuleEditor rule={rule ?? { op: 'and', items: [] }} onChange={(next) => setView(withRule(view, next))} />
-        </details>
-        <details open={design || undefined}>
-          <summary>Wybór — także po odwołaniach — i grupy {view.steps.length > 1 || quickKind === null ? `(${view.steps.length} ${view.steps.length === 1 ? 'krok' : 'kroki'})` : ''}</summary>
-          <ViewSteps view={view} onChange={setView} />
-        </details>
+        {/* 2026-10-25 — geöffnet an einem Eintrag: Filtr und Wybór vor dem ersten „Idź po…" ersetzt dieser Eintrag; geändert werden sie im ganzen Widok. */}
+        {start !== undefined && viewId !== null ? (
+          <p className="cg-muted" data-view-start-note="">Widok otwarty od jednego wpisu — filtr, wybór, wyszukiwanie i rodzaj działają w całym sposobie wyświetlania. <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Pokaż cały</a></p>
+        ) : (
+          <>
+            <details open={design || undefined}>
+              <summary>Filtr {rule !== null && rule.items.length > 0 ? `(${rule.items.length})` : ''}</summary>
+              <RuleEditor rule={rule ?? { op: 'and', items: [] }} onChange={(next) => setView(withRule(view, next))} />
+            </details>
+            <details open={design || undefined}>
+              <summary>Wybór — także po odwołaniach — i grupy {view.steps.length > 1 || quickKind === null ? `(${view.steps.length} ${view.steps.length === 1 ? 'krok' : 'kroki'})` : ''}</summary>
+              <ViewSteps view={view} onChange={setView} />
+            </details>
+          </>
+        )}
       </div>
       <div className="cg-adjust-part">
         <h4 className="cg-adjust-h">Jak pokazać</h4>
         {layout}
+        {view.mode === 'outline' && <OutlineSettings value={view.outline} fields={chooserFields.filter((f) => !f.key.startsWith(AXIS_COLUMN))} onChange={(outline) => setV({ outline })} />}
       </div>
     </>
   );
@@ -176,8 +189,10 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
         </div>
       )}
       <div className="cg-row">
-        <input type="search" value={view.query} placeholder="Szukaj we wpisach…" onChange={(e) => setV({ query: e.target.value })} aria-label="Szukaj" />
-        <select value={quickKind ?? '#inne'} onChange={(e) => { if (e.target.value !== '#inne') setView(withSourceKind(view, e.target.value)); }} aria-label="Rodzaj">
+        {/* 2026-10-25 — geöffnet an einem Eintrag gilt dieser eine Anfang: Suche und Rodzaj fänden nichts anderes (zurück über „Pokaż cały sposób wyświetlania”). */}
+        <input type="search" value={view.query} placeholder="Szukaj we wpisach…" onChange={(e) => setV({ query: e.target.value })} aria-label="Szukaj"
+          disabled={start !== undefined} title={start !== undefined ? 'Widok otwarty od jednego wpisu — szukać można w całym sposobie wyświetlania' : undefined} />
+        <select value={quickKind ?? '#inne'} onChange={(e) => { if (e.target.value !== '#inne') setView(withSourceKind(view, e.target.value)); }} aria-label="Rodzaj" disabled={start !== undefined}>
           <option value="">wszystkie rodzaje</option>
           {lib.kinds.map((k) => <option key={k.id} value={k.id}>{k.name} ({lib.ofKind(k.id).length})</option>)}
           {quickKind === null && <option value="#inne">inne źródło (zob. „Wybór")</option>}
@@ -188,7 +203,8 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
             {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
           </select>
         )}
-        <span className="cg-muted">{list.length} {list.length === 1 ? 'wpis' : 'wpisów'}</span>
+        {/* 2026-10-25 — in der Struktura zählt der Baum (er nennt seine Schritte selbst), nicht das Ende der Auswahl. */}
+        {view.mode !== 'outline' && <span className="cg-muted">{list.length} {list.length === 1 ? 'wpis' : 'wpisów'}</span>}
         {!design && writes && onAdd !== undefined && <button type="button" className="wk-btn" onClick={onAdd}><Icon name="plus" />Dodaj</button>}
         {!design && (writes || viewId !== null) && (
           <MenuButton label="Więcej: ten widok" items={[
@@ -207,6 +223,13 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
         </details>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
+      {start !== undefined && viewId !== null && (
+        <p className="wk-note cg-start-banner" data-view-start={start.id}>
+          <span>Od wpisu: <strong>{lib.label(start)}</strong> <span className="cg-muted">(wyszukiwanie, rodzaj i filtr — w całym sposobie wyświetlania)</span></span>
+          <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Pokaż cały sposób wyświetlania</a>
+          <button type="button" className="wk-link-btn" onClick={() => onOpen(start.id)}>Otwórz wpis</button>
+        </p>
+      )}
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
         onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} label={label} />}
@@ -243,7 +266,7 @@ export function EntityList({ viewId, onOpen, onView, onAdd, onDesign, design = f
         </>
       )}
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} />)}
-      {view.mode === 'outline' && <Outline view={view} onOpen={onOpen} />}
+      {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} />}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
         onMoved={(id, at) => {
           const next = { ...view, positions: { ...view.positions, [id]: at } };
@@ -478,48 +501,57 @@ function Canvas({ list, positions, onOpen, onMoved }: {
   );
 }
 
-/* -- 2026-10-24: Struktura --------------------------------------------------------------------- */
+/* -- 2026-10-24: Struktura; 2026-10-25 (Wywód): als Ganzes gezeichnet (`StructureView.tsx`) ------------------- */
 
 /**
- * DIE STRUKTUR: jeder Eintrag der Quelle, darunter, wohin die Schritte „Idź po odwołaniu" führen,
- * nach Feldern („Komentarz", darunter „Argumenty za", „Zarzuty"). Eine Aussage steht ganz da;
- * ein Verweis mit Stelle (Fragment Pisma: Łk 1,35) mit „pokaż w tekście", wenn es den Text gibt.
+ * DIE STRUKTUR: jeder Eintrag der Quelle, darunter, wohin die Schritte „Idź po odwołaniu" und
+ * „Idź po strukturze" führen. Gezeichnet von `StructureView`: die Wurzel oben (eine Frage als
+ * „Pytanie wiodące"), die Schritte als Baum oder in der Reihenfolge des Textes.
  */
 function Outline({ view, onOpen }: { view: ViewDoc; onOpen: (id: string) => void }) {
   const { lib } = useCtx();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const shape = useMemo(() => viewOutline(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort)]);
-  if (shape.roots.length === 0) return <p className="wk-empty">Nic tu nie ma.</p>;
-  const follows = view.steps.filter((x) => x.type === 'follow').length;
+  const shape = useMemo(() => viewOutline(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort), JSON.stringify(view.outline)]);
+  const leads = view.steps.some((x) => x.type === 'follow' || x.type === 'structure');
   return (
     <div className="cg-outline">
-      {follows === 0 && <p className="cg-muted">Struktura pokazuje też to, do czego prowadzą odwołania — dodaj w „Wybór” krok „Idź po odwołaniu”.</p>}
-      {shape.roots.map((node) => <OutlineItem key={node.id} node={node} onOpen={onOpen} />)}
-      {shape.more && <p className="cg-muted">Pokazano pierwsze 50 — zawęź wybór albo szukaj.</p>}
+      {!leads && <p className="cg-muted">Struktura pokazuje też to, co leży pod wpisami — dodaj w „Wybór” krok „Idź po strukturze” (po polach, które rodzaj oznacza jako połączenie w strukturze) albo „Idź po odwołaniu”.</p>}
+      <StructureView roots={shape.roots} display={view.outline} onOpen={onOpen} more={shape.more} capped={shape.capped} />
     </div>
   );
 }
 
-function OutlineItem({ node, onOpen }: { node: OutlineNode; onOpen: (id: string) => void }) {
-  const { lib } = useCtx();
-  const entity = lib.entity(node.id);
-  if (entity === undefined) return null;
-  if (node.again === true) return <p className="cg-muted">↺ <button type="button" className="cg-ref" onClick={() => onOpen(node.id)}>{lib.label(entity)}</button> (już wyżej)</p>;
-  const places = fieldsOf(entity, lib.look).filter((f) => f.type === 'ref' && f.locator === true)
-    .flatMap((f) => valuesOf(entity, f).filter((v) => typeof v.value === 'string' && v.locator !== undefined).map((v) => ({ f, id: v.value as string, locator: v.locator! })));
+/** 2026-10-25 (Wywód) — wie die Struktura zeigt: das Feld über jedem Knoten, Baum oder Text, das Feld für Gleichstand. */
+function OutlineSettings({ value, fields, onChange }: { value: OutlineDisplay | null; fields: readonly { key: string; label: string }[]; onChange: (next: OutlineDisplay) => void }) {
+  const now: OutlineDisplay = value ?? { chip: '', tie: '' };
   return (
-    <div className="cg-outline-node">
-      <EntityGlance lib={lib} entity={entity} onEntity={onOpen} />
-      {places.map(({ f, id, locator }, i) => {
-        const target = lib.entity(id);
-        return <p key={i} className="cg-outline-place">{f.label}: {placeText(target, locator, target === undefined ? '' : lib.label(target))}<TextJump look={undefined} workId={id} locator={locator} /></p>;
-      })}
-      {node.groups.map((g) => (
-        <section key={g.label} className="cg-outline-group">
-          <h4 className="cg-outline-h">{g.label}</h4>
-          {g.nodes.map((child) => <OutlineItem key={child.id} node={child} onOpen={onOpen} />)}
-        </section>
-      ))}
+    <div className="cg-row" data-outline-settings="">
+      <label className="wk-field"><span>Nad każdym krokiem</span>
+        <select value={now.chip} onChange={(e) => onChange({ ...now, chip: e.target.value })}>
+          <option value="">— nic —</option>
+          {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+        </select>
+      </label>
+      <label className="wk-field"><span>Na początek</span>
+        <select value={now.order ?? ''} onChange={(e) => { const { order: _o, ...rest } = now; onChange(e.target.value === 'text' || e.target.value === 'tree' ? { ...rest, order: e.target.value } : rest); }}>
+          <option value="">jak wybierze czytelnik (artykuł Tomasza: tekst)</option>
+          <option value="tree">wywód (drzewo)</option>
+          <option value="text">kolejność tekstu</option>
+        </select>
+      </label>
+      {/* 2026-10-25 — z. B. „czas" (die Zeit der Erzählung): eine Rückblende vom Ende des Buches steht dann vorn. */}
+      <label className="wk-field"><span>Kroki na jednym poziomie — według</span>
+        <select value={now.by ?? ''} onChange={(e) => { const { by: _b, ...rest } = now; onChange(e.target.value === '' ? rest : { ...rest, by: e.target.value }); }}>
+          <option value="">miejsca w dziele</option>
+          {fields.map((f) => <option key={f.key} value={f.key}>pola „{f.label}” (np. czas opowieści)</option>)}
+        </select>
+      </label>
+      <label className="wk-field"><span>Przy tym samym miejscu w dziele — według</span>
+        <select value={now.tie} onChange={(e) => onChange({ ...now, tie: e.target.value })}>
+          <option value="">— nazwy —</option>
+          {fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+        </select>
+      </label>
     </div>
   );
 }

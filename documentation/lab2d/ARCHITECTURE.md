@@ -271,6 +271,11 @@ so does any gas still left in a liquid cell after the transitions: a liquid cell
 stayed trapped — in a cell a body almost covers, a whiff with almost no heat capacity, whose temperature conduction
 drove to the clamps (150 K, 3000 K) until the gas next to a melting ice cube on a hot plate exploded; in a boiling film
 the vapour of bubbles collapsing where no water was left stayed in the brine's cells (test 27 now dries 9.5 s later).
+The accelerated view does the same in its `transitions` kernel (since 2026-10-25): the gas goes straight up to the first
+gas cell, and where a solid or the lid blocks that walk, to the first gas cell a breadth-first search reaches in the
+9 × 9 window around the cell (the CPU's order, only through fluid cells of the same region); beyond the window it stays
+and is counted (`releaseMisses` — none in any test). Each move is an atomic contribution that `gasApply` books in the
+next dispatch, and an emptied liquid cell gets zero moles, heat capacity and density there.
 
 ### 6.2 Velocity
 
@@ -510,7 +515,9 @@ condenses away (collapse) gives the rest to the liquid of its footprint.
   it lasts; open sides exchange with ambient air (escaped). Between gas cells vapour moves one way and the same mass of
   air the other way, each with the enthalpy of its donor cell. A liquid cell never gives more vapour than the water it
   holds (Σ w m minus what has already left it in this step; since 2026-10-25 — a cell bordering gas on several faces
-  could take more from its particles than they carried, and a clamp at zero would make water). Mass to the particles (`phase.applyMass`) goes to the particles in each cell; only a cell
+  could take more from its particles than they carried, and a clamp at zero would make water; the accelerated view
+  scales such a cell's evaporating faces in `diffOut` like a gas donor's, counted as `evapCapped`). Mass to the particles
+  (`phase.applyMass`) goes to the particles in each cell; only a cell
   that had no water particle at the start of the transfer makes a new one (before, a tiny particle that evaporated
   away in the same transfer let its cell make the condensate a second time: +10⁻⁴ J and +10⁻⁹ kg in one step beside
   the melting cube).
@@ -729,7 +736,9 @@ in the other (§15, solves). Checked on 2026-10-21 by running every kernel with 
   particles and bubbles as records; a CPU `Engine` in the worker mirrors the scene. Every tool runs on the CPU: the
   worker downloads the GPU state into the mirror, applies the operation there and uploads the result
   (`GpuState.download`/`upload`), so the tools use the CPU code unchanged and their bookkeeping stays exact. The
-  inspector and saving download as well.
+  inspector and saving download as well. The upload recomputes the gas fields a clip keyframe does not carry (moles,
+  viscosity, V_eos; `derivedGas`) instead of trusting the mirror's copies: a sealed box restored from a keyframe and
+  uploaded with stale moles ran away to 8.3 bar within 2.5 s (found while designing GPU baking, 2026-10-25).
 - **Step**: the eight stages as compute passes in the CPU's order. Particles are sorted by cell twice per step (a
   counting sort); every particle→grid transfer is a gather over the sorted particles, so P2G needs no float atomics.
   Bubbles: one thread per bubble with its own substeps (identical to the CPU per bubble); merging chains each bubble to
@@ -753,7 +762,7 @@ in the other (§15, solves). Checked on 2026-10-21 by running every kernel with 
   by the donor's vapour and then all faces of a donor are scaled so together they give at most what it holds
   (`diffOut`; before, the clamp to zero after an overdraw made water).
 - **Readbacks**: a few times per second the worker reads counters, interval sums (energy and water flows, phase change,
-  bubble events), regions, heaters and the watched bubble, and keeps f64 totals; each readback carries the layout it was
+  bubble events, released trapped gas and capped evaporation), regions, heaters and the watched bubble, and keeps f64 totals; each readback carries the layout it was
   recorded with, and one that is still in flight when the state is rebuilt is discarded. Budgets on the GPU are f32:
   energy errors of 1e-5–4e-4 of the energy turned over (the sealed box the most) instead of the CPU's 1e-9
   (MILESTONES.md).

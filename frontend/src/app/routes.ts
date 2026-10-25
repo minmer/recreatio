@@ -104,7 +104,14 @@ export const ROUTES = {
    * 0127 — Połącz z asystentem AI: . Hierher schickt ein Assistent
    * (ChatGPT) über OAuth; mit Konto — der Mensch wählt seine Links für den Assistenten.
    */
-  'polacz-ai': { slugged: true, needsIdentity: true }
+  'polacz-ai': { slugged: true, needsIdentity: true },
+
+  /*
+   * 0130 — ZGŁOŚ: `#/zglos` (ein Adressfeld), `#/zglos/<art>/<kennung>` (eine
+   * Sache) und `#/zglos/stan` (was aus einer Meldung wurde). Ohne Konto: melden
+   * kann jeder, was er lesen kann; die Meldung geht an den Betreiber.
+   */
+  zglos: { slugged: true, needsIdentity: false }
 } as const satisfies Readonly<Record<string, RouteDef>>;
 
 export type Route = keyof typeof ROUTES;
@@ -451,6 +458,15 @@ export const VIEWS = {
    * Schlüssel, die Inhalte öffnen, hier um den, der das Konto öffnet.
    */
   account: 'Konto',
+
+  /*
+   * 0129–0131 — SPRAWY: was ein Mensch entscheiden muss und nicht übersehen
+   * darf — gemeldete Inhalte (der Betreiber), eigene Inhalte, die nach einer
+   * Meldung gesperrt sind (mit Widerspruch), Bitten um einen Platz in einer Liste
+   * von Wydarzenia. Was den Administrator danych betrifft, entscheidet sich in den
+   * Ustawienia des Bereichs; hier steht, wohin.
+   */
+  sprawy: 'Sprawy',
 
   /*
    * 0094 — EIN WIDOK: die Seite des Warsztat, wie ein Widok sie beschreibt

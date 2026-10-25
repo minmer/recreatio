@@ -1,6 +1,7 @@
 /**
- * LABOR 2D (v2) — DIE FENSTER (seit 2026-10-24): wie gebacken wird (Länge,
- * Schritt der Aufnahme, Wiedereinstiegspunkte, Auflösung, heftige Zustände),
+ * LABOR 2D (v2) — DIE FENSTER (seit 2026-10-24): wie gebacken wird (wer
+ * rechnet — seit 2026-10-25 auch die Grafikkarte —, Länge, Schritt der
+ * Aufnahme, Wiedereinstiegspunkte, Auflösung, heftige Zustände),
  * die Frage bei einem heftigen Zustand und die Beschreibung (Aufgabe und
  * Modell).
  */
@@ -8,7 +9,7 @@
 import { useState, type ReactNode } from 'react';
 
 import { Icon } from '../../../ui/icons';
-import { BAKE_FPS, BAKE_KEYS } from '../clip/clip';
+import { BAKE_FPS, BAKE_KEYS, type ClipEngine } from '../clip/clip';
 import type { ExtremeEvent } from '../engine/extremes';
 import type { BakeOptions } from '../engine/protocol';
 import type { Quality } from '../engine/scene';
@@ -18,6 +19,21 @@ import { About, type Level } from '../panels';
 /** Wie lange gebacken werden kann (Sekunden Simulationszeit). */
 export const BAKE_SECONDS: readonly number[] = [10, 30, 60, 120, 300];
 const QUALITY: readonly { readonly q: Quality; readonly mm: number }[] = [{ q: 'very-high', mm: 1 }, { q: 'high', mm: 2 }, { q: 'medium', mm: 3 }];
+/**
+ * Was ein Nachweis kostet, gemessen (MILESTONES.md, B und „GPU baking“): Bytes je Zelle und Bild (CPU 1,55 bei 2 mm;
+ * GPU 0,8–1,2), je Zelle und Schlüsselbild (CPU 110–130 bei 2 mm; GPU 76–90 bei 2 mm, 70 bei 1 mm), und wie schnell
+ * gebacken wird (Simulations- je echte Sekunde, Wrzenie auf dem Bezugsrechner; die eingebaute Grafikkarte: 1,25× bei
+ * 2 mm, 0,37× bei 1 mm; CPU 0,13–0,21× und 0,039×; 3 mm geschätzt).
+ */
+const FRAME_BYTES: Readonly<Record<ClipEngine, number>> = { cpu: 1.9, gpu: 1.2 };
+const KEY_BYTES = (engine: ClipEngine, q: Quality): number => (engine === 'gpu' ? (q === 'very-high' ? 72 : 90) : q === 'very-high' ? 100 : 130);
+const RATE: Readonly<Record<ClipEngine, Readonly<Record<Quality, number>>>> = {
+  cpu: { 'very-high': 0.039, high: 0.15, medium: 0.35 },
+  gpu: { 'very-high': 0.37, high: 1.25, medium: 1.5 }
+};
+/** Der Speicher der Nachweise fasst 600 MB (store.ts); ab hier warnt das Fenster. */
+const STORE_MB = 600;
+const NEAR_MB = 450;
 
 /** Klicks in ein Fenster malen nicht in die Kiste. */
 const keep = (e: { stopPropagation: () => void }): void => e.stopPropagation();
@@ -52,12 +68,14 @@ function Choice<T extends string | number>({ label, value, options, onChange }: 
 }
 
 /**
- * Backen: was man wählt und was es ungefähr kostet. Die Grösse schätzt die Zahl der Zellen (je Bild etwa 1,9 Byte je
- * Zelle, je Schlüsselbild etwa 44 — gemessen an der Prüfung 31); cells(q): Zellen der Kiste bei der Auflösung q.
+ * Backen: was man wählt und was es ungefähr kostet (Grösse und Dauer aus der Zahl der Zellen, oben). cells(q): Zellen
+ * der Kiste bei der Auflösung q; gpu: die Grafikkarte kann backen ('yes', dann die Wahl „Licz na“), die Szene braucht
+ * die CPU ('cpu-only': ein Hinweis) oder es gibt kein WebGPU ('none').
  */
-export function BakeDialog({ initial, cells, onBake, onCancel }: {
+export function BakeDialog({ initial, cells, gpu, onBake, onCancel }: {
   initial: BakeOptions;
   cells: (q: Quality) => number;
+  gpu: 'yes' | 'cpu-only' | 'none';
   onBake: (o: BakeOptions) => void;
   onCancel: () => void;
 }) {
@@ -65,10 +83,21 @@ export function BakeDialog({ initial, cells, onBake, onCancel }: {
   const frames = Math.round(o.seconds * o.fps) + 1;
   const keys = Math.floor((frames - 1) / (o.keyEvery * o.fps)) + 1;
   const n = cells(o.quality);
-  const mb = (frames * n * 1.9 + keys * n * 44) / 1e6;
+  const engine: ClipEngine = gpu === 'yes' && o.engine === 'gpu' ? 'gpu' : 'cpu';
+  const mb = (frames * n * FRAME_BYTES[engine] + keys * n * KEY_BYTES(engine, o.quality)) / 1e6;
+  const wall = o.seconds / RATE[engine][o.quality];
+  const time = wall < 90 ? `${num(Math.max(5, Math.round(wall / 5) * 5), 0)} s` : `${num(wall / 60, wall < 600 ? 1 : 0)} min`;
   return (
     <Dialog title={t('bakeDialog')} onClose={onCancel}>
       <p className="l2d-dialog-lead">{t('bakeLead')}</p>
+      {gpu === 'yes' && (
+        <>
+          <Choice label={t('bakeEngine')} value={o.engine ?? 'cpu'} onChange={(v) => setO({ ...o, engine: v })}
+            options={[{ value: 'cpu', text: t('bakeCpu') }, { value: 'gpu', text: t('bakeGpu') }]} />
+          <p className="l2d-note-line">{t(engine === 'gpu' ? 'bakeGpuNote' : 'bakeCpuNote')}</p>
+        </>
+      )}
+      {gpu === 'cpu-only' && <p className="l2d-note-line">{t('bakeCpuOnly')}</p>}
       <Choice label={t('bakeLength')} value={o.seconds} onChange={(v) => setO({ ...o, seconds: v })}
         options={BAKE_SECONDS.map((s) => ({ value: s, text: s < 60 ? `${s} s` : `${s / 60} min` }))} />
       <Choice label={t('bakeFps')} value={o.fps} onChange={(v) => setO({ ...o, fps: v })}
@@ -80,7 +109,8 @@ export function BakeDialog({ initial, cells, onBake, onCancel }: {
       <Choice label={t('extremes')} value={o.extremes} onChange={(v) => setO({ ...o, extremes: v })}
         options={[{ value: 'compute', text: t('extCompute') }, { value: 'normalize', text: t('extNormalize') }]} />
       <p className="l2d-note-line">{t(o.extremes === 'compute' ? 'extComputeNote' : 'extNormalizeNote')}</p>
-      <p className="l2d-estimate">{t('bakeEstimate').replace('{f}', String(frames)).replace('{k}', String(keys)).replace('{mb}', num(mb, mb < 10 ? 1 : 0))}</p>
+      <p className="l2d-estimate">{t('bakeEstimate').replace('{f}', String(frames)).replace('{k}', String(keys)).replace('{mb}', num(mb, mb < 10 ? 1 : 0))} · {t('bakeTime').replace('{t}', time)}</p>
+      {mb >= NEAR_MB && <p className="l2d-warn-line" role="alert">{t(mb > STORE_MB ? 'bakeOverCap' : 'bakeNearCap')}</p>}
       <footer className="l2d-dialog-foot">
         <button type="button" className="l2d-btn is-quiet" onClick={onCancel}>{t('cancel')}</button>
         <button type="button" className="l2d-btn is-primary" onClick={() => onBake(o)}><Icon name="clock" />{t('bake')}</button>

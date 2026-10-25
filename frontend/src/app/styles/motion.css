@@ -98,6 +98,14 @@
 .wk-air-haze { position: absolute; inset: -20%; }
 .wk-air-haze > span { display: block; width: 100%; height: 100%; }
 .wk-air-mesh, .wk-air-waves { position: absolute; inset: 0; overflow: hidden; }
+
+/* 2026-10-25 — ein Bild, das noch lädt, blendet ein, sobald es da ist (ui/fadeImage.tsx): als Schicht und als <img>.
+   Nur auf dem Weg hinein gibt es einen Übergang; das Verstecken geschieht sofort (kein halbes Bild auf dem Weg hinaus). */
+.wk-layer-image { position: absolute; inset: 0; background-size: cover; background-repeat: no-repeat; opacity: 0; }
+.wk-layer-image.is-ready { opacity: 1; transition: opacity 0.6s ease; }
+.wk-fade { transition: opacity 0.45s ease; }
+.wk-fade.is-loading { opacity: 0; transition: none; }
+@media (prefers-reduced-motion: reduce) { .wk-layer-image.is-ready, .wk-fade { transition: none; } }
 .wk-air-mesh > .wk-motion-root, .wk-air-mesh > .wk-air-mesh-sheet { position: absolute; inset: 0; }
 .wk-air-mesh-sheet { position: absolute; top: 0; bottom: 0; left: -40%; width: 180%; transform-origin: 50% 80%; }
 .wk-air-mesh-canvas { display: block; width: 100%; height: 100%; }

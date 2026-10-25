@@ -166,6 +166,15 @@ export interface FieldDef {
    * Stelle wird gelesen (`library/bible.ts`), gesucht („Fragment Pisma") und gezeigt.
    */
   readonly locator?: boolean;
+  /**
+   * 2026-10-25 (Wywód) — `ref` ALS VERBINDUNG IN EINER STRUKTUR, vom Besitzer
+   * erklärt: `up` — dieser Eintrag liegt UNTER dem, worauf er zeigt („Należy
+   * do", „Odpowiada na"); `down` — was er nennt, liegt unter IHM („Argumenty
+   * za"). Die Struktura folgt solchen Feldern in die Tiefe, und für
+   * Informacja / Interpretacja zählen sie nicht: der Zusammenhang eines Wywód
+   * ist kein Urteil über die Quelle.
+   */
+  readonly structure?: 'up' | 'down';
   /** `media`: welche Dateien. */
   readonly media?: readonly MediaType[];
   /** `range`: woraus die Stücke bestehen. */
@@ -323,6 +332,7 @@ export function readField(raw: unknown): FieldDef | null {
     inverse: type === 'ref' && str(raw.inverse).trim() !== '' ? clip(str(raw.inverse).trim(), 120) : undefined,
     symmetric: type === 'ref' && raw.symmetric === true ? true : undefined,
     locator: type === 'ref' && raw.locator === true ? true : undefined,
+    structure: type === 'ref' && (raw.structure === 'up' || raw.structure === 'down') ? raw.structure : undefined,
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,
     rangeOf: type === 'range' ? pick(RANGE_OF, raw.rangeOf) ?? 'number' : undefined,
     role: str(raw.role).trim() !== '' ? clip(str(raw.role).trim(), 40) : undefined,

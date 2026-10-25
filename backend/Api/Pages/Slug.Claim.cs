@@ -65,7 +65,7 @@ public static partial class Slug
     }
 
     /// <summary>Die Teile der Oberfläche — dieselben Wörter wie `ROUTES` im Browser.</summary>
-    private static readonly HashSet<string> Parts = new(StringComparer.Ordinal) { "workspace", "seat", "verify", "dolacz", "widget", "plik", "polacz-ai" };
+    private static readonly HashSet<string> Parts = new(StringComparer.Ordinal) { "workspace", "seat", "verify", "dolacz", "widget", "plik", "polacz-ai", "zglos" };
 
     /// <summary>Die Vorfahren von <c>a/b/c</c>: <c>a</c> und <c>a/b</c>.</summary>
     public static IReadOnlyList<string> Ancestors(string path)

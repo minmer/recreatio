@@ -55,7 +55,10 @@ export const C = {
   /* Kennzahlen auf Anfrage (Partialsummen stehen in `meas`) */
   TMAX: 64,
   /* Arbeitsplätze der Einblendungen */
-  OV_PMAX: 68, OV_VMAX: 69, OV_VGAS: 70, OV_VLIQ: 71, ARROWS: 72
+  OV_PMAX: 68, OV_VMAX: 69, OV_VGAS: 70, OV_VLIQ: 71, ARROWS: 72,
+  /* Bis zur nächsten Ablesung (eigens geleert): Gas, das flüssige Zellen abgaben (f32, kg), wie oft (u32), wie oft ohne Ziel (u32,
+     es blieb liegen), flüssige Zellen, deren Verdunsten auf ihr Wasser gekürzt wurde (u32) */
+  REL_MASS: 73, REL_N: 74, REL_MISS: 75, EVAP_CAP: 76
 } as const;
 export const CNT_SIZE = 96;
 export const INTERVAL_FIRST = 16;

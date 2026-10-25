@@ -385,6 +385,9 @@ public static partial class Chat
     private static async Task<List<object>> VersionListAsync(SqlConnection connection, Guid id, CancellationToken ct)
     {
         var list = new List<object>();
+        /* 0130 — auch die früheren Fassungen einer gesperrten Nachricht gehen nicht hinaus. */
+        if (await Takedowns.IsBlockedAsync(connection, "message", id, ct)) return list;
+
         await using var cmd = new SqlCommand("""
             SELECT version, epoch, body_sealed, signature, signed_at, created_at
             FROM app.chat_message_version WHERE message_id = @id ORDER BY version;

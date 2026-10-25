@@ -80,7 +80,7 @@ public static class PageImage
     private static string Root(IConfiguration config) =>
         Path.GetFullPath(config["Page:ImageDirectory"] ?? Path.Combine(AppContext.BaseDirectory, "public-page-files"));
 
-    private static string FileOf(IConfiguration config, Guid id) => Path.Combine(Root(config), id.ToString("N") + ".img");
+    internal static string FileOf(IConfiguration config, Guid id) => Path.Combine(Root(config), id.ToString("N") + ".img");
 
     /// <summary>Passen die ersten Bytes zum genannten Typ? Sonst ist es keine Datei dieser Art.</summary>
     public static bool Looks(string type, ReadOnlySpan<byte> head) => type switch
@@ -269,7 +269,8 @@ public static class PageImage
         if (path is null) { await Fail(ctx, 404, "Takiego pliku nie ma."); return; }
         if (await WriterAsync(ctx, db, connection, path) is null) return;
 
-        await using (var drop = new SqlCommand("DELETE FROM app.page_image WHERE id = @id;", connection))
+        /* 0131 — das Bild eines Wydarzenie zeigt dann auf nichts mehr. */
+        await using (var drop = new SqlCommand("UPDATE app.slug_page SET image_id = NULL WHERE image_id = @id; DELETE FROM app.page_image WHERE id = @id;", connection))
         {
             drop.Parameters.AddWithValue("@id", id);
             await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
@@ -286,13 +287,22 @@ public static class PageImage
         string type;
         string? name;
         await using (var connection = await db.OpenAsync(ctx.RequestAborted))
-        await using (var cmd = new SqlCommand("SELECT content_type, name FROM app.page_image WHERE id = @id;", connection))
         {
-            cmd.Parameters.AddWithValue("@id", id);
-            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            if (!await reader.ReadAsync(ctx.RequestAborted)) { ctx.Response.StatusCode = 404; return; }
-            type = reader.GetString(0);
-            name = reader.IsDBNull(1) ? null : reader.GetString(1);
+            await using (var cmd = new SqlCommand("SELECT content_type, name FROM app.page_image WHERE id = @id;", connection))
+            {
+                cmd.Parameters.AddWithValue("@id", id);
+                await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+                if (!await reader.ReadAsync(ctx.RequestAborted)) { ctx.Response.StatusCode = 404; return; }
+                type = reader.GetString(0);
+                name = reader.IsDBNull(1) ? null : reader.GetString(1);
+            }
+
+            /* 0130 — nach einer Meldung gesperrt: die Datei geht an niemanden hinaus. */
+            if (await Takedowns.IsBlockedAsync(connection, "file", id, ctx.RequestAborted))
+            {
+                await Takedowns.BlockedResponse(ctx);
+                return;
+            }
         }
 
         var file = FileOf(config, id);
@@ -306,7 +316,12 @@ public static class PageImage
         }
 
         ctx.Response.ContentType = type;
-        ctx.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+        /*
+         * 0130 — einen Tag, nicht ein Jahr „unveränderlich": eine nach einer Meldung gesperrte
+         * Datei soll aus den Browsern verschwinden können. Eine Datei ändert sich trotzdem nie,
+         * sie wird ersetzt.
+         */
+        ctx.Response.Headers.CacheControl = "public, max-age=86400";
         ctx.Response.Headers.XContentTypeOptions = "nosniff";
         ctx.Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin";
 

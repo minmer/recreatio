@@ -4,10 +4,14 @@
  * Kennzahlen aus den Teilsummen) statt aus den Feldern der CPU-Engine.
  */
 
+import type { Charts } from '../engine/charts';
 import { tSat } from '../engine/if97';
 import { hLV } from '../engine/materials';
 import type { ChartSample } from '../engine/protocol';
 import type { GpuEngine } from './engine';
+
+/** Die Marken der Schreiber (engine/charts.ts führt dieselben Felder): so geht eine Probe nach einem Wechsel zwischen GPU und CPU weiter. */
+interface Marks { last: Mark | null; latent0: number; stored0: number; started: boolean }
 
 interface Mark {
   t: number;
@@ -80,5 +84,23 @@ export class GpuCharts {
       vapourRate,
       expectedRate
     };
+  }
+
+  /** Die Marken in die Schreiber der CPU-Engine (ein Schlüsselbild beim Backen mit der GPU: dort geht es live weiter). */
+  copyTo(c: Charts): void {
+    const to = c as unknown as Marks;
+    to.last = this.last === null ? null : { ...this.last };
+    to.latent0 = this.latent0;
+    to.stored0 = this.stored0;
+    to.started = this.started;
+  }
+
+  /** Die Marken aus den Schreibern der CPU-Engine (live weiter auf der GPU aus einem Schlüsselbild). */
+  copyFrom(c: Charts): void {
+    const from = c as unknown as Marks;
+    this.last = from.last === null ? null : { ...from.last };
+    this.latent0 = from.latent0;
+    this.stored0 = from.stored0;
+    this.started = from.started;
   }
 }

@@ -408,8 +408,11 @@ public static partial class Library
             ? $"deleted_at IS NULL AND id IN ({string.Join(", ", only.Select((_, i) => $"@e{i}"))})"
             : from is null ? "deleted_at IS NULL" : "updated_at >= @since";
         var sealedColumn = light && only is null ? $"CASE WHEN kind IN ({HeavyList}) THEN NULL ELSE sealed END" : "sealed";
+        /* 0130 — ein nach einer Meldung gesperrter Eintrag geht als Grabstein hinaus; wiederhergestellt kommt er zurück. */
+        var blocked = Takedowns.Exists("entry", "library_entry.id");
         await using var cmd = new SqlCommand($"""
-            SELECT id, kind, epoch, {sealedColumn}, version, created_at, updated_at, deleted_at, published_at, published_as,
+            SELECT id, kind, epoch, CASE WHEN {blocked} THEN NULL ELSE {sealedColumn} END, version, created_at, updated_at,
+                   CASE WHEN {blocked} THEN COALESCE(deleted_at, updated_at) ELSE deleted_at END, published_at, published_as,
                    CAST(CASE WHEN kind IN ({HeavyList}) THEN 1 ELSE 0 END AS bit)
             FROM app.library_entry
             WHERE library_id = @id AND {where}

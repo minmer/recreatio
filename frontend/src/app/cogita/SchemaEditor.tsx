@@ -20,11 +20,11 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ask, toast } from '../ui/dialogs';
 import { JsonPanel } from '../ui/JsonPanel';
-import { WorkspaceError } from '../core/session';
 import { applyImport, courseDescription, exportSchema, planImport } from './json';
 import { isBaseKind } from './kinds';
 import { problemsOf, type KindDef } from './schema';
 import { KindForm } from './KindForm';
+import { useImportReview } from './ImportReviewPanel';
 import { OriginTag, useBusy, useCtx } from './ui';
 
 export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
@@ -41,6 +41,8 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
     onChoose(null);
   };
   const [removing, setRemoving] = useState<string | null>(null);
+  /* 2026-10-25 — was ein Schema an Bestehendem ändert, wird einzeln angenommen. */
+  const review = useImportReview(lib);
   /*
     2026-10-18 — JEDEN RODZAJ USUNĄĆ, auch einen eingebauten: erst ausrechnen,
     was alles mitgeht (Einträge, Verweise, Felder, Szablony, Formularze, Zbiory
@@ -81,12 +83,9 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
             exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
             description={() => courseDescription(lib)}
             preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: p.lines, warnings: p.warnings }; }}
-            importLabel="Importuj schemat"
-            onImport={async (doc, stage) => {
-              const p = planImport(lib, doc);
-              if ('error' in p) throw new WorkspaceError(p.error);
-              return applyImport(lib, p, stage);
-            }}
+            options={review.options}
+            importLabel="Zapisz przyjęte"
+            onImport={async (doc, stage) => applyImport(lib, review.decide(doc), stage)}
           />
         )}
       </div>

@@ -373,3 +373,11 @@ span.lib-own-ref { color: inherit; text-decoration: none; font-style: italic; }
 .src-jump { all: unset; cursor: pointer; color: var(--wk-accent); font-family: "Segoe UI", system-ui, sans-serif; font-size: var(--wk-text-xs); text-decoration: underline; text-underline-offset: 0.15em; }
 .src-jump:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
 .src-jump.is-ambiguous { cursor: help; color: var(--wk-warn); text-decoration: underline dotted; }
+
+/* -- 2026-10-25 (Wywód): „W Wiedzy" an einem Werk (LibraryKnowledge.tsx) ------------------------------ */
+.lib-knowledge .lib-knowledge-go { font-weight: 600; }
+.lib-knowledge-line { margin: 0; display: none; flex-wrap: wrap; gap: var(--wk-space-2); align-items: baseline; font-size: var(--wk-text-sm); }
+.lib-knowledge-line a { color: var(--wk-accent); }
+@media (max-width: 63.99rem) { .lib-knowledge-line { display: flex; } }
+.lib-knowledge-line.is-reader { display: flex; margin-bottom: var(--wk-space-2); }
+.lib-knowledge-line.is-reader .lib-knowledge-go { padding: 0.125rem var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); }

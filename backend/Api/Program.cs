@@ -65,6 +65,9 @@ builder.Services.AddSignalR(options => { options.MaximumReceiveMessageSize = 64 
 AiMcp.AddServices(builder.Services);
 builder.Services.AddHostedService<CogitaClock>();
 
+/* 0130 — einmal am Tag: was von Meldungen nach seiner Frist nicht mehr aufbewahrt wird. */
+builder.Services.AddHostedService<ReportSweep>();
+
 /*
  * Browser und Dienst liegen auf verschiedenen Herkünften, und die Sitzung reist
  * im Keks. Ohne `AllowCredentials` schickt der Browser ihn nicht mit — und ohne
@@ -134,6 +137,8 @@ Calendar.Map(app);
 Seat.Map(app);
 Person.Map(app);
 Intake.Map(app);
+/* 0129 — wer für die Daten geradesteht: Datensätze, Fassungen, unterschriebene Anschlüsse. */
+Controllers.Map(app);
 Form.Map(app);
 
 /*
@@ -174,6 +179,12 @@ app.MapHub<CogitaHub>("/cogita/hub");
 
 /* 0067 — Powiadomienia: was neu ist, als Zahlen; Geräte für die App im Hintergrund. */
 Notify.Map(app);
+
+/* 0130 — melden, und was der Betreiber nach Kennung tut (gesperrt, wiederhergestellt, gelöscht — in der Kette). */
+Reports.Map(app);
+
+/* 0131 — ein Bereich als Wydarzenie: Listen nach einer Regel, auf Bitte, der Katalog des Betreibers. */
+AreaEvent.Map(app);
 
 /* 0114 — das Telefon: Kontakte und das Archiv der SMS (die Ausgabe „sms" der App), versiegelt. */
 Phone.Map(app);

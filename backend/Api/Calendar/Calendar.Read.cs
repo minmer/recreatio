@@ -159,6 +159,8 @@ public static partial class Calendar
               AND starts_at <= @to
               AND (repeat_kind = N'none' OR repeat_until IS NULL OR repeat_until >= @from)
               AND visibility_area_id IN ({areaNames})
+              /* 0130 — ein nach einer Meldung gesperrter Termin steht nicht mehr im Kalender. */
+              AND NOT {Takedowns.Exists("item", "calendar_item.id")}
               {byKind};
             """, connection))
         {

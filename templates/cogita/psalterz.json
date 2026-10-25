@@ -4,7 +4,7 @@
   "name": "Psałterz (brewiarz)",
   "kinds": [
     {
-      "ref": "@tekst",
+      "ref": "@psalterz/tekst",
       "name": "Psalm lub pieśń",
       "label": "{nazwa}",
       "tells": "poczatek",
@@ -51,7 +51,7 @@
       ]
     },
     {
-      "ref": "@miejsce",
+      "ref": "@psalterz/miejsce",
       "name": "Miejsce w brewiarzu",
       "label": "{tydzien} {dzien} · {godzina}",
       "fields": [
@@ -155,7 +155,7 @@
           "type": "ref",
           "multi": true,
           "to": [
-            "@tekst"
+            "@psalterz/tekst"
           ]
         }
       ]
@@ -163,7 +163,7 @@
   ],
   "forms": [
     {
-      "ref": "@f-nieszpory",
+      "ref": "@psalterz/f-nieszpory",
       "name": "Nieszpory — psałterz czterotygodniowy",
       "says": "Na początek tydzień psałterza i godzina (w niedzielę: I albo II Nieszpory). W każdym wierszu dzień, dwa psalmy i pieśń z Nowego Testamentu. Psalm lub pieśń, które już są, zostają użyte — Ps 110 jest jeden, gdziekolwiek się go odmawia. Lista do wklejenia: dzień | psalm | psalm | pieśń.",
       "graph": {
@@ -174,7 +174,7 @@
             "x": 0,
             "y": 0,
             "config": {
-              "kind": "@tekst",
+              "kind": "@psalterz/tekst",
               "label": "Psalm 1",
               "many": false,
               "reuse": "same",
@@ -195,7 +195,7 @@
             "x": 0,
             "y": 170,
             "config": {
-              "kind": "@tekst",
+              "kind": "@psalterz/tekst",
               "label": "Psalm 2",
               "many": false,
               "reuse": "same",
@@ -216,7 +216,7 @@
             "x": 0,
             "y": 340,
             "config": {
-              "kind": "@tekst",
+              "kind": "@psalterz/tekst",
               "label": "Pieśń z NT",
               "many": false,
               "reuse": "same",
@@ -237,7 +237,7 @@
             "x": 260,
             "y": 170,
             "config": {
-              "kind": "@miejsce",
+              "kind": "@psalterz/miejsce",
               "label": "Dzień",
               "many": false,
               "reuse": "same",
@@ -299,7 +299,7 @@
       }
     },
     {
-      "ref": "@f-kompleta",
+      "ref": "@psalterz/f-kompleta",
       "name": "Kompleta — co tydzień",
       "says": "Kompleta powtarza się co tydzień, więc bez tygodnia psałterza. W każdym wierszu dzień i psalm; drugi psalm tego samego dnia — Ctrl+Enter. Lista do wklejenia: dzień | psalm / psalm.",
       "graph": {
@@ -310,7 +310,7 @@
             "x": 0,
             "y": 0,
             "config": {
-              "kind": "@tekst",
+              "kind": "@psalterz/tekst",
               "label": "Psalmy",
               "many": true,
               "reuse": "same",
@@ -331,7 +331,7 @@
             "x": 260,
             "y": 0,
             "config": {
-              "kind": "@miejsce",
+              "kind": "@psalterz/miejsce",
               "label": "Dzień",
               "many": false,
               "reuse": "same",
@@ -375,10 +375,10 @@
   ],
   "templates": [
     {
-      "ref": "@t-1",
+      "ref": "@psalterz/t-1",
       "name": "1. tekst w tym miejscu",
       "kinds": [
-        "@miejsce"
+        "@psalterz/miejsce"
       ],
       "direction": "miejsce→1",
       "graph": {
@@ -494,10 +494,10 @@
       }
     },
     {
-      "ref": "@t-2",
+      "ref": "@psalterz/t-2",
       "name": "2. tekst w tym miejscu",
       "kinds": [
-        "@miejsce"
+        "@psalterz/miejsce"
       ],
       "direction": "miejsce→2",
       "graph": {
@@ -645,10 +645,10 @@
       }
     },
     {
-      "ref": "@t-3",
+      "ref": "@psalterz/t-3",
       "name": "3. tekst w tym miejscu",
       "kinds": [
-        "@miejsce"
+        "@psalterz/miejsce"
       ],
       "direction": "miejsce→3",
       "graph": {
@@ -812,10 +812,10 @@
       }
     },
     {
-      "ref": "@t-wszystkie",
+      "ref": "@psalterz/t-wszystkie",
       "name": "Wszystkie teksty tego miejsca",
       "kinds": [
-        "@miejsce"
+        "@psalterz/miejsce"
       ],
       "direction": "miejsce→teksty",
       "graph": {
@@ -859,7 +859,7 @@
             "x": 0,
             "y": 320,
             "config": {
-              "kind": "@tekst",
+              "kind": "@psalterz/tekst",
               "count": 12
             }
           },
@@ -951,10 +951,10 @@
       }
     },
     {
-      "ref": "@t-kiedy",
+      "ref": "@psalterz/t-kiedy",
       "name": "Kiedy jest ten psalm lub pieśń?",
       "kinds": [
-        "@tekst"
+        "@psalterz/tekst"
       ],
       "direction": "tekst→miejsca",
       "graph": {
@@ -989,7 +989,7 @@
             "x": 260,
             "y": 160,
             "config": {
-              "kind": "@miejsce",
+              "kind": "@psalterz/miejsce",
               "key": "teksty"
             }
           },
@@ -999,7 +999,7 @@
             "x": 0,
             "y": 320,
             "config": {
-              "kind": "@miejsce",
+              "kind": "@psalterz/miejsce",
               "count": 12
             }
           },

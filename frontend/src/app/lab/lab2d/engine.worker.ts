@@ -16,11 +16,16 @@
  *
  * Nachweise (B, clip/session.ts): beim Backen rechnen die Happen ohne Pause
  * und ohne zu zeichnen (alle 0,3 s ein Vorschaubild), bei der Wiedergabe
- * rechnet nichts — das Bild kommt aus dem Nachweis. Das Labor beginnt ruhend
- * (init.paused): es startet nie von selbst.
+ * rechnet nichts — das Bild kommt aus dem Nachweis. Backt die Grafikkarte
+ * (seit 2026-10-25, clip/gpuBake.ts), ruhen die Happen: die Sitzung wartet auf
+ * die Bündel der GPU, ohne zu kreisen. Das Labor beginnt ruhend (init.paused):
+ * es startet nie von selbst; init.resume lässt es aus einem Schlüsselbild
+ * weiterlaufen (ein Nachweis von der GPU, wenn der beschleunigte Weg nicht ging).
  */
 
+import { rootOf } from './clip/clip';
 import { ClipSession } from './clip/session';
+import { restoreSnapshot } from './clip/snapshot';
 import { Charts } from './engine/charts';
 import { Engine } from './engine/engine';
 import { editObject, objectView } from './engine/objects';
@@ -331,12 +336,14 @@ scope.addEventListener('message', (event) => {
       case 'init': {
         engine = new Engine(m.scene);
         charts = new Charts(engine);
+        /* Live weiter aus einem Nachweis von der GPU, wenn der beschleunigte Weg nicht ging (B): ab seinem Schlüsselbild, hier auf der CPU. */
+        if (m.resume !== undefined) { restoreSnapshot(rootOf(engine, charts), m.resume); nextSample = engine.time; }
         paused = m.paused === true;
         session = new ClipSession({
           engine: () => engine as Engine,
           charts: () => charts as Charts,
           setCharts: (c) => { charts = c; pendingSamples.length = 0; },
-          post: (msg) => post(msg),
+          post: (msg, transfer) => post(msg, transfer),
           rebuilt,
           wake: () => wake(0)
         });
@@ -350,6 +357,7 @@ scope.addEventListener('message', (event) => {
         setWalls();
         resize(m.width, m.height, m.dpr);
         post({ type: 'ready', offscreen: renderer !== null, warnings: engine.warnings, view, quality: engine.currentQuality, walls });
+        if (m.resume !== undefined) post({ type: 'live', t: engine.time });
         if (!started) { started = true; lastStats = performance.now(); frame(); }
         lastTick = performance.now();
         void session.check();
@@ -451,9 +459,16 @@ scope.addEventListener('message', (event) => {
       case 'bakeStop':
         session?.stopBake();
         break;
+      case 'bakePrepare':
+        session?.prepare();
+        break;
       case 'clipOpen':
         shown = '';
-        void session?.open(m.play);
+        void session?.open(m.play, m.prefer);
+        break;
+      case 'clipEngine':
+        shown = '';
+        session?.switchEngine(m.engine);
         break;
       case 'clipPlay':
         session?.play(m.playing);
@@ -465,7 +480,7 @@ scope.addEventListener('message', (event) => {
         if (session !== null) session.loop = m.on;
         break;
       case 'clipLive':
-        void session?.live().then(() => { paused = true; acc = 0; lastTick = performance.now(); });
+        void session?.live(m.accel === true).then(() => { paused = true; acc = 0; lastTick = performance.now(); });
         break;
       case 'clipClose':
         session?.close();

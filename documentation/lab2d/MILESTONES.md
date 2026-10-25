@@ -994,6 +994,50 @@ digit apart from the rounding noise of a few energy errors: tests 1, 2, 4 (air),
 In the slow suite test 3 reads −2.43 % instead of −2.57 % (the old engine on the same machine); tests 4 (ten minutes),
 34 (36.0 MB per simulated minute), 41 at 1 mm and 49 (33.3°) are unchanged.
 
+## The GPU view gets today's gas fixes (2026-10-25)
+
+The user asked whether the day's fixes could run on the accelerated view. Of the eight CPU changes only one matched a
+live fault there: gas left in liquid cells. The others either already hold on the GPU by construction (condensate is
+made only where no water particle was at the start of the transfer; the vapour of a collapsing bubble with no water in
+its footprint goes to its centre cell, which then cannot be liquid; the film and crust collect runs on every download)
+or matter only once free bodies and ice run there (venting, CLOSED_FREE, the meltwater sides, frontGap, GONE).
+
+- **Trapped gas** (`gpu/kgas.ts`, `transitions`; ARCHITECTURE.md §6.1): the beakers of the 2 mm presets bring 20 °C
+  air into liquid wall cells at every upload — 480 µg in 20 cells in test 3, 621 µg in 20 cells in test 11, 597 µg in
+  25 cells in test 22, 1194 µg in 34 cells in test 26 — and the GPU's own transitions left 16–43 µg at 1 mm. Now it
+  leaves in the first step and liquid cells hold no gas afterwards (at most 3·10⁻¹⁵ kg of float residue in 1–3
+  cells); no release missed its target in any run. The first version of the fallback took the nearest gas cell of
+  the same region by distance — which can lie behind a thin beaker wall; the breadth-first search through fluid cells
+  sends it where the CPU would. Emptied liquid cells now drop their gas heat capacity at once: the enthalpy left in
+  empty cells fell from about 300 cells and 1.4·10⁻⁴ J to at most 4 cells and 10⁻⁸ J in test 11.
+- **Evaporation cap** (`gpu/kphase.ts`, `diffOut`/`diffApply`): a liquid cell's faces together give at most its
+  water. It never acted in the standard tests at 2 mm except once in test 27 (1 of 5 runs), 0–14 times at 1 mm in
+  test 27 and 0–5 times per run of test 47; forced to act thousands of times (cap at 10⁻⁴ of the water), the budgets
+  stay where they are.
+- **Safe upload** (`gpu/state.ts`, `derivedGas`): the gas fields a keyframe leaves out are recomputed before every
+  upload. Without it a sealed pressure cooker restored from a snapshot and uploaded jumped 17 kPa in one step and ran
+  to 8.3 bar with 1060 J of energy error; with it the run continues as if never interrupted (+25 Pa).
+
+Numbers on the RTX 3070 (headless Edge, the harness pages of test 17, M2a and M2b built from the tree; n = number of
+runs; the GPU is not reproducible run to run):
+
+| Test | Now | Before |
+|---|---|---|
+| 1a / 1b / 2 / 6 | 97.911 / 94.685 Pa/cm, 0.0679 K, 0.2587 K | the same |
+| 3 heating rate | −1.7 … −2.9 % (n = 5) | −2.3 % |
+| 11 boiling plateau | −0.307 ± 0.015 K, vapour −0.11 % (n = 8) | −0.30 ± 0.03 K, −0.1 % (CPU now −0.17 K) |
+| 26 brine boiling | 49.4 k nucleated, 3 994 burst, 6 365 collapsed, 31.2 mg vapour (n = 6) | 49.7 k, 3 781, 6 844, 33.1 mg |
+| 27 boiled dry | 57.4 ± 2.1 s, crust = all the salt (n = 8) | 57.9 ± 3.3 s (CPU now 75.5 s) |
+| 22 water under oil | first burst 3.33–3.41 s | 3.23–3.40 s (not reproducible to the count in either build) |
+| 24, 25, 28–30, 18, 19, 21 | unchanged | |
+| 47 violent boiling | computed: finite in all 9 runs; softened: 4.00 mm, 99.7 % kept | the same |
+
+The cost is 2–3.5 µs per step (0.04 %). The test-26 shift comes from the air inherited at upload leaving at once
+instead of escaping in cold pockets while the brine boils (a run whose mirror released that air before the upload
+gave the same shift). Two gaps between the engines stay, both inside their gates: test 27 dries at about 57 s on the
+GPU against 75.5 s on the CPU (the CPU's half-covered wall cells, a model difference of the staircase), and test 11's
+plateau is −0.31 K against −0.17 K. Firefox was not run (headless Firefox has no WebGPU).
+
 ## Benchmark
 
 The benchmark scene: the beaker with boiling chips on the hot plate, water at 98 °C (preset "wrzenie": it boils at

@@ -79,6 +79,15 @@ public static class AccountDeletion
             SELECT a.id, a.name FROM app.area a WHERE a.id IN (SELECT id FROM #orphan) ORDER BY a.name;
 
             SELECT path FROM app.slug WHERE claimed_by_role_id IN (SELECT id FROM #doomed) ORDER BY path;
+
+            -- 0129 — wofür ein Datensatz mit Heimat in einem sterbenden Bereich noch geradesteht.
+            SELECT v.name, a.name
+            FROM app.data_controller d
+            JOIN app.data_controller_version v ON v.controller_id = d.id AND v.version = d.current_version
+            JOIN app.controller_attachment x ON x.controller_id = d.id AND x.state = N'live'
+            JOIN app.area a ON a.id = x.area_id
+            WHERE d.home_area_id IN (SELECT id FROM #dead) AND d.closed_at IS NULL AND x.area_id NOT IN (SELECT id FROM #dead)
+            ORDER BY v.name, a.name;
             """, connection);
         cmd.Parameters.AddWithValue("@account", who.Value.AccountId);
 
@@ -87,6 +96,7 @@ public static class AccountDeletion
         var deleted = new List<object>();
         var orphaned = new List<object>();
         var pages = new List<string>();
+        var controllers = new List<(string Name, string Area)>();
 
         await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
         {
@@ -108,6 +118,9 @@ public static class AccountDeletion
 
             await reader.NextResultAsync(ctx.RequestAborted);
             while (await reader.ReadAsync(ctx.RequestAborted)) pages.Add(reader.GetString(0));
+
+            await reader.NextResultAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) controllers.Add((reader.GetString(0), reader.GetString(1)));
         }
 
         await ctx.Response.WriteAsJsonAsync(new
@@ -119,7 +132,10 @@ public static class AccountDeletion
             offices,
             deletedAreas = deleted,
             orphanedAreas = orphaned,
-            pages
+            pages,
+
+            /* 0129 — „Administrator danych X przestanie obowiązywać w: …“ */
+            endingControllers = controllers.GroupBy(c => c.Name).Select(g => new { name = g.Key, areas = g.Select(c => c.Area).ToList() }).ToList()
         });
     }
 
@@ -402,6 +418,35 @@ public static class AccountDeletion
          WHERE reserve_area_id IN (SELECT id FROM #dead) AND area_id NOT IN (SELECT id FROM #dead);
         UPDATE app.resource SET calendar_id = NULL
          WHERE calendar_id IN (SELECT id FROM #cals) AND area_id NOT IN (SELECT id FROM #dead);
+        -- 0129 — WER GERADESTAND, ENDET SICHTBAR, und nichts davon wird gelöscht: Datensätze mit Heimat
+        -- in einem sterbenden Bereich werden geschlossen und ihre Anschlüsse enden überall; die
+        -- Anschlüsse sterbender Bereiche enden auch. Wo die Kette abreisst, steht es in
+        -- area_parent_ended — damit „wer stand am Tag X dafür gerade" eine Antwort behält. Die
+        -- Bereiche, die so niemanden mehr haben, nehmen nichts mehr an, bis jemand geradesteht.
+        UPDATE app.controller_attachment
+           SET state = N'ended', ended_at = @now, ended_reason = N'home-deleted'
+         WHERE state = N'live'
+           AND controller_id IN (SELECT id FROM app.data_controller WHERE home_area_id IN (SELECT id FROM #dead) AND closed_at IS NULL);
+        UPDATE app.controller_attachment
+           SET state = N'ended', ended_at = @now, ended_reason = N'area-deleted'
+         WHERE state = N'live' AND area_id IN (SELECT id FROM #dead);
+        UPDATE app.controller_attachment
+           SET state = N'cancelled', decided_at = @now
+         WHERE state IN (N'asked', N'offered')
+           AND (area_id IN (SELECT id FROM #dead)
+                OR controller_id IN (SELECT id FROM app.data_controller WHERE home_area_id IN (SELECT id FROM #dead)));
+        UPDATE app.data_controller SET closed_at = @now, closed_reason = N'home-deleted'
+         WHERE home_area_id IN (SELECT id FROM #dead) AND closed_at IS NULL;
+        INSERT INTO app.area_parent_ended (area_id, parent_area_id, ended_at)
+        SELECT a.id, a.parent_area_id, @now FROM app.area a
+         WHERE a.parent_area_id IS NOT NULL
+           AND (a.parent_area_id IN (SELECT id FROM #dead) OR a.id IN (SELECT id FROM #dead));
+        UPDATE app.slug SET controller_area_id = NULL WHERE controller_area_id IN (SELECT id FROM #dead);
+        -- Ein Zertifikat, das eine Zusage befugte, bleibt (zurückgenommen) — sonst liesse sich die Unterschrift nicht mehr prüfen.
+        UPDATE app.certificate SET revoked_at = COALESCE(revoked_at, @now)
+         WHERE id IN (SELECT certificate_id FROM app.controller_attachment WHERE certificate_id IS NOT NULL)
+           AND (scope_id IN (SELECT id FROM #dead) OR subject_role_id IN (SELECT id FROM #doomed));
+
         UPDATE app.area SET parent_area_id = NULL
          WHERE parent_area_id IN (SELECT id FROM #dead) AND id NOT IN (SELECT id FROM #dead);
         UPDATE app.module SET extends_id = NULL
@@ -596,7 +641,8 @@ public static class AccountDeletion
         DELETE FROM app.message    WHERE area_id IN (SELECT id FROM #dead);
         DELETE FROM app.attachment WHERE area_id IN (SELECT id FROM #dead);
         DELETE FROM app.access_grant WHERE area_id IN (SELECT id FROM #dead);
-        DELETE FROM app.certificate WHERE scope_kind = N'area' AND scope_id IN (SELECT id FROM #dead);
+        DELETE FROM app.certificate WHERE scope_kind = N'area' AND scope_id IN (SELECT id FROM #dead)
+           AND id NOT IN (SELECT certificate_id FROM app.controller_attachment WHERE certificate_id IS NOT NULL);
         DELETE FROM app.key_grant   WHERE key_kind = N'epoch' AND key_ref IN (SELECT id FROM #dead);
         DELETE FROM app.area_epoch  WHERE area_id IN (SELECT id FROM #dead);
         DELETE FROM app.area        WHERE id IN (SELECT id FROM #dead);
@@ -632,7 +678,8 @@ public static class AccountDeletion
         DELETE FROM app.key_grant
          WHERE role_id IN (SELECT id FROM #doomed)
             OR (key_kind <> N'epoch' AND key_ref IN (SELECT id FROM #doomed));
-        DELETE FROM app.certificate WHERE subject_role_id IN (SELECT id FROM #doomed);
+        DELETE FROM app.certificate WHERE subject_role_id IN (SELECT id FROM #doomed)
+           AND id NOT IN (SELECT certificate_id FROM app.controller_attachment WHERE certificate_id IS NOT NULL);
         DELETE FROM app.role_edge
          WHERE from_role_id IN (SELECT id FROM #doomed) OR to_role_id IN (SELECT id FROM #doomed);
 

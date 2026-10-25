@@ -34,11 +34,14 @@ export const isStatementKind = (kind: Pick<KindDef, 'fields'>): boolean => kind.
 /** Die Rodzaje mit einem Feld \`blocks\` — ihre Kennungen. */
 export const statementKinds = (kinds: readonly KindDef[]): string[] => kinds.filter(isStatementKind).map((k) => k.id);
 
-/** Worüber eine Aussage ist: die Werte ihrer Verweisfelder, mit Stelle. */
+/**
+ * Worüber eine Aussage ist: die Werte ihrer Verweisfelder, mit Stelle. 2026-10-25 — ohne die
+ * Verbindungen einer Struktur (`structure`): der Schritt darüber ist nicht, worüber sie spricht.
+ */
 export function entityAbout(entity: Entity, look: Pick<Lookup, 'kind'>): { ref: string; locator: string }[] {
   const out: { ref: string; locator: string }[] = [];
   for (const field of fieldsOf(entity, look)) {
-    if (field.type !== 'ref') continue;
+    if (field.type !== 'ref' || field.structure !== undefined) continue;
     for (const v of valuesOf(entity, field)) if (typeof v.value === 'string' && v.value !== '') out.push({ ref: v.value, locator: v.locator ?? '' });
   }
   return out;

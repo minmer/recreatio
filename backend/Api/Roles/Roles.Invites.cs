@@ -173,15 +173,28 @@ public static partial class Roles
         for (var i = 0; i < reach.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", reach[i]);
         cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
         var areas = new Dictionary<Guid, (string Name, string Capability)>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            var id = reader.GetGuid(0);
-            var capability = reader.GetString(2);
-            /* Je Bereich die stärkste Stufe — eine Zuteilung je Epoche bringt dasselbe Zertifikat mehrfach. */
-            if (!areas.TryGetValue(id, out var had) || Rank(capability) > Rank(had.Capability)) areas[id] = (reader.GetString(1), capability);
+            while (await reader.ReadAsync(ct))
+            {
+                var id = reader.GetGuid(0);
+                var capability = reader.GetString(2);
+                /* Je Bereich die stärkste Stufe — eine Zuteilung je Epoche bringt dasselbe Zertifikat mehrfach. */
+                if (!areas.TryGetValue(id, out var had) || Rank(capability) > Rank(had.Capability)) areas[id] = (reader.GetString(1), capability);
+            }
         }
-        return areas.Select(a => (object)new { areaId = Ids.ToText(a.Key), name = a.Value.Name, capability = a.Value.Capability }).ToList();
+
+        /* 0129 — je Bereich, wer für seine Daten geradesteht (null: niemand — ein Link wird dafür nicht gesperrt). */
+        var list = new List<object>();
+        foreach (var a in areas)
+        {
+            list.Add(new
+            {
+                areaId = Ids.ToText(a.Key), name = a.Value.Name, capability = a.Value.Capability,
+                controller = Controllers.Json(await Controllers.OfAreaAsync(connection, a.Key, ct))
+            });
+        }
+        return list;
 
         static int Rank(string c) => c switch { "admin" => 3, "write" => 2, "read" => 1, _ => 0 };
     }
@@ -309,6 +322,13 @@ public static partial class Roles
         }
 
         if (row is null) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiego linku nie ma."); return; }
+
+        /* 0130 — ein nach einer Meldung gesperrter Link zeigt nichts mehr. */
+        if (await Takedowns.IsBlockedAsync(connection, "link", row.Value.Id, ctx.RequestAborted))
+        {
+            await Takedowns.BlockedResponse(ctx);
+            return;
+        }
 
         var r = row.Value;
         await ctx.Response.WriteAsJsonAsync(new

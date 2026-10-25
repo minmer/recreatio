@@ -24,11 +24,12 @@ import type { Entry, LibraryStore } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { refsOf } from '../library/refIndex';
 import { cardsOf, questionCard, readTemplate, templatesFor, type Template } from './cards';
-import { blockMarkups, blockRefs } from '../library/blocks';
+import { blockMarkups, blockRefs, blocksKeyOf } from '../library/blocks';
+import { statementTokens } from '../library/statement';
 import { citedKeys } from '../library/libraryMarkup';
 import { entityBlocks } from './statements';
 import { type Card } from './cardBasics';
-import { DOC_KINDS, entityOf, entryData, isBaseKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, textTypeKind, type DocKind } from './kinds';
+import { DOC_KINDS, entityOf, entryData, isBaseKind, isDocKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, textTypeKind, type DocKind } from './kinds';
 import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
@@ -186,6 +187,10 @@ interface Memo {
   readonly docs: Map<DocKind, Entry[]>;
   readonly origin: Map<string, Origin>;
   backlinks: Map<string, Backlink[]> | null;
+  /** 2026-10-25 — die eigenen Einträge nach ihrem Namen aus einem Import (`_ref`, dazu `_refs` zusammengeführter). */
+  refs2: Map<string, Entry[]> | null;
+  /** 2026-10-25 — die beantworteten Fragen (Aussagen, auf die eine Aussage zeigt oder unter denen ein Schritt liegt). */
+  answered: Set<string> | null;
   search: Map<string, string> | null;
   refSearch: Map<string, string> | null;
   markup: MarkupLookup | null;
@@ -206,6 +211,17 @@ function searchIndex(entities: readonly Entity[], look: Lookup): Map<string, str
     index.set(e.id, fold(parts.join(' ')));
   }
   return index;
+}
+
+/**
+ * 2026-10-25 — EIN VORHANDENER EINTRAG WECHSELT NIE SEINE SORTE: eine Entität bleibt Entität, ein
+ * Rodzaj Rodzaj, ein Dokument eine Art Dokument. Sonst schriebe ein Import mit einer Kennung, die
+ * schon etwas anderes trägt, einen Widok über einen Eintrag.
+ */
+function sameSort(before: Entry | undefined, sort: 'entity' | DocKind): void {
+  if (before === undefined) return;
+  const was = isDocKind(before.kind) ? before.kind : 'entity';
+  if (was !== sort) throw new Error('Ten identyfikator ma już wpis innego rodzaju — nie zapisano.');
 }
 
 export class CogitaLibrary {
@@ -274,7 +290,7 @@ export class CogitaLibrary {
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
       stamp, kinds, contentKinds: kinds.filter((k) => !foreign.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, search: null, refSearch: null, markup: null, materialKinds: null, foreign, links: null
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, refs2: null, answered: null, search: null, refSearch: null, markup: null, materialKinds: null, foreign, links: null
     };
     return this.memo;
   }
@@ -335,14 +351,90 @@ export class CogitaLibrary {
     return this.store.get(id) ?? this.sources.map((s) => s.store.get(id)).find((e) => e !== undefined);
   }
 
-  /** Gehört der Eintrag dieser Baza wiedzy (und lässt sich hier ändern)? */
-  isOwn(id: string): boolean { return this.store.get(id) !== undefined; }
+  /**
+   * Gehört der Eintrag dieser Baza wiedzy (und lässt sich hier ändern)? 2026-10-25 — nur die eigenen:
+   * `LibraryStore.get` reicht seit 2026-10-22 auch in die anderen geladenen Bazy wiedzy.
+   */
+  isOwn(id: string): boolean { return this.store.own(id) !== undefined; }
   /** Woher er kommt — `undefined`: es gibt ihn hier nicht. */
   origin(id: string): Origin | undefined { return this.fresh().origin.get(id); }
   /** In welchem Bereich eine Bibliothek liegt (diese oder eine Quelle) — für ihre Schlüssel und Dateien. */
   areaOf(libraryId: string): string | undefined {
     if (libraryId === this.store.libraryId) return this.store.areaId;
     return this.sources.find((s) => s.store.libraryId === libraryId)?.store.areaId;
+  }
+
+  /**
+   * 2026-10-25 — EIN SCHLÜSSEL STRENG AUFGELÖST (der Import): eine Kennung oder ein Zitierschlüssel
+   * nur dieser Baza und ihrer erklärten Quellen — nie einer Bibliothek, die bloss in diesem Tab offen ist.
+   */
+  resolveDeclared(token: string): string | undefined {
+    for (const store of [this.store, ...this.sources.map((s) => s.store)]) {
+      if (store.own(token) !== undefined) return token;
+      const found = store.ownByKey(token);
+      if (found !== undefined) return found.id;
+    }
+    return undefined;
+  }
+
+  /**
+   * 2026-10-25 — WAS EIN IMPORT SCHON ANGELEGT HAT: ein Name mit „/" (`@kowalski2020/calosc/pytanie`)
+   * bleibt am eigenen Eintrag (`_ref`), damit dasselbe Dokument ein zweites Mal ihn ändert statt einen
+   * neuen anzulegen; ein zusammengeführter trägt die Namen des anderen mit (`_refs`). Nur eigene
+   * Einträge, ohne Rücksicht auf Gross und klein. `among`: nur Entitäten (`entity`) oder nur eine Art
+   * Dokument (`kind`, `view`, `anchor` …) — die Namen der Arten stören einander nicht.
+   */
+  byImportRef(ref: string, among?: 'entity' | DocKind): Entry | undefined {
+    const m = this.fresh();
+    if (m.refs2 === null) {
+      const map = new Map<string, Entry[]>();
+      const add = (name: unknown, e: Entry) => {
+        if (typeof name !== 'string' || name === '') return;
+        const list = map.get(name.toLowerCase()) ?? [];
+        if (!list.includes(e)) list.push(e);
+        map.set(name.toLowerCase(), list);
+      };
+      const all = this.store.all();
+      /* Erst die eigenen Namen, dann die mitgetragenen — ein eigener geht vor. */
+      for (const e of all) add(e.data._ref, e);
+      for (const e of all) if (Array.isArray(e.data._refs)) for (const name of e.data._refs) add(name, e);
+      m.refs2 = map;
+    }
+    const list = m.refs2.get(ref.replace(/^@/, '').toLowerCase()) ?? [];
+    return among === undefined ? list[0] : list.find((e) => (isDocKind(e.kind) ? e.kind : 'entity') === among);
+  }
+
+  /**
+   * 2026-10-25 — DIE BEANTWORTETEN FRAGEN dieser Baza, einmal je Stand gerechnet (statt für jede
+   * Frage alles Lesbare durchzugehen): eine Aussage ist beantwortet, sobald eine andere Aussage auf
+   * sie zeigt — auch ein Schritt, der in einer Struktur unter ihr liegt (`up`) —, oder sobald sie
+   * selbst in einem `down`-Feld Aussagen unter sich nennt.
+   */
+  answeredIds(): ReadonlySet<string> {
+    const m = this.fresh();
+    if (m.answered !== null) return m.answered;
+    const look = this.markupLook;
+    const out = new Set<string>();
+    const statement = new Map<string, boolean>();
+    const isStatement = (id: string): boolean => {
+      let known = statement.get(id);
+      if (known === undefined) { const e = this.entry(id); known = e !== undefined && blocksKeyOf(e, look) !== null; statement.set(id, known); }
+      return known;
+    };
+    for (const entity of m.entities) {
+      if (!isStatement(entity.id)) continue;
+      const entry = this.entry(entity.id)!;
+      for (const token of statementTokens(entry, look, 'down')) {
+        const target = this.resolve(token);
+        if (target !== undefined && target !== entity.id && isStatement(target)) out.add(target);
+      }
+      for (const f of fieldsOf(entity, m.look)) {
+        if (f.type !== 'ref' || f.structure !== 'down') continue;
+        if (valuesOf(entity, f).some((v) => typeof v.value === 'string' && v.value !== entity.id && isStatement(v.value))) out.add(entity.id);
+      }
+    }
+    m.answered = out;
+    return out;
   }
 
   /** Ein Verweis im Zapis nennt eine Kennung oder einen Zitierschlüssel — hier wird es eine Kennung (auch aus einer Quelle). */
@@ -370,7 +462,9 @@ export class CogitaLibrary {
       const look: MarkupLookup = {
         get: (id) => this.entry(id),
         byKey: (key) => { const id = this.resolve(key); return id === undefined ? undefined : this.entry(id); },
-        title: (entry) => { const e = this.entity(entry.id); return e === undefined ? entryTitle(entry, look) : this.label(e); }
+        title: (entry) => { const e = this.entity(entry.id); return e === undefined ? entryTitle(entry, look) : this.label(e); },
+        /* 2026-10-25 — beantwortet: einmal für die ganze Baza gerechnet (statt „Pytanie otwarte" überall). */
+        answered: (id) => (this.entity(id) === undefined ? undefined : this.answeredIds().has(id))
       };
       m.markup = look;
     }
@@ -487,17 +581,21 @@ export class CogitaLibrary {
 
   /** 0110 — was aus einer Quelle kommt, wird dort geändert: hier geht nur die eigene Baza wiedzy. */
   private ownOnly(id: string | undefined): void {
-    if (id === undefined || this.store.get(id) !== undefined) return;
+    if (id === undefined || this.store.own(id) !== undefined) return;
     const from = this.origin(id);
     if (from !== undefined) throw new Error(`To pochodzi z „${from.name}" — zmień to tam.`);
   }
 
-  /** Eine Entität speichern — die Arten in ihrer Reihenfolge, die Daten wie sie sind. */
-  async saveEntity(input: { readonly id?: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>> }): Promise<Entry> {
+  /**
+   * Eine Entität speichern — die Arten in ihrer Reihenfolge, die Daten wie sie sind. 2026-10-25:
+   * `marks` — Buchhaltung mit `_` (der Name aus einem Import, `_ref`), die mitgespeichert wird.
+   */
+  async saveEntity(input: { readonly id?: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>>; readonly marks?: Readonly<Record<string, unknown>> }): Promise<Entry> {
     this.ownOnly(input.id);
-    const before = input.id === undefined ? undefined : this.store.get(input.id);
+    const before = input.id === undefined ? undefined : this.store.own(input.id);
+    sameSort(before, 'entity');
     const plain = before?.kind ?? plainKindOf(input.kinds);
-    const data = entryData({ kinds: input.kinds, data: input.data }, plain, before?.data ?? {});
+    const data = entryData({ kinds: input.kinds, data: input.data }, plain, { ...(before?.data ?? {}), ...(input.marks ?? {}) });
     return this.store.save({ ...(input.id === undefined ? {} : { id: input.id }), kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data });
   }
 
@@ -507,33 +605,43 @@ export class CogitaLibrary {
    * kommt, wird vorher abgelehnt — dann geht nichts.
    */
   async saveMany(
-    list: readonly { readonly id: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>> }[],
+    list: readonly { readonly id: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>>; readonly marks?: Readonly<Record<string, unknown>> }[],
     progress?: (done: number, total: number) => void
   ): Promise<{ saved: number; failed: { id: string; error: string }[] }> {
-    for (const one of list) this.ownOnly(one.id);
+    for (const one of list) { this.ownOnly(one.id); sameSort(this.store.own(one.id), 'entity'); }
     const inputs = list.map((one) => {
-      const before = this.store.get(one.id);
+      const before = this.store.own(one.id);
       const plain = before?.kind ?? plainKindOf(one.kinds);
-      return { id: one.id, kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data: entryData({ kinds: one.kinds, data: one.data }, plain, before?.data ?? {}) };
+      return { id: one.id, kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data: entryData({ kinds: one.kinds, data: one.data }, plain, { ...(before?.data ?? {}), ...(one.marks ?? {}) }) };
     });
     const done = await this.store.saveMany(inputs, progress);
     return { saved: done.saved.length, failed: done.failed };
   }
 
-  /** Eine Art speichern — eine eingebaute als Änderung (`builtin`), eine eigene als ihr Eintrag. */
-  async saveKind(kind: KindDef): Promise<Entry> {
+  /**
+   * Eine Art speichern — eine eingebaute als Änderung (`builtin`), eine eigene als ihr Eintrag.
+   * 2026-10-25: was der Eintrag mit `_` trug (der bleibende Name aus einem Import), bleibt; `marks` kommt dazu.
+   */
+  async saveKind(kind: KindDef, marks?: Readonly<Record<string, unknown>>): Promise<Entry> {
     if (isBaseKind(kind.id)) {
       const had = overrideEntryOf(this.store.all(), kind.id);
       return this.store.save({ ...(had === undefined ? {} : { id: had.id }), kind: 'kind', data: kindDoc(kind) });
     }
     this.ownOnly(kind.id);
+    const before = this.store.own(kind.id);
+    sameSort(before, 'kind');
+    const keep = Object.fromEntries(Object.entries({ ...(before?.data ?? {}), ...(marks ?? {}) }).filter(([key]) => key.startsWith('_')));
     /* Die Kennung des Entwurfs bleibt — sonst zeigen ein Verweis auf sich selbst, die Auswahl danach und importierte Einträge ins Leere. */
-    return this.store.save({ id: kind.id, kind: 'kind', data: kindDoc(kind) });
+    return this.store.save({ id: kind.id, kind: 'kind', data: { ...keep, ...kindDoc(kind) } });
   }
 
   saveDoc(kind: DocKind, data: Readonly<Record<string, unknown>>, id?: string): Promise<Entry> {
     this.ownOnly(id);
-    return this.store.save({ ...(id === undefined ? {} : { id }), kind, data: { ...data } });
+    const before = id === undefined ? undefined : this.store.own(id);
+    sameSort(before, kind);
+    /* 2026-10-25 — was das Dokument mit `_` trug (der bleibende Name aus einem Import `_ref`, sein Dokument `_refDoc`), überlebt das Ändern im Editor: sonst verdoppelte der nächste Import das Dokument. */
+    const keep = Object.fromEntries(Object.entries(before?.data ?? {}).filter(([key]) => key.startsWith('_')));
+    return this.store.save({ ...(id === undefined ? {} : { id }), kind, data: { ...keep, ...data } });
   }
 
   async saveSettings(patch: Partial<Record<keyof CogitaSettings, unknown>>): Promise<Entry> {
@@ -609,7 +717,16 @@ export class CogitaLibrary {
     const data: Record<string, unknown> = { ...keep.data };
     for (const [key, value] of Object.entries(drop.data)) if (data[key] === undefined || data[key] === '' || (Array.isArray(data[key]) && (data[key] as unknown[]).length === 0)) data[key] = value;
     const kinds = [...keep.kinds, ...drop.kinds.filter((k) => !keep.kinds.includes(k))];
-    await this.saveEntity({ id: keepId, kinds, data });
+    /* 2026-10-25 — die Namen aus einem Import gehen mit (`_refs`): derselbe Import danach ändert den Bleibenden, statt den Gelöschten neu anzulegen. */
+    const names = (id: string): string[] => {
+      const d = this.store.own(id)?.data;
+      return d === undefined ? [] : [d._ref, ...(Array.isArray(d._refs) ? d._refs : [])].filter((x): x is string => typeof x === 'string' && x !== '');
+    };
+    const own = this.store.own(keepId)?.data._ref;
+    const known = names(keepId).map((x) => x.toLowerCase());
+    const carried = names(dropId).filter((x) => !known.includes(x.toLowerCase()));
+    const keepRefs = names(keepId).filter((x) => x !== own);
+    await this.saveEntity({ id: keepId, kinds, data, ...(carried.length === 0 ? {} : { marks: { _refs: [...keepRefs, ...carried] } }) });
     await this.saveDoc('merge', { from: dropId, to: keepId, at: new Date().toISOString(), label: this.label(drop) });
     await this.store.remove(dropId);
     return rewritten;
@@ -692,7 +809,8 @@ export class CogitaLibrary {
 export function linkedOf(entity: Entity, look: Lookup): string[] {
   const out = new Set<string>();
   for (const field of fieldsOf(entity, look)) {
-    if (field.type === 'ref') for (const v of valuesOf(entity, field)) if (typeof v.value === 'string') out.add(v.value);
+    /* 2026-10-25 — eine Verbindung der Struktur (`structure`) ist keine Abhängigkeit des Inhalts: ändert sich der Schritt darüber, ist dieser nicht zu prüfen. */
+    if (field.type === 'ref' && field.structure === undefined) for (const v of valuesOf(entity, field)) if (typeof v.value === 'string') out.add(v.value);
     if (field.type === 'markup') for (const v of valuesOf(entity, field)) if (typeof v.value === 'string') for (const m of v.value.matchAll(/\[\[[^\]|]+\|@([^\]]+)\]\]/g)) out.add(m[1].trim());
   }
   const blocks = entityBlocks(entity, look);

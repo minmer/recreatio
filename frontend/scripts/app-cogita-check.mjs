@@ -353,6 +353,22 @@ const DATED = tpl('dated', ['k-work'], '', [
 check('true or false from a comparison', (await Cards.cardsOf(DATED, ctx(byId('w1')))).cards[0].answer.value, true);
 check('the condition makes no card where the year is missing', (await Cards.cardsOf(DATED, ctx(byId('w4')))).cards.length, 0);
 
+/* 2026-10-25 — „Warunek: równe" trifft eine Wahl über ihren Namen UND ihren gespeicherten Wert: ein umbenanntes Etikett hält die Karte nicht an. */
+{
+  const STEP = kind('k-step', { name: 'Krok', fields: [{ key: 'rola', label: 'Rola', type: 'choice', options: [{ value: 'odpowiedz', label: 'Odpowiedź (teza autora)' }, { value: 'zarzut', label: 'Zarzut' }] }, { key: 'tekst', label: 'Tekst', type: 'line' }] });
+  const step = e('st1', ['k-step'], { rola: 'odpowiedz', tekst: 'Pięć dróg' });
+  const lookStep = S.lookupOf([STEP], [step]);
+  const only = (value) => tpl(`only-${value}`, ['k-step'], '', [
+    n('rola', 'field', { key: 'rola' }), n('when', 'when', { test: 'equals', value }), n('ask', 'pattern', { text: '{0}', inputs: 1 }), n('prompt', 'prompt'),
+    n('tekst', 'field', { key: 'tekst' }), n('flash', 'answer.flash'), n('card', 'card')
+  ], [
+    l('1', 'rola', 'values', 'when', 'items'), l('2', 'when', 'items', 'ask', 'p0'), l('3', 'ask', 'text', 'prompt', 'parts'),
+    l('4', 'tekst', 'values', 'flash', 'back'), l('5', 'prompt', 'prompt', 'card', 'prompt'), l('6', 'flash', 'answer', 'card', 'answer')
+  ]);
+  const made = async (value) => (await Cards.cardsOf(only(value), { look: lookStep, entity: step, pool: () => [step], seed: 's' })).cards.length;
+  check('a choice condition matches the option by its label and by its stored value, not another option', [await made('Odpowiedź (teza autora)'), await made('odpowiedz'), await made('zarzut')], [1, 1, 0]);
+}
+
 const BORN = tpl('born', ['k-work'], '', [
   n('to', 'follow', { path: ['authors'] }), n('born', 'field', { key: 'born' }), n('date', 'answer.date', { precision: 'year' }), n('card', 'card')
 ], [
@@ -606,7 +622,7 @@ const anyLib = (await R.planOf(G.readGraph({ nodes: [n('src', 'source.kind', { k
 truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.map((c) => c.entity)).size > 1);
 {
   /* Der Stoff einer Bibliothek: ein Szablon auf Cytaty gibt Karten der Zitate einer Quelle, die Liste der Wpisy bleibt die eigene. */
-  const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((e) => e.id === id), byKey: (k) => entries.find((e) => e.key === k) });
+  const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((e) => e.id === id), own: (id) => entries.find((e) => e.id === id), byKey: (k) => entries.find((e) => e.key === k), ownByKey: (k) => entries.find((e) => e.key === k) });
   const work = { id: 'w-bt', kind: 'work', key: 'bt', data: { title: 'Biblia Tysiąclecia', workType: 'bible' } };
   const q1 = { id: 'q-1', kind: 'quote', key: 'q1', data: { text: 'Bóg jest miłością.', work: ['w-bt'], locator: '1 J 4,8' } };
   const q2 = { id: 'q-2', kind: 'quote', key: 'q2', data: { text: 'Na początku było Słowo.', work: ['w-bt'], locator: 'J 1,1' } };
@@ -675,7 +691,7 @@ truth('… without "from" the kind comes from everywhere', new Set(anyLib.cards.
 {
   /* 2026-10-23 (Schritt 5) — keine Themen; die Rodzaje tekstów eines Skryptorium sind Rodzaje der Baza (ihre Felder neben den festen). */
   const U = (tail) => `00000000-0000-4000-8000-00000000${tail}`;
-  const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((x) => x.id === id), byKey: (k) => entries.find((x) => x.key === k) });
+  const fake = (libraryId, entries) => ({ libraryId, areaId: `a-${libraryId}`, revision: 1, all: () => entries, get: (id) => entries.find((x) => x.id === id), own: (id) => entries.find((x) => x.id === id), byKey: (k) => entries.find((x) => x.key === k), ownByKey: (k) => entries.find((x) => x.key === k) });
   const TAJ = { id: U('c001'), kind: 'kind', data: { name: 'Tajemnica', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }] } };
   const zw = { id: U('c002'), kind: 'entity', data: { _kinds: [U('c001')], nazwa: 'Zwiastowanie' } };
   const type = { id: U('d001'), kind: 'texttype', key: 'kazanie-maryjne', data: { name: 'Kazanie maryjne', fields: [{ key: 'tajemnica', label: 'Tajemnica', type: 'ref', to: [U('c001')] }, { key: 'title', label: 'Zajęty klucz', type: 'line' }] } };
@@ -947,7 +963,13 @@ check('the stand of the plan before a run', R.levelsOf(plan, () => [], 0), { uns
 const more = ['logic', 'flow', 'rules', 'game', 'kinds', 'live', 'store', 'sources', 'json', 'pageBase', 'visibility', 'fromEntry'];
 const moreOut = join(workspace, 'more');
 await build({
-  entryPoints: { ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts', quantities: 'src/app/core/quantities.ts' },
+  entryPoints: {
+    ...Object.fromEntries(more.map((m) => [m, `src/app/cogita/${m}.ts`])), steps: 'src/app/steps/steps.ts', partQuery: 'src/app/pages/partQuery.ts', quantities: 'src/app/core/quantities.ts',
+    /* 2026-10-25 (Wywód) — dieselben Instanzen wie store/json oben: die Struktur, die Wejścia, die Widoki, die Rolle einer Aussage. */
+    structure: 'src/app/cogita/structure.ts', anchors: 'src/app/cogita/anchors.ts', views2: 'src/app/cogita/views.ts', statement: 'src/app/library/statement.ts', selection2: 'src/app/cogita/selection.ts',
+    /* 2026-10-25 — die Durchsicht eines Imports, und die Beschreibung des Imports „Dzieło z tekstem" (Anhang A des Leitfadens). */
+    importReview: 'src/app/cogita/importReview.ts', sourceImport: 'src/app/library/sourceImport.ts'
+  },
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -959,7 +981,7 @@ await build({
 /* Wie in app-json-check: ein BroadcastChannel des Schlüsselbunds hielte den Lauf sonst am Leben. */
 globalThis.BroadcastChannel = undefined;
 const loadMore = (name) => import(pathToFileURL(join(moreOut, `${name}.js`)).href);
-const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, FE, St, PQ, QT] = await Promise.all([...more, 'steps', 'partQuery', 'quantities'].map(loadMore));
+const [Lg, Fl, Ru, Ga, Ki, Li, So, Src, Js, PB, Vis, FE, St, PQ, QT, Wy, Anc, VW2, STM2, SEL2, IR, SI] = await Promise.all([...more, 'steps', 'partQuery', 'quantities', 'structure', 'anchors', 'views2', 'statement', 'selection2', 'importReview', 'sourceImport'].map(loadMore));
 
 /* -- Die eine Logik ------------------------------------------------------------------------------- */
 
@@ -1172,7 +1194,9 @@ check('goals and lines follow the one logic', [
       libraryId, areaId, revision: 1, loaded: true, saved: [],
       all: () => [...map.values()],
       get: (id) => map.get(id),
+      own: (id) => map.get(id),
       byKey: (key) => [...map.values()].find((e) => (e.key ?? '').toLowerCase() === key.toLowerCase()),
+      ownByKey: (key) => [...map.values()].find((e) => (e.key ?? '').toLowerCase() === key.toLowerCase()),
       save: async (input) => { const entry = { ...input, id: input.id ?? `neu-${store.saved.length}` }; map.set(entry.id, entry); store.saved.push(entry); store.revision += 1; return entry; },
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined
@@ -1347,7 +1371,7 @@ check('goals and lines follow the one logic', [
   const map = new Map();
   const store = {
     libraryId: 'V', areaId: 'area-v', revision: 1, loaded: true,
-    all: () => [...map.values()], get: (id) => map.get(id), byKey: () => undefined,
+    all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
     save: async (input) => { map.set(input.id, input); store.revision += 1; return input; }, subscribe: () => () => undefined
   };
   const E = (id, kinds, data) => map.set(id, { id, kind: 'entity', data: { _kinds: kinds, ...data } });
@@ -1625,7 +1649,7 @@ check('goals and lines follow the one logic', [
 /* ══ 2026-10-24 — Wiedza und Nauka: zwei Teile, dieselben Bazy, alte Adressen führen weiter ══ */
 {
   const T = (tail, prefer) => { const r = PARTS.cogitaTrail(tail, prefer); return [r.part, r.tail.join('/')]; };
-  check('Wiedza: three activities first, the rest under „Więcej"', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje']]);
+  check('Wiedza: three activities first, the rest under „Więcej" (2026-10-25: Wejścia z Biblioteki)', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje', 'wejscia']]);
   check('Nauka: learning only — no entries, no schema', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0])], [['nauka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'ustawienia']]);
   check('Schematy: three independent categories', PARTS.SCHEMA_PARTS.map((p) => [p.slug, p.label]), [['rodzaje', 'Rodzaje wpisów'], ['dodawanie', 'Sposoby dodawania'], ['wyswietlanie', 'Sposoby wyświetlania']]);
   check('old addresses lead on: schemat, schemat/<kind>, schemat/formularz/<id>, wpisy/dodaj/<id>, wpisy/nowy/<kind>', [
@@ -1636,6 +1660,577 @@ check('goals and lines follow the one logic', [
   ], [['knowledge', 'wpisy/e1'], ['knowledge', 'wpisy/widok/v1'], ['learn', 'karty/t1'], ['learn', 'powtorki/r1'], ['learn', 'sesje/s1/ekran'], ['learn', 'ustawienia'], ['knowledge', 'ustawienia'], ['learn', '']]);
   check('cogitaPath: an old link becomes the new address', [PARTS.cogitaPath('b1', 'wpisy', 'e1'), PARTS.cogitaPath('b1', 'schemat', 'formularz', 'f1'), PARTS.cogitaPath('b1', 'nauka')],
     ['#/workspace/knowledge/b1/wpisy/e1', '#/workspace/knowledge/b1/schematy/dodawanie/f1', '#/workspace/learn/b1/nauka']);
+}
+
+/* ══ 2026-10-25 — Wywód: eine Struktur aus eigenen Rodzajen, Wejścia z Biblioteki, ein Import, der sich wiederholen lässt ══ */
+{
+  const fake = (libraryId, areaId, entries) => {
+    const map = new Map(entries.map((x) => [x.id, x]));
+    const byKey = (key) => [...map.values()].find((x) => (x.key ?? '').toLowerCase() === key.toLowerCase());
+    let n = 0;
+    const store = {
+      libraryId, areaId, revision: 1, loaded: true,
+      all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
+      save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-neu-${n += 1}`, libraryId, updatedAt: `2026-10-25T10:00:${String(n).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+      remove: async (id) => { map.delete(id); store.revision += 1; },
+      subscribe: () => () => undefined
+    };
+    return store;
+  };
+  const W1 = '01a1c0de-0000-7000-8000-000000000001';
+  const W2 = '01a1c0de-0000-7000-8000-000000000002';
+  const W3 = '01a1c0de-0000-7000-8000-000000000003';
+  const books = fake('L', 'area-l', [
+    { id: W1, kind: 'work', key: 'kowalski2020', data: { workType: 'article', title: 'Miłość, która pyta', pages: '45–60' } },
+    { id: W2, kind: 'work', key: 'sth', data: { workType: 'book', title: 'Summa theologiae', scheme: 'aquinas' } },
+    /* 2026-10-25 — eine Erzählung (Kapitel als Stellen): drei parallele Strukturen in Beispiel 7.3 des Leitfadens. */
+    { id: W3, kind: 'work', key: 'zielinska2019', data: { workType: 'book', title: 'Dom pod lipami', scheme: 'outline' } }
+  ]);
+  const base = fake('B', 'area-b', [{ id: 'sB', kind: 'settings', data: { sources: [{ id: 'L', kind: 'books', name: 'Biblioteka' }] } }]);
+  const lib = new So.CogitaLibrary(base, true);
+  lib.setSources((await Src.loadSources(lib, async (ref) => ({ L: books }[ref.id] ?? null))).loaded);
+
+  /* Das Schema als Datei — nichts davon im Code. */
+  const schema = JSON.parse(await readFile('../templates/cogita/wywod.json', 'utf8'));
+  const p1 = Js.planImport(lib, schema);
+  check('wywod.json imports: 3 kinds (Krok wywodu, Element stały, Komentarz), 6 views, 3 forms, 4 card templates — without a warning',
+    [p1.kinds.filter((k) => k.isNew).map((k) => k.def.name), p1.docs.filter((d) => d.kind === 'view').length, p1.docs.filter((d) => d.kind === 'addform').length, p1.docs.filter((d) => d.kind === 'template').length, p1.warnings], [['Krok wywodu', 'Element stały', 'Komentarz'], 6, 3, 4, []]);
+  await Js.applyImport(lib, p1, () => undefined);
+  const krok = lib.kinds.find((k) => k.name === 'Krok wywodu');
+  check('… the kind declares its structure field and its place in the work', [krok.fields.find((f) => f.key === 'nalezy').structure, krok.fields.find((f) => f.key === 'miejsce').locator, Wy.isStructured({ id: 'x', kinds: [krok.id], data: {} }, lib.look)], ['up', true, true]);
+  const p1b = Js.planImport(lib, schema);
+  check('… imported again: nothing new — kinds by name, views, forms and the card template by their lasting names', [p1b.kinds.filter((k) => k.isNew).length, p1b.docs.filter((d) => d.isNew).length, p1b.docs.length], [0, 0, 13]);
+  check('… the kinds keep their lasting names (wywod/krok, wywod/element, komentarz/rodzaj)', ['Krok wywodu', 'Element stały', 'Komentarz'].map((n) => lib.entry(lib.kinds.find((k) => k.name === n).id)?.data._ref), ['wywod/krok', 'wywod/element', 'komentarz/rodzaj']);
+
+  /* Ein Feld, das nur „parent" heisst, ist keine Verbindung der Struktur — nur die Erklärung zählt. */
+  const genealogy = S.readKind('k-gen', { name: 'Osoba', fields: [{ key: 'bio', label: 'Bio', type: 'blocks' }, { key: 'parent', label: 'Rodzic', type: 'ref', role: 'parent' }] });
+  check('a field merely named or role-tagged "parent" is not a structure link', Wy.isStructured({ id: 'g', kinds: ['k-gen'], data: { parent: 'h' } }, { kind: () => genealogy }), false);
+
+  /* Die Beispiele des Leitfadens für die KI — genau so, wie sie dort stehen: Artikel, Summa, Roman, Korrektur. */
+  const guide = await readFile('../templates/cogita/wywod-AI.md', 'utf8');
+  const examples = [...guide.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]));
+  check('the AI guide carries four JSON examples (article, Summa, novel, correction)', examples.length, 4);
+  for (const [i, example] of examples.entries()) {
+    const plan = Js.planImport(lib, example);
+    truth(`guide example ${i + 1} plans without a warning: kinds and views by lasting name, work by its key`, !('error' in plan) && plan.warnings.length === 0, 'error' in plan ? plan.error : plan.warnings);
+    /* Die Korrektur (7.4) wird weiter unten in einer eigenen Baza durchgesehen und angenommen. */
+    if (!('error' in plan) && i < 3) await Js.applyImport(lib, plan, () => undefined);
+  }
+  const step = (ref) => lib.entities().find((x) => lib.entry(x.id)?.data._ref === ref);
+  const sth = step('sth/i-2-3/pytanie');
+  const art = step('kowalski2020/calosc/pytanie');
+  check('steps keep their lasting names; the work resolves from its key in a declared library', [typeof sth?.id, S.valuesOf(sth, krok.fields.find((f) => f.key === 'miejsce'))[0]?.value, S.valuesOf(sth, krok.fields.find((f) => f.key === 'miejsce'))[0]?.locator], ['string', W2, 'I q. 2 a. 3']);
+  const again = Js.planImport(lib, examples[1]);
+  check('the same document again changes the same entries — nothing doubled', [again.entities.filter((x) => x.isNew).length, again.entities.length, again.docs.filter((d) => d.isNew).length], [0, 9, 0]);
+
+  /* Die Struktur: Geschwister in der Ordnung des Werks (arg. < sed contra < co. < ad), Gleichstand nach „nr". */
+  const label = (x) => lib.label(x).split(/[.?]/)[0];
+  const order = { tie: 'nr', label: (x) => lib.label(x) };
+  const tree = Wy.structureTree(sth.id, lib, order);
+  const shapeOf = (node) => [label(lib.entity(node.id)), ...node.children.map(shapeOf)];
+  check('the Summa article as a tree: objections with their replies, sed contra, the answer with its ways in order', shapeOf(tree.root),
+    ['Czy Bóg istnieje', ['Wydaje się, że Boga nie ma, bo istnieje zło', ['Bóg dopuszcza zło, aby wyprowadzić z niego dobro']], ['Wydaje się, że świat tłumaczy się bez Boga przez naturę i rozum', ['Natura i rozum działają ze względu na cel, który wyznacza Bóg']],
+      ['Bóg mówi o sobie: „Jestem, który jestem”'], ['Istnienie Boga można wykazać na pięć dróg', ['Droga pierwsza wychodzi od ruchu: to, co się porusza, jest poruszane przez coś innego'], ['Droga druga wychodzi od przyczyny sprawczej, której łańcuch nie może iść w nieskończoność']]]);
+  const textRows = Wy.textOrder(tree.root, lib).map((r) => lib.label(lib.entity(r.node.id)).slice(0, 14));
+  check('… in the order of the text: arg. 1, arg. 2, sed contra, co., the ways, ad 1, ad 2', textRows,
+    ['Wydaje się, że', 'Wydaje się, że', 'Bóg mówi o sob', 'Istnienie Boga', 'Droga pierwsza', 'Droga druga wy', 'Bóg dopuszcza ', 'Natura i rozum']);
+  check('… the pieces of an article and the author’s numbers come from the place', [Wy.pieceOf('I q. 2 a. 3 arg. 1', 'aquinas'), Wy.pieceOf('I q. 2 a. 3 co.', 'aquinas'), Wy.authorNumber('I q. 2 a. 3 ad 2', 'aquinas'), Wy.pieceOf('s. 47', 'pages')], [1, 3, 2, null]);
+  check('… places relative to the root: arg. 1, co.; pages stay', [Wy.relativePlace('I q. 2 a. 3 arg. 1', 'I q. 2 a. 3', 'aquinas'), Wy.relativePlace('I q. 2 a. 3 co.', 'I q. 2 a. 3', 'aquinas'), Wy.relativePlace('s. 47', 's. 45–60', 'pages')], ['arg. 1', 'co.', 's. 47']);
+  const artRows = Wy.textOrder(Wy.structureTree(art.id, lib, order).root, lib).map((r) => Wy.placeOf(lib.entity(r.node.id), lib)?.locator);
+  check('the journal article in the order of the text — by pages', artRows, ['s. 46', 's. 47–49', 's. 48', 's. 51', 's. 52', 's. 58']);
+
+  /* Ohne lesbares Werk: der Układ aus den Stellen selbst — dieselbe Ordnung. */
+  const blind = { entity: (id) => (id === W1 || id === W2 ? undefined : lib.entity(id)), look: lib.look, pointing: (id) => lib.pointing(id) };
+  check('the scheme is recognised from the places when the work cannot be read', [Wy.recogniseScheme(['I q. 2 a. 3', 'I q. 2 a. 3 arg. 1', 'I q. 2 a. 3 co.']), Wy.recogniseScheme(['s. 46', 's. 47–49']), Wy.recogniseScheme(['rozdz. 1', 'rozdz. 10'])], ['aquinas', 'pages', 'outline']);
+  check('… and the Summa article keeps its order for a reader who cannot open the Summa', Wy.textOrder(Wy.structureTree(sth.id, blind, order).root, blind).map((r) => lib.label(lib.entity(r.node.id)).slice(0, 14)), textRows);
+
+  /* Der Widok aus dem Schema: Wurzeln, die Struktur bis zum Ende, die Kommentare an jedem Schritt. */
+  const viewDoc = lib.docs('view').find((v) => v.data.name === 'Wywód');
+  const view = VW2.readView(viewDoc.data);
+  const shape = VW2.viewOutline(lib, view);
+  check('the view „Wywód": every start of a structure as a root — the article twice (parallel reconstructions), the Summa, the novel three times', shape.roots.map((r) => [label(lib.entity(r.id)), r.groups.filter((g) => g.structure).flatMap((g) => g.nodes).length]).sort(),
+    [['Czy Bóg istnieje', 4], ['Czy trzykrotne pytanie Jezusa w J 21 jest przesłuchaniem Piotra', 2], ['Dlaczego rozmowę nad jeziorem trzeba odczytać na nowo', 2],
+      ['Historia trwa od posadzenia lip po decyzję Marty', 5], ['Marta przechodzi od ucieczki przed przeszłością do jej przyjęcia', 2], ['Powieść ma dwie części: powrót Marty i listy dziadka', 2]]);
+  const atArg = VW2.viewOutline(lib, VW2.viewFrom(view, step('kowalski2020/calosc/arg1').id));
+  check('opened at a step (an anchor in the middle): that step is the root, its sub-argument below', atArg.roots.map((r) => [label(lib.entity(r.id)), r.groups.flatMap((g) => g.nodes).map((x) => label(lib.entity(x.id)))]),
+    [['Trzy pytania odpowiadają trzem zaparciom Piotra', ['To samo ognisko w J 18,18 i J 21,9 wiąże obie sceny']]]);
+  const selected = (steps) => SEL2.runSteps(lib.selectContext(), steps).ids.length;
+  check('the step „Idź po strukturze": all below, one level, upwards', [
+    selected([{ type: 'source.list', config: { ids: [sth.id] } }, { type: 'structure', config: { dir: 'down', deep: true } }]),
+    selected([{ type: 'source.list', config: { ids: [sth.id] } }, { type: 'structure', config: { dir: 'down', deep: false } }]),
+    selected([{ type: 'source.list', config: { ids: [step('sth/i-2-3/ad1').id] } }, { type: 'structure', config: { dir: 'up', deep: true } }])
+  ], [8, 4, 2]);
+
+  /* Ein Kommentar an einem Schritt: neben dem Schritt, nie in der Struktur; die Rolle bleibt getrennt. */
+  const komentarz = lib.kinds.find((k) => k.name === 'Komentarz');
+  const comment = await lib.saveEntity({ kinds: [komentarz.id], data: { about: [{ value: step('sth/i-2-3/droga1').id }], content: [{ type: 'paragraph', text: 'Pierwsza droga zakłada fizykę Arystotelesa.' }] } });
+  const premise = await lib.saveEntity({ kinds: [krok.id], data: { rola: 'argument', nalezy: step('kowalski2020/calosc/arg1').id, tresc: [{ type: 'paragraph', text: 'Piotr słyszy w pytaniu aluzję do zaparcia.' }] } });
+  const role = (id) => STM2.statementRole(lib.entry(id), lib.markupLook);
+  check('the badge: a step with a place reports the source; a premise without one, and a comment, are interpretation', [role(step('sth/i-2-3/ad1').id), role(premise.id), role(comment.id)], ['information', 'interpretation', 'interpretation']);
+  const withComments = VW2.viewOutline(lib, VW2.viewFrom(view, sth.id));
+  const way = withComments.roots[0].groups.find((g) => g.structure).nodes.find((x) => label(lib.entity(x.id)).startsWith('Istnienie')).groups.find((g) => g.structure).nodes[0];
+  check('… the comment hangs beside the first way (← O czym), never as a step', [way.groups.filter((g) => g.structure).length, way.groups.filter((g) => !g.structure).map((g) => [g.label, g.nodes.length])], [0, [['← O czym', 1]]]);
+  check('answered: a question with steps below it is answered; the counter-check stays open', [lib.markupLook.answered(sth.id), lib.answeredIds().has(art.id)], [true, true]);
+
+  /* Die Wejścia z Biblioteki: Werk und Stellen → Eintrag und Widok. */
+  const anchors = Anc.anchorsOf(lib).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  check('the anchors of the examples: work by key, view by lasting name, entry by lasting name; whole, one part, several parts', anchors.map((a) => [a.name, [W1, W2, W3].includes(a.work), lib.docs('view').some((v) => v.id === a.view), lib.entity(a.entry) !== undefined, a.locator]),
+    [['Budowa powieści', true, true, true, ''], ['Chronologia historii', true, true, true, ''], ['Czy Bóg istnieje? (I q. 2 a. 3)', true, true, true, 'I q. 2 a. 3'], ['Jak zmienia się Marta', true, true, true, 'rozdz. 1–2; 5–6'],
+      ['Teza i wniosek', true, true, true, 's. 45–46; 58–60'], ['Wstęp: skąd to pytanie', true, true, true, 's. 45–46'], ['Wywód całego artykułu', true, true, true, 's. 45–60']]);
+  const whole = anchors.find((a) => a.name === 'Wywód całego artykułu');
+  check('… an anchor opens its view at its entry', Anc.anchorPath('B', whole), `#/workspace/knowledge/B/wpisy/widok/${whole.view}/${whole.entry}`);
+  check('… problems are named: a place the scheme cannot read', Anc.anchorProblems(lib, { ...whole, locator: 'gdzieś w środku' }).some((p) => p.includes('nie da się odczytać')), true);
+
+  /* Der Export trägt die bleibenden Namen — ein zweiter Import ändert dieselben Einträge. */
+  const exported = Js.exportCourse(lib, 'B');
+  const back = Js.planImport(lib, exported);
+  check('the export names steps and anchors by their lasting names; importing it back creates nothing', [exported.entities.some((x) => x.ref === '@kowalski2020/calosc/pytanie'), exported.anchors.some((x) => x.ref === '@kowalski2020/calosc/wejscie' && x.entry === '@kowalski2020/calosc/pytanie'), back.entities.filter((x) => x.isNew).length, back.docs.filter((d) => d.isNew).length], [true, true, 0, 0]);
+
+  /* Die Vorschau eines Imports: der Baum, bevor etwas gespeichert ist. */
+  const fresh = new So.CogitaLibrary(fake('C', 'area-c', [{ id: 'sC', kind: 'settings', data: { sources: [{ id: 'L', kind: 'books', name: 'Biblioteka' }] } }]), true);
+  fresh.setSources((await Src.loadSources(fresh, async (ref) => ({ L: books }[ref.id] ?? null))).loaded);
+  await Js.applyImport(fresh, Js.planImport(fresh, schema), () => undefined);
+  const preview = Js.structurePreview(fresh, Js.planImport(fresh, examples[1]));
+  check('the import preview shows the tree with places and the anchor', [preview[0], preview[1], preview[2].trim(), preview.some((l) => l.includes('Wejścia z Biblioteki'))],
+    ['Struktura (+ nowe, ~ zmienione):', '+ Czy Bóg istnieje?  [I q. 2 a. 3]', '+   Wydaje się, że Boga nie ma, bo istnieje zło.  [I q. 2 a. 3 arg. 1]'.trim(), true]);
+
+  /* Ein Rodzaj, den es schon gibt, wird ergänzt: komentarz-biblijny.json nach komentarz.json lässt „O czym" stehen. */
+  const kb = Js.planImport(fresh, JSON.parse(await readFile('../templates/cogita/komentarz-biblijny.json', 'utf8')));
+  const merged = kb.kinds.find((k) => k.def.name === 'Komentarz');
+  check('a kind that exists is completed, not replaced: Komentarz keeps „O czym" and gains grounds and objections', [merged.isNew, merged.def.fields.map((f) => f.key)], [false, ['about', 'content', 'grounds', 'objections']]);
+  truth('… and says that the missing field stays', kb.warnings.some((w) => w.includes('zostają')), kb.warnings);
+  await Js.applyImport(fresh, Js.planImport(fresh, JSON.parse(await readFile('../templates/cogita/komentarz.json', 'utf8'))), () => undefined);
+  const twice = Js.planImport(fresh, JSON.parse(await readFile('../templates/cogita/komentarz.json', 'utf8')));
+  check('a template file imported twice: its card templates are recognised by name, not doubled', twice.docs.filter((d) => d.isNew).length, 0);
+
+  /* Ein Name im Dokument, der zugleich Schlüssel einer Bibliothek ist: genannt. */
+  const shadow = Js.planImport(fresh, { format: 'recreatio.cogita.entities', version: 1, entities: [{ ref: '@kowalski2020', kinds: ['Krok wywodu'], data: { rola: 'pytanie', tresc: [{ type: 'paragraph', text: 'Czy?' }] } }] });
+  truth('a document name that is also a library key is named in a warning', shadow.warnings.some((w) => w.includes('kluczem w bibliotece')), shadow.warnings);
+  const foreign = Js.planImport(fresh, { format: 'recreatio.cogita.entities', version: 1, entities: [{ ref: '@x', kinds: ['work'], data: { title: 'Kopia' } }] });
+  truth('an entry of a Library kind is named: it would be a copy in the base', foreign.warnings.some((w) => w.includes('kopia')), foreign.warnings);
+
+  /* ══ 2026-10-25 — der Import nach der Prüfung: Wiedererkennen, Namensräume, Zusammenführen, Kreise, Export ══ */
+  let dn = 0;
+  const freshBase = async () => {
+    dn += 1;
+    const l = new So.CogitaLibrary(fake(`D${dn}`, `area-d${dn}`, [{ id: `sD${dn}`, kind: 'settings', data: { sources: [{ id: 'L', kind: 'books', name: 'Biblioteka' }] } }]), true);
+    l.setSources((await Src.loadSources(l, async (ref) => ({ L: books }[ref.id] ?? null))).loaded);
+    return l;
+  };
+  const doImport = async (l, doc) => { const p = Js.planImport(l, doc); if ('error' in p) throw new Error(p.error); await Js.applyImport(l, p, () => undefined); return p; };
+  const para = (text) => [{ type: 'paragraph', text }];
+  const entitiesDoc = (entities, anchors) => ({ format: 'recreatio.cogita.entities', version: 1, entities, ...(anchors === undefined ? {} : { anchors }) });
+
+  {
+    /* Ein älterer Import (die Datei, als ihre Vorlagen noch keine bleibenden Namen trugen): die neue Datei erkennt sie am Namen UND an den Rodzajen. */
+    const l = await freshBase();
+    const kom = JSON.parse(await readFile('../templates/cogita/komentarz.json', 'utf8'));
+    await doImport(l, { ...kom, templates: kom.templates.map(({ ref, ...t }) => t) });
+    const p = await doImport(l, kom);
+    check('an older import without lasting names: the new file finds its templates by name and kinds, names them, doubles nothing',
+      [p.docs.filter((d) => d.isNew).length, l.docs('template').length, l.docs('template').map((t) => t.data._ref).sort()], [0, 2, ['komentarz/t-tabela', 'komentarz/t-teza']]);
+    truth('… and says that it replaces them', p.warnings.filter((w) => w.includes('zostanie zastąpiony')).length === 2, p.warnings);
+    const again = Js.planImport(l, kom);
+    truth('… a third import goes by the lasting names, without the warning', again.docs.every((d) => !d.isNew) && !again.warnings.some((w) => w.includes('zastąpiony')), again.warnings);
+    const tpl = (kinds) => ({ format: 'recreatio.cogita.schema', version: 1, templates: [{ name: 'Teza', kinds, graph: { nodes: [], edges: [] } }] });
+    await l.saveKind(S.readKind('k-inny', { name: 'Inny', fields: [{ key: 'a', label: 'A', type: 'text' }] }));
+    const otherKind = Js.planImport(l, tpl(['Inny']));
+    await l.saveDoc('template', { name: 'Teza', kinds: [l.kinds.find((k) => k.name === 'Komentarz').id], graph: { nodes: [], edges: [] } });
+    const twoOfThem = Js.planImport(l, tpl(['Komentarz']));
+    check('a template of the same name for another kind is another template; of two with the same name none is guessed', [otherKind.docs[0].isNew, twoOfThem.docs[0].isNew], [true, true]);
+    const ps = JSON.parse(await readFile('../templates/cogita/psalterz.json', 'utf8'));
+    await doImport(l, ps);
+    check('psalterz.json twice: its templates and forms come back by their lasting names', Js.planImport(l, ps).docs.filter((d) => d.isNew).length, 0);
+  }
+
+  const l2 = await freshBase();
+  await doImport(l2, schema);
+  const krok2 = l2.kinds.find((k) => k.name === 'Krok wywodu');
+  {
+    /* Ein Name, zwei Räume: der Wejście „@q" und der Eintrag „@q" bleiben zwei. */
+    const ns = Js.planImport(l2, entitiesDoc([{ ref: '@q', kinds: ['Krok wywodu'], data: { rola: 'pytanie', tresc: para('Czy?') } }],
+      [{ ref: '@q', name: 'Wejście', work: '@kowalski2020', entry: '@q', view: 'Wywód' }]));
+    check('one name, two spaces: the anchor „@q" and the entry „@q" stay two, and the anchor opens the entry', [ns.docs[0].id !== ns.entities[0].id, ns.docs[0].data.entry === ns.entities[0].id, ns.warnings], [true, true, []]);
+    await l2.saveEntity({ id: 'e-same', kinds: [krok2.id], data: { rola: 'argument', tresc: para('Racja.') }, marks: { _ref: 'a/b' } });
+    await l2.saveDoc('view', { name: 'V', mode: 'table', steps: [], _ref: 'a/b' });
+    check('lasting names per sort: an entry and a view may share one', [l2.byImportRef('a/b', 'entity')?.id, l2.byImportRef('a/b', 'view')?.kind, l2.byImportRef('A/B', 'kind')], ['e-same', 'view', undefined]);
+    let refused = '';
+    try { await l2.saveDoc('view', { name: 'X' }, 'e-same'); } catch (e) { refused = e.message; }
+    let refusedKind = '';
+    try { await l2.saveKind(S.readKind('e-same', { name: 'Y', fields: [] })); } catch (e) { refusedKind = e.message; }
+    check('an existing entry never changes its sort: a view or a kind over an entry is refused', [refused.includes('innego rodzaju'), refusedKind.includes('innego rodzaju'), l2.entity('e-same') !== undefined], [true, true, true]);
+  }
+  {
+    /* Ein Rodzaj mit bleibendem Namen: behält ihn im Editor und wird nach dem Umbenennen daran gefunden. */
+    const kdoc = { format: 'recreatio.cogita.schema', version: 1, kinds: [{ ref: '@test/rodzaj', name: 'Rodzaj testowy', fields: [{ key: 'a', label: 'A', type: 'text' }] }] };
+    const k1 = await doImport(l2, kdoc);
+    const kid = k1.kinds[0].id;
+    await l2.saveKind({ ...l2.kind(kid), name: 'Przemianowany' });
+    const k2 = Js.planImport(l2, kdoc);
+    check('a kind keeps its lasting name through the editor and is found by it after a rename', [l2.entry(kid)?.data._ref, k2.kinds[0].id, k2.kinds[0].isNew], ['test/rodzaj', kid, false]);
+    /* Ein Rodzaj, der ergänzt wird: die Reihenfolge des Dokuments, ein bleibendes Feld hinter seinem alten Nachbarn; Etikett und Unterscheidung bleiben. */
+    await doImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ ref: '@o', name: 'Kolejność', label: '{a} {x}', tells: 'x', fields: [{ key: 'a', label: 'A', type: 'text' }, { key: 'x', label: 'X', type: 'text' }, { key: 'b', label: 'B', type: 'text' }] }] });
+    const re = Js.planImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ name: 'Kolejność', fields: [{ key: 'b', label: 'B', type: 'text' }, { key: 'a', label: 'A', type: 'text' }] }] });
+    check('a kind completed in place: the document’s order, a kept field behind its old neighbour; label and tells stay when not named', [re.kinds[0].def.fields.map((f) => f.key), re.kinds[0].def.label, re.kinds[0].def.tells], [['b', 'a', 'x'], '{a} {x}', 'x']);
+  }
+  {
+    /* „Beantwortet": was eine Frage in einer Struktur unter sich nennt (down), beantwortet sie — und wird dadurch nicht selbst beantwortet. */
+    await doImport(l2, { format: 'recreatio.cogita.course', version: 1,
+      kinds: [{ ref: '@teza', name: 'Teza z argumentami', label: '{tresc}', fields: [{ key: 'tresc', label: 'Treść', type: 'blocks' }, { key: 'za', label: 'Argumenty', type: 'ref', multi: true, structure: 'down' }] }],
+      entities: [
+        { ref: '@t/q', kinds: ['@teza'], data: { tresc: para('Czy świat ma początek?'), za: ['@t/c'] } },
+        { ref: '@t/c', kinds: ['@teza'], data: { tresc: para('Czy czas ma początek?') } }
+      ] });
+    const q = l2.byImportRef('t/q', 'entity').id;
+    const c = l2.byImportRef('t/c', 'entity').id;
+    check('a question that lists another under it (down) is answered; the one listed is not answered by that', [l2.answeredIds().has(q), l2.answeredIds().has(c)], [true, false]);
+  }
+  {
+    /* Zusammengeführt: der Bleibende trägt beide Namen; derselbe Import danach legt nichts an. */
+    const mdoc = entitiesDoc([
+      { ref: '@m/a', kinds: ['Krok wywodu'], data: { rola: 'argument', tresc: para('Pierwsza racja.') } },
+      { ref: '@m/b', kinds: ['Krok wywodu'], data: { rola: 'argument', tresc: para('Ta sama racja inaczej.') } }]);
+    await doImport(l2, mdoc);
+    const a = l2.byImportRef('m/a', 'entity').id;
+    const b = l2.byImportRef('m/b', 'entity').id;
+    await l2.merge(a, b);
+    const after = Js.planImport(l2, mdoc);
+    check('merged entries keep both lasting names: the same document again creates nothing and writes into the kept one',
+      [l2.entry(a)?.data._refs, l2.entry(a)?.data._ref, after.entities.length, after.entities[0].id, after.entities.filter((x) => x.isNew).length], [['m/b'], 'm/a', 1, a, 0]);
+    truth('… and says that two names are one entry now', after.warnings.some((w) => w.includes('jeden wpis')), after.warnings);
+    const reversed = Js.planImport(l2, entitiesDoc([...mdoc.entities].reverse()));
+    check('… the kept entry keeps its own text, whatever the order of the rows (the dropped name only fills what is empty)',
+      [after.entities[0].data.tresc[0].text, reversed.entities[0].data.tresc[0].text, reversed.entities.length], ['Pierwsza racja.', 'Pierwsza racja.', 1]);
+    const onlyOld = Js.planImport(l2, entitiesDoc([mdoc.entities[1]]));
+    check('… a document with only the dropped name changes nothing that is filled', [onlyOld.entities[0].id, onlyOld.entities[0].data.tresc[0].text], [a, 'Pierwsza racja.']);
+    check('lasting names ignore case', Js.planImport(l2, entitiesDoc([{ ref: '@M/A', kinds: ['Krok wywodu'], data: { rola: 'argument' } }])).entities[0].id, a);
+  }
+  {
+    /* Was nicht aufgeht: in einem Verweisfeld fällt es weg (mit Hinweis); ein Name mit „/" in einem Textfeld ist Text und bleibt — auch wenn es einen Eintrag dieses Namens gibt. */
+    const tp = Js.planImport(l2, entitiesDoc([{ ref: '@m/c', kinds: ['Krok wywodu'], data: { rola: 'argument', tresc: para('Racja.'), nalezy: '@nikt/nigdzie', miejsce: { value: '@brak2021', locator: 's. 3' } } }]));
+    check('in a reference field a name that leads nowhere is left out and named; a key without „/" points to Więcej → Ustawienia → Źródła',
+      [tp.entities[0].data.nalezy, tp.warnings.some((w) => w.includes('@nikt/nigdzie') && w.includes('nie ma wpisu o tej nazwie')), tp.warnings.some((w) => w.includes('@brak2021') && w.includes('Więcej → Ustawienia → Źródła'))], [undefined, true, true]);
+    const notes = await doImport(l2, { format: 'recreatio.cogita.course', version: 1,
+      kinds: [{ ref: '@test/notatka', name: 'Notatka testowa', fields: [{ key: 'tekst', label: 'Tekst', type: 'line' }, { key: 'o', label: 'O', type: 'ref' }, { key: 'tresc', label: 'Treść', type: 'blocks' }] }],
+      entities: [{ ref: '@test/n1', kinds: ['@test/notatka'], data: { tekst: '@m/a', o: '@m/a', tresc: [{ type: 'paragraph', text: '@m/a' }, { type: 'unordered', items: [[{ ref: '@m/a' }]] }] } }] });
+    const n1 = notes.entities[0].data;
+    const am = l2.byImportRef('m/a', 'entity').id;
+    check('a name with „/" is a reference only where the field is one: a line keeps „@m/a", the reference field and a cell reference get the entry',
+      [n1.tekst, n1.o, n1.tresc[0].text, n1.tresc[1].items[0][0].ref], ['@m/a', am, '@m/a', am]);
+  }
+  {
+    /* Ein Kreis in der Struktur wird vor dem Speichern genannt — und was unter ihm hängt; ein richtiger Anfang nicht. */
+    const cyc = Js.planImport(l2, entitiesDoc([
+      { ref: '@k/a', kinds: ['Krok wywodu'], data: { rola: 'argument', nalezy: '@k/b', tresc: para('A leży pod B.') } },
+      { ref: '@k/b', kinds: ['Krok wywodu'], data: { rola: 'argument', nalezy: '@k/a', tresc: para('B leży pod A.') } },
+      { ref: '@k/c', kinds: ['Krok wywodu'], data: { rola: 'argument', nalezy: '@k/a', tresc: para('C wisi pod kołem.') } },
+      { ref: '@k/r', kinds: ['Krok wywodu'], data: { rola: 'pytanie', tresc: para('Czy to drzewo?') } },
+      { ref: '@k/s', kinds: ['Krok wywodu'], data: { rola: 'argument', nalezy: '@k/r', tresc: para('S leży pod pytaniem.') } }]));
+    const w = cyc.warnings.find((x) => x.includes('w kole')) ?? '';
+    check('a circle in the structure is named before saving, with what hangs under it; a tree with a root is not', [w.includes('A leży pod B'), w.includes('B leży pod A'), w.includes('C wisi pod kołem'), w.includes('Czy to drzewo'), w.includes('S leży')], [true, true, true, false, false]);
+    const self = Js.planImport(l2, entitiesDoc([{ ref: '@k/sam', kinds: ['Krok wywodu'], data: { rola: 'argument', nalezy: '@k/sam', tresc: para('Leżę pod sobą.') } }]));
+    truth('a step that lies under itself is named: a tree would start with it, a view of empty „Należy do" would hide it', self.warnings.some((x) => x.includes('na siebie') && x.includes('Leżę pod sobą')), self.warnings);
+  }
+  {
+    /* Die Wejścia lösen jeden Wert in seinem Raum auf. */
+    const an = Js.planImport(l2, entitiesDoc([], [
+      { ref: '@x/w1', name: 'Na dzieło', work: '@kowalski2020', entry: '@kowalski2020', view: 'Wywód' },
+      { ref: '@x/w2', name: 'Bez źródła', work: '@nieznany1999', view: '@Wywód' }]));
+    const wywodView = l2.docs('view').find((v) => v.data.name === 'Wywód').id;
+    check('anchors resolve each value in its own space: a library work as the entry is refused, a view by its name with „@", a work outside the sources points to Źródła',
+      [an.docs[0].data.entry, an.docs[0].data.view === wywodView, an.docs[1].data.view === wywodView, an.warnings.some((w) => w.includes('to wpis biblioteki')), an.warnings.some((w) => w.includes('@nieznany1999') && w.includes('Ustawienia → Źródła'))],
+      [undefined, true, true, true, true]);
+  }
+  {
+    /* Der Export: eigene Rodzaje in den Schritten eines Widok als „@name" — in einer anderen Baza dann deren Rodzaj. */
+    const exp = Js.exportCourse(lib, 'B');
+    const wv = exp.views.find((v) => v.name === 'Wywód');
+    const other = await freshBase();
+    const op = Js.planImport(other, exp);
+    const ok = op.kinds.find((k) => k.def.name === 'Krok wywodu');
+    const ov = op.docs.find((d) => d.kind === 'view' && d.data.name === 'Wywód');
+    check('a view goes out with „@name" for its own kinds and comes into another base with that base’s kind', [wv.steps[0].config.kind, ok.isNew, ov.data.steps[0].config.kind === ok.id], ['@wywod/krok', true, true]);
+    check('… no bookkeeping in the exported data; the lasting name is the ref', [exp.views.some((v) => '_ref' in v), wv.ref], [false, '@wywod/widok']);
+  }
+  {
+    /* Gruppen, Achsen und Spalten „#axis:" eines Widok gehen mit „@name" hinaus und kommen in einer anderen Baza bei deren Rodzaj an. */
+    const src = await freshBase();
+    await doImport(src, { format: 'recreatio.cogita.course', version: 1,
+      kinds: [{ ref: '@t/taj', name: 'Tajemnica', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'numer', label: 'Numer', type: 'number' }] },
+        { ref: '@t/kom', name: 'Komentarz tajemnicy', fields: [{ key: 'tresc', label: 'Treść', type: 'blocks' }, { key: 'taj', label: 'Tajemnica', type: 'ref', to: ['@t/taj'] }] }],
+      views: [{ ref: '@t/widok', name: 'Według tajemnic', mode: 'tree', steps: [{ type: 'source.kind', config: { kind: '@t/kom' } }], group: { by: 'axis', kind: '@t/taj', via: ['taj'], sort: { field: 'numer' } }, columns: ['#axis:@t/taj'], positions: {} }] });
+    const tajSrc = src.kinds.find((k) => k.name === 'Tajemnica').id;
+    const ex = Js.exportCourse(src, 'S').views.find((v) => v.name === 'Według tajemnic');
+    const dst = await freshBase();
+    const dp = Js.planImport(dst, Js.exportCourse(src, 'S'));
+    const tajDst = dp.kinds.find((k) => k.def.name === 'Tajemnica').id;
+    const dv = dp.docs.find((d) => d.kind === 'view').data;
+    check('a view’s axis group and „#axis:" column go out with the kind’s name and arrive at the other base’s kind',
+      [ex.group.kind, ex.columns[0], tajDst !== tajSrc, dv.group.kind === tajDst, dv.columns[0] === `#axis:${tajDst}`, dp.warnings], ['@t/taj', '#axis:@t/taj', true, true, true, []]);
+  }
+  {
+    /* Zwei Durchgänge: was ein Dokument beim Namen nennt, geht vor — eine gleichnamige Kopie davor nimmt das Original nicht. */
+    const fb = await freshBase();
+    await doImport(fb, schema);
+    const formEntry = fb.docs('addform').find((f) => f.data.name.startsWith('Kroki pod krokiem'));
+    const exported = Js.exportForms(fb, [formEntry], 'F');
+    const original = exported.forms[0];
+    const copy = { ...original, ref: '@kopia' };
+    const twoPass = Js.planImport(fb, { ...exported, forms: [copy, original] });
+    const planned = twoPass.docs.filter((d) => d.kind === 'addform');
+    check('a same-named copy BEFORE the original in one document: the original keeps its form, the copy becomes a new one',
+      [planned.length, planned.find((d) => !d.isNew)?.id === formEntry.id, planned.filter((d) => d.isNew).length, twoPass.warnings.some((w) => w.includes('zostanie zastąpiony'))], [2, true, 1, false]);
+    const kom = JSON.parse(await readFile('../templates/cogita/komentarz.json', 'utf8'));
+    await doImport(fb, kom);
+    const teza = fb.docs('template').find((t) => t.data._ref === 'komentarz/t-teza');
+    const { ref: _r, ...noRef } = kom.templates[0];
+    const order = Js.planImport(fb, { ...kom, templates: [noRef, kom.templates[0]] });
+    const tz = order.docs.filter((d) => d.kind === 'template' && d.data.name === 'Teza');
+    check('a ref-less „Teza" before the named one: the named one keeps the template, the other is new — never two with one lasting name',
+      [tz.find((d) => d.data._ref === 'komentarz/t-teza')?.id === teza.id, tz.filter((d) => d.data._ref === 'komentarz/t-teza').length, tz.filter((d) => d.isNew).length], [true, 1, 1]);
+  }
+  {
+    /* Ein Zbiór „@q" neben einem Eintrag „@q": der Schritt „source.collection" meint den Zbiór. */
+    const cb = await freshBase();
+    await doImport(cb, schema);
+    const cp = Js.planImport(cb, { format: 'recreatio.cogita.course', version: 1,
+      entities: [{ ref: '@q', kinds: ['Krok wywodu'], data: { rola: 'pytanie', tresc: para('Czy?') } }],
+      collections: [{ ref: '@q', name: 'Zbiór Q', list: ['@q'] }],
+      views: [{ ref: '@v', name: 'Ze zbioru', mode: 'table', steps: [{ type: 'source.collection', config: { collection: '@q' } }], positions: {} }] });
+    const coll = cp.docs.find((d) => d.kind === 'collection');
+    const vw = cp.docs.find((d) => d.kind === 'view');
+    check('a collection and an entry with one name: the collection step means the collection, the list means the entry',
+      [vw.data.steps[0].config.collection === coll.id, coll.data.list[0] === cp.entities[0].id, cp.warnings], [true, true, []]);
+  }
+  {
+    /* Wem ein Name gehört: ein anderes Dokument mit denselben Namen wird genannt, dasselbe Dokument nicht. */
+    const ob = await freshBase();
+    await doImport(ob, schema);
+    const article = examples[0];
+    await doImport(ob, article);
+    const same = Js.planImport(ob, article);
+    const second = Js.planImport(ob, { ...article, name: 'Druga rekonstrukcja tego artykułu' });
+    check('a second document using the same names is named in the review; the same document again is not',
+      [same.warnings.some((w) => w.includes('ma już wpis z dokumentu')), second.warnings.some((w) => w.includes('ma już wpis z dokumentu') && w.includes(article.name))], [false, true]);
+    const st = ob.entities().find((x) => ob.entry(x.id)?.data._ref === 'kowalski2020/calosc/pytanie');
+    check('… an entry remembers the document it came from', ob.entry(st.id)?.data._refDoc, article.name);
+  }
+  {
+    /* Ein umbenannter Rodzaj: die Datei findet ihn an seinem bleibenden Namen, legt keinen leeren an und sagt, dass sie ihn umbenennt. */
+    const rb = await freshBase();
+    await doImport(rb, schema);
+    const kr = rb.kinds.find((k) => k.name === 'Krok wywodu');
+    await rb.saveKind({ ...kr, name: 'Krok argumentu', label: '{tresc} ({rola})' });
+    const again = Js.planImport(rb, schema);
+    const back = again.kinds.find((k) => k.id === kr.id);
+    check('a renamed kind is found by its lasting name: no new kind; the rename back and the label change are said',
+      [again.kinds.filter((k) => k.isNew).length, back?.isNew, again.warnings.some((w) => w.includes('zmienia nazwę')), again.warnings.some((w) => w.includes('wzór etykiety'))], [0, false, true, true]);
+    const nameless = Js.planImport(rb, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ ref: `@${kr.id}`, fields: [{ key: 'nr', label: 'Nr', type: 'number' }] }] });
+    check('… a kind named only by its id keeps its name', nameless.kinds[0].def.name, 'Krok argumentu');
+  }
+  /* ══ 2026-10-25 — Teil 2: Elemente, parallele Strukturen einer Erzählung, Karten, Korrektur mit Durchsicht ══ */
+  {
+    const nameOf = (id) => lib.entry(id)?.data._ref ?? id;
+    const last = (id) => nameOf(id).split('/').pop();
+    const viewOf = (name) => VW2.readView(lib.docs('view').find((v) => v.data.name === name).data);
+    check('a view keeps „order by this field" (outline.by) through JSON', VW2.viewJson(VW2.readView({ mode: 'outline', steps: [], outline: { chip: 'rola', by: 'czas', tie: 'nr' } })).outline, { chip: 'rola', by: 'czas', tie: 'nr' });
+
+    /* Ein Ereignis in drei Strukturen. */
+    const powrot = step('zielinska2019/chronologia/powrot');
+    check('one event in three structures: its chapter, the chronology and the stage of the character', Wy.parentsOf(powrot.id, lib).map(nameOf).sort(),
+      ['zielinska2019/budowa/cz1', 'zielinska2019/chronologia/watek', 'zielinska2019/rozwoj/etap1']);
+    const chron = step('zielinska2019/chronologia/watek');
+    const kidsIn = (view, root) => VW2.viewOutline(lib, VW2.viewFrom(view, root.id)).roots[0].groups.find((g) => g.structure).nodes.map((n) => last(n.id));
+    check('the chronology by the time of the story: the lindens planted after the war come first, though told in chapter 5', kidsIn(viewOf('Wywód — w czasie opowieści'), chron), ['lipy', 'wakacje', 'powrot', 'listy', 'decyzja']);
+    check('… the same root by place in the work: chapters 1, 1, 2, 5, 6', kidsIn(viewOf('Wywód'), chron), ['wakacje', 'powrot', 'listy', 'lipy', 'decyzja']);
+    check('… the composition by place: the parts, the events in their chapters', [kidsIn(viewOf('Wywód'), step('zielinska2019/budowa/watek')), kidsIn(viewOf('Wywód'), step('zielinska2019/budowa/cz2'))], [['cz1', 'cz2'], ['lipy', 'decyzja']]);
+
+    /* Elemente: ein Begriff über den Werken, die Elemente des Artikels unter „Ogólnie"; die Elemente des Romans. */
+    const elShape = VW2.viewOutline(lib, viewOf('Elementy stałe'));
+    check('the view „Elementy stałe": concepts above works and elements without one as roots', elShape.roots.map((r) => last(r.id)).sort(), ['dom', 'jozef', 'lipy', 'marta', 'milosc']);
+    const milosc = elShape.roots.find((r) => last(r.id) === 'milosc');
+    check('… under „Miłość" the elements of the article that refer to it', milosc.groups.filter((g) => !g.structure).map((g) => [g.label, g.nodes.map((n) => last(n.id)).sort()]), [['← Ogólnie', ['agapao', 'phileo']]]);
+    check('… a step names the elements it speaks about', (step('kowalski2020/calosc/zarzut').data.elementy ?? []).map(nameOf).sort(), ['kowalski2020/el/agapao', 'kowalski2020/el/phileo']);
+
+    /* Die Karten: streng geprüft, aus demselben Werk. */
+    const made = await lib.cards('wywod-karty');
+    const tpl = (name) => lib.templates().find((t) => t.name === name).id;
+    const cardsOf = (name) => made.cards.filter((c) => c.template === tpl(name));
+    const thesis = (id) => STM2.statementOf(lib.entry(id), lib.markupLook)?.thesis ?? '';
+    const workOf = (id) => { const v = lib.entity(id).data.miejsce; const one = Array.isArray(v) ? v[0] : v; return typeof one === 'object' && one !== null ? one.value : one; };
+    const sameWork = (id) => lib.entities().filter((x) => x.kinds.some((k) => k === krok.id) && workOf(x.id) === workOf(id));
+    const fragOf = new Map(lib.entities().filter((x) => typeof x.data.fragment === 'string').map((x) => [x.data.fragment, x.id]));
+    const pary = cardsOf('Fragmenty i tezy jednego dzieła — połącz w pary');
+    const withFragment = lib.entities().filter((x) => x.kinds.includes(krok.id) && typeof x.data.fragment === 'string');
+    check('matching cards: one for every step with a fragment', pary.map((c) => c.entity).sort(), withFragment.map((x) => x.id).sort());
+    truth('… each pairs 2–5 fragments of ONE work with their own theses', pary.every((c) => c.answer.form === 'match' && c.answer.left.length >= 2 && c.answer.left.length <= 5
+      && c.answer.pairs.every(([l, r]) => { const id = fragOf.get(c.answer.left[l]); return id !== undefined && workOf(id) === workOf(c.entity) && thesis(id) === c.answer.right[r]; })), pary.map((c) => c.answer));
+    const teza = cardsOf('Do tego fragmentu — która teza?');
+    check('„which thesis belongs to this fragment?": one card for every step with a fragment', teza.length, withFragment.length);
+    truth('… the right thesis among up to three theses of OTHER steps of the same work', teza.every((c) => c.answer.form === 'one' && c.answer.options[c.answer.correct] === thesis(c.entity) && c.answer.options.length >= 2 && c.answer.options.length <= 4
+      && c.answer.options.every((o) => sameWork(c.entity).some((x) => thesis(x.id) === o))), teza.map((c) => c.answer));
+    const dzielo = cardsOf('Z którego dzieła jest ta teza?');
+    const works = [W1, W2, W3].map((w) => lib.label(lib.entity(w)));
+    truth('„from which work is this thesis?": the right work among the works of the base', dzielo.length > 0 && dzielo.every((c) => c.answer.form === 'one' && c.answer.options[c.answer.correct] === lib.label(lib.entity(workOf(c.entity))) && c.answer.options.every((o) => works.includes(o)) && c.answer.options.length === 3), dzielo.slice(0, 3).map((c) => c.answer));
+    const element = cardsOf('Co znaczy w tym dziele…?');
+    check('„what does X mean in this work?": cards for the elements of a work, never for a concept above works', element.map((c) => last(c.entity)).sort(), ['agapao', 'dom', 'jozef', 'lipy', 'marta', 'phileo']);
+    const agapao = element.find((c) => last(c.entity) === 'agapao');
+    check('… the wrong answers are descriptions of other elements of the same work', [...agapao.answer.options].sort(), ['W artykule agapao to miłość, która daje siebie bez warunku.', 'W artykule phileo to miłość przyjaźni, na jaką Piotra stać po zaparciu.']);
+    check('… none of the four kinds is a self-assessed card', [...new Set([...pary, ...teza, ...dzielo, ...element].map((c) => c.answer.form))].sort(), ['match', 'one']);
+
+    /* Eine Korrektur der eigenen KI (7.4): nur, was sich ändert; jede Änderung an Bestehendem einzeln annehmen und ändern. */
+    const cb = await freshBase();
+    await doImport(cb, schema);
+    await doImport(cb, examples[0]);
+    const corr = Js.planImport(cb, examples[3]);
+    const changes = IR.changesOf(cb, corr);
+    const arg1 = cb.byImportRef('kowalski2020/calosc/arg1', 'entity');
+    const arg11 = cb.byImportRef('kowalski2020/calosc/arg1-1', 'entity');
+    const which = (c) => (c.targetId === arg1.id ? 'arg1' : c.targetId === arg11.id ? 'arg1-1' : '?');
+    check('a correction names only what changes: one thesis, one removed fragment, and one new comment',
+      [changes.filter((c) => !c.isNew).map((c) => `${which(c)}:${c.field}`).sort(), changes.filter((c) => c.isNew).map((c) => c.target)], [['arg1-1:fragment', 'arg1:tresc'], ['entity']]);
+    const planned = corr.entities.find((e) => e.id === arg1.id).data;
+    check('… the step keeps everything the correction does not name (fields are completed, not replaced)', [planned.fragment, planned.miejsce?.locator, Array.isArray(planned.nalezy) ? planned.nalezy.length : typeof planned.nalezy], ['Trzykrotne pytanie Jezusa odpowiada trzykrotnemu zaparciu się Piotra.', 's. 47–49', 'string']);
+    const tresc = changes.find((c) => c.field === 'tresc');
+    const frag = changes.find((c) => c.field === 'fragment');
+    check('… each change shows before and after; a removal says so', [tresc.beforeText, tresc.afterText, frag.afterText], [
+      'Trzy pytania odpowiadają trzem zaparciom Piotra.\nAutor zestawia ognisko z J 18,18 i J 21,9 jako znak tego samego miejsca w pamięci.', 'Każde z trzech pytań Jezusa odpowiada jednemu zaparciu Piotra.', '(pole usunięte)']);
+    const d0 = IR.decidedPlan(cb, corr, changes, IR.defaultDecisions(changes));
+    check('… by default only the new comment is saved — a change to an existing entry needs the owner’s yes', [d0.plan.entities.length, d0.plan.entities[0].isNew, cb.kind(d0.plan.entities[0].kinds[0])?.name], [1, true, 'Komentarz']);
+    check('… the proposal to edit starts from the proposed text', IR.editText(tresc), 'Każde z trzech pytań Jezusa odpowiada jednemu zaparciu Piotra.');
+    const yes = { accepted: new Set([...IR.defaultDecisions(changes).accepted, tresc.id, frag.id]), edited: new Map([[tresc.id, 'Trzy pytania Jezusa leczą trzy zaparcia Piotra.\n\nAutor widzi w nich jedną drogę.']]) };
+    const d1 = IR.decidedPlan(cb, corr, changes, yes);
+    await Js.applyImport(cb, d1.plan, () => undefined);
+    const after = cb.entity(arg1.id);
+    check('… accepted and edited: the owner’s own text is saved, the fragment is gone, the rest of the step stays',
+      [after.data.tresc.map((b) => b.text), 'fragment' in cb.entity(arg11.id).data, after.data.fragment, d1.invalid], [['Trzy pytania Jezusa leczą trzy zaparcia Piotra.', 'Autor widzi w nich jedną drogę.'], false, 'Trzykrotne pytanie Jezusa odpowiada trzykrotnemu zaparciu się Piotra.', []]);
+    const bad = IR.decidedPlan(cb, corr, changes, { accepted: new Set([frag.id]), edited: new Map() });
+    check('… nothing accepted, nothing saved; an edit that cannot be read is named and left out', [IR.decidedPlan(cb, corr, changes, { accepted: new Set(), edited: new Map() }).plan.lines, bad.invalid,
+      IR.editedValue({ ...changes.find((c) => c.edit === 'json') ?? { edit: 'json' } }, '{nie json').error ?? null], [['Nic do zapisania.'], [], 'To nie jest poprawny JSON.']);
+
+    /* Ein Begriff über den Werken gehört jedem Dokument; ein Rodzaj an seinem bleibenden Namen auch nach dem Umbenennen. */
+    const other = Js.planImport(cb, { ...examples[0], name: 'Inny dokument o miłości', entities: examples[0].entities.filter((e) => e.ref === '@pojecie/milosc'), anchors: [] });
+    truth('a concept above works reached from another document is not named as someone else’s entry', !other.warnings.some((w) => w.includes('ma już wpis z dokumentu')), other.warnings);
+    const kr = cb.kinds.find((k) => k.name === 'Krok wywodu');
+    await cb.saveKind({ ...kr, name: 'Krok' });
+    const byLasting = Js.planImport(cb, entitiesDoc([{ ref: '@test/x', kinds: ['@wywod/krok'], data: { rola: 'opis', tresc: para('Opis.') } }]));
+    check('a document names the kind by its lasting name („@wywod/krok"): found after the owner renamed it', [byLasting.entities[0].kinds, byLasting.warnings], [[kr.id], []]);
+
+    /* Anhang A des Leitfadens ist die Beschreibung der App selbst. */
+    const G = await import(pathToFileURL(join(process.cwd(), 'scripts/wywod-guide.mjs')).href);
+    check('Appendix A of the AI guide is the app’s own description of „Dzieło z tekstem" (node scripts/wywod-guide.mjs)', G.withAppendix(guide, SI.workWithTextDescription()) === guide, true);
+    truth('… and the guide tells the AI to stop after step 1 with the sentence for step 2', guide.includes('Tekst jest w Bibliotece. Zrób krok 2') && guide.includes('Do not start step 2 before the user writes this sentence.'));
+  }
+}
+
+/* ══ 2026-10-25 — Wywód, Gruppe A: Stellen relativ zur Wurzel (Gliederung), ein Vergleicher, die Grenze der Struktura ══ */
+{
+  check('outline places relative to the root: only what lies deeper; another chapter, the same place, a range, pages stay whole', [
+    Wy.relativePlace('rozdz. 3, § 4', 'rozdz. 3', 'outline'), Wy.relativePlace('t. 2, rozdz. 3', 't. 2', 'outline'), Wy.relativePlace('rozdz. 3, ak. 5', 'rozdz. 3', 'outline'),
+    Wy.relativePlace('ks. II, rozdz. 4', 'ks. II', 'outline'), Wy.relativePlace('t. 2, cz. 1, rozdz. 3', 't. 2, cz. 1', 'outline'),
+    Wy.relativePlace('rozdz. 12', 'rozdz. 1', 'outline'), Wy.relativePlace('rozdz. 12, § 4', 'rozdz. 1', 'outline'), Wy.relativePlace('rozdz. 3', 'rozdz. 3', 'outline'),
+    Wy.relativePlace('t. 2, rozdz. 3, § 4', 'rozdz. 3', 'outline'), Wy.relativePlace('t. 1, rozdz. 3', 't. 2', 'outline'),
+    Wy.relativePlace('rozdz. 3–4, § 2', 'rozdz. 3', 'outline'), Wy.relativePlace('rozdz. 3, § 4', 'rozdz. 3–4', 'outline'),
+    Wy.relativePlace('rozdz. 3, s. 47', 'rozdz. 3', 'pages'), Wy.relativePlace('s. 47', 's. 45–60', 'pages')
+  ], ['§ 4', 'rozdz. 3', 'ak. 5', 'rozdz. 4', 'rozdz. 3', 'rozdz. 12', 'rozdz. 12, § 4', 'rozdz. 3', 't. 2, rozdz. 3, § 4', 't. 1, rozdz. 3', 'rozdz. 3–4, § 2', 'rozdz. 3, § 4', 'rozdz. 3, s. 47', 's. 47']);
+  check('… Aquinas, the Bible and numbered places as before', [
+    Wy.relativePlace('I q. 2 a. 3', 'I q. 2', 'aquinas'), Wy.relativePlace('I q. 20 a. 1', 'I q. 2', 'aquinas'), Wy.relativePlace('I q. 2 a. 3 ad 2', 'I q. 2 a. 3', 'aquinas'),
+    Wy.relativePlace('J 1,14', 'J 1', 'bible'), Wy.relativePlace('J 10,11', 'J 1', 'bible'), Wy.relativePlace('J 1,14', 'J 1,1', 'bible'),
+    Wy.relativePlace('nr 24 § 1', 'nr 24', 'numbered'), Wy.relativePlace('nr 245', 'nr 24', 'numbered')
+  ], ['a. 3', 'I, q. 20, a. 1', 'ad 2', '14', 'J 10,11', 'J 1,14', '§ 1', 'nr 245']);
+
+  /* Ein Vergleicher für Namen und ein Textfeld für Gleichstand: Zahlen als Zahlen, polnische Buchstaben an ihrem Platz. */
+  const krok = S.readKind('k-ga', { name: 'Krok', label: '{t}', fields: [{ key: 't', label: 'T', type: 'line' }, { key: 'tag', label: 'Tag', type: 'line' }] });
+  const items = new Map([['a', 'Ola 10'], ['b', 'Ola 2'], ['c', 'Łódź'], ['d', 'Lodz'], ['e', 'ala'], ['f', 'Żubr'], ['g', 'zubr']].map(([id, t], i) => [id, { id, kinds: ['k-ga'], data: { t, tag: `nr ${10 - i}` } }]));
+  const src = { entity: (id) => items.get(id), look: { kind: (id) => (id === 'k-ga' ? krok : undefined) } };
+  const named = (tie) => Wy.orderByPlace([...items.keys()].map((id) => ({ id })), src, { tie, label: (x) => x.data.t }).map((id) => items.get(id).data.t);
+  check('siblings without a place: by name (one Polish collator, numbers as numbers), or by a text field for ties', [named(''), named('tag')],
+    [['ala', 'Lodz', 'Łódź', 'Ola 2', 'Ola 10', 'zubr', 'Żubr'], ['zubr', 'Żubr', 'ala', 'Lodz', 'Łódź', 'Ola 2', 'Ola 10']]);
+
+  /* Die Grenze: 2000 je Wurzel, 10 000 für alle — die sechste Wurzel bekommt nichts mehr und sagt es (Wywód und klassisch). */
+  const teza = S.readKind('k-ga-za', { name: 'Teza', label: '{t}', fields: [{ key: 't', label: 'T', type: 'line' }, { key: 'za', label: 'Argumenty za', type: 'ref', multi: true, structure: 'down' }] });
+  const kids = Array.from({ length: 2100 }, (_, i) => ({ id: `ga-k${i}`, kinds: ['k-ga-za'], data: { t: `Argument ${i}` } }));
+  const tops = Array.from({ length: 6 }, (_, i) => ({ id: `ga-r${i}`, kinds: ['k-ga-za'], data: { t: `Pytanie ${i + 1}`, za: kids.map((k) => k.id) } }));
+  const all = new Map([...kids, ...tops].map((x) => [x.id, x]));
+  const look = { kind: (id) => (id === 'k-ga-za' ? teza : undefined) };
+  const sel = { entities: () => [...all.values()], material: () => [], entity: (id) => all.get(id), look, collection: () => undefined, pointing: () => new Set() };
+  const vlib = { selectContext: () => sel, search: () => [], label: (x) => x.data.t, materialKinds: [], material: () => [], look };
+  const source = { type: 'source.list', config: { ids: tops.map((t) => t.id).join('\n') } };
+  const wy = VW2.viewOutline(vlib, VW2.readView({ mode: 'outline', steps: [source, { type: 'structure', config: { dir: 'down' } }] }));
+  check('the budget: five roots of 2100 steps show 1999 and say 101 more; the sixth gets nothing and says all 2100', wy.roots.map((r) => [r.groups.filter((g) => g.structure).flatMap((g) => g.nodes).length, r.cut ?? null]),
+    [[1999, 101], [1999, 101], [1999, 101], [1999, 101], [1999, 101], [0, 2100]]);
+  const classic = VW2.viewOutline(vlib, VW2.readView({ mode: 'outline', steps: [source, { type: 'follow', config: { field: 'za' } }] }));
+  check('… with „Idź po odwołaniu" (classic roots) the shortfall is the node’s cut too; a group with no room left is not drawn empty', classic.roots.map((r) => [r.groups.map((g) => [g.label, g.nodes.length]), r.cut ?? null]),
+    [[[['Argumenty za', 1999]], 101], [[['Argumenty za', 1999]], 101], [[['Argumenty za', 1999]], 101], [[['Argumenty za', 1999]], 101], [[['Argumenty za', 1999]], 101], [[], 2100]]);
+
+  /* „Tylko jeden poziom" mit Kommentaren: abgeschnittene Kommentare sind kein `cut` eines Schritts (das wären Schritte darunter); die Grenze sagt `capped`. */
+  const kom = S.readKind('k-ga-kom', { name: 'Kom', label: '{t}', fields: [{ key: 't', label: 'T', type: 'line' }, { key: 'oczym', label: 'O czym', type: 'ref' }] });
+  const comments = Array.from({ length: 2500 }, (_, i) => ({ id: `ga-c${i}`, kinds: ['k-ga-kom'], data: { t: `Uwaga ${i}`, oczym: 'ga-a' } }));
+  const all2 = new Map([{ id: 'ga-root', kinds: ['k-ga-za'], data: { t: 'Pytanie', za: ['ga-a', 'ga-b'] } }, { id: 'ga-a', kinds: ['k-ga-za'], data: { t: 'Krok A' } }, { id: 'ga-b', kinds: ['k-ga-za'], data: { t: 'Krok B' } }, ...comments].map((x) => [x.id, x]));
+  const look2 = { kind: (id) => (id === 'k-ga-za' ? teza : id === 'k-ga-kom' ? kom : undefined) };
+  const atA = new Set(comments.map((c) => c.id));
+  const sel2 = { entities: () => [...all2.values()], material: () => [], entity: (id) => all2.get(id), look: look2, collection: () => undefined, pointing: (id) => (id === 'ga-a' ? atA : new Set()) };
+  const vlib2 = { selectContext: () => sel2, search: () => [], label: (x) => x.data.t, materialKinds: [], material: () => [], look: look2 };
+  const oneLevel = VW2.viewOutline(vlib2, VW2.readView({ mode: 'outline', steps: [{ type: 'source.list', config: { ids: 'ga-root' } }, { type: 'structure', config: { dir: 'down', one: true } }, { type: 'follow', config: { field: 'oczym', back: true } }] }));
+  const stepA = oneLevel.roots[0].groups.find((g) => g.structure).nodes.find((n) => n.id === 'ga-a');
+  check('… one level with 2500 comments on a step: the cut comments are no cut of the step; the view says it is capped', [stepA.cut ?? null, oneLevel.capped], [null, true]);
+}
+
+/* ══ 2026-10-25 — Wywód, Gruppe A: die Karte der Struktura als Markup (StructureView über react-dom/server) ══ */
+{
+  const uiOut = join(workspace, 'structure-ui.js');
+  await build({
+    stdin: {
+      contents: [
+        "export { StructureView } from './src/app/cogita/StructureView';",
+        "export { CogitaContext } from './src/app/cogita/ui';",
+        "export { CogitaLibrary } from './src/app/cogita/store';",
+        "export { renderToStaticMarkup } from 'react-dom/server';",
+        "export { createElement } from 'react';"
+      ].join('\n'),
+      resolveDir: process.cwd(), loader: 'ts', sourcefile: 'structure-ui.ts'
+    },
+    bundle: true, format: 'esm', platform: 'node', jsx: 'automatic', outfile: uiOut,
+    banner: { js: "import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" },
+    define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }), 'process.env.NODE_ENV': '"production"' },
+    loader: { '.css': 'empty', '.png': 'empty', '.svg': 'empty', '.jpg': 'empty', '.webp': 'empty', '.woff2': 'empty' },
+    logLevel: 'error'
+  });
+  const UI = await import(pathToFileURL(uiOut).href);
+  const K = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const U = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const at = (locator) => ({ value: '01a1c0de-0000-7000-8000-0000000000aa', locator });
+  const E = (n, data) => ({ id: U(n), kind: 'entity', data: { _kinds: [K], ...data } });
+  const entries = [
+    { id: K, kind: 'kind', data: { name: 'Krok', label: '{title}', fields: [
+      { key: 'title', label: 'Teza', type: 'line' }, { key: 'rola', label: 'Rola', type: 'choice', options: ['zarzut', 'odpowiedź'] },
+      { key: 'miejsce', label: 'Miejsce', type: 'ref', to: ['work'], locator: true }, { key: 'nalezy', label: 'Należy do', type: 'ref', to: [K], structure: 'up' }
+    ] } },
+    E(1, { title: 'Czy Bóg istnieje', miejsce: at('I q. 2 a. 3') }),
+    E(2, { title: 'Wydaje się, że Boga nie ma', rola: 'zarzut', miejsce: at('I q. 2 a. 3 arg. 1'), nalezy: U(1) }),
+    E(3, { title: 'Istnienie Boga można wykazać', rola: 'odpowiedź', miejsce: at('I q. 2 a. 3 co.'), nalezy: U(1) }),
+    E(4, { title: 'Druga teza' }), E(5, { title: 'Trzecia teza' })
+  ];
+  const map = new Map(entries.map((x) => [x.id, x]));
+  const store = { libraryId: 'GA', areaId: 'area-ga', revision: 1, loaded: true, all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined, subscribe: () => () => undefined };
+  const lib = new UI.CogitaLibrary(store, false);
+  const ctx = { lib, name: 'GA', writes: false, me: null, who: null, sources: { missing: [], loading: false }, keyIn: async () => undefined, keyOf: async () => undefined, href: (...t) => `#/x/${t.join('/')}` };
+  const draw = (roots, display) => UI.renderToStaticMarkup(UI.createElement(UI.CogitaContext.Provider, { value: ctx }, UI.createElement(UI.StructureView, { roots, display, onOpen: () => undefined })));
+  const article = { id: U(1), groups: [{ label: '', structure: true, nodes: [{ id: U(2), groups: [] }, { id: U(3), groups: [] }] }] };
+  const text = draw([article], { chip: 'rola', tie: '', order: 'text' });
+  const twists = text.match(/class="cg-wy-twist"[^>]*>/g) ?? [];
+  const labels = text.match(/class="cg-wy-label"[^>]*>/g) ?? [];
+  check('one stop per step: the arrow is for the mouse (tabindex -1, aria-hidden), the name carries aria-expanded and aria-controls',
+    [twists.length, twists.every((t) => t.includes('tabindex="-1"') && t.includes('aria-hidden="true"') && !t.includes('aria-expanded')), labels.length, labels.every((l) => l.includes('aria-expanded="false"') && /aria-controls="wy-[^"]+"/.test(l))], [2, true, 2, true]);
+  truth('in text order the heading of a piece is read before its first step', /<div class="cg-wy-line"><span class="cg-sr">Zarzuty — Videtur quod<\/span><button type="button" class="cg-wy-twist"/.test(text), text.slice(text.indexOf('cg-wy-line'), text.indexOf('cg-wy-line') + 200));
+  const flat = (html) => html.replace(/<[^>]+>/g, '');
+  const cut = flat(draw([{ id: U(4), groups: [{ label: '', structure: true, nodes: [] }], cut: 2100 }, { id: U(5), groups: [{ label: '', structure: true, nodes: [] }] }], { chip: '', tie: '' }));
+  check('a root the budget left without steps says what is missing and how to see it — never „jeszcze bez kroków”; a root without steps still does',
+    [cut.includes('▸ 2100 kroków niżej nie pokazano — otwórz wpis, żeby je zobaczyć'), (cut.match(/jeszcze bez kroków/g) ?? []).length], [true, 1]);
+  truth('a classic root says its cut too', flat(draw([{ id: U(4), groups: [], cut: 2100 }], { chip: '', tie: '' })).includes('▸ 2100 wpisów niżej nie pokazano'));
+  check('roots are keyed by their id (and the owner’s order), not by their place in the list',
+    UI.StructureView({ roots: [{ id: U(5), groups: [] }, { id: U(4), groups: [] }], display: { chip: '', tie: '', order: 'tree' }, onOpen: () => undefined }).props.children[0].map((x) => x.key), [`${U(5)}:tree`, `${U(4)}:tree`]);
 }
 
 await rm(workspace, { recursive: true, force: true });

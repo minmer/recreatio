@@ -255,6 +255,14 @@ function FieldMore({ field, targets, disabled, own, onSet }: { field: FieldDef; 
           <label className="pe-check"><input type="checkbox" checked={field.symmetric === true} disabled={disabled} onChange={(e) => onSet({ symmetric: e.target.checked || undefined })} /><span>w obie strony (zapisane raz)</span></label>
           {/* 2026-10-22 (Schritt 11) — ein Verweis mit Stelle: Psalm = Biblia + „Ps 110". */}
           <label className="pe-check"><input type="checkbox" checked={field.locator === true} disabled={disabled} onChange={(e) => onSet({ locator: e.target.checked || undefined })} /><span>z miejscem (rozdział, werset, strona)</span></label>
+          {/* 2026-10-25 (Wywód) — ein Strukturfeld: die Struktura folgt ihm in die Tiefe; für Informacja / Interpretacja zählt es nicht. */}
+          <label className="wk-field"><span>Połączenie w strukturze</span>
+            <select value={field.structure ?? ''} disabled={disabled} onChange={(e) => onSet({ structure: e.target.value === 'up' || e.target.value === 'down' ? e.target.value : undefined })}>
+              <option value="">— zwykłe odwołanie —</option>
+              <option value="up">↑ wskazuje wpis wyżej (ten wpis leży pod nim)</option>
+              <option value="down">↓ wskazuje wpisy niżej (leżą pod tym wpisem)</option>
+            </select>
+          </label>
         </>
       )}
       {field.type === 'media' && (

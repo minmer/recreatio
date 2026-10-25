@@ -35,6 +35,7 @@ import {
   axisMembers, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource, wasTopicGrouping, RETIRED_STEP, RETIRED_TOPIC,
   type Group, type Grouping, type RuleGroup, type SelectContext, type Step
 } from './selection';
+import { childrenOf, orderByPlace, parentsOf, placeOf } from './structure';
 
 /** 2026-10-24 — `outline` (Struktura): die Einträge mit dem, wohin ihre „Idź po odwołaniu"-Schritte führen, als ein lesbares Ganzes (`viewOutline`). */
 export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline';
@@ -57,6 +58,28 @@ export interface ViewDoc {
   readonly matrix: MatrixDef | null;
   /** 2026-10-23 (Schritt 5) — was dieser Widok nach Tematy tat und nicht mehr tut: Hinweise für den Autor und die Seite. */
   readonly retired: readonly string[];
+  /** 2026-10-25 (Wywód) — wie die Struktura zeigt (nur dort gebraucht; gespeichert mit dem Widok). */
+  readonly outline: OutlineDisplay | null;
+}
+
+/**
+ * 2026-10-25 (Wywód) — DIE GESTALT DER STRUKTURA: welches Feld über jedem Knoten steht („Rola":
+ * Zarzut, Odpowiedź …), ob der Baum oder die Reihenfolge des Textes gezeigt wird, und welches Feld
+ * Geschwister an derselben Stelle ordnet (die fünf Wege in „co.": Nr 1–5). Alles vom Besitzer gewählt.
+ */
+export interface OutlineDisplay {
+  readonly chip: string;
+  /** Leer: der Leser wählt (sonst ein Artikel nach Tomasz im Text, alles andere als Baum). */
+  readonly order?: 'tree' | 'text';
+  /** 2026-10-25 — Geschwister zuerst nach diesem Feld (z. B. „czas": die Zeit der Erzählung), sonst nach der Stelle im Werk. */
+  readonly by?: string;
+  readonly tie: string;
+}
+
+export function readOutlineDisplay(raw: unknown): OutlineDisplay | null {
+  if (!isObject(raw)) return null;
+  const s = (v: unknown) => (typeof v === 'string' ? v : '');
+  return { chip: s(raw.chip), ...(raw.order === 'text' || raw.order === 'tree' ? { order: raw.order } : {}), ...(s(raw.by) === '' ? {} : { by: s(raw.by) }), tie: s(raw.tie) };
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -94,7 +117,8 @@ export function readView(raw: unknown): ViewDoc {
     sort,
     positions,
     matrix: readMatrix(d.matrix),
-    retired
+    retired,
+    outline: readOutlineDisplay(d.outline)
   };
 }
 
@@ -115,8 +139,23 @@ export function viewJson(view: ViewDoc): Record<string, unknown> {
     columns: view.columns,
     ...(view.sort === null ? {} : { sort: view.sort }),
     positions: view.positions,
-    ...(view.matrix === null ? {} : { matrix: view.matrix })
+    ...(view.matrix === null ? {} : { matrix: view.matrix }),
+    ...(view.outline === null ? {} : { outline: view.outline })
   };
+}
+
+/** 2026-10-25 (Wywód) — führt dieser Schritt weiter (eine Ebene der Struktura)? */
+const leadsOn = (step: Step): boolean => step.type === 'follow' || step.type === 'structure';
+
+/**
+ * 2026-10-25 (Wywód) — EIN WIDOK, GEÖFFNET AN EINEM EINTRAG (`wpisy/widok/<widok>/<eintrag>`, ein
+ * „Wejście z Biblioteki"): alles vor dem ersten „Idź po…" — die Quellen und ihre Filter — ist
+ * dann dieser eine Eintrag; was der Widok danach tut (die Struktur, die Kommentare), bleibt.
+ */
+export function viewFrom(view: ViewDoc, entityId: string): ViewDoc {
+  const cut = view.steps.findIndex(leadsOn);
+  const rest = cut < 0 ? [] : view.steps.slice(cut);
+  return { ...view, steps: [{ type: 'source.list', config: { ids: [entityId] } }, ...rest], query: '' };
 }
 
 /** Die schnelle Wahl „Rodzaj": `''` alles, eine Art — oder `null`: die Quelle ist eine andere (Zbiór, Lista, Z wpisu). */
@@ -165,6 +204,9 @@ function sortValue(lib: ViewLib, e: Entity, key: string): string | number {
 }
 
 /** DIE EINTRÄGE EINES WIDOKU: die Schritte, dann die Suche, dann die Reihenfolge (sonst nach dem Etikett). */
+const PL_NUMERIC = new Intl.Collator('pl', { numeric: true });
+const PL_PLAIN = new Intl.Collator('pl');
+
 export function viewList(lib: ViewLib, view: ViewDoc): Entity[] {
   const ctx = lib.selectContext();
   const { ids } = runSteps(ctx, view.steps);
@@ -174,15 +216,16 @@ export function viewList(lib: ViewLib, view: ViewDoc): Entity[] {
     const words = view.query.trim().toLowerCase();
     out = out.filter((e) => found.has(e.id) || lib.label(e).toLowerCase().includes(words));
   }
+  /* 2026-10-25 — jeder Wert einmal gerechnet und ein Vergleicher für alle (localeCompare mit Optionen baut bei jedem Vergleich einen neuen). */
   const sort = view.sort;
   if (sort !== null) {
-    out.sort((a, b) => {
-      const x = sortValue(lib, a, sort.key);
-      const y = sortValue(lib, b, sort.key);
-      return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'pl', { numeric: true })) * sort.dir;
-    });
+    const keyed = out.map((e) => ({ e, v: sortValue(lib, e, sort.key) }));
+    keyed.sort((a, b) => (typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : PL_NUMERIC.compare(String(a.v), String(b.v))) * sort.dir);
+    out = keyed.map((k) => k.e);
   } else {
-    out.sort((a, b) => lib.label(a).localeCompare(lib.label(b), 'pl'));
+    const keyed = out.map((e) => ({ e, l: lib.label(e) }));
+    keyed.sort((a, b) => PL_PLAIN.compare(a.l, b.l));
+    out = keyed.map((k) => k.e);
   }
   return out;
 }
@@ -308,7 +351,7 @@ export function stepsOfRevision(raw: unknown): Step[] {
     for (const id of nodes) {
       seen.add(id);
       const node = graph.nodes.find((n) => n.id === id);
-      if (node !== undefined && (node.type === 'follow' || node.type === 'filter.rule')) chain.push({ type: node.type, config: node.config });
+      if (node !== undefined && (node.type === 'follow' || node.type === 'structure' || node.type === 'filter.rule')) chain.push({ type: node.type, config: node.config });
     }
     frontier = nodes;
   }
@@ -323,9 +366,11 @@ export function axesOf(lib: ViewLib): KindDef[] {
 /* -- 2026-10-24: Struktura — ein Eintrag mit dem, worauf er zeigt, als ein Ganzes ----------------------- */
 
 export interface OutlineGroup {
-  /** Wie der Weg heisst: das Feld („Argumenty za") oder, rückwärts, „← Komentarz". */
+  /** Wie der Weg heisst: das Feld („Argumenty za") oder, rückwärts, „← Komentarz"; leer bei den Schritten einer Struktur. */
   readonly label: string;
   readonly nodes: readonly OutlineNode[];
+  /** 2026-10-25 (Wywód) — die Schritte einer Struktur (`Idź po strukturze`): ohne Überschrift, nach der Stelle im Werk. */
+  readonly structure?: true;
 }
 
 export interface OutlineNode {
@@ -333,31 +378,73 @@ export interface OutlineNode {
   readonly groups: readonly OutlineGroup[];
   /** Schon weiter oben auf diesem Weg — nicht noch einmal aufgeklappt. */
   readonly again?: true;
+  /** 2026-10-25 — so viele lagen noch darunter, als eine Grenze (Tiefe, Zahl) erreicht war. */
+  readonly cut?: number;
 }
 
+/** 2026-10-25 — wie tief und wie viel die Struktura höchstens zeichnet: je Wurzel, und für alle zusammen. */
+const OUTLINE_DEPTH = 24;
+const OUTLINE_NODES = 2000;
+const OUTLINE_ALL = 10000;
+
 /**
- * DIE STRUKTUR EINES WIDOKS: die Einträge seiner Quellen (alles vor dem ersten „Idź po
- * odwołaniu") als Wurzeln; jeder weitere Schritt „Idź po odwołaniu" ist eine Ebene darunter,
- * nach Feldern gruppiert. So zeigt ein Widok über „Komentarz biblijny → Komentarz → wszystkie
- * odwołania" den Fragment, den Komentarz und darunter seine Argumenty za und Zarzuty. Was
- * gewählt wird, sagen die Schritte; dass es so erscheint, sagt nur der Modus.
+ * DIE STRUKTUR EINES WIDOKS: die Einträge seiner Quellen (alles vor dem ersten „Idź po…") als
+ * Wurzeln; jeder weitere Schritt „Idź po odwołaniu" ist eine Ebene darunter, nach Feldern gruppiert.
+ * So zeigt ein Widok über „Komentarz biblijny → Komentarz → wszystkie odwołania" den Fragment, den
+ * Komentarz und darunter seine Argumenty za und Zarzuty. Was gewählt wird, sagen die Schritte;
+ * dass es so erscheint, sagt nur der Modus.
+ *
+ * 2026-10-25 (Wywód) — „Idź po strukturze" folgt den Strukturfeldern der Rodzaje, bis zum Ende
+ * (oder eine Ebene): Geschwister nach der Stelle im Werk, dann nach dem Feld für Gleichstand
+ * (`outline.tie`), dann nach der Liste eines `down`-Feldes, dann nach dem Namen. Was nach einem
+ * solchen Schritt steht (etwa „Idź po odwołaniu" rückwärts über „O czym": die Kommentare), gilt an
+ * JEDEM Knoten der Struktur. Wurzeln mit einer Stelle im Werk stehen in der Reihenfolge des Werks.
  */
-export function viewOutline(lib: ViewLib, view: ViewDoc, limit = 50): { roots: OutlineNode[]; more: boolean } {
+export function viewOutline(lib: ViewLib, view: ViewDoc, limit = 50): { roots: OutlineNode[]; more: boolean; count: number; capped: boolean } {
   const ctx = lib.selectContext();
-  const cut = view.steps.findIndex((step) => step.type === 'follow');
-  const roots = viewList(lib, cut < 0 ? view : { ...view, steps: view.steps.slice(0, cut) });
-  const follows = cut < 0 ? [] : view.steps.slice(cut).filter((step) => step.type === 'follow');
+  const cut = view.steps.findIndex(leadsOn);
+  const listed = viewList(lib, cut < 0 ? view : { ...view, steps: view.steps.slice(0, cut) });
+  const order = { tie: view.outline?.tie ?? '', ...(view.outline?.by === undefined ? {} : { by: view.outline.by }), label: (e: Entity) => lib.label(e) };
+  const src = { entity: ctx.entity, look: ctx.look, pointing: ctx.pointing };
+  /* Wurzeln mit einer Stelle im Werk in dessen Reihenfolge (ohne eigene Sortierung des Widoku). */
+  const roots = view.sort === null && listed.some((e) => placeOf(e, src) !== null)
+    ? orderByPlace(listed.map((e) => ({ id: e.id })), src, order).map((id) => ctx.entity(id)).filter((e): e is Entity => e !== undefined)
+    : listed;
+  const follows = cut < 0 ? [] : view.steps.slice(cut).filter(leadsOn);
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
-  const grow = (id: string, depth: number, path: ReadonlySet<string>): OutlineNode => {
-    const step = follows[depth];
+  /* Jede Wurzel hat ihr eigenes Mass (eine grosse nimmt den anderen nichts weg), alle zusammen ein grösseres. */
+  let count = 0;
+  let total = 0;
+  let capped = false;
+  const room = () => { if (count >= OUTLINE_NODES || total >= OUTLINE_ALL) { capped = true; return false; } return true; };
+
+  /** Ein Knoten in einer Gruppe — schon auf dem Weg (Kreis), über der Grenze, oder weiter wachsend. */
+  const node = (x: string, s: number, path: ReadonlySet<string>): OutlineNode => {
+    count += 1;
+    if (path.has(x)) return { id: x, groups: [], again: true };
+    return grow(x, s, new Set([...path, x]));
+  };
+
+  /**
+   * Die Gruppen eines Schritts „Idź po odwołaniu" an einem Eintrag; die Kinder wachsen mit dem nächsten Schritt.
+   * 2026-10-25 — mit dem, was die Grenze abschnitt (`cut`): ein Knoten ohne Struktur trägt es als `cut` und sagt es
+   * (vorher stand bei einer verhungerten Wurzel nur „← O czym" ohne etwas darunter); eine Gruppe, für die nichts
+   * mehr Platz hatte, entfällt.
+   */
+  const followGroups = (id: string, s: number, path: ReadonlySet<string>): { groups: OutlineGroup[]; cut: number } => {
+    const step = follows[s];
     const entity = ctx.entity(id);
-    if (step === undefined || entity === undefined) return { id, groups: [] };
+    if (step === undefined || step.type !== 'follow' || entity === undefined) return { groups: [], cut: 0 };
     const field = str(step.config.field);
     const groups: OutlineGroup[] = [];
+    let cut = 0;
     const add = (label: string, ids: readonly string[]) => {
       const unique = [...new Set(ids)].filter((x) => x !== id && ctx.entity(x) !== undefined);
       if (unique.length === 0) return;
-      groups.push({ label, nodes: unique.map((x) => (path.has(x) ? { id: x, groups: [], again: true } : grow(x, depth + 1, new Set([...path, x])))) });
+      const nodes: OutlineNode[] = [];
+      for (const x of unique) { if (!room()) break; nodes.push(node(x, s + 1, path)); }
+      cut += unique.length - nodes.length;
+      if (nodes.length > 0) groups.push({ label, nodes });
     };
     if (step.config.back === true) {
       const pointers = [...ctx.pointing(id)].map((x) => ctx.entity(x)).filter((e): e is Entity => e !== undefined);
@@ -377,7 +464,39 @@ export function viewOutline(lib: ViewLib, view: ViewDoc, limit = 50): { roots: O
         add(f.label, valuesOf(entity, f).map((v) => v.value).filter((v): v is string => typeof v === 'string'));
       }
     }
-    return { id, groups };
+    return { groups, cut };
   };
-  return { roots: roots.slice(0, limit).map((e) => grow(e.id, 0, new Set([e.id]))), more: roots.length > limit };
+
+  function grow(id: string, s: number, path: ReadonlySet<string>): OutlineNode {
+    const step = follows[s];
+    if (step === undefined || ctx.entity(id) === undefined) return { id, groups: [] };
+    if (path.size > OUTLINE_DEPTH) { capped = true; return { id, groups: [], cut: 1 }; }
+    if (step.type !== 'structure') {
+      const own = followGroups(id, s, path);
+      /* 2026-10-25 — unter einer Struktur (auch „Tylko jeden poziom") ist das Abgeschnittene ein Kommentar eines Schritts, kein Schritt darunter: kein `cut` — die Grenze sagt `capped`. */
+      const underStructure = follows.slice(0, s).some((x) => x.type === 'structure');
+      return own.cut > 0 && !underStructure ? { id, groups: own.groups, cut: own.cut } : { id, groups: own.groups };
+    }
+    const up = step.config.dir === 'up';
+    const deep = !(step.config.one === true || step.config.deep === false);
+    const kids = up ? parentsOf(id, src).map((x) => ({ id: x })) : childrenOf(id, src);
+    const sorted = orderByPlace(kids, src, order);
+    const groups: OutlineGroup[] = [];
+    if (sorted.length > 0) {
+      const nodes: OutlineNode[] = [];
+      for (const x of sorted) { if (!room()) break; nodes.push(node(x, deep ? s : s + 1, path)); }
+      groups.push({ label: '', nodes, structure: true });
+      if (nodes.length < sorted.length) return { id, groups, cut: sorted.length - nodes.length };
+    }
+    /*
+      Was nach einer Struktur „bis zum Ende" steht, gilt an jedem ihrer Knoten (die Kommentare eines Schritts).
+      2026-10-25 — ihr Abgeschnittenes zählt hier nicht als `cut` (das sind an einem Schritt die Schritte darunter);
+      dass die Grenze erreicht war, sagt `capped`.
+    */
+    if (deep) groups.push(...followGroups(id, s + 1, path).groups);
+    return { id, groups };
+  }
+
+  const shown = roots.slice(0, limit).map((e) => { total += count; count = 1; return grow(e.id, 0, new Set([e.id])); });
+  return { roots: shown, more: roots.length > limit, count: total + count, capped };
 }

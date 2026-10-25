@@ -16,7 +16,7 @@ const OVERLAY_LABEL: Readonly<Record<Overlay, TextKey>> = {
   none: 'ovNone', temperature: 'ovTemperature', pressure: 'ovPressure', velocity: 'ovVelocity', humidity: 'ovHumidity', vapour: 'ovVapour', salt: 'ovSalt', phase: 'ovPhase'
 };
 
-export function TimeBar({ phase, paused, time, speed, onPlay, onStep, onSpeed, onRestart, overlay, onOverlay, chartsOn, onCharts, canBake, onBake, clip, onPlayClip, lagging, onLower }: {
+export function TimeBar({ phase, paused, time, speed, onPlay, onStep, onSpeed, onRestart, overlay, onOverlay, chartsOn, onCharts, canBake, accel, onBake, clip, onPlayClip, lagging, onLower }: {
   phase: Phase;
   paused: boolean;
   /** Simulationszeit (s). */
@@ -30,8 +30,9 @@ export function TimeBar({ phase, paused, time, speed, onPlay, onStep, onSpeed, o
   onOverlay: (o: Overlay) => void;
   chartsOn: boolean;
   onCharts: () => void;
-  /** Backen geht (nicht im beschleunigten Weg). */
+  /** Backen geht; accel: im beschleunigten Weg — Backen und Nagranie wechseln erst in den normalen (seit 2026-10-25). */
   canBake: boolean;
+  accel: boolean;
   onBake: () => void;
   clip: ClipInfo | null;
   onPlayClip: () => void;
@@ -66,8 +67,8 @@ export function TimeBar({ phase, paused, time, speed, onPlay, onStep, onSpeed, o
       </div>
       <div className="l2d-time-end">
         {phase !== 'prepare' && <button type="button" className="l2d-btn is-quiet" onClick={onRestart} title={t('restartTitle')}><Icon name="undo" /><span>{t('restart')}</span></button>}
-        {clip !== null && <button type="button" className="l2d-btn is-quiet" onClick={onPlayClip} title={t('clipPlay')}><Icon name="play" /><span>{t('clipShort').replace('{s}', num(clip.duration, 0))}</span></button>}
-        <button type="button" className="l2d-btn" disabled={!canBake} onClick={onBake} title={canBake ? t('bakeTitle') : t('clipAccel')}><Icon name="clock" /><span>{t('bakeOpen')}</span></button>
+        {clip !== null && <button type="button" className="l2d-btn is-quiet" onClick={onPlayClip} title={t(accel ? 'clipPlayAccel' : 'clipPlay')}><Icon name="play" /><span>{t('clipShort').replace('{s}', num(clip.duration, 0))}</span></button>}
+        <button type="button" className="l2d-btn" disabled={!canBake} onClick={onBake} title={!canBake ? t('clipAccel') : t(accel ? 'bakeTitleAccel' : 'bakeTitle')}><Icon name="clock" /><span>{t('bakeOpen')}</span></button>
       </div>
     </footer>
   );

@@ -10,8 +10,19 @@
  * fünfmal je Sekunde, ebenfalls ohne zu warten). Handgriffe holen den
  * Zustand in die CPU-Engine, wenden den Handgriff dort an und laden ihn wieder
  * hoch — währenddessen ruht die Rechnung.
+ *
+ * Nachweise (B, seit 2026-10-25): gebacken und abgespielt wird im normalen
+ * Weg; hier sucht der Arbeiter nur den Nachweis der Szene (für „Nagranie“,
+ * bevorzugt den von der GPU) und geht mit init.resume aus einem Schlüsselbild
+ * eines Nachweises von der GPU live weiter: zurückgeschrieben in die
+ * CPU-Engine, hochgeladen, mit den Gesamtsummen, Abweichungen und Marken der
+ * Schreiber von dort (gpu/handoff.ts).
  */
 
+import { canonicalScene, clipKey, infoOf, rootOf } from './clip/clip';
+import { layoutOf, restoreSnapshot } from './clip/snapshot';
+import { browserStore, type ClipStore } from './clip/store';
+import { Charts } from './engine/charts';
 import { Engine } from './engine/engine';
 import { tSat } from './engine/if97';
 import { editObject, objectView } from './engine/objects';
@@ -19,6 +30,7 @@ import type { BubbleView, ChartSample, HostMessage, HostStats, WorkerMessage } f
 import type { Op } from './engine/scene';
 import { GpuCharts } from './gpu/charts';
 import { GpuEngine, type Readout } from './gpu/engine';
+import { seedFromMirror } from './gpu/handoff';
 import { GpuRenderer } from './gpu/render';
 import { SALT_FULL, type Overlay } from './render/frame';
 import type { Walls } from './render/glRenderer';
@@ -77,6 +89,33 @@ const pendingSamples: ChartSample[] = [];
 const tasks: (() => Promise<void>)[] = [];
 let busy = false;
 const pendingOps: Op[] = [];
+/* Der Nachweis der Szene (B): gesucht 0,3 s nach der letzten Änderung. */
+let clipStore: Promise<ClipStore> | null = null;
+let clipTimer: ReturnType<typeof setTimeout> | null = null;
+let clipSeq = 0;
+
+/** Gibt es Nachweise dieser Szene? Die beschleunigte Ansicht bietet „Nagranie“ an — bevorzugt den von der GPU (abgespielt im normalen Weg). */
+function checkClipsSoon(): void {
+  if (clipTimer !== null) clearTimeout(clipTimer);
+  clipTimer = setTimeout(() => { clipTimer = null; void checkClips(); }, 300);
+}
+
+async function checkClips(): Promise<void> {
+  const e = cpu;
+  if (e === null) return;
+  const seq = (clipSeq += 1);
+  try {
+    const scene = canonicalScene(e.serialize());
+    const kc = await clipKey(scene, 'cpu');
+    const kg = await clipKey(scene, 'gpu');
+    clipStore ??= browserStore();
+    const store = await clipStore;
+    const [hc, hg] = await Promise.all([store.header(kc), store.header(kg)]);
+    if (seq !== clipSeq || cpu !== e) return;
+    const h = hg ?? hc;
+    post({ type: 'clip', info: h === null ? null : infoOf(h, layoutOf(rootOf(e, new Charts(e))), hg !== null ? hc : null) });
+  } catch { /* ohne Speicher keine Nachweise */ }
+}
 
 function setWalls(): void {
   if (cpu === null) return;
@@ -165,6 +204,7 @@ function applyOps(): void {
     const v = gpu.stateVersion;
     gpu.upload();
     afterUpload(v);
+    checkClipsSoon();
   });
 }
 
@@ -279,11 +319,19 @@ function frame(): void {
 
 async function init(m: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   cpu = new Engine(m.scene);
+  /* Live weiter aus einem Schlüsselbild eines Nachweises von der GPU (B): erst in die CPU-Engine, dann hoch. */
+  const mirrorCharts = new Charts(cpu);
+  if (m.resume !== undefined) restoreSnapshot(rootOf(cpu, mirrorCharts), m.resume);
   paused = m.paused === true;
   if (refuseCpuOnly()) return;
   canvas = m.canvas;
   if (canvas === null) throw new Error('no OffscreenCanvas');
   gpu = await GpuEngine.create(cpu);
+  if (m.resume !== undefined) {
+    seedFromMirror(gpu);
+    nextSample = cpu.time;
+    statsSim = cpu.time;
+  }
   const info = await (async () => {
     try {
       const a = await scope.navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
@@ -296,15 +344,18 @@ async function init(m: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   await renderer.init();
   theme(m.dark);
   charts = new GpuCharts(gpu);
+  if (m.resume !== undefined) charts.copyFrom(mirrorCharts);
   gpu.ctx.device.addEventListener('uncapturederror', (e) => post({ type: 'error', message: `WebGPU: ${e.error.message}` }));
   void gpu.ctx.device.lost.then((l) => post({ type: 'gpu', ok: false, adapter, message: l.message || l.reason }));
   setWalls();
   resize(m.width, m.height, m.dpr);
   post({ type: 'gpu', ok: true, adapter, message: '' });
   post({ type: 'ready', offscreen: true, warnings: cpu.warnings, view, quality: cpu.currentQuality, walls });
+  if (m.resume !== undefined) post({ type: 'live', t: cpu.time });
   lastStats = performance.now();
   lastTick = performance.now();
   if (!started) { started = true; frame(); }
+  checkClipsSoon();
 }
 
 /** Neue Szene (Laden, andere Auflösung): alles neu auf der GPU. */
@@ -323,6 +374,7 @@ function restart(): void {
   setWalls();
   resize(cssW, cssH, dpr);
   post({ type: 'view', view, walls });
+  checkClipsSoon();
 }
 
 scope.addEventListener('message', (event) => {
@@ -354,10 +406,12 @@ scope.addEventListener('message', (event) => {
       case 'setHeater':
         cpu?.setHeater(m.group, m.mode, m.power, m.target, m.on);
         gpu?.writeHeater(m.group);
+        checkClipsSoon();
         break;
       case 'setAmbient':
         cpu?.setAmbient(m.p, m.T, m.rh, m.g, m.air);
         gpu?.writeParams();
+        checkClipsSoon();
         break;
       case 'setBoundary':
         task(async () => {
@@ -370,6 +424,7 @@ scope.addEventListener('message', (event) => {
           afterUpload(v);
           setWalls();
           post({ type: 'view', view, walls });
+          checkClipsSoon();
         });
         break;
       case 'query':
@@ -404,6 +459,7 @@ scope.addEventListener('message', (event) => {
       case 'setExtremes':
         cpu?.setExtremes(m.mode);
         gpu?.writeParams();
+        checkClipsSoon();
         break;
       case 'setQuality':
         task(async () => { if (cpu === null) return; cpu.setQuality(m.quality); restart(); });
@@ -431,6 +487,7 @@ scope.addEventListener('message', (event) => {
           const v = gpu.stateVersion;
           gpu.upload();
           afterUpload(v);
+          checkClipsSoon();
         });
         break;
       case 'theme':

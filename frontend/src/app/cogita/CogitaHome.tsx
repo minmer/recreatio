@@ -29,6 +29,8 @@ import type { Me } from '../core/me';
 import { viewPath } from '../routes';
 import type { Who } from '../core/session';
 import { AddFormRun } from './AddFormRun';
+import { AnchorsTab, EntityAnchors } from './AnchorList';
+import { EntityStructure } from './StructureView';
 import { CogitaJson } from './CogitaJson';
 import { CogitaSettings } from './CogitaSettings';
 import { Contributions, Propose } from './Contribute';
@@ -121,6 +123,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'schematy' && <SchemaHub trail={trail.slice(1)} go={go} />}
       {tab === 'do-zrobienia' && <Pending onOpen={(id) => go('wpisy', id)} />}
       {tab === 'propozycje' && <Contributions />}
+      {tab === 'wejscia' && <AnchorsTab key={trail[1] ?? ''} chosen={trail[1]} />}
       {tab === 'zaproponuj' && <Propose />}
       {tab === 'json' && <CogitaJson />}
       {tab === 'stare' && <OldEntries store={lib.store} known={known} writes={writes} labelOf={oldInBaseLabel}
@@ -203,20 +206,27 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
 /* -- Wiedza: Wpisy und Dodaj ------------------------------------------------------------------------ */
 
 function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: string[]) => void }) {
-  const { lib } = useCtx();
+  const { lib, sources } = useCtx();
   if (trail[0] !== undefined && trail[0] !== 'widok' && lib.entity(trail[0]) !== undefined) {
     return (
       <div className="cg">
         <a className="wk-link" href={'#'} onClick={(e) => { e.preventDefault(); window.history.back(); }}>← wróć</a>
+        {/* 2026-10-25 (Wywód) — der Weg von der Wurzel und was unter diesem Eintrag liegt, wenn seine Rodzaje Strukturfelder haben. */}
+        <EntityStructure id={trail[0]} onOpen={(id) => go('wpisy', id)} />
         {/* 0110 — ein Eintrag aus einer Quelle: hier zu lesen, dort zu ändern. */}
         <ForeignOnly id={trail[0]} tab="wpisy">
           <EntityEditor entityId={trail[0]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />
         </ForeignOnly>
+        <EntityAnchors key={trail[0]} entityId={trail[0]} />
         <LearnFrom id={trail[0]} go={go} />
       </div>
     );
   }
-  return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} onOpen={(id) => go('wpisy', id)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))}
+  /* 2026-10-25 — ein Eintrag (oder ein Widok an einem Eintrag) aus einer Quelle, die noch lädt: warten statt der Liste. */
+  const waiting = (trail[0] !== undefined && trail[0] !== 'widok') || (trail[0] === 'widok' && trail[2] !== undefined && lib.entity(trail[2]) === undefined);
+  if (waiting && sources?.loading === true) return <p className="wk-hint">Otwieranie bazy i jej źródeł…</p>;
+  return <EntityList viewId={trail[0] === 'widok' ? trail[1] ?? null : null} startAt={trail[0] === 'widok' ? trail[2] ?? null : null}
+    onOpen={(id) => go('wpisy', id)} onView={(id) => go('wpisy', ...(id === null ? [] : ['widok', id]))}
     onAdd={() => go('dodaj')} onDesign={(id) => go('schematy', 'wyswietlanie', ...(id === null ? [] : [id]))} />;
 }
 

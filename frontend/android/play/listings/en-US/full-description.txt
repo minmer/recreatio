@@ -23,5 +23,4 @@ No ads, no analytics, no tracking libraries. The app talks only to the REcreatio
 ACCOUNT
 An account is required; you create it in the app (16+). You can delete it yourself at any time: Konto → Usunięcie konta.
 
-Privacy policy: https://recreatio.pl/prywatnosc/
 Contact: kontakt@recreatio.pl

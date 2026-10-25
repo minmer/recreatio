@@ -8,6 +8,7 @@
 
 import { AreaRow, asOptionalText, asRecord, asText, defineEventPart, ImageRow, ListEditor, mapEntries, TextRow } from '../event/kit';
 import { imageUrl } from '../slides/slideLook';
+import { FadeImg } from '../../ui/fadeImage';
 
 type Person = { name: string; role: string | null; detail: string | null; photoUrl: string | null; contact: string | null; contactHref: string | null };
 type PeopleConfig = { people: Person[]; note: string | null };
@@ -82,7 +83,7 @@ export const peoplePart = defineEventPart<PeopleConfig>({
             return (
               <article key={index}>
                 <div className="ev-person-avatar" aria-hidden="true">
-                  {person.photoUrl !== null ? <img src={imageUrl(person.photoUrl)} alt="" loading="lazy" /> : <span>{initials(person.name)}</span>}
+                  {person.photoUrl !== null ? <FadeImg src={imageUrl(person.photoUrl)} alt="" loading="lazy" /> : <span>{initials(person.name)}</span>}
                 </div>
                 <div className="ev-person-body">
                   {!strip && person.role !== null && <p className="ev-person-role">{person.role}</p>}

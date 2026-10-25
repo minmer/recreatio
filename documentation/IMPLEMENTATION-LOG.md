@@ -2066,3 +2066,190 @@ backdrop (`deck.backdrop`) and photos, glows and a big word on every slide.
   browser, WebDriver BiDi, `slides-firefox.mjs`): structure, reveal and scroll edges, multiply at rest — 10/10.
 
 **Owner:** no migration, no API deploy; rebuild and deploy the site.
+
+## W1 — Wywód: a work's leading question and argumentation in Cogita, buttons „W Wiedzy” in the Library (2026-10-25)
+
+The owner asked how Cogita can show the whole structure of an article from the Library — its leading question and
+line of argumentation — without giving up the distinction between the parts. Then they settled it: no prepared
+schemes in the engine; the structure is prepared outside (by them or their own AI) and imported in their own kinds;
+entry points (whole work, beginning, end, several parts at once, overlapping, parallel structures) are described in
+Cogita; a button in the Library opens the chosen view at the chosen node. Design history and the mechanism: WYWOD.md.
+
+**Found on the way, fixed**
+- The Library view re-ran its loading effect after every knowledge-base sync — about 190 requests a second for as
+  long as it was open (committed earlier the same day; `ScriptoriumView.tsx`'s `tick === 0` workaround replaced too).
+- `CogitaLibrary.isOwn` said „own” for entries of any other knowledge base loaded in the tab (`LibraryStore.get`
+  reaches loaded bases since 2026-10-22); now `store.own`.
+- Every question in Cogita read „Pytanie otwarte” (`markupLook` had no `readable`): answered is now computed once per
+  state (`answeredIds`, `Lookup.answered`).
+- The Cogita import did not resolve Library keys and let document names shadow them; a template file imported twice
+  doubled its card templates and forms; `komentarz-biblijny.json` after `komentarz.json` dropped „O czym”.
+- The card condition „Warunek: równe / różne” compared only an option's label; it now matches the stored value too.
+
+**Built**
+- Structure fields (`FieldDef.structure: up | down`), the step „Idź po strukturze”, `outline` display `{chip, order,
+  tie}`, views opened at a node (`wpisy/widok/<view>/<entry>`, `viewFrom`), the Struktura drawn whole
+  (`StructureView.tsx`: tree with keys, text order with the pieces of an Aquinas article, relative places, comments
+  beside steps), the entry page's structure and breadcrumb; badge and staleness ignore structure links.
+- Order by place in the work (`structure.ts`), the scheme recognised from the places when the work is unreadable,
+  `locations.ts` reads parts after „;” (pages, outlines, Aquinas).
+- Wejścia z Biblioteki (doc kind `anchor`, `anchors.ts`, `AnchorList.tsx`, Więcej → „Wejścia z Biblioteki”, under an
+  entry); in the Library the box „W Wiedzy”, the phone line, the reader's buttons (`anchorHits.ts`,
+  `LibraryKnowledge.tsx`); „Powiązania” folds long lists and titles statements by thesis.
+- Import: lasting names (`_ref`, refs with „/”), declared keys only, kinds completed not replaced, templates and forms
+  by name, anchors (view by name, work by key), the preview of the tree; export with lasting names.
+- `templates/cogita/wywod.json` (Krok wywodu, Komentarz, three views, two forms, a card template) and
+  `templates/cogita/wywod-AI.md` (the guide for an AI, two complete examples); AI-BRIEF Appendix C regenerated; the
+  MCP instructions and AI-link notes explain structure fields.
+
+**Checks**
+- `app-cogita-check` 482 (33 new: the choice condition by label and value, the schema twice, both guide examples as they stand, idempotent re-import, Summa
+  tree and text order, the article by pages, the scheme without the work, the view at a node, the step up and down,
+  badge, comments beside steps, anchors, export round trip, preview, kind merge, template dedupe, warnings);
+  `app-library-check` (anchors by readable stores only, order, the reader's parts, editions, thesis titles); all other
+  checks, vite build, dotnet build, 522 API tests.
+- Browser drive `scratchpad/argdesign/wywod-browser.mjs` (headless Edge, LocalDB): 20/20 — schema import, both
+  examples with preview, re-import 0 new, Library → „W Wiedzy” → the Summa structure (pieces in text order, „pokaż w
+  tekście”, the tree), the article's two anchors in order, the phone line, the reader's button, the anchors tab, and
+  a parishioner who reads the library but not the base sees no trace of it.
+
+**Owner:** rebuild and deploy the site; the API deploy only changes one MCP instruction sentence (no migration).
+Import `templates/cogita/wywod.json` once per base that should hold structures.
+
+### W1, continued — after the adversarial review (2026-10-25)
+
+An adversarial review confirmed 45 findings: 2 high, 9 medium and the rest low. All were fixed. Eight agents then
+re-checked each finding against the code: 17 were only partly fixed, and 10 new problems had appeared in the fixes.
+Those were fixed and checked again by a skeptic per area, whose last four reports were fixed as well.
+
+**Engine and screen**
+- **The step „Idź po strukturze”** now has `one` (one level). The old `deep` could not be unticked. An old
+  `deep: false` still reads as one level.
+- **Ordering:**
+  - sort keys are computed once per row, with one collator (also in `viewList`);
+  - works are ranked by first appearance, and the wider page range comes first;
+  - relative places check a boundary: pages stay whole, and Aquinas, the Bible and outlines are shown relative to
+    the root.
+- **The tree budget** is per root: 2000 steps and 24 levels, with 10000 in the whole view. A cut is said on the card
+  and in the classic outline. Comments under a step are never counted as cut steps.
+- **Display order:** the order a view fixes wins over the reader's last choice.
+- **StructureView, rebuilt:**
+  - nested lists, one tab stop per step (the thesis carries `aria-expanded`), ← → fold;
+  - „Rozwiń wszystko” with single steps still closable;
+  - the classic outline back for roots without structure steps;
+  - Polish plurals; roots keyed by id;
+  - piece headings read before their step;
+  - „pokaż w tekście” after a fresh load and kept open across syncs (`workLook`, also on a work's own page).
+- **Places with „;”:**
+  - a part that starts lower stays in the frame of the part before;
+  - one that only goes deeper is merged into it;
+  - a bare number is read at the level before;
+  - pages are never framed;
+  - unread parts go to `rest`, and the anchor form names them;
+  - a note in an outline place does not change the recognised scheme.
+- **A view opened at an entry:** search, kind and filter are off with a note, and „Ucz się tego” learns what is shown.
+- **Anchors in the UI:**
+  - anchors found in search and „Fragment Pisma” open where they lead;
+  - the anchors tab never offers readers a form;
+  - the entity and anchor forms reset between entries.
+- **Sources** say „Otwieranie źródeł…” from the first frame.
+
+**Import and export**
+- **Name spaces:** kinds and entries share one; each sort of document has its own. References in documents go first
+  to the sort their key names, and the store refuses to change an entry's sort.
+- **Two passes for documents:** first what a document names, then templates and forms by name AND kinds. A match by
+  name needs a single unclaimed candidate and is said in the review.
+- **Lasting names:**
+  - kept in lower case, for kinds too, and kept through the editor;
+  - the shipped files name their kinds, templates and forms;
+  - entries remember their document (`_refDoc`), and the review names documents that reach another's entries;
+  - merged entries keep both names (`_refs`), and a row arriving by the dropped name only fills what is empty.
+- **References:** a name with „/” is a reference only in reference fields and cell references. Unresolved references
+  are left out with a warning; for keys, the warning points to Więcej → Ustawienia → Źródła.
+- **Kinds** are completed in the document's order. Name, label, `tells` and `system` are kept unless named, and
+  changes are said.
+- **Structure problems named before saving:** circles, and steps pointing up to themselves or to nothing.
+- **Export:** `@name` for own ids in views (steps, groups, axes, `#axis:` columns), templates, revisions, flows,
+  collections and forms. No bookkeeping keys in the data.
+- **`answered`:** a `down` list answers the lister, not the questions it lists.
+
+**Guide and texts**
+- **`wywod-AI.md`:**
+  - names of the form `@<work key>/<reconstruction>/<step>`;
+  - the article example with a parallel reconstruction of its introduction and three overlapping anchors;
+  - the declared-source requirement (Wiedza → Więcej → Ustawienia → Źródła);
+  - what to do for a second reconstruction.
+- **MCP instructions and AI-link notes:** `get_related` with depth 3, continuing from depth-3 nodes and from truncated
+  edges. REST readers use `/entry/<id>` → `linkedFrom`.
+- **WYWOD.md privacy wording:** the service sees that entries of the sort „anchor” exist, nothing more.
+
+**Checks**
+- `app-cogita-check`: 524 passed, 74 of them for Wywód.
+- `app-library-check` passes.
+- json, presentation, style and platform checks pass.
+- vite build and `dotnet build` pass, with 0 warnings; Api.Tests pass 522.
+- The browser drive passes 23/23, including the introduction as its own reconstruction, the keyboard folding, the
+  locked search at a node, „W Wiedzy: 3 wejścia” on a phone, and the parishioner who sees nothing.
+
+**Owner:** the same as W1. Rebuild and deploy the site. The API deploy changes only the MCP instruction text. Import
+`templates/cogita/wywod.json` once per base; bases that imported the shipped schema files before get their lasting
+names on the next import of each file.
+
+## W2 — Any work: steps and stable elements, strict cards, a reviewed import, the two-step AI guide (2026-10-25)
+
+**What the owner decided** (WYWOD.md §1.1):
+- Two kinds describe texts. „Krok wywodu” is the moving thought, with roles extended by wątek, część utworu,
+  wydarzenie, etap, opis and streszczenie. „Element stały” holds the stable things: concepts as this work
+  understands them, characters, places, motifs, and concepts above works via „Ogólnie”.
+- New possibilities are list options, never new schemas. Komentarz stays the owner's own remark about anything.
+- Narratives get parallel structures (composition, chronology, a character's development) that share their events.
+- Cards are strictly checked, never free text.
+- Every change an import makes to what exists is accepted field by field and can be edited first.
+- The AI works in two steps: the text into the Library, then the structure into Cogita, from one guide.
+
+**Built**
+- **Engine:**
+  - `SiblingOrder.by` / `outline.by`: order one level by a field first (the time of a story);
+  - a structure field with `multi` gives several parents;
+  - card node „Pary z dwóch pól” (`pairs.fields`).
+- **Import:**
+  - an existing entry is completed, not replaced (fields not named stay, `null` removes one, kinds are added);
+  - kinds resolve by lasting name in step documents (`@wywod/krok`);
+  - `_refDoc` warnings only for entries tied to a work.
+- **Review:** `importReview.ts` (the changes of a plan; defaults: new ticked, changes to existing not; the decided
+  plan with accepted changes, edited values, rejected new entries removed together with references to them, name
+  stamps kept). `ImportReviewPanel.tsx` shows it under the plan in Wiedza → JSON and in Schematy; the button reads
+  „Zapisz przyjęte”.
+- **`templates/cogita/wywod.json`:**
+  - three kinds, with lasting names: `@wywod/krok`, `@wywod/element`, `@komentarz/rodzaj`;
+  - six views, including „Wywód — w czasie opowieści” and „Elementy stałe”;
+  - three forms;
+  - four card templates: fragments ↔ theses of one work; which thesis for this fragment, the wrong answers from the
+    same work; which work for this thesis; what an element means in its work.
+- **`templates/cogita/wywod-AI.md`:**
+  - the model;
+  - step 1 (the text, with Appendix A generated from `workWithTextDescription()` by `scripts/wywod-guide.mjs`);
+  - the stop and the sentence for step 2;
+  - step 2 (fields, how to build the structures of arguing texts, a Summa article and narratives, elements, names,
+    places, fragments, entry points);
+  - corrections, a checklist, and four examples (an article with parallel reconstructions and elements, a Summa
+    article, a novel with three structures, a correction).
+
+**Checks:**
+- `app-cogita-check`: 554, with 104 for Wywód. All four guide examples import as they stand. The new checks cover the
+  three structures and the time order, the elements, all four card kinds against the steps of the same work, the
+  correction and its review (default, accept, edit, reject, unreadable edit), kinds by lasting name, and Appendix A
+  equal to the app.
+- `app-library-check`, json, style, presentation and platform checks pass; vite build and `dotnet build` pass
+  (0 errors); Api.Tests pass 522.
+- Browser drive (headless Edge, LocalDB): 29/29. It covers:
+  - the schema;
+  - the examples with preview, and a re-import with nothing to review;
+  - the novel (19 new, all ticked);
+  - the correction (2 unticked changes and 1 ticked new comment; the thesis edited and accepted, and the edited text
+    then in the structure);
+  - the chronology opened from the Library in the time of the story;
+  - the earlier Summa, article, phone, reader, anchors-tab and parishioner checks.
+
+**Owner:** rebuild and deploy the site (no API change since W1). Re-import `templates/cogita/wywod.json` in each base
+that has it: the review lists the kind changes to accept. The old self-assessed card template stays until deleted.

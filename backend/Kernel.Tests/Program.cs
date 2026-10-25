@@ -1092,6 +1092,62 @@ t.Ok("kal   Ein Ende per Datum wird eingehalten", () =>
         warsaw, window.From, window.To)
         .All(o => o.Start <= At(2026, 3, 5, 0)));
 
+// === 0129/0130 — Zusage eines Verantwortlichen, Kette des Betreibers ========
+//
+// Dieselben Zeichenketten prüft frontend/scripts/app-duty-check.mjs gegen die
+// Browserseite (areas/controllerSign.ts, reports/ledger.ts): weicht eine ab,
+// passt keine Unterschrift.
+
+var attachment = new ControllerAttachmentRecord
+{
+    AttachmentId = Ids.Parse("01937d51-0c40-7f18-a2e6-4b91c7d3e550"),
+    ControllerId = Ids.Parse("01937d4f-3a11-7b92-8d47-5c0e2a9f1b63"),
+    AreaId = Ids.Parse("01937d4d-2e08-7c55-9a31-6b4f8d0c7e29"),
+    HomeAreaId = Ids.Parse("01937d4e-8f2a-7c31-9b05-2f6a1e8c4d77"),
+    SignerRoleId = Ids.Parse("01937d51-0c40-7f18-a2e6-4b91c7d3e551"),
+    SignedUtc = DateTimeOffset.Parse("2026-10-25T10:00:00Z")
+};
+t.Eq("duty  Zusage kanonisch", Canonical.Serialize(attachment.ToCanonicalValue()),
+    "{\"areaId\":\"01937d4d-2e08-7c55-9a31-6b4f8d0c7e29\",\"attachmentId\":\"01937d51-0c40-7f18-a2e6-4b91c7d3e550\"," +
+    "\"controllerId\":\"01937d4f-3a11-7b92-8d47-5c0e2a9f1b63\",\"homeAreaId\":\"01937d4e-8f2a-7c31-9b05-2f6a1e8c4d77\"," +
+    "\"kind\":\"controller-attachment\",\"signedAt\":1792922400,\"signerRoleId\":\"01937d51-0c40-7f18-a2e6-4b91c7d3e551\"}");
+
+var firstStep = new TakedownEntryRecord
+{
+    Sequence = 1,
+    PreviousHash = TakedownEntryRecord.Genesis,
+    EntryId = Ids.Parse("01937d51-0c40-7f18-a2e6-4b91c7d3e552"),
+    ReportId = Ids.Parse("01937d51-0c40-7f18-a2e6-4b91c7d3e553"),
+    ItemKind = "part",
+    ItemId = Ids.Parse("01937d4f-3a11-7b92-8d47-5c0e2a9f1b63"),
+    Action = "block",
+    SignerRoleId = Ids.Parse("01937d51-0c40-7f18-a2e6-4b91c7d3e551"),
+    SignedUtc = DateTimeOffset.Parse("2026-10-25T10:00:00Z")
+};
+t.Eq("duty  Kettenschritt kanonisch", Canonical.Serialize(firstStep.ToCanonicalValue()),
+    "{\"action\":\"block\",\"entryId\":\"01937d51-0c40-7f18-a2e6-4b91c7d3e552\",\"itemAt\":null," +
+    "\"itemId\":\"01937d4f-3a11-7b92-8d47-5c0e2a9f1b63\",\"itemKind\":\"part\",\"kind\":\"takedown\"," +
+    "\"previousHash\":\"" + new string('0', 64) + "\",\"reportId\":\"01937d51-0c40-7f18-a2e6-4b91c7d3e553\"," +
+    "\"sequence\":1,\"signedAt\":1792922400,\"signerRoleId\":\"01937d51-0c40-7f18-a2e6-4b91c7d3e551\"}");
+
+t.Ok("duty  Unterschrift der Zusage und des Schritts gehen auf, fremde nicht", () =>
+{
+    using var signer = RSA.Create(4096);
+    var onAttachment = signer.SignData(Canonical.SerializeToUtf8(attachment.ToCanonicalValue()), HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
+    var onStep = signer.SignData(firstStep.CanonicalBytes(), HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
+    var other = attachment with { AreaId = Ids.Parse("01937d4e-8f2a-7c31-9b05-2f6a1e8c4d77") };
+    return attachment.Verify(signer, onAttachment) && firstStep.Verify(signer, onStep)
+        && !other.Verify(signer, onAttachment) && !firstStep.Verify(signer, onAttachment);
+});
+
+t.Ok("duty  Der nächste Schritt hängt am Hash des vorigen", () =>
+{
+    var next = firstStep with { Sequence = 2, PreviousHash = firstStep.EntryHash(), EntryId = Ids.Parse("01937d51-0c40-7f18-a2e6-4b91c7d3e554"), Action = "delete" };
+    return next.ToCanonicalValue() is not null
+        && Crypto.ToHex(firstStep.EntryHash()) == Crypto.ToHex(SHA256.HashData(Encoding.UTF8.GetBytes(Canonical.Serialize(firstStep.ToCanonicalValue()))))
+        && !next.EntryHash().AsSpan().SequenceEqual(firstStep.EntryHash());
+});
+
 
 return t.Report();
 

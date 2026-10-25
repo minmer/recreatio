@@ -37,9 +37,10 @@
  * <code>
  *   person · work · quote · text · delivery · project · texttype   die Arten der Bibliothek und des Skryptorium
  *   entity                                            jeder andere Eintrag; seine Arten in `_kinds`
- *   kind · template · revision · flow · look · rules · values · collection · view · settings · merge · contribution · addform
+ *   kind · template · revision · flow · look · rules · values · collection · view · settings · merge · contribution · addform · anchor
  *                                                     was das Schema, die Karten und die Abläufe beschreibt
- *                                                     (`addform`: ein Formularz dodawania, `addForm.ts`)
+ *                                                     (`addform`: ein Formularz dodawania, `addForm.ts`;
+ *                                                     `anchor`: ein Wejście z Biblioteki, `anchors.ts`)
  * </code>
  *
  * Schlüssel mit `_` sind keine Felder (ein Feld beginnt mit einem Buchstaben,
@@ -58,11 +59,13 @@ export const ENTITY = 'entity';
 export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Record<DocKind, string> = {
   addform: 'Formularz dodawania',
+  /* 2026-10-25 (Wywód) — ein Weg aus der Bibliothek: ein Werk (ganz oder Teile davon) → ein Eintrag, ein Widok (`anchors.ts`). */
+  anchor: 'Wejście z Biblioteki',
   kind: 'Rodzaj',
   template: 'Szablon kart',
   revision: 'Powtórka',
@@ -265,6 +268,7 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.inverse !== undefined) out.inverse = f.inverse;
       if (f.symmetric === true) out.symmetric = true;
       if (f.locator === true) out.locator = true;
+      if (f.structure !== undefined) out.structure = f.structure;
       if (f.media !== undefined) out.media = f.media;
       if (f.rangeOf !== undefined) out.rangeOf = f.rangeOf;
       if (f.role !== undefined && !isBaseKind(kind.id)) out.role = f.role;

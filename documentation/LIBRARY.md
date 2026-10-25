@@ -173,7 +173,7 @@ by the **scheme** of its work (the work field "Układ miejsc", else from its kin
 
 - **Structure vs. edition.** A *structural* place (a verse, a number, a proposition, a chapter) is the same in every
   edition and translation; a *page* belongs to the one edition whose work entry is cited. A place may carry both
-  (`rozdz. 3, s. 45`). Compound and discontinuous places (`Mt 5,3-12; 6,1`, `s. 23, 27`) are lists of spans; a
+  (`rozdz. 3, s. 45`). Compound and discontinuous places (`Mt 5,3-12; 6,1`, `s. 23, 27`; since 2026-10-25 also parts after `;` in pages, outlines and Aquinas: `s. 45–47; 58–60`, `rozdz. 1; rozdz. 9`; a part that starts lower than the one before stays in its frame: `I q. 2 a. 3; a. 4`, `t. 2, rozdz. 1; rozdz. 9`) are lists of spans; a
   shorter path means the whole unit (a chapter holds its verses). Outline places may skip levels and are compared
   level by level.
 - **Psalms**: the work field "Numeracja psalmów" says whether its places are Hebrew (Biblia Tysiąclecia, the
@@ -392,6 +392,19 @@ area, and nothing of other areas), chooses how long it lasts (a week, a month, t
   type `blocks` (COGITA.md §3). They cite the Library; the Library never points at them.
 - **Cards are computed, not stored.** A card is `template:entry[:value]` plus a direction; answers go into sealed
   `learn_batch` rows of the storage area, keyed by those ids.
+- **„W Wiedzy” at a work** (2026-10-25, [WYWOD.md](WYWOD.md)). A knowledge base can explain a work, or parts of it,
+  through its „Wejścia z Biblioteki”: documents of the base naming the work, its places
+  (`s. 45–47; 58–60`; empty = the whole work), an entry and a view.
+  - **Where they show:**
+    - the work's page has a box „W Wiedzy”, grouped by base and ordered by place (the whole before its parts);
+    - on a phone, a line under the title;
+    - the reader has buttons for the anchors that touch the part being read;
+    - another edition shows anchors with structural places.
+  - **How they are found:** by the reference index over the stores this tab opened (`library/anchorHits.ts`). The
+    Library stores nothing, and a reader who cannot read the base sees no trace of it. „Powiązania” no longer
+    repeats anchors, and rows of statements there are titled by their thesis.
+  - **In search and „Fragment Pisma”** an anchor is titled „Wejście z Biblioteki: …” and opens where it leads (its
+    view at its entry).
 
 ## History
 

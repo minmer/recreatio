@@ -143,7 +143,10 @@ public static partial class Library
         }
 
         await using var cmd = new SqlCommand($"""
-            SELECT e.id, e.kind, e.epoch, {(thin ? $"CASE WHEN e.kind IN ({HeavyList}) THEN NULL ELSE e.sealed END" : "e.sealed")}, e.version, e.created_at, e.updated_at, e.deleted_at,
+            SELECT e.id, e.kind, e.epoch,
+                   CASE WHEN {Takedowns.Exists("entry", "e.id")} THEN NULL ELSE {(thin ? $"CASE WHEN e.kind IN ({HeavyList}) THEN NULL ELSE e.sealed END" : "e.sealed")} END,
+                   e.version, e.created_at, e.updated_at,
+                   CASE WHEN {Takedowns.Exists("entry", "e.id")} THEN COALESCE(e.deleted_at, e.updated_at) ELSE e.deleted_at END,
                    CAST(CASE WHEN e.kind IN ({HeavyList}) THEN 1 ELSE 0 END AS bit)
             FROM app.library_entry e
             WHERE e.library_id = @id

@@ -649,6 +649,16 @@ export class Engine {
     return s.salt.total - this.salt0 - this.flows.editSalt;
   }
 
+  /** Die Bezugswerte so setzen, dass die Bilanzen jetzt genau diese Abweichungen zeigen (ein Schlüsselbild beim Backen mit der GPU trägt deren Abweichungen, nicht die der Treppen; B). */
+  rebaseline(err: { readonly energy: number; readonly water: number; readonly other: number; readonly salt: number }): void {
+    const s = this.measureBudget();
+    const f = this.flows;
+    this.energy0 = s.energy - (f.heater - f.lossWalls - f.lossOpen - f.escapedEnergy + f.editEnergy + f.bodyWork) - err.energy;
+    this.water0 = s.water.total - f.editWater - err.water;
+    this.other0 = s.other.total - f.editOther - err.other;
+    this.salt0 = s.salt.total - f.editSalt - err.salt;
+  }
+
   /* -- Fragen ---------------------------------------------------------------------------------------- */
 
   /** Mittlere Wassertemperatur (massengewichtet, K), höchste und Masse. */

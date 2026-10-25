@@ -189,6 +189,14 @@ body.l2d-lock { overflow: hidden; }
 .l2d-bake { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--wk-space-1) var(--wk-space-3); align-items: center; }
 .l2d-bake progress { width: 100%; height: 0.55rem; accent-color: var(--wk-accent); }
 .l2d-bake .l2d-btn { grid-column: 2; grid-row: 1 / span 2; }
+/* Wer gebacken hat (B, GPU seit 2026-10-25): ein Etikett, oder die Wahl, wenn es beide Nachweise gibt. */
+.l2d-engine {
+  display: inline-flex; align-items: center; flex: none; height: var(--wk-control-h-sm); padding: 0 var(--wk-space-2);
+  border-radius: var(--wk-radius-pill); background: var(--wk-sunk); color: var(--wk-muted); font-size: var(--wk-text-xs); font-weight: 700; letter-spacing: 0.04em;
+}
+.l2d-engine-seg { flex: none; flex-wrap: nowrap; }
+.l2d-engine-seg button { min-height: var(--wk-control-h-sm); padding: 0 var(--wk-space-2); font-size: var(--wk-text-xs); letter-spacing: 0.04em; }
+.l2d-warn-line { margin: 0; color: var(--wk-warn); font-size: var(--wk-text-xs); font-weight: 600; line-height: 1.45; }
 
 /* Laden über der Bühne: Einstellungen (rechts), Aufgabe und Modell (links). */
 .l2d-sheet {
