@@ -14,6 +14,7 @@
  */
 
 import { THETA_MIN } from '../engine/liquid';
+import { BODY_ACCESS, BODY_CELLS, BODY_CONSTS, BODY_GEOM, BODY_PARTICLE } from './kbodylib';
 import type { KernelDef } from './kernel';
 import { DROP_DRIFT } from './kmix';
 
@@ -250,15 +251,23 @@ ${MAIN} {
 }`
   },
   {
-    /* Arten aus φ + φ_s + α_b; Gas nur aus Gas (eine Lücke mitten im Wasser bleibt flüssig). */
+    /* Arten aus φ + φ_s + α_b; Gas nur aus Gas (eine Lücke mitten im Wasser bleibt flüssig). Eine offene Zelle eines freien Körpers
+       ist flüssig, wenn ihr offener Teil halb voll ist: ihre Flächen sind binär (ganz offen), und mit φ_s ≈ 0,75 war eine fast leere
+       Zelle an seiner Seite über der Wasserlinie flüssig — eine Säule ohne Druck, die frei fiel (die Zlewka auf halben Zellen: Wasser
+       mit 0,11 m/s an der Seite des Klotzes; so 23 mm/s). */
     name: 'classify', wg: WG,
-    bind: 'P:u cf:r cu:w',
-    code: `${MAIN} {
+    bind: 'P:u cf:r cu:w bod:r',
+    code: `${BODY_CONSTS}
+${MAIN} {
   let c = gid.x;
   if (c >= P.n) { return; }
   if (cu[cui(U_SOLID, c)] != 0u) { cu[cui(U_KIND, c)] = SOLID; return; }
   let f = cf[cfi(F_PHI, c)];
   var liquid = f > 0.0 && f + cf[cfi(F_PHIS, c)] + cf[cfi(F_ALPHA, c)] >= 0.5;
+  if (P.bodies != 0u && liquid) {
+    let own = cu[cui(U_OWNER, c)];
+    if (own != 0u && bod[(own - 1u) * BS + B_PINNED] == 0.0) { liquid = f / max(1e-3, 1.0 - cf[cfi(F_FS, c)]) + cf[cfi(F_ALPHA, c)] >= 0.5; }
+  }
   let prev = cu[cui(U_KPREV, c)];
   if (!liquid && prev != GAS && prev != SOLID) {
     let i = ci(c);
@@ -557,9 +566,13 @@ ${MAIN} {
   /* -- APIC zurück, RK2-Transport, Stoss an Feststoffen, Entweichen ---------------------------------- */
   {
     name: 'g2p', wg: WG_P,
-    bind: 'P:u glob:r cnt:a cf:r cu:r ff:r parts:w',
+    bind: 'P:u glob:r cnt:a cf:r cu:r ff:r parts:w bod:r bgeo:r',
     code: `${MIRROR}
 ${REDUCE}
+${BODY_ACCESS}
+${BODY_GEOM}
+${BODY_CELLS}
+${BODY_PARTICLE}
 /* Keine flüssige Zelle in ±2 Zellen um (x, y): ein Tropfen in der Luft. */
 fn stranded(x: f32, y: f32) -> bool {
   let c = cellAt(x, y);
@@ -666,6 +679,13 @@ ${MAIN} {
       if (fly && (nyp < mg || nyp > P.boxh - mg)) { q.vy = 0.0; }
       nxp = clamp(nxp, mg, P.boxw - mg);
       nyp = clamp(nyp, mg, P.boxh - mg);
+      /* Mit genauen Körpern (P.bodies) entscheidet zuerst ihre Form (liquidMove.ts); das Abstandsfeld nur, wenn keiner getroffen wurde. */
+      var bh = PHit(vec2<f32>(nxp, nyp), vec2<f32>(q.vx, q.vy), false);
+      if (P.bodies != 0u) { bh = bodyHitP(vec2<f32>(x, y), vec2<f32>(nxp, nyp), vec2<f32>(q.vx, q.vy), fly); }
+      if (bh.hit) { nxp = bh.p.x; nyp = bh.p.y; q.vx = bh.v.x; q.vy = bh.v.y; }
+      else {
+      let xs = nxp;
+      let ys = nyp;
       var d = sdfAt(nxp, nyp);
       for (var it = 0; it < 3; it++) {
         if (d >= 0.05 * dx) { break; }
@@ -684,6 +704,12 @@ ${MAIN} {
         nxp = clamp(nxp, mg, P.boxw - mg);
         nyp = clamp(nyp, mg, P.boxh - mg);
         d = sdfAt(nxp, nyp);
+      }
+      /* Der Schub endet vor dem ersten Körper auf seinem Weg (seit 2026-10-25 auf der CPU). */
+      if (P.bodies != 0u && (nxp != xs || nyp != ys)) {
+        let b2 = bodyHitP(vec2<f32>(xs, ys), vec2<f32>(nxp, nyp), vec2<f32>(q.vx, q.vy), fly);
+        if (b2.hit) { nxp = b2.p.x; nyp = b2.p.y; q.vx = b2.v.x; q.vy = b2.v.y; }
+      }
       }
       q.x = nxp;
       q.y = nyp;

@@ -50,8 +50,8 @@ export interface Stair {
   readonly vFix: Float64Array;
 }
 
-/** Die quadratischen B-Spline-Gewichte der Glättung von φ_s (wie grid.ts). */
-const K1 = [0.125, 0.75, 0.125];
+/** Die Gewichte der Glättung von φ_s wie grid.ts (bis 2026-10-26 hier 1/8, 3/4, 1/8: neben einer Wand φ_s 0,125 statt 0,167). */
+const K1 = [1 / 6, 2 / 3, 1 / 6];
 
 /** Die Treppe aus dem Zustand der CPU-Engine. */
 export function stairOf(e: Engine): Stair {

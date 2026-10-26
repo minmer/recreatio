@@ -2187,6 +2187,7 @@ check('goals and lines follow the one logic', [
         "export { CogitaContext } from './src/app/cogita/ui';",
         "export { CogitaLibrary } from './src/app/cogita/store';",
         "export { labelOf } from './src/app/cogita/schema';",
+        "export { depthOf, shownSteps, oneDeeper, oneShallower } from './src/app/cogita/outlineLevels';",
         "export { renderToStaticMarkup } from 'react-dom/server';",
         "export { createElement } from 'react';"
       ].join('\n'),
@@ -2222,9 +2223,10 @@ check('goals and lines follow the one logic', [
   const text = draw([article], { chip: 'rola', tie: '', order: 'text' });
   const twists = text.match(/class="cg-wy-twist"[^>]*>/g) ?? [];
   const labels = text.match(/class="cg-wy-label"[^>]*>/g) ?? [];
-  check('one stop per step: the arrow is for the mouse (tabindex -1, aria-hidden), the name carries aria-expanded and aria-controls',
-    [twists.length, twists.every((t) => t.includes('tabindex="-1"') && t.includes('aria-hidden="true"') && !t.includes('aria-expanded')), labels.length, labels.every((l) => l.includes('aria-expanded="false"') && /aria-controls="wy-[^"]+"/.test(l))], [2, true, 2, true]);
-  truth('in text order the heading of a piece is read before its first step', /<div class="cg-wy-line"><span class="cg-sr">Zarzuty — Videtur quod<\/span><button type="button" class="cg-wy-twist"/.test(text), text.slice(text.indexOf('cg-wy-line'), text.indexOf('cg-wy-line') + 200));
+  /* 2026-10-26 — der Pfeil gehört zu den Ebenen des Baumes; in der Reihenfolge des Textes gibt es keine, und das Ganze eines Schritts öffnet sein Name. */
+  check('in text order no arrow (there are no levels); the name carries aria-expanded and aria-controls',
+    [twists.length, labels.length, labels.every((l) => l.includes('aria-expanded="false"') && /aria-controls="wy-[^"]+"/.test(l))], [0, 2, true]);
+  truth('in text order the heading of a piece is read before its first step', /<div class="cg-wy-line"><span class="cg-sr">Zarzuty — Videtur quod<\/span><span class="cg-wy-chip">/.test(text), text.slice(text.indexOf('cg-wy-line'), text.indexOf('cg-wy-line') + 200));
   const flat = (html) => html.replace(/<[^>]+>/g, '');
   const cut = flat(draw([{ id: U(4), groups: [{ label: '', structure: true, nodes: [] }], cut: 2100 }, { id: U(5), groups: [{ label: '', structure: true, nodes: [] }] }], { chip: '', tie: '' }));
   check('a root the budget left without steps says what is missing and how to see it — never „jeszcze bez kroków”; a root without steps still does',
@@ -2259,6 +2261,47 @@ check('goals and lines follow the one logic', [
     [whole.title, whole.step, whole.picked], [question, thesis, ['Wywód', 'Całe tezy']]);
   check('… the whole name is the label pattern unclipped (references inside stay short)',
     [UI.labelOf(lib.entity(U(7)), lib.look, 0, true), lib.label(lib.entity(U(7)))], [thesis, `${thesis.slice(0, 89).trimEnd()}…`]);
+
+  /* 2026-10-26 — Ebene um Ebene: zuerst die äusseren Schritte, dann nach innen — Schritt um Schritt oder eine Ebene für alle. */
+  map.set(U(8), { id: U(8), kind: 'entity', data: { _kinds: [K2], tresc: [{ type: 'paragraph', text: 'Krok w środku.' }], nalezy: U(7) } });
+  map.set(U(9), { id: U(9), kind: 'entity', data: { _kinds: [K2], tresc: [{ type: 'paragraph', text: 'Najgłębszy krok.' }], nalezy: U(8) } });
+  map.set(U(10), { id: U(10), kind: 'entity', data: { _kinds: [K2], tresc: [{ type: 'paragraph', text: 'Drugi krok zewnętrzny.' }], nalezy: U(6) } });
+  store.revision = 3;
+  const node = (n, kids = []) => ({ id: U(n), groups: kids.length === 0 ? [] : [{ label: '', structure: true, nodes: kids }] });
+  const deepRoot = node(6, [node(7, [node(8, [node(9)])]), node(10)]);
+  const p7 = `${U(6)}/${U(7)}/0`, p8 = `${p7}/${U(8)}/0`;
+  const levelsOf = (inner) => UI.shownSteps(deepRoot, inner).map((x) => `${x.depth}:${x.kids}`);
+  check('levels: the depth of a tree; at first only the outer steps, each with the number of steps inside it',
+    [UI.depthOf(deepRoot), UI.depthOf(node(6, [node(7)])), UI.depthOf(node(6)), levelsOf(new Set())], [3, 1, 0, ['1:1', '1:0']]);
+  const d1 = UI.oneDeeper(deepRoot, new Set()), d2 = UI.oneDeeper(deepRoot, d1);
+  check('„Rozwiń poziom” opens exactly one level everywhere, until nothing is left closed',
+    [[...d1], levelsOf(d1), [...d2].sort(), levelsOf(d2), UI.oneDeeper(deepRoot, d2) === d2], [[p7], ['1:1', '2:1', '1:0'], [p7, p8].sort(), ['1:1', '2:1', '3:0', '1:0'], true]);
+  check('… one level even where a deeper step was left open (it stays closed); „Zwiń poziom” closes the deepest level, down to the outer steps',
+    [[...UI.oneDeeper(deepRoot, new Set([p8]))], [...UI.oneShallower(deepRoot, d2)], [...UI.oneShallower(deepRoot, d1)], UI.oneShallower(deepRoot, new Set()).size], [[p7], [p7], [], 0]);
+  /* Ein Schritt, der schon weiter oben steht („już wyżej"), zählt als Ebene, hat aber nichts in sich. */
+  const loop = node(6, [{ id: U(7), groups: [{ label: '', structure: true, nodes: [{ id: U(6), again: true, groups: [] }] }] }]);
+  const loopOpen = UI.oneDeeper(loop, new Set());
+  check('… a step „już wyżej” is a level with nothing inside: depth 2, opened by „Rozwiń poziom”, closed by „Zwiń poziom”',
+    [UI.depthOf(loop), UI.shownSteps(loop, loopOpen).map((x) => `${x.depth}:${x.kids}`), UI.oneShallower(loop, loopOpen).size], [2, ['1:1', '2:0'], 0]);
+  const pressedIn = (html) => [...html.matchAll(/aria-pressed="true"[^>]*>([^<]*)</g)].map((m) => m[1]);
+  const controlled = (html, button) => html.includes(`id="${/aria-controls="([^"]+)"/.exec(button)?.[1]}"`);
+  const allLevels = draw([deepRoot], { chip: '', tie: '', order: 'tree' });
+  const folds = allLevels.match(/<button[^>]*data-wy-fold=""[^>]*>/g) ?? [];
+  check('all levels (the default): every step shown; „▾ n” before a step with steps inside (aria-expanded, controls its list), an empty place before the others',
+    [(allLevels.match(/class="cg-wy-label"/g) ?? []).length, folds.length, folds.every((f) => f.includes('aria-expanded="true"') && f.includes('aria-label="Kroki w środku: 1"') && controlled(allLevels, f)),
+      (allLevels.match(/<span class="cg-wy-twist" aria-hidden="true"><\/span>/g) ?? []).length, pressedIn(allLevels), allLevels.includes('Rozwiń wszystko'), allLevels.includes('Rozwiń poziom')],
+    [4, 2, true, 2, ['Wywód', 'Tezy skrócone', 'Wszystkie poziomy'], true, false]);
+  globalThis.window = { localStorage: { getItem: (k) => (k === 'cg-structure-levels' ? 'step' : null), setItem: () => undefined } };
+  let stepwise;
+  try { stepwise = draw([deepRoot], { chip: '', tie: '', order: 'tree' }); } finally { delete globalThis.window; }
+  const fold = stepwise.match(/<button[^>]*data-wy-fold=""[^>]*>/g) ?? [];
+  const levelButtons = [...stepwise.matchAll(/<button type="button" class="wk-link-btn"( disabled="")?>(Rozwiń poziom|Zwiń poziom)<\/button>/g)].map((m) => `${m[2]}${m[1] ? ' (off)' : ''}`);
+  check('„Poziom po poziomie” remembered: only the outer steps, „▸ 1” closed (its list not drawn), „Rozwiń poziom”, „Zwiń poziom” off, „poziom 1 z 3”, no „Rozwiń wszystko”',
+    [(stepwise.match(/class="cg-wy-label"/g) ?? []).length, fold.length, fold.every((f) => f.includes('aria-expanded="false"') && !controlled(stepwise, f)),
+      levelButtons, flat(stepwise).includes('poziom 1 z 3'), stepwise.includes('Rozwiń wszystko'), pressedIn(stepwise)],
+    [2, 1, true, ['Rozwiń poziom', 'Zwiń poziom (off)'], true, false, ['Wywód', 'Tezy skrócone', 'Poziom po poziomie']]);
+  const textLevels = draw([deepRoot], { chip: '', tie: '', order: 'text' });
+  truth('in text order no levels: no group „Poziomy”, every step listed', !textLevels.includes('aria-label="Poziomy"') && (textLevels.match(/class="cg-wy-label"/g) ?? []).length === 4);
 }
 
 await rm(workspace, { recursive: true, force: true });

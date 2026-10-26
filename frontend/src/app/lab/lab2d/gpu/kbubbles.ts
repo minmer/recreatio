@@ -362,6 +362,8 @@ ${MAIN} {
   if (shareW(fc) < 0.5) { return; }
   let sc = S.cell;
   let mat = cu[U_SOLID * n + sc];
+  /* Mit genauen Anteilen der Körper kann die Wandzelle offen sein (die GPU schliesst dünne Wände anders als die CPU): dort keimt nichts. */
+  if (mat == 0u) { return; }
   let ks = solidK(mat);
   let Tl = cf[F_PTL * n + fc];
   let hm = hostC(fc);
@@ -420,6 +422,14 @@ ${MAIN} {
   let dx = P.dx;
   let n = P.n;
   var site = B.site;
+  /* Eine hängende Blase, deren Wandzelle nicht (mehr) fest ist (genaue Anteile, bubNucleate), löst sich. */
+  if (site >= 0 && cu[U_SOLID * n + sites[u32(site)].cell] == 0u) {
+    atomicStore(&sbub[u32(site)], 0u);
+    site = -1;
+    B.site = -1;
+    let vel = velL(B.x, B.y);
+    B.ux0 = vel.x; B.uy0 = vel.y; B.vx = vel.x; B.vy = vel.y;
+  }
   var t = 0.0;
   var grew = 0.0;
   for (var iter = 0; iter < 64; iter++) {

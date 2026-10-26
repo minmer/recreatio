@@ -11,14 +11,17 @@
  */
 
 import { LIQUIDS, SOLIDS } from '../engine/materials';
-import { RHO_CRYSTAL, SOLUTES } from '../engine/solution';
+import { RHO_CRYSTAL } from '../engine/solution';
 import { SALT_FULL, type Overlay } from '../render/frame';
-import { hex, T_SCALE, VIRIDIS } from '../render/palette';
+import { hex, T_SCALE } from '../render/palette';
 import type { View } from '../render/view';
 import type { Walls } from '../render/glRenderer';
 import type { GpuEngine } from './engine';
 import type { KernelDef, Resource } from './kernel';
 import { f, LIB } from './lib';
+import { RS } from './kbodylib';
+import { BE_WORDS, BODY_RENDER_KERNELS, BODYQ_WGSL, BQ_WORDS } from './renderBodies';
+import { RO_WGSL, SOLID_WGSL, VIRIDIS_WGSL } from './renderLib';
 import { C } from './slots';
 
 const WG = 128;
@@ -30,19 +33,6 @@ const ARROW_SPACING = 0.006;
 export const OVERLAY_CODE: Readonly<Record<Overlay, number>> = { none: 0, temperature: 1, pressure: 2, velocity: 3, humidity: 4, vapour: 5, salt: 0, phase: 6 };
 /* Deckkraft des Nebels nach Beer–Lambert (frame.ts): LWC_ref. */
 const FOG_REF = (4 * 1000 * 1.5e-6) / (3 * 2 * 0.07);
-
-const VIRIDIS_WGSL = `
-const VIR = array<vec3<f32>, ${VIRIDIS.length}>(${VIRIDIS.map((c) => `vec3<f32>(${f(c[0] / 255)}, ${f(c[1] / 255)}, ${f(c[2] / 255)})`).join(', ')});
-fn viridis(t: f32) -> vec3<f32> {
-  let x = clamp(t, 0.0, 1.0) * ${f(VIRIDIS.length - 1)};
-  let i = min(u32(floor(x)), ${VIRIDIS.length - 2}u);
-  let fr = x - f32(i);
-  return mix(VIR[i], VIR[i + 1u], fr);
-}
-`;
-
-/** Uniform der Rechenkerne des Zeichners. */
-const RO_WGSL = `struct ROpt { overlay: u32, step: u32, nax: u32, nay: u32 }`;
 
 export const RENDER_KERNELS: readonly KernelDef[] = [
   {
@@ -96,8 +86,7 @@ ${MAIN} {
     bind: 'P:u RO:u<ROpt> cf:r cu:r ff:r reg:r cnt:r<f32> cells:t field:t',
     code: `${RO_WGSL}
 ${VIRIDIS_WGSL}
-const SOLID_RGB = array<vec3<f32>, ${SOLIDS.length}>(${SOLIDS.map((s) => { const c = hex(s.color); return `vec3<f32>(${f(c[0] / 255)}, ${f(c[1] / 255)}, ${f(c[2] / 255)})`; }).join(', ')});
-const CRYSTAL_RGB = vec3<f32>(${hex(SOLUTES[0]?.color ?? '#f4f3ee').map((x) => f(x / 255)).join(', ')});
+${SOLID_WGSL}
 /* Deckung einer Salzkruste (wie layers.ts): die Dicke m/(ρ Δx D) als Bruchteil der Zelle, mit der Wurzel. */
 fn crustCover(m: f32) -> f32 { if (!(m > 0.0)) { return 0.0; } return min(1.0, sqrt(m / (${f(RHO_CRYSTAL)} * P.dx * P.depth) / P.dx)); }
 ${MAIN} {
@@ -115,7 +104,10 @@ ${MAIN} {
   var col = vec3<f32>(0.0);
   var a = 0.0;
   let T = cf[F_T * n + c];
-  if (k == SOLID) {
+  /* Mit genauen Anteilen zeichnet sich ein Körper selbst (renderBodies.ts): seine geschlossenen Zellen bleiben leer (wie layers.ts). */
+  let ownBody = k == SOLID && P.bodies != 0u && cu[U_OWNER * n + c] != 0u;
+  if (ownBody) { cell = vec4<f32>(0.0); }
+  else if (k == SOLID) {
     let s = cu[U_SOLID * n + c];
     let rgb = SOLID_RGB[min(s, ${SOLIDS.length}u) - 1u];
     let glow = clamp((T - T0 - 60.0) / 340.0, 0.0, 1.0);
@@ -291,7 +283,8 @@ ${MAIN} {
   arrows[o + 4u] = x1; arrows[o + 5u] = y1; arrows[o + 6u] = x1 - h * (ca * ux - sa * uy); arrows[o + 7u] = y1 - h * (sa * ux + ca * uy);
   arrows[o + 8u] = x1; arrows[o + 9u] = y1; arrows[o + 10u] = x1 - h * (ca * ux + sa * uy); arrows[o + 11u] = y1 - h * (-sa * ux + ca * uy);
 }`
-  }
+  },
+  ...BODY_RENDER_KERNELS
 ];
 
 /* -- Zeichenkerne ------------------------------------------------------------------------------------- */
@@ -444,6 +437,9 @@ export class GpuRenderer {
   private lq!: GPUBuffer;
   private lq2!: GPUBuffer;
   private arrows!: GPUBuffer;
+  /* Mit genauen Anteilen: die Vierecke der inneren Zellen und die Seiten der Rechtecke (renderBodies.ts). */
+  private bq!: GPUBuffer;
+  private be!: GPUBuffer;
   private nArrows = 0;
   private groups = new Map<string, GPUBindGroup>();
   theme: Theme = { ground: [0.93, 0.95, 0.97], outside: [0.86, 0.88, 0.9], wall: [0.42, 0.46, 0.5], ink: [0.08, 0.1, 0.12] };
@@ -494,16 +490,17 @@ export class GpuRenderer {
         primitive: { topology }
       });
     };
-    const [cells, field, liquid, rect, disc, point, line] = await Promise.all([
+    const [cells, field, liquid, rect, disc, point, line, bquad] = await Promise.all([
       pipe(QUAD_WGSL, 'fsCells', this.layouts.quad, 'triangle-strip'),
       pipe(QUAD_WGSL, 'fsField', this.layouts.quad, 'triangle-strip'),
       pipe(QUAD_WGSL, 'fsLiquid', this.layouts.quad, 'triangle-strip'),
       pipe(RECT_WGSL, 'fs', this.layouts.rect, 'triangle-strip'),
       pipe(DISC_WGSL, 'fs', this.layouts.store, 'triangle-strip'),
       pipe(POINT_WGSL, 'fs', this.layouts.store, 'triangle-strip'),
-      pipe(LINE_WGSL, 'fs', this.layouts.rect, 'line-list', [{ arrayStride: 8, attributes: [{ format: 'float32x2', offset: 0, shaderLocation: 0 }] }])
+      pipe(LINE_WGSL, 'fs', this.layouts.rect, 'line-list', [{ arrayStride: 8, attributes: [{ format: 'float32x2', offset: 0, shaderLocation: 0 }] }]),
+      pipe(`${DRAW_COMMON}${BODYQ_WGSL}`, 'fs', this.layouts.store, 'triangle-strip')
     ]);
-    this.pipes = { cells, field, liquid, rect, disc, point, line };
+    this.pipes = { cells, field, liquid, rect, disc, point, line, bquad };
   }
 
   /** Texturen und Zwischenspeicher für die jetzige Szene (nach jedem Neuaufbau des Zustands). */
@@ -534,19 +531,25 @@ export class GpuRenderer {
     this.nArrows = nax * nay;
     this.arrows = d.createBuffer({ size: 4 * 12 * 2 * this.nArrows, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX });
     this.roData = new Uint32Array([0, step, nax, nay]);
+    this.bq?.destroy();
+    this.be?.destroy();
+    const B = S.bodies;
+    this.bq = d.createBuffer({ size: 4 * BQ_WORDS * B.capCells, usage: GPUBufferUsage.STORAGE });
+    this.be = d.createBuffer({ size: 4 * BE_WORDS * Math.max(4, Math.ceil(B.capGeo / RS)), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX });
   }
 
   private roData = new Uint32Array(4);
 
-  private computeGroup(name: string, extra: Readonly<Record<string, Resource>>): GPUBindGroup {
-    let g = this.groups.get(name);
+  /** Eine Bindungsgruppe eines Rechenkerns (key: wenn derselbe Kern mit anderen Puffern läuft). */
+  private computeGroup(name: string, extra: Readonly<Record<string, Resource>>, key = name): GPUBindGroup {
+    let g = this.groups.get(key);
     if (g === undefined) {
       const S = this.gpu.state;
       g = this.gpu.ctx.bind(name, {
         P: S.params, RO: this.ro, cf: S.cf, cu: S.cu, ff: S.ff, reg: S.reg, cnt: S.cnt, parts: S.partsA, ccount: S.ccountB, cstart: S.cstart, bsum: S.bsum,
-        lq: this.lq, lq2: this.lq2, arrows: this.arrows, ...extra
+        lq: this.lq, lq2: this.lq2, arrows: this.arrows, bod: S.bodies.bod, bgeo: S.bodies.bgeo, bcell: S.bodies.bcell, bq: this.bq, be: this.be, ...extra
       });
-      this.groups.set(name, g);
+      this.groups.set(key, g);
     }
     return g;
   }
@@ -576,14 +579,23 @@ export class GpuRenderer {
     const n = S.d.n;
     ctx.dispatch(p, 'rScale', this.computeGroup('rScale', {}), n);
     ctx.dispatch(p, 'rCells', this.computeGroup('rCells', { cells: { view: this.cellsTex.createView() }, field: { view: this.fieldTex.createView() } }), n);
+    const B = S.bodies;
+    const bodies = S.body && B.ncell > 0;
     if (!particles) {
       ctx.dispatch(p, 'rLiqSplat', this.computeGroup('rLiqSplat', {}), 4 * n);
+      if (bodies) {
+        for (let k = 0; k < 2; k += 1) {
+          ctx.dispatch(p, 'rLiqUnder', this.computeGroup('rLiqUnder', { src: this.lq, dst: this.lq2 }, 'rLiqUnderA'), 4 * n);
+          ctx.dispatch(p, 'rLiqUnder', this.computeGroup('rLiqUnder', { src: this.lq2, dst: this.lq }, 'rLiqUnderB'), 4 * n);
+        }
+      }
       ctx.dispatch(p, 'rLiqBlurX', this.computeGroup('rLiqBlurX', {}), 4 * n);
       ctx.dispatch(p, 'rLiqBlurY', this.computeGroup('rLiqBlurY', { liquid: { view: this.liquidTex.createView() } }), 4 * n);
     }
     if (overlay === 'velocity') ctx.dispatch(p, 'rArrows', this.computeGroup('rArrows', {}), 2 * this.nArrows);
+    if (bodies) ctx.dispatch(p, 'rBodies', this.computeGroup('rBodies', {}), Math.max(B.ncell, B.nrect));
     p.end();
-    /* Uniform-Plätze: 0 Grund, 1 Bild (Wasser, Blasen, Teilchen), 2–3 Pfeile, 4–7 Wände. */
+    /* Uniform-Plätze: 0 Grund, 1 Bild (Wasser, Blasen, Teilchen), 2–3 Pfeile, 4–7 Wände, 8 Umrisse der Körper. */
     const g = this.gpu.cpu.grid;
     const rpAt = (slot: number, rect: readonly number[], fill: readonly number[]): void => {
       const a = new Float32Array(RP_WORDS);
@@ -609,6 +621,7 @@ export class GpuRenderer {
     if (walls.bottom) wallRects.push([-t, -t, g.w + t, 0]);
     if (walls.top) wallRects.push([-t, g.h, g.w + t, g.h + t]);
     wallRects.forEach((r, k) => rpAt(4 + k, r, [...this.theme.wall, 1]));
+    if (bodies) rpAt(8, [0, 0, 0, 0], [...this.theme.wall, 0.8]);
     const rp = enc.beginRenderPass({
       colorAttachments: [{ view: this.context.getCurrentTexture().createView(), clearValue: { r: this.theme.outside[0], g: this.theme.outside[1], b: this.theme.outside[2], a: 1 }, loadOp: 'clear', storeOp: 'store' }]
     });
@@ -634,6 +647,16 @@ export class GpuRenderer {
     rp.setPipeline(P.cells);
     rp.setBindGroup(0, this.drawGroup('d-cells', this.layouts.quad, 1, { tex: this.cellsTex, smp: this.sampNear }));
     rp.draw(4);
+    /* Die Körper: genaue Rechtecke (je innere Zelle ein Viereck), dann ihre Umrisse (wie glRenderer.ts). */
+    if (bodies) {
+      rp.setPipeline(P.bquad);
+      rp.setBindGroup(0, this.drawGroup('d-bodies', this.layouts.store, 1, { store: this.bq }));
+      rp.draw(4, B.ncell);
+      rp.setPipeline(P.line);
+      rp.setVertexBuffer(0, this.be);
+      rp.setBindGroup(0, this.drawGroup('d-edges', this.layouts.rect, 8, {}));
+      rp.draw(8 * B.nrect);
+    }
     if (overlay === 'velocity') {
       rp.setPipeline(P.line);
       rp.setVertexBuffer(0, this.arrows);

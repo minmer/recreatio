@@ -15,103 +15,21 @@
  * die Rundung in f32.
  */
 
+import { latentPerKg } from '../engine/body';
 import type { Engine, EngineStats } from '../engine/engine';
 import { tSat } from '../engine/if97';
 import { STAGE_COUNT } from '../engine/stages';
+import { iceMass } from './bodies';
+import { BodyStep, type BodyHooks } from './bodyStep';
+import { BR } from './kbodylib';
 import { GpuCtx, type KernelDef, type Resource } from './kernel';
 import { ALL_KERNELS } from './kernels';
+import { emptyTotals, INTERVALS, type IntervalKey, type ReadLayout, type ReadMeta, type Readout, type Totals } from './readout';
 import { GpuSolver, SOLVE_DIFF, SOLVE_GAS, SOLVE_HEAT, SOLVE_LIQUID } from './solver';
 import { C, CNT_SIZE, G, GLOB_SIZE, H, HEAT_STRIDE, INTERVAL_END, INTERVAL_FIRST, R, REG_STRIDE } from './slots';
 import { GpuState, MEAS_K } from './state';
 
-/** Was eine Ablesung bringt (Zwischensummen seit der letzten, Zustand jetzt). */
-export interface Readout {
-  readonly pcount: number;
-  readonly bcount: number;
-  readonly dt: number;
-  readonly stepsSince: number;
-  readonly simSince: number;
-  readonly itL: number; readonly itG: number; readonly itH: number; readonly itD: number;
-  readonly capL: number; readonly capG: number; readonly capH: number; readonly capD: number;
-  readonly resL: number; readonly resG: number; readonly resH: number;
-  readonly nsub: number;
-  readonly uMaxG: number;
-  readonly waterMass: number;
-  readonly waterT: number;
-  readonly waterTmax: number;
-  readonly solids: number; readonly film: number; readonly gas: number; readonly vapour: number; readonly fog: number; readonly air: number;
-  readonly liquidCells: number; readonly gasCells: number;
-  readonly liquidH: number; readonly liquidMass: number; readonly sensible: number;
-  /** Andere Flüssigkeiten als Wasser (M2a): Masse und Σ m T. */
-  readonly otherMass: number; readonly otherMT: number;
-  /** Salz (M2b): gelöst in den Teilchen, als Kruste, am Boden der Kiste (kg) und dessen Enthalpie (J). */
-  readonly saltLiquid: number; readonly crust: number; readonly floor: number; readonly floorH: number;
-  readonly bubH: number; readonly bubWater: number; readonly bubAir: number;
-  readonly regions: { p0: number; sealed: boolean; vGas: number; vFluid: number }[];
-  readonly heaters: { P: number; Tmean: number; integral: number; cells: number }[];
-  readonly watch: { found: boolean; id: number; fate: number; data: Float32Array };
-  readonly firstSuperheat: number | null;
-  readonly stageMs: number[] | null;
-  /** Zwischensummen seit der letzten Ablesung (Flüsse in J und kg, Zähler). */
-  readonly intervals: Readonly<Record<IntervalKey, number>>;
-  /** Massstäbe der Einblendungen im letzten Bild: grösster Überdruck (Pa), Gas- und Wassergeschwindigkeit (m/s). */
-  readonly ov: readonly [number, number, number];
-  /** Heftige Zustände seit der letzten Ablesung: schnellstes Teilchen (m/s), grösste Blase (m), gebremste Teilchen, abgelassener Dampf (kg). */
-  readonly vmaxP: number;
-  readonly rmaxB: number;
-  readonly slowed: number;
-  readonly vented: number;
-}
-
-type IntervalKey = 'heater' | 'lossWalls' | 'lossOpen' | 'escapedEnergy' | 'escapedWater' | 'escapedAir' | 'escapedOther' | 'escapedSalt' | 'crystallized' | 'produced' | 'condensed' | 'dew' | 'fogMade'
-  | 'burstVapour' | 'fluxSL' | 'fluxLG' | 'fluxSG' | 'lossSolids' | 'nucleated' | 'departed' | 'merged' | 'burst' | 'collapsed'
-  | 'burstCold' | 'burstWarm' | 'collapsedCold' | 'collapsedWarm' | 'releasedGas' | 'releases' | 'releaseMisses' | 'evapCapped';
-/** Platz in cnt und Art (f: f32-Summe, u: u32-Zähler) jeder Zwischensumme. */
-const INTERVALS: readonly (readonly [IntervalKey, number, 'f' | 'u'])[] = [
-  ['heater', C.HEATER_E, 'f'], ['lossWalls', C.LOSS_WALLS, 'f'], ['lossOpen', C.LOSS_OPEN, 'f'], ['escapedEnergy', C.ESC_ENERGY, 'f'],
-  ['escapedWater', C.ESC_WATER, 'f'], ['escapedAir', C.ESC_AIR, 'f'], ['escapedOther', C.ESC_OTHER, 'f'], ['escapedSalt', C.ESC_SALT, 'f'], ['crystallized', C.CRYST, 'f'], ['produced', C.PRODUCED, 'f'], ['condensed', C.CONDENSED, 'f'],
-  ['dew', C.DEW, 'f'], ['fogMade', C.FOGMADE, 'f'], ['burstVapour', C.BURSTVAP, 'f'], ['fluxSL', C.FLUX_SL, 'f'], ['fluxLG', C.FLUX_LG, 'f'],
-  ['fluxSG', C.FLUX_SG, 'f'], ['lossSolids', C.LOSS_SOLIDS, 'f'], ['nucleated', C.NUCLEATED, 'u'], ['departed', C.DEPARTED, 'u'],
-  ['merged', C.MERGED, 'u'], ['burst', C.BURST, 'u'], ['collapsed', C.COLLAPSED, 'u'], ['burstCold', C.BURST_COLD, 'u'],
-  ['burstWarm', C.BURST_WARM, 'u'], ['collapsedCold', C.COLL_COLD, 'u'], ['collapsedWarm', C.COLL_WARM, 'u'],
-  ['releasedGas', C.REL_MASS, 'f'], ['releases', C.REL_N, 'u'], ['releaseMisses', C.REL_MISS, 'u'], ['evapCapped', C.EVAP_CAP, 'u']
-];
-
-/** Gesamtsummen seit dem Start (f64), wie Engine.flows, Phase und BubbleModel sie führen. */
-export interface Totals {
-  time: number; steps: number;
-  heater: number; lossWalls: number; lossOpen: number; escapedEnergy: number; escapedWater: number; escapedAir: number; escapedOther: number;
-  escapedSalt: number; crystallized: number;
-  produced: number; condensed: number; dew: number; fogMade: number; burstVapour: number;
-  nucleated: number; departed: number; merged: number; burst: number; collapsed: number;
-  burstCold: number; burstWarm: number; collapsedCold: number; collapsedWarm: number;
-  fluxSL: number; fluxLG: number; fluxSG: number; lossSolids: number; capped: number;
-  slowed: number; vented: number;
-  /** Nur auf der GPU: Gas, das flüssige Zellen abgaben (kg), wie oft, wie oft ohne erreichbare Gaszelle (es blieb liegen), und wie oft
-   *  das Verdunsten einer flüssigen Zelle auf ihr Wasser gekürzt wurde (je Schritt und Zelle). */
-  releasedGas: number; releases: number; releaseMisses: number; evapCapped: number;
-}
-
-const emptyTotals = (): Totals => ({
-  time: 0, steps: 0, heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, escapedWater: 0, escapedAir: 0, escapedOther: 0, escapedSalt: 0, crystallized: 0,
-  produced: 0, condensed: 0, dew: 0, fogMade: 0, burstVapour: 0, nucleated: 0, departed: 0, merged: 0, burst: 0, collapsed: 0,
-  burstCold: 0, burstWarm: 0, collapsedCold: 0, collapsedWarm: 0, fluxSL: 0, fluxLG: 0, fluxSG: 0, lossSolids: 0, capped: 0,
-  slowed: 0, vented: 0, releasedGas: 0, releases: 0, releaseMisses: 0, evapCapped: 0
-});
-
-/** Wo im Zwischenpuffer einer Ablesung was liegt (Bytes). */
-interface ReadLayout { readonly cnt: number; readonly glob: number; readonly reg: number; readonly heat: number; readonly meas: number; readonly probe: number; readonly ts: number; readonly total: number }
-/** Der Zustand, für den eine Ablesung aufgezeichnet wurde. */
-interface ReadMeta {
-  readonly version: number;
-  readonly layout: ReadLayout;
-  /** GPU-Gebiet je CPU-Gebiet und Zahl der Heizungen beim Aufzeichnen. */
-  readonly regions: readonly number[];
-  readonly heaters: number;
-  readonly groups: readonly number[];
-  readonly nreg: number;
-  readonly nheat: number;
-}
+export type { Readout, Totals } from './readout';
 
 type Variant = '' | 'A' | 'B' | 'S1' | 'S2';
 /** Jacobi-Schritte der Zähigkeit je Schritt (gerade; das System ist stark diagonal dominant, ρ_ref Δx²/Δt ≫ η). */
@@ -124,6 +42,8 @@ export class GpuEngine {
   cpu: Engine;
   state!: GpuState;
   solver!: GpuSolver;
+  /** Die Körper im Schritt (bodyStep.ts; nur wenn alle genaue Anteile haben). */
+  private bstep!: BodyStep;
   private sub!: GPUBuffer;
   private groups = new Map<string, GPUBindGroup>();
   /** Zählt die Neuaufbauten des Zustands (der Zeichner baut dann seine Gruppen neu). */
@@ -194,6 +114,7 @@ export class GpuEngine {
     const before = this.state === undefined ? null : this.state.d;
     if (this.state !== undefined) this.state.destroy();
     if (this.solver !== undefined) this.solver.destroy();
+    if (this.bstep !== undefined) this.bstep.destroy();
     if (this.sub !== undefined) this.ctx.release([this.sub]);
     this.state = new GpuState(this.ctx, this.cpu);
     const S = this.state;
@@ -201,6 +122,7 @@ export class GpuEngine {
        alten Auflösung war jeder Schritt der ersten Ablesungen gekappt). */
     if (before === null || before.nx !== S.d.nx || before.ny !== S.d.ny) { this.itL = 16; this.itG = 18; this.itH = 8; this.itD = 6; }
     this.solver = new GpuSolver(this.ctx, S.plan, { params: S.params, mgF: S.mgF, mgU: S.mgU, cgv: S.cgv, cgs: S.cgs, lab: S.lab, cfl: S.cfl, csum: S.csum, cnt: S.cnt, cgp: S.cgp });
+    this.bstep = new BodyStep(S, this.solver);
     const sub = new Uint32Array((SLOT / 4) * 16);
     for (let s = 0; s < 16; s += 1) sub[(SLOT / 4) * s] = s;
     this.sub = this.ctx.uniform('sub', sub.buffer);
@@ -211,7 +133,12 @@ export class GpuEngine {
   /** Den Zustand der CPU-Engine hochladen (nach einem Handgriff); passt er nicht in die Puffer, alles neu. */
   upload(): void {
     if (!this.state.fits(this.cpu)) { this.rebuild(); return; }
+    const wasBody = this.state.body;
     this.state.upload(this.cpu);
+    /* Treppe ↔ genaue Anteile (ein Körper wurde frei oder angeheftet): die Treppe trug eine andere Energie der Körper als ihre genauen
+       Zellen (test 39: das Glas 168,80 statt 167,32 J) — die Bilanzen gehen mit den Abweichungen der CPU-Engine weiter, die eben alles bekam. */
+    if (this.state.body !== wasBody) this.carryErrors({ energy: this.cpu.energyError(), water: this.cpu.waterError(), other: this.cpu.otherError(), salt: this.cpu.saltError() });
+    this.bstep.writeSel();
     this.mixed = this.cpu.particles.hasOther();
     this.salty = this.cpu.particles.hasSalt();
     this.sealed = false;
@@ -242,6 +169,7 @@ export class GpuEngine {
     bm.burstVapour = t.burstVapour; bm.nucleated = t.nucleated; bm.departed = t.departed; bm.merged = t.merged; bm.burst = t.burst; bm.collapsed = t.collapsed;
     bm.burstCold = t.burstCold; bm.burstWarm = t.burstWarm; bm.collapsedCold = t.collapsedCold; bm.collapsedWarm = t.collapsedWarm;
     e.heat.fluxSL = t.fluxSL; e.heat.fluxLG = t.fluxLG; e.heat.fluxSG = t.fluxSG; e.heat.lossSolids = t.lossSolids;
+    f.bodyWork = t.bodyWork;
     if (this.last !== null && this.last.firstSuperheat !== null && bm.firstSuperheat === null) bm.firstSuperheat = this.last.firstSuperheat;
   }
 
@@ -268,7 +196,8 @@ export class GpuEngine {
       P: S.params, glob: S.glob, cnt: S.cnt, cf: S.cf, cu: S.cu, at: S.at, ff: S.ff, fu: S.fu, af: S.af, reg: S.reg, racc: S.racc, heat: S.heat,
       hacc: S.hacc, sites: S.sites, sbub: S.sbub, bubs: S.bubs, bubs2: S.bubs2, bacc: S.bacc, btarget: S.btarget, meas: S.meas, probe: S.probe,
       mgF: S.mgF, mgU: S.mgU, cgv: S.cgv, cgs: S.cgs, lab: S.lab, cfl: S.cfl, csum: S.csum, pkey: S.pkey, pslot: S.pslot, pargs: S.pargs,
-      cstart: S.cstart, bsum: S.bsum, L: this.solver.level0
+      cstart: S.cstart, bsum: S.bsum, L: this.solver.level0,
+      bod: S.bodies.bod, bgeo: S.bodies.bgeo, bcell: S.bodies.bcell, bcon: S.bodies.bcon, bat: S.bodies.bat, bread: S.bodies.bread
     };
     if (v === 'A') { base.parts = S.partsA; base.ccount = S.ccountB; }
     if (v === 'B') { base.parts = S.partsB; base.ccount = S.ccountA; }
@@ -294,6 +223,21 @@ export class GpuEngine {
   private parts(p: GPUComputePassEncoder, name: string, v: Variant): void { this.ctx.dispatch(p, name, this.group(name, v), this.state.d.pcap); }
   private bubs(p: GPUComputePassEncoder, name: string): void { this.ctx.dispatch(p, name, this.group(name, ''), this.state.d.bcap); }
   private one(p: GPUComputePassEncoder, name: string, v: Variant = ''): void { this.ctx.dispatchOne(p, name, this.group(name, v)); }
+
+  /** Was bodyStep.ts zum Aufzeichnen braucht. */
+  private readonly hooks: BodyHooks = {
+    cells: (p, name, v) => this.cells(p, name, v ?? ''),
+    faces: (p, name) => this.faces(p, name),
+    parts: (p, name) => this.parts(p, name, 'A'),
+    bubs: (p, name) => this.bubs(p, name),
+    one: (p, name) => this.one(p, name),
+    run: (p, name, threads, key, extra) => {
+      const id = `${name}|run|${key}`;
+      let g = this.groups.get(id);
+      if (g === undefined) { g = this.ctx.bind(name, { ...this.resources('A'), ...extra }); this.groups.set(id, g); }
+      this.ctx.dispatch(p, name, g, threads);
+    }
+  };
 
   /** Die Teilchen nach Zellen sortieren (1: A → B am Anfang, 2: B → A nach dem Transport). */
   private sort(p: GPUComputePassEncoder, which: 1 | 2): void {
@@ -323,8 +267,12 @@ export class GpuEngine {
 
   private encodeStep(enc: GPUCommandEncoder, timed: boolean): void {
     const e = this.cpu;
-    /* 1. Eingaben (zwischen den Schritten) — leer. 2. Flüssigkeit. */
-    let p = this.pass(enc, timed, 1);
+    /* Mit freien Körpern rechnen alle Körper mit genauen Anteilen (bodyStep.ts): ihre Kerne kommen zu denen der Treppe hinzu. */
+    const body = this.state.body;
+    let p: GPUComputePassEncoder;
+    /* 1. Eingaben: die wachen Körper ins Gitter (ohne freie Körper leer). 2. Flüssigkeit. */
+    if (body) { p = this.pass(enc, timed, 0); this.bstep.prepare(p, this.hooks); p.end(); }
+    p = this.pass(enc, timed, 1);
     this.sort(p, 1);
     if (this.mixed) this.cells(p, 'cellHost', 'B');
     this.cells(p, 'splat', 'B');
@@ -334,8 +282,10 @@ export class GpuEngine {
     this.cells(p, 'regCells');
     this.parts(p, 'regParts', 'B');
     this.bubs(p, 'regBubs');
+    if (body) this.cells(p, 'bRegVol');
     this.one(p, 'regFinishStart');
     this.faces(p, 'p2g', 'B');
+    if (body) this.faces(p, 'bFaceL');
     /* Mit anderen Flüssigkeiten: die Zähigkeit (Jacobi, gerade Zahl Schritte — das Ergebnis steht wieder in UL), dann die Kräfte. */
     if (this.mixed) {
       for (let k = 0; k < VISC_SWEEPS; k += 2) { this.faces(p, 'viscJacA'); this.faces(p, 'viscJacB'); }
@@ -345,6 +295,7 @@ export class GpuEngine {
     this.solver.encodeMG(p, SOLVE_LIQUID, this.itL, true, false);
     this.cells(p, 'liqPressure');
     this.faces(p, 'liqCorrect');
+    if (body) this.bstep.probe(p, this.hooks);
     this.faces(p, 'extrap1');
     this.faces(p, 'extrap2');
     this.parts(p, 'g2p', 'B');
@@ -355,6 +306,7 @@ export class GpuEngine {
     p = this.pass(enc, timed, 2);
     this.cells(p, 'gasVolumes');
     this.faces(p, 'markFaces');
+    if (body) this.faces(p, 'bFaceG');
     this.cells(p, 'gasMaxOut');
     /* Alle 16 Teilschritte; wie viele davon arbeiten, entscheidet die GPU in jedem Schritt (substepsOf). */
     for (let s = 0; s < 16; s += 1) {
@@ -415,6 +367,7 @@ export class GpuEngine {
     /* 6. Wärme. */
     p = this.pass(enc, timed, 5);
     this.cells(p, 'heaterSums');
+    if (body) this.one(p, 'bHeaters');
     this.one(p, 'heaterPI');
     if (e.heat.liquidPower !== 0) this.parts(p, 'sumCl', 'A');
     this.cells(p, 'heatPrep', 'A');
@@ -431,6 +384,7 @@ export class GpuEngine {
     this.cells(p, 'regCells');
     this.parts(p, 'regParts', 'A');
     this.bubs(p, 'regBubs');
+    if (body) this.cells(p, 'bRegVol');
     this.one(p, 'regFinish');
     if (this.sealed) {
       this.cells(p, 'compSums');
@@ -445,6 +399,11 @@ export class GpuEngine {
       this.bubs(p, 'pwBubs');
     }
     this.cells(p, 'gasEos');
+    if (!body) { this.one(p, 'stepEnd'); p.end(); return; }
+    p.end();
+    /* 9. Körper: collect, Kräfte, Berührungen, neue Lagen; dann Δt (auch nach dem schnellsten Körper). */
+    p = this.pass(enc, timed, 8);
+    this.bstep.finish(p, this.hooks);
     this.one(p, 'stepEnd');
     p.end();
   }
@@ -461,8 +420,10 @@ export class GpuEngine {
     const nm = S.measGroups[0] + S.measGroups[1] + S.measGroups[2];
     const probe = meas + 4 * MEAS_K * nm;
     const ts = probe + 4 * 64;
-    const total = ts + 8 * QUERIES;
-    return { cnt, glob, reg, heat, meas, probe, ts, total };
+    const bodies = ts + 8 * QUERIES;
+    const nbody = S.body ? S.bodies.nbody : 0;
+    const total = bodies + 4 * BR * nbody;
+    return { cnt, glob, reg, heat, meas, probe, ts, bodies, nbody, total };
   }
 
   /** Eine Ablesung aufzeichnen (Kennzahlen rechnen, kopieren, Zwischensummen leeren); null, wenn kein Zwischenpuffer frei ist. */
@@ -480,7 +441,9 @@ export class GpuEngine {
     this.ctx.dispatch(p, 'measParts', this.group('measParts', 'A'), S.d.pcap);
     this.ctx.dispatch(p, 'measBubs', this.group('measBubs', ''), S.d.bcap);
     this.ctx.dispatch(p, 'bubWatch', this.group('bubWatch', ''), S.d.bcap);
+    if (L.nbody > 0) this.bstep.measure(p, this.hooks);
     p.end();
+    if (L.nbody > 0) enc.copyBufferToBuffer(S.bodies.bread, 0, buf, L.bodies, 4 * BR * L.nbody);
     enc.copyBufferToBuffer(S.cnt, 0, buf, L.cnt, 4 * CNT_SIZE);
     enc.copyBufferToBuffer(S.glob, 0, buf, L.glob, 4 * GLOB_SIZE);
     enc.copyBufferToBuffer(S.reg, 0, buf, L.reg, 4 * REG_STRIDE * S.d.nreg);
@@ -492,6 +455,7 @@ export class GpuEngine {
     enc.clearBuffer(S.cnt, 4 * C.VMAXP, 4 * 4);
     enc.clearBuffer(S.cnt, 4 * C.ESC_OTHER, 4 * 3);
     enc.clearBuffer(S.cnt, 4 * C.REL_MASS, 4 * 4);
+    enc.clearBuffer(S.cnt, 4 * C.BODYWORK, 4 * (C.CONT_FULL + 1 - C.BODYWORK));
     this.busy.add(buf);
     const regions: number[] = [];
     for (let k = 0; k < this.cpu.regions.count; k += 1) regions.push(S.gpuRegion(k));
@@ -588,7 +552,9 @@ export class GpuEngine {
       watch: { found: probe[31] === 1, id: new Uint32Array(probe.buffer, probe.byteOffset + 4 * 21, 1)[0], fate: cu[C.WATCH_FATE], data: new Float32Array(probe) },
       firstSuperheat: cu[C.FIRST_SH] !== 0 ? cf[C.FIRST_SH] - 1000 : null,
       stageMs,
-      vmaxP: cf[C.VMAXP], rmaxB: cf[C.RMAXB], slowed: cu[C.SLOWED], vented: cf[C.VENTED]
+      vmaxP: cf[C.VMAXP], rmaxB: cf[C.RMAXB], slowed: cu[C.SLOWED], vented: cf[C.VENTED],
+      bodies: L.nbody > 0 ? this.state.bodies.parse(all, L.bodies, L.nbody) : [],
+      itP: cu[C.IT_P], capP: cu[C.CAP_P]
     };
   }
 
@@ -617,6 +583,7 @@ export class GpuEngine {
       this.itH = adapt(this.itH, r.itH, r.capH, 3, 60, 1);
       this.itD = adapt(this.itD, r.itD, r.capD, 3, 60, 1);
       this.nsub = r.nsub;
+      this.bstep.adapt(r.itP, r.capP);
     }
   }
 
@@ -631,11 +598,11 @@ export class GpuEngine {
     const flows = {
       heater: t.heater, lossWalls: t.lossWalls, lossOpen: t.lossOpen, escapedEnergy: t.escapedEnergy, editEnergy: e.ledger.energy,
       escapedWater: t.escapedWater, escapedAir: t.escapedAir, editWater: e.ledger.water, editAir: e.ledger.air,
-      escapedOther: t.escapedOther, editOther: e.ledger.other, escapedSalt: t.escapedSalt, editSalt: e.ledger.salt, bodyWork: 0
+      escapedOther: t.escapedOther, editOther: e.ledger.other, escapedSalt: t.escapedSalt, editSalt: e.ledger.salt, bodyWork: t.bodyWork
     };
     const e0 = this.energy0 ?? budget.energy;
     const w0 = this.water0 ?? budget.water.total;
-    const energyError = budget.energy - e0 - (flows.heater - flows.lossWalls - flows.lossOpen - flows.escapedEnergy + flows.editEnergy);
+    const energyError = budget.energy - e0 - (flows.heater - flows.lossWalls - flows.lossOpen - flows.escapedEnergy + flows.editEnergy + flows.bodyWork);
     const waterError = budget.water.total - w0 - flows.editWater;
     const otherError = budget.other.total - (this.other0 ?? budget.other.total) - flows.editOther;
     const saltError = budget.salt.total - (this.salt0 ?? budget.salt.total) - flows.editSalt;
@@ -670,8 +637,8 @@ export class GpuEngine {
       otherT: r !== null && r.otherMass > 0 ? r.otherMT / r.otherMass : 0,
       saltMass: r?.saltLiquid ?? 0,
       saltSolid: (r?.crust ?? 0) + (r?.floor ?? 0),
-      /* Nur angeheftete Körper (freie rechnet der beschleunigte Weg nicht): sie stehen als feste Zellen da. */
-      bodies: { count: this.cpu.bodies.list.filter((b) => !b.gone).length, free: 0, awake: 0 },
+      /* Mit freien Körpern aus der Ablesung; sonst stehen nur angeheftete Körper als Treppe da. */
+      bodies: this.bodyCounts(),
       heaters,
       regions: (r?.regions ?? []).map((q) => ({ p0: q.p0, sealed: q.sealed, vGas: q.vGas })),
       budget,
@@ -689,6 +656,25 @@ export class GpuEngine {
     };
   }
 
+  /** Körper für die Anzeige: alle, freie, wache (mit freien Körpern aus der Ablesung). */
+  private bodyCounts(): { count: number; free: number; awake: number } {
+    const list = this.cpu.bodies.list;
+    const rd = this.last?.bodies ?? [];
+    if (!this.state.body || rd.length === 0) return { count: list.filter((b) => !b.gone).length, free: 0, awake: 0 };
+    let count = 0, free = 0, awake = 0;
+    for (const b of rd) { if (b.gone) continue; count += 1; if (!b.pinned) { free += 1; if (!b.asleep) awake += 1; } }
+    return { count, free, awake };
+  }
+
+  /** Die Körper in der Bilanz (genaue Anteile): ihre inneren Zellen samt dem Versatz eines schmelzenden Stoffs, Film, Kruste, Eis als Wasser. */
+  private bodySums(): { E: number; film: number; crust: number; ice: number } {
+    const rd = this.last?.bodies ?? [];
+    let E = 0, film = 0, crust = 0;
+    const list = this.cpu.bodies.list;
+    rd.forEach((b, k) => { if (b.gone) return; E += b.E + latentPerKg(list[k]?.mat ?? 0) * b.m; film += b.film; crust += b.crust; });
+    return { E, film, crust, ice: rd.length > 0 ? iceMass(this.cpu, rd) : 0 };
+  }
+
   /** Die Bilanz aus der letzten Ablesung (wie budget.ts measure). */
   budget(): EngineStats['budget'] {
     const r = this.last;
@@ -696,14 +682,16 @@ export class GpuEngine {
     let pv = 0;
     for (const q of r?.regions ?? []) if (q.sealed) pv -= q.p0 * q.vFluid;
     const liquid = r?.liquidH ?? 0;
+    const bs = this.bodySums();
     /* Das Salz am Boden der Kiste zählt mit seiner Enthalpie zu den Feststoffen (wie budget.ts). */
-    const solids = (r?.solids ?? 0) + (r?.floorH ?? 0);
+    const solids = (r?.solids ?? 0) + (r?.floorH ?? 0) + bs.E;
     const gas = r?.gas ?? 0;
     const bubbles = r?.bubH ?? 0;
+    const film = (r?.film ?? 0) + bs.film;
     const water = {
-      /* Eis gibt es auf dem beschleunigten Weg nicht (ein schmelzbarer Körper rechnet auf der CPU). */
-      liquid: r?.liquidMass ?? 0, ice: 0, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film: r?.film ?? 0, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
-      total: (r?.liquidMass ?? 0) + (r?.vapour ?? 0) + (r?.fog ?? 0) + (r?.film ?? 0) + (r?.bubWater ?? 0) + t.escapedWater
+      /* Eis: die Masse der schmelzbaren Körper (mit genauen Anteilen; ohne sie schmilzt keins). */
+      liquid: r?.liquidMass ?? 0, ice: bs.ice, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
+      total: (r?.liquidMass ?? 0) + bs.ice + (r?.vapour ?? 0) + (r?.fog ?? 0) + film + (r?.bubWater ?? 0) + t.escapedWater
     };
     const om = r?.otherMass ?? 0;
     return { energy: solids + liquid + gas + bubbles + pv, solids, liquid, gas, bubbles, pv, water, other: { liquid: om, escaped: t.escapedOther, total: om + t.escapedOther }, salt: this.saltBudget(), air: (r?.air ?? 0) + (r?.bubAir ?? 0) + t.escapedAir };
@@ -713,7 +701,7 @@ export class GpuEngine {
   private saltBudget(): EngineStats['budget']['salt'] {
     const r = this.last;
     const liquid = r?.saltLiquid ?? 0;
-    const crust = r?.crust ?? 0;
+    const crust = (r?.crust ?? 0) + this.bodySums().crust;
     const floor = r?.floor ?? 0;
     const escaped = this.totals.escapedSalt;
     return { liquid, crust, grains: 0, floor, escaped, total: liquid + crust + floor + escaped };
@@ -755,7 +743,7 @@ export class GpuEngine {
     const t = this.totals;
     const e = this.cpu;
     const c = this.carry ?? { energy: 0, water: 0, other: 0, salt: 0 };
-    this.energy0 = b.energy - (t.heater - t.lossWalls - t.lossOpen - t.escapedEnergy + e.ledger.energy) - c.energy;
+    this.energy0 = b.energy - (t.heater - t.lossWalls - t.lossOpen - t.escapedEnergy + e.ledger.energy + t.bodyWork) - c.energy;
     this.water0 = b.water.total - e.ledger.water - c.water;
     this.other0 = b.other.total - e.ledger.other - c.other;
     this.salt0 = b.salt.total - e.ledger.salt - c.salt;

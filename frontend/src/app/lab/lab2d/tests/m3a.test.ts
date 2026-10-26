@@ -201,8 +201,11 @@ describe('M3a — test 39: a beaker of water tips at its geometric tipping angle
       const t = (deg * Math.PI) / 180;
       const y0 = (W / 2) * Math.sin(t) + 0.0001;
       const inner = interior.map((p) => rot(p, t)).map((p): P2 => [X + p[0], y0 + p[1]]);
+      /* 20 cm hoch (bis 2026-10-25 15 cm): das Wasser der umgefallenen Zlewka läuft mit 1,7–1,9 m/s über den Boden und an der linken
+         Wand 15–18 cm hinauf (v²/2g), seit sich die Flächen ihrer geschlossenen Zellen mit ihr bewegen (bodyCover.closedFace) — über
+         eine offene Decke bei 15 cm ging es hinaus. Geprüft wird, dass kein Wasser verloren geht, nicht, wie hoch es spritzt. */
       const e = new Engine(scene({
-        box: { w: 0.24, h: 0.15, depth: 0.01 },
+        box: { w: 0.24, h: 0.2, depth: 0.01 },
         ops: [
           { op: 'beaker', x: X, y: y0, w: W, h: H, wall: WALL, material: 'glass', T: 20, angle: deg },
           { op: 'fill', region: { poly: clipBelow(inner, fillLevel(inner, area)) }, composition: { H2O: 1 }, phase: 'liquid', T: 20 }
@@ -291,7 +294,8 @@ describe('M3a — free bodies in a beaker whose walls lie across cells (2026-10-
     console.log(`walls across cells (wood): water outside the beaker ${(out * 1e6).toFixed(3)} mg; in the third second fastest water ${(uMax * 1000).toFixed(1)} mm/s, bobbing ${((ymax - ymin) * 1000).toFixed(3)} mm, tilt ${(tilt * 180 / Math.PI).toFixed(2)}°; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
     /* Bis 2026-10-25: das Wasser holte den Körper einen Schritt zu spät ein und gewann dabei Energie (in der dritten Sekunde Wasser mit
        0,48 m/s, der Klotz schwankte 5 mm und kippte 25°); das Abstandsfeld schob Wasser aus dem zugeklappten Spalt quer durch die Wand (50 mg).
-       Was bleibt (bis 0,04 m/s, 0,3 mm), kommt vom Abklingen des Falls und von den halb bedeckten Zellen des Klotzes an der Wasserlinie. */
+       Was bleibt (bis 0,05 m/s, 0,3 mm), kommt vom Abklingen des Falls und von den halb bedeckten Zellen an der Wasserlinie (an den
+       Wänden und am Klotz: sie kippen zwischen flüssig und Gas, ARCHITECTURE.md §17). */
     expect(out).toBe(0);
     expect(uMax).toBeLessThan(0.1);
     expect(ymax - ymin).toBeLessThan(0.001);
@@ -309,7 +313,7 @@ describe('M3a — free bodies in a beaker whose walls lie across cells (2026-10-
     while (e.time < 3) { e.step(); out = Math.max(out, outside(e)); }
     const ice = e.bodies.list[1];
     console.log(`walls across cells (ice): melted ${((1 - ice.m / (rhoOf('ice') * W * W * 0.01)) * 100).toFixed(1)} %, water outside the beaker ${(out * 1e6).toFixed(3)} mg; energy error ${e.energyError().toExponential(2)} J, water error ${e.waterError().toExponential(2)} kg`);
-    /* Bis 2026-10-25 kam Schmelzwasser, das vor der Seite keinen Platz fand, zwei Millimeter weiter heraus — hinter der Wand (7 mg in 4 s). */
+    /* Bis 2026-10-25 kam Schmelzwasser, das vor der Seite keinen Platz fand, zwei Millimeter weiter heraus — hinter der Wand (5 mg in 3 s). */
     expect(out).toBe(0);
     expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
     expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
@@ -338,7 +342,8 @@ describe('M3a — bodies in the scene format and on the accelerated view', () =>
     expect(wood.pinned).toBe(false);
     expect(Math.abs(wood.a - (15 * Math.PI) / 180)).toBeLessThan(1e-12);
     expect(stone.pinned).toBe(true);
-    expect(e.needsCpu()).toBe(true);
+    /* Freie Körper (bis acht, ohne Eis und Körner) rechnet seit 2026-10-26 auch der beschleunigte Weg (gpu/kbody*.ts). */
+    expect(e.needsCpu()).toBe(false);
     /* Nur angeheftete Körper: der beschleunigte Weg kann die Szene. */
     const old = scene({ ops: raw.ops.slice(0, 2) });
     const plain = new Engine(old);

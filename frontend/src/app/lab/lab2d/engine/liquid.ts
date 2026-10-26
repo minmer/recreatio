@@ -279,11 +279,11 @@ export class Liquid {
   }
 
   /**
-   * Arten der Zellen aus φ + φ_s + α_b; eine Zelle an einer dünnen Wand (besideThin) aus der Füllung ihres offenen
-   * Teils, φ/(1 − φ_s) ≥ ½, wie theta (seit 2026-10-25: mit φ + φ_s galt die halbe Zelle einer Wand quer über zwei
-   * Zellen als flüssig, sobald ein Achtel ihres offenen Teils nass war, und kippte Schritt für Schritt). Gas kommt nur
-   * aus Gas: eine Zelle wird erst Gas, wenn sie es schon war oder an Gas (oder eine offene Seite) grenzt — eine Lücke
-   * mitten im Wasser (eine kollabierte Blase) bleibt flüssig, der Driftausgleich füllt sie wieder (sonst Gas ohne Gas).
+   * Arten der Zellen aus φ + φ_s + α_b. Gas kommt nur aus Gas: eine Zelle wird
+   * erst Gas, wenn sie es schon war oder an Gas (oder eine offene Seite)
+   * grenzt — eine Lücke mitten im Wasser (eine eben kollabierte Blase) bleibt
+   * flüssig, und der Driftausgleich füllt sie wieder. Sonst entstünde eine
+   * Gaszelle ohne Gas (Dichte null).
    */
   classify(prev: Uint8Array | null = null): number {
     const g = this.g;
@@ -292,8 +292,7 @@ export class Liquid {
     for (let c = 0; c < g.n; c += 1) {
       if (g.solid[c] !== 0) { g.kind[c] = SOLID; continue; }
       const f = g.phi[c];
-      const fill = g.fs[c] > 0 && g.besideThin(c) ? f / (1 - Math.min(0.9, g.phiS[c])) : f + g.phiS[c];
-      let isLiquid = f > 0 && fill + g.alpha[c] + g.grain[c] >= 0.5;
+      let isLiquid = f > 0 && f + g.phiS[c] + g.alpha[c] + g.grain[c] >= 0.5;
       if (!isLiquid && prev !== null && prev[c] !== GAS && prev[c] !== SOLID) {
         const i = c % nx;
         const j = (c - i) / nx;

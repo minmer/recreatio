@@ -14,7 +14,11 @@ import type { KernelDef } from './kernel';
 const WG = 128;
 const MAIN = '@compute @workgroup_size(WG) fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid3: vec3<u32>, @builtin(workgroup_id) wid3: vec3<u32>)';
 
-/** T aus H und alles Abgeleitete einer Zelle (wie Gas.deriveCell; cf schreibend). */
+/**
+ * T aus H und alles Abgeleitete einer Zelle (wie Gas.deriveCell; cf schreibend). Das Gasvolumen ohne das Körperstück der Zelle,
+ * (1 − fs − φ − α) V (fs = 0 ohne freie Körper); die Temperatur eines Feststoffanteils aus seiner Energie mit der Wärmekapazität
+ * der Körperteile (capB, sonst die der ganzen Zelle), in einer gemischten Zelle nach F_TSB, in einer festen auch nach F_T.
+ */
 export const DERIVE = `
 fn massOf(c: u32) -> f32 {
   let n = P.n;
@@ -22,7 +26,7 @@ fn massOf(c: u32) -> f32 {
 }
 fn deriveCell(c: u32) {
   let n = P.n;
-  let vg = max(1e-3, 1.0 - cf[F_PHI * n + c] - cf[F_ALPHA * n + c]) * P.vcell;
+  let vg = max(1e-3, 1.0 - cf[F_FS * n + c] - cf[F_PHI * n + c] - cf[F_ALPHA * n + c]) * P.vcell;
   cf[F_VGAS * n + c] = vg;
   let mN = cf[F_MN * n + c];
   let mO = cf[F_MO * n + c];
@@ -53,14 +57,22 @@ fn deriveCell(c: u32) {
 fn deriveSolid(c: u32) {
   let n = P.n;
   let s = cu[U_SOLID * n + c];
-  let cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_CRUST * n + c] * CP_CRYSTAL;
+  let capB = cf[F_CAPB * n + c];
+  var cs = 0.0;
+  if (capB > 0.0) { cs = capB + cf[F_CRUST * n + c] * CP_CRYSTAL; }
+  else { cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_CRUST * n + c] * CP_CRYSTAL; }
   let film = cf[F_FILM * n + c];
   let E = cf[F_ES * n + c];
-  if (film <= 0.0) { cf[F_T * n + c] = T0 + E / cs; return; }
-  var T = cf[F_T * n + c];
-  if (!(T > 100.0)) { T = T0 + E / cs; }
-  for (var it = 0; it < 3; it++) { T -= (cs * (T - T0) + film * hL(T) - E) / (cs + film * cpL(T)); }
-  cf[F_T * n + c] = T;
+  let solid = s != 0u;
+  var T = 0.0;
+  if (film <= 0.0) { T = T0 + E / cs; }
+  else {
+    T = select(cf[F_TSB * n + c], cf[F_T * n + c], solid);
+    if (!(T > 100.0)) { T = T0 + E / cs; }
+    for (var it = 0; it < 3; it++) { T -= (cs * (T - T0) + film * hL(T) - E) / (cs + film * cpL(T)); }
+  }
+  cf[F_TSB * n + c] = T;
+  if (solid) { cf[F_T * n + c] = T; }
 }
 `;
 
@@ -75,7 +87,7 @@ fn statePressure(A: f32, B: f32, V: f32, rhoBar: f32) -> f32 {
 `;
 
 /** Summen je Gebiet: die ersten vier Gebiete über die Arbeitsgruppe, die übrigen direkt (racc gebunden). */
-const REGSUM = `
+export const REGSUM = `
 var<workgroup> rr: array<f32, ${16 * WG}>;
 fn regSum(lid: u32, r: u32, v: vec4<f32>, fields: vec4<u32>) {
   for (var k = 0u; k < 16u; k++) { rr[k * WG + lid] = 0.0; }
@@ -241,7 +253,7 @@ ${MAIN} {
   let have = mass(c);
   var want = 0.0;
   for (var k = 0u; k < 4u; k++) { let nb = nbOf(c, k); if (stableGas(nb)) { want += vol(nb) / wsum * cf[F_RHO * n + nb]; } }
-  want *= max(1e-3, 1.0 - cf[F_PHI * n + c] - cf[F_ALPHA * n + c]) * P.vcell;
+  want *= max(1e-3, 1.0 - cf[F_FS * n + c] - cf[F_PHI * n + c] - cf[F_ALPHA * n + c]) * P.vcell;
   if (want <= have) { return; }
   for (var k = 0u; k < 4u; k++) {
     let nb = nbOf(c, k);
@@ -310,15 +322,20 @@ ${MAIN} {
   if (r != NONE) { addF_racc(r * RACC_STRIDE + RA_VBUB, q.V); }
 }`
   },
+  /* Mit freien Körpern (P.bodies) ist das Fluidvolumen eines Gebiets Σ (1 − fs) V aus bRegVol (in RA_VSUM); ändert ein Körper es in einem
+     verschlossenen Gebiet, ist der Sprung von −p0 V_Fluid seine Arbeit (C_BODYWORK, am Anfang des Schritts wie bodies.prepare). */
   ...([['regFinishStart', true], ['regFinish', false]] as const).map(([name, start]): KernelDef => ({
     name, wg: 64,
-    bind: 'P:u reg:w racc:a',
+    bind: 'P:u reg:w racc:a cnt:a',
     code: `${STATE_P}
 ${MAIN} {
   for (var r = lid3.x; r < P.nreg; r += 64u) {
     let o = r * REG_STRIDE;
     let a = r * RACC_STRIDE;
-    let vf = reg[o + R_VFLUID];
+    let vfOld = reg[o + R_VFLUID];
+    let p0Old = reg[o + R_P0];
+    var vf = vfOld;
+    if (P.bodies != 0u) { vf = max(1e-12, getF_racc(a + RA_VSUM)); reg[o + R_VFLUID] = vf; }
     let vl = getF_racc(a + RA_VLIQ);
     let vb = getF_racc(a + RA_VBUB);
     let vg = max(1e-3 * vf, vf - vl - vb);
@@ -336,6 +353,7 @@ ${MAIN} {
       reg[o + R_P0] = statePressure(getF_racc(a + RA_A), getF_racc(a + RA_B), vg, rb);
     }
     ${start ? 'reg[o + R_P0START] = reg[o + R_P0]; reg[o + R_DP0] = 0.0;' : ''}
+    ${start ? 'if (P.bodies != 0u && reg[o + R_OPEN] == 0.0 && r < P.nreg) { addF_cnt(C_BODYWORK, p0Old * vfOld - reg[o + R_P0] * vf); }' : ''}
     for (var k = 0u; k < RACC_STRIDE; k++) { atomicStore(&racc[a + k], 0u); }
   }
 }`
@@ -421,7 +439,7 @@ ${MAIN} {
   if (k == SOLID) { cf[F_VGAS * n + c] = 0.0; cf[F_RHO * n + c] = 0.0; cf[F_VEOS * n + c] = 0.0; return; }
   let m = cf[F_MN * n + c] + cf[F_MO * n + c] + cf[F_MV * n + c];
   if (k == LIQUID && m + cf[F_MF * n + c] <= 0.0) { cf[F_VGAS * n + c] = 0.0; cf[F_VEOS * n + c] = 0.0; return; }
-  let vg = max(1e-3, 1.0 - cf[F_PHI * n + c] - cf[F_ALPHA * n + c]) * P.vcell;
+  let vg = max(1e-3, 1.0 - cf[F_FS * n + c] - cf[F_PHI * n + c] - cf[F_ALPHA * n + c]) * P.vcell;
   cf[F_VGAS * n + c] = vg;
   cf[F_RHO * n + c] = m / vg;
   cf[F_VEOS * n + c] = cf[F_NMOL * n + c] * R_GAS * cf[F_T * n + c] / pAt(c);

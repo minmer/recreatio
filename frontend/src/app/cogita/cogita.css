@@ -488,7 +488,16 @@
 .cg-wy-tree .cg-wy-tree { margin-left: var(--wk-space-3); padding-left: var(--wk-space-3); border-left: 2px solid var(--wk-line); }
 .cg-wy-node { display: grid; gap: var(--wk-space-1); }
 .cg-wy-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); min-height: 2.75rem; padding: var(--wk-space-1) 0; }
-.cg-wy-twist { min-width: 2.75rem; min-height: 2.75rem; margin: calc(-1 * var(--wk-space-2)) 0; padding: 0; border: 0; background: none; color: var(--wk-ink-2); cursor: pointer; font-size: var(--wk-text-sm); }
+.cg-wy-twist { min-width: 2.75rem; min-height: 2.75rem; margin: calc(-1 * var(--wk-space-2)) 0; padding: 0; border: 0; background: none; color: var(--wk-ink-2); cursor: pointer; font-size: var(--wk-text-sm); white-space: nowrap; }
+/* 2026-10-26 — der Pfeil zeigt die Schritte in einem Schritt („▸ 3"); vor einem ohne steht nur sein Platz. */
+/* Der leere Platz ohne Höhe: ohne Text läge seine Grundlinie an seinem unteren Rand und höbe die Zeile um 2.75rem. */
+span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
+/* Die Gruppen oben brechen auf schmalen Schirmen um — der Abstand der Zeile genügt, ohne den Rand unter Tabs. */
+.cg-wy-tools .cg-subtabs { margin: 0; }
+.cg-wy-twist:hover { color: var(--wk-ink); }
+.cg-wy-twist:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.cg-wy-flat .cg-wy-body { margin-left: 0; }
+.cg-wy-levels { gap: var(--wk-space-3); }
 .cg-wy-chip { font-size: var(--wk-text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--wk-accent); }
 .cg-wy-label { flex: 1 1 18rem; padding: 0; border: 0; background: none; color: var(--wk-ink); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .cg-wy-label:hover, .cg-wy-label:focus-visible { text-decoration: underline; }

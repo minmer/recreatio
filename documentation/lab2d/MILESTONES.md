@@ -1079,7 +1079,8 @@ exactly 10 s).
 
 In the real shell (headless Edge, a bundle of the tree; 48 checks, on both adapters): the dialog shows "Licz na" with
 the graphics card chosen and explains the GPU clip, with a bake time; baking shows "Przygotowuję kartę graficzną…",
-then the progress with "karta graficzna" and its rate (1.52× at 2 mm on the RTX); playback starts with "GPU" in the
+then the progress with "karta graficzna" and its rate (10 s at 2 mm: 1.57× on the RTX, 1.30× on the integrated GPU, in
+the worker of the shell); playback starts with "GPU" in the
 player; the choice is remembered; baking the same scene on the processor (no "preparing") leaves both clips and the
 player switches "CPU | GPU" at the same moment; at 7 s of the GPU clip "Na żywo od tej chwili" (its tooltip says it
 resumes from the keyframe before) starts the accelerated view at 5.13 s, the GPU's own worker, which then runs on;
@@ -1100,6 +1101,162 @@ Found and fixed on the way:
 
 Not done: a Firefox run (headless Firefox has no WebGPU; the owner checks it in a visible window); the CPU's
 `extendUnderBodies` stays in place (CPU clips byte-identical; the GPU's liquid differs next to bodies, under the quads).
+
+## Free bodies in a beaker on half cells (2026-10-25)
+
+The go/no-go study of the GPU port (a CPU emulation, its runners in the scratchpad) found the exact CPU engine
+misbehaving when a free body floats in the 2 mm preset beaker, whose 2 mm walls lie across two cells (x 65–67 and
+133–135 mm): a 4 × 2 cm pine block bobbed over 18.3 mm and rolled 27.5°, water jetted at 2.63 m/s up the right wall's
+inner face and the step fell to 0.68 ms; the 3 cm ice cube of "Lód w ciepłej wodzie" rolled over (101°; 109° shifted
+0.1 mm); water went through the walls (27.6 mg beside a cube placed 0.5 mm from the wall, 39.9 and 118.6 mg beside the
+rolling cubes, 159.7 mg from a free beaker on the floor holding the pine block). With the beaker shifted 1 mm onto
+whole cells it looked calm.
+
+**What happened** — four faults, each found with per-step traces and confirmed by switching it alone:
+
+1. *The water lagged the body by a step.* The projections saw the body's velocity V^n: the water made room for
+   Δt V^n, the body then swept Δt V^{n+1}. A linear model of heave plus the water level beside the body (β = B/(W − B),
+   1.54 for the block in the beaker, ω ≈ 23 s⁻¹) grows at ≈ ω² Δt β/(2(1 + β)) = 1.4/s at Δt = 1/120 s; the run grew
+   at about 0.7/s (the heave, period 0.25 s), and with Δt = 1/240 s the same scene stayed calm (0.4 mm). The added
+   mass the probe measured matched the force's response within 0.3 % — the staggering, not M_a. It was there with the
+   walls on whole cells too, seeded less: with fault 2 fixed alone, the block in the aligned beaker began to grow
+   after 6–13 s. In the tests, the floating ice of test 43 spun 880° in 2.5 minutes, test 44's tumbled (up to 169°)
+   and the cooling mixture's cube throughout (up to 161°, the brine at 0.4 m/s) — test 43's brines reached T_f because
+   the cube stirred them.
+2. *A closed cell's face stood still.* Since "Ice on a hot plate" (above) a free body closes a cell from 90 %
+   (`CLOSED_FREE`); its side then lies inside the cell and does not cover the cell's face toward the fluid, which kept
+   velocity 0 and no owner. Under the block, whose bottom lay in the lowest tenth of a cell row, the water saw a
+   resting floor and the measured added mass fell from 14 g to 0 in 16 % of the steps (23 % on whole cells) — each such
+   step kicked the block (by 30 mm/s at a time).
+3. *Water crossed the wall.* (a) A body within a cell of the wall closes the gap (the gap rule), the wall's inner half
+   cell with it; a particle left in it was pushed along the distance field toward the nearest fluid cell — outside the
+   beaker — and stopped 0.05 Δx past the cell boundary, inside the glass; in the next step the "already inside" rule
+   of `hit` moved it to the nearest side, the outer one (bl, blp; with a free beaker its own push-out did that:
+   159.7 mg). With the walls on whole cells a hard push crossed a whole wall cell in one step (89.8 mg when a block
+   reached the wall). (b) A cube against the wall spawned its meltwater at the nearest free spot of the ring around the
+   side — 2 mm on, behind the wall (br: 11 particles, 27.6 mg; `meltWater.ts`, since "Ice on a hot plate").
+4. *The half cells flicker.* A half-covered cell beside a thin wall is liquid by φ + φ_s ≥ ½ with φ_s ≈ 0.42 — once an
+   eighth of its open part is wet — and at the surface it flips between liquid and gas: still water in the beaker keeps
+   currents up to 57 mm/s at its walls (1 mm/s on whole cells; 52 mm/s in the engine of 8a8a1f8c). It seeded fault 1.
+   Not fixed (below).
+
+The engine before the changes of 2026-10-25 (8a8a1f8c) had faults 1, 3a and 4: its pine block sloshed at 0.1–0.3 m/s
+from 2.5 s on (bobbing 5.7 mm, jets 0.9 m/s, no water out in 20 s). Faults 2 and 3b came with "Ice on a hot plate" and
+made it violent.
+
+**The fixes**:
+
+1. *Predicted boundary value* (`bodies.ts`; `body.ux`, `uy`, `uw`): the projections see U = V + P, P the increment from
+   fluid and gravity of the last step when no contact changed the velocity, else 0; the added-mass term becomes
+   M_a (D^{n−1} + P^n − P^{n−1}). In the model the growth falls from 1.4/s to 0.06/s. A body lying on something
+   predicts nothing — with P = D a free beaker standing on the floor saw itself sink by g Δt each step and flew out of
+   the box.
+2. *Faces of closed cells move with their body* and count for its added mass (`bodyCover.closedFace`).
+3. *The distance-field push stops before a body* (`liquidMove.ts`); *meltwater only where no other body lies between it
+   and the side* (`meltWater.freeSpot`/`outlineSpot`, the far cell of `meltSides.fluidFront`, `Bodies.blocks`).
+
+Tried and dropped:
+
+- *Classifying the half cells by the fill of their open part*, φ/(1 − φ_s) ≥ ½ (the fill θ uses), against fault 4: the
+  wall currents fall from 57 to below 1 mm/s and the block bobs 0.035 mm instead of 0.175 mm — but the hot water at the
+  meniscus then lies in gas cells and boils off (surface vapour 3.75 → 4.11 mg/s, bubbles 1.79 → 1.21 mg/s): test 11's
+  plateau fell from 0.17 K to 0.55 K below T_sat (the gate is 0.5 K), and tests 4 (with water), 22, 26, 27 moved (27
+  dry after 71.95 s instead of 75.54). For every partly covered cell the same rule had been dropped in "Ice on a hot
+  plate" for test 43 — not through the classification, it turned out: it calmed the cube there (the brine −0.84 °C,
+  as with fix 1 alone).
+- No pressure read from behind another body in `bodyForces.sideAt`: no effect (a body pressed into a closed gap reads
+  the continued pressure, which comes through the wall anyway); the area-weighted velocity of a face two bodies cover:
+  no effect; φ_s from exact B-spline integrals over unrotated rectangles: removes the 0.92/1.07 volume imbalance of a
+  half cell and its neighbour, not the flicker.
+
+**Now** (20 s, the scenes of the study, 2 mm):
+
+| scene | before | now |
+|---|---|---|
+| bw: 4 × 2 cm pine block, 20 °C | bobs 18.3 mm, 27.5°, jet 2.63 m/s at the right wall, 49.9 mg out over the rim, step 0.68 ms | bobs 0.175 mm, 0.15°, nothing out, water 10–40 mm/s at the half cells (83 at most), step 8.3 ms |
+| br: 3 cm ice cube at −10 °C, 0.5 mm from the right wall, water 40 °C | 27.6 mg through the wall (from 4.86 s), 881 mm/s | nothing out; 0.45°, bobbing 0.58 mm; the cube stays against the wall (below) |
+| bl: the cube centred | rolls over (101°), 118.6 mg out, 701 mm/s | 0.34°, bobbing 0.94 mm, nothing out |
+| blp: shifted 0.1 mm | rolls over (109°), 39.9 mg through the left wall | 0.34°, 1.02 mm, nothing out |
+| bla / bwa: the beaker on whole cells | 23.3°, 5.3 mm / 0.49 mm | 0.37°, 0.64 mm / 0.19 mm, 0.36° |
+| free beaker on the floor + pine block | 159.7 mg out, bobs 6.9 mm, 12.6° | nothing out, 0.12 mm, 0.14° |
+| the same on whole cells | 0.31 mm, 0.91° | 0.18 mm, 0.45° |
+| free beaker + ice cube 0.5 mm from its wall | calm in 6 s (7.5 mg out in the study's 20 s) | nothing out, 0.64 mm, 0.45° |
+
+Budgets exact in every run (energy ≤ 2.1·10⁻¹⁰ J, water ≤ 3·10⁻¹⁶ kg).
+
+**Tests**: new in m3a.test.ts, "free bodies in a beaker whose walls lie across cells" — a 4 × 5 cm beaker with its walls
+at 31–33 and 69–71 mm in a 10 × 7 cm box: a pine block dropped 2 mm onto the water (nothing outside the beaker; in the
+third second the fastest water 45.2 mm/s, the gate 0.1 m/s; bobbing 0.312 mm, gate 1 mm; tilt 0.28°, gate 2°) and an ice
+cube melting against a wall in water at 80 °C (nothing outside); 3 s each, 5–6 s of wall time in the suite. The
+engine before these fixes (9f8afe64) fails five of their checks (49.9 mg out, 479 mm/s, 5.1 mm, 24.9°; 5.0 mg out of
+the ice). Changed gates, each because its old pass relied on the spinning of fault 1, on the splash staying low or
+on chance:
+
+- test 43 (fast): the ice within 0.2 K of T_f(w) as before, no longer the brine — a calm cube does not stir it to
+  T_f(w) in 2.5 minutes (it cools by conduction and its own convection, about 500 W/(m² K) at the cube's sides): now
+  the brine colder than 0 °C by more than 0.5 K, never below T_f(w) by more than 0.2 K, and the cube turned less than
+  10°. Brine −0.825 °C (−2.07 … −0.02) instead of −1.891 °C, ice −2.061 °C (T_f(w) −2.086 °C), turned at most 0.97°,
+  0.071 g melted instead of 0.197 g.
+- test 43, the cooling mixture (slow): below −13 °C after 3 minutes instead of −18 °C, above T_f(w) instead of within
+  0.5 K of it; the coldest particle never below the eutectic as before. Its 2 cm cube (ρ_ice/ρ_brine = 0.77: a square
+  does not float flat) rolls once onto its side and lies still.
+- test 39: the box 20 cm high instead of 15 cm. Since the faces of its closed cells move with it (fix 2), the water of
+  the beaker that falls over runs along the floor at 1.7–1.9 m/s and 15–18 cm up the far wall (v²/2g) — 40 mg left over
+  the open top at 15 cm. The test checks that no water is lost, not how high it splashes.
+- test 55 to the end (slow): the cube's drift under 5 mm instead of 3 mm (below).
+
+**What moved in the older tests.** The fast suite has 100 tests in 11 files, all met. Unchanged to the last printed
+digit apart from timings and the rounding noise of energy errors: tests 1, 2, 4–9, 13–16, 18–30, 32, 35, 41, 45–48,
+50–54. Changed:
+
+- *Floating and sinking bodies* (fixes 1 and 2): test 36 bobs 0.03 mm (ice) and 0.02 mm (pine) instead of 0.05 and
+  0.06 mm, the drafts as before (−0.01 %, −0.11 %), the pine's measured added mass sideways 3.0 g instead of 1.6 g;
+  test 40's pine block hit the water at 1.07 m/s after a fall of 1 cm (0.44 m/s falling freely) and still bobbed 8 mm
+  at 2 s, the water at 0.3–0.4 m/s carrying the stone's heat off — the bodies now give **28.7 J** instead of 42.6 J in
+  2 s (the stone 23.5 J instead of 36.5 J), and the block floats at 42.4 mm (±0.8 mm; 38.9 mm was the bottom of a
+  bob); test 42's cube rocked up to 14° with a heave of 6.4 mm, now at most 4.5° and 0.4 mm at the end: it loses
+  0.179 g in 8 s instead of 0.204 g (19.39 × 19.63 mm; with `CLOSED_FREE` 0.99 it would lose 0.218 g, the 90 % rule
+  still costs 18 %); test 44's cube tumbled (up to 169°, 0.11 m/s, the brine at 0.3–0.4 m/s) and now floats upright
+  (at most 1.5°, the brine mostly below 40 mm/s): its ice grows 165.9 mg instead of 193.6 mg (w 3.5571 % instead of
+  3.5668 %); test 43 above; test 37's square sinks at 0.457 m/s instead of 0.449 (+10.0 % of the drag law instead of
+  +8.1 %, the gate 15 %), turns up to 16° instead of 33° and drifts +9.0 mm instead of −17.5 mm (its wake is chaotic,
+  SIMPLIFICATIONS #36); test 38's upper block slides 0.0006 mm instead of 0.0017 mm; test 33's scene with bodies is
+  at 2.13 s after its 270 steps instead of 2.07 s (longer steps).
+- test 39 above (evaporated 0.144 / 0.221 mg instead of 0.120 / 0.261 mg).
+- Ice on the hot plate: test 55's cube 18.86 × 17.75 mm, 599.6 mg melted (were 18.85 × 17.74 mm, 599.8 mg); test 56's
+  bar ends 0.35 mm further on (x 33.99 mm), fastest 182 mm/s instead of 184; the other two tilts as before.
+- Snapshots carry the four new arrays of three numbers per body: test 31's keyframes 89 kB instead of 88, test 33's
+  snapshots 1 kB larger (all six scenes, still identical runs).
+
+The slow suite (12 tests in 5 files) passes with that gate changed. Unchanged to the last printed digit: test 3
+(−2.43 %), 4 (air 7.7·10⁻¹⁰ %, water 1.08·10⁻⁶ % of ∫P dt, 48.74 °C), 10 (27 of 58 774 bubbles reach the surface),
+11 (0.17 K below T_sat, vapour −1.55 %), 12 (0.267 K with chips, 10.609 K without), 34 (36.0 MB per simulated minute),
+41 at 1 mm (+3.8 %, −2.5 %), 49 (33.3°). Changed:
+
+- the cooling mixture (gate above): the brine −14.35 °C instead of −19.44 °C after 3 minutes, its coldest particle
+  −20.90 °C instead of −20.29 °C (the eutectic −21.2 °C), 0.756 g melted instead of 1.37 g — the meltwater stays cold
+  beside the resting cube instead of being stirred through the brine.
+- 55 to the end: melted away after 145.49 s instead of 145.9 s, at most 7.1 mg held back (7), 1053 particles (1053),
+  fastest 32 mm/s (32) — but it moved **3.20 mm** sideways instead of 1.25 mm, over the old gate of 3 mm. Fix 1 plays
+  no part (lying on the plate, the cube predicts nothing in all 146 s), nor do the push stop and the meltwater guard
+  (switched off, the run is the same to the last printed digit); `closedFace` alone changes the run, from about 50 s on
+  (the faces of its closed cells now follow its creep of 0.1–0.3 mm/s and count for its added mass). Until 130 s it
+  moves less than 0.4 mm; the drift comes in the last 10 s, when its last 2 mm — a slab 7 mm wide — skitter on the
+  boiling under it. How far is chance: in runs changed by ±1 % of the power, ±0.2 K of the ice or 0.02 mm of position,
+  the engine before went 0.96–2.73 mm (fastest 16–32 mm/s), the engine now 1.32–3.20 mm (24–43 mm/s; the gate on
+  speed, 50 mm/s, stays). The gate on the drift stands against the flights of before (52 m/s), not the skittering.
+
+**Left open**:
+
+- *The half-cell flicker* (fault 4) — see the tried rule above; it needs a meniscus at a hot wall that does not boil
+  off (or the GPU's staircase: one whole cell).
+- *A body pressed into a closed gap against a wall* reads, on that side, the pressure continued through the wall — the
+  air outside a beaker: br's cube is held against the wall with 37–39 mN, about 45 % of its weight (also with the walls
+  on whole cells). Beside a wall across two cells the gap rule closes gaps of up to a whole cell (beside a wall on whole
+  cells, half a cell).
+- Grains are pushed along the distance field the same way (`grainFlow.ts`), without the body check.
+- The GPU port of free bodies has to follow fixes 1–3.
+- SIMPLIFICATIONS #34 changed; its Polish version (`i18n.ts`) was not updated (outside the engine).
 
 ## Benchmark
 

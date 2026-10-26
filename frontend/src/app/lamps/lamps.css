@@ -103,22 +103,33 @@
 .lp-run input { margin-top: 0.25rem; }
 .lp-run-text { display: grid; min-width: 0; }
 
-/* -- Was gerade hinausgeht (klebt oben, solange gesendet wird) ----------------------- */
+/* -- Was gerade hinausgeht: immer da, eine Zeile, immer gleich hoch (klebt oben) ------------ */
 .lp-queue {
   position: sticky;
   top: var(--wk-bar-h);
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: var(--wk-space-3);
-  padding: var(--wk-space-2) var(--wk-space-3);
+  gap: var(--wk-space-2);
+  height: 2.25rem;
+  box-sizing: border-box;
+  padding: 0 var(--wk-space-1) 0 var(--wk-space-3);
   margin-bottom: var(--wk-space-2);
-  border: 1px solid var(--wk-line-strong);
-  border-radius: var(--wk-radius);
-  background: var(--wk-info-soft);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-pill);
+  background: var(--wk-surface);
+  color: var(--wk-muted);
   font-size: var(--wk-text-sm);
 }
-.lp-queue-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.lp-queue.is-busy { border-color: var(--wk-line-strong); background: var(--wk-info-soft); color: var(--wk-ink); }
+.lp-queue-dot { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--wk-line-strong); }
+.lp-queue.is-busy .lp-queue-dot { background: var(--wk-accent); animation: lp-queue-pulse 1s ease-in-out infinite; }
+@keyframes lp-queue-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .lp-queue.is-busy .lp-queue-dot { animation: none; } }
+.lp-queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Nichts zu stoppen: der Knopf behält seinen Platz, ist aber nicht zu sehen. */
+.lp-queue-stop { flex: none; min-height: 1.75rem; padding-block: 0; }
+.lp-queue:not(.is-busy) .lp-queue-stop { visibility: hidden; }
 
 /* -- Neues: unten, nicht oben ------------------------------------------------------------ */
 .lp-bottom { margin: var(--wk-space-4) 0; }

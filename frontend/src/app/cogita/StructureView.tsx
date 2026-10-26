@@ -13,12 +13,18 @@
  *
  * Im Układ „Tomasz z Akwinu" teilen Überschriften den Artikel (Zarzuty · Sed contra · Odpowiedź ·
  * Odpowiedzi na zarzuty), und eine Zahl des Autors („arg. 3") ist die Nummer. Die Listen sind
- * Listen; der Name eines Schritts ist sein Knopf zum Aufklappen (`aria-expanded`, `aria-controls`),
- * der Pfeil davor nur für die Maus (2026-10-25: ein Halt je Schritt für den Tabulator, nicht zwei);
+ * Listen; der Name eines Schritts ist sein Knopf zum Aufklappen (`aria-expanded`, `aria-controls`);
  * ↑ ↓ wandern zwischen den Schritten, → klappt auf, ← zu.
  *
  * 2026-10-26 — „Tezy skrócone | Całe tezy" oben bei jeder Wurzel: eine Teza steht gekürzt (wie jeder Name in
  * Listen nach 90 Zeichen „…") oder ganz. Eine Wahl des Lesers für alle Wurzeln auf dem Schirm, gemerkt im Browser.
+ *
+ * 2026-10-26 — EBENE UM EBENE. Der Pfeil vor einem Schritt zeigt nicht mehr dasselbe wie sein Name (das
+ * Ganze), sondern die Schritte in ihm: „▾ 3" / „▸ 3", ein eigener Knopf mit eigenem `aria-expanded`; vor einem
+ * Schritt ohne innere steht nichts. „Wszystkie poziomy | Poziom po poziomie" (gemerkt wie die Tezy): alle Ebenen
+ * offen (jeder Ast lässt sich zuklappen; ein Klick auf „Wszystkie poziomy" öffnet wieder alle), oder zuerst nur
+ * die äusseren Schritte, nach innen zu öffnen — Schritt um Schritt oder mit „Rozwiń poziom" / „Zwiń poziom" für
+ * alle. In der Reihenfolge des Textes gibt es keine Ebenen und keinen Pfeil.
  *
  * 2026-10-25 — „pokaż w tekście" bekommt die Bibliothek seines Werks, in jedem Bild neu gefragt
  * (`workLook`): ist sie nach einem frischen Laden noch nicht da, kommt sie später als neues `look`, und
@@ -38,6 +44,7 @@ import { fieldsOf, fieldText, labelOf, placeText, valuesOf, type Entity } from '
 import { authorNumber, childrenOf, isStructured, parentsOf, pathFromRoot, pieceOf, PIECE_HEADING, placeLabel, placeOf, relativePlace, schemeFor, textOrder, type StructNode } from './structure';
 import { readView, viewOutline, type OutlineDisplay, type OutlineGroup, type OutlineNode } from './views';
 import { anchorsAt } from './anchors';
+import { deepestShown, depthOf, oneDeeper, oneShallower, shownSteps, structKids } from './outlineLevels';
 import { useCtx } from './ui';
 
 type Order = 'tree' | 'text';
@@ -48,27 +55,42 @@ const savedOrder = (): Order | null => {
 };
 const keepOrder = (order: Order) => { try { window.localStorage.setItem(ORDER_KEY, order); } catch { /* ohne Speicher: nur für jetzt */ } };
 
-/* Wie lang die Tezy stehen — eine Wahl für alle Wurzeln: was in dieser Karte gewählt wurde, sonst was der Browser sich merkte. */
-type Theses = 'short' | 'whole';
-const THESES_KEY = 'cg-structure-theses';
-let pickedTheses: Theses | null = null;
-const thesesHeard = new Set<() => void>();
-const thesesNow = (): Theses => {
-  if (pickedTheses !== null) return pickedTheses;
-  try { return window.localStorage.getItem(THESES_KEY) === 'whole' ? 'whole' : 'short'; } catch { return 'short'; }
-};
-const keepTheses = (next: Theses) => {
-  pickedTheses = next;
-  try { window.localStorage.setItem(THESES_KEY, next); } catch { /* ohne Speicher: nur für jetzt */ }
-  thesesHeard.forEach((heard) => heard());
-};
-const hearTheses = (heard: () => void) => { thesesHeard.add(heard); return () => { thesesHeard.delete(heard); }; };
+/** Eine Wahl des Lesers für alle Wurzeln auf dem Schirm: was in dieser Karte gewählt wurde, sonst was der Browser sich merkte. */
+interface Choice<T extends string> {
+  readonly now: () => T;
+  readonly keep: (next: T) => void;
+  readonly hear: (heard: () => void) => () => void;
+}
+
+function readerChoice<T extends string>(key: string, values: readonly T[], fallback: T): Choice<T> {
+  let picked: T | null = null;
+  const heard = new Set<() => void>();
+  return {
+    now: () => {
+      if (picked !== null) return picked;
+      try { const stored = window.localStorage.getItem(key); return values.find((v) => v === stored) ?? fallback; } catch { return fallback; }
+    },
+    keep: (next) => {
+      picked = next;
+      try { window.localStorage.setItem(key, next); } catch { /* ohne Speicher: nur für jetzt */ }
+      heard.forEach((one) => one());
+    },
+    hear: (one) => { heard.add(one); return () => { heard.delete(one); }; }
+  };
+}
+
+const useChoice = <T extends string>(choice: Choice<T>): T => useSyncExternalStore(choice.hear, choice.now, choice.now);
+
+/* Wie lang die Tezy stehen: gekürzt wie jeder Name in Listen, oder ganz. */
+const THESES = readerChoice<'short' | 'whole'>('cg-structure-theses', ['short', 'whole'], 'short');
+/* Wie viel vom Baum offen ist: alle Ebenen, oder zuerst die äusseren Schritte und nach innen Ebene um Ebene. */
+const LEVELS = readerChoice<'all' | 'step'>('cg-structure-levels', ['all', 'step'], 'all');
 
 /** Der Baum einer Wurzel, wie `textOrder` ihn braucht: nur die Schritte der Struktur. */
 const toStruct = (n: OutlineNode): StructNode => ({
   id: n.id,
   ...(n.again === true ? { again: true as const } : {}),
-  children: n.groups.filter((g) => g.structure === true).flatMap((g) => g.nodes).map(toStruct)
+  children: structKids(n).map(toStruct)
 });
 
 const countSteps = (n: OutlineNode): number =>
@@ -124,22 +146,36 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
   /* „Rozwiń wszystko": alles offen — ausser dem, was man danach wieder zuklappt. */
   const [all, setAll] = useState(false);
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
-  const whole = useSyncExternalStore(hearTheses, thesesNow, thesesNow) === 'whole';
+  const whole = useChoice(THESES) === 'whole';
+  const stepwise = useChoice(LEVELS) === 'step';
+  /* Ebene um Ebene: welche Schritte ihre inneren zeigen; bei allen Ebenen: welche Äste man zugeklappt hat. */
+  const [inner, setInner] = useState<ReadonlySet<string>>(new Set());
+  const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
+  const depth = useMemo(() => depthOf(root), [root]);
   if (entity === undefined) return null;
   const entry = lib.entry(root.id);
   const statement = entry === undefined ? null : statementOf(entry, lib.markupLook);
   const work = place === null ? undefined : lib.entity(place.work);
   const steps = countSteps(root);
+  /* Ebenen gibt es nur im Baum, und nur, wenn ein Schritt Schritte in sich hat. */
+  const levelMode = stepwise && order === 'tree' && depth > 1;
+  /* „Rozwiń wszystko" gehört zu „Wszystkie poziomy"; Ebene um Ebene öffnet man einzeln. */
+  const allOn = all && !levelMode;
   const flip = (set: ReadonlySet<string>, key: string) => { const next = new Set(set); if (next.has(key)) next.delete(key); else next.add(key); return next; };
-  const toggle = (key: string) => (all ? setClosed((was) => flip(was, key)) : setOpen((was) => flip(was, key)));
-  const isOpen = (key: string) => (all ? !closed.has(key) : open.has(key));
+  const toggle = (key: string) => (allOn ? setClosed((was) => flip(was, key)) : setOpen((was) => flip(was, key)));
+  const isOpen = (key: string) => (allOn ? !closed.has(key) : open.has(key));
+  const isShown = (key: string) => (levelMode ? inner.has(key) : !folded.has(key));
+  const fold = (key: string) => (levelMode ? setInner((was) => flip(was, key)) : setFolded((was) => flip(was, key)));
+  const shown = levelMode ? shownSteps(root, inner) : [];
+  const deepest = deepestShown(shown);
+  const canDeeper = shown.some((s) => s.kids > 0 && !inner.has(s.path));
   const chipOf = (e: Entity): string => {
     const field = display?.chip ? fieldsOf(e, lib.look).find((f) => f.key === display.chip) : undefined;
     return field === undefined ? '' : fieldText(e, field, lib.look);
   };
   const nameOf = (e: Entity): string => (whole ? labelOf(e, lib.look, 0, true) : lib.label(e));
-  const ctx: NodeCtx = { root: place?.locator ?? '', work: place?.work ?? '', scheme, chipOf, nameOf, onOpen, isOpen, toggle };
-  const kids = root.groups.filter((g) => g.structure === true).flatMap((g) => g.nodes);
+  const ctx: NodeCtx = { root: place?.locator ?? '', work: place?.work ?? '', scheme, chipOf, nameOf, deep: depth > 1, onOpen, isOpen, toggle, isShown, fold };
+  const kids = structKids(root);
   const side = root.groups.filter((g) => g.structure !== true);
   const setOrderKept = (next: Order) => { setOrder(next); keepOrder(next); };
 
@@ -176,13 +212,31 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
               <button type="button" className={order === 'text' ? 'is-on' : ''} aria-pressed={order === 'text'} onClick={() => setOrderKept('text')}>Kolejność tekstu</button>
             </span>
             <span className="cg-subtabs" role="group" aria-label="Długość tez">
-              <button type="button" className={whole ? '' : 'is-on'} aria-pressed={!whole} onClick={() => keepTheses('short')}>Tezy skrócone</button>
-              <button type="button" className={whole ? 'is-on' : ''} aria-pressed={whole} onClick={() => keepTheses('whole')}>Całe tezy</button>
+              <button type="button" className={whole ? '' : 'is-on'} aria-pressed={!whole} onClick={() => THESES.keep('short')}>Tezy skrócone</button>
+              <button type="button" className={whole ? 'is-on' : ''} aria-pressed={whole} onClick={() => THESES.keep('whole')}>Całe tezy</button>
             </span>
-            <button type="button" className="wk-link-btn" aria-pressed={all} onClick={() => { setAll(!all); setOpen(new Set()); setClosed(new Set()); }}>{all ? 'Tylko tezy' : 'Rozwiń wszystko'}</button>
+            {/* Ein Klick auf das, was schon gilt, beginnt neu: „Wszystkie poziomy" öffnet zugeklappte Äste, „Poziom po poziomie" geht nach aussen zurück. */}
+            {order === 'tree' && depth > 1 && (
+              <span className="cg-subtabs" role="group" aria-label="Poziomy">
+                <button type="button" className={levelMode ? '' : 'is-on'} aria-pressed={!levelMode} onClick={() => { LEVELS.keep('all'); setFolded(new Set()); }}>Wszystkie poziomy</button>
+                <button type="button" className={levelMode ? 'is-on' : ''} aria-pressed={levelMode} onClick={() => { LEVELS.keep('step'); setInner(new Set()); }}>Poziom po poziomie</button>
+              </span>
+            )}
+            {levelMode ? (
+              <span className="cg-row cg-wy-levels">
+                <button type="button" className="wk-link-btn" disabled={!canDeeper} onClick={() => setInner((was) => oneDeeper(root, was))}>Rozwiń poziom</button>
+                <button type="button" className="wk-link-btn" disabled={deepest <= 1} onClick={() => setInner((was) => oneShallower(root, was))}>Zwiń poziom</button>
+                <span className="cg-muted" aria-live="polite">poziom {deepest} z {depth}</span>
+              </span>
+            ) : (
+              <button type="button" className="wk-link-btn" aria-pressed={all} onClick={() => { setAll(!all); setOpen(new Set()); setClosed(new Set()); }}>{all ? 'Tylko tezy' : 'Rozwiń wszystko'}</button>
+            )}
           </div>
         )}
-        <p className="cg-wy-legend cg-muted">Kroki mówią, co jest w źródle — każdy przy swoim miejscu; to, co od tego odbiega, ma znacznik.</p>
+        <p className="cg-wy-legend cg-muted">
+          Kroki mówią, co jest w źródle — każdy przy swoim miejscu; to, co od tego odbiega, ma znacznik.
+          {order === 'tree' && depth > 1 && ' Teza otwiera cały krok; ▸ z liczbą pokazuje kroki w środku.'}
+        </p>
       </header>
       {side.length > 0 && <SideGroups groups={side} onOpen={onOpen} />}
       {kids.length > 0 && (order === 'tree'
@@ -199,9 +253,15 @@ interface NodeCtx {
   readonly chipOf: (e: Entity) => string;
   /** Der Name eines Schritts: gekürzt oder ganz, wie der Leser oben gewählt hat. */
   readonly nameOf: (e: Entity) => string;
+  /** Hat ein Schritt des Baumes Schritte in sich? Dann steht vor jedem eine Spalte für den Pfeil. */
+  readonly deep: boolean;
   readonly onOpen: (id: string) => void;
+  /** Das Ganze eines Schritts (sein Name). */
   readonly isOpen: (key: string) => boolean;
   readonly toggle: (key: string) => void;
+  /** Die Schritte in einem Schritt (sein Pfeil). */
+  readonly isShown: (key: string) => boolean;
+  readonly fold: (key: string) => void;
 }
 
 /**
@@ -226,11 +286,12 @@ function StepList({ label, flat = false, children }: { label: string; flat?: boo
 
 /**
  * Was ein Schritt sagt, in einer Zeile: Nummer/Rolle, These, Stelle, Marken.
- * 2026-10-25 — der Name ist der Knopf zum Aufklappen (`aria-expanded`, `aria-controls`) und der einzige Halt
- * für den Tabulator; der Pfeil davor bleibt für die Maus (`tabIndex={-1}`, `aria-hidden`). `before` steht vor
+ * 2026-10-25 — der Name ist der Knopf zum Aufklappen (`aria-expanded`, `aria-controls`). `before` steht vor
  * allem anderen der Zeile (die Überschrift eines Stücks für Bildschirmleser — vor dem Schritt, den sie einleitet).
+ * 2026-10-26 — `lead`: im Baum der Pfeil zu den Schritten in diesem (oder sein leerer Platz); er öffnet nicht mehr
+ * das Ganze — das tut der Name.
  */
-function StepLine({ id, ctx, path, bodyId, before, extra }: { id: string; ctx: NodeCtx; path: string; bodyId: string; before?: ReactNode; extra?: ReactNode }) {
+function StepLine({ id, ctx, path, bodyId, before, lead, extra }: { id: string; ctx: NodeCtx; path: string; bodyId: string; before?: ReactNode; lead?: ReactNode; extra?: ReactNode }) {
   const { lib } = useCtx();
   const entity = lib.entity(id);
   if (entity === undefined) return null;
@@ -247,7 +308,7 @@ function StepLine({ id, ctx, path, bodyId, before, extra }: { id: string; ctx: N
   return (
     <div className="cg-wy-line">
       {before}
-      <button type="button" className="cg-wy-twist" tabIndex={-1} aria-hidden="true" onClick={() => ctx.toggle(path)}>{open ? '▾' : '▸'}</button>
+      {lead}
       {chip !== '' && <span className="cg-wy-chip">{chip}{number !== null ? ` ${number}` : ''}</span>}
       <button type="button" className="cg-wy-label" data-wy-label="" aria-expanded={open} aria-controls={bodyId} onClick={() => ctx.toggle(path)}>{ctx.nameOf(entity)}</button>
       {rel !== '' && <span className="cg-wy-place">{rel}</span>}
@@ -285,17 +346,28 @@ function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: N
     const e = lib.entity(node.id);
     return <li className="cg-wy-node is-again"><span className="cg-muted">↺ {e === undefined ? '' : ctx.nameOf(e)} (już wyżej)</span></li>;
   }
-  const kids = node.groups.filter((g) => g.structure === true).flatMap((g) => g.nodes);
+  const kids = structKids(node);
   const comments = sideCount(node);
   const open = ctx.isOpen(path);
+  /* 2026-10-26 — der Pfeil: die Schritte in diesem, mit ihrer Zahl; ein eigener Knopf (Tabulator, `aria-expanded`). */
+  const inside = kids.length > 0 && ctx.isShown(path);
+  const listId = `${bodyId}-in`;
+  const lead = kids.length > 0
+    ? (
+      <button type="button" className="cg-wy-twist" data-wy-fold="" aria-expanded={inside} aria-controls={listId} aria-label={`Kroki w środku: ${kids.length}`}
+        title={inside ? 'Ukryj kroki w środku' : `Pokaż kroki w środku (${kids.length})`} onClick={() => ctx.fold(path)}>
+        {inside ? '▾' : '▸'} {kids.length}
+      </button>
+    )
+    : ctx.deep ? <span className="cg-wy-twist" aria-hidden="true" /> : undefined;
   return (
     <li className="cg-wy-node" data-structure-node={node.id} data-open={open ? '' : undefined}>
-      <StepLine id={node.id} ctx={ctx} path={path} bodyId={bodyId} extra={<>
+      <StepLine id={node.id} ctx={ctx} path={path} bodyId={bodyId} lead={lead} extra={<>
         {comments > 0 && <span className="cg-wy-count" title={`${comments} — rozwiń, żeby zobaczyć`}>● {comments}</span>}
-        {node.cut !== undefined && <span className="cg-muted"> · ▸ {stepsWord(node.cut)} niżej nie pokazano</span>}
+        {node.cut !== undefined && <span className="cg-muted"> · {stepsWord(node.cut)} niżej nie pokazano</span>}
       </>} />
       {open && <StepBody node={node} ctx={ctx} id={bodyId} />}
-      {kids.length > 0 && <ol className="cg-wy-tree">{kids.map((k, i) => <TreeNode key={`${k.id}-${i}`} node={k} path={`${path}/${k.id}/${i}`} ctx={ctx} />)}</ol>}
+      {inside && <ol className="cg-wy-tree" id={listId}>{kids.map((k, i) => <TreeNode key={`${k.id}-${i}`} node={k} path={`${path}/${k.id}/${i}`} ctx={ctx} />)}</ol>}
     </li>
   );
 }

@@ -2254,10 +2254,11 @@ names on the next import of each file.
 **Owner:** rebuild and deploy the site (no API change since W1). Re-import `templates/cogita/wywod.json` in each base
 that has it: the review lists the kind changes to accept. The old self-assessed card template stays until deleted.
 
-## W3 — Short or whole theses in the Struktura view (2026-10-26)
+## W3 — Short or whole theses, and level by level, in the Struktura view (2026-10-26)
 
-**Asked:** the steps' theses were cut with „…”; the owner wanted to choose at the top whether they are short or
-whole.
+**Asked:**
+- The steps' theses were cut with „…”; the owner wanted to choose at the top whether they are short or whole.
+- An expand mode: at first only the outermost arguments, then the ones inside them, down to the innermost.
 
 **Built**
 - A group „Tezy skrócone | Całe tezy” in each root's tools row, beside „Wywód | Kolejność tekstu”
@@ -2269,10 +2270,26 @@ whole.
     holds for the tab.
 - `labelOf` / `fill` / `fieldText` / `valueText` and `blocksTitle` take an optional `whole` (default off, so
   every other list is unchanged).
+- **Levels** (tree order, when a step has steps inside it; logic in `cogita/outlineLevels.ts`):
+  - The arrow before a step now shows or hides the steps inside it, with their number („▾ 3” / „▸ 3”), as its own
+    button (`aria-expanded`, `aria-controls`). It used to repeat the thesis (open the whole step); the thesis still
+    does that. Steps without inner steps have an empty place; text order has no arrows.
+  - „Wszystkie poziomy | Poziom po poziomie”, remembered per browser (`cg-structure-levels`) for every root on the
+    screen. All levels: any branch folds by its arrow; a click on „Wszystkie poziomy” opens all again. Level by
+    level: the outer steps first; „Rozwiń poziom” opens exactly one more level wherever steps are shown, „Zwiń
+    poziom” closes the deepest one; „poziom 2 z 3” (read out when it changes). „Rozwiń wszystko” is shown with all
+    levels only.
 
-**Checks:** `app-cogita-check` 557 (3 new: short by default, whole when remembered, the unclipped label);
-`app-library-check` and the style ratchet pass; vite build passes. Browser drive 33/33, with 4 new checks (short
-by default; whole on click; kept over a real reload and wrapped on a phone with no sideways scroll; short again).
-`tsc` passes.
+**Checks:**
+- `app-cogita-check` 564, with 10 new: theses short by default, whole when remembered, the unclipped label; the
+  depth of a tree, exactly one level deeper, one level shallower, a step „już wyżej”, the arrows with all levels,
+  level by level when remembered, no levels in text order.
+- `app-library-check` and the style ratchet pass; `tsc` and vite build pass.
+- Browser drive 42/42, with 13 new checks:
+  - theses: short by default; whole on click; kept over a real reload and wrapped on a phone with no sideways
+    scroll; short again;
+  - levels on the article: 7 steps with „▾ 3” at first; 2 outer steps in „Poziom po poziomie”; the arrow opens 5;
+    „Rozwiń poziom” reaches 7 („poziom 3 z 3”); „Zwiń poziom” twice back to 2; the thesis still opens the whole
+    step; kept over a reload; with all levels a branch folds (2 left) and „Wszystkie poziomy” opens it again.
 
 **Owner:** rebuild and deploy the site; nothing else.

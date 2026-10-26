@@ -28,6 +28,7 @@ import { tSat } from './engine/if97';
 import { editObject, objectView } from './engine/objects';
 import type { BubbleView, ChartSample, HostMessage, HostStats, WorkerMessage } from './engine/protocol';
 import type { Op } from './engine/scene';
+import { objectViewGpu } from './gpu/bodies';
 import { GpuCharts } from './gpu/charts';
 import { GpuEngine, type Readout } from './gpu/engine';
 import { seedFromMirror } from './gpu/handoff';
@@ -264,7 +265,8 @@ function onReadout(r: Readout, now: number): void {
     paused,
     samples: pendingSamples.splice(0, pendingSamples.length),
     bubble: bubbleView(r),
-    object: selectedObject !== null && cpu !== null ? objectView(cpu, selectedObject) : null,
+    /* Mit freien Körpern liegt ihre Lage nur auf der GPU: die Tafel des Gegenstands aus der Ablesung. */
+    object: selectedObject !== null && cpu !== null ? (gpu.state.body ? objectViewGpu(cpu, selectedObject, r.bodies) : objectView(cpu, selectedObject)) : null,
     overlayScale: overlayScale(r)
   };
   post({ type: 'stats', stats });

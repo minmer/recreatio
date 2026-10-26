@@ -58,9 +58,11 @@ export const NONE = 0xffffffff;
 
 /**
  * Die einheitlichen Parameter (uniform) — die Reihenfolge muss zu
- * `writeParams` in state.ts passen (44 Wörter). n0: Zellen des Lösers mit
+ * `writeParams` in state.ts passen (52 Wörter). n0: Zellen des Lösers mit
  * Geisterrand ((nx + 2)(ny + 2)); theta: Kontaktwinkel des Prüfstands (≤ 0:
- * der des Werkstoffs).
+ * der des Werkstoffs). Körper (seit 2026-10-26): bodies 1, wenn alle Körper
+ * mit genauen Anteilen rechnen (eine Szene mit freien Körpern; 0: die Treppe),
+ * nbody die Zahl der Körper, ext die Lagen der Druckfortsetzung (gerade).
  */
 export const PARAMS_WGSL = `
 struct Params {
@@ -76,8 +78,9 @@ struct Params {
   openL: u32, openR: u32, openB: u32, openT: u32,
   sealed: u32, harness: u32, theta: f32, mixed: u32,
   chf: f32, actMax: f32, vmax: f32, bubCap: f32,
+  bodies: u32, nbody: u32, ext: u32, pad0: u32,
 }`;
-export const PARAMS_WORDS = 48;
+export const PARAMS_WORDS = 52;
 
 /** Ein Teilchen (Feld eines Speicherpuffers; 27 Wörter): s ist sein gelöstes Salz (kg; 0: keines, M2b). */
 export const PARTICLE_WGSL = `

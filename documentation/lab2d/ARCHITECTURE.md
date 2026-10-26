@@ -652,12 +652,13 @@ MILESTONES.md records the numbers.
 | 36 | Floating: pine and ice float with ρ_b/ρ_l of their height under water (±2 %, mean over 3 s); budgets exact | m3a.test.ts |
 | 37 | Sinking: a 2 cm ceramic square reaches the drag law's terminal speed (C_D = 2.1 of a square cylinder, ±15 %) before its wake turns it over; a stone block lands and rests without jitter, asleep | m3a.test.ts |
 | 38 | Stacking: a block dropped onto another lands flat on it and both stand still, asleep | m3a.test.ts |
-| 39 | Tipping: a glass beaker of water released 3° below its geometric tipping angle falls back, 3° above it falls over; no water lost | m3a.test.ts |
+| 39 | Tipping: a glass beaker of water released 3° below its geometric tipping angle falls back, 3° above it falls over; no water lost (the box 20 cm high: the spilled water runs 15–18 cm up the far wall) | m3a.test.ts |
 | 40 | Budgets with moving solids: a hot stone sinks and a warm block floats in cold water — energy, water and air exact | m3a.test.ts |
+| — | Free bodies in a beaker whose 2 mm walls lie across two cells: a pine block dropped 2 mm onto the water settles (no water outside the beaker, the fastest water in the third second under 0.1 m/s, bobbing under 1 mm, tilt under 2°); an ice cube melting against such a wall in water at 80 °C keeps its meltwater inside; budgets exact | m3a.test.ts |
 | — | Scene format of bodies (body, pin, pinned, angle round-trip; free bodies need the CPU; a circle becomes the square of its area, a line with a width a rotated rectangle); objects: names given and made unique, settings changed in place (pinned at any time, the set-up at the start), move and remove by name with budgets exact | m3a.test.ts |
 | 41 | Stefan: melting under water at 20 °C and freezing on ice at −20 °C follow the Neumann solution (2 mm: front speed ±5 %, position ±10 %; 1 mm: ±5 %) | m3b.test.ts, m3b.slow.test.ts |
 | 42 | Ice cube in warm water: one rectangle, never warmer than its melting point, the lost ice is water in the particles; energy and water exact | m3b.test.ts |
-| 43 | Ice in brine settles at T_f(w) of the diluted brine (±0.2 K); in 25 % brine a cooling mixture below −18 °C whose coldest particle never passes the eutectic (by more than 0.05 K) | m3b.test.ts, m3b.slow.test.ts |
+| 43 | Ice in brine settles at T_f(w) of the diluted brine (±0.2 K) and floats upright, the brine cooling toward T_f(w) (by more than 0.5 K in 2.5 min); in 25 % brine a cooling mixture more than 3 K colder after 3 min whose coldest particle never passes the eutectic (by more than 0.05 K) | m3b.test.ts, m3b.slow.test.ts |
 | 44 | Freezing brine keeps all its salt: the ice grows, the brine gets saltier, salt exact | m3b.test.ts |
 | 45 | A carved ice block melts as a few rectangles that neither overlap nor fall apart; budgets exact | m3b.test.ts |
 | 46 | The side the heat comes through melts: an ice block on a warm plate melts from below and stays on the plate; budgets exact | m3b.test.ts |
@@ -709,9 +710,10 @@ do), only NaCl, one diffusion coefficient for all concentrations, no new crystal
 The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
-to the CPU worker with a note; a scene with a free body, ice or grains goes back to the CPU worker the same way, with
-its tools applied (`needsCpu`; M3a, M3b and M3c are not ported). Everything else is ported — violent events (§19), other liquids
-(M2a) and salt (M2b) since 2026-10-24 (MILESTONES.md, "The accelerated view for the new parts"):
+to the CPU worker with a note; a scene with ice, grains or more than eight free bodies goes back to the CPU worker the
+same way, with its tools applied (`needsCpu`; melting (M3b) and grains (M3c) are not ported). Everything else is
+ported — violent events (§19), other liquids (M2a) and salt (M2b) since 2026-10-24 (MILESTONES.md, "The accelerated
+view for the new parts"), free bodies since 2026-10-26 (below, "Bodies"):
 - **Oil**: the liquid of a particle in bits 8–15 of its flags; the laws of every liquid as WGSL functions; only water
   exchanges mass (gather, flash, mass to the particles) and condensate in a cell without water particles spawns one;
   viscosity as 24 Jacobi steps per step on the faces (`kmix.ts`), the droplet drift in the transport.
@@ -728,6 +730,43 @@ its tools applied (`needsCpu`; M3a, M3b and M3c are not ported). Everything else
 - **Droplets** (§7, §9): stranded droplets fly with gravity, droplets in gas cells flash above T_sat (their vapour
   stays in the cell), a particle that would keep almost no water evaporates whole, and only cells with water particles
   evaporate.
+- **Bodies** (since 2026-10-26; `gpu/bodies.ts`, `kbodylib.ts`, `kbodycover.ts`, `kbodycollect.ts`, `kbodydyn.ts`,
+  `bodyStep.ts`, `renderBodies.ts`; MILESTONES.md "Bodies and ice on the GPU"): in a scene with a free body every body
+  runs with exact fractions (the model "R1c"); without one the staircase stays (§17). Three buffers hold the bodies —
+  `bod` (per body: pose, velocity, the boundary value U = V + P and the prediction, added mass, state, bounding boxes,
+  force sums), `bgeo` (rectangles with their column and row boundaries, free segments, the static parts of the
+  contacts) and `bcell` (energy, film, crust per internal cell) — written from and back into the mirror's `Body2D`
+  exactly; after a download the mirror covers its bodies anew. Stage 0 of a step (`bodyStep.prepare`): particles and
+  bubbles out of the rectangles of awake bodies along their path in the body frame (`bPush`, `bPushB`); the cover
+  (`bCover`: exact quad-in-box of the internal cells, relative to the cell corner in f32 — fs within about 10⁻⁵ of the
+  CPU; capB, Es, film, crust, owner, matB, the split test); closing (`bClose1/2`: 0.99 pinned, 0.9 free, split, ½ beside
+  other solid, then the staircase's pair rule — a face covered whole between two cells that stay open closes the one
+  with the larger share, the lower or left one on a tie within 10⁻⁴); `bFlip` (a closing cell's gas to stable gas
+  neighbours by atomics, else parked in place and counted; an opening cell becomes liquid or takes at most ¼ of each
+  stable gas neighbour); `bApply`; φ_s (weights 1/6, 2/3, 1/6) and the distance field in a band of six cells around the
+  awake bodies (`bStatic`). Pinned bodies are covered once after each upload. Faces are binary: a face beside a closed
+  body cell is closed and moves with that body (U at the face midpoint; `bFaceL` after P2G, `bFaceG` after the gas
+  marks its faces), every other face is fully open — the flow kernels know no apertures. Two consequences for free
+  bodies only: a cell a free body has closed opens again below 0.88 (not 0.9), and an open cell of a free body is
+  liquid when its open part is half full, f/(1 − fs) ≥ ½ (not by φ + φ_s): with fully open faces a block that rocked by
+  0.05° opened and closed the cells of its side every other step, and its almost empty cells above the waterline were
+  liquid, columns without pressure that fell freely — water at up to 0.12 m/s beside it. Particles that no body hit
+  take the distance-field push, which stops before the first body on its way. Heat: mixed cells as on the CPU (capacity
+  capB + film c_pL + crust c, conductance fs k_s + (1 − fs) k_f, the exponential exchange inside a cell); a heater body
+  heats its internal cells by volume. Regions: vFluid = Σ (1 − fs) V, a cell a body opens takes a neighbour's region,
+  and a free body never seals a pocket. After the liquid projection all awake free bodies measure their added mass with
+  three solves of the same matrix (its coarse levels kept; `bProbeRhs/Dot/Fin`); stage 8 (`bodyStep.finish`) collects
+  the cells' changes into the internal cells (`bCollect`, `bCollectRest`), continues the pressure into the solids by
+  ping-pong layers (`bExtA/B`, an even number up to 64 from the thickest body), integrates the forces over the free
+  segments (`bForce`) and moves the bodies in one workgroup (`bDyn`: solve3 with the added mass and the lag term, the
+  CPU's contacts in one thread — separating axes, clipped manifolds, block solver, warm starts by key, Coulomb, bounce;
+  at most 128 contacts — sleep and wake, escape through open sides); `stepEnd` limits the next Δt so that no point of
+  an awake body moves more than half a cell. Readbacks carry per body pose, state, mass, mean temperature, energy, film,
+  crust (`bMeas`): the HUD, the object panel (`objectViewGpu`) and the budgets read them. Drawing as §17: each internal
+  cell a rotated quad in the colour of its material or temperature, the outlines on top, the liquid continued under the
+  bodies, their closed cells empty in the cell texture. When a body is freed or pinned and the scene changes between
+  staircase and exact fractions, the budgets go on with the mirror's errors (`carryErrors`): the staircase held another
+  energy of the bodies than their exact cells (test 39: 168.80 J of glass against 167.32 J).
 The sharing of heat inside a cell (§6.5) is ported: kernel `heatShare`, one thread per cell over its sorted particles,
 after the heat solve. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
 determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
@@ -908,7 +947,8 @@ dialog's estimate uses these and warns near the store's 600 MB.
 Every object is a whole (SANDBOX.md §6): a beaker, a hot plate, a block, an ice cube. Files: `body.ts` (one body),
 `bodyCover.ts` (into the grid and back), `geom.ts` (exact clipping, recomposition), `bodyForces.ts` (pressure and added
 mass), `bodyContacts.ts` (contacts), `bodyTools.ts` (erase, move, split), `bodies.ts` (the set: creation, the two step
-stages), `bodyMelt.ts` (melting and freezing, §18), `gpu/staircase.ts` (bodies on the accelerated view).
+stages), `bodyMelt.ts` (melting and freezing, §18), `gpu/staircase.ts` and `gpu/kbody*.ts`, `gpu/bodies.ts`,
+`gpu/bodyStep.ts`, `gpu/renderBodies.ts` (bodies on the accelerated view, §15).
 
 **A body** is one or a few axis-aligned rectangles in its own frame, exact in metres, not rounded to the grid: a beaker
 three (a bottom and two walls standing on it; four with a lid), everything else one; one material. The frame's origin
@@ -951,7 +991,8 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   body does not cover it (`closedFace`, since 2026-10-25): the closed cell stands for the body. Since a free body closes
   a cell from 90 %, the face of such a cell toward the fluid had stood still and belonged to no body — under a floating
   block whose bottom lay in the lowest tenth of a cell row the water saw a resting floor, and the measured added mass
-  fell from 14 g to 0 in 23 % of the steps (the 4 cm pine block in the preset beaker).
+  fell from 14 g to 0 in 16 % of the steps (the 4 cm pine block in the preset beaker; 23 % with the beaker shifted onto
+  whole cells).
 - *Projections*: the liquid's pressure solve and divergence weight every face by α and take the covered part's
   velocity as known — the cut cells of Batty, Bertails & Bridson 2007 (the solid part of a face moves with the body);
   the gas likewise (fluxes and projection × α, gas volume (1 − fs − φ − α_b) V); regions connect through open faces and
@@ -963,15 +1004,12 @@ when the fluid lifts it with more than 1.02 times its weight, or when it melts o
   whether a cell borders gas look only through open faces. Without it the water inside a beaker also stood in the cell
   outside its wall and evaporated there (test 11 boiled 3.9 K below T_sat), and particles beside a floating ice block
   reached into cells it almost covers, behind faces it covers whole (single particles 0.1 K below the eutectic).
-  A partly covered cell beside a thin wall (`grid.besideThin`) is liquid when its open part is at least half full,
-  φ/(1 − φ_s) ≥ ½ — the fill θ uses for the surface (§7) — not φ + φ_s ≥ ½ (since 2026-10-25). Its own covered share
-  is part of φ_s: with the old rule the half cell of a wall lying across two cells counted as liquid once an eighth of
-  its open part was wet, and at the surface it flipped between liquid and gas every step. Still water in the 2 mm
-  preset beaker kept currents of up to 57 mm/s at its walls (1 mm/s with the beaker shifted onto whole cells); now
-  below 1 mm/s after the first second. Only these cells: for every partly covered cell the rule broke test 43 (the brine
-  in the slivers beside the floating ice counted as gas; tried and dropped before, see MILESTONES.md), so the half-
-  covered sides of a floating block at its waterline keep the old rule (spikes of 10–40 mm/s, harmless since the
-  coupling below is consistent).
+  Not solved: such a half cell is liquid by φ + φ_s ≥ ½, and its own covered share is part of φ_s (about 0.42) — it
+  counts as liquid once an eighth of its open part is wet, and at the surface it flips between liquid and gas. Still
+  water in the 2 mm preset beaker keeps currents of up to 57 mm/s at its walls (1 mm/s with the beaker shifted onto
+  whole cells). Classifying these cells by the fill of their open part, φ/(1 − φ_s) ≥ ½ (the fill θ uses, §7), removes
+  them (below 1 mm/s), but the hot water at the meniscus then lies in gas cells and boils off: test 11's plateau fell
+  from 0.17 K to 0.55 K below T_sat (tried 2026-10-25, MILESTONES.md).
 - *Heat* (§6.5): the body's share is a part of the cell (capB, Es, Ts); at the end of the step each cell's change goes
   back to the internal cells (`coverCollect.ts`) — energy by w C_k/capB; film and crust that grew, by weight; film and
   crust that shrank, from what each internal cell contributes to the cell (at most that, over all bodies there), and
@@ -1001,7 +1039,13 @@ integrated over the free segments in pieces of at most ½ Δx, each reading the 
 The gas side uses the p0 the liquid saw at its surface at the start of the step: in a sealed region p0 changes within
 the step, and mixing the two gave a floating body a spurious net force that grew into an oscillation (a block floating
 in a closed box flew out of it). In water at rest this is the buoyancy of the submerged part, continuous in the
-position — a floating body no longer bobs by rows of cells (test 36: 0.06 mm instead of ±1.4 mm).
+position — a floating body no longer bobs by rows of cells (test 36: 0.06 mm instead of ±1.4 mm). Open: the continued
+pressure takes no notice of walls. A body pressed into a closed gap against a beaker wall reads, on that side, the
+pressure continued from outside the wall (the air) and is held there — the 3 cm ice cube placed 0.5 mm from the wall
+of the preset beaker presses on it with 37–39 mN, about 45 % of its weight (that side reads −0.6 Pa instead of the
+water's 125 Pa), with the walls across two cells and on whole cells alike. Reading no cell behind another body in
+front of a piece was tried (2026-10-25) and changes nothing: in a closed gap the piece falls back on the continued
+pressure.
 
 **Coupling** (partitioned): the projections of step n see the boundary value U^n = V^n + P^n (`body.ux`, `uy`, `uw`),
 their pressure gives F^n; the added mass is measured after every liquid projection with three more solves on the faces
@@ -1014,7 +1058,9 @@ width W, β = B/(W − B) the rise of the level beside it per unit of sinking) a
 ≈ ω² Δt β/(2(1 + β)) per second — 1.4/s for the 4 cm pine block in the 6.6 cm preset beaker at Δt = 1/120 s (ω ≈
 23 s⁻¹); the run grew at about 0.7/s, damped at Δt = 1/240 s, and the block bobbed over 18 mm, rolled to 27° and
 threw jets of 2.6 m/s up the walls (in the open box of test 36, β ≈ 0, numerical damping won). With the prediction the
-two volumes agree to second order and the same block rests within 0.06 mm. A body lying on something predicts
+two volumes agree to second order and the same block rests within 0.2 mm (0.15°, the half cells' currents of
+*Thin walls* still around it). Test 43's ice cube had spun 880° in 2.5 minutes this way and stirred its brine to
+T_f(w), test 44's tumbled up to 169°; both now float upright (MILESTONES.md). A body lying on something predicts
 nothing: the contact cancels its increment every step, and with P = D the water saw a beaker standing on the floor
 sink at g Δt each step (it flew out of the box).
 
@@ -1039,14 +1085,16 @@ it; the pieces keep the object's name. The inspector shows the body under the cu
 **Drawing** (§11): each internal cell as a rotated quad, the rectangles' outlines on top; cells a body closes stay
 empty in the cell texture.
 
-**The accelerated view** (`gpu/staircase.ts`) knows no fractions: on upload every cell a pinned body covers by more than
-half, or that the CPU closed, becomes a solid cell there (where a face lies wholly inside a body and neither of its
-cells qualifies, the one with the larger share — a thin wall on the boundary of two cells stays tight without doubling)
-with the body's temperature (energy from the whole cell's capacity, as the kernels compute), material and heater group;
-φ_s, the distance field, the regions' fluid volume and the cavities' wall cells follow the staircase, and the gas of a
-cell that turns solid there stays in it. On download the staircase cells give their temperatures back to the bodies
-(their share's energy, then `collect`). In the presets the beaker and the plate lie exactly on the 1 mm cells, so the
-staircase is the body. A free body or ice sends the scene back to the CPU (`needsCpu`).
+**The accelerated view** (`gpu/staircase.ts`), in a scene without free bodies, knows no fractions: on upload every cell a
+pinned body covers by more than half, or that the CPU closed, becomes a solid cell there (where a face lies wholly
+inside a body and neither of its cells qualifies, the one with the larger share — a thin wall on the boundary of two
+cells stays tight without doubling) with the body's temperature (energy from the whole cell's capacity, as the kernels
+compute), material and heater group; φ_s (the weights of `grid.ts` since 2026-10-26 — 1/8, 3/4, 1/8 before), the
+distance field, the regions' fluid volume and the cavities' wall cells follow the staircase, and the gas of a cell that
+turns solid there stays in it. On download the staircase cells give their temperatures back to the bodies (their
+share's energy, then `collect`). In the presets the beaker and the plate lie exactly on the 1 mm cells, so the
+staircase is the body. With a free body every body runs with exact fractions on the GPU (§15, "Bodies": the CPU's
+cover, binary faces); ice, grains and more than eight free bodies send the scene back to the CPU (`needsCpu`).
 
 ## 18. Melting and freezing (M3b)
 

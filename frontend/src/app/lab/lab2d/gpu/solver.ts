@@ -105,6 +105,8 @@ export const SOLVE_LIQUID: SolveKind = { tol: 1e-5, it: C.IT_L, cap: C.CAP_L, re
 export const SOLVE_GAS: SolveKind = { tol: 1e-5, it: C.IT_G, cap: C.CAP_G, res: C.RES_G };
 export const SOLVE_HEAT: SolveKind = { tol: 1e-5, it: C.IT_H, cap: C.CAP_H, res: C.RES_H };
 export const SOLVE_DIFF: SolveKind = { tol: 1e-5, it: C.IT_D, cap: C.CAP_D, res: C.RES_H };
+/** Die Lösungen der mitbewegten Masse eines Körpers (wie bodies.probe: 1e-4). */
+export const SOLVE_PROBE: SolveKind = { tol: 1e-4, it: C.IT_P, cap: C.CAP_P, res: C.RES_P };
 
 export interface SolverBuffers {
   readonly params: GPUBuffer;
@@ -161,8 +163,8 @@ export class GpuSolver {
     for (let k = 0; k < MAX_ITER; k += 1) its[(SLOT / 4) * k] = k;
     its[(SLOT / 4) * MAX_ITER] = 0xffffffff;
     this.it = ctx.uniform('iter', its.buffer);
-    this.cfg = ctx.uniform('solvecfg', new ArrayBuffer(SLOT * 4));
-    for (const k of [SOLVE_LIQUID, SOLVE_GAS, SOLVE_HEAT, SOLVE_DIFF]) this.setKind(k);
+    this.cfg = ctx.uniform('solvecfg', new ArrayBuffer(SLOT * 8));
+    for (const k of [SOLVE_LIQUID, SOLVE_GAS, SOLVE_HEAT, SOLVE_DIFF, SOLVE_PROBE]) this.setKind(k);
   }
 
   get levels(): number { return this.plan.levels.length; }
@@ -221,8 +223,8 @@ export class GpuSolver {
   private lpRes(l: number): Resource { return this.range(this.lp, l, SLOT); }
   private itRes(k: number): Resource { return this.range(this.it, k, 16); }
 
-  /** Vorbereitung bis zum Anfangsresiduum. */
-  private prepare(pass: GPUComputePassEncoder, kind: SolveKind, nullspace: boolean): void {
+  /** Vorbereitung bis zum Anfangsresiduum; reuse: die groben Stufen stehen noch vom letzten Lauf mit derselben Matrix (die Messung der mitbewegten Masse gleich nach der Projektion). */
+  private prepare(pass: GPUComputePassEncoder, kind: SolveKind, nullspace: boolean, reuse = false): void {
     const cfgSlot = this.setKind(kind);
     const sv = { SV: this.range(this.cfg, cfgSlot, 16) };
     const n = this.n0cells;
@@ -233,7 +235,7 @@ export class GpuSolver {
       this.run(pass, 'cclFinal', n);
       this.run(pass, 'cclProject', n);
     }
-    this.coarsen(pass);
+    if (!reuse) this.coarsen(pass);
     this.run(pass, 'cgInitMG', n);
     this.ctx.dispatchOne(pass, 'cgFoldInitMG', this.group('cgFoldInitMG', '', {}));
   }
@@ -270,9 +272,9 @@ export class GpuSolver {
    * (Druck) — dann Vereinigungssuche und in jeder Iteration das Mittel aus z;
    * hat jede Zelle einen Flächenterm (Wärme, Diffusion), nicht.
    */
-  encodeMG(pass: GPUComputePassEncoder, kind: SolveKind, iterations: number, nullspace = true, zproj = nullspace): void {
+  encodeMG(pass: GPUComputePassEncoder, kind: SolveKind, iterations: number, nullspace = true, zproj = nullspace, reuse = false): void {
     const n = this.n0cells;
-    this.prepare(pass, kind, nullspace);
+    this.prepare(pass, kind, nullspace, reuse);
     const rz = (k: number, key: string): void => {
       const r = { IT: this.itRes(k) };
       if (zproj) { this.run(pass, 'cgZSum', n, key, r); this.run(pass, 'cgZSub', n, key, r); }

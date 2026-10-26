@@ -99,21 +99,25 @@ const clock = (at: number): string => {
 };
 
 /**
- * DIE LEISTE OBEN, solange gesendet wird oder etwas wartet: was gerade hinausgeht,
- * wie viele Drücke noch warten, „Stop". Klebt oben — die Knöpfe bleiben darunter.
+ * DIE LEISTE OBEN: was gerade hinausgeht, wie viele Drücke noch warten, „Stop" — und
+ * wenn nichts hinausgeht, eben das. Sie steht IMMER da und ist immer gleich hoch (eine
+ * Zeile), damit die Knöpfe darunter beim Senden nicht springen (user 2026-10-26).
  */
 export function LampQueueBar({ native }: { native: boolean }) {
   const attempts = useAttempts();
+  if (!native) return null;
   const now = attempts.find((a) => a.state === 'sending') ?? null;
   const waiting = attempts.filter((a) => a.state === 'queued').length;
-  if (!native || (now === null && waiting === 0)) return null;
+  const busy = now !== null || waiting > 0;
   return (
-    <div className="lp-queue" role="status" aria-live="polite">
+    <div className={`lp-queue${busy ? ' is-busy' : ''}`} role="status" aria-live="polite">
+      <span className="lp-queue-dot" aria-hidden="true" />
       <span className="lp-queue-text">
-        {now !== null ? <>Nadawanie: {now.lamp} → <strong>{now.signal}</strong></> : 'Przerwa przed następnym…'}
+        {now !== null ? <>Nadawanie: {now.lamp} → <strong>{now.signal}</strong></> : waiting > 0 ? 'Przerwa przed następnym…' : 'Teraz nic nie jest nadawane.'}
         {waiting > 0 && <> · w kolejce {waiting}</>}
       </span>
-      <button type="button" className="wk-btn wk-btn-small wk-btn-danger" onClick={() => void stopTransmission(LampRadio)}>Stop</button>
+      <button type="button" className="wk-btn wk-btn-small wk-btn-danger lp-queue-stop" disabled={!busy} aria-hidden={!busy}
+        tabIndex={busy ? 0 : -1} onClick={() => void stopTransmission(LampRadio)}>Stop</button>
     </div>
   );
 }

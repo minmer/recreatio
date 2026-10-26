@@ -58,7 +58,12 @@ export const C = {
   OV_PMAX: 68, OV_VMAX: 69, OV_VGAS: 70, OV_VLIQ: 71, ARROWS: 72,
   /* Bis zur nächsten Ablesung (eigens geleert): Gas, das flüssige Zellen abgaben (f32, kg), wie oft (u32), wie oft ohne Ziel (u32,
      es blieb liegen), flüssige Zellen, deren Verdunsten auf ihr Wasser gekürzt wurde (u32) */
-  REL_MASS: 73, REL_N: 74, REL_MISS: 75, EVAP_CAP: 76
+  REL_MASS: 73, REL_N: 74, REL_MISS: 75, EVAP_CAP: 76,
+  /* Körper auf der GPU (seit 2026-10-26), bis zur nächsten Ablesung (eigens geleert): Arbeit bewegter Körper an verschlossenem Gas
+     (f32, J); Iterationen, gekappte Läufe und Residuum der Lösungen für die mitbewegte Masse; Zellen, deren Gas beim Schliessen
+     liegen blieb (u32); Berührungen, die keinen Platz mehr fanden (u32). BVMAX: der schnellste Punkt eines wachen Körpers in diesem
+     Schritt (f32-Bits, stepEnd leert ihn) */
+  BODYWORK: 77, IT_P: 78, CAP_P: 79, RES_P: 80, PARKED: 81, CONT_FULL: 82, BVMAX: 83
 } as const;
 export const CNT_SIZE = 96;
 export const INTERVAL_FIRST = 16;
@@ -104,13 +109,24 @@ export const F = {
   /* M2b: Salzkruste der festen Zelle (kg); Salz am Boden der Kiste je Spalte i (an der Stelle i) und seine Enthalpie */
   CRUST: 62, FLOOR: 63, FLOORH: 64,
   /* M2b, Austausch: Salz und Wasser der Wasserteilchen der Zelle selbst, ihre mittlere Temperatur, tauscht sie (1/0); Dichte ihres Wassers (Drift) */
-  XS: 65, XW: 66, XT: 67, XON: 68, RHOW: 69
+  XS: 65, XW: 66, XT: 67, XON: 68, RHOW: 69,
+  /* Körper auf der GPU (seit 2026-10-26; nur in Szenen mit freien Körpern, sonst 0): bedeckter Anteil, Wärmekapazität und Temperatur
+     des Körperteils, seine Werte beim letzten Abgleich (collect), Σ Gewichte, das Gewicht der Heizplatte, die Bedeckung der linken und
+     der unteren Fläche, Leitfähigkeiten und Temperaturunterschied einer gemischten Zelle, was die inneren Zellen an Film und Kruste
+     beitragen (collect), der in die festen Zellen fortgesetzte Druck mit seiner Dichte und Kenntnis (zwei Puffer, Ping-Pong) */
+  FS: 70, CAPB: 71, TSB: 72, ESY: 73, FSY: 74, KSY: 75, WSUM: 76, HW: 77, COVL: 78, COVB: 79,
+  KS: 80, KF: 81, DSF: 82, GF: 83, GK: 84, PE0: 85, RE0: 86, KN0: 87, PE1: 88, RE1: 89, KN1: 90
 } as const;
-export const NF = 70;
+export const NF = 91;
 
-/** cu: u32-Zellfelder (Heizgruppe + 1, 0: keine; Gebiet NONE: fest). */
-export const U = { KIND: 0, KPREV: 1, SOLID: 2, HGRP: 3, RID: 4, EDGE: 5 } as const;
-export const NU = 6;
+/**
+ * cu: u32-Zellfelder (Heizgruppe + 1, 0: keine; Gebiet NONE: fest). Körper (seit 2026-10-26): Besitzer + 1, Werkstoff + 1 des
+ * Besitzers, gemalter Feststoff (1), von einem Rechteck durchschnitten (1), geschlossen nach den Schwellen und den Paaren der
+ * u-Flächen, endgültig geschlossen (nach den v-Flächen), die neue Art einer Zelle, die frei wird, im Band wacher Körper (1), die
+ * Heizgruppe + 1 einer Heizplatte, die sie bedeckt.
+ */
+export const U = { KIND: 0, KPREV: 1, SOLID: 2, HGRP: 3, RID: 4, EDGE: 5, OWNER: 6, MATB: 7, PAINT: 8, SPLIT: 9, NOW1: 10, NOW2: 11, KNEW: 12, BAND: 13, HBODY: 14 } as const;
+export const NU = 15;
 
 /** at: atomare Zellfelder (f32 über CAS). */
 export const A = {

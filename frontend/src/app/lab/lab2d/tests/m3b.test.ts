@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Engine } from '../engine/engine';
 import { freezingPoint, M_S, T_MELT } from '../engine/solution';
+import { T0 } from '../engine/units';
 import { ICE, frontAt, iceInBrine, liquidState, stefanFreeze, stefanMelt } from './ice';
 import { scene, waterTolerance } from './scenes';
 
@@ -80,15 +81,21 @@ describe('M3b — test 42: an ice cube in warm water', () => {
 });
 
 describe('M3b — test 43: ice in brine settles at the freezing point of the brine', () => {
-  it('a 1.5 cm cube at −5 °C in 3.5 % brine at 0 °C: after 2.5 minutes the brine is within 0.2 K of T_f(w) of its diluted mean, the ice too; salt, water and energy exact', () => {
+  it('a 1.5 cm cube at −5 °C in 3.5 % brine at 0 °C: after 2.5 minutes the ice is within 0.2 K of T_f(w) of the diluted brine and floats upright; the brine cools toward T_f(w) (by more than 0.5 K, never below it by more than 0.2 K); salt, water and energy exact', () => {
     const e = new Engine(iceInBrine(0.035, 0, -5, 0.015), { insulated: true });
     const b = e.bodies.list[0];
-    while (e.time < 150) e.step();
+    let turn = 0;
+    while (e.time < 150) { e.step(); turn = Math.max(turn, Math.abs(b.a)); }
     const L = liquidState(e);
     const Tf = freezingPoint(L.salt / (L.water * M_S));
-    console.log(`test 43: brine ${(L.T - 273.15).toFixed(3)} °C (${(L.Tmin - 273.15).toFixed(2)} … ${(L.Tmax - 273.15).toFixed(2)}), w ${(100 * L.salt / (L.salt + L.water)).toFixed(3)} %, T_f(w) ${(Tf - 273.15).toFixed(3)} °C, ice ${(b.meanT() - 273.15).toFixed(3)} °C, melted ${(e.melt.melted * 1000).toFixed(3)} g, salt error ${e.saltError().toExponential(2)} kg, energy error ${e.energyError().toExponential(2)} J`);
-    expect(Math.abs(L.T - Tf)).toBeLessThan(0.2);
+    console.log(`test 43: brine ${(L.T - 273.15).toFixed(3)} °C (${(L.Tmin - 273.15).toFixed(2)} … ${(L.Tmax - 273.15).toFixed(2)}), w ${(100 * L.salt / (L.salt + L.water)).toFixed(3)} %, T_f(w) ${(Tf - 273.15).toFixed(3)} °C, ice ${(b.meanT() - 273.15).toFixed(3)} °C, turned at most ${(turn * 180 / Math.PI).toFixed(2)}°, melted ${(e.melt.melted * 1000).toFixed(3)} g, salt error ${e.saltError().toExponential(2)} kg, energy error ${e.energyError().toExponential(2)} J`);
+    /* Bis 2026-10-25 hiess es „die Lake auf 0,2 K an T_f(w)“: das erreichte sie, weil der Würfel sich drehte (bis 880° in 2,5 Minuten,
+       die Kopplung holte ihn einen Schritt zu spät ein) und die Lake rührte. Schwimmt er ruhig, kühlt sie durch Leitung und eigene
+       Konvektion (ein Wärmeübergang von etwa 500 W/(m² K) an seinen Seiten): −0,8 °C nach 2,5 Minuten; das Eis steht schon bei T_f(w). */
     expect(Math.abs(b.meanT() - Tf)).toBeLessThan(0.2);
+    expect(turn).toBeLessThan((10 * Math.PI) / 180);
+    expect(L.T).toBeLessThan(T0 - 0.5);
+    expect(L.T - Tf).toBeGreaterThan(-0.2);
     expect(Math.abs(e.saltError())).toBeLessThan(1e-12 * L.salt);
     expect(Math.abs(e.waterError())).toBeLessThan(waterTolerance(e));
     expect(Math.abs(e.energyError())).toBeLessThan(1e-6);

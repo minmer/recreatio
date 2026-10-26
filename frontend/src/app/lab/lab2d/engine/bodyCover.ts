@@ -466,7 +466,7 @@ export class BodyCover {
    * (faceOwner). Seit 2026-10-25: ein freier Körper schliesst eine Zelle schon zu 90 % bedeckt (CLOSED_FREE); lag
    * seine Seite in ihr, deckte er ihre Fläche zum Fluid nicht — sie stand still (0) und gehörte keinem. Unter einem
    * schwimmenden Klotz, dessen Unterseite in den untersten 10 % einer Zellreihe lag, sah das Wasser einen ruhenden
-   * Boden, und die gemessene mitbewegte Masse fiel von 14 g auf 0 (in 23 % der Schritte).
+   * Boden, und die gemessene mitbewegte Masse fiel von 14 g auf 0 (in 16–23 % der Schritte).
    */
   private closedFace(bodies: readonly Body2D[], i: number, j: number, isU: boolean, ftag: number): void {
     const g = this.w.grid;

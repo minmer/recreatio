@@ -44,7 +44,7 @@ describe('M3b — test 41 at 1 mm', () => {
 });
 
 describe('M3b — test 43 with enough salt: a cooling mixture', () => {
-  it('a 2 cm cube at −10 °C in 25 % brine at −10 °C melts and drives the brine below −18 °C toward the eutectic, never below it; within 0.5 K of T_f(w) after 3 minutes', () => {
+  it('a 2 cm cube at −10 °C in 25 % brine at −10 °C melts and drives the brine toward the eutectic (more than 3 K colder after 3 minutes), never below it', () => {
     const e = new Engine(iceInBrine(0.25, -10, -10, 0.02), { insulated: true });
     /* Das kälteste Teilchen nach jedem Schritt (ein Teilchen, das Schmelzwasser aufnimmt, kühlt beim Verdünnen ein wenig: das Mischen starker Sole nimmt Wärme auf). */
     let coldest = Infinity;
@@ -55,9 +55,13 @@ describe('M3b — test 43 with enough salt: a cooling mixture', () => {
     const L = liquidState(e);
     const Tf = freezingPoint(L.salt / (L.water * M_S));
     console.log(`test 43 (eutectic): brine ${(L.T - 273.15).toFixed(2)} °C, coldest particle ${(coldest - 273.15).toFixed(3)} °C, w ${(100 * L.salt / (L.salt + L.water)).toFixed(2)} %, T_f(w) ${(Tf - 273.15).toFixed(2)} °C, eutectic ${(T_EUTECTIC - 273.15).toFixed(1)} °C, melted ${(e.melt.melted * 1000).toFixed(3)} g; salt error ${e.saltError().toExponential(2)} kg, energy error ${e.energyError().toExponential(2)} J`);
-    expect(L.T).toBeLessThan(273.15 - 18);
+    /* Bis 2026-10-25: unter −18 °C und auf 0,5 K an T_f(w) — das erreichte die Lake, weil der Würfel sich unablässig drehte (bis 161°,
+       0,1 m/s, die Lake mit 0,4 m/s); seit die Kopplung ihn nicht mehr einen Schritt zu spät einholt, rollt er einmal auf die Seite
+       (bei ρ_Eis/ρ_Lake = 0,77 schwimmt ein Quadrat nicht flach) und liegt still: die Lake kühlt durch Leitung und eigene Konvektion
+       (−14,4 °C nach 3 Minuten, 0,75 g geschmolzen). */
+    expect(L.T).toBeLessThan(273.15 - 13);
     expect(coldest).toBeGreaterThan(T_EUTECTIC - 0.05);
-    expect(Math.abs(L.T - Tf)).toBeLessThan(0.5);
+    expect(L.T).toBeGreaterThan(Tf);
     expect(Math.abs(e.saltError())).toBeLessThan(1e-12 * L.salt);
     expect(Math.abs(e.energyError())).toBeLessThan(1e-6);
   }, LONG);
@@ -91,7 +95,12 @@ describe('M3b — test 55 to the end: an ice cube on the hot plate melts away', 
     expect(finite).toBe(true);
     expect(b.gone).toBe(true);
     expect(held).toBeLessThan(2e-5);
-    expect(drift).toBeLessThan(0.003);
+    /* Bis 130 s geht der Würfel kaum (unter 0,4 mm); seine letzten 2 mm (eine Scheibe von 7 mm Breite) hüpfen in den letzten 10 s auf dem Sieden
+       unter ihr. Wie weit, ist Zufall: mit 1 % mehr oder weniger Leistung, 0,2 K wärmerem oder kälterem Eis oder 0,02 mm verschoben 1,0–2,7 mm vor
+       dem 2026-10-25 und 1,3–3,2 mm danach (schnellstens 16–32 und 24–43 mm/s) — seit sich die Flächen seiner geschlossenen Zellen mit ihm bewegen
+       (bodyCover.closedFace), nimmt jeder Lauf einen anderen, ebenso zufälligen Weg. Die Grenze von 5 mm (bis 2026-10-25 3 mm) fängt das
+       Fortfliegen von früher, nicht dieses Hüpfen. */
+    expect(drift).toBeLessThan(0.005);
     expect(fastest).toBeLessThan(0.05);
     expect(e.particles.count).toBeGreaterThan(500);
     expect(Math.abs(e.energyError())).toBeLessThan(1e-6);

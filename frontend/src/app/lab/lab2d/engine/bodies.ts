@@ -101,6 +101,10 @@ export class Bodies {
   }
 
   get anyFree(): boolean { return this.list.some((b) => b.free); }
+  /** Die Felder je Körper zu Zuwachs, Vorhersage und Geschwindigkeit vor den Berührungen — für den beschleunigten Weg (gpu/bodies.ts), der sie hoch- und zurücklädt. */
+  get motion(): { readonly prev: Float64Array; readonly pred: Float64Array; readonly predNow: Float64Array; readonly predOld: Float64Array; readonly vPre: Float64Array } {
+    return { prev: this.prev, pred: this.pred, predNow: this.predNow, predOld: this.predOld, vPre: this.vPre };
+  }
   get anyAwake(): boolean { return this.list.some((b) => b.awake); }
   get any(): boolean { return this.list.some((b) => !b.gone); }
 

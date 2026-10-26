@@ -14,6 +14,7 @@ import { FORCE_SLOTS } from '../engine/bubbles';
 import { tSat } from '../engine/if97';
 import { MOLAR, muMix } from '../engine/materials';
 import { H2O, N2, O2, R_GAS, SOLID, SPECIES_SLOTS } from '../engine/units';
+import { bodyMode, GpuBodies } from './bodies';
 import type { GpuCtx } from './kernel';
 import { fromStair, stairOf, type Stair } from './staircase';
 import { BUBBLE_WORDS, NONE, PARAMS_WORDS, PARTICLE_WORDS, SITE_WORDS } from './lib';
@@ -63,10 +64,14 @@ function derivedGas(e: Engine): { nmol: Float64Array; mu: Float64Array; veos: Fl
 }
 
 export class GpuState {
-  /** Die Treppe der Körper beim letzten Hochladen (staircase.ts) — beim Zurückholen gebraucht. */
+  /** Die Treppe der Körper beim letzten Hochladen (staircase.ts) — beim Zurückholen gebraucht; null, wenn alle Körper genaue Anteile haben. */
   private stair: Stair | null = null;
   /** Die Treppe beim letzten Hochladen (die Aufnahme beim Backen, capture.ts, braucht ihre Zellen und Temperaturen). */
   get staircase(): Stair | null { return this.stair; }
+  /** Rechnen alle Körper mit genauen Anteilen (eine Szene mit freien Körpern, seit 2026-10-26; bodies.ts)? */
+  body = false;
+  /** Die Körper auf der GPU (bodies.ts; ohne freie Körper leer). */
+  readonly bodies: GpuBodies;
   readonly ctx: GpuCtx;
   readonly d: Dims;
   readonly plan: Plan;
@@ -170,19 +175,21 @@ export class GpuState {
     this.measGroups = [Math.ceil(d.n / wg), Math.ceil(d.pcap / wg), Math.ceil(d.bcap / wg)];
     this.meas = b('meas', MEAS_K * (this.measGroups[0] + this.measGroups[1] + this.measGroups[2]));
     this.probe = b('probe', 64);
+    this.bodies = new GpuBodies(ctx, e);
   }
 
-  /** Passt die Engine noch in diese Puffer (gleiches Gitter, Platz für Kavitäten, Gebiete, Heizgruppen)? */
+  /** Passt die Engine noch in diese Puffer (gleiches Gitter, Platz für Kavitäten, Gebiete, Heizgruppen, Körper)? */
   fits(e: Engine): boolean {
     const d = this.d;
     return e.grid.nx === d.nx && e.grid.ny === d.ny && e.particles.cap === d.pcap && e.bubbles.cap === d.bcap
-      && e.bubbleModel.cavities.count <= d.nsites && e.regions.count <= d.nreg && e.heat.heaters.length <= d.nheat;
+      && e.bubbleModel.cavities.count <= d.nsites && e.regions.count <= d.nreg && e.heat.heaters.length <= d.nheat && this.bodies.fits(e);
   }
 
   /** Alle Puffer dieser Szene freigeben. */
   destroy(): void {
     this.ctx.release(this.own);
     this.own.length = 0;
+    this.bodies.destroy();
   }
 
   /* -- Hochladen ------------------------------------------------------------------------------------ */
@@ -211,6 +218,8 @@ export class GpuState {
     /* Heftige Zustände (extremes.ts): Wärmestromdichte der Wände an Blasen, Keimen spätestens bei, Teilchen höchstens, Blasen höchstens. */
     const x = extremeParams(e.scene.extremes, e.regions.pAmb, Math.abs(e.gy));
     f.set([x.chf, x.actMax, x.vmax, x.bubCap], 44);
+    /* Körper mit genauen Anteilen (bodies.ts): ein? wie viele? Lagen der Druckfortsetzung. */
+    u.set([this.body ? 1 : 0, this.body ? this.bodies.nbody : 0, this.bodies.layers, 0], 48);
     this.ctx.device.queue.writeBuffer(this.params, 0, buf);
   }
 
@@ -245,11 +254,16 @@ export class GpuState {
     const d = this.d;
     const g = e.grid;
     const n = d.n;
-    /* Körper als Treppen ganzer Zellen (die Rechenkerne kennen keine Anteile). */
-    const st = stairOf(e);
+    /*
+     * Ohne freie Körper die Körper als Treppen ganzer Zellen (staircase.ts); mit freien Körpern rechnen alle mit genauen Anteilen
+     * (bodies.ts): die Zellen so, wie die CPU sie hat — der erste Schritt deckt jeden Körper neu ab (seine Paare dünner Wände).
+     */
+    this.body = bodyMode(e);
+    this.bodies.upload(e);
+    const st = this.body ? null : stairOf(e);
     this.stair = st;
     this.writeParams(e);
-    this.writeHeaters(e, st.heaterCells);
+    this.writeHeaters(e, st !== null ? st.heaterCells : null);
     /* Gebiete: die grössten zuerst (die Summen je Gebiet laufen für die ersten vier über die Arbeitsgruppe). */
     const R0 = e.regions;
     const order = Array.from({ length: R0.count }, (_, k) => k).sort((a, b) => R0.vFluid[b] - R0.vFluid[a]);
@@ -260,7 +274,7 @@ export class GpuState {
     for (let r = 0; r < R0.count; r += 1) {
       const o = REG_STRIDE * this.regionMap[r];
       reg[o + R.OPEN] = R0.open[r];
-      reg[o + R.VFLUID] = R0.vFluid[r] - st.vFix[r];
+      reg[o + R.VFLUID] = R0.vFluid[r] - (st !== null ? st.vFix[r] : 0);
       reg[o + R.P0] = R0.p0[r];
       reg[o + R.RHOBAR] = R0.rhoBar[r];
       reg[o + R.VLIQ] = R0.vLiq[r];
@@ -272,10 +286,22 @@ export class GpuState {
     /* Zellen. */
     const cu = new Uint32Array(NU * n);
     for (let c = 0; c < n; c += 1) {
-      cu[U.KIND * n + c] = st.kind[c];
-      cu[U.KPREV * n + c] = st.kind[c];
-      cu[U.SOLID * n + c] = st.solid[c];
-      cu[U.HGRP * n + c] = st.hgrp[c];
+      const painted = g.solid[c] !== 0 && g.owner[c] === 0;
+      if (st !== null) {
+        cu[U.KIND * n + c] = st.kind[c];
+        cu[U.KPREV * n + c] = st.kind[c];
+        cu[U.SOLID * n + c] = st.solid[c];
+        cu[U.HGRP * n + c] = st.hgrp[c];
+      } else {
+        cu[U.KIND * n + c] = g.kind[c];
+        cu[U.KPREV * n + c] = g.kind[c];
+        cu[U.SOLID * n + c] = g.solid[c];
+        /* Heizzellen nur aus gemaltem Feststoff; eine Heizplatte heizt über ihre Anteile (bCover: F_HW). */
+        cu[U.HGRP * n + c] = painted && g.role[c] === 1 && g.heater[c] >= 0 ? g.heater[c] + 1 : 0;
+        cu[U.OWNER * n + c] = g.owner[c];
+        cu[U.MATB * n + c] = g.matB[c];
+        cu[U.PAINT * n + c] = painted ? 1 : 0;
+      }
       const r = R0.id[c];
       cu[U.RID * n + c] = r < 0 ? NONE : this.regionMap[r];
     }
@@ -284,15 +310,19 @@ export class GpuState {
     const put = (field: number, src: ArrayLike<number>, off = 0): void => { for (let c = 0; c < n; c += 1) cf[field * n + c] = src[off + c]; };
     put(F.PHI, g.phi); put(F.ALPHA, g.alpha); put(F.ALPHAOLD, g.alpha); put(F.PL, g.pl); put(F.PG, g.pg);
     put(F.MN, g.mg, N2 * n); put(F.MO, g.mg, O2 * n); put(F.MV, g.mg, H2O * n); put(F.MF, g.mfog); put(F.HG, g.Hg);
-    put(F.ES, st.es); put(F.FILM, st.film); put(F.T, st.T); put(F.TL, g.Tl); put(F.CL, g.Cl);
+    put(F.ES, st !== null ? st.es : g.Es); put(F.FILM, st !== null ? st.film : g.film); put(F.T, st !== null ? st.T : g.T); put(F.TL, g.Tl); put(F.CL, g.Cl);
+    if (st === null) {
+      const cv = e.bodies.cover;
+      put(F.FS, g.fs); put(F.CAPB, g.capB); put(F.TSB, g.Ts); put(F.ESY, cv.esSync); put(F.FSY, cv.filmSync); put(F.KSY, cv.crustSync); put(F.WSUM, cv.wsum);
+    }
     const G0 = e.gas;
     /* Mole, Zähigkeit und V_eos nicht aus der Engine, sondern aus ihrem Zustand neu (V_eos zur Mitte = V_eos): ein Schlüsselbild trägt
        sie nicht (Arbeitsspeicher, snapshot.ts SCRATCH) — mit den Feldern einer daraus gebauten Engine lief der Druck eines
        verschlossenen Gebiets auf der GPU davon (bis 8 bar). */
     const der = derivedGas(e);
     put(F.VGAS, G0.vgas); put(F.RHO, G0.rho); put(F.NMOL, der.nmol); put(F.CAP, G0.cap); put(F.MU, der.mu);
-    put(F.VEOS, der.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, der.veos); put(F.PHIS, st.phiS); put(F.SDF, st.sdf);
-    put(F.PTL, st.T);
+    put(F.VEOS, der.veos); put(F.SRCV, G0.srcV); put(F.VEOSMID, der.veos); put(F.PHIS, st !== null ? st.phiS : g.phiS); put(F.SDF, st !== null ? st.sdf : g.sdf);
+    put(F.PTL, st !== null ? st.T : g.T);
     /* Salz (M2b): Kruste je Zelle (Körperteile: ihr Spiegel), Salz am Boden der Kiste je Spalte; a_w = 1 bis zur ersten Sammlung. */
     put(F.CRUST, g.crust);
     for (let i = 0; i < g.nx; i += 1) { cf[F.FLOOR * n + i] = e.salt.floor[i]; cf[F.FLOORH * n + i] = e.salt.floorH[i]; }
@@ -359,16 +389,21 @@ export class GpuState {
     /* Die Wandzelle einer Kavität muss auf der GPU fest sein (der Kern nimmt ihr die Wärme): liegt sie in einer Zelle, die die Treppe frei lässt,
        nimmt die feste Nachbarzelle nach innen ihren Platz ein; gibt es keine, keimt die Kavität dort nicht (winziger Radius). */
     const nxg = g.nx;
+    const solidAt = (c: number): number => (st !== null ? st.solid[c] : g.solid[c]);
     for (let s = 0; s < cav.count; s += 1) {
       const o = SITE_WORDS * s;
       let wall = cav.cell[s];
       let r = cav.r[s];
-      if (wall >= 0 && st.solid[wall] === 0) {
+      /* Kavitäten auf freien Körpern kennt der beschleunigte Weg nicht (SIMPLIFICATIONS.md): sie keimen nie. */
+      const owner = cav.body[s] >= 0 ? e.bodies.list[cav.body[s]] : undefined;
+      if (owner !== undefined && owner.free) r = 1e-9;
+      if (wall >= 0 && solidAt(wall) === 0) {
         const k = cav.dir[s];
         const inward = k === 0 ? wall + 1 : k === 1 ? wall - 1 : k === 2 ? wall + nxg : wall - nxg;
-        if (inward >= 0 && inward < n && st.solid[inward] !== 0) wall = inward;
+        if (inward >= 0 && inward < n && solidAt(inward) !== 0) wall = inward;
         else r = 1e-9;
       }
+      if (wall < 0) { wall = 0; r = 1e-9; }
       su.set([wall, cav.fluid[s], cav.dir[s], 0], o);
       sf.set([r, cav.s[s], cav.z[s], 0], o + 4);
     }
@@ -546,8 +581,31 @@ export class GpuState {
     e.dt = glob[G.DT];
     const bm = e.bubbleModel;
     bm.watch = cnt[C.WATCH] === NONE ? -1 : cnt[C.WATCH];
-    /* Die Treppen der Körper zurück in ihre inneren Zellen, die Anteile der CPU neu. */
-    fromStair(e, this.stair);
+    if (!this.body) {
+      /* Die Treppen der Körper zurück in ihre inneren Zellen, die Anteile der CPU neu. */
+      fromStair(e, this.stair);
+      return;
+    }
+    /*
+     * Genaue Anteile: die Zellen, wie die GPU sie schloss (gemalter Feststoff bleibt), die Körper selbst (bodies.ts), dann baut die
+     * CPU ihre Zellen aus den inneren Zellen neu — Zellen, die sie anders schliesst (die Paare dünner Wände), wechseln mit ihrem Gas
+     * wie nach jeder Bewegung, und die Gebiete werden neu bestimmt.
+     */
+    for (let c = 0; c < n; c += 1) {
+      if (cu[U.PAINT * n + c] !== 0) continue;
+      g.solid[c] = cu[U.SOLID * n + c];
+      g.owner[c] = cu[U.OWNER * n + c];
+      g.matB[c] = cu[U.MATB * n + c];
+      g.fs[c] = cf[F.FS * n + c];
+      g.capB[c] = cf[F.CAPB * n + c];
+      g.Ts[c] = cf[F.TSB * n + c];
+    }
+    await this.bodies.download(e, (r) => this.read(r));
+    const cover = e.bodies.cover;
+    for (const b of e.bodies.list) if (!b.gone) cover.weigh(b);
+    cover.addAll();
+    cover.topologyChanged = true;
+    e.bodies.sync();
   }
 
   /** Die GPU-Nummer eines CPU-Gebiets. */

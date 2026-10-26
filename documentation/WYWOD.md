@@ -106,14 +106,24 @@ Nothing about arguments. It knows four general things, all declared by the owner
   - Each root is a card: the kicker „Pytanie wiodące” (or the chip), the place, the thesis, the work with „pokaż w
     tekście”, and the number of steps.
   - Below it the steps, either as the tree or in text order („Wywód | Kolejność tekstu”, remembered per browser
-    unless the view fixes it). The steps are nested lists. A step's thesis is its fold button (`aria-expanded`,
-    `aria-controls`, one tab stop per step); the arrow before it is for the mouse. ↑ ↓ move between steps, → opens one
-    and ← closes it. „Rozwiń wszystko” opens every step; each can still be closed. In text order the heading of an
-    Aquinas piece is read before its first step.
+    unless the view fixes it). The steps are nested lists. A step's thesis opens the whole step (`aria-expanded`,
+    `aria-controls`). ↑ ↓ move between steps, → opens one and ← closes it. „Rozwiń wszystko” opens every step; each
+    can still be closed. In text order the heading of an Aquinas piece is read before its first step.
   - **„Tezy skrócone | Całe tezy”** (2026-10-26), beside the order. Short: a thesis is cut after 90 characters
     with „…”, like every name in lists. Whole: the question and every step show the whole first sentence (not the
     paragraph), wrapped over several lines. It is the reader's choice for every root on the screen, remembered per
     browser; references stay short („↳ do:”, the path „W strukturze”).
+  - **Levels** (2026-10-26, tree order only, when a step has steps inside it; `cogita/outlineLevels.ts`):
+    - The arrow before a step shows or hides the steps inside it, with their number („▾ 3” / „▸ 3”). It is its
+      own button (`aria-expanded`, `aria-controls` = the inner list, „Kroki w środku: 3”), so a step with steps
+      inside has two tab stops. A step without any has an empty place there. Before this, the arrow repeated the
+      thesis (it opened the whole step); in text order there are no levels and no arrow.
+    - **„Wszystkie poziomy | Poziom po poziomie”**, the reader's choice for every root, remembered per browser.
+      All levels: every step shown; any branch folds by its arrow, and a click on „Wszystkie poziomy” opens them
+      all again. Level by level: at first only the outer steps; the arrow opens one step, „Rozwiń poziom” opens one
+      more level wherever steps are shown (exactly one: what was open deeper stays closed), „Zwiń poziom” closes the
+      deepest level shown. „poziom 2 z 3” tells how far it is open. „Rozwiń wszystko” belongs to all levels and is
+      not shown here; the thesis still opens the whole step.
   - Each step shows its chip, thesis, relative place, and a mark when it differs from reporting the source
     („dopowiedziane”, „Interpretacja”). Comments fetched by the view (e.g. „← O czym”) appear only when the step is
     opened, with a count „● n”.
@@ -294,19 +304,21 @@ lasting names for the kinds, card templates and forms of `komentarz.json`, `kome
 and `psalterz.json`.
 
 **Checks:**
-- `app-cogita-check`: 107 checks. They import all four guide examples as they stand. They cover the second round:
+- `app-cogita-check`: 114 checks. They import all four guide examples as they stand. They cover the second round:
   one event in three structures, the time order, concepts above works, all four card kinds checked against the
   steps of the same work, the correction with its review (default, accept, edit, reject, unreadable edit), kinds by
   lasting name, and Appendix A equal to the app. They also cover the import after the review: older imports recognised, two passes, name spaces and the sort guard, kind names and renamed kinds,
   completed kinds, `down` answers, merged names, case, references only in reference fields, circles and steps that
   point nowhere, anchors, documents reaching another document's entries, export into another base with axes. They
   also cover the structure view: relative places for outlines, one collator, the budget per root, one tab stop per
-  step, piece headings, keys, short and whole theses.
+  step, piece headings, keys, short and whole theses, and the levels (exactly one level deeper or shallower, a
+  step „już wyżej”, the arrows and their lists, the remembered choice, no levels in text order).
 - `app-library-check`: the „W Wiedzy” computation, and parts after „;” (frames, merging, bare numbers, pages).
-- The browser drive `scratchpad/argdesign/wywod-browser.mjs` (headless Edge, local API on LocalDB): 33 checks.
+- The browser drive `scratchpad/argdesign/wywod-browser.mjs` (headless Edge, local API on LocalDB): 42 checks.
   They run from the schema import to the parishioner who sees nothing, and include the novel's chronology in the
-  time of the story, a correction accepted and edited in the review, and „Tezy skrócone | Całe tezy” (kept over a
-  reload, wrapped on a phone).
+  time of the story, a correction accepted and edited in the review, „Tezy skrócone | Całe tezy” (kept over a
+  reload, wrapped on a phone), and „Poziom po poziomie” on the article (2, 5, 7 steps; kept over a reload; a branch
+  folded and opened again with all levels).
 
 ## 7. Found on the way
 

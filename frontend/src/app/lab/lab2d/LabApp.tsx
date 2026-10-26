@@ -616,8 +616,10 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   }
 
   const cpuOnly = stats?.engine.cpuOnly ?? false;
+  /* Backen: freie Körper rechnet die Grafikkarte live, ihre Aufnahme zeichnet aber noch keine (clip/session.ts). */
+  const bakeCpuOnly = cpuOnly || (stats?.engine.bodies.free ?? 0) > 0;
   /* Das Fenster des Backens ist offen: die Grafikkarte schon vorbereiten (ihre Kerne übersetzen Sekunden lang; B). */
-  useEffect(() => { if (bakeOpen && ready && !accel && HAS_WEBGPU && !cpuOnly) hostRef.current?.bakePrepare(); }, [bakeOpen, ready, accel, cpuOnly]);
+  useEffect(() => { if (bakeOpen && ready && !accel && HAS_WEBGPU && !bakeCpuOnly) hostRef.current?.bakePrepare(); }, [bakeOpen, ready, accel, bakeCpuOnly]);
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];
   const cells = (q: Quality): number => {
     const e = stats?.engine;
@@ -688,7 +690,7 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
       )}
       {bakeOpen && (
         <BakeDialog initial={{ seconds: secondsRef.current, ...savedBake(), quality, extremes: extremesMode === 'compute' ? 'compute' : 'normalize' }} cells={cells}
-          gpu={!HAS_WEBGPU ? 'none' : cpuOnly ? 'cpu-only' : 'yes'} onBake={startBake} onCancel={() => setBakeOpen(false)} />
+          gpu={!HAS_WEBGPU ? 'none' : bakeCpuOnly ? 'cpu-only' : 'yes'} onBake={startBake} onCancel={() => setBakeOpen(false)} />
       )}
       {extreme !== null && <ExtremeDialog event={extreme} onChoose={answerExtreme} />}
     </div>

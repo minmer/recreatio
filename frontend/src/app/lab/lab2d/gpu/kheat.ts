@@ -169,9 +169,21 @@ ${MAIN} {
     }
     let s = cu[U_SOLID * n + c];
     let T = cf[F_T * n + c];
+    /* Körper (seit 2026-10-26): die Wärmekapazität der Körperteile capB; eine Zelle mit Fluid und einem Körperstück hat dessen Temperatur in F_TSB. */
+    let capB = cf[F_CAPB * n + c];
     var cs = 0.0;
     var kc = 0.0;
-    if (s != 0u) { cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_FILM * n + c] * cpL(T) + cf[F_CRUST * n + c] * CP_CRYSTAL; kc = solidK(s); }
+    var ks = 0.0;
+    var Tsol = T;
+    if (s != 0u) {
+      if (capB > 0.0) { cs = capB + cf[F_CRUST * n + c] * CP_CRYSTAL + cf[F_FILM * n + c] * cpL(T); }
+      else { cs = solidRho(s) * solidCp(s) * P.vcell + cf[F_FILM * n + c] * cpL(T) + cf[F_CRUST * n + c] * CP_CRYSTAL; }
+      kc = solidK(s);
+    } else if (capB > 0.0) {
+      Tsol = cf[F_TSB * n + c];
+      cs = capB + cf[F_CRUST * n + c] * CP_CRYSTAL + cf[F_FILM * n + c] * cpL(Tsol);
+      ks = solidK(max(1u, cu[U_MATB * n + c]));
+    }
     var cg = 0.0;
     if (s == 0u && cf[F_CAP * n + c] > 0.0) { cg = cf[F_CAP * n + c]; }
     let sum = cs + cg + Cl;
@@ -179,15 +191,25 @@ ${MAIN} {
     cf[F_CG * n + c] = cg;
     cf[F_C * n + c] = sum;
     cf[F_CL * n + c] = Cl;
+    cf[F_DSF * n + c] = 0.0;
     let src = at[A_HSRC * n + c];
     at[A_HSRC * n + c] = 0.0;
     if (sum <= 0.0) { cf[F_TSTAR * n + c] = T; cf[F_K * n + c] = 0.0; cf[F_Q * n + c] = 0.0; }
     else {
-      let Ts = (cs * T + cg * T + CTl) / sum;
+      let Ts = (cs * Tsol + cg * T + CTl) / sum;
       cf[F_TSTAR * n + c] = Ts;
       if (Cl > 0.0) { cf[F_TL * n + c] = CTl / Cl; }
       if (s == 0u) {
         if (Cl >= cg) { kc = select(kL(Ts), ((Cl - Co) * kL(Ts) + CKo) / Cl, Co > 0.0); } else { kc = kMix(cf[F_MN * n + c], cf[F_MO * n + c], cf[F_MV * n + c], Ts); }
+        /* Ein Körperstück neben Fluid: die Leitfähigkeit nach den Anteilen (parallel), der Unterschied der Teile für den Ausgleich in der Zelle (heat.ts). */
+        if (cs > 0.0) {
+          let fs = min(1.0, cf[F_FS * n + c]);
+          let kf = kc;
+          kc = fs * ks + (1.0 - fs) * kf;
+          cf[F_KS * n + c] = ks;
+          cf[F_KF * n + c] = kf;
+          if (cg + Cl > 0.0) { cf[F_DSF * n + c] = Tsol - (cg * T + CTl) / (cg + Cl); }
+        }
       }
       cf[F_K * n + c] = kc;
       var qc = src;
@@ -200,6 +222,13 @@ ${MAIN} {
         let o = (g - 1u) * HEAT_STRIDE;
         let cells = heat[o + H_CELLS];
         if (cells > 0.0) { let w = heat[o + H_P] / cells; qc += w; hw += w; }
+      }
+      /* Eine Heizplatte mit genauen Anteilen: ihre Leistung nach dem Volumen ihrer inneren Zellen in der Zelle (bCover: F_HW). */
+      let hb = cu[U_HBODY * n + c];
+      if (hb != 0u && hb <= P.nheat) {
+        let o = (hb - 1u) * HEAT_STRIDE;
+        let cells = heat[o + H_CELLS];
+        if (cells > 0.0) { let w = heat[o + H_P] * cf[F_HW * n + c] / cells; qc += w; hw += w; }
       }
       cf[F_Q * n + c] = qc;
     }
@@ -301,11 +330,25 @@ ${MAIN} {
     }
     let C = cf[F_C * n + c];
     let share = dE / C;
-    cf[F_SHARE * n + c] = share;
     let Cs = cf[F_CS * n + c];
-    if (Cs > 0.0) { cf[F_ES * n + c] += share * Cs; deriveSolid(c); }
     let Cg = cf[F_CG * n + c];
-    if (Cg > 0.0) { cf[F_HG * n + c] += share * Cg; deriveCell(c); }
+    /* Ein Körperstück neben Fluid gleicht sich mit ihm über ihre Grenzfläche aus (exponentiell, genau erhalten; heat.ts). */
+    let dsf = cf[F_DSF * n + c];
+    let Cf = Cg + cf[F_CL * n + c];
+    if (dsf != 0.0 && Cs > 0.0 && Cf > 0.0) {
+      let fs = clamp(cf[F_FS * n + c], 0.001, 0.999);
+      let G = P.depth / (0.5 * fs / max(1e-9, cf[F_KS * n + c]) + 0.5 * (1.0 - fs) / max(1e-9, cf[F_KF * n + c]));
+      let Cr = Cs * Cf / (Cs + Cf);
+      let Q = (1.0 - exp(-glob[G_DT] * G / Cr)) * dsf * Cr;
+      cf[F_SHARE * n + c] = share + select(0.0, Q / Cf, cf[F_CL * n + c] > 0.0);
+      cf[F_ES * n + c] += share * Cs - Q;
+      deriveSolid(c);
+      if (Cg > 0.0) { cf[F_HG * n + c] += share * Cg + Q * Cg / Cf; deriveCell(c); }
+    } else {
+      cf[F_SHARE * n + c] = share;
+      if (Cs > 0.0) { cf[F_ES * n + c] += share * Cs; deriveSolid(c); }
+      if (Cg > 0.0) { cf[F_HG * n + c] += share * Cg; deriveCell(c); }
+    }
   } else if (c < n) { cf[F_SHARE * n + c] = 0.0; }
   let sw = wsum(walls, lid);
   let so = wsum(open, lid);
@@ -460,6 +503,12 @@ ${MAIN} {
   let um = bitcast<f32>(atomicLoad(&cnt[C_UMAXL]));
   var next = P.dtmax;
   if (um > 0.0) { next = min(P.dtmax, 0.9 * P.dx / um); }
+  /* Kein Punkt eines wachen Körpers rückt mehr als eine halbe Zelle je Schritt (bodies.dtLimit). */
+  if (P.bodies != 0u) {
+    let bvm = bitcast<f32>(atomicLoad(&cnt[C_BVMAX]));
+    if (bvm > 0.0) { next = min(next, 0.5 * P.dx / bvm); }
+    atomicStore(&cnt[C_BVMAX], 0u);
+  }
   glob[G_DT] = next;
   atomicStore(&cnt[C_UMAXL], 0u);
   atomicStore(&cnt[C_MAXOUT], 0u);
@@ -479,9 +528,17 @@ ${MAIN} {
   if (c < n) {
     let k = cu[U_KIND * n + c];
     if (c < P.nx) { v[9] = cf[F_FLOOR * n + c]; v[10] = cf[F_FLOORH * n + c]; }
-    v[8] = cf[F_CRUST * n + c];
-    if (k == SOLID || cu[U_SOLID * n + c] != 0u) { v[0] = cf[F_ES * n + c]; v[1] = cf[F_FILM * n + c]; }
-    else {
+    /* Mit genauen Anteilen spiegeln die Körperteile der Zellen nur die inneren Zellen der Körper (die zählt bMeas, wie budget.ts); Gas, das in
+       einer geschlossenen Körperzelle liegen blieb, zählt hier. */
+    let body = P.bodies != 0u && (cu[U_OWNER * n + c] != 0u || cf[F_CAPB * n + c] > 0.0);
+    if (!body) { v[8] = cf[F_CRUST * n + c]; }
+    if ((k == SOLID || cu[U_SOLID * n + c] != 0u) && !body) { v[0] = cf[F_ES * n + c]; v[1] = cf[F_FILM * n + c]; }
+    else if (k == SOLID || cu[U_SOLID * n + c] != 0u) {
+      v[2] = cf[F_HG * n + c];
+      v[3] = cf[F_MV * n + c];
+      v[4] = cf[F_MF * n + c];
+      v[5] = cf[F_MN * n + c] + cf[F_MO * n + c];
+    } else {
       v[2] = cf[F_HG * n + c];
       v[3] = cf[F_MV * n + c];
       v[4] = cf[F_MF * n + c];
