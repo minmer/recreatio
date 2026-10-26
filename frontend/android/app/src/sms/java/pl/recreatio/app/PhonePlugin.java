@@ -44,6 +44,7 @@ import java.util.concurrent.Executors;
  *   exportMessages, archiveState, setArchiveState, requestSmsRead
  *   lines, setLine, schedule, unschedule, scheduled, forgetScheduled
  *   mute, mutes, block, unblock, blocked, deleteThread, threadSubs   (2026-10-19, {@link Spam})
+ *   unsent, dropUnsent   (2026-10-26: was nicht hinausging — zählen, löschen)
  * </code>
  *
  * <p><b>Ein altes Telefon</b> muss nicht die SMS-App sein, um sein Archiv beizutragen:
@@ -465,6 +466,28 @@ public class PhonePlugin extends Plugin {
             int deleted = SmsStore.deleteThread(context(), thread);
             SmsNotices.cancel(context(), thread);
             Spam.mute(context(), thread, -1);
+            changed(thread);
+            return js(new JSONObject().put("deleted", deleted));
+        });
+    }
+
+    /** Wie viele nicht gesendete älter als {@code before} (ms) — in {@code threadId} oder überall. */
+    @PluginMethod
+    public void unsent(PluginCall call) {
+        JSObject data = call.getData();
+        long before = data.optLong("before", System.currentTimeMillis());
+        long thread = data.has("threadId") ? Long.parseLong(data.optString("threadId", "-1")) : -1;
+        on(SCREEN, call, () -> js(new JSONObject().put("count", SmsStore.unsent(context(), before, thread, true))));
+    }
+
+    /** Die nicht gesendeten älter als {@code before} (ms) löschen — in {@code threadId} oder überall. */
+    @PluginMethod
+    public void dropUnsent(PluginCall call) {
+        JSObject data = call.getData();
+        long before = data.optLong("before", System.currentTimeMillis());
+        long thread = data.has("threadId") ? Long.parseLong(data.optString("threadId", "-1")) : -1;
+        on(SCREEN, call, () -> {
+            int deleted = SmsStore.unsent(context(), before, thread, false);
             changed(thread);
             return js(new JSONObject().put("deleted", deleted));
         });

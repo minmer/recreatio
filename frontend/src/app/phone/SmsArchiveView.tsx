@@ -628,6 +628,8 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   const earlier = () => { if (messages !== null && firstShown > 0) setOldest(messages[Math.max(0, firstShown - STEP)].key); };
   const pending = useMemo(() => pendingOf(outbox, conversation.key, messages ?? []), [outbox, conversation.key, messages]);
 
+  /* Lief das Gespräch über zwei eigene Nummern: an jeder Nachricht das Ende der Nummer (die Steckplätze kennt der Browser nicht). */
+  const ownLines = useMemo(() => new Set((messages ?? []).map((m) => m.line ?? '').filter((l) => l !== '')), [messages]);
   const items: SmsItem[] = useMemo(() => shown.map((m) => ({
     key: m.key,
     mine: m.box !== 'in',
@@ -637,8 +639,9 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
     author: group && m.box === 'in' && m.from !== null ? names.get(m.from) ?? phoneShown(m.from) : null,
     authorSeed: m.from ?? undefined,
     state: m.box === 'failed' ? 'failed' as const : null,
-    media: m.parts.length > 0 ? m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />) : undefined
-  })), [shown, group, names, ctx]);
+    media: m.parts.length > 0 ? m.parts.map((p, j) => <ArchivedMedia key={j} ctx={ctx} part={p} />) : undefined,
+    ...(ownLines.size > 1 && m.line ? { sim: `…${m.line.slice(-3)}`, simTitle: `${m.box === 'in' ? 'Odebrano na' : 'Wysłano z'}: ${phoneShown(m.line)}` } : {})
+  })), [shown, group, names, ctx, ownLines]);
 
   const cancel = async (entry: OutboxEntry) => {
     if (!await ask({ title: 'Odwołać tę wiadomość?', body: 'Telefon jej nie wyśle — chyba że już to zrobił.', confirm: 'Odwołaj', danger: true })) return;

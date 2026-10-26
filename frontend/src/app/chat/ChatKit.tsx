@@ -80,6 +80,9 @@ export function Avatar({ seed, name, icon, size = 'md' }: { seed: string; name: 
 
 /* -- Zeit und Grösse ------------------------------------------------------------------ */
 
+/** Markierte kopieren: mit „wer und wann" (`yes`) oder nur den Text (`no`) — gemerkt am Konto, für Rozmowy und SMS (2026-10-26). */
+export const COPY_WHO_PREF = 'msg.copyWho';
+
 export const clock = (at: string) => new Date(at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 export const full = (at: string) => new Date(at).toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 export const dayKey = (at: string) => new Date(at).toDateString();

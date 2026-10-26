@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Das Symbol „SMS" (2026-10-26): eine Sprechblase mit drei Punkten, weiss, die Punkte
+  ausgespart (evenOdd) — so taugt es auch als einfarbiges Symbol (Android 13, „Designsymbole").
+  108 dp wie jedes adaptive Symbol; die Blase bleibt im sicheren Kreis (Radius 33 um die Mitte).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M40,36 L68,36 A8,8 0 0,1 76,44 L76,58 A8,8 0 0,1 68,66 L50,66 L38,76 L40,66 A8,8 0 0,1 32,58 L32,44 A8,8 0 0,1 40,36 Z M40.5,51 A3.5,3.5 0 1,0 47.5,51 A3.5,3.5 0 1,0 40.5,51 Z M50.5,51 A3.5,3.5 0 1,0 57.5,51 A3.5,3.5 0 1,0 50.5,51 Z M60.5,51 A3.5,3.5 0 1,0 67.5,51 A3.5,3.5 0 1,0 60.5,51 Z" />
+</vector>

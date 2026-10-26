@@ -1609,10 +1609,11 @@ spread (0.176 g melted against 0.166–0.173 g). An option for the owner, since 
 
 **Open**:
 
-- Firefox (wgpu) not run — headless Firefox has no WebGPU. New there: `mMelt` (one workgroup; compare-and-swap loops on
-  workgroup atomics, `workgroupUniformLoad`, a list of 1024 cells in workgroup memory), `mSums`, `mApply`, `mSpawn`
-  (eight storage buffers in `mApply` and `mMelt`), the table T_f(m) as a 257-value `const` array indexed at run time
-  (smaller such arrays already run there), `bkTexB`, `bkBodyB`, and all of C1's body kernels.
+- Firefox (2026-10-26, Firefox 157 in a visible window, RTX): the accelerated view did not start — 80 of 161 kernels
+  failed naga's validation because the generated helper `takeF_<buffer>` (kernel.ts) returned only from inside its
+  loop (Dawn accepts that, naga wants a return after the loop). Rewritten with `break` and one return at the end: all
+  161 kernels (with the capture kernels) compile in 30.8 s, the ice cube on the hot plate runs at 8.57 ms per step at
+  2 mm, and test 55 gives the Edge numbers (18.86 × 17.75 mm, held ≤ 3.19 %, 598.5 mg); Edge unchanged.
 - A melting body that outgrows its room is not re-laid out while a clip bakes (above).
 - Regions are grouped at an upload only: ice that melts through a wall between two regions joins them at the next
   upload (a tool, a download for saving), not at once; a free lid never seals a pot on the GPU, where the CPU builds

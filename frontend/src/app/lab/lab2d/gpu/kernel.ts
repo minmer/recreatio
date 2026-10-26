@@ -193,16 +193,19 @@ function generate(def: KernelDef, binds: readonly BindSpec[], wg: number): strin
 fn getF_${b.name}(i: u32) -> f32 { return bitcast<f32>(atomicLoad(&${b.name}[i])); }
 fn setF_${b.name}(i: u32, v: f32) { atomicStore(&${b.name}[i], bitcast<u32>(v)); }
 fn maxU_${b.name}(i: u32, v: f32) { atomicMax(&${b.name}[i], bitcast<u32>(max(v, 0.0))); }
+// Ein return hinter der Schleife: naga (Firefox) verwirft eine Funktion, die nur aus der Schleife heraus zurückgibt.
 fn takeF_${b.name}(i: u32, want: f32, lim: f32) -> f32 {
   var old = atomicLoad(&${b.name}[i]);
+  var got = 0.0;
   loop {
     let cur = bitcast<f32>(old);
     let t = clamp(lim - cur, 0.0, want);
-    if (!(t > 0.0)) { return 0.0; }
+    if (!(t > 0.0)) { break; }
     let r = atomicCompareExchangeWeak(&${b.name}[i], old, bitcast<u32>(cur + t));
-    if (r.exchanged) { return t; }
+    if (r.exchanged) { got = t; break; }
     old = r.old_value;
   }
+  return got;
 }`);
     }
   });

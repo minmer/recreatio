@@ -1,5 +1,6 @@
 package pl.recreatio.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.webkit.CookieManager;
 
@@ -33,7 +34,16 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NotifyPlugin.class);
         /* 2026-10-17 — was die Ausgabe dazubringt (die Ausgabe sms: das Telefon); in der gewöhnlichen nichts. */
         Edition.register(this);
+        /* 2026-10-26 — ein eigenes Symbol der Ausgabe (sms: „SMS") wird zum Link, bevor die Hülle ihn liest. */
+        Edition.adjust(getIntent());
         super.onCreate(savedInstanceState);
+    }
+
+    /** Läuft die App schon, kommt ein Start über das Symbol hier an — als Link für {@code appUrlOpen}. */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        Edition.adjust(intent);
+        super.onNewIntent(intent);
     }
 
     /**

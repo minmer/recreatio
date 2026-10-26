@@ -162,9 +162,11 @@ export function contactsOf(who: Who): Promise<readonly Contact[]> {
 export const forgetContacts = (): void => { contactsSeen.clear(); };
 
 /** phoneKey → Kontakt — für Namen und Gruppen. */
-export function useContactIndex(who: Who): ReadonlyMap<string, Contact> {
+export function useContactIndex(who: Who | null): ReadonlyMap<string, Contact> {
   const [index, setIndex] = useState<ReadonlyMap<string, Contact>>(new Map());
   useEffect(() => {
+    /* Ohne Konto keine Kontakte aus recreatio — die Namen kommen dann aus dem Adressbuch des Telefons. */
+    if (who === null) return undefined;
     let alive = true;
     void contactsOf(who).then((list) => { if (alive) setIndex(nameIndex([...list])); }).catch(() => undefined);
     return () => { alive = false; };

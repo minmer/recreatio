@@ -1,6 +1,7 @@
 package pl.recreatio.app;
 
 import android.content.Context;
+import android.content.Intent;
 import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
@@ -29,5 +30,9 @@ final class Edition {
 
     /** Im Browser wartet eine SMS auf ein Telefon (0116) — diese Ausgabe sendet keine. */
     static void wake(Context context) {
+    }
+
+    /** Ein Start über ein eigenes Symbol der Ausgabe (2026-10-26) — diese hat keines. */
+    static void adjust(Intent intent) {
     }
 }

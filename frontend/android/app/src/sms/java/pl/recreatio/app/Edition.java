@@ -2,6 +2,8 @@ package pl.recreatio.app;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
@@ -43,5 +45,24 @@ final class Edition {
     /** Der Dienst meldet: im Browser wartet eine SMS auf dieses Telefon (0116). */
     static void wake(Context context) {
         PhoneWork.outboxSoon(context.getApplicationContext());
+    }
+
+    /** Wohin das Symbol „SMS" führt — die Liste der Gespräche. */
+    static final String SMS_ENTRY = "https://recreatio.pl/#/workspace/sms";
+
+    /**
+     * DAS SYMBOL „SMS" (2026-10-26) — ein zweites Symbol auf dem Startbildschirm
+     * ({@code activity-alias .SmsLauncher}, dieselbe {@link MainActivity}). Es kommt als
+     * MAIN/LAUNCHER an; hier wird daraus ein Link auf die SMS, den die Hülle wie jeden
+     * anderen öffnet ({@code getLaunchUrl} beim Start, {@code appUrlOpen} danach). Wer in
+     * den SMS schon ist, bleibt, wo er war ({@code shell.ts}).
+     */
+    static void adjust(Intent intent) {
+        if (intent == null || intent.getComponent() == null) return;
+        /* Der Startbildschirm schickt MAIN; ein Start ohne Aktion (eine Verknüpfung, adb -n) meint dasselbe. */
+        if (intent.getAction() != null && !Intent.ACTION_MAIN.equals(intent.getAction())) return;
+        if (!intent.getComponent().getClassName().endsWith(".SmsLauncher")) return;
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setData(Uri.parse(SMS_ENTRY));
     }
 }

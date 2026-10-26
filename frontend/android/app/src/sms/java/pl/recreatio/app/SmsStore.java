@@ -329,6 +329,38 @@ final class SmsStore {
         return false;
     }
 
+    /**
+     * NICHT GESENDETES (2026-10-26): fehlgeschlagen oder hängengeblieben (Ausgang, Warteschlange,
+     * ein Bericht „nicht zugestellt"), älter als {@code before} (ms) — in einem Gespräch
+     * ({@code thread} ≥ 0) oder überall. {@code dry}: nur zählen; sonst löschen (nur die SMS-App darf das).
+     *
+     * <p>Gelöscht wird jede für sich ({@code content://sms/<id>}): nur so rechnet das Telefon das Gespräch
+     * neu (letzte Nachricht, ⚠, Anzahl). Ein Löschen mit Bedingung sucht die Gespräche erst danach —
+     * dann sind die Nachrichten schon fort, und die Liste zeigte weiter die gelöschte als letzte.</p>
+     */
+    static int unsent(Context context, long before, long thread, boolean dry) {
+        ContentResolver cr = context.getContentResolver();
+        String inThread = thread >= 0 ? " AND thread_id = " + thread : "";
+        String sms = "(type IN (4, 5, 6) OR (type = 2 AND status >= 64)) AND date < " + before + inThread;
+        String mms = "msg_box IN (4, 5) AND date < " + (before / 1000) + inThread;
+        int n = 0;
+        try {
+            for (String id : ids(cr, SMS, sms)) n += dry ? 1 : cr.delete(Uri.withAppendedPath(SMS, id), null, null);
+            for (String id : ids(cr, MMS, mms)) n += dry ? 1 : cr.delete(Uri.withAppendedPath(MMS, id), null, null);
+        } catch (RuntimeException ignored) {
+            // Dann eben nicht (z. B. gerade nicht die SMS-App).
+        }
+        return n;
+    }
+
+    private static List<String> ids(ContentResolver cr, Uri uri, String where) {
+        List<String> out = new ArrayList<>();
+        try (Cursor c = cr.query(uri, new String[] { "_id" }, where, null, null)) {
+            while (c != null && c.moveToNext()) out.add(c.getString(0));
+        }
+        return out;
+    }
+
     /** Ein ganzes Gespräch fort — SMS und MMS (nur die SMS-App des Telefons darf das). */
     static int deleteThread(Context context, long threadId) {
         return context.getContentResolver().delete(Uri.parse("content://mms-sms/conversations/" + threadId), null, null);

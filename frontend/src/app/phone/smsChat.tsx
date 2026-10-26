@@ -11,7 +11,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { Avatar, clock, cls, dayKey, dayLabel, full, Icon, PopMenu, useButtonMenu, hueOf, type MenuItem } from '../chat/ChatKit';
+import { Avatar, clock, cls, COPY_WHO_PREF, dayKey, dayLabel, full, Icon, PopMenu, useButtonMenu, hueOf, type MenuItem } from '../chat/ChatKit';
+import { DayChip, flashRow, SEEK_PAGES } from '../chat/DayJump';
+import { useRemembered } from '../core/prefs';
 import { Modal } from '../ui/Modal';
 import type { Line } from './native';
 import { lineName, lineText, whyText, type LineChoice } from './lines';
@@ -164,6 +166,9 @@ export interface SmsItem {
   readonly note?: ReactNode;
   /** Knöpfe unter der Blase („Wyślij ponownie"). */
   readonly tools?: ReactNode;
+  /** Mit zwei Karten: über welche Karte (Nummer) die Nachricht ging oder kam — ein kleines Zeichen; `simTitle` sagt es aus. */
+  readonly sim?: string;
+  readonly simTitle?: string;
 }
 
 const GAP = 10 * 60_000;
@@ -316,10 +321,19 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
   const freshFrom = useRef<string | null>(null);
   const giveUp = useRef<number | undefined>(undefined);
   const saveSoon = useRef<number | undefined>(undefined);
+  /* Ein Tag, zu dem gesprungen wird (das Datum als Knopf) — notfalls mit früheren Seiten. */
+  const seek = useRef<{ readonly start: number; pages: number } | null>(null);
+  const seekGiveUp = useRef<number | undefined>(undefined);
+  /* Beginnt oder endet das Markieren, rücken die Zeilen ein oder aus: die Zeile unter dem Finger bleibt, wo sie war. */
+  const still = useRef<{ readonly key: string; readonly top: number } | null>(null);
   const [away, setAway] = useState(false);
   const [fresh, setFresh] = useState(0);
   const [picked, setPicked] = useState<ReadonlySet<string> | null>(null);
   const [reading, setReading] = useState(false);
+  /* Kopieren mit „wer und wann" oder nur die Texte — gemerkt (dieselbe Wahl wie in den Rozmowy). */
+  const [copyWho, setCopyWho] = useRemembered(COPY_WHO_PREF, 'yes');
+  const withWho = copyWho !== 'no';
+  const copyMenu = useButtonMenu();
 
   const needle = fold(search.trim());
   const visible = useMemo(() => (items === null ? [] : needle === '' ? items : items.filter((m) => fold(m.body).includes(needle))), [items, needle]);
@@ -330,6 +344,65 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
     const el = box.current;
     if (el !== null) anchor.current = el.scrollHeight;
     onEarlier?.();
+  };
+
+  /*
+    ZU EINEM TAG (das Datum als Knopf, `DayJump`): liegt er vor dem Geladenen, erst Früheres
+    nachladen; dann die erste Nachricht ab diesem Tag oben, unter dem klebenden Datum — gab es
+    an dem Tag keine, die nächste danach; liegt er nach der letzten, das Ende.
+  */
+  const trySeek = (el: HTMLElement): void => {
+    const wanted = seek.current;
+    if (wanted === null || items === null) return;
+    const oldest = visible[0]?.at;
+    if (oldest !== undefined && oldest > wanted.start && more && wanted.pages < SEEK_PAGES) {
+      if (anchor.current === null) {
+        wanted.pages++;
+        earlier();
+        window.clearTimeout(seekGiveUp.current);
+        seekGiveUp.current = window.setTimeout(() => { if (seek.current === wanted) { seek.current = null; anchor.current = null; } }, 5000);
+      }
+      return;
+    }
+    seek.current = null;
+    window.clearTimeout(seekGiveUp.current);
+    restoring.current = null;
+    const target = visible.find((m) => m.at >= wanted.start) ?? null;
+    const row = target === null ? null : el.querySelector<HTMLElement>(`.ch-row[data-key="${CSS.escape(target.key)}"]`);
+    if (row === null) {
+      stick.current = true;
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top - 52;
+    stick.current = atEndOf(el);
+    pin.current = stick.current ? null : placeOf(el, false);
+    setAway(!stick.current);
+    flashRow(row);
+  };
+  const jumpToDay = (start: number) => {
+    seek.current = { start, pages: 0 };
+    const el = box.current;
+    if (el !== null) trySeek(el);
+  };
+
+  /* Die Zeile, die beim Ein- oder Ausrücken stehen bleiben soll: die gedrückte — sonst die in der Mitte. */
+  const keepStill = (key?: string) => {
+    const el = box.current;
+    if (el === null) return;
+    const top = el.getBoundingClientRect().top;
+    let row = key === undefined ? null : el.querySelector<HTMLElement>(`.ch-row[data-key="${CSS.escape(key)}"]`);
+    if (row === null) {
+      const middle = top + el.clientHeight / 2;
+      row = [...el.querySelectorAll<HTMLElement>('.ch-row[data-key]')].find((r) => r.getBoundingClientRect().bottom >= middle) ?? null;
+    }
+    if (row !== null) still.current = { key: row.dataset.key ?? '', top: row.getBoundingClientRect().top - top };
+  };
+  /* Fertig markiert (Kopiuj, Przekaż, der Leser zu, ✕): die Auswahl ist weg. */
+  const endPicking = () => {
+    if (picked === null) return;
+    keepStill();
+    setPicked(null);
   };
 
   /* Merken, wo man steht — nicht während der Suche (dann steht nur ein Teil da) und nicht, solange noch gesucht wird, wo man war. */
@@ -348,6 +421,12 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
     if (anchor.current !== null && first !== was.first) {
       el.scrollTop += el.scrollHeight - anchor.current;
       anchor.current = null;
+    }
+    /* Ein Tag wird angesprungen: das geht vor — bis er da ist. */
+    if (seek.current !== null) {
+      trySeek(el);
+      seen.current = { first, last };
+      return;
     }
     /* Neues beim Öffnen: dorthin — einmal, sobald bekannt ist, was neu war. */
     let toNew: HTMLElement | null = null;
@@ -411,10 +490,25 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
   useEffect(() => {
     if (follow === 0) return;
     restoring.current = null;
+    seek.current = null;
     stick.current = true;
     const el = box.current;
     if (el !== null) el.scrollTop = el.scrollHeight;
   }, [follow]);
+
+  /* Markieren beginnt oder endet: die Zeilen rücken ein oder aus — die gemerkte Zeile bleibt, wo sie war. */
+  const picking = picked !== null;
+  useLayoutEffect(() => {
+    const el = box.current;
+    const wanted = still.current;
+    still.current = null;
+    if (el === null || wanted === null) return;
+    const row = el.querySelector<HTMLElement>(`.ch-row[data-key="${CSS.escape(wanted.key)}"]`);
+    if (row === null) return;
+    el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top - wanted.top;
+    stick.current = atEndOf(el);
+    pin.current = stick.current ? null : placeOf(el, false);
+  }, [picking]);
 
   /*
     Der Verlauf wird niedriger oder höher (die Tastatur, das Feld mit einer Zeile mehr), ein
@@ -442,6 +536,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
       document.removeEventListener('visibilitychange', hide);
       window.clearTimeout(saveSoon.current);
       window.clearTimeout(giveUp.current);
+      window.clearTimeout(seekGiveUp.current);
       save.current();
     };
   }, []);
@@ -479,16 +574,26 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   };
 
-  const toggle = (key: string) => setPicked((had) => {
-    const next = new Set(had ?? []);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next.size === 0 ? null : next;
-  });
+  const toggle = (key: string) => {
+    /* Der erste markiert (die gedrückte Zeile bleibt stehen); der letzte fällt weg (die mittlere bleibt). */
+    if (picked === null) keepStill(key);
+    else if (picked.size === 1 && picked.has(key)) keepStill();
+    setPicked((had) => {
+      const next = new Set(had ?? []);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next.size === 0 ? null : next;
+    });
+  };
   const chosen = picked === null ? [] : visible.filter((m) => picked.has(m.key));
   const readable: Readable[] = chosen.map((m) => ({
     key: m.key, who: m.mine ? 'Ty' : m.author ?? title, at: m.at, body: m.body !== '' ? m.body : m.media !== undefined ? '[MMS]' : ''
   }));
   useEffect(() => { setPicked(null); }, [title]);
+  const copyNow = (who: boolean) => { copyReadable(readable, who); endPicking(); };
+  const copyItems: MenuItem[] = [
+    { label: 'Tylko treść', icon: 'copy', checked: !withWho, onSelect: () => { setCopyWho('no'); copyNow(false); } },
+    { label: 'Z nadawcą i godziną', icon: 'copy', checked: withWho, onSelect: () => { setCopyWho('yes'); copyNow(true); } }
+  ];
 
   /* Je Tag ein Abschnitt — das Datum klebt nur, solange sein Tag zu sehen ist. */
   const blocks: { key: string; nodes: ReactNode[] }[] = [];
@@ -499,7 +604,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
     if (newDay) {
       rows = [];
       blocks.push({ key: `d-${m.key}`, nodes: rows });
-      rows.push(<div key={`d-${m.key}`} className="ch-day" role="separator"><span>{dayLabel(iso(m.at))}</span></div>);
+      rows.push(<div key={`d-${m.key}`} className="ch-day" role="separator"><DayChip at={m.at} onPick={jumpToDay}>{dayLabel(iso(m.at))}</DayChip></div>);
     }
     const isNew = m.key === firstNew && needle === '';
     if (isNew) rows.push(<div key="new" className="ch-unread" role="separator"><span>Nieprzeczytane</span></div>);
@@ -514,13 +619,23 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
     <div className="ch-log-wrap">
       {picked !== null && (
         <div className="ch-pickbar" role="toolbar" aria-label="Zaznaczone wiadomości">
-          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj" onClick={() => setPicked(null)}><Icon name="x" /></button>
+          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj" onClick={endPicking}><Icon name="x" /></button>
           <strong className="ch-pickbar-count"><span className="ph-pick-word">Zaznaczone: </span>{chosen.length}</strong>
           <span className="ch-pickbar-actions">
             <button type="button" className="wk-btn wk-btn-small" disabled={chosen.length === 0} onClick={() => setReading(true)}><Icon name="eye" />Wyświetl</button>
-            <button type="button" className="wk-link-btn" disabled={chosen.length === 0} onClick={() => copyReadable(readable)}>Kopiuj</button>
-            {pickActions?.(chosen, () => setPicked(null))}
+            <span className="ch-copy">
+              <button type="button" className="wk-link-btn" disabled={chosen.length === 0} title={withWho ? 'Kopiuj z nadawcą i godziną' : 'Kopiuj samą treść'}
+                onClick={() => copyNow(withWho)}>Kopiuj</button>
+              <button type="button" className="wk-link-btn ch-copy-how" aria-label="Jak kopiować" aria-haspopup="menu" aria-expanded={copyMenu.open !== null}
+                disabled={chosen.length === 0} onClick={(e) => copyMenu.toggle(e.currentTarget)}><Icon name="down" /></button>
+            </span>
+            {pickActions?.(chosen, endPicking)}
           </span>
+          {copyMenu.open !== null && (
+            <PopMenu anchor={{ rect: copyMenu.open.rect }} from={copyMenu.open.from} label="Jak kopiować" items={copyItems} onClose={copyMenu.close}>
+              <p className="ch-pop-head">Kopiuj — wybór zostaje zapamiętany</p>
+            </PopMenu>
+          )}
         </div>
       )}
 
@@ -545,7 +660,7 @@ export function SmsLog({ items, failed = null, more = false, onEarlier, group = 
         </button>
       )}
 
-      {reading && <MessageReader title={title} items={readable} onClose={() => setReading(false)} />}
+      {reading && <MessageReader title={title} items={readable} withWho={withWho} onClose={() => { setReading(false); endPicking(); }} />}
     </div>
   );
 }
@@ -562,12 +677,14 @@ function SmsRow({ m, start, group, search, picked, onPick }: {
     <>
       {failed && <span className="ph-meta-failed">nie wysłano</span>}
       {m.state === 'sending' && <Icon name="clock" />}
+      {m.sim !== undefined && <span className="ph-sim" title={live ? m.simTitle : undefined} aria-label={live ? m.simTitle : undefined}>{m.sim}</span>}
       <time dateTime={iso(m.at)} title={live ? full(iso(m.at)) : undefined}>{clock(iso(m.at))}</time>
       {m.mine && m.state !== 'failed' && m.state !== 'sending' && <span className="ch-ticks" title="Wysłana">✓</span>}
     </>
   );
   const pad = <span className="ch-meta-pad" aria-hidden="true">{meta(false)}</span>;
-  const textOnly = m.media === undefined && m.note === undefined;
+  /* Mit „Wyślij ponownie" darunter steht die Zeit als eigene Zeile über dem Knopf — unten in der Ecke lag sie auf ihm. */
+  const textOnly = m.media === undefined && m.note === undefined && (m.tools === undefined || picking);
   return (
     <div className={cls('ch-row', m.mine ? 'is-mine' : 'is-theirs', start && 'is-start', picking && 'is-picking', picked === true && 'is-picked')}
       data-key={m.key} aria-selected={picking ? picked === true : undefined} {...press}

@@ -466,7 +466,15 @@ export const Composer = forwardRef<ComposerHandle, {
         </div>
       )}
 
-      {/* 0100 — was nicht hinausging: bleibt, bis man es noch einmal schickt oder wegnimmt. */}
+      {/* 0100 — was nicht hinausging: bleibt, bis man es noch einmal schickt oder wegnimmt. 2026-10-26: mehrere auf einmal. */}
+      {stuck.length > 1 && (
+        <div className="ch-outbox-fail">
+          <Icon name="ban" />
+          <span className="ch-outbox-text"><strong>Nie wysłano: {stuck.length}</strong></span>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.map((x) => (x.state === 'failed' ? { ...x, state: 'waiting', error: null } : x)))}>Ponów wszystkie</button>
+          <button type="button" className="wk-link-btn" onClick={() => setOutbox((was) => was.filter((x) => x.state !== 'failed'))}>Usuń wszystkie</button>
+        </div>
+      )}
       {stuck.map((o) => (
         <div key={o.id} className="ch-outbox-fail" role="alert">
           <Icon name="ban" />

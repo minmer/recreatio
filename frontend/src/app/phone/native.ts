@@ -247,6 +247,9 @@ interface PhonePluginApi {
   blocked(): Promise<{ numbers: string[]; system: boolean }>;
   /** Ein Gespräch vom Telefon löschen — das Archiv bleibt, wie es ist. */
   deleteThread(o: { threadId: string }): Promise<{ deleted: number }>;
+  /** 2026-10-26 — was nicht hinausging (fehlgeschlagen, hängengeblieben), älter als `before` (ms): zählen, löschen. */
+  unsent(o: { before: number; threadId?: string }): Promise<{ count: number }>;
+  dropUnsent(o: { before: number; threadId?: string }): Promise<{ deleted: number }>;
   /** Die Karte je Gespräch für Antworten aus der Meldung — {Gespräch: subId}, -1 = keine eigene. */
   threadSubs(o: { subs: Record<string, number> }): Promise<void>;
   addListener(event: 'smsChanged', listener: (e: { threadId: string | null }) => void): Promise<PluginListenerHandle>;

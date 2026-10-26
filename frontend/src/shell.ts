@@ -19,6 +19,8 @@ import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { saveBlob } from './app/core/platform';
 
 const HOME = '#/workspace';
+/** Wohin das Symbol „SMS" der Ausgabe sms führt (Edition.adjust, 2026-10-26). */
+const SMS_ENTRY = '#/workspace/sms';
 const OWN_HOSTS = new Set(['recreatio.pl', 'www.recreatio.pl']);
 
 /**
@@ -27,6 +29,8 @@ const OWN_HOSTS = new Set(['recreatio.pl', 'www.recreatio.pl']);
  * zurück an den Anfang.
  */
 const LAUNCH_SLOT = 'recreatio:shell:launch';
+
+const inSms = (hash: string): boolean => hash === SMS_ENTRY || hash.startsWith(`${SMS_ENTRY}/`) || hash.startsWith(`${SMS_ENTRY}?`);
 
 /** Was hinter einem der eigenen Links steht — oder `null`, wenn er nicht uns gehört. */
 function ownLink(url: string): URL | null {
@@ -147,7 +151,10 @@ export async function startShell(): Promise<void> {
 
   await App.addListener('appUrlOpen', ({ url }) => {
     const own = ownLink(url);
-    if (own !== null) openHere(own, false);
+    if (own === null) return;
+    /* Das Symbol „SMS", während die App schon in den SMS steht: bleiben, wo man war (im Gespräch, im Archiv). */
+    if (own.hash === SMS_ENTRY && inSms(window.location.hash)) return;
+    openHere(own, false);
   });
 
   await App.addListener('backButton', onBack);

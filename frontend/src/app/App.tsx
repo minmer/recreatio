@@ -13,7 +13,7 @@
  * angemeldete Zustand nachkommt — es sieht aus, als wäre man hinausgeflogen.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { PlainFrame, PublicFrame } from './shell/Frame';
 import {
@@ -26,6 +26,7 @@ import { heldLinks, keepLinkFromAddress } from './links/linkKeep';
 import { keepsKey, signOut, whoIsThere, type Who } from './core/session';
 import { PublicPage } from './pages/PublicPage';
 import { forgetLoadedPageKeys } from './pages/page';
+import { phoneHere } from './phone/here';
 import { SignIn } from './shell/SignIn';
 import { Widget } from './pages/Widget';
 import { Loading } from './ui/Loading';
@@ -45,6 +46,12 @@ const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Ver
 const AiConnect = lazy(() => import('./aiAccess/AiConnect').then((m) => ({ default: m.AiConnect })));
 const SharedFile = lazy(() => import('./phone/SharedFile').then((m) => ({ default: m.SharedFile })));
 const ReportPage = lazy(() => import('./reports/ReportPage').then((m) => ({ default: m.ReportPage })));
+const SmsAlone = lazy(() => import('./phone/SmsAlone'));
+
+/** Wie lange die Frage nach dem Konto dauern darf, bevor die SMS ohne es aufgehen. */
+const SMS_WAIT = 2500;
+/** Kommt das Konto später als das nach einem Schritt, wechselt die Ansicht erst beim nächsten. */
+const SMS_STEP = 1500;
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -93,10 +100,50 @@ export function App() {
   /* Ohne Konto, mit einem Link: der Kalender geht auf — es sei denn, jemand will sich anmelden. */
   const [signInWanted, setSignInWanted] = useState(false);
 
+  /*
+   * 2026-10-26 — SMS OHNE KONTO. In der Ausgabe „sms" liegen die SMS auf dem Telefon:
+   * ohne Netz oder ohne Anmeldung gehen sie trotzdem (`SmsAlone`) — statt des
+   * Anmeldeformulars, mit „Zaloguj się" oben. Hängt die Frage nach dem Konto (schlechtes
+   * Netz), stehen sie nach `SMS_WAIT` schon da. Kommt das Konto, während sie offen sind,
+   * und nicht gleich nach einem Schritt, wartet es (`later`, „Pełna wersja") — beim
+   * nächsten Schritt gilt es; mitten im Tippen wechselt nichts von selbst.
+   */
+  const spotHere = address.route === 'workspace' ? spotOf(address) : null;
+  const smsHere = spotHere !== null && spotHere.kind === 'view' && spotHere.view === 'sms' && !signInWanted && phoneHere();
+  const [late, setLate] = useState(false);
+  const [later, setLater] = useState<Who | null>(null);
+  const laterRef = useRef<Who | null>(null);
+  const aloneOpen = useRef(false);
+  const showAlone = smsHere && (who === null || (who === undefined && late));
+
+  useEffect(() => {
+    if (who !== undefined || !smsHere) return undefined;
+    const timer = window.setTimeout(() => setLate(true), SMS_WAIT);
+    return () => window.clearTimeout(timer);
+  }, [who, smsHere]);
+
+  useEffect(() => { aloneOpen.current = showAlone; }, [showAlone]);
+
+  const takeLater = useCallback(() => {
+    const had = laterRef.current;
+    laterRef.current = null;
+    setLater(null);
+    if (had !== null) setWho(had);
+  }, []);
+
   const look = useCallback(async () => {
     if (!needsIdentity(address)) { setWho(null); return; }
-    setWho(await whoIsThere());
-  }, [address]);
+    /* Ein Schritt weiter: ein Konto, das gewartet hat, gilt jetzt. */
+    takeLater();
+    const asked = Date.now();
+    const found = await whoIsThere();
+    if (found !== null && aloneOpen.current && Date.now() - asked > SMS_STEP) {
+      laterRef.current = found;
+      setLater(found);
+      return;
+    }
+    setWho(found);
+  }, [address, takeLater]);
 
   useEffect(() => { void look(); }, [look]);
 
@@ -187,6 +234,19 @@ export function App() {
     return <PublicFrame><PublicPage path={address.page} /></PublicFrame>;
   }
 
+  if (showAlone && spotHere !== null && spotHere.kind === 'view') {
+    return (
+      <Suspense fallback={<PlainFrame><Loading /></PlainFrame>}>
+        <SmsAlone
+          trail={spotHere.trail}
+          state={later !== null ? 'back' : who === undefined ? 'checking' : 'none'}
+          onSignIn={() => setSignInWanted(true)}
+          onFull={takeLater}
+        />
+      </Suspense>
+    );
+  }
+
   if (who === undefined) {
     return <PlainFrame><Loading label="Sprawdzanie…" /></PlainFrame>;
   }
@@ -237,6 +297,13 @@ export function App() {
           <p className="wk-note">
             Ta część warsztatu działa tylko z kontem. Link z dostępem, który masz w tej przeglądarce, działa
             bez logowania na stronach i w <a className="wk-link" href={viewPath('calendar')}>kalendarzu</a>.
+          </p>
+        )}
+        {/* 2026-10-26 — w wydaniu „sms": SMS-y są w telefonie i działają bez konta (bez sieci też). */}
+        {phoneHere() && (
+          <p className="wk-note">
+            Bez sieci albo bez konta? SMS-y działają bez logowania:{' '}
+            <a className="wk-link" href={viewPath('sms')} onClick={() => setSignInWanted(false)}>otwórz SMS</a>.
           </p>
         )}
         <SignIn onDone={setWho} />

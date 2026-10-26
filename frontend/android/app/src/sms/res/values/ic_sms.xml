@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Der Grund des Symbols „SMS": die Akzentfarbe der App — neben dem weissen Symbol „REcreatio" gut zu unterscheiden. -->
+    <color name="ic_sms_background">#7A5A2E</color>
+</resources>

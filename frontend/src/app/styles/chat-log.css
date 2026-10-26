@@ -20,6 +20,14 @@
 .ch-log-in { display: flex; flex-direction: column; gap: 2px; max-width: 60rem; margin-inline: auto; }
 
 .ch-day { position: sticky; top: 0.3rem; z-index: 2; display: flex; justify-content: center; margin: 0.75rem 0 0.25rem; pointer-events: none; }
+/* Das Datum ist ein Knopf (2026-10-26, `DayJump.tsx`): darüber liegt unsichtbar ein Datumsfeld — ein Tipp öffnet den Kalender. */
+.ch-day-pick { position: relative; display: inline-flex; pointer-events: auto; cursor: pointer; }
+.ch-day-pick:focus-within span { box-shadow: 0 0 0 2px var(--wk-ring); }
+.ch-day-input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+/* Kopiuj ▾ in der Leiste der Markierten: ▾ wählt, ob „wer und wann" mitkommt (gemerkt). */
+.ch-copy { display: inline-flex; align-items: center; }
+.ch-copy-how { padding: 0 0.125rem; }
+.ch-copy-how .ch-i { width: 0.875rem; height: 0.875rem; }
 .ch-day span {
   padding: 0.25rem 0.75rem;
   border-radius: 10px;
@@ -393,6 +401,9 @@
   line-height: 1.35;
   resize: none;
   outline: none;
+  /* Den Fokus zeigt die Pille (`:focus-within`) — der Ring der Felder (ui/components.css) gäbe einen Rahmen im Rahmen. */
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Leer zeigt das Feld den Platzhalter in EINER Zeile — „Wiadomość jako …" ist auf dem Telefon länger als das Feld. */

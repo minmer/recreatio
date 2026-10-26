@@ -50,6 +50,24 @@
 
     <application>
 
+        <!--
+          Das Symbol „SMS" (2026-10-26): ein zweiter Eingang zur selben App, der gleich die
+          SMS öffnet und nicht die ganze App. Edition.adjust macht aus dem Start einen Link auf
+          #/workspace/sms; ohne Netz oder Anmeldung gehen die SMS trotzdem (App.tsx, SmsAlone).
+        -->
+        <activity-alias
+            android:name=".SmsLauncher"
+            android:targetActivity=".MainActivity"
+            android:label="SMS"
+            android:icon="@mipmap/ic_sms"
+            android:roundIcon="@mipmap/ic_sms"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <receiver android:name=".ScheduledReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

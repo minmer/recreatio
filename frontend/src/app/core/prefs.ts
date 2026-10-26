@@ -54,7 +54,11 @@ function load(): Promise<void> {
   loaded = (async () => {
     try {
       const who = await whoIsThere();
-      if (who === null) return;
+      /*
+       * Noch niemand (SMS ohne Konto, 2026-10-26): beim nächsten Mal wieder fragen. Sonst bliebe der
+       * Stand nach der Anmeldung leer — und, weil ohne Schlüssel nichts hinausgeht, auch ungemerkt.
+       */
+      if (who === null) { loaded = null; return; }
       const { ring, graph } = await keysFor(who);
       if (ring === null || graph.personRoleId === null) return;
 

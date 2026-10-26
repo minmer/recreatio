@@ -4,12 +4,14 @@
 
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
+import { useRemembered } from '../core/prefs';
 import { call } from '../core/session';
 import { Modal } from '../ui/Modal';
 import { Attachments, kindOf } from './Attachments';
 import type { Opened, SealedMessage } from './chat';
 import type { Features, Mark } from './chatFeatures';
-import { type Anchor, Avatar, Icon, type MenuItem, PopMenu, type Shown, authorOf, clock, cls, dayKey, dayLabel, failure, full, hueOf, whenLong } from './ChatKit';
+import { type Anchor, Avatar, COPY_WHO_PREF, Icon, type MenuItem, PopMenu, type Shown, authorOf, clock, cls, dayKey, dayLabel, failure, full, hueOf, useButtonMenu, whenLong } from './ChatKit';
+import { DayChip, flashRow, SEEK_PAGES } from './DayJump';
 import { later } from '../ui/later';
 
 /* 0130 — das Fenster „Zgłoś" erst, wenn jemand meldet. */
@@ -151,6 +153,15 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   const [dragging, setDragging] = useState(false);
   const [pinAt, setPinAt] = useState(0);
   const toastTimer = useRef<number | undefined>(undefined);
+  /* 2026-10-26 — ein Tag, zu dem gesprungen wird (das Datum als Knopf), und ein Anstoss, solange noch Früheres lädt. */
+  const seek = useRef<{ readonly start: number; pages: number; readonly asked: number } | null>(null);
+  const [, kick] = useState(0);
+  /* Beginnt oder endet das Markieren, rücken die Zeilen ein oder aus: diese Zeile bleibt, wo sie war. */
+  const still = useRef<{ readonly id: string; readonly top: number } | null>(null);
+  /* Kopieren mit „wer und wann" oder nur die Texte — gemerkt, dieselbe Wahl wie in den SMS. */
+  const [copyWho, setCopyWho] = useRemembered(COPY_WHO_PREF, 'yes');
+  const withWho = copyWho !== 'no';
+  const copyMenu = useButtonMenu();
 
   const say = useCallback((text: string) => {
     setToast(text);
@@ -232,8 +243,45 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
         setFresh((n) => n + Math.max(1, visible.length - was.count));
       }
     }
+    if (seek.current !== null) trySeek(el);
     seen.current = { first, last, height: el.scrollHeight, count: visible.length, placed: was.placed, view };
   });
+
+  /*
+   * 2026-10-26 — ZU EINEM TAG (das Datum als Knopf, `DayJump`): liegt er vor dem Geladenen,
+   * erst Früheres nachladen; dann die erste Nachricht ab diesem Tag oben, unter dem klebenden
+   * Datum — gab es an dem Tag keine, die nächste danach; liegt er nach der letzten, das Ende.
+   */
+  const trySeek = (el: HTMLElement) => {
+    const wanted = seek.current;
+    if (wanted === null || items === undefined) return;
+    const oldest = visible[0] === undefined ? undefined : new Date(visible[0].message.createdAt).getTime();
+    if (oldest !== undefined && oldest > wanted.start && more && wanted.pages < SEEK_PAGES && Date.now() - wanted.asked < 30_000) {
+      if (loadingEarlier.current) {
+        window.setTimeout(() => { if (seek.current === wanted) kick((n) => n + 1); }, 250);
+      } else {
+        wanted.pages++;
+        earlier();
+      }
+      return;
+    }
+    seek.current = null;
+    const target = visible.find((v) => new Date(v.message.createdAt).getTime() >= wanted.start);
+    const row = target === undefined ? null : el.querySelector<HTMLElement>(`#message-${CSS.escape(target.message.messageId)}`);
+    if (row === null) {
+      el.scrollTop = el.scrollHeight;
+      stick.current = true;
+      return;
+    }
+    el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top - 52;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAway(!stick.current);
+    flashRow(row);
+  };
+  const jumpToDay = (start: number) => {
+    seek.current = { start, pages: 0, asked: Date.now() };
+    if (box.current !== null) trySeek(box.current);
+  };
 
   /* Bilder laden nach: wer unten war, bleibt unten. */
   useEffect(() => {
@@ -298,22 +346,63 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
   const drag = useRef<{ from: string; base: ReadonlySet<string>; moved: boolean } | null>(null);
   const swallow = useRef(false);
   const picking = picked !== null;
+
+  /* 2026-10-26 — die Zeile, die beim Ein- oder Ausrücken stehen bleibt: die gewählte, sonst die in der Mitte. */
+  const keepStill = (id?: string) => {
+    const el = box.current;
+    if (el === null) return;
+    const top = el.getBoundingClientRect().top;
+    let row = id === undefined ? null : el.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
+    if (row === null) {
+      const middle = top + el.clientHeight / 2;
+      row = [...el.querySelectorAll<HTMLElement>('.ch-row[id^="message-"]')].find((r) => r.getBoundingClientRect().bottom >= middle) ?? null;
+    }
+    if (row !== null) still.current = { id: row.id.slice('message-'.length), top: row.getBoundingClientRect().top - top };
+  };
+  const startPicking = (ids: ReadonlySet<string>, at?: string) => { if (picked === null) keepStill(at); setPicked(ids); };
+  /* Fertig markiert (Kopiuj, Do tematu, Esc, ✕): die Auswahl ist weg — und nichts springt. */
+  const endPicking = () => { if (picked === null) return; keepStill(); setPicked(null); };
+  useLayoutEffect(() => {
+    const el = box.current;
+    const wanted = still.current;
+    still.current = null;
+    if (el === null || wanted === null) return;
+    const row = el.querySelector<HTMLElement>(`#message-${CSS.escape(wanted.id)}`);
+    if (row === null) return;
+    el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top - wanted.top;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, [picking]);
+
   useEffect(() => {
     if (!picking) return undefined;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPicked(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { keepStill(); setPicked(null); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [picking]);
-  const togglePick = (id: string) => setPicked((was) => {
-    const next = new Set(was ?? []);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next.size === 0 ? null : next;
-  });
+  const togglePick = (id: string) => {
+    if (picked !== null && picked.size === 1 && picked.has(id)) keepStill();
+    setPicked((was) => {
+      const next = new Set(was ?? []);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next.size === 0 ? null : next;
+    });
+  };
   const rowOf = (target: EventTarget | null): string | null => {
     const row = target instanceof Element ? target.closest('.ch-row') : null;
     return row !== null && row.id.startsWith('message-') ? row.id.slice('message-'.length) : null;
   };
   const chosen = picked === null ? [] : visible.filter((v) => picked.has(v.message.messageId));
+  /*
+   * Die markierten kopieren — mit „wer und wann" oder nur die Texte —, danach ist die Auswahl fertig.
+   * „Wann" ist die Uhrzeit; reichen die markierten über mehr als einen Tag, mit dem Tag davor.
+   */
+  const copyPicked = (who: boolean) => {
+    const when = new Set(chosen.map((v) => dayKey(v.message.createdAt))).size > 1 ? whenLong : clock;
+    const texts = chosen.filter((v) => v.opened !== null && v.message.deletedAt === null)
+      .map((v) => (who ? `${rules.author(v.message, v.opened)}, ${when(v.message.createdAt)}: ${v.opened!.text || 'Załącznik'}` : v.opened!.text || 'Załącznik'));
+    void copy(texts.join(who ? '\n' : '\n\n'));
+    endPicking();
+  };
 
   /* -- Die Zeilen: Tage, „Nieprzeczytane", Gruppen einer Person ----------------- */
 
@@ -335,7 +424,11 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
     if (newDay) {
       rows = [];
       blocks.push({ key: `d-${message.messageId}`, nodes: rows });
-      rows.push(<div key={`d-${message.messageId}`} className="ch-day" role="separator"><span>{dayLabel(message.createdAt)}</span></div>);
+      rows.push(
+        <div key={`d-${message.messageId}`} className="ch-day" role="separator">
+          <DayChip at={new Date(message.createdAt).getTime()} onPick={jumpToDay}>{dayLabel(message.createdAt)}</DayChip>
+        </div>
+      );
     }
     let divider = false;
     if (!unreadPlaced && unreadAt !== null && !mine && at(message) > unreadAt && search === '' && filter === 'all') {
@@ -395,22 +488,32 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
       {/* 0101 — was markiert ist, und was sich damit tun lässt. */}
       {picked !== null && (
         <div className="ch-pickbar" role="toolbar" aria-label="Zaznaczone wiadomości" data-pickbar="">
-          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj (Esc)" onClick={() => setPicked(null)}>
+          <button type="button" className="ch-icon-btn" aria-label="Anuluj zaznaczenie" title="Anuluj (Esc)" onClick={endPicking}>
             <Icon name="x" />
           </button>
           <strong className="ch-pickbar-count">Zaznaczone: {chosen.length}</strong>
           <span className="ch-pickbar-actions">
             {on.collect !== undefined && rules.readOnly !== true && (
               <button type="button" className="wk-btn wk-btn-small" disabled={chosen.length === 0} data-pick-collect=""
-                onClick={() => on.collect!(chosen.map((v) => v.message), () => setPicked(null))}>
+                onClick={() => on.collect!(chosen.map((v) => v.message), endPicking)}>
                 <Icon name="hash" /> Do tematu
               </button>
             )}
-            <button type="button" className="wk-link-btn" disabled={chosen.length === 0} onClick={() => {
-              void copy(chosen.filter((v) => v.opened !== null && v.message.deletedAt === null)
-                .map((v) => `${rules.author(v.message, v.opened)}, ${clock(v.message.createdAt)}: ${v.opened!.text || 'Załącznik'}`).join('\n'));
-            }}>Kopiuj</button>
+            <span className="ch-copy">
+              <button type="button" className="wk-link-btn" disabled={chosen.length === 0} title={withWho ? 'Kopiuj z nadawcą i godziną' : 'Kopiuj samą treść'}
+                onClick={() => copyPicked(withWho)}>Kopiuj</button>
+              <button type="button" className="wk-link-btn ch-copy-how" aria-label="Jak kopiować" aria-haspopup="menu" aria-expanded={copyMenu.open !== null}
+                disabled={chosen.length === 0} onClick={(e) => copyMenu.toggle(e.currentTarget)}><Icon name="down" /></button>
+            </span>
           </span>
+          {copyMenu.open !== null && (
+            <PopMenu anchor={{ rect: copyMenu.open.rect }} from={copyMenu.open.from} label="Jak kopiować" onClose={copyMenu.close} items={[
+              { label: 'Tylko treść', icon: 'copy', checked: !withWho, onSelect: () => { setCopyWho('no'); copyPicked(false); } },
+              { label: 'Z nadawcą i godziną', icon: 'copy', checked: withWho, onSelect: () => { setCopyWho('yes'); copyPicked(true); } }
+            ]}>
+              <p className="ch-pop-head">Kopiuj — wybór zostaje zapamiętany</p>
+            </PopMenu>
+          )}
         </div>
       )}
 
@@ -444,6 +547,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
           d.moved = true;
           window.getSelection()?.removeAllRanges();
           e.preventDefault();
+          if (picked === null) keepStill(d.from);
           setPicked(new Set([...d.base, ...order.slice(Math.min(a, b), Math.max(a, b) + 1)]));
         }}
         onMouseUp={() => { if (drag.current?.moved === true) swallow.current = true; drag.current = null; }}
@@ -491,7 +595,7 @@ export function ChatLog({ endpoint, items, features, matches, rules, on, more, o
           onMark={mark}
           onCopy={(text) => void copy(text)}
           onDelete={setConfirm}
-          onPick={(id) => setPicked(new Set([id]))}
+          onPick={(id) => startPicking(new Set([id]), id)}
           onRestore={(message) => { void on.restore(message).then(() => say('Przywrócono.')).catch((e: unknown) => say(failure(e, 'Nie udało się przywrócić.'))); }}
           onReport={(item, author) => setReport({ item, author })}
         />

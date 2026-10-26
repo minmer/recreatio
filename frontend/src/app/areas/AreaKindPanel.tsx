@@ -17,6 +17,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { areaKeys, loadAreaNames, openNames, setMemberName, startAreaChat, type ChatRow, type SealedName } from '../chat/chat';
+import { draftOf, loadAgenda, openAgenda, saveEvent, type OpenedItem } from '../calendar/agenda';
+import { createCalendar } from '../calendar/calendar';
 import { loadProgram, openProgram, type ProgramNode } from '../calendar/program';
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
@@ -1269,6 +1271,7 @@ function TermTool({ ctx }: { ctx: Ctx }) {
   const editing = !has || ctx.open === 'term';
   const [draft, setDraft] = useState<TermDraft>(() => termDraft(ctx));
   const [point, setPoint] = useState<PointDraft | null>(null);
+  const [mode, setMode] = useState<'new' | 'pick'>('new');
   const set = (change: Partial<TermDraft>) => setDraft((was) => ({ ...was, ...change }));
   const vis = ctx.profile.item?.visibilityAreaId ?? null;
   const itemId = ctx.profile.itemId;
@@ -1363,6 +1366,13 @@ function TermTool({ ctx }: { ctx: Ctx }) {
   return (
     <Tool id="term" name="Główny termin i program" ok={has ? true : false}
       says={has ? undefined : 'Jego koniec to koniec wydarzenia; punkty programu dodasz potem.'}>
+      <Segment
+        now={mode}
+        options={[{ value: 'new', label: has ? 'Zmień ten termin' : 'Nowy termin' }, { value: 'pick', label: 'Wybierz istniejący' }]}
+        busy={ctx.busy}
+        onPick={setMode}
+      />
+      {mode === 'pick' ? <PickTerm ctx={ctx} /> : (
       <form className="wk-kind-form" onSubmit={(e) => {
         e.preventDefault();
         const wanted = draft;
@@ -1405,7 +1415,127 @@ function TermTool({ ctx }: { ctx: Ctx }) {
           {has && <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>Anuluj</button>}
         </div>
       </form>
+      )}
     </Tool>
+  );
+}
+
+/** Ein Termin, der Haupttermin werden kann: einzeln, kein Punkt eines anderen, von mir änderbar. */
+interface TermChoice {
+  readonly item: OpenedItem;
+  /** Steht er schon im Kalender dieses Bereichs — sonst zieht er beim Wählen um. */
+  readonly here: boolean;
+}
+
+/**
+ * EINEN VORHANDENEN TERMIN WÄHLEN. Haupttermin kann nur ein Termin im Kalender
+ * des Bereichs sein (der Dienst prüft es); einer aus einem anderen Kalender zieht
+ * dafür um — wer ihn sieht, bleibt gleich, seine Punkte gehen über ihren Termin mit.
+ */
+function PickTerm({ ctx }: { ctx: Ctx }) {
+  const [choices, setChoices] = useState<readonly TermChoice[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [all, setAll] = useState(false);
+  const [find, setFind] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const ring = (await keysFor(ctx.who)).ring;
+        if (ring === null) throw new WorkspaceError('Klucze nie są otwarte.');
+        const now = Date.now();
+        /* Der Dienst gibt höchstens 400 Tage: einen Monat zurück, knapp ein Jahr voraus. */
+        const { occurrences } = await loadAgenda(new Date(now - 30 * 86_400_000), new Date(now + 365 * 86_400_000));
+        const seen = new Set<string>();
+        const single = occurrences.filter((o) => {
+          if (seen.has(o.itemId) || o.itemId === ctx.profile.itemId) return false;
+          seen.add(o.itemId);
+          return o.kind === 'appointment' && o.series.repeatKind === 'none' && (o.parentItemId ?? null) === null;
+        });
+        const opened = (await openAgenda(ring, single, ctx.areas)).filter((o) => o.editable);
+        const list = opened
+          .map((item) => ({ item, here: item.occurrence.areaId === ctx.area.areaId }))
+          .sort((a, b) => Number(b.here) - Number(a.here) || Date.parse(a.item.occurrence.startsAt) - Date.parse(b.item.occurrence.startsAt));
+        if (live) setChoices(list);
+      } catch {
+        if (live) setFailed(true);
+      }
+    })();
+    return () => { live = false; };
+  }, [ctx.who, ctx.areas, ctx.area.areaId, ctx.profile.itemId]);
+
+  if (failed) return <p className="wk-kind-small">Nie udało się wczytać terminów z kalendarzy.</p>;
+  if (choices === null) return <Loading lines={2} />;
+  const own = choices.filter((c) => c.here);
+  if (choices.length === 0) {
+    return <p className="wk-kind-small">Nie ma terminu do wybrania — pojedynczego (bez powtórzeń), w kalendarzu, w którym możesz pisać, od miesiąca wstecz do roku naprzód.</p>;
+  }
+  const words = find.trim().toLocaleLowerCase('pl').split(/\s+/).filter(Boolean);
+  const shown = (all ? choices : own).filter((c) => {
+    const text = `${c.item.title} ${c.item.location ?? ''} ${nameOf(ctx, c.item.occurrence.areaId)}`.toLocaleLowerCase('pl');
+    return words.every((w) => text.includes(w));
+  });
+
+  const pick = async (choice: TermChoice) => {
+    const o = choice.item.occurrence;
+    if (!choice.here) {
+      const yes = await ask({
+        title: 'Przenieść termin do tego obszaru?',
+        body: `„${choice.item.title}” jest w kalendarzu obszaru „${nameOf(ctx, o.areaId)}”. Głównym terminem może być tylko termin z kalendarza tego obszaru, więc przejdzie do kalendarza „${ctx.area.name}”. Widzą go ci sami ludzie co dotąd, punkty programu idą z nim.`,
+        confirm: 'Przenieś i wybierz'
+      });
+      if (!yes) return;
+    }
+    void ctx.run('Ustawianie terminu…', 'Główny termin jest ustawiony.', async (held) => {
+      if (!choice.here) {
+        held.step('Przenoszenie terminu…');
+        const calendar = await createCalendar({ areaId: ctx.area.areaId, title: ctx.area.name, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        /* Das Schema gehört dem alten Kalender — im neuen gilt das universelle (der Dienst setzt es so). */
+        await saveEvent(held.ring, { ...draftOf(choice.item), calendarId: calendar.calendarId, schemeId: undefined, values: undefined }, o.itemId);
+      }
+      await saveProfile(ctx.area.areaId, { itemId: o.itemId });
+      ctx.setOpen(null);
+    });
+  };
+
+  return (
+    <>
+      {(all ? choices : own).length > 8 && (
+        <label className="wk-field">
+          <span>Szukaj</span>
+          <input value={find} placeholder="tytuł, miejsce, obszar" onChange={(e) => setFind(e.target.value)} />
+        </label>
+      )}
+      {!all && own.length === 0 && <p className="wk-kind-small">W kalendarzu tego obszaru nie ma takiego terminu.</p>}
+      {all && shown.length === 0 && <p className="wk-kind-small">Nic nie pasuje.</p>}
+      <ul className="wk-kind-roles" data-kind-term-pick="">
+        {shown.map((c) => {
+          const o = c.item.occurrence;
+          const when = whenText({ id: o.itemId, startsAt: o.startsAt, endsAt: o.endsAt, allDay: o.allDay, status: null, fields: [] });
+          return (
+            <li key={o.itemId}>
+              <span className="wk-kind-role-name">
+                <b>{c.item.title}</b> · {when}{c.item.location ? ` · ${c.item.location}` : ''}
+                {!c.here && <span className="wk-kind-small"> · kalendarz „{nameOf(ctx, o.areaId)}”</span>}
+              </span>
+              <div className="wk-actions">
+                <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} onClick={() => void pick(c)}>
+                  {c.here ? 'Wybierz' : 'Przenieś i wybierz'}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {own.length < choices.length && (
+        <div className="wk-actions">
+          <button type="button" className="wk-link-btn" onClick={() => setAll(!all)}>
+            {all ? 'Tylko z kalendarza tego obszaru' : `Także z innych kalendarzy (${choices.length - own.length})`}
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

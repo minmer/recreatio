@@ -34,9 +34,9 @@ import { useBarHeight } from '../ui/useBarHeight';
 import { ARCHIVE_PREF, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
 import { Composer } from './Composer';
 import { contactMatches, type Contact } from './contactStore';
-import { chooseLine, contactsOf, lineKeyOf, lineName, useContactIndex, useLineRules, usePhoneLines } from './lines';
+import { chooseLine, contactsOf, lineKeyOf, lineName, lineText, useContactIndex, useLineRules, usePhoneLines } from './lines';
 import { LinesView } from './LinesView';
-import { Phone, phoneHere, pluginSource, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
+import { Phone, phoneHere, pluginSource, type Line, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
 import { phoneKey, phoneShown } from './numbers';
 import { openArea } from './phoneContext';
 import { archiveNow } from './phoneJobs';
@@ -47,8 +47,19 @@ import { ArchiveMark, BlockDialog, LineChip, MuteDialog, PlannedRow, SmsHeader, 
 import { aheadWhen, around, barStyle, conversationMatches, isMode, SEARCH, type SearchMode } from './smsShared';
 import './phone.css';
 
-export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
+/**
+ * `who === null`: ohne Konto — kein Netz, keine Anmeldung (2026-10-26). Auf dem Telefon gehen die
+ * SMS trotzdem (sie liegen im Telefon); was das Konto braucht (Archiv, Pliki przez link, Numery i
+ * grupy, Kontakte aus recreatio), sagt es und wartet auf die Anmeldung.
+ */
+export function SmsApp({ who, trail }: { who: Who | null; trail: readonly string[] }) {
   const step = trail[0];
+  if (who === null && (!phoneHere() || step === 'pliki' || step === 'numery' || step === 'archiwum')) return <NeedsAccount />;
+  if (who === null) {
+    if (step === undefined) return <Threads who={null} />;
+    if (step === 'nowa') return <Compose who={null} />;
+    return <Thread key={step} threadId={step} who={null} />;
+  }
   /* Pliki przez link (0117) — auf dem Telefon und im Browser. */
   if (step === 'pliki') return <SharesView who={who} />;
   if (!phoneHere()) return <SmsArchiveView who={who} trail={trail} />;
@@ -57,6 +68,19 @@ export function SmsApp({ who, trail }: { who: Who; trail: readonly string[] }) {
   if (step === 'numery') return <LinesView who={who} />;
   if (step === 'archiwum') return <SmsArchiveView who={who} trail={trail.slice(1)} />;
   return <Thread key={step} threadId={step} who={who} />;
+}
+
+function NeedsAccount() {
+  return (
+    <>
+      <PageHeader title="SMS" />
+      <p className="wk-note">Ta część potrzebuje konta — zaloguj się, gdy będzie połączenie.</p>
+      <div className="wk-actions">
+        <a className="wk-btn" href={viewPath('sms')}>Wróć do SMS</a>
+        <a className="wk-btn wk-btn-quiet" href="#/workspace">Zaloguj się</a>
+      </div>
+    </>
+  );
 }
 
 export default SmsApp;
@@ -207,9 +231,46 @@ const titleOf = (t: NativeThread): string =>
 
 type SearchHit = Awaited<ReturnType<typeof Phone.search>>['hits'][number];
 
-function Threads({ who }: { who: Who }) {
+/** Nicht gesendet — älter als das: was jünger ist, ist vielleicht noch unterwegs (2026-10-26). */
+const UNSENT_AGE = 10 * 60_000;
+
+/** Die nicht gesendeten (in einem Gespräch oder überall) löschen — nach einer Frage. `true`: gelöscht. */
+async function dropUnsent(count: number, threadId?: string): Promise<boolean> {
+  const sure = await ask({
+    title: threadId === undefined ? `Usunąć niewysłane wiadomości (${count})?` : `Usunąć niewysłane w tej rozmowie (${count})?`,
+    body: 'Usunięte zostaną wiadomości, których telefon nie wysłał (nieudane i zawieszone), starsze niż 10 minut. Wysłanych to nie dotyczy.',
+    confirm: 'Usuń',
+    danger: true
+  });
+  if (!sure) return false;
+  try {
+    const { deleted } = await Phone.dropUnsent({ before: Date.now() - UNSENT_AGE, ...(threadId === undefined ? {} : { threadId }) });
+    toast(deleted === 1 ? 'Usunięto 1 niewysłaną wiadomość.' : `Usunięto niewysłane: ${deleted}.`);
+    return true;
+  } catch (e) {
+    toast(e instanceof Error ? e.message : 'Nie udało się usunąć.');
+    return false;
+  }
+}
+
+/** Wie viele nicht gesendete es gibt (älter als {@link UNSENT_AGE}) — in einem Gespräch oder überall. */
+function useUnsent(threadId?: string): [number, () => void] {
+  const [count, setCount] = useState(0);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    void Phone.unsent({ before: Date.now() - UNSENT_AGE, ...(threadId === undefined ? {} : { threadId }) })
+      .then((r) => { if (alive) setCount(r.count); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [threadId, tick]);
+  return [count, useCallback(() => setTick((n) => n + 1), [])];
+}
+
+function Threads({ who }: { who: Who | null }) {
   const [threads, setThreads] = useState<readonly NativeThread[] | null>(threadsSeen);
   const [failed, setFailed] = useState<string | null>(null);
+  const [unsent, refreshUnsent] = useUnsent();
   const [status, refreshStatus] = useStatus();
   const [muted, refreshMutes] = useMutes();
   const [modeText, setModeText] = useRemembered('sms.search', 'osoby');
@@ -236,7 +297,7 @@ function Threads({ who }: { who: Who }) {
     }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  useChanged(() => { void load(); refreshMutes(); });
+  useChanged(() => { void load(); refreshMutes(); refreshUnsent(); });
 
   /* Welche Karte jedes Gespräch nimmt — nur, was nicht die des Telefons ist, steht in der Zeile. */
   const lineOf = useMemo(() => {
@@ -306,12 +367,18 @@ function Threads({ who }: { who: Who }) {
     }
   };
 
+  /* Bez konta (offline, wylogowany) SMS działają — archiwum, pliki i reguły numerów dopiero po zalogowaniu. */
+  const account = who === null ? ' (po zalogowaniu)' : '';
   const items: MenuItem[] = [
     { label: 'Sprawdź nowe wiadomości', icon: 'refresh', disabled: checking, onSelect: () => void recheck() },
-    { label: 'Archiwum', icon: 'archive', onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
-    { label: 'Pliki przez link', icon: 'link', onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } },
-    { label: 'Numery i grupy', icon: 'phone', onSelect: () => { window.location.hash = viewPath('sms', 'numery'); } },
-    { label: 'Zablokowane numery', icon: 'ban', onSelect: () => setBlockedOpen(true) }
+    { label: `Archiwum${account}`, icon: 'archive', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'archiwum'); } },
+    { label: `Pliki przez link${account}`, icon: 'link', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'pliki'); } },
+    { label: `Numery i grupy${account}`, icon: 'phone', disabled: who === null, onSelect: () => { window.location.hash = viewPath('sms', 'numery'); } },
+    { label: 'Zablokowane numery', icon: 'ban', onSelect: () => setBlockedOpen(true) },
+    ...(unsent > 0 ? [{
+      label: `Usuń niewysłane (${unsent})…`, icon: 'trash' as const, danger: true,
+      onSelect: () => void dropUnsent(unsent).then((done) => { if (done) { refreshUnsent(); void load(); } })
+    }] : [])
   ];
 
   const row = (t: NativeThread) => {
@@ -437,8 +504,11 @@ const PAGE = 60;
  * Archiv, Anrufen, Lupe, ⋮), nur der Verlauf rollt, unten das Feld. Es füllt das Fenster
  * unter der Kopfleiste — kein Rand unter dem Feld für die Leiste des Telefons.
  */
-function Thread({ threadId, who }: { threadId: string; who: Who }) {
+function Thread({ threadId, who }: { threadId: string; who: Who | null }) {
   const [page, setPage] = useState<ThreadPage | null>(pagesSeen.get(threadId) ?? null);
+  /* Aus „Napisz SMS" oder einer anderen App mit Text (`?tekst=`): er steht schon im Feld. */
+  const [initial] = useState(() => hashQuery().get('tekst') ?? '');
+  const [unsentHere, refreshUnsentHere] = useUnsent(threadId);
   const [failed, setFailed] = useState<string | null>(null);
   const [status] = useStatus();
   const [muted, refreshMutes] = useMutes();
@@ -507,7 +577,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
     return () => { void Phone.viewing({ threadId: null }); };
   }, [threadId, load]);
 
-  useChanged((changed) => { if (changed === null || changed === threadId) void load(); });
+  useChanged((changed) => { if (changed === null || changed === threadId) { void load(); refreshUnsentHere(); } });
 
   const loadOlder = async () => {
     if (messages === null || messages.length === 0 || olderBusy) return;
@@ -538,7 +608,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
     void Phone.threadSubs({ subs: { [threadId]: choice.why === 'default' ? -1 : choice.line.subId } }).catch(() => undefined);
   }, [threadId, choice, lines]);
 
-  const items: SmsItem[] = useMemo(() => (messages ?? []).map((m) => itemOf(m, names, group, () => void load())), [messages, names, group, load]);
+  const items: SmsItem[] = useMemo(() => (messages ?? []).map((m) => itemOf(m, names, group, lines, () => void load())), [messages, names, group, lines, load]);
 
   const cancelPlanned = async (id: string) => {
     if (!await ask({ title: 'Odwołać zaplanowaną wiadomość?', confirm: 'Odwołaj', danger: true })) return;
@@ -548,6 +618,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
   };
 
   const toggleArchive = () => {
+    if (who === null) return;
     const on = !settings.chosen.includes(key);
     saveSettings({ ...settings, chosen: on ? [...settings.chosen, key] : settings.chosen.filter((k) => k !== key) });
     toast(on ? 'Ta rozmowa będzie archiwizowana — cała, także starsze wiadomości.' : 'Ta rozmowa nie będzie już archiwizowana (to, co już jest w archiwum, zostaje).');
@@ -558,7 +629,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
     try {
       const done = await Phone.block({ numbers: peers, threadId });
       let dropped = 0;
-      if (alsoArchive && settings.areaId !== null) {
+      if (alsoArchive && settings.areaId !== null && who !== null) {
         dropped = await dropConversation(await openArea(who, settings.areaId), key).catch(() => 0);
         if (settings.chosen.includes(key)) saveSettings({ ...settings, chosen: settings.chosen.filter((k) => k !== key) });
       }
@@ -589,19 +660,27 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
   };
 
   const menu: MenuItem[] = [
-    ...(contact !== undefined
-      ? [{ label: `Kontakt: ${contact.name}`, icon: 'user' as const, onSelect: () => { window.location.hash = viewPath('contacts', contact.id); } }]
-      : single !== null && /\d/.test(single)
-        ? [{ label: 'Dodaj do kontaktów', icon: 'plus' as const, onSelect: () => { window.location.hash = `${viewPath('contacts', 'nowy')}?numer=${encodeURIComponent(single)}`; } }]
-        : []),
+    /* Kontakty z recreatio i archiwum potrzebują konta — bez niego (offline, wylogowany) tylko to, co robi telefon. */
+    ...(who === null ? []
+      : contact !== undefined
+        ? [{ label: `Kontakt: ${contact.name}`, icon: 'user' as const, onSelect: () => { window.location.hash = viewPath('contacts', contact.id); } }]
+        : single !== null && /\d/.test(single)
+          ? [{ label: 'Dodaj do kontaktów', icon: 'plus' as const, onSelect: () => { window.location.hash = `${viewPath('contacts', 'nowy')}?numer=${encodeURIComponent(single)}`; } }]
+          : []),
     isMuted
       ? { label: 'Włącz powiadomienia', icon: 'bell', onSelect: () => void Phone.mute({ threadId, until: -1 }).then(refreshMutes) }
       : { label: 'Wycisz…', icon: 'bell-off', onSelect: () => setDialog('mute') },
-    settings.areaId === null
-      ? { label: 'Archiwum nie jest jeszcze włączone', icon: 'archive', disabled: true, onSelect: () => undefined }
-      : settings.mode === 'all'
-        ? { label: 'Archiwizowane są wszystkie rozmowy', icon: 'archive', disabled: true, onSelect: () => undefined }
-        : { label: 'Archiwizuj tę rozmowę', icon: 'archive', checked: archived, onSelect: toggleArchive },
+    who === null
+      ? { label: 'Archiwum (po zalogowaniu)', icon: 'archive', disabled: true, onSelect: () => undefined }
+      : settings.areaId === null
+        ? { label: 'Archiwum nie jest jeszcze włączone', icon: 'archive', disabled: true, onSelect: () => undefined }
+        : settings.mode === 'all'
+          ? { label: 'Archiwizowane są wszystkie rozmowy', icon: 'archive', disabled: true, onSelect: () => undefined }
+          : { label: 'Archiwizuj tę rozmowę', icon: 'archive', checked: archived, onSelect: toggleArchive },
+    ...(unsentHere > 0 ? [{
+      label: `Usuń niewysłane w tej rozmowie (${unsentHere})…`, icon: 'trash' as const, danger: true,
+      onSelect: () => void dropUnsent(unsentHere, threadId).then((done) => { if (done) { refreshUnsentHere(); void load(); } })
+    }] : []),
     { label: 'Zablokuj (spam)…', icon: 'ban', danger: true, onSelect: () => setDialog('block') },
     { label: 'Usuń rozmowę z telefonu…', icon: 'trash', danger: true, onSelect: () => void remove() }
   ];
@@ -640,7 +719,7 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
         })} />
 
       {peers.length > 0 && (
-        <Composer to={peers} sub={sub} sims={status?.sims ?? []} who={who}
+        <Composer to={peers} sub={sub} sims={status?.sims ?? []} who={who ?? undefined} initial={initial}
           disabled={status !== null && !status.defaultSms}
           onSent={() => { setFollow((n) => n + 1); void load(); }}
           onWrite={() => setFollow((n) => n + 1)}
@@ -653,13 +732,25 @@ function Thread({ threadId, who }: { threadId: string; who: Who }) {
   );
 }
 
+/**
+ * Mit zwei Karten: das kleine Zeichen an einer Nachricht — die Nummer des Steckplatzes (1, 2);
+ * dazu, über welche eigene Nummer sie hinausging oder ankam.
+ */
+function simOf(m: NativeMessage, lines: readonly Line[]): { sim?: string; simTitle?: string } {
+  if (lines.length < 2 || m.subId === null) return {};
+  const line = lines.find((l) => l.subId === m.subId);
+  if (line === undefined) return {};
+  return { sim: String(line.slot + 1), simTitle: `${m.box === 'in' ? 'Odebrano na' : 'Wysłano z'}: ${lineText(line)}` };
+}
+
 /** Eine Nachricht des Telefons für den Verlauf. */
-function itemOf(m: NativeMessage, names: ReadonlyMap<string, string>, group: boolean, onChanged: () => void): SmsItem {
+function itemOf(m: NativeMessage, names: ReadonlyMap<string, string>, group: boolean, lines: readonly Line[], onChanged: () => void): SmsItem {
   const failed = m.box === 'failed' || m.status === 'failed';
   const sending = m.box === 'outbox' || m.box === 'queued' || m.status === 'pending';
-  /* Noch einmal senden ersetzt die nicht gesendete. */
-  const resend = () => { void Phone.send({ to: m.peers, body: m.body }).then(() => Phone.remove({ id: m.id })).then(onChanged); };
+  /* Noch einmal senden (über dieselbe Karte) ersetzt die nicht gesendete. */
+  const resend = () => { void Phone.send({ to: m.peers, body: m.body, subId: m.subId }).then(() => Phone.remove({ id: m.id })).then(onChanged); };
   return {
+    ...simOf(m, lines),
     key: m.id,
     mine: m.box !== 'in',
     at: m.date,
@@ -728,9 +819,28 @@ function hashQuery(): URLSearchParams {
   return new URLSearchParams(at < 0 ? '' : hash.slice(at + 1));
 }
 
-function Compose({ who }: { who: Who }) {
+function Compose({ who }: { who: Who | null }) {
   const query = useMemo(hashQuery, []);
   const [to, setTo] = useState<readonly string[]>(() => (query.get('do') ?? '').split(',').map((n) => n.trim()).filter(Boolean));
+  /*
+    EINE NUMMER (aus Kontakty, aus einer anderen App — „Wyślij wiadomość"): gleich das Gespräch,
+    nicht erst das Feld mit den Empfängern (2026-10-26). Gab es noch keins, ist es leer.
+  */
+  const [opening, setOpening] = useState(to.length === 1);
+  useEffect(() => {
+    if (to.length !== 1) return undefined;
+    let alive = true;
+    void Phone.threadOf({ addresses: [to[0]] })
+      .then(({ threadId }) => {
+        if (!alive) return;
+        const text = query.get('tekst');
+        window.location.replace(`${viewPath('sms', threadId)}${text ? `?tekst=${encodeURIComponent(text)}` : ''}`);
+      })
+      .catch(() => { if (alive) setOpening(false); });
+    return () => { alive = false; };
+    // Nur beim Öffnen — nicht, wenn jemand im Feld Empfänger ändert.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [typed, setTyped] = useState('');
   const [contacts, setContacts] = useState<readonly Contact[]>([]);
   const [separate, setSeparate] = useState(true);
@@ -741,6 +851,7 @@ function Compose({ who }: { who: Who }) {
   useCrumbs([{ label: 'Nowa wiadomość', href: null }]);
 
   useEffect(() => {
+    if (who === null) return undefined;
     let alive = true;
     void contactsOf(who).then((list) => { if (alive) setContacts(list); }).catch(() => undefined);
     return () => { alive = false; };
@@ -769,6 +880,7 @@ function Compose({ who }: { who: Who }) {
   /* Die Karte für diese Empfänger — wie im Gespräch (eine Gruppe mit eigener Nummer zuerst). */
   const choice = chooseLine({ peers: to, lines, contacts: index, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
 
+  if (opening) return <Loading label="Otwieranie rozmowy…" />;
   return (
     <>
       <PageHeader title="Nowa wiadomość" />
@@ -812,8 +924,8 @@ function Compose({ who }: { who: Who }) {
         </div>
       )}
       <div className="ph-compose-box">
-        <Composer to={to} sub={choice.line?.subId ?? status?.defaultSubId ?? null} sims={status?.sims ?? []} separate={separate} who={who}
-          disabled={to.length === 0 || (status !== null && !status.defaultSms)} initial={query.get('tekst') ?? ''}
+        <Composer to={to} sub={choice.line?.subId ?? status?.defaultSubId ?? null} sims={status?.sims ?? []} separate={separate} who={who ?? undefined}
+          disabled={status !== null && !status.defaultSms} initial={query.get('tekst') ?? ''}
           onSent={(threadId) => {
             if (to.length > 1 && separate) {
               toast(`Wysłano do ${to.length} osób.`);

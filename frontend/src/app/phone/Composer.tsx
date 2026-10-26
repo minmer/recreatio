@@ -187,7 +187,10 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
   const open = (kind: 'attach' | 'send', el: Element) =>
     setMenu((was) => (was?.kind === kind ? null : { kind, anchor: { rect: el.getBoundingClientRect(), above: true }, from: el }));
 
+  /* 2026-10-26 — ohne Empfänger lässt sich schon schreiben; nur Senden wartet (vorher hiess es hier fälschlich „ustaw … jako aplikację SMS"). */
+  const noOne = to.length === 0;
   const line = disabled ? 'Najpierw ustaw tę aplikację jako aplikację SMS.'
+    : noOne && content ? 'Wybierz, do kogo wysłać.'
     : busy && progress !== null ? `Wysyłanie pliku… ${Math.round(progress * 100)}%`
     : mms ? (group ? `MMS do ${to.length} osób (grupa)` : 'MMS')
     : text !== '' || viaLink ? `${count.parts > 1 ? `${count.parts} SMS · ` : ''}zostało ${count.left}${count.unicode ? ' (polskie znaki: 70 na SMS)' : ''}${viaLink ? ' · z linkiem' : ''}`
@@ -237,12 +240,12 @@ export function Composer({ to, sub, sims, disabled, onSent, onScheduled, initial
         </div>
         {canLater && content && (
           <button type="button" className="ch-send-more" aria-label="Wyślij później" title="Wyślij później" aria-haspopup="menu"
-            aria-expanded={menu?.kind === 'send'} disabled={disabled || busy} onMouseDown={(e) => e.preventDefault()}
+            aria-expanded={menu?.kind === 'send'} disabled={disabled || busy || noOne} onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => open('send', e.currentTarget)}>
             <Icon name="chevron" />
           </button>
         )}
-        <button type="submit" className="ch-send" aria-label="Wyślij" title="Wyślij" disabled={disabled || busy || !content}
+        <button type="submit" className="ch-send" aria-label="Wyślij" title="Wyślij" disabled={disabled || busy || !content || noOne}
           onMouseDown={(e) => e.preventDefault()}>
           <Icon name="send" />
         </button>

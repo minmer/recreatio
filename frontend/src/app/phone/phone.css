@@ -255,6 +255,33 @@
   .ph-in-room .wk-phone-bar { display: none; }
 }
 
+/* SMS bez konta (SmsAlone, 2026-10-26): der Kopf klebt oben wie die Kopfleiste des Arbeitsplatzes, mit ihrer
+   Linie — die Leiste der Liste klebt darunter, das Gespräch hängt ohne eigene Linie oben an ihm. */
+.ph-alone .wk-plain-top {
+  position: sticky;
+  top: 0;
+  z-index: var(--wk-z-header);
+  /* Abstand als Rand, nicht als gap — das fehlt älteren WebViews (Chrome 83 auf Android 11: Text und Knopf stiessen aneinander). */
+  gap: 0;
+  border-bottom: 1px solid var(--wk-line);
+  background: var(--wk-ground);
+}
+.ph-alone-state {
+  min-width: 0;
+  margin-left: auto;
+  padding-left: var(--wk-space-3);
+  overflow: hidden;
+  color: var(--wk-muted);
+  font-size: var(--wk-text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ph-alone .wk-plain-top .wk-btn { flex: none; margin-left: var(--wk-space-3); }
+.ph-in-room .ph-alone .wk-main { padding: 0 var(--wk-space-1); }
+@media (max-width: 40rem) {
+  .ph-in-room .ph-alone .wk-main { padding: 0; }
+}
+
 /* Im Kopf neben dem Namen: die eigene Karte (wählbar), das Archiv, die Nummer. Abstand als Rand, nicht
    als gap (das fehlt älteren WebViews) — und nicht am Menü, das fest über allem steht. */
 .ph-head-sub { gap: 0; }
@@ -276,6 +303,10 @@
 .ph-note { color: var(--wk-muted); font-size: var(--wk-text-sm); }
 .ph-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--wk-space-2); margin-top: var(--wk-space-1); }
 .ch-bubble.ph-failed { box-shadow: 0 0 0 1px var(--wk-danger); }
+/* Zwei Karten: über welche Nummer die Nachricht ging oder kam — ein kleines Zeichen vor der Zeit (2026-10-26):
+   die Ziffer des Steckplatzes, kleiner als die Zeit (im Archiv die letzten Ziffern der eigenen Nummer). Es steht
+   auch im unsichtbaren Platzhalter (ch-meta-pad), sonst läge die Zeit über dem Text. */
+.ph-sim { display: inline-grid; place-items: center; box-sizing: border-box; min-width: 1.5em; height: 1.5em; padding: 0 0.25em; border: 1px solid currentColor; border-radius: var(--wk-radius-xs); font-size: smaller; font-weight: 700; line-height: 1; opacity: 0.8; }
 .ph-meta-failed, .ch-meta.is-failed { color: var(--wk-danger); font-weight: 700; }
 .ch-bubble.ph-planned { border: 1px dashed color-mix(in srgb, var(--wk-accent) 55%, var(--wk-line)); background: var(--wk-surface); box-shadow: none; }
 .ph-room .ch-atts img, .ph-room .ch-atts video { display: block; max-width: 100%; max-height: 22rem; border-radius: var(--wk-radius-sm); }

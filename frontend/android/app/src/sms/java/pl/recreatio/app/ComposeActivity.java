@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Bundle;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -13,6 +14,11 @@ import java.util.List;
  * aus recreatio selbst, wenn eine Seite einen sms:-Link hat. Ohne Bildschirm:
  * die App öffnet sich beim Verfassen, Empfänger und Text stehen schon da
  * ({@code #/workspace/sms/nowa?do=…&tekst=…}).
+ *
+ * <p>2026-10-26 — EINE Nummer (aus den Kontakten: „Wyślij wiadomość") öffnet gleich das
+ * Gespräch mit ihr ({@code #/workspace/sms/<Gespräch>?tekst=…}), nicht erst das Blatt, an
+ * dem man weitere Empfänger hinzufügen könnte. Gelingt das nicht, bleibt es beim Blatt —
+ * und das öffnet bei einer Nummer selbst das Gespräch (SmsApp.tsx, Compose).</p>
  */
 public class ComposeActivity extends Activity {
 
@@ -25,9 +31,10 @@ public class ComposeActivity extends Activity {
         if (body == null) body = in.getStringExtra(Intent.EXTRA_TEXT);
         if (body == null) body = query(in.getData(), "body");
 
-        StringBuilder hash = new StringBuilder("#/workspace/sms/nowa");
+        long thread = to.size() == 1 ? threadOf(to.get(0)) : -1;
+        StringBuilder hash = new StringBuilder(thread > 0 ? "#/workspace/sms/" + thread : "#/workspace/sms/nowa");
         String sep = "?";
-        if (!to.isEmpty()) {
+        if (thread <= 0 && !to.isEmpty()) {
             hash.append(sep).append("do=").append(Uri.encode(String.join(",", to)));
             sep = "&";
         }
@@ -37,6 +44,15 @@ public class ComposeActivity extends Activity {
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(open);
         finish();
+    }
+
+    /** Das Gespräch mit dieser einen Nummer — angelegt, wenn es noch keines gibt; -1, wenn das Telefon nicht will. */
+    private long threadOf(String number) {
+        try {
+            return SmsStore.threadFor(this, Collections.singleton(number));
+        } catch (RuntimeException e) {
+            return -1;
+        }
     }
 
     /** Die Empfänger aus „sms:+48600100200,601601601?body=…". */
