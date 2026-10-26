@@ -11,9 +11,10 @@ namespace Api;
 ///
 /// <para>
 /// Listen zeigen Profile einer Art (Wydarzenia, Grupy …) nach einer Regel („diese Bereiche
-/// und darunter") und auf Bitte (<c>event_listing</c>); den Katalog <c>recreatio.pl/events</c>
-/// gibt der Betreiber frei, Karte für Karte, und eine Änderung an der Karte nimmt die
-/// Freigabe zurück.
+/// und darunter") und auf Bitte (<c>event_listing</c>). Im Katalog <c>recreatio.pl/events</c>
+/// gibt der Betreiber die BITTEN frei, Karte für Karte, und eine Änderung an der Karte nimmt
+/// die Freigabe zurück; die Bereiche, die er selbst im Baustein wählt, zeigt er direkt
+/// (2026-10-26: seine Wahl ist die Freigabe).
 /// </para>
 ///
 /// <para>
@@ -312,8 +313,9 @@ public static class AreaEvent
 
     /// <summary>
     /// Die Liste: Profile einer Art (<c>type</c>, sonst Wydarzenia) dieser Bereiche (und darunter),
-    /// dazu die, die in dieser Liste stehen dürfen (<c>module</c>) — im Katalog nur freigegebene
-    /// Karten in dem Stand, den der Betreiber gesehen hat. Ohne Konto.
+    /// dazu die, die in dieser Liste stehen dürfen (<c>module</c>) — von ihnen im Katalog nur
+    /// freigegebene Karten in dem Stand, den der Betreiber gesehen hat. Die gewählten Bereiche
+    /// gelten auch im Katalog: sie hat der Betreiber selbst gewählt. Ohne Konto.
     /// </summary>
     private static async Task ListAsync(HttpContext ctx, Db db)
     {
@@ -332,7 +334,8 @@ public static class AreaEvent
 
         var cards = new List<(Card Card, string Via)>();
 
-        if (sources.Count > 0 && !catalogue)
+        /* Auch im Katalog: die Bereiche hat der Betreiber selbst gewählt (2026-10-26). */
+        if (sources.Count > 0)
         {
             var names = string.Join(", ", sources.Select((_, i) => $"@s{i}"));
             var tree = deep ? $"""

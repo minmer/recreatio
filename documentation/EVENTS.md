@@ -45,8 +45,9 @@ participants.
 Page part **"Wydarzenia"** (`events`, with `type`: events, groups, organisations, courses) lists profiles of chosen
 areas (and below) plus profiles that asked to be listed and were accepted (`event_listing`). Part **"Wizytówka"**
 (`event`) shows one profile card (configured, or `?wydarzenie=<area id>`). The catalogue is the list on the page
-`events`: only the operator accepts there, ticking that the card carries no personal data; the approval holds for that
-exact card (`approved_print`, now including the sealed card and the after page).
+`events`: requests there are accepted only by the operator, ticking that the card carries no personal data; the approval
+holds for that exact card (`approved_print`, now including the sealed card and the after page). The areas the operator
+ticks in the catalogue's own list show directly, like on any list — that choice is the approval.
 
 A card is listed only with a public, unsealed, unblocked main page; the date only if the appointment is publicly
 visible; "Zapisy otwarte" when a form of the area really accepts (open, public audience, questions in a public area, on
@@ -65,6 +66,11 @@ kind, other lists, and the JSON import/export (admins only).
 | group | chat, channel, Członkowie / Prowadzący, members' link opening `workspace/areas/<id>` |
 | organisation | data controller, main page, one-click lists "Wydarzenia" and "Grupy" |
 | course | knowledge base with daily revision, learners' role and link |
+
+The main appointment is made there or **picked** ("Wybierz istniejący"): single (no repeat), not a programme point,
+editable by me, from a month back to a year ahead. The area's own calendar comes first; one from another calendar
+("Także z innych kalendarzy") is moved into the area's calendar after a question — who sees it, its link and its
+points stay (the service accepts only an appointment of the area's calendar as the main one).
 
 A published appointment stays in the area's own calendar: every edit names its calendar (without it the service would
 move the item into the calendar of the area that shows it). The tab remembers its roles under import keys

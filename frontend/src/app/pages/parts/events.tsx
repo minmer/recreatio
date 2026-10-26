@@ -4,7 +4,7 @@
  * <b>Wydarzenia</b> zeigt die Profile EINER Art (`type`: Wydarzenia, Grupy, Parafie i
  * organizacje, Kursy) gewählter Bereiche (und, auf Wunsch, der Bereiche darin) — dazu die,
  * die gebeten haben, hier zu stehen, und angenommen wurden. Im Katalog `recreatio.pl/events`
- * nur, was der Betreiber freigegeben hat.
+ * stehen von den Bitten nur freigegebene Karten; die gewählten Bereiche zeigt er wie jede Liste.
  *
  * <b>Wizytówka</b> (die Art heisst weiter `event`) zeigt EINE, grösser — eines Bereichs jeder
  * Art: gewählt im Baustein, oder — leer — aus der Adresse (`?wydarzenie=<obszar>`), damit eine
