@@ -13,8 +13,8 @@ import type { Engine } from '../engine/engine';
 import { FORCE_SLOTS } from '../engine/bubbles';
 import { tSat } from '../engine/if97';
 import { MOLAR, muMix } from '../engine/materials';
-import { H2O, N2, O2, R_GAS, SOLID, SPECIES_SLOTS } from '../engine/units';
-import { bodyMode, GpuBodies } from './bodies';
+import { GAS_SPECIES, H2O, N2, O2, R_GAS, SOLID, SPECIES_SLOTS } from '../engine/units';
+import { bodyMode, GpuBodies, meltsOnGpu } from './bodies';
 import type { GpuCtx } from './kernel';
 import { fromStair, stairOf, type Stair } from './staircase';
 import { BUBBLE_WORDS, NONE, PARAMS_WORDS, PARTICLE_WORDS, SITE_WORDS } from './lib';
@@ -61,6 +61,122 @@ function derivedGas(e: Engine): { nmol: Float64Array; mu: Float64Array; veos: Fl
     veos[c] = g.kind[c] === SOLID || e.gas.vgas[c] <= 0 ? 0 : (nmol[c] * R_GAS * g.T[c]) / e.regions.pAt(c);
   }
   return { nmol, mu, veos };
+}
+
+/**
+ * Die Gebiete der GPU aus denen der CPU: mit genauen Anteilen (body) verschliesst ein freier Körper nie ein Gebiet — Gebiete, die nur
+ * Zellen oder ganz bedeckte Flächen freier Körper trennen, sind auf der GPU eines (offen, wenn eines seiner Teile offen ist). Die CPU
+ * verschliesst eine Tasche ab 2 cm³ hinter einem freien Deckel (regions.ts VENT_V) und öffnet sie wieder, sobald er sich hebt; die GPU
+ * führt ihre Gebiete beim Rechnen nur fort (eine Zelle, die aufgeht, nimmt das Gebiet eines Nachbarn) — ein verschlossener Topf blieb dort
+ * verschlossen, nachdem der Dampf den Deckel abgehoben hatte (+200 kPa, 3,8 J Energiefehler). Ohne genaue Anteile: je CPU-Gebiet eines.
+ * Liefert je CPU-Gebiet seine Gruppe und die Zahl der Gruppen.
+ */
+function regionGroups(e: Engine, body: boolean): { group: Int32Array; count: number } {
+  const R = e.regions;
+  const parent = Int32Array.from({ length: R.count }, (_, k) => k);
+  const find = (k: number): number => { let x = k; while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const join = (a: number, b: number): void => { const ra = find(a); const rb = find(b); if (ra !== rb) parent[Math.max(ra, rb)] = Math.min(ra, rb); };
+  const list = e.bodies.list;
+  if (body && list.some((b) => b.free)) {
+    const g = e.grid;
+    const { nx, ny, n } = g;
+    const freeCell = (c: number): boolean => g.solid[c] !== 0 && g.owner[c] > 0 && list[g.owner[c] - 1]?.free === true;
+    /* Zusammenhängende Zellen freier Körper: alle Gebiete, an die sie grenzen, sind eines. */
+    const seen = new Uint8Array(n);
+    const stack: number[] = [];
+    for (let c0 = 0; c0 < n; c0 += 1) {
+      if (seen[c0] !== 0 || !freeCell(c0)) continue;
+      seen[c0] = 1;
+      stack.push(c0);
+      let first = -1;
+      while (stack.length > 0) {
+        const c = stack.pop() as number;
+        const i = c % nx;
+        const j = (c - i) / nx;
+        for (let k = 0; k < 4; k += 1) {
+          const ii = i + (k === 0 ? -1 : k === 1 ? 1 : 0);
+          const jj = j + (k === 2 ? -1 : k === 3 ? 1 : 0);
+          if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+          const nb = ii + jj * nx;
+          if (freeCell(nb)) { if (seen[nb] === 0) { seen[nb] = 1; stack.push(nb); } continue; }
+          const r = R.id[nb];
+          if (r < 0) continue;
+          if (first < 0) first = r; else join(first, r);
+        }
+      }
+    }
+    /* Eine ganz bedeckte Fläche zwischen zwei Fluidzellen, die ein freier Körper bedeckt (ein dünner Deckel, der keine Zelle schliesst). */
+    const fown = e.bodies.cover.faceOwner;
+    const freeFace = (key: number): boolean => { const o = fown[key]; return o > 0 && list[o - 1]?.free === true; };
+    for (let j = 0; j < ny; j += 1) {
+      for (let i = 1; i < nx; i += 1) {
+        const a = i - 1 + j * nx;
+        const b = a + 1;
+        const ra = R.id[a];
+        const rb = R.id[b];
+        if (ra >= 0 && rb >= 0 && ra !== rb && g.au[i + j * (nx + 1)] <= 0 && freeFace(i + j * (nx + 1))) join(ra, rb);
+      }
+    }
+    for (let j = 1; j < ny; j += 1) {
+      for (let i = 0; i < nx; i += 1) {
+        const a = i + (j - 1) * nx;
+        const b = a + nx;
+        const ra = R.id[a];
+        const rb = R.id[b];
+        if (ra >= 0 && rb >= 0 && ra !== rb && g.av[i + j * nx] <= 0 && freeFace(g.nu + i + j * nx)) join(ra, rb);
+      }
+    }
+  }
+  const group = new Int32Array(R.count);
+  const index = new Map<number, number>();
+  for (let r = 0; r < R.count; r += 1) {
+    const root = find(r);
+    let k = index.get(root);
+    if (k === undefined) { k = index.size; index.set(root, k); }
+    group[r] = k;
+  }
+  return { group, count: index.size };
+}
+
+/**
+ * Gas, das auf der GPU in einer geschlossenen Körperzelle liegen blieb (kbodycover.ts bFlip, C_PARKED: kein freier Platz in der Nähe — zwischen
+ * zwei gestapelten Klötzen), beim Zurückholen in die nächste Fluidzelle: die Bilanz der CPU zählt Gas in festen Zellen nicht (Prüfung 38:
+ * 1,5 mg Luft in 76 Zellen, −59 mJ in der Bilanz der CPU-Engine). Gesucht wird durch Körperzellen, nicht durch gemalten Feststoff.
+ */
+function unpark(e: Engine): void {
+  const g = e.grid;
+  const { nx, ny, n } = g;
+  let seen: Int32Array | null = null;
+  let queue: Int32Array | null = null;
+  for (let c = 0; c < n; c += 1) {
+    if (g.solid[c] === 0 || g.owner[c] === 0) continue;
+    let m = g.mfog[c];
+    for (let k = 0; k < GAS_SPECIES; k += 1) m += g.mg[k * n + c];
+    if (!(m > 0) && g.Hg[c] === 0) continue;
+    seen ??= new Int32Array(n).fill(-1);
+    queue ??= new Int32Array(n);
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = c;
+    seen[c] = c;
+    let target = -1;
+    while (head < tail && target < 0) {
+      const q = queue[head++];
+      const qi = q % nx;
+      const qj = (q - qi) / nx;
+      for (let k = 0; k < 4 && target < 0; k += 1) {
+        const ii = qi + (k === 0 ? -1 : k === 1 ? 1 : 0);
+        const jj = qj + (k === 2 ? -1 : k === 3 ? 1 : 0);
+        if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+        const nb = ii + jj * nx;
+        if (seen[nb] === c) continue;
+        seen[nb] = c;
+        if (g.solid[nb] === 0) target = nb;
+        else if (g.owner[nb] !== 0) queue[tail++] = nb;
+      }
+    }
+    if (target >= 0) e.gas.move(c, target, 1);
+  }
 }
 
 export class GpuState {
@@ -264,23 +380,53 @@ export class GpuState {
     this.stair = st;
     this.writeParams(e);
     this.writeHeaters(e, st !== null ? st.heaterCells : null);
-    /* Gebiete: die grössten zuerst (die Summen je Gebiet laufen für die ersten vier über die Arbeitsgruppe). */
+    /* Gebiete: die grössten zuerst (die Summen je Gebiet laufen für die ersten vier über die Arbeitsgruppe); mit genauen Anteilen trennt ein
+       freier Körper keine (regionGroups: was nur er trennt, ist ein Gebiet der GPU). */
     const R0 = e.regions;
-    const order = Array.from({ length: R0.count }, (_, k) => k).sort((a, b) => R0.vFluid[b] - R0.vFluid[a]);
+    const { group, count: ng } = regionGroups(e, this.body);
+    const gv = new Float64Array(Math.max(1, ng));
+    const members = new Int32Array(Math.max(1, ng));
+    for (let r = 0; r < R0.count; r += 1) { gv[group[r]] += R0.vFluid[r]; members[group[r]] += 1; }
+    const order = Array.from({ length: ng }, (_, k) => k).sort((a, b) => gv[b] - gv[a]);
+    const rank = new Int32Array(Math.max(1, ng));
+    order.forEach((k, gpu) => { rank[k] = gpu; });
     this.regionMap = new Int32Array(Math.max(1, R0.count));
-    this.regionInv = new Int32Array(Math.max(1, R0.count));
-    order.forEach((cpu, gpu) => { this.regionMap[cpu] = gpu; this.regionInv[gpu] = cpu; });
+    this.regionInv = new Int32Array(Math.max(1, ng));
+    for (let r = R0.count - 1; r >= 0; r -= 1) { this.regionMap[r] = rank[group[r]]; this.regionInv[rank[group[r]]] = r; }
     const reg = new Float32Array(REG_STRIDE * d.nreg);
+    const pw = new Float64Array(Math.max(1, ng));
+    const rw = new Float64Array(Math.max(1, ng));
     for (let r = 0; r < R0.count; r += 1) {
-      const o = REG_STRIDE * this.regionMap[r];
-      reg[o + R.OPEN] = R0.open[r];
-      reg[o + R.VFLUID] = R0.vFluid[r] - (st !== null ? st.vFix[r] : 0);
-      reg[o + R.P0] = R0.p0[r];
-      reg[o + R.RHOBAR] = R0.rhoBar[r];
-      reg[o + R.VLIQ] = R0.vLiq[r];
-      reg[o + R.VBUB] = R0.vBub[r];
-      reg[o + R.VGAS] = R0.vGas[r];
-      reg[o + R.P0START] = R0.p0[r];
+      const k = group[r];
+      const o = REG_STRIDE * rank[k];
+      if (members[k] === 1) {
+        reg[o + R.OPEN] = R0.open[r];
+        reg[o + R.VFLUID] = R0.vFluid[r] - (st !== null ? st.vFix[r] : 0);
+        reg[o + R.P0] = R0.p0[r];
+        reg[o + R.RHOBAR] = R0.rhoBar[r];
+        reg[o + R.VLIQ] = R0.vLiq[r];
+        reg[o + R.VBUB] = R0.vBub[r];
+        reg[o + R.VGAS] = R0.vGas[r];
+        reg[o + R.P0START] = R0.p0[r];
+        continue;
+      }
+      /* Zusammengelegt: offen, wenn ein Teil offen ist; Volumina summiert, Druck und Dichte nach dem Fluidvolumen gemittelt (ein offenes Gebiet
+         nimmt im ersten Schritt den Umgebungsdruck, ein verschlossenes rechnet ihn aus seinem Inhalt — gasRegions regFinish). */
+      if (R0.open[r] !== 0) reg[o + R.OPEN] = 1;
+      reg[o + R.VFLUID] += R0.vFluid[r];
+      reg[o + R.VLIQ] += R0.vLiq[r];
+      reg[o + R.VBUB] += R0.vBub[r];
+      reg[o + R.VGAS] += R0.vGas[r];
+      pw[k] += R0.p0[r] * R0.vFluid[r];
+      rw[k] += R0.rhoBar[r] * R0.vFluid[r];
+    }
+    for (let k = 0; k < ng; k += 1) {
+      if (members[k] === 1) continue;
+      const o = REG_STRIDE * rank[k];
+      reg[o + R.P0] = gv[k] > 0 ? pw[k] / gv[k] : e.pRef;
+      if (reg[o + R.OPEN] !== 0) reg[o + R.P0] = e.regions.pAmb;
+      reg[o + R.RHOBAR] = gv[k] > 0 ? rw[k] / gv[k] : e.regions.rhoAmb;
+      reg[o + R.P0START] = reg[o + R.P0];
     }
     q.writeBuffer(this.reg, 0, reg);
     /* Zellen. */
@@ -394,9 +540,10 @@ export class GpuState {
       const o = SITE_WORDS * s;
       let wall = cav.cell[s];
       let r = cav.r[s];
-      /* Kavitäten auf freien Körpern kennt der beschleunigte Weg nicht (SIMPLIFICATIONS.md): sie keimen nie. */
+      /* Kavitäten auf freien Körpern und auf schmelzendem Eis (seine Wandzellen gehen auf, wenn es schmilzt) kennt der beschleunigte Weg nicht
+         (SIMPLIFICATIONS.md): sie keimen nie. */
       const owner = cav.body[s] >= 0 ? e.bodies.list[cav.body[s]] : undefined;
-      if (owner !== undefined && owner.free) r = 1e-9;
+      if (owner !== undefined && (owner.free || meltsOnGpu(owner))) r = 1e-9;
       if (wall >= 0 && solidAt(wall) === 0) {
         const k = cav.dir[s];
         const inward = k === 0 ? wall + 1 : k === 1 ? wall - 1 : k === 2 ? wall + nxg : wall - nxg;
@@ -600,6 +747,7 @@ export class GpuState {
       g.capB[c] = cf[F.CAPB * n + c];
       g.Ts[c] = cf[F.TSB * n + c];
     }
+    unpark(e);
     await this.bodies.download(e, (r) => this.read(r));
     const cover = e.bodies.cover;
     for (const b of e.bodies.list) if (!b.gone) cover.weigh(b);

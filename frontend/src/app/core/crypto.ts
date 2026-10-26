@@ -259,7 +259,20 @@ export const Field = {
   ReportText: 'report_text',
   ReportKey: 'report_key',
   ReportObjection: 'report_objection',
-  ReportObjectionKey: 'report_objection_key'
+  ReportObjectionKey: 'report_objection_key',
+
+  /*
+   * 0132 — SCHEMATA UND IHRE WERTE (`calendar/scheme.ts`): ein Schema oder ein
+   * Plan eines Kalenders als Ganzes, ein Wert eines Termins (am Termin oder an
+   * einem Vorkommen), ein Wert eines Eintrags an einem Vorkommen. Die Kennung
+   * des Objekts nennt Termin, Vorkommen und Feld — nie ein Doppelpunkt.
+   */
+  CalendarDoc: 'calendar_doc',
+  CalendarValue: 'calendar_value',
+  RecordValue: 'record_value',
+
+  /* 0133 — die Wizytówka eines Bereichs mit einer Art (`areas/profile.ts`): Titel und Vorspann unter dem Schlüssel des Bereichs, in dem sie veröffentlicht ist. */
+  AreaProfileCard: 'area_profile_card'
 } as const;
 
 export type FieldName = (typeof Field)[keyof typeof Field];

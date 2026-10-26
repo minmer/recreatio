@@ -48,40 +48,7 @@
   .wk-event.has-image { grid-template-columns: minmax(4rem, 6rem) minmax(0, 1fr); }
 }
 
-/* -- In den Ustawienia des Bereichs --------------------------------------------------------- */
-
-.wk-event-settings { display: grid; gap: var(--wk-space-3); min-width: 0; }
-.wk-event-settings .wk-actions { margin: 0; }
-
-.wk-event-settings-image { margin: 0; max-width: 16rem; overflow: hidden; border-radius: var(--wk-radius-sm); aspect-ratio: 16 / 9; background: var(--wk-sunk); }
-.wk-event-settings-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
-
-.wk-event-ready { margin: 0; }
-.wk-event-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
-.wk-event-checks > li { display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); gap: var(--wk-space-2); align-items: baseline; }
-.wk-event-check-mark { font-weight: 700; text-align: center; }
-.wk-event-checks > li.is-ok .wk-event-check-mark { color: var(--wk-ok); }
-.wk-event-checks > li.is-missing .wk-event-check-mark { color: var(--wk-warn); }
-.wk-event-checks > li.is-unknown { color: var(--wk-muted); }
-
-.wk-event-mark { margin: 0; }
-
-/* Das Bild der Karte, aus den Bildern der Hauptseite. */
-.wk-event-images { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
-.wk-event-pick {
-  position: relative;
-  display: grid; place-items: center;
-  width: 6.5rem; aspect-ratio: 4 / 3;
-  overflow: hidden;
-  border: 2px solid var(--wk-line);
-  border-radius: var(--wk-radius-sm);
-  background: var(--wk-sunk);
-  cursor: pointer;
-}
-.wk-event-pick.is-on { border-color: var(--wk-accent); }
-.wk-event-pick input { position: absolute; inset: var(--wk-space-1) auto auto var(--wk-space-1); margin: 0; }
-.wk-event-pick img { width: 100%; height: 100%; object-fit: cover; }
-.wk-event-pick-none { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+/* -- Auf fremden Listen (Reiter der Art) -------------------------------------------------- */
 
 .wk-event-listings { display: grid; gap: var(--wk-space-2); min-width: 0; }
 .wk-event-listings > .wk-h3 { margin: 0; }
@@ -94,3 +61,33 @@
 
 .wk-starter-when { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--wk-space-2) var(--wk-space-3); }
 @media (max-width: 40rem) { .wk-starter-when { grid-template-columns: minmax(0, 1fr); } }
+
+/* -- 0133: „Po wydarzeniu", nur für die Menschen eines Bereichs, die Fragen anderswo -------------- */
+
+.wk-event-after { justify-self: start; font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-accent); text-decoration: none; }
+.wk-event-after:hover, .wk-event-after:focus-visible { text-decoration: underline; }
+.wk-event-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); margin-top: var(--wk-space-2); }
+
+/* Im Editor der Seite: ein Baustein, den nur die Menschen eines Bereichs bekommen. */
+.pb-item-audience {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0 var(--wk-space-1);
+  border: 1px solid var(--wk-accent);
+  border-radius: var(--wk-radius-sm);
+  font-size: var(--wk-text-xs);
+  color: var(--wk-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wk-part-audience { display: grid; gap: var(--wk-space-1); min-width: 0; }
+.wk-part-audience-says { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+
+/* Formular: unter welchem Bereich die Fragen liegen (die Antworten bleiben im eigenen). */
+.wk-questions-area { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-questions-area-now { margin: 0; overflow-wrap: anywhere; }
+.wk-questions-area-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.wk-questions-area-pick > :first-child { flex: 1 1 16rem; min-width: 0; }
+.wk-questions-area-why { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }

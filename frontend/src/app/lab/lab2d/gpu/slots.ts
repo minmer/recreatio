@@ -63,7 +63,11 @@ export const C = {
      (f32, J); Iterationen, gekappte Läufe und Residuum der Lösungen für die mitbewegte Masse; Zellen, deren Gas beim Schliessen
      liegen blieb (u32); Berührungen, die keinen Platz mehr fanden (u32). BVMAX: der schnellste Punkt eines wachen Körpers in diesem
      Schritt (f32-Bits, stepEnd leert ihn) */
-  BODYWORK: 77, IT_P: 78, CAP_P: 79, RES_P: 80, PARKED: 81, CONT_FULL: 82, BVMAX: 83
+  BODYWORK: 77, IT_P: 78, CAP_P: 79, RES_P: 80, PARKED: 81, CONT_FULL: 82, BVMAX: 83,
+  /* Schmelzen und Anfrieren auf der GPU (seit 2026-10-26), bis zur nächsten Ablesung (eigens geleert): geschmolzenes und
+     angefrorenes Eis (f32, kg); Körper, deren innere Zellen keinen Platz für eine neue Aufteilung fanden (u32: der Arbeiter holt
+     den Zustand einmal zurück und lädt ihn mit mehr Platz wieder hoch) */
+  MELTED: 84, FROZEN: 85, MELTFULL: 86
 } as const;
 export const CNT_SIZE = 96;
 export const INTERVAL_FIRST = 16;
@@ -115,9 +119,13 @@ export const F = {
      der unteren Fläche, Leitfähigkeiten und Temperaturunterschied einer gemischten Zelle, was die inneren Zellen an Film und Kruste
      beitragen (collect), der in die festen Zellen fortgesetzte Druck mit seiner Dichte und Kenntnis (zwei Puffer, Ping-Pong) */
   FS: 70, CAPB: 71, TSB: 72, ESY: 73, FSY: 74, KSY: 75, WSUM: 76, HW: 77, COVL: 78, COVB: 79,
-  KS: 80, KF: 81, DSF: 82, GF: 83, GK: 84, PE0: 85, RE0: 86, KN0: 87, PE1: 88, RE1: 89, KN1: 90
+  KS: 80, KF: 81, DSF: 82, GF: 83, GK: 84, PE0: 85, RE0: 86, KN0: 87, PE1: 88, RE1: 89, KN1: 90,
+  /* Schmelzen (seit 2026-10-26; nur im Band schmelzbarer Körper, je Schritt neu): aus den Teilchen der Zelle selbst Σ m c_p und
+     Σ m c_p T aller Flüssigkeiten, Wasser ohne Salz, Salz und Masse der Wasserteilchen (wie engine/exchange.ts cap, capT, water,
+     salt); was die Zelle zum Anfrieren gibt (kg; 0: nichts) und die Enthalpie des Eises dafür (J/kg) */
+  MC: 91, MCT: 92, MW: 93, MS: 94, MWM: 95, MFZ: 96, MHI: 97
 } as const;
-export const NF = 91;
+export const NF = 98;
 
 /**
  * cu: u32-Zellfelder (Heizgruppe + 1, 0: keine; Gebiet NONE: fest). Körper (seit 2026-10-26): Besitzer + 1, Werkstoff + 1 des
@@ -134,9 +142,12 @@ export const A = {
   /* Wärme, die eine Wandzelle in diesem Schritt schon an Blasen gab (J; höchstens die kritische Wärmestromdichte) */
   CHF: 13,
   /* M2b: Kristalle auf eine feste Zelle (kg; ihre Enthalpie über DES), auf den Boden der Kiste je Spalte (kg, J) */
-  DCRUST: 14, DFLOOR: 15, DFLOORH: 16
+  DCRUST: 14, DFLOOR: 15, DFLOORH: 16,
+  /* Schmelzen (seit 2026-10-26): Schmelzwasser für die Wasserteilchen der Zelle (Masse samt Salz, Enthalpie, Salz), wer die Zelle
+     zum Anfrieren nahm (Seite und Punkt, die erste Seite gewinnt), in welchem Geben sie schon gezählt ist (je Schritt geleert) */
+  MGM: 17, MGH: 18, MGS: 19, MCLAIM: 20, MSEEN: 21
 } as const;
-export const NA = 17;
+export const NA = 22;
 
 /** ff: f32-Flächenfelder. */
 export const FF = {

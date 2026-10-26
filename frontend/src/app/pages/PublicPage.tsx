@@ -71,6 +71,9 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
   /* 0130 — nach einer Meldung gesperrt: das wird gesagt, nicht „nic tu nie ma". */
   const [blocked, setBlocked] = useState(false);
 
+  /* 0133 — die Seite „po wydarzeniu“ vor dem Ende: kein Fehler, nur noch nicht. */
+  const [later, setLater] = useState(false);
+
   /* Neu laden, sobald ein Link hier bestätigt wurde — dann gilt er. */
   const [round, setRound] = useState(0);
 
@@ -91,6 +94,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
     setPage(undefined);
     setDenied(null);
     setBlocked(false);
+    setLater(false);
 
     /*
      * DIE LINKS DIESES BROWSERS gehen mit: auf einer Seite nur mit Zugang
@@ -109,6 +113,7 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
         const verdict = e instanceof WorkspaceError ? e.verdict : null;
         if (verdict === 'needsaccess' || verdict === 'noaccess') setDenied(verdict);
         if (verdict === 'blocked') setBlocked(true);
+        if (verdict === 'later') setLater(true);
         setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się wczytać strony.');
         setPage(null);
       });
@@ -140,6 +145,17 @@ export function PublicPage({ path, host, local }: { path?: string; host?: string
       <div className="ui-empty" data-page-blocked="">
         <h1 className="wk-h1">Strona niedostępna</h1>
         <p className="wk-blocked">Treść zablokowana po zgłoszeniu.</p>
+        <a className="wk-btn" href="#/">Strona główna</a>
+      </div>
+    );
+  }
+
+  /* 0133 — vorbereitet, aber erst nach dem Ende des Wydarzenie zu sehen: ruhig gesagt. */
+  if (page === null && later) {
+    return (
+      <div className="ui-empty" data-page-later="">
+        <h1 className="wk-h1">Jeszcze nie teraz</h1>
+        <p>Ta strona pojawi się po zakończeniu wydarzenia.</p>
         <a className="wk-btn" href="#/">Strona główna</a>
       </div>
     );

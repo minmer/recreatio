@@ -92,7 +92,9 @@ const TYPE_OF: Record<LibFieldType, FieldType> = {
   /* 2026-10-23 — die Felder eines Rodzaj tekstu (Skryptorium); keine eingebaute Art von Nauka hat sie. */
   fields: 'list',
   /* 2026-10-22 — Bausteine (`blocks`): seit 2026-10-23 ein Feldtyp von Nauka wie jeder andere. */
-  blocks: 'blocks'
+  blocks: 'blocks',
+  /* 2026-10-26 — eine Datei der Bibliothek (in der Bibliothek nur in Listen: die Dateien der Nuty, die Spuren eines Nagrania). */
+  media: 'media'
 };
 
 function fromLibrary(f: LibField): FieldDef {
@@ -125,7 +127,8 @@ const field = (key: string, label: string, type: FieldType, more: Partial<FieldD
 
 function builtin(id: string): KindDef {
   const lib = LIBRARY_KINDS.find((k) => k.kind === id)!;
-  const fields = lib.fields.map(fromLibrary);
+  /* 2026-10-26 — ohne Listen von Objekten (die Dateien der Musik): Nauka liest sie aus den Daten, nicht als Feld. */
+  const fields = lib.fields.filter((f) => f.type !== 'items').map(fromLibrary);
   const more: readonly FieldDef[] = [];
   return {
     id,

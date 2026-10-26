@@ -177,8 +177,9 @@ async function settleGpu(): Promise<void> {
 }
 
 /**
- * Freie Körper (M3a) und Eis (M3b) rechnet der beschleunigte Weg noch nicht:
- * die Szene geht mit allen Handgriffen an den normalen Weg zurück.
+ * Eis aus mehreren Rechtecken (ausgeschnitten), Körner (M3c) und mehr als acht
+ * freie Körper rechnet der beschleunigte Weg noch nicht (Engine.needsCpu): die
+ * Szene geht mit allen Handgriffen an den normalen Weg zurück.
  */
 function refuseCpuOnly(): boolean {
   if (cpu === null || !cpu.needsCpu()) return false;
@@ -238,6 +239,18 @@ function bubbleView(r: Readout | null): BubbleView | null {
 function onReadout(r: Readout, now: number): void {
   if (gpu === null || charts === null) return;
   gpu.baselineFromLast();
+  /* Ein schmelzender Körper fand keinen Platz für die neue Aufteilung seiner inneren Zellen (er wuchs um mehr als zwei Reihen): einmal zurückholen
+     und mit mehr Platz wieder hochladen (gpu/bodies.ts). */
+  if (r.intervals.meltFull > 0) {
+    task(async () => {
+      if (gpu === null) return;
+      await settleGpu();
+      await gpu.download();
+      const v = gpu.stateVersion;
+      gpu.upload();
+      afterUpload(v);
+    });
+  }
   /* Heftige Zustände (extremes.ts): bei „ask“ anhalten und fragen, wie auf der CPU (nur ein Weilchen später — die Ablesung kommt fünfmal je Sekunde). */
   if (cpu !== null && r.stepsSince > 0) {
     cpu.extremes.observe(r.rmaxB, r.vmaxP, gpu.totals.time);

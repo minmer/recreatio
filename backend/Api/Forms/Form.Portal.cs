@@ -202,7 +202,8 @@ public static partial class Form
     /// Ein Formular, wie die Kanzlei es anfasst: sein BAUSTEIN (0036), sein
     /// Bereich, und die Seiten, auf denen er steht.
     /// </summary>
-    private sealed record Sheet(Guid ModuleId, Guid? AreaId, IReadOnlyList<string> Paths);
+    /// <summary>0133 — <c>LabelAreaId</c>: unter welchem Bereich die Fragen liegen, wenn nicht unter dem des Formulars.</summary>
+    private sealed record Sheet(Guid ModuleId, Guid? AreaId, IReadOnlyList<string> Paths, Guid? LabelAreaId = null);
 
     /// <summary>Was gesagt wird, wenn jemand ein Formular anfasst, das nicht seines ist.</summary>
     private const string NotYours =
@@ -229,9 +230,10 @@ public static partial class Form
     {
         Guid moduleId;
         Guid? areaId;
+        Guid? labelAreaId;
 
         await using (var find = new SqlCommand("""
-            SELECT TOP 1 m.id, m.area_id
+            SELECT TOP 1 m.id, m.area_id, m.label_area_id
             FROM app.module m
             WHERE m.id = @id
                OR m.id = (SELECT module_id FROM app.slug_part WHERE id = @id)
@@ -245,6 +247,7 @@ public static partial class Form
 
             moduleId = reader.GetGuid(0);
             areaId = reader.IsDBNull(1) ? null : reader.GetGuid(1);
+            labelAreaId = reader.IsDBNull(2) ? null : reader.GetGuid(2);
         }
 
         var paths = new List<string>();
@@ -263,7 +266,7 @@ public static partial class Form
             while (await reader.ReadAsync(ct)) paths.Add(reader.GetString(0));
         }
 
-        return new Sheet(moduleId, areaId, paths);
+        return new Sheet(moduleId, areaId, paths, labelAreaId);
     }
 
     /// <summary>

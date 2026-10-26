@@ -87,7 +87,8 @@ public static partial class Form
             return;
         }
 
-        if (!Guid.TryParse(body.AreaId, out var areaId) || areaId != own || body.Epoch < 1)
+        /* 0133 — oder unter dem Bereich, in dem die Fragen veröffentlicht sind: der Aufbau geht mit ihnen. */
+        if (!Guid.TryParse(body.AreaId, out var areaId) || (areaId != own && areaId != sheet.LabelAreaId) || body.Epoch < 1)
         {
             await Fail(ctx, StatusCodes.Status400BadRequest, "Układ pieczętuje się kluczem obszaru formularza.");
             return;

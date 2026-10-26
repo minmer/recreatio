@@ -25,7 +25,7 @@ import { chatLabel } from '../notify/notify';
 import { useRemembered } from '../core/prefs';
 import { formNewsPath, pageSteps, viewPath, formsPath } from '../routes';
 
-export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn' | 'duties';
+export type AlertKind = 'forms' | 'chats' | 'bookings' | 'steps' | 'tasks' | 'today' | 'links' | 'learn' | 'duties' | 'records' | 'plans';
 
 export interface AlertKindDef {
   readonly kind: AlertKind;
@@ -46,7 +46,10 @@ export const ALERT_KINDS: readonly AlertKindDef[] = [
   { kind: 'learn', label: 'Powtórka czeka', says: 'Karty, na które przyszła pora w Twoich bazach wiedzy.', counts: false },
   { kind: 'links', label: 'Dołączenia przez link', says: 'Ktoś dołączył przez Twój link.', counts: true },
   /* 0129–0131 — was entschieden werden muss: Administrator danych, gemeldete Inhalte, Bitten um einen Platz in einer Liste. */
-  { kind: 'duties', label: 'Sprawy do decyzji', says: 'Administrator danych, zgłoszenia treści, prośby o miejsce na liście wydarzeń.', counts: true }
+  { kind: 'duties', label: 'Sprawy do decyzji', says: 'Administrator danych, zgłoszenia treści, prośby o miejsce na liście wydarzeń.', counts: true },
+  /* 0132 — was von aussen an einen Termin kam (eine Anmeldung) und auf die Kanzlei wartet; Pläne, deren Termine bald enden. */
+  { kind: 'records', label: 'Wpisy do przyjęcia', says: 'Ktoś zapisał się na termin (albo zgłosił intencję) i czeka, aż przyjmie to kancelaria.', counts: true },
+  { kind: 'plans', label: 'Plany do przedłużenia', says: 'Terminy utworzone z planu (np. msze) wkrótce się kończą — zaplanuj kolejne tygodnie.', counts: false }
 ];
 
 const KNOWN = new Set<string>(ALERT_KINDS.map((one) => one.kind));
@@ -164,6 +167,20 @@ export function alertItems(
         if (!inScope(s.areaId)) continue;
         out.push({ kind, key: `s${s.moduleId ?? s.name}`, label: s.name, count: s.count, detail: `${s.count} ${plural(s.count, 'krok', 'kroki', 'kroków')} po terminie`, href: s.moduleId === undefined ? formsPath() : formNewsPath(s.moduleId) });
       }
+    } else if (kind === 'records') {
+      for (const r of digest?.records?.list ?? []) {
+        if (!inScope(r.areaId)) continue;
+        out.push({ kind, key: `r${r.calendarId}`, label: r.title, count: r.count, detail: `${r.count} ${plural(r.count, 'wpis czeka', 'wpisy czekają', 'wpisów czeka')}`, href: viewPath('calendar') });
+      }
+    } else if (kind === 'plans') {
+      for (const p of digest?.plans?.list ?? []) {
+        if (!inScope(p.areaId)) continue;
+        out.push({
+          kind, key: `p${p.calendarId}`, label: p.title, count: null,
+          detail: `zaplanowane do ${new Date(p.until).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' })}`,
+          href: viewPath('calendar', 'zaplanuj', p.calendarId)
+        });
+      }
     } else if (kind === 'tasks') {
       if (scope === null && (digest?.tasks ?? 0) > 0) {
         out.push({ kind, key: 'tasks', label: 'Do zrobienia teraz', count: digest!.tasks, detail: `${digest!.tasks} ${plural(digest!.tasks, 'zadanie', 'zadania', 'zadań')}`, href: viewPath('tasks') });
@@ -253,7 +270,8 @@ export function alertCount(digest: Digest | null, settings: AlertSettings): numb
     + (counted('links') ? digest.links : 0)
     + (counted('bookings') ? digest.bookings?.count ?? 0 : 0)
     + (counted('steps') ? digest.steps?.count ?? 0 : 0)
-    + (counted('duties') ? digest.duties?.count ?? 0 : 0);
+    + (counted('duties') ? digest.duties?.count ?? 0 : 0)
+    + (counted('records') ? digest.records?.count ?? 0 : 0);
 }
 
 export const alertLabel = (kind: AlertKind): string => ALERT_KINDS.find((one) => one.kind === kind)?.label ?? kind;

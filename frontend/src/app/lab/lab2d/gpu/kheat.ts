@@ -561,7 +561,11 @@ ${MAIN} {
     code: `var<workgroup> red: array<f32, ${7 * 256}>;
 ${MAIN} {
   let lid = lid3.x;
-  let count = cntWG(lid, C_PSORT);
+  /* Mit genauen Anteilen auch die Teilchen, die dieser Schritt anhängte (Schmelzwasser, geteilte Teilchen — kbodymelt.ts): sonst fehlte ihr
+     Wasser bis zum nächsten Sortieren in der Bilanz. */
+  let sorted = cntWG(lid, C_PSORT);
+  let all = min(cntWG(lid, C_PCOUNT), P.pcap);
+  let count = select(sorted, all, P.bodies != 0u);
   let p = gid.x;
   var v = vec4<f32>(0.0);
   var o = vec2<f32>(0.0);

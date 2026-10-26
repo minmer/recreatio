@@ -147,7 +147,7 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   };
 
   const exportDoc = async (): Promise<unknown> => {
-    if (manifest === undefined || manifestEntry === undefined) return SOURCE_EXAMPLES[scheme];
+    if (manifest === undefined || manifestEntry === undefined) return SOURCE_EXAMPLES[scheme === 'time' ? 'pages' : scheme];
     const parts = await targetStore.heavyMany(manifest.parts.map((p) => p.id));
     return exportSourceText(work, manifest, parts.filter((p): p is Entry => p !== null).map((p) => readPart(p.data)));
   };

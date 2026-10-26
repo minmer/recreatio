@@ -297,6 +297,25 @@ export function planLibraryImport(doc: unknown, base: ImportBase, spec: FormatSp
       }
       case 'fields':
         return spec.readFields !== undefined ? spec.readFields(value, where, (line) => warnings.push(line)) : (Array.isArray(value) ? value : null);
+      case 'media': {
+        /*
+         * 2026-10-26 — eine Datei, wie der Export sie schreibt (die Dateien der Musik). Hochgeladen wird in
+         * der App; ein Dokument trägt nur den Verweis auf eine Datei, die schon liegt — in derselben Reihenfolge
+         * der Felder wie gespeichert, damit ein Rücklauf nichts ändert.
+         */
+        const o = asRecord(value);
+        if (typeof o.file !== 'string' || !isUuid(o.file)) {
+          warnings.push(`${where}: to nie jest plik z eksportu (brak "file") — pominięte. Pliki wgrywa się w aplikacji.`);
+          return null;
+        }
+        const type = o.type === 'image' || o.type === 'audio' || o.type === 'video' ? o.type : 'document';
+        return {
+          file: o.file, type,
+          ...(typeof o.name === 'string' && o.name.trim() !== '' ? { name: o.name.slice(0, 200) } : {}),
+          ...(typeof o.mime === 'string' && o.mime.trim() !== '' ? { mime: o.mime } : {}),
+          ...(typeof o.library === 'string' && isUuid(o.library) ? { library: o.library } : {})
+        };
+      }
       case 'select': {
         const s = String(value);
         if (field.options === undefined || field.options.some((o) => o.value === s)) return s;
@@ -420,7 +439,8 @@ const TYPE_SAYS: Record<LibField['type'], string> = {
   date: 'data RRRR-MM-DD', select: 'jedna z wartości', url: 'adres https://…', ref: 'odwołanie: kennung albo "@klucz"',
   refs: 'lista odwołań: kennungi albo "@klucze"', outline: 'lista punktów planu', items: 'lista obiektów o polach:',
   blocks: 'lista bloków (niżej: „Komentarz”)',
-  fields: 'lista pól — jak pola rodzaju w Wiedzy'
+  fields: 'lista pól — jak pola rodzaju w Wiedzy',
+  media: 'plik wgrany w aplikacji: { "file": kennunga pliku, "type": "audio" | "image" | "video" | "document", "name", "mime" } — taki, jaki daje eksport; nowych plików JSON nie wgrywa'
 };
 
 /** Ein Feld in der Beschreibung — bei `items` darunter seine Unterfelder. */
@@ -461,7 +481,9 @@ export function kindsDoc(kinds: readonly LibKind[]): string {
   return kinds.map((def) => {
     const fields = def.fields.map((f) => fieldDoc(f, '  ')).join('\n');
     const example = { kind: def.kind, ...(def.example.key === undefined ? {} : { key: def.example.key }), data: def.example.data };
-    return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? ' Ma klucz cytowania.' : ''}\n"data":\n${fields}\nPrzykład:\n${JSON.stringify(example, null, 2)}`;
+    /* 2026-10-26 — weitere Beispiele (ein Werk der Musik, sein Komponist und Chor). */
+    const more = (def.more ?? []).map((one) => `\nPrzykład (${one.label}):\n${JSON.stringify({ kind: def.kind, ...(one.key === undefined ? {} : { key: one.key }), data: one.data }, null, 2)}`).join('');
+    return `### "${def.kind}" — ${def.label}\n${def.says}${def.keyed ? ' Ma klucz cytowania.' : ''}\n"data":\n${fields}\nPrzykład:\n${JSON.stringify(example, null, 2)}${more}`;
   }).join('\n\n');
 }
 
@@ -474,7 +496,8 @@ Co robi import:
 Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "${SCRIPTORIUM_FORMAT}"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Wiedzy (Cogita), jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
 - Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
-- Odwołania ("authors", "editors", "translators", "container", "work") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Odwołania ("authors", "editors", "translators", "container", "work"; przy muzyce "composers", "lyricists", "arrangers", "performers", "piece", "album") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Muzyka to też dzieła ("work"), z innym rodzajem: "piece" (utwór), "score" (nuty), "recording" (nagranie), "album" (płyta). Rodzaj decyduje, które pola dzieło ma. Nuty i nagranie wskazują swój utwór ("piece"), nagranie — swoją płytę ("album"). Pliki (strony nut, ścieżki nagrania: osobne głosy i instrumenty albo całość) wgrywa się w aplikacji; JSON opisuje je bez plików albo przenosi z eksportu. Miejsce w nagraniu to czas: "1:23", "1:23–1:45".
 - Plik z innymi rodzajami (teksty, wygłoszenia, projekty, komentarze, tematy) zostanie odrzucony — z informacją, gdzie go zaimportować.
 - "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
 - Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
@@ -494,6 +517,6 @@ ${kinds}
 
 ## Miejsce w źródle
 ${BIBLE_DOC}
-Inne miejsca: "s. 23", "nr 24", "rozdz. 4".
+Inne miejsca: "s. 23", "nr 24", "rozdz. 4"; w nagraniu — czas: "1:23", "1:23–1:45", "1:02:03".
 `;
 }

@@ -9,7 +9,6 @@ import { fromLocal, groupName, localDate, localTime } from '../areas/WhoSees';
 import { longDate, sameDay } from '../core/dayMath';
 import type { Me } from '../core/me';
 import { WorkspaceError } from '../core/session';
-import { IntentionsPanel } from '../masses/IntentionsPanel';
 import { Modal } from '../ui/Modal';
 import { type CalendarRow, DUTY_LABEL, setPeople } from './calendar';
 import { calendarLabel } from './calendarLabel';
@@ -17,6 +16,10 @@ import { type CalEvent, programOf } from './calendarModel';
 import { dutyOf, peopleWord, time } from './eventWords';
 import { ItemLink } from './ItemLink';
 import { PeoplePicker, type Pinned, nameOfPinned, useAreaPeople } from './PeoplePicker';
+import { useCalendarDocs } from './calendarDocs';
+import { RecordsPanel } from './RecordsPanel';
+import { schemeOf, shownLists, shownValue } from './scheme';
+import { SchemeValue } from './SchemeInput';
 
 /**
  * 0070 — DAS PROGRAMM EINES TERMINS: seine Teile (aus den geladenen
@@ -204,6 +207,16 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /* 0132 — das Schema dieses Termins: seine Werte zum Lesen, seine Listen (Intentionen, Anmeldungen). */
+  const docs = useCalendarDocs(me.ring, occurrence?.calendarId ?? null);
+  const scheme = schemeOf(docs?.schemes ?? [], occurrence?.schemeId ?? null);
+  const fields = [...scheme.def.fields];
+  const shown = item === undefined ? [] : [...item.values.entries()].map(([key, value]) => {
+    const field = fields.find((f) => f.key === key) ?? null;
+    return { key, label: field?.label ?? value.label ?? key, field, text: field === null || value.public ? value.text : shownValue(field, value.text) };
+  });
+  const lists = occurrence === undefined ? [] : shownLists(scheme.def, occurrence.kind);
+
   const when = event.allDay
     ? longDate(event.start)
     : `${longDate(event.start)}, ${time(event.start)}–${time(event.end)}`;
@@ -236,10 +249,21 @@ export function Details({ me, areas, calendars, event, onClose, onSaved }: {
       {item?.notes && <p className="wk-ev-notes">{item.notes}</p>}
       {item?.link && <p><ItemLink url={item.link} label={item.linkLabel} /></p>}
 
-      {/* 0079 — was an dieser Messe gelesen wird. */}
-      {occurrence?.kind === 'mass' && (
-        <IntentionsPanel calendarId={occurrence.calendarId} itemId={occurrence.itemId} occurrenceAt={occurrence.occurrenceAt}
-          start={event.start} editable={calendar?.mayWrite === true} />
+      {/* 0132 — die Werte seines Schemas (Obchód, Kolor szat …). */}
+      {shown.length > 0 && (
+        <dl className="wk-sc-show">
+          {shown.map((one) => (
+            <div key={one.key}>
+              <dt>{one.label}</dt>
+              <dd><SchemeValue field={one.field} text={one.text} /></dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {/* 0079/0132 — was an diesem Vorkommen steht; wer darf, meldet sich (es wartet auf die Kanzlei). */}
+      {item !== undefined && lists.length > 0 && (
+        <RecordsPanel me={me} item={item} start={event.start} calendar={calendar} lists={lists} writer={calendar?.mayWrite === true && item.editable} onChanged={onSaved} />
       )}
 
       {/* 0058 — wer da sein muss. */}

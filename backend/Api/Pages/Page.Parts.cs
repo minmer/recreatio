@@ -114,6 +114,40 @@ public static partial class Page
 
         var slugId = row.Value.Id;
 
+        /*
+         * 0133 — EIN BAUSTEIN NUR FÜR DIE MENSCHEN EINES BEREICHS: wer ihn so einstellt, liest
+         * den Bereich selbst (sonst machte jeder jeden Bereich zum Publikum seiner Seite).
+         */
+        var audiences = new Dictionary<Guid, Guid>();
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrWhiteSpace(part.AudienceAreaId)) continue;
+            if (!Guid.TryParse(part.AudienceAreaId, out var audienceArea))
+            {
+                await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelny obszar odbiorców modułu.");
+                return;
+            }
+            audiences[Guid.Parse(part.Id)] = audienceArea;
+        }
+        /* Geprüft wird nur, was sich ändert: wer eine Seite mit dem Baustein eines anderen speichert, nimmt ihm nichts. */
+        var storedAudience = new Dictionary<Guid, Guid>();
+        if (audiences.Count > 0)
+        {
+            await using var known = new SqlCommand(
+                "SELECT id, audience_area_id FROM app.slug_part WHERE slug_id = @slug AND audience_area_id IS NOT NULL;", connection);
+            known.Parameters.AddWithValue("@slug", slugId);
+            await using var reader = await known.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted)) storedAudience[reader.GetGuid(0)] = reader.GetGuid(1);
+        }
+        foreach (var audienceArea in audiences.Where(a => !storedAudience.TryGetValue(a.Key, out var was) || was != a.Value).Select(a => a.Value).Distinct())
+        {
+            if (!await Area.MayAsync(connection, who.Value.AccountId, audienceArea, Capability.Read, ctx.RequestAborted))
+            {
+                await Fail(ctx, StatusCodes.Status403Forbidden, "Moduł można zawęzić tylko do obszaru, który czytasz.");
+                return;
+            }
+        }
+
         /* 0129 — eine öffentliche Seite braucht jemanden, der für ihren Inhalt geradesteht; leeren darf man sie immer. */
         if (parts.Count > 0 && await Controllers.PageGateAsync(connection, slugId, wanted, ctx.RequestAborted) is { } nobody)
         {
@@ -319,13 +353,13 @@ public static partial class Page
                 ? new SqlCommand("""
                     UPDATE app.slug_part
                        SET kind = @kind, position = @position, layout = @layout,
-                           config = @config, module_id = @module
+                           config = @config, module_id = @module, audience_area_id = @audience
                      WHERE id = @id;
                     """, connection, tx)
                 : new SqlCommand("""
                     INSERT INTO app.slug_part
-                        (id, slug_id, kind, position, layout, config, created_at, module_id)
-                    VALUES (@id, @slug, @kind, @position, @layout, @config, @now, @module);
+                        (id, slug_id, kind, position, layout, config, created_at, module_id, audience_area_id)
+                    VALUES (@id, @slug, @kind, @position, @layout, @config, @now, @module, @audience);
                     """, connection, tx);
 
             save.Parameters.AddWithValue("@id", id);
@@ -334,6 +368,7 @@ public static partial class Page
             save.Parameters.AddWithValue("@position", i);
             save.Parameters.AddWithValue("@layout", parts[i].Layout);
             save.Parameters.AddWithValue("@config", (object?)parts[i].Config ?? DBNull.Value);
+            save.Parameters.AddWithValue("@audience", audiences.TryGetValue(id, out var audience) ? audience : DBNull.Value);
 
             if (!staying.Contains(id))
             {
@@ -414,7 +449,7 @@ public static partial class Page
     /// </para>
     /// </summary>
     public static async Task<List<object>> PartsOfAsync(
-        SqlConnection connection, Guid slugId, CancellationToken ct)
+        SqlConnection connection, Guid slugId, CancellationToken ct, Func<Guid, Task<bool>>? sees = null)
     {
         var parts = new List<object>();
 
@@ -423,7 +458,8 @@ public static partial class Page
                    CASE WHEN blk.hit = 1 THEN N'blocked' ELSE COALESCE(m.kind, p.kind) END AS kind,
                    p.layout,
                    CASE WHEN blk.hit = 1 THEN NULL ELSE COALESCE(m.config, p.config) END AS config,
-                   CASE WHEN blk.hit = 1 THEN NULL ELSE p.module_id END
+                   CASE WHEN blk.hit = 1 THEN NULL ELSE p.module_id END,
+                   p.audience_area_id
             FROM app.slug_part p
             /*
                 DER BAUSTEIN GEWINNT (0036). Steht derselbe auf zwei Seiten,
@@ -440,18 +476,36 @@ public static partial class Page
 
         cmd.Parameters.AddWithValue("@slug", slugId);
 
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
+        var rows = new List<(Guid Id, string Kind, string Layout, string? Config, Guid? Module, Guid? Audience)>();
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
+            while (await reader.ReadAsync(ct))
+                rows.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetGuid(4), reader.IsDBNull(5) ? null : reader.GetGuid(5)));
+        }
+
+        /*
+         * 0133 — EIN BAUSTEIN NUR FÜR DIE MENSCHEN EINES BEREICHS geht nur an die, die den
+         * Bereich sehen (`sees`); ohne Prüfung (der Editor, die Kanzlei) an alle, die fragen.
+         */
+        var seen = new Dictionary<Guid, bool>();
+        foreach (var row in rows)
+        {
+            if (row.Audience is { } audience && sees is not null)
+            {
+                if (!seen.TryGetValue(audience, out var ok)) seen[audience] = ok = await sees(audience);
+                if (!ok) continue;
+            }
             parts.Add(new
             {
-                id = Ids.ToText(reader.GetGuid(0)),
-                kind = reader.GetString(1),
-                layout = reader.GetString(2),
-                config = reader.IsDBNull(3) ? null : reader.GetString(3),
+                id = Ids.ToText(row.Id),
+                kind = row.Kind,
+                layout = row.Layout,
+                config = row.Config,
 
                 /* Welcher Baustein hier gezeigt wird — die Seite zeigt ihn nur. */
-                moduleId = reader.IsDBNull(4) ? null : Ids.ToText(reader.GetGuid(4))
+                moduleId = row.Module is null ? null : Ids.ToText(row.Module.Value),
+                audienceAreaId = row.Audience is null ? null : Ids.ToText(row.Audience.Value)
             });
         }
 

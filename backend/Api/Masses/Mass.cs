@@ -141,17 +141,22 @@ public static partial class Mass
         SqlConnection connection, SqlTransaction tx, Guid intentionId,
         List<Sealing> fields, DateTimeOffset now, CancellationToken ct)
     {
+        /*
+         * 0132 — die Felder eines Eintrags (`occurrence_record_value`). Ihre AAD
+         * bleibt die der Messintention: die Liste `intencje` und die Felder
+         * `giver`/`offering` versiegelt der Browser immer so.
+         */
         foreach (var (field, areaId, epoch, blob) in fields)
         {
             await using var upsert = new SqlCommand("""
-                UPDATE app.mass_intention_field
-                   SET area_id = @area, epoch = @epoch, sealed_blob = @blob, updated_at = @now
-                 WHERE intention_id = @intention AND field = @field;
+                UPDATE app.occurrence_record_value
+                   SET area_id = @area, epoch = @epoch, sealed = @blob, public_value = NULL, updated_at = @now
+                 WHERE record_id = @intention AND field_key = @field;
 
                 IF @@ROWCOUNT = 0
-                    INSERT INTO app.mass_intention_field
-                        (intention_id, field, area_id, epoch, sealed_blob, updated_at)
-                    VALUES (@intention, @field, @area, @epoch, @blob, @now);
+                    INSERT INTO app.occurrence_record_value
+                        (record_id, field_key, area_id, epoch, sealed, public_value, updated_at)
+                    VALUES (@intention, @field, @area, @epoch, @blob, NULL, @now);
                 """, connection, tx);
 
             upsert.Parameters.AddWithValue("@intention", intentionId);
@@ -170,30 +175,8 @@ public static partial class Mass
     /// Reihe, und ist er nicht abgesagt? (Verlegt ist in Ordnung: die Adresse
     /// bleibt der ursprüngliche Beginn.)
     /// </summary>
-    private static async Task<bool> TakesPlaceAsync(SqlConnection connection, Guid itemId, DateTimeOffset at, CancellationToken ct)
-    {
-        await using var cmd = new SqlCommand("""
-            SELECT i.starts_at, i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count, c.time_zone,
-                   (SELECT TOP 1 x.cancelled FROM app.calendar_exception x WHERE x.item_id = i.id AND x.original_start = @at)
-            FROM app.calendar_item i JOIN app.calendar c ON c.id = i.calendar_id
-            WHERE i.id = @id;
-            """, connection);
-        cmd.Parameters.AddWithValue("@id", itemId);
-        cmd.Parameters.AddWithValue("@at", at);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return false;
-        if (!reader.IsDBNull(7) && reader.GetBoolean(7)) return false;
-
-        var found = Calendar.Occurrences(
-            reader.GetDateTimeOffset(0), reader.GetString(1), reader.GetInt32(2),
-            reader.IsDBNull(3) ? null : reader.GetByte(3),
-            reader.IsDBNull(4) ? null : reader.GetDateTimeOffset(4),
-            reader.IsDBNull(5) ? null : reader.GetInt32(5),
-            at.AddSeconds(-1), at.AddSeconds(1), Zones.Of(reader.GetString(6)));
-
-        return found.Contains(at);
-    }
+    private static Task<bool> TakesPlaceAsync(SqlConnection connection, Guid itemId, DateTimeOffset at, CancellationToken ct) =>
+        Calendar.TakesPlaceAsync(connection, itemId, at, ct);
 
     /// <summary>Der Kalendereintrag hinter einer Messe: welcher Bereich, welche Art.</summary>
     private static async Task<(Guid AreaId, string Kind)?> ItemAsync(
@@ -260,15 +243,34 @@ public static partial class Mass
 
         var names = string.Join(", ", itemIds.Select((_, i) => $"@i{i}"));
 
-        await using (var cmd = new SqlCommand($"""
-            SELECT n.id, n.item_id, n.occurrence_at, n.ordinal, n.text_public,
-                   n.kind, n.status, n.celebrant_role_id
-            FROM app.mass_intention n
-            WHERE n.item_id IN ({names})
-              AND n.occurrence_at BETWEEN @from AND @to
-              {(withCancelled ? "" : "AND n.status <> N'cancelled'")}
-            ORDER BY n.occurrence_at, n.ordinal;
-            """, connection))
+        /*
+         * 0132 — die Intentionen sind Einträge der Liste `intencje`. Vor der
+         * Migration (der Dienst kam vor `migrate`) liest der Aushang weiter aus
+         * `mass_intention` — er bleibt stehen, Neues wird solange abgewiesen.
+         */
+        var ready = await Calendar.RecordsReadyAsync(connection, ct);
+        var source = ready
+            ? $"""
+              SELECT n.id, n.item_id, n.occurrence_at, n.ordinal, n.text_public,
+                     ISNULL(n.mode, N'single'), n.status, n.role_id
+              FROM app.occurrence_record n
+              WHERE n.list_key = N'{Calendar.IntentionList}' AND n.item_id IN ({names})
+                AND n.occurrence_at BETWEEN @from AND @to
+                AND n.status IN (N'accepted', N'cancelled', N'celebrated')
+                {(withCancelled ? "" : "AND n.status <> N'cancelled'")}
+              ORDER BY n.occurrence_at, n.ordinal;
+              """
+            : $"""
+              SELECT n.id, n.item_id, n.occurrence_at, n.ordinal, n.text_public,
+                     n.kind, n.status, n.celebrant_role_id
+              FROM app.mass_intention n
+              WHERE n.item_id IN ({names})
+                AND n.occurrence_at BETWEEN @from AND @to
+                {(withCancelled ? "" : "AND n.status <> N'cancelled'")}
+              ORDER BY n.occurrence_at, n.ordinal;
+              """;
+
+        await using (var cmd = new SqlCommand(source, connection))
         {
             cmd.Parameters.AddWithValue("@from", from);
             cmd.Parameters.AddWithValue("@to", to);
@@ -296,9 +298,11 @@ public static partial class Mass
         var byId = held.ToDictionary(h => h.Id);
         var ids = string.Join(", ", held.Select((_, i) => $"@n{i}"));
 
-        await using (var cmd = new SqlCommand(
-            $"SELECT intention_id, field, area_id, epoch, sealed_blob FROM app.mass_intention_field "
-            + $"WHERE intention_id IN ({ids}) ORDER BY intention_id, field;", connection))
+        await using (var cmd = new SqlCommand(ready
+            ? $"SELECT record_id, field_key, area_id, epoch, sealed FROM app.occurrence_record_value "
+              + $"WHERE record_id IN ({ids}) AND sealed IS NOT NULL ORDER BY record_id, field_key;"
+            : $"SELECT intention_id, field, area_id, epoch, sealed_blob FROM app.mass_intention_field "
+              + $"WHERE intention_id IN ({ids}) ORDER BY intention_id, field;", connection))
         {
             for (var i = 0; i < held.Count; i++) cmd.Parameters.AddWithValue($"@n{i}", held[i].Id);
 

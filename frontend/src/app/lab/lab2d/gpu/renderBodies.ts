@@ -62,7 +62,8 @@ ${MAIN} {
     let rq = u32(bcell[BC * t + 3u]);
     let b = u32(rv(rq, GR_BODY));
     for (var k = 0u; k < ${BQ_WORDS}u; k++) { bq[o + k] = 0.0; }
-    if (!bGone(b)) {
+    /* Die Reserve eines schmelzenden Körpers (kbodymelt.ts) bleibt ein leeres Viereck. */
+    if (!bGone(b) && t - u32(rv(rq, GR_KO)) < u32(rv(rq, GR_NI)) * u32(rv(rq, GR_NJ))) {
       let loc = t - u32(rv(rq, GR_KO));
       let ni = u32(rv(rq, GR_NI));
       let p = loc % ni;

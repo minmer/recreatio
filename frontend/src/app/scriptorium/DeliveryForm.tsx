@@ -15,14 +15,21 @@
  * Gespeichert wird von selbst, wie jeder Eintrag (`LibraryEditor.tsx`).
  */
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { keysFor } from '../core/ringOf';
+import { WorkspaceError, whoIsThere } from '../core/session';
+import { loadChildren } from '../areas/profile';
+import { lessonMessage, postToClass, STATE_SIGN, stateOf } from '../areas/school';
+import { selfOf } from '../roles/roles';
+import { toast } from '../ui/dialogs';
+import { areasNow } from '../workspace/viewData';
 import { viewPath } from '../routes';
 import { JsonPanel } from '../ui/JsonPanel';
 import type { OpenLibrary } from '../library/library';
 import { patchFromDoc } from '../library/libraryJson';
 import { exportScriptorium, SCRIPTORIUM_SPEC } from './scriptoriumJson';
-import { COVERAGE_STATES, itemsOf, str, type EntryData, type LibEntry } from '../library/libraryKinds';
+import { COVERAGE_STATES, ids, itemsOf, LESSON_STATES, str, type EntryData, type LibEntry } from '../library/libraryKinds';
 import type { LibraryStore } from '../library/libraryStore';
 import { FieldList } from '../library/LibraryFields';
 import { MediaPlayer } from './SermonParts';
@@ -32,6 +39,8 @@ import {
   type AddedItem, type CoverageItem, type CoverageState
 } from './sermon';
 import { WritingArea } from './WritingTools';
+/* 0134 — die Lekcja in einer Klasse hat ihre Gestalt dort, wo auch die Schule sie zeigt. */
+import '../areas/school.css';
 
 const SIGN: Record<string, string> = { said: '✓', short: '◐', skipped: '✕' };
 
@@ -201,6 +210,116 @@ function AddedEditor({ store, entry, data, set, readOnly, now }: {
   );
 }
 
+/* -- 0134: eine Lekcja in einer Klasse ------------------------------------------------------------ */
+
+interface ClassChoice { readonly areaId: string; readonly name: string }
+
+/** Die Klassen im Bereich dieses Skryptorium (einer Szkoła) — `null`: wird gefragt. */
+function useClasses(areaId: string): readonly ClassChoice[] | null {
+  const [found, setFound] = useState<readonly ClassChoice[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([
+      loadChildren(areaId).then((r) => r.children, () => []),
+      areasNow().catch(() => [])
+    ]).then(([children, areas]) => {
+      if (!alive) return;
+      const names = new Map(areas.map((a) => [a.areaId.toLowerCase(), a.name] as const));
+      setFound(children.filter((c) => c.kind === 'class')
+        .map((c) => ({ areaId: c.areaId.toLowerCase(), name: names.get(c.areaId.toLowerCase()) ?? 'klasa' }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'pl', { numeric: true })));
+    });
+    return () => { alive = false; };
+  }, [areaId]);
+  return found;
+}
+
+/**
+ * LEKCJA W KLASIE — nur, wo es Klassen gibt (im Skryptorium einer Szkoła) oder das Wygłoszenie schon
+ * einer Klasse gehört: welche Klasse, wie es lief (geplant, gehalten, teilweise, nicht gehalten),
+ * das Zadanie — und das Ganze als Nachricht in den Kanał der Klasse.
+ */
+function LessonSection({ store, library, data, set, readOnly }: {
+  store: LibraryStore;
+  library: OpenLibrary;
+  data: EntryData;
+  set: (patch: EntryData) => void;
+  readOnly: boolean;
+}) {
+  const classes = useClasses(library.areaId);
+  const [sending, setSending] = useState(false);
+  const classArea = str(data, 'classArea').trim().toLowerCase();
+  if (classes === null || (classes.length === 0 && classArea === '')) return null;
+  const state = stateOf(data);
+
+  const send = async () => {
+    setSending(true);
+    try {
+      const who = await whoIsThere();
+      if (who === null) throw new WorkspaceError('Zaloguj się, żeby napisać do klasy.');
+      const keys = await keysFor(who);
+      const person = selfOf(keys.graph);
+      if (keys.ring === null || person === null) throw new WorkspaceError('Najpierw podaj hasło — klucze nie są otwarte w tej karcie.');
+      const text = store.get(ids(data, 'texts')[0] ?? '');
+      await postToClass(keys.ring, {
+        classAreaId: classArea, personId: person.id,
+        text: lessonMessage({ date: str(data, 'date'), title: text === undefined ? null : str(text.data, 'title'), summary: str(data, 'summary'), homework: str(data, 'homework') })
+      });
+      toast('Wysłane do klasy.', { kind: 'ok' });
+    } catch (e) {
+      toast(e instanceof WorkspaceError ? e.message : 'Nie udało się wysłać do klasy.', { kind: 'error' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <section className="lib-cover sc-lesson" aria-label="Lekcja w klasie" data-lesson-form="">
+      <h2 className="wk-h2">Lekcja w klasie</h2>
+      <p className="lib-cover-lead">
+        Temat lekcji to tekst z programu — wybierasz go niżej (pole „Kazanie (tekst)”). Poniżej, punkt po punkcie, zaznaczysz, co z jego planu było w tej klasie.
+      </p>
+      <label className="wk-field">
+        <span>Klasa</span>
+        <select value={classArea} disabled={readOnly} data-lesson-class="" onChange={(e) => set({ classArea: e.target.value })}>
+          <option value="">— bez klasy (zwykłe wygłoszenie) —</option>
+          {classes.map((c) => <option key={c.areaId} value={c.areaId}>{c.name}</option>)}
+          {classArea !== '' && !classes.some((c) => c.areaId === classArea) && <option value={classArea}>inna klasa</option>}
+        </select>
+      </label>
+      {classArea !== '' && (
+        <>
+          <div className="wk-field">
+            <span>Stan lekcji</span>
+            <span className="wk-seg sc-states" role="group" aria-label="Stan lekcji">
+              {LESSON_STATES.map((s) => (
+                <button key={s.value} type="button" disabled={readOnly} aria-pressed={state === s.value} data-lesson-state={s.value}
+                  className={state === s.value ? `wk-seg-opt wk-seg-on is-${s.value}` : 'wk-seg-opt'}
+                  onClick={() => set({ state: s.value })}>
+                  <span aria-hidden="true">{STATE_SIGN[s.value]}</span> {s.label}
+                </button>
+              ))}
+            </span>
+          </div>
+          <label className="wk-field">
+            <span>Zadanie dla klasy</span>
+            <textarea rows={2} value={str(data, 'homework')} disabled={readOnly} placeholder="np. Przeczytać Rdz 1,1-31" data-lesson-homework=""
+              onChange={(e) => set({ homework: e.target.value })} />
+          </label>
+          {!readOnly && (
+            <div className="wk-actions">
+              <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={sending} data-lesson-send="" onClick={() => void send()}>
+                {sending ? 'Wysyłanie…' : 'Wyślij klasie'}
+              </button>
+              <span className="lib-cover-lead">Temat, „Krótko o tym wygłoszeniu” i zadanie — do kanału klasy (albo jej rozmowy).</span>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 /* -- Das ganze Formular ------------------------------------------------------------------------- */
 
 export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
@@ -220,6 +339,7 @@ export function DeliveryForm({ store, library, entry, data, set, readOnly }: {
 
   return (
     <div className="lib-delivery-form">
+      <LessonSection store={store} library={library} data={data} set={set} readOnly={readOnly} />
       <FieldList store={store} kind="delivery" data={data} set={set} readOnly={readOnly} only={['texts', 'date', 'occasion', 'place', 'audience', 'readings']} />
 
       <section className="lib-cover" aria-label="Nagranie">

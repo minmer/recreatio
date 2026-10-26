@@ -17,7 +17,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 
 import { containerPath, libraryKindOf, loadLibraries, openedLibraryKind, openLibraries, type LibraryKind, type OpenLibrary } from './library';
 import { usePageLibrary } from './libraryOpen';
-import { entrySort, kindOf, str } from './libraryKinds';
+import { entrySort, isMusic, kindOf, str, WORK_TYPES, type LibEntry } from './libraryKinds';
 import type { Entry, LibraryStore } from './libraryStore';
 import { entryLine } from './refLabels';
 import { useMe, useWho } from '../core/me';
@@ -27,6 +27,13 @@ import { Loading } from '../ui/Loading';
 
 /** Das Feld, das beim schnellen Anlegen den getippten Namen bekommt. */
 const NAME_FIELD: Record<string, string> = { person: 'name', work: 'title', project: 'title', text: 'title', quote: 'text' };
+
+/** 2026-10-26 — wie ein Eintrag in der Wahl heisst: ein Werk der Musik nach seinem Rodzaj („Nagranie"), sonst nach seiner Art. */
+const kindWord = (entry: LibEntry): string | undefined =>
+  (entry.kind === 'work' && isMusic(entry.data) ? WORK_TYPES.find((t) => t.value === entry.data.workType)?.label : undefined) ?? kindOf(entry.kind)?.label;
+
+/** 2026-10-26 — Namen von Ensembles (Wykonawcy eines Nagrania): sie sind Institutionen. */
+const ENSEMBLE = /^(?:chór|chor|schola|zespół|zespol|orkiestra|kwartet|kwintet|tercet|duet|kapela|filharmonia|sinfonietta|capella|cappella|ensemble|choir|orchestra|band|quartet|consort)(?=[\s,.]|$)/i;
 
 export function RefPicker({ store, kinds, value, multiple, busy, onChange, placeholder, only, makeWith, canMake = true }: {
   store: LibraryStore;
@@ -70,7 +77,10 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
     setFailed(null);
     try {
       const data: Record<string, unknown> = { ...(makeWith ?? {}), [NAME_FIELD[kind] ?? 'title']: name };
-      if (kind === 'person') {
+      /* 2026-10-26 — ein Chor, eine Schola, ein Orchester ist eine Institution: ganzer Name, nicht Vor- und Nachname. */
+      if (kind === 'person' && ENSEMBLE.test(name)) {
+        data.personType = 'organization';
+      } else if (kind === 'person') {
         const parts = name.split(/\s+/);
         if (parts.length >= 2 && !/^(św\.|bł\.|ks\.|o\.|s\.)$/i.test(parts[0])) {
           data.surname = parts[parts.length - 1];
@@ -122,14 +132,14 @@ export function RefPicker({ store, kinds, value, multiple, busy, onChange, place
               {found.map((entry) => (
                 <li key={entry.id}>
                   <button type="button" role="option" aria-selected={false} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(entry.id)}>
-                    <span className="lib-option-kind">{kindOf(entry.kind)?.label}</span> {entryLine(entry, store)}
+                    <span className="lib-option-kind">{kindWord(entry)}</span> {entryLine(entry, store)}
                   </button>
                 </li>
               ))}
               {canMake && query.trim() !== '' && kinds.length > 0 && (
                 <li>
                   <button type="button" className="lib-option-new" onMouseDown={(e) => e.preventDefault()} onClick={() => void make()} disabled={making}>
-                    + Utwórz {kindOf(kinds[0])?.label.toLowerCase()}: „{query.trim()}”
+                    + Utwórz {(kindWord({ id: '', kind: kinds[0]!, data: makeWith ?? {} }) ?? '').toLowerCase()}: „{query.trim()}”
                   </button>
                 </li>
               )}

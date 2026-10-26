@@ -2293,3 +2293,117 @@ that has it: the review lists the kind changes to accept. The old self-assessed 
     step; kept over a reload; with all levels a branch folds (2 left) and „Wszystkie poziomy” opens it again.
 
 **Owner:** rebuild and deploy the site; nothing else.
+
+## K2 — Appointment schemes: fields, record lists with rules, liturgical plans that create masses (0132, 2026-10-26)
+
+**Asked:** rethink intentions, masses and appointments as one generic appointment with schemes on top (mass,
+intention single or collective, persons, feast and colour, the Sunday of the liturgical year, a fixed evening votive
+mass, Sunday 12:13 for the parish), a React Flow that creates the masses of the next weeks by a rule, different per
+diocese, and fields declared per area. The decisions are D1–D16 with the owner's notes and O1–O3 in
+`documentation/APPOINTMENT-SCHEMES.md` (§4, §7, §8); then "make a full implementation using the selections I made".
+
+**Built** (§9 of that file says where and how it is used)
+- **Storage (0132):** `calendar_doc` — schemes and plans, sealed per calendar (a scheme under the key of the area that
+  sees the calendar, a plan under the calendar's own area); `calendar_item.scheme_id` (NULL = the universal scheme in
+  code) and `plan_origin`; `calendar_value` — values of an appointment or of one occurrence, sealed, with a public
+  label and value where the scheme says so; `occurrence_record` + `_value` — generic records (intentions, sign-ups)
+  with status and origin. `mass_intention` is copied into the list `intencje` (the API catches up rows written before
+  the deploy); the old intention endpoints, the mass plan, series handover and both deletions use the new tables.
+- **Schemes** (`calendar/scheme.ts`, `SchemeEditor.tsx`): kind(s), public title, fields (eleven types, appointment or
+  day level, public, required, choices, unit), record lists (modes, public text, a pinned person, own sealed fields,
+  "outside" sign-up, a rule). Templates: Msza, Nabożeństwo, Spowiedź, Spotkanie z zapisami — copied in by hand.
+- **Rules** run in the browser (`records.ts` `checkRule` → `flow/flowRun.ts`): allow, wait or refuse with a message;
+  conditions on mode, counts on the occurrence or the week, who adds, a field. A record from outside always waits —
+  public fields only — and the office accepts it after the rule ran again (`RecordsPanel.tsx`, replaces
+  `IntentionsPanel`).
+- **Plans** (`PlanEditor.tsx`, `flow/`): a React Flow with a day stage (season, feasts table, conditions, set,
+  mass hours) and a mass stage (conditions, set title/field/variable, fixed record, create or skip); the app only
+  computes what moves each year (`flow/liturgy.ts`: Easter, Advent, the Christmas cycle, weeks, nth weekday). The
+  template "Rok liturgiczny — parafia (Polska)" holds the Polish calendar, Triduum, Pasterka, the Wednesday evening
+  votive mass of MB Nieustającej Pomocy on ordinary weekdays, and "Za parafian" at 12:13.
+- **Apply** (`PlanApply.tsx`, "Zastosuj…", also "Zapisz i zastosuj…"): a calendar, a range, a preview day by day,
+  then single appointments with the plan's scheme, values and records — not tied to the plan (O1); a second run
+  skips what is there (O3). The bell: "Wpisy do przyjęcia" (waiting outside records) and "Plany do przedłużenia"
+  (planned weeks ending within 14 days; opens the dialog).
+- **Editor and reading:** scheme chips and fields in the appointment editor (day fields for one date or "Ten
+  termin"), values in the details; public values on the public mass plan, the print sheet and the gablota.
+- **JSON:** `recreatio/scheme` and `recreatio/plan` (`schemeJson.ts`) — export, tolerant import with a word for every
+  dropped thing; the description is part of the format tree (scheme → field, list → rule → flow, condition, date;
+  plan → plan flow → the same nodes), complete by type (`PLAN_TESTS`/`RULE_TESTS` and every date rule); the templates
+  are its samples.
+
+**Checks:**
+- `app-scheme-check` 111: the computus and moving days; the Polish template on known days (Christmas with Pasterka,
+  Palm Sunday, Gaudete, the Wednesday votive mass and Lent without it, transferred solemnities, Triduum, 12:13) and a
+  whole year 2027; intention and sign-up rules; broken flows; JSON; sealing labels of values and records.
+- `app-json-check` block 0132 (round trips, oddities, foreign scheme references, the tree, samples); `tsc` clean.
+- Backend: `Api.Tests` 547 (with SchemeChecks), `scratchpad/va/schemes-api.mjs` 44 on LocalDB (docs, values, records,
+  intention copy and catch-up, old endpoints, deletion).
+- Browser drives on LocalDB: `schemes-ui.mjs` 23 (template scheme and plan, the JSON tree and samples, flow
+  graph, Sunday preview with 12:13 "Za parafian", two weeks applied = 34 single masses with scheme, colour and
+  obchód, the rule refusing a second single intention, the public plan and the old office endpoint);
+  `records-outside.mjs` 11 (a member signs up from outside, the record waits, the office accepts it); regressions
+  `cal-ui.mjs` 41, `cal-ui2.mjs` 20, `ap-ui.mjs` 10.
+
+**Owner:** apply `0132_appointment_schemes.sql`, then deploy the API, then rebuild and deploy the site.
+
+## M1 — Music in the Library: pieces, scores with their files, recordings in voices, albums; places in time (2026-10-26)
+
+**Asked:** the Library stores music too, as its own part. Choosing the kind of a work decides its fields. A music
+work can be a score (sheets, notation) or a recording — one file, or several that are the parts (voices,
+instruments). Later: publishing with a player that plays the voices together, and Cogita cards that play a recording
+from a moment and ask for the title (choose or type). Those two are not built now; the data is made for them.
+
+**Built** (LIBRARY.md → „Music”):
+- **Kinds** (`libraryKinds.ts`): `piece` (Utwór muzyczny), `score` (Nuty), `recording` (Nagranie), `album` (Płyta,
+  album), still `work` entries, grouped in the kind select under „Muzyka”. Each field says for which kinds it shows
+  (`when`). New fields: composers, lyricists, arrangers, performers, piece, album, track, catalogue number, key,
+  voicing, genre, duration, ISMN, lyrics, other titles and incipit; `files` (score) and `tracks` (recording) are lists
+  with a new field type `media`. Books lose nothing; music hides ISBN, DOI, the place scheme and the other book-only
+  fields.
+- **The tab „Muzyka”** (`LibraryView.tsx`): music apart from „Źródła”, one button per kind, its own list lines
+  (kind, catalogue, voicing, „3 ścieżki”) and its own JSON export. The pickers offer only pieces (albums) and make a
+  new one of that kind; an ensemble typed as a performer becomes an institution.
+- **Files** (`MusicFiles.tsx`, `music.ts`): tracks with a voice and a role (part: sounds together; whole: alone),
+  several uploaded at once and named from the file name (`guessVoice`); score files (PDF, images, MusicXML, MIDI).
+  - Encrypted in the browser (`LibraryStore.upload`) and opened only when asked (`openFile`): play, show a PDF or
+    image, download.
+  - **Saved at once** (`entryDraft.commit`): the browser drive found that the autosave (1.2 s after typing) lost the
+    track list on a quick reload and left the files orphaned.
+  - Files go with their entry: removed with it (also many at once), removed with their track after a question,
+    replaced, and carried along when the entry moves to another library, sealed again under that area's key
+    (`LibraryStore.carryFiles`).
+- **Places in time** (`locations.ts`, scheme `time`): `1:23`, `1:23–1:45`, `0:45; 2:10–2:30`, `1:02:03`, `1:23.5`.
+  A recording reads its places this way. A time belongs to that one performance (not structural). Source texts keep
+  the text schemes (`TEXT_SCHEMES`).
+- **Footnotes** (`libraryCite.ts`): a piece by its composer and catalogue number; a score with „[nuty]”; a recording
+  by title and composer (from its piece) with performers, „[nagranie]”, the album and track, and the time; an album
+  with „[płyta]”.
+- **JSON:** the fields are described, with a piece and a recording in voices as examples; a file is kept as the export
+  wrote it, an invented one is dropped with a warning. The work-with-text guide shows only the text fields; Appendix A
+  of `wywod-AI.md` and of `AI-BRIEF.md` are regenerated.
+- **For later** (`music.ts`): `partsOf` and `wholeOf` (the player), `pieceBehind` and `titlesOf` (the cards: every
+  recording of a piece is one answer; a typed answer may be any name the piece is known by).
+
+**Checks:**
+- `app-library-check`: 25 sections, with a new music section covering:
+  - the fields per kind and that books are unchanged;
+  - the examples (also music) importing without a warning, and the export → import round trip with files;
+  - a dropped invented file;
+  - times read, written, compared and ordered;
+  - the footnotes of all four kinds;
+  - tracks, parts and the whole, the piece behind a recording and its names;
+  - twelve file names read as voices.
+- `app-cogita-check` 564, `app-json-check`, the style ratchet: pass.
+- Browser drive `scratchpad/argdesign/music-browser.mjs` (headless Edge, LocalDB): 21/21. It covers:
+  - the tab with one button per kind; the fields of a recording and of a score; the two headings of the kind select;
+  - a piece made from the picker; a choir typed as a performer becoming an institution;
+  - three tracks uploaded at once and named Sopran / Alt / Całość (whole); three files more on the server;
+  - a track played after decryption; the tracks kept over a reload;
+  - the Muzyka list and „Źródła” without music; a score with two PDFs (Partytura, Tenor) shown in place;
+  - a track removed after a question that names it, its file gone;
+  - the recording moved to another library: its two files sealed there, gone here, and playable there;
+  - the phone width; no console errors.
+- The Wywód drive still passes 42/42 on the same build.
+
+**Owner:** rebuild and deploy the site; no database or API change.

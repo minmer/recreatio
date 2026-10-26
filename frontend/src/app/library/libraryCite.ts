@@ -18,7 +18,8 @@
  */
 
 import { UNREADABLE } from './libraryMarkup';
-import { entryTitle, ids, personName, str, workTitle, type LibEntry, type Lookup } from './libraryKinds';
+import { entryTitle, ids, MUSIC_TYPES, personName, str, workTitle, type LibEntry, type Lookup } from './libraryKinds';
+import { musicPeople, pieceBehind } from './music';
 
 export interface Seg {
   readonly text: string;
@@ -106,9 +107,58 @@ const shortTitle = (work: LibEntry): Seg[] => {
   return title(words.length <= 4 ? words.join(' ') : `${words.slice(0, 4).join(' ')}…`);
 };
 
+/**
+ * 2026-10-26 — MUSIK, wie man sie nennt:
+ * <code>
+ *   Utwór      W. A. Mozart, Ave verum corpus, KV 618, sł. …, oprac. ….
+ *   Nuty       W. A. Mozart, Ave verum corpus [nuty], oprac. …, red. …, Stuttgart 2005, s. 3.
+ *   Nagranie   Ave verum corpus (W. A. Mozart), wyk. Schola Katedralna, [nagranie], w: Kolędy, nr 5, Dux, 2024, 1:23.
+ *   Płyta      Kolędy polskie, wyk. Schola Katedralna, [płyta], Dux, 2010.
+ * </code>
+ * Nuty und Nagranie ohne eigenen Titel oder Komponisten nehmen die ihres Utwór.
+ */
+function musicSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 'bib', locator: string): Seg[] {
+  const type = str(work.data, 'workType');
+  const form = mode === 'bib' ? personSorted : personShort;
+  const piece = pieceBehind(work, look);
+  const named = str(work.data, 'title').trim() !== '' ? work : piece;
+  const people = (key: string, prefix: string) => {
+    const list = ids(work.data, key).length > 0 ? ids(work.data, key) : piece.id === work.id ? [] : ids(piece.data, key);
+    return t(list.length === 0 ? '' : `${prefix}${names(list, look, form)}`);
+  };
+  const where = mode === 'bib' ? [] : t(locator);
+  if (mode === 'short') return join([t(names(musicPeople(work, look), look, personShort)), shortTitle(named), t('dz. cyt.'), where]);
+  const performers = t(ids(work.data, 'performers').length === 0 ? '' : `wyk. ${names(ids(work.data, 'performers'), look, form)}`);
+  const label = t([str(work.data, 'publisher'), str(work.data, 'year')].map((x) => x.trim()).filter(Boolean).join(', '));
+  if (type === 'piece') {
+    return join([people('composers', ''), titleOf(work), t(str(work.data, 'catalogue')), people('lyricists', 'sł. '), people('arrangers', 'oprac. '), where]);
+  }
+  if (type === 'score') {
+    const { editors } = roles(work, look);
+    return join([
+      people('composers', ''), [...titleOf(named), { text: ' [nuty]' }], t(str(work.data, 'catalogue')), people('lyricists', 'sł. '), people('arrangers', 'oprac. '),
+      editors, volume(work), edition(work), placeYear(work, mode === 'bib'), where
+    ]);
+  }
+  if (type === 'recording') {
+    const composers = names(ids(work.data, 'composers').length > 0 ? ids(work.data, 'composers') : piece.id === work.id ? [] : ids(piece.data, 'composers'), look, personShort);
+    const album = look.get(ids(work.data, 'album')[0] ?? '');
+    const track = str(work.data, 'track').trim();
+    return join([
+      [...titleOf(named), ...(composers === '' ? [] : [{ text: ` (${composers})` }])], performers, people('arrangers', 'oprac. '), t('[nagranie]'),
+      album === undefined ? [] : [{ text: 'w: ' }, ...titleOf(album)], t(track === '' ? '' : `nr ${track}`),
+      album === undefined ? label : t([str(album.data, 'publisher'), str(work.data, 'year') || str(album.data, 'year')].map((x) => x.trim()).filter(Boolean).join(', ')),
+      where
+    ]);
+  }
+  /* Płyta. */
+  return join([titleOf(work), performers, t('[płyta]'), label, t(str(work.data, 'catalogue')), where]);
+}
+
 /** Die Angabe eines Werks — ganz (`full`), kurz (`short`) oder für die Bibliografie (`bib`). */
 export function workSegs(work: LibEntry, look: Lookup, mode: 'full' | 'short' | 'bib', locator = ''): Seg[] {
   const type = str(work.data, 'workType');
+  if (MUSIC_TYPES.has(type)) return musicSegs(work, look, mode, locator);
   const authors = names(ids(work.data, 'authors'), look, mode === 'bib' ? personSorted : personShort);
   const where = t(locator);
 
@@ -242,7 +292,8 @@ export function originOf(quote: LibEntry, look: Lookup): string {
   const work = look.get(ids(quote.data, 'work')[0] ?? '');
   if (work === undefined) return str(quote.data, 'locator');
   if (str(work.data, 'workType') === 'bible') return segText(workSegs(work, look, 'full', str(quote.data, 'locator')));
-  const authors = names(ids(work.data, 'authors'), look, personShort);
+  /* 2026-10-26 — ein Zitat aus Musik (die Worte eines Liedes): nach dem Komponisten. */
+  const authors = names(MUSIC_TYPES.has(str(work.data, 'workType')) ? musicPeople(work, look) : ids(work.data, 'authors'), look, personShort);
   return [authors, workTitle(work.data), str(quote.data, 'locator')].filter((s) => s.trim() !== '').join(', ');
 }
 

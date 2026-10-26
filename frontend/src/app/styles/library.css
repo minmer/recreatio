@@ -381,3 +381,24 @@ span.lib-own-ref { color: inherit; text-decoration: none; font-style: italic; }
 @media (max-width: 63.99rem) { .lib-knowledge-line { display: flex; } }
 .lib-knowledge-line.is-reader { display: flex; margin-bottom: var(--wk-space-2); }
 .lib-knowledge-line.is-reader .lib-knowledge-go { padding: 0.125rem var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); }
+
+/* -- 2026-10-26: Muzyka — die Dateien eines Werks der Musik (MusicFiles.tsx) ------------------------------------ */
+.lib-music { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.lib-music-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.lib-music-row { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) 0; border-bottom: 1px solid var(--wk-line); min-width: 0; }
+.lib-music-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.lib-music-line select { font: inherit; }
+input.lib-music-label { flex: 0 1 12rem; min-width: 8rem; font: inherit; padding: var(--wk-space-1) var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); }
+span.lib-music-label { font-weight: 600; }
+.lib-music-name { flex: 1 1 10rem; min-width: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); overflow-wrap: anywhere; }
+.lib-music-tools { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); }
+.lib-music-tools .wk-link-btn { min-height: 2.75rem; }
+/* Ein Knopf, der eine Datei wählt: das Feld selbst unsichtbar, aber erreichbar; der Rahmen zeigt den Fokus. */
+.lib-music-pick { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+.lib-music-pick input[type="file"] { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; opacity: 0; cursor: pointer; }
+.lib-music-pick:focus-within { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.lib-music-status { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.lib-music-view { max-inline-size: 100%; }
+audio.lib-music-view { inline-size: 100%; }
+.lib-music-image { display: block; block-size: auto; border: 1px solid var(--wk-line); }
+.lib-music-pdf { display: block; inline-size: 100%; block-size: min(80vh, 60rem); border: 1px solid var(--wk-line); }

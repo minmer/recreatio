@@ -124,4 +124,5 @@ PhoneChecks.Run(Check);
 VirtualAreaChecks.Run(Check);
 PageSealChecks.Run(Check);
 AiAccessChecks.Run(Check);
+SchemeChecks.Run(Check);
 Console.WriteLine($"Passed {checks} chat authorization, scheduling and availability checks.");

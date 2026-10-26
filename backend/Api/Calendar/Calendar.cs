@@ -89,6 +89,20 @@ public static partial class Calendar
         /* 0070 — ein Termin mit seinen Teilen (Calendar.Program.cs); mit Konto mehr, ohne der Aushang. */
         app.MapGet("/calendar/program/{id:guid}", ProgramAsync);
         app.MapPost("/workspace/item/{id:guid}/program", MoveInProgramAsync);
+
+        /*
+         * 0132 — Schemata und Pläne eines Kalenders (versiegelt), die Werte eines
+         * Vorkommens, und die Einträge an Vorkommen (Intentionen, Anmeldungen …).
+         */
+        app.MapGet("/workspace/calendar/{id:guid}/docs", DocsAsync);
+        app.MapPost("/workspace/calendar/{id:guid}/doc", SaveDocAsync);
+        app.MapPost("/workspace/calendar-doc/{id:guid}/delete", DeleteDocAsync);
+        app.MapPost("/workspace/item/{id:guid}/values", DayValuesAsync);
+        app.MapGet("/workspace/item/{id:guid}/records", ItemRecordsAsync);
+        app.MapGet("/workspace/calendar/{id:guid}/records", CalendarRecordsAsync);
+        app.MapPost("/workspace/item/{id:guid}/record", AddRecordAsync);
+        app.MapPost("/workspace/record/{id:guid}", UpdateRecordAsync);
+        app.MapPost("/workspace/record/{id:guid}/delete", DeleteRecordAsync);
     }
 
     /* -- Anlegen ------------------------------------------------------------ */

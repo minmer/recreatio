@@ -356,12 +356,12 @@ fn forget(b: u32) {
   let o = b * BS;
   for (var d = 0u; d < 3u; d++) { bod[o + B_PREV + d] = 0.0; bod[o + B_PRED + d] = 0.0; bod[o + B_PNOW + d] = 0.0; bod[o + B_POLD + d] = 0.0; }
 }
+/* Aufwecken: die zuletzt gemessene mitbewegte Masse bleibt (gemessen wird er erst wieder nach der nächsten Ablesung, BodyStep.select). */
 fn wakeB(b: u32) {
   if (!bFree(b) || bv(b, B_ASLEEP) == 0.0) { return; }
   let o = b * BS;
   bod[o + B_ASLEEP] = 0.0;
   bod[o + B_REST] = 0.0;
-  bod[o + B_MAOK] = 0.0;
   forget(b);
 }
 /* Der Warmstart einer Berührung (Kennungen ia, ib) aus der Tabelle des letzten Schritts (nach Schlüssel geordnet); NONE: keiner. */
@@ -430,8 +430,9 @@ fn tryPair(pa: u32, pb: u32, mine: vec4<f32>, other: u32, spec: f32) {
   for (var b = 0u; b < P.nbody; b++) {
     if (!bAwake(b)) { continue; }
     let o = b * BS;
+    /* Gemessen (auch zuletzt, vor dem Einschlafen) oder, nie gemessen, die Schätzung. */
     var m6 = array<f32, 6>(bv(b, B_MA), 0.0, 0.0, bv(b, B_MA), 0.0, bv(b, B_IA));
-    if (bv(b, B_PROBE) != 0.0 && bv(b, B_MAOK) != 0.0) { for (var d = 0u; d < 6u; d++) { m6[d] = bv(b, B_MA6 + d); } }
+    if (bv(b, B_MAOK) != 0.0) { for (var d = 0u; d < 6u; d++) { m6[d] = bv(b, B_MA6 + d); } }
     let c0 = bv(b, B_PREV) + bv(b, B_PNOW) - bv(b, B_POLD);
     let c1 = bv(b, B_PREV + 1u) + bv(b, B_PNOW + 1u) - bv(b, B_POLD + 1u);
     let c2 = bv(b, B_PREV + 2u) + bv(b, B_PNOW + 2u) - bv(b, B_POLD + 2u);

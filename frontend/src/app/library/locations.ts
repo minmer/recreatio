@@ -22,14 +22,17 @@
  *   decimal   Dezimalnummern (Tractatus)              2.0121 · 4.1–4.116 · TLP 6.54
  *   sections  Paragraphen (Untersuchungen)           § 43 · §§ 1–5 · cz. II, xi
  *   outline   Gliederung eines Buches                t. 2, cz. 1, rozdz. 3, § 4, ak. 5
+ *   time      Zeit in einem Nagranie (2026-10-26)    1:23 · 1:23–1:45 · 0:45; 2:10–2:30 · 1:02:03
  * </code>
+ * Die Zeit gehört wie die Seite einer Ausgabe dem einen Nagranie, nicht dem Utwór: eine andere
+ * Aufführung desselben Stücks hat andere Zeiten (`isStructural` sagt darum nein).
  * Was keine Regel liest, bleibt als `rest` erhalten — nichts geht verloren, nur
  * verknüpft wird es dann nicht.
  */
 
 import { bibleBooks, bookById, formatBible, parseBible, type BibleSpan } from './bible';
 
-export type SchemeId = 'pages' | 'bible' | 'numbered' | 'aquinas' | 'decimal' | 'sections' | 'outline';
+export type SchemeId = 'pages' | 'bible' | 'numbered' | 'aquinas' | 'decimal' | 'sections' | 'outline' | 'time';
 
 export interface SchemeDef {
   readonly id: SchemeId;
@@ -46,8 +49,12 @@ export const SCHEMES: readonly SchemeDef[] = [
   { id: 'aquinas', label: 'Tomasz z Akwinu', says: 'Część, kwestia, artykuł; zarzut (arg.), sed contra, odpowiedź (co.), odpowiedź na zarzut (ad).', examples: ['I, q. 2, a. 3', 'I-II, q. 90, a. 1, ad 2', 'II-II q. 23 a. 1 arg. 1', 'III q. 75 a. 1 co.'] },
   { id: 'decimal', label: 'Numeracja dziesiętna', says: 'Twierdzenia numerowane dziesiętnie, jak w Traktacie logiczno-filozoficznym: każda cyfra po kropce to poziom niżej.', examples: ['2.0121', '4.1–4.116', 'TLP 6.54'] },
   { id: 'sections', label: 'Paragrafy dzieła', says: 'Paragrafy (uwagi) numerowane w całym dziele, z częściami, jak w Dociekaniach filozoficznych.', examples: ['§ 43', '§§ 1–5', 'cz. II, xi'] },
-  { id: 'outline', label: 'Podział dzieła', says: 'Tom, część, księga, rozdział, paragraf, akapit — tyle poziomów, ile ma dzieło.', examples: ['t. 2, cz. 1, rozdz. 3', 'ks. II, rozdz. 4, § 2', 'rozdz. 3, ak. 5'] }
+  { id: 'outline', label: 'Podział dzieła', says: 'Tom, część, księga, rozdział, paragraf, akapit — tyle poziomów, ile ma dzieło.', examples: ['t. 2, cz. 1, rozdz. 3', 'ks. II, rozdz. 4, § 2', 'rozdz. 3, ak. 5'] },
+  { id: 'time', label: 'Czas nagrania', says: 'Minuty i sekundy nagrania — jak strony wydania należą do tego jednego wykonania, nie do utworu.', examples: ['1:23', '1:23–1:45', '0:45; 2:10–2:30', '1:02:03'] }
 ];
+
+/** 2026-10-26 — die Regeln für Texte (Quellentexte, die Wahl am Werk); `time` gehört den Nagrania. */
+export const TEXT_SCHEMES: readonly SchemeDef[] = SCHEMES.filter((s) => s.id !== 'time');
 
 export const schemeOf = (id: string): SchemeDef => SCHEMES.find((s) => s.id === id) ?? SCHEMES[0];
 
@@ -55,7 +62,7 @@ export const schemeOf = (id: string): SchemeDef => SCHEMES.find((s) => s.id === 
 export function workScheme(data: Readonly<Record<string, unknown>>): SchemeId {
   const set = typeof data.scheme === 'string' ? data.scheme : '';
   if (SCHEMES.some((s) => s.id === set)) return set as SchemeId;
-  return data.workType === 'bible' ? 'bible' : data.workType === 'document' ? 'numbered' : 'pages';
+  return data.workType === 'bible' ? 'bible' : data.workType === 'document' ? 'numbered' : data.workType === 'recording' ? 'time' : 'pages';
 }
 
 /* -- Das Modell ----------------------------------------------------------------------------- */
@@ -303,6 +310,43 @@ function outlineSpans(text: string): { spans: Span[]; rest: string } {
   return found ? { spans: [{ from, to }], rest: unread.join(', ') } : { spans: [], rest: text };
 }
 
+/* -- Zeit in einem Nagranie (2026-10-26) ------------------------------------------------------- */
+
+/** „1:23" → 83, „1:02:03" → 3723, „83" → 83, „1:23.5" → 83.5 — Sekunden; sonst `null`. */
+export function secondsOfTime(text: string): number | null {
+  const t = text.trim().replace(/\s*(?:s|sek)\.?$/i, '');
+  const hms = /^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/.exec(t);
+  if (hms !== null) return Number(hms[2]) < 60 && Number(hms[3]) < 60 ? Number(hms[1]) * 3600 + Number(hms[2]) * 60 + Number(hms[3]) : null;
+  const ms = /^(\d+):(\d{1,2}(?:\.\d+)?)$/.exec(t);
+  if (ms !== null) return Number(ms[2]) < 60 ? Number(ms[1]) * 60 + Number(ms[2]) : null;
+  return /^\d+(?:\.\d+)?$/.test(t) ? Number(t) : null;
+}
+
+/** 83 → „1:23", 3723 → „1:02:03", 83.5 → „1:23.5". */
+export function timeWord(seconds: number): string {
+  const all = Math.round(Math.max(0, seconds) * 10);
+  const whole = Math.floor(all / 10);
+  const tenths = all % 10;
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const sec = `${String(whole % 60).padStart(2, '0')}${tenths > 0 ? `.${tenths}` : ''}`;
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
+/** „1:23", „1:23–1:45", „0:45; 2:10–2:30" (auch mit Komma) — jedes Stück ein Bereich in Sekunden. */
+function timeSpans(text: string): { spans: Span[]; rest: string } {
+  const spans: Span[] = [];
+  const unread: string[] = [];
+  for (const piece of text.replace(DASH, '-').split(/[;,]/).map((x) => x.trim()).filter((x) => x !== '')) {
+    const [a, b, more] = piece.split(/\s*-\s*/);
+    const from = secondsOfTime(a ?? '');
+    const to = b === undefined ? from : secondsOfTime(b);
+    if (from === null || to === null || more !== undefined || to < from) { unread.push(piece); continue; }
+    spans.push({ from: [from], to: [to] });
+  }
+  return { spans, rest: unread.join(', ') };
+}
+
 const READERS: Readonly<Record<SchemeId, ((text: string) => { spans: Span[]; rest: string }) | null>> = {
   pages: null,
   bible: bibleSpans,
@@ -310,7 +354,8 @@ const READERS: Readonly<Record<SchemeId, ((text: string) => { spans: Span[]; res
   aquinas: aquinasSpans,
   decimal: decimalSpans,
   sections: sectionsSpans,
-  outline: outlineSpans
+  outline: outlineSpans,
+  time: timeSpans
 };
 
 /**
@@ -608,6 +653,8 @@ function writeSpan(span: Span, scheme: SchemeId): string {
       const word = (p: Path) => `${p[0]}${p.length > 1 ? `.${p.slice(1).join('')}` : ''}`;
       return same ? word(f) : `${word(f)}–${word(t)}`;
     }
+    case 'time':
+      return same || f[0] === t[0] ? timeWord(f[0] ?? 0) : `${timeWord(f[0] ?? 0)}–${timeWord(t[0] ?? 0)}`;
     case 'sections':
       if (f[0] === 2) return `cz. II, ${romanOf(f[1] ?? 0)}${t[1] !== f[1] ? `–${romanOf(t[1] ?? 0)}` : ''}`;
       return f[1] === t[1] ? `§ ${f[1]}` : `§§ ${f[1]}–${t[1]}`;
@@ -646,5 +693,5 @@ function spanToBible(span: Span): BibleSpan | null {
   };
 }
 
-/** Gilt die Stelle in jeder Ausgabe (Struktur) oder nur in dieser (Seiten)? */
-export const isStructural = (place: Place): boolean => place.spans.length > 0;
+/** Gilt die Stelle in jeder Ausgabe (Struktur) oder nur in dieser (Seiten; 2026-10-26: die Zeit eines Nagrania)? */
+export const isStructural = (place: Place): boolean => place.spans.length > 0 && place.scheme !== 'time';

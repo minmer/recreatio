@@ -24,6 +24,7 @@
  * Zustands) — derselbe Samen, dieselben Befehle, derselbe Lauf.
  */
 
+import { meltsAt } from './body';
 import { Bodies } from './bodies';
 import { BodyMelt } from './bodyMelt';
 import { BubbleModel } from './bubbleModel';
@@ -639,13 +640,19 @@ export class Engine {
   }
 
   /**
-   * Braucht die Szene den normalen Weg? Eis, das schmilzt oder wächst (M3b), Körner (M3c) und mehr als acht freie Körper kennt
-   * der beschleunigte Weg noch nicht (freie Körper seit 2026-10-26, gpu/kbody*.ts; andere Flüssigkeiten und Salz seit 2026-10-24).
+   * Braucht die Szene den normalen Weg? Eis aus mehreren Rechtecken (ein ausgeschnittener Block: seine Scheiben und neuen Streifen,
+   * bodyMelt.slabs), Körner (M3c) und mehr als acht freie Körper kennt der beschleunigte Weg noch nicht (freie Körper seit
+   * 2026-10-26, gpu/kbody*.ts; schmelzendes Eis aus einem Rechteck seit 2026-10-26, gpu/kbodymelt*.ts; andere Flüssigkeiten und
+   * Salz seit 2026-10-24).
    */
   needsCpu(): boolean {
     let free = 0;
-    for (const b of this.bodies.list) if (b.free) free += 1;
-    return free > 8 || this.melt.any() || this.grains.count > 0;
+    let carved = false;
+    for (const b of this.bodies.list) {
+      if (b.free) free += 1;
+      if (!b.gone && b.nr > 1 && meltsAt(b.mat) > 0) carved = true;
+    }
+    return free > 8 || carved || this.grains.count > 0;
   }
 
   /** Abweichung der Salzbilanz seit dem Start (kg): gelöst + Kruste + Boden + entwichen gegen den Anfang und die Eingriffe. */

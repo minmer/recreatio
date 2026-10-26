@@ -45,6 +45,7 @@ import type { DraftPart } from './page';
 import { PartJson } from './PageJsonPanel';
 import { PickLibrary, PickLibraryEntry } from '../library/LibraryPick';
 import { WidgetEmbed } from './WidgetEmbed';
+import { AudienceField, useSeenAreas } from './PartAudience';
 
 const ROW_H = 84;
 const GAP = 8;
@@ -296,6 +297,13 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
   const width = CANVAS_W[breakpoint];
   const chosen = parts.find((p) => p.id === selected) ?? null;
 
+  /* 0133 — wem ein Baustein gehört („tylko: …"), beim Namen. */
+  const seen = useSeenAreas();
+  const audienceName = (areaId: string | null | undefined) =>
+    areaId == null ? null : seen.find((a) => a.areaId === areaId)?.name ?? 'inny obszar';
+  const setAudience = (partId: string, areaId: string | null) =>
+    onChange(parts.map((p) => (p.id === partId ? { ...p, audienceAreaId: areaId } : p)));
+
   return (
     <div className="pb">
       <div className="pb-bar">
@@ -362,6 +370,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
                 frame={frameFor(part, breakpoint)}
                 columns={columns}
                 selected={selected === part.id}
+                audience={audienceName(part.audienceAreaId)}
                 onSelect={() => setSelected(part.id)}
                 onResizeStart={(handle, e) => startResize(part.id, handle, e)}
                 onRemove={() => remove(part.id)}
@@ -407,6 +416,7 @@ export function PageBuilder({ parts, onChange: report, busy, onOpenModule, path 
           busy={busy}
           path={path}
           onSet={(patch) => setConfigMany(chosen.id, patch)}
+          onAudience={(areaId) => setAudience(chosen.id, areaId)}
           onPickModule={(moduleId) => setModule(chosen.id, moduleId)}
           onMadeModule={(moduleId) => {
             const next = withModule(chosen.id, moduleId);
@@ -463,11 +473,13 @@ function Cell({ row, col, open, active }: { row: number; col: number; open: bool
   );
 }
 
-function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemove }: {
+function Item({ part, frame, columns, selected, audience = null, onSelect, onResizeStart, onRemove }: {
   part: DraftPart;
   frame: Frame;
   columns: number;
   selected: boolean;
+  /** 0133 — nur für die Menschen dieses Bereichs (sein Name), oder `null`: für alle. */
+  audience?: string | null;
   onSelect: () => void;
   onResizeStart: (handle: Handle, event: ReactPointerEvent<HTMLButtonElement>) => void;
   onRemove: () => void;
@@ -500,6 +512,7 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
       <span className="pb-item-name">{partLabel(part.kind)}</span>
       <span className="pb-item-size">{colSpan}×{rowSpan}</span>
       {empty && <span className="pb-item-todo">do uzupełnienia</span>}
+      {audience !== null && <span className="pb-item-audience" title="Ten moduł widzą tylko osoby z tego obszaru">tylko: {audience}</span>}
 
       {/*
         WAS DIESE GRÖSSE ZEIGT — an der Kachel selbst. Wer an der Kante zieht,
@@ -541,26 +554,32 @@ function Item({ part, frame, columns, selected, onSelect, onResizeStart, onRemov
  * Slajdy (0062) im aufgeklappten Slajd. Ein Bogen wird gewählt, nicht hier
  * gestellt (siehe oben); alles andere füllt man hier.
  */
-export function PartSettings({ part, size, busy, onSet, onPickModule, onMadeModule, path = null }: {
+export function PartSettings({ part, size, busy, onSet, onAudience, onPickModule, onMadeModule, path = null }: {
   part: DraftPart;
   size: PartSize;
   busy: boolean;
   path?: string | null;
   onSet: (patch: Record<string, string>) => void;
+  /** 0133 — „Widoczne dla": wer den Baustein bekommt; fehlt: nicht einstellbar (Slajdy, Präsentation). */
+  onAudience?: (areaId: string | null) => void;
   onPickModule: (moduleId: string) => void;
   onMadeModule: (moduleId: string) => void;
 }) {
   /* 0067 — jeder Baustein lässt sich auf einer fremden Seite zeigen (WordPress). */
   const embed = <WidgetEmbed path={path} partId={part.id} title={part.config.title ?? part.kind} />;
+  const audience = onAudience === undefined ? null
+    : <AudienceField value={part.audienceAreaId ?? null} busy={busy} onChange={onAudience} />;
 
   return part.kind === 'form' ? (
     <>
     <PickModule kind={part.kind} chosen={part.moduleId} busy={busy} onPick={onPickModule} onMade={onMadeModule} />
+    {audience}
     {embed}
     </>
   ) : (
     <>
     <Fields part={part} size={size} busy={busy} onSet={onSet} path={path} />
+    {audience}
     {embed}
     </>
   );

@@ -40,6 +40,12 @@ export interface EntryDraft {
   readonly setKey: (next: string) => void;
   /** Jetzt speichern, was im Formular steht (auch über eine neuere Fassung hinweg). */
   readonly saveNow: () => Promise<Entry | null>;
+  /**
+   * 2026-10-26 — eine Änderung SOFORT speichern, nicht erst nach dem Tippen: die Dateien der Musik liegen
+   * schon beim Dienst, der Eintrag muss sie gleich nennen (wer die Karte gleich schliesst, verliert sonst
+   * den Verweis und lässt die Datei verwaist zurück). `null`: nicht gespeichert.
+   */
+  readonly commit: (patch: EntryData) => Promise<Entry | null>;
   /** Einen neuen Eintrag anlegen und dann dorthin (\`go\`). */
   readonly create: (go: (id: string) => void) => Promise<void>;
   /** Die neuere Fassung eines anderen übernehmen. */
@@ -120,10 +126,20 @@ export function useEntryDraft(store: LibraryStore, existing: Entry | undefined, 
     if (done !== null) go(done.id);
   };
 
+  /* Was zuletzt im Formular steht — auch zwischen zwei Bildern (mehrere Dateien nacheinander). */
+  const latest = useRef({ data, key });
+  latest.current = { data, key };
+  const commit = useCallback((patch: EntryData): Promise<Entry | null> => {
+    const next = { ...latest.current.data, ...patch };
+    latest.current = { data: next, key: latest.current.key };
+    setData(next);
+    return save(next, latest.current.key);
+  }, [save]);
+
   const live: LibEntry = { id, kind, ...(key === '' ? {} : { key }), data };
   return {
     id, kind, data, key, state, failed, saved, live, status: STATUS[state],
-    set, setKey, saveNow: () => save(data, key), create, reloadTheirs
+    set, setKey, saveNow: () => save(data, key), commit, create, reloadTheirs
   };
 }
 

@@ -51,6 +51,7 @@ export function FieldInput({ store, field, data, set, readOnly, extra }: {
       <div className={`wk-field lib-field${wide ? ' is-wide' : ''}`}>
         {label}
         <RefPicker store={store} kinds={field.to ?? []} value={ids(data, field.key)} multiple={field.type === 'refs'} busy={readOnly}
+          only={field.pick?.only} makeWith={field.pick?.makeWith}
           onChange={(next) => set({ [field.key]: field.type === 'ref' ? (next[0] ?? '') : next })} />
       </div>
     );
@@ -58,10 +59,15 @@ export function FieldInput({ store, field, data, set, readOnly, extra }: {
 
   let input: ReactNode;
   if (field.type === 'select') {
+    /* 2026-10-26 — Wahlen mit Überschrift (die Rodzaje eines Werks: Texte, Musik). */
+    const options = field.options ?? [];
+    const groups = [...new Set(options.map((o) => o.group).filter((g): g is string => g !== undefined))];
     input = (
       <select value={value} disabled={readOnly} onChange={(e) => set({ [field.key]: e.target.value })}>
         <option value="">—</option>
-        {(field.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {groups.length === 0
+          ? options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
+          : groups.map((g) => <optgroup key={g} label={g}>{options.filter((o) => o.group === g).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</optgroup>)}
       </select>
     );
   } else if (field.type === 'text') {

@@ -535,22 +535,22 @@ Jeden dokument tworzy w Bibliotece wpis dzieła (książki, artykułu, rozdział
 
 ## Pola dzieła i osoby
 ### "work" — Źródło
-Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona. Ma klucz cytowania.
+Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona — albo muzyka: utwór, nuty, nagranie, płyta. Ma klucz cytowania.
 "data":
-  "workType" — Rodzaj: Rodzaj: "book" (Książka), "chapter" (Rozdział w książce), "article" (Artykuł w czasopiśmie), "periodical" (Czasopismo), "document" (Dokument (Kościoła, urzędowy)), "bible" (Pismo Święte), "web" (Strona internetowa), "talk" (Wykład, kazanie, nagranie), "other" (Inne) (jedna z wartości)
-  "title" — Tytuł: Tytuł dzieła (tekst)
+  "workType" — Rodzaj: Rodzaj: "book" (Książka), "chapter" (Rozdział w książce), "article" (Artykuł w czasopiśmie), "periodical" (Czasopismo), "document" (Dokument (Kościoła, urzędowy)), "bible" (Pismo Święte), "web" (Strona internetowa), "talk" (Wykład, kazanie, nagranie), "other" (Inne); muzyka: "piece" (Utwór muzyczny — sam utwór: kompozytor, słowa, tonacja, obsada), "score" (Nuty — wydanie nut, z plikami: partytura, głosy, zapis nutowy), "recording" (Nagranie — wykonanie: jeden plik albo kilka ścieżek (głosy i instrumenty, odtwarzane razem)), "album" (Płyta, album — zbiór nagrań). Rodzaj decyduje, które pola dzieło ma (jedna z wartości)
+  "title" — Tytuł: Tytuł dzieła (utworu, nagrania, płyty) (tekst)
   "subtitle" — Podtytuł: Podtytuł (albo rodzaj dokumentu, np. "adhortacja apostolska") (tekst)
-  "originalTitle" — Tytuł oryginału: Tytuł oryginału (oryginalny tytuł przekładu) (tekst)
-  "authors" — Autorzy: Autorzy — odwołania do osób, w kolejności (lista odwołań: kennungi albo "@klucze")
+  "originalTitle" — Tytuł oryginału: Tytuł oryginału (oryginalny tytuł przekładu; przy utworze — tytuł w języku oryginału) (tekst)
+  "authors" — Autorzy: Autorzy — odwołania do osób, w kolejności (przy muzyce: kompozytor, autor słów — pola niżej) (lista odwołań: kennungi albo "@klucze")
   "editors" — Redakcja: Redaktorzy — odwołania do osób (lista odwołań: kennungi albo "@klucze")
-  "translators" — Tłumaczenie: Tłumacze — odwołania do osób (lista odwołań: kennungi albo "@klucze")
+  "translators" — Tłumaczenie: Tłumacze — odwołania do osób (przy utworze: przekład słów) (lista odwołań: kennungi albo "@klucze")
   "container" — W (książka, czasopismo): Dla rozdziału: książka; dla artykułu: czasopismo — odwołanie do źródła (odwołanie: kennung albo "@klucz")
-  "volume" — Tom / rocznik: Tom (książka) albo rocznik (czasopismo) (tekst)
+  "volume" — Tom / rocznik: Tom (książka, zbiór nut) albo rocznik (czasopismo) (tekst)
   "issue" — Numer: Numer czasopisma (tekst)
   "edition" — Wydanie: Które wydanie (tekst)
-  "publisher" — Wydawca: Wydawnictwo (tekst)
+  "publisher" — Wydawca: Wydawnictwo (przy nagraniu i płycie: wytwórnia) (tekst)
   "place" — Miejsce wydania: Miejsce wydania (tekst)
-  "year" — Rok: Rok wydania (albo data dokumentu) (tekst)
+  "year" — Rok: Rok wydania (albo data dokumentu; przy utworze — rok powstania, przy nagraniu — rok nagrania) (tekst)
   "series" — Seria: Seria wydawnicza, z numerem tomu w serii (tekst)
   "pages" — Strony: Zakres stron rozdziału albo artykułu (tekst)
   "pageCount" — Liczba stron: Ile stron ma książka (liczba)
@@ -564,8 +564,8 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "doi" — DOI: Identyfikator DOI publikacji (tekst)
   "url" — Adres: Adres w sieci (adres https://…)
   "accessed" — Dostęp: Kiedy strona była czytana (RRRR-MM-DD) (data RRRR-MM-DD)
-  "language" — Język: Język (np. "pl", "la") (tekst)
-  "scheme" — Układ miejsc: Jak wskazuje się miejsca w tym dziele: "pages" (Strony wydania), "bible" (Pismo Święte), "numbered" (Numery (dokumenty)), "aquinas" (Tomasz z Akwinu), "decimal" (Numeracja dziesiętna), "sections" (Paragrafy dzieła), "outline" (Podział dzieła); puste — z rodzaju (Pismo Święte: bible, dokument: numbered, inne: pages) (jedna z wartości)
+  "language" — Język: Język (np. "pl", "la"; przy muzyce — język słów) (tekst)
+  "scheme" — Układ miejsc: Jak wskazuje się miejsca w tym dziele: "pages" (Strony wydania), "bible" (Pismo Święte), "numbered" (Numery (dokumenty)), "aquinas" (Tomasz z Akwinu), "decimal" (Numeracja dziesiętna), "sections" (Paragrafy dzieła), "outline" (Podział dzieła); puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages) (jedna z wartości)
   "psalms" — Numeracja psalmów: Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata) (jedna z wartości)
   "editionOf" — Wydanie / przekład dzieła: To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie. (odwołanie: kennung albo "@klucz")
 Przykład:

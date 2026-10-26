@@ -79,6 +79,9 @@ public static partial class Form
          */
         app.MapPost("/workspace/field/{id:guid}", UpdateFieldAsync);
 
+        /* 0133 — unter welchem Bereich die Fragen liegen (der, in dem das Formular veröffentlicht ist). */
+        app.MapPost("/workspace/form/{id:guid}/questions-area", QuestionsAreaAsync);
+
         app.MapGet("/workspace/part/{id:guid}/registrations", RegistrationsAsync);
 
         /*
@@ -233,7 +236,8 @@ public static partial class Form
             return (null, null, "Nieczytelny obszar albo epoka pytania.");
         }
 
-        if (sheet.AreaId is not Guid own || own != area)
+        /* 0133 — oder unter dem Bereich, in dem die Fragen veröffentlicht sind (Form.QuestionsArea.cs). */
+        if (sheet.AreaId is not Guid own || (own != area && sheet.LabelAreaId != area))
         {
             return (null, null, "Pytanie pieczętuje się kluczem obszaru formularza.");
         }

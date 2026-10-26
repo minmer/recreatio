@@ -26,6 +26,7 @@
 import type { KernelDef } from './kernel';
 import { BODY_ACCESS, BODY_FACE, BODY_GEOM, BODY_REC } from './kbodylib';
 import { BA, BA_STRIDE } from './bodies';
+import { MLT, MLT_BODY, MLT_HEAD, PEND_W } from './kbodymelt';
 
 const WG = 128;
 const MAIN = '@compute @workgroup_size(WG) fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid3: vec3<u32>, @builtin(workgroup_id) wid3: vec3<u32>)';
@@ -197,6 +198,8 @@ ${MAIN} {
   let n = P.n;
   let ni = u32(rv(rq, GR_NI));
   let loc = k - u32(rv(rq, GR_KO));
+  /* Die Reserve eines schmelzenden Körpers (kbodymelt.ts) ist keine innere Zelle. */
+  if (loc >= ni * u32(rv(rq, GR_NJ))) { return; }
   let p = loc % ni;
   let q = loc / ni;
   let x0 = rxs(rq, p); let x1 = rxs(rq, p + 1u);
@@ -259,7 +262,7 @@ ${MAIN} {
   if (k >= u32(bgeo[GH_NCELL])) { return; }
   let rq = u32(bcell[BC * k + 3u]);
   let b = u32(rv(rq, GR_BODY));
-  if (bGone(b)) { return; }
+  if (bGone(b) || k - u32(rv(rq, GR_KO)) >= u32(rv(rq, GR_NI)) * u32(rv(rq, GR_NJ))) { return; }
   let o = b * BA_STRIDE;
   let rf = getF_bat(o + BA_RESTF);
   let F = getF_bat(o + BA_FSUM);
@@ -538,10 +541,14 @@ ${BAT}
 }`
   },
   {
-    /* Die Ablesung je Körper: Lage, Geschwindigkeit, Zustand, Masse, mittlere Temperatur nach Wärmekapazität, Σ E, Film, Kruste, Kraft. */
+    /* Die Ablesung je Körper: Lage, Geschwindigkeit, Zustand, Masse, mittlere Temperatur nach Wärmekapazität, Σ E, Film, Kruste, Kraft;
+       das Schmelzwasser, das noch kein Teilchen ist (Wasser ohne Salz, Enthalpie, Salz), und das erste Rechteck (kbodymelt.ts). */
     name: 'bMeas', wg: 64,
-    bind: 'P:u bod:r bgeo:r bcell:r bread:w',
+    bind: 'P:u bod:r bgeo:r bcell:r bmelt:r bread:w',
     code: `${BODY_ACCESS}
+const MLT_HEAD_R: u32 = ${MLT_HEAD}u;
+const MLT_BODY_R: u32 = ${MLT_BODY}u;
+const PEND_W_R: u32 = ${PEND_W}u;
 var<workgroup> rm: array<vec4<f32>, 64>;
 var<workgroup> rk: array<f32, 64>;
 fn cellT(E: f32, C: f32, film: f32, crust: f32) -> f32 {
@@ -594,6 +601,15 @@ ${MAIN64} {
     bread[o + BRD_E] = rm[0].y; bread[o + BRD_FILM] = rm[0].z; bread[o + BRD_CRUST] = rm[0].w;
     bread[o + BRD_FX] = bv(b, B_FX); bread[o + BRD_FY] = bv(b, B_FY); bread[o + BRD_TQ] = bv(b, B_TQ);
     bread[o + BRD_MAOK] = bv(b, B_MAOK);
+    var pw = vec3<f32>(0.0);
+    for (var s = 0u; s < 4u; s++) {
+      let po = MLT_HEAD_R + b * MLT_BODY_R + ${MLT.PEND}u + s * PEND_W_R;
+      pw += vec3<f32>(bmelt[po] - bmelt[po + 2u], bmelt[po + 1u], bmelt[po + 2u]);
+    }
+    bread[o + BRD_PM] = pw.x; bread[o + BRD_PH] = pw.y; bread[o + BRD_PS] = pw.z;
+    var bx = vec4<f32>(0.0);
+    if (!gone && bv(b, B_NR) > 0.0) { bx = rBox(rectOf(b, 0u)); }
+    bread[o + BRD_RX0] = bx.x; bread[o + BRD_RY0] = bx.y; bread[o + BRD_RX1] = bx.z; bread[o + BRD_RY1] = bx.w;
   }
 }`
   }

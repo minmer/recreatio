@@ -465,7 +465,23 @@ public enum Field
     ReportText,
     ReportKey,
     ReportObjection,
-    ReportObjectionKey
+    ReportObjectionKey,
+
+    /// <summary>
+    /// 0132 — Schemata und Pläne eines Kalenders (versiegelt unter dem Schlüssel des
+    /// sehenden bzw. des eigenen Bereichs), die Werte eines Termins nach seinem Schema
+    /// und die Werte eines Eintrags an einem Vorkommen (Intentionen, Anmeldungen …).
+    /// Der Dienst öffnet keines davon.
+    /// </summary>
+    CalendarDoc,
+    CalendarValue,
+    RecordValue,
+
+    /// <summary>
+    /// 0133 — die Wizytówka eines Bereichs mit einer Art (Titel, Vorspann), versiegelt unter
+    /// dem Schlüssel des Bereichs, in dem sie veröffentlicht ist.
+    /// </summary>
+    AreaProfileCard
 }
 
 /// <summary>
@@ -672,6 +688,10 @@ public readonly record struct Aad
         Field.ReportKey               => "report_key",
         Field.ReportObjection         => "report_objection",
         Field.ReportObjectionKey      => "report_objection_key",
+        Field.CalendarDoc             => "calendar_doc",
+        Field.CalendarValue           => "calendar_value",
+        Field.RecordValue             => "record_value",
+        Field.AreaProfileCard         => "area_profile_card",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }

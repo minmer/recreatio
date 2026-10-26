@@ -68,6 +68,9 @@ builder.Services.AddHostedService<CogitaClock>();
 /* 0130 — einmal am Tag: was von Meldungen nach seiner Frist nicht mehr aufbewahrt wird. */
 builder.Services.AddHostedService<ReportSweep>();
 
+/* 0133 — jede Stunde: was zu Ende ist und von selbst archiviert wird (Formulare zu, die Seite danach offen). */
+builder.Services.AddHostedService<ProfileSweep>();
+
 /*
  * Browser und Dienst liegen auf verschiedenen Herkünften, und die Sitzung reist
  * im Keks. Ohne `AllowCredentials` schickt der Browser ihn nicht mit — und ohne
@@ -185,6 +188,9 @@ Reports.Map(app);
 
 /* 0131 — ein Bereich als Wydarzenie: Listen nach einer Regel, auf Bitte, der Katalog des Betreibers. */
 AreaEvent.Map(app);
+
+/* 0133 — ein Bereich mit einer Art (Wydarzenie, Grupa, Parafia, Kurs): Wizytówka, Archiv, Schlüssel eines Imports. */
+Profiles.Map(app);
 
 /* 0114 — das Telefon: Kontakte und das Archiv der SMS (die Ausgabe „sms" der App), versiegelt. */
 Phone.Map(app);

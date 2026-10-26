@@ -1,8 +1,9 @@
 /**
  * Ein Bereich: Przegląd · Osoby · Dostęp · Ustawienia, und seine Rozmowa.
+ * 0133 — mit einer Art davor ein Reiter, der wie sie heisst (`AreaKindPanel`).
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { type ChatRow, areaKeys, loadAreaNames, loadChats, openNames, startAreaChat } from '../chat/chat';
 import type { Ring, SealedRole } from '../core/keys';
@@ -21,7 +22,9 @@ import { AreaOverview } from '../workspace/WorkspaceHome';
 import { AddRole } from './AddRole';
 import { type AreaRow, type Member, PUBLIC_LEVELS, type PublicLevel, SEAT_LEVELS, dropFromArea, loadMembers, myEpochKeys, setPublicLevel, setSeatLevel } from './area';
 import { AreaControllerSettings } from './AreaController';
-import { AreaEventSettings } from '../events/AreaEventSettings';
+import { AreaKindPanel, AreaKindSetting } from './AreaKindPanel';
+import { CONTROLLER_EVENT } from './controllers';
+import { kindLabel, loadProfile, type Profile, type ProfileState } from './profile';
 import { daysLeft, memberUntil, noteRenewal, RENEW_BEFORE_DAYS, renewalFailure, renewArea, WARN_BEFORE_DAYS } from './renew';
 import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './areaWords';
 
@@ -29,6 +32,8 @@ import { AREA_TABS, type AreaTab, KIND_NAME, LEVEL_NAME, OTHER_LEVEL } from './a
 
 /** 0126 — Dostęp dla AI: erst geladen, wenn die Karte offen ist. */
 const AiAccessPanel = later(() => import('../aiAccess/AiAccessPanel').then((m) => m.AiAccessPanel));
+/* 0133 — der ganze Bereich als JSON (für eine KI): auch für einen Bereich, der noch keinen Rodzaj hat. */
+const AreaJsonPanel = later(() => import('./AreaJsonPanel').then((m) => m.AreaJsonPanel));
 
 /** Welcher Abschnitt offen ist. Einer ist es immer. */
 
@@ -73,6 +78,52 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
   const [note, setNote] = useState<string | null>(null);
   /* 2026-10-22 — was beim Erneuern nicht ging (hier oder zuletzt im Hintergrund). */
   const [renewError, setRenewError] = useState<string | null>(() => renewalFailure(area.areaId)?.message ?? null);
+
+  /* 0133 — die Art des Bereichs (Profil): zu welchem Bereich sie gehört, damit beim Wechsel nichts Fremdes aufblitzt. */
+  const [kind, setKind] = useState<{ readonly areaId: string; readonly state: ProfileState | 'failed' } | null>(null);
+  const [kindRound, setKindRound] = useState(0);
+
+  useEffect(() => {
+    if (area.personal === true) return undefined;
+    let alive = true;
+    void loadProfile(area.areaId).then(
+      (state) => { if (alive) setKind({ areaId: area.areaId, state }); },
+      () => { if (alive) setKind({ areaId: area.areaId, state: 'failed' }); });
+    return () => { alive = false; };
+  }, [area.areaId, area.personal, kindRound]);
+
+  /* Ändert sich der Administrator danych (in den Ustawienia), stimmt „was fehlt" nicht mehr. */
+  useEffect(() => {
+    const again = () => setKindRound((n) => n + 1);
+    window.addEventListener(CONTROLLER_EVENT, again);
+    return () => window.removeEventListener(CONTROLLER_EVENT, again);
+  }, []);
+
+  /** Neu laden — mit dem eben gespeicherten Profil gleich, damit der Reiter sofort da ist. */
+  const kindChanged = useCallback((saved?: Profile | null) => {
+    if (saved !== undefined) {
+      setKind((was) => (was !== null && was.areaId === area.areaId && was.state !== 'failed'
+        ? { areaId: was.areaId, state: { ...was.state, profile: saved } } : was));
+    }
+    setKindRound((n) => n + 1);
+  }, [area.areaId]);
+
+  const kindState = kind !== null && kind.areaId === area.areaId && kind.state !== 'failed' ? kind.state : null;
+  const kindFailed = kind !== null && kind.areaId === area.areaId && kind.state === 'failed';
+  const profile = kindState?.profile ?? null;
+
+  /*
+   * Ohne Rodzaj zeigt der Reiter den Import (das Dokument bringt die Art mit). Er bleibt an
+   * seiner Stelle, wenn der Import das Profil anlegt — mit den Links, die nur einmal zu sehen sind.
+   */
+  const [jsonFirst, setJsonFirst] = useState<string | null>(null);
+  useEffect(() => {
+    if (tab === 'profil' && kindState !== null && kindState.profile === null) setJsonFirst(area.areaId);
+  }, [tab, kindState, area.areaId]);
+  const jsonHere = jsonFirst === area.areaId;
+  const tabs = AREA_TABS
+    .filter((one) => one.id !== 'profil' || profile !== null)
+    .map((one) => (one.id === 'profil' && profile !== null ? { ...one, label: kindLabel(profile.kind) } : one));
 
   useEffect(() => {
     if (tab !== 'osoby') return;
@@ -208,13 +259,35 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal === true ? null : (
         <nav className="wk-tabs" aria-label={area.name}>
-          {AREA_TABS.map((one) => (
+          {tabs.map((one) => (
             <a key={one.id} className={tab === one.id ? 'wk-tab wk-tab-on' : 'wk-tab'} aria-current={tab === one.id ? 'page' : undefined}
               href={one.id === 'przeglad' ? viewPath('areas', area.areaId) : viewPath('areas', area.areaId, one.id)} data-area-tab={one.id}>
               {one.label}
             </a>
           ))}
         </nav>
+      )}
+
+      {/* -- 0133: die Art — Wizytówka, was fehlt, Werkzeuge -- */}
+      {area.personal !== true && tab === 'profil' && (
+        <div className="wk-narrow ui-page">
+          {kindFailed ? <p className="wk-error">Nie udało się wczytać rodzaju obszaru.</p>
+            : kindState === null ? <Loading lines={3} />
+            : profile === null ? (
+              <p className="wk-note">
+                Ten obszar nie ma rodzaju. <a className="wk-link" href={viewPath('areas', area.areaId, 'ustawienia')}>Ustaw go w Ustawieniach</a>
+                {kindState.admin ? ' — albo zaimportuj niżej cały obszar z JSON (na przykład przygotowanego przez AI).' : '.'}
+              </p>
+            ) : (
+              <AreaKindPanel who={who} area={area} areas={areas} ring={ring} state={kindState} profile={profile} onChanged={kindChanged} withJson={!jsonHere} />
+            )}
+          {jsonHere && kindState?.admin === true && (
+            <section className="wk-kind-sec" aria-labelledby="area-json-h">
+              <h2 className="wk-h2" id="area-json-h">Import i eksport (JSON dla AI)</h2>
+              <AreaJsonPanel area={area} ring={ring} who={who} onImported={() => kindChanged()} />
+            </section>
+          )}
+        </div>
       )}
 
       {/* -- Przegląd: was neu ist, Termine, Rozmowy, Formulare, Menschen, Seiten, Zugang -- */}
@@ -228,11 +301,13 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
             <AreaControllerSettings areaId={area.areaId} areaName={area.name} editable={area.myLevel === 'admin'} ring={ring} />
           </section>
 
-          {/* 0131 — der Bereich als Wydarzenie: Hauptseite, Haupttermin, Bild, Listen. */}
+          {/* 0133 — die Art des Bereichs: Zwykły obszar, Wydarzenie, Grupa, Parafia, Kurs (ersetzt die Marke „Wydarzenie" von 0131). */}
           {area.personal !== true && (
-            <section aria-labelledby="area-event-h">
-              <h2 className="wk-h2" id="area-event-h">Wydarzenie</h2>
-              <AreaEventSettings area={area} ring={ring} editable={area.myLevel === 'admin'} />
+            <section aria-labelledby="area-kind-h">
+              <h2 className="wk-h2" id="area-kind-h">Rodzaj obszaru</h2>
+              {kindFailed
+                ? <p className="wk-error">Nie udało się wczytać rodzaju obszaru.</p>
+                : <AreaKindSetting area={area} areas={areas} state={kindState} onChanged={kindChanged} />}
             </section>
           )}
 
@@ -260,7 +335,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal !== true && tab === 'dostep' && area.mayCertify && (
         <div className="wk-panel">
-          <h2 className="wk-h2" style={{ marginTop: 0 }}>Linki z dostępem</h2>
+          <h2 className="wk-h2 wk-area-h">Linki z dostępem</h2>
           <AccessLinks ring={ring} self={self} areas={areas} focusAreaId={area.areaId} busy={busy} onAct={onAct} />
         </div>
       )}
@@ -362,7 +437,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal !== true && tab === 'dostep' && (
         <div className="wk-panel">
-          <h2 className="wk-h2" style={{ marginTop: 0 }}>Osoby z formularzy</h2>
+          <h2 className="wk-h2 wk-area-h">Osoby z formularzy</h2>
           {mine ? (
             <Segment
               now={area.seatLevel}
@@ -401,7 +476,7 @@ export function AreaPage({ who, desk, tab, area, areas, ring, graph, self, busy,
 
       {area.personal !== true && tab === 'dostep' && (
         <div className="wk-panel">
-          <h2 className="wk-h2" style={{ marginTop: 0 }}>Dla wszystkich</h2>
+          <h2 className="wk-h2 wk-area-h">Dla wszystkich</h2>
           {mine ? (
             <Segment
               now={area.publicLevel}

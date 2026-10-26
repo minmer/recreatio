@@ -19,7 +19,7 @@ read-only link to an area's Library, Scriptorium and knowledge bases (section 13
 
 | part | its one job | holds | JSON format |
 |---|---|---|---|
-| **Library** (Biblioteka) | normalise every reference — the backbone of citation, nothing else | works (books, the Bible, articles, documents), quotes, persons as authors, media files | `recreatio/library` v3 (Appendix A) |
+| **Library** (Biblioteka) | normalise every reference — the backbone of citation, nothing else | works (books, the Bible, articles, documents — and music since 2026-10-26: pieces, scores, recordings with their voices, albums), quotes, persons as authors, media files | `recreatio/library` v3 (Appendix A) |
 | **Scriptorium** (Skryptorium) | writing that uses the knowledge and cites the sources | texts (sermons, conferences, articles, page texts) with plan and body, deliveries (recordings), projects (series, books), the owner's **text types** | `recreatio/scriptorium` v1 (Appendix B) |
 | **Knowledge base** (Baza wiedzy, Cogita, "Nauka") | knowledge: the owner's own schemas, their entries and links; learning | owner-written kinds and entries (places, persons as subjects, events, mysteries, comments …), questions, card templates, revisions, flows, views, add forms | `recreatio.cogita.course` / `.schema` / `.entities` / `.flow` (Appendix C) |
 | **Page** (Strona) | what visitors see | a grid of modules, slides, or a presentation of scenes | `recreatio/page` (Appendix D: excerpts) |
@@ -245,10 +245,11 @@ way to change anything.
 # Biblioteka jako JSON ("recreatio/library", wersja 3)
 
 Co robi import:
-Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "recreatio/scriptorium"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Nauce, jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
+Biblioteka to kręgosłup cytowania: trzyma TYLKO źródła — dzieła ("work"), cytaty ("quote") i osoby jako autorów ("person"); wpis biblioteki wskazuje tylko inne wpisy biblioteki (cytat → swoje dzieło, dzieło → autorzy, tłumacze, książka albo czasopismo, w którym jest). Własne teksty (kazania, konferencje, artykuły) są w Skryptorium (format "recreatio/scriptorium"), a wiedza — komentarze, postacie, miejsca, wydarzenia — w Wiedzy (Cogita), jako własne rodzaje; oba te miejsca cytują stąd. Tematów nie ma.
 - Każdy wpis to { "id", "kind", "key", "data" }. Wpis z kennung z eksportu (albo z kluczem istniejącego wpisu tego samego rodzaju) jest ZMIENIANY — tylko pola podane w "data"; pola, których nie ma, zostają. Żeby wyczyścić pole, podaj null.
 - Wpis bez kennung (albo z nieznaną) powstaje nowy. Import niczego nie usuwa.
-- Odwołania ("authors", "editors", "translators", "container", "work") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Odwołania ("authors", "editors", "translators", "container", "work"; przy muzyce "composers", "lyricists", "arrangers", "performers", "piece", "album") mogą być kennungami albo kluczami: "@ratzinger2007". Klucze z tego samego dokumentu też działają — można opisać całą bibliotekę, nie znając żadnej kennung.
+- Muzyka to też dzieła ("work"), z innym rodzajem: "piece" (utwór), "score" (nuty), "recording" (nagranie), "album" (płyta). Rodzaj decyduje, które pola dzieło ma. Nuty i nagranie wskazują swój utwór ("piece"), nagranie — swoją płytę ("album"). Pliki (strony nut, ścieżki nagrania: osobne głosy i instrumenty albo całość) wgrywa się w aplikacji; JSON opisuje je bez plików albo przenosi z eksportu. Miejsce w nagraniu to czas: "1:23", "1:23–1:45".
 - Plik z innymi rodzajami (teksty, wygłoszenia, projekty, komentarze, tematy) zostanie odrzucony — z informacją, gdzie go zaimportować.
 - "key" to klucz cytowania: krótki, bez spacji (np. "ratzinger2007"); w tekstach odwołuje się do niego [@ratzinger2007, s. 23]. Pominięty — zostanie zaproponowany sam.
 - Liczby mogą mieć jednostkę ("384 s.", "20,5 cm"); pole wyboru przyjmuje wartość ("hard") albo jej nazwę ("Twarda").
@@ -265,22 +266,35 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 
 ## Rodzaje wpisów
 ### "work" — Źródło
-Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona. Ma klucz cytowania.
+Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona — albo muzyka: utwór, nuty, nagranie, płyta. Ma klucz cytowania.
 "data":
-  "workType" — Rodzaj: Rodzaj: "book" (Książka), "chapter" (Rozdział w książce), "article" (Artykuł w czasopiśmie), "periodical" (Czasopismo), "document" (Dokument (Kościoła, urzędowy)), "bible" (Pismo Święte), "web" (Strona internetowa), "talk" (Wykład, kazanie, nagranie), "other" (Inne) (jedna z wartości)
-  "title" — Tytuł: Tytuł dzieła (tekst)
+  "workType" — Rodzaj: Rodzaj: "book" (Książka), "chapter" (Rozdział w książce), "article" (Artykuł w czasopiśmie), "periodical" (Czasopismo), "document" (Dokument (Kościoła, urzędowy)), "bible" (Pismo Święte), "web" (Strona internetowa), "talk" (Wykład, kazanie, nagranie), "other" (Inne); muzyka: "piece" (Utwór muzyczny — sam utwór: kompozytor, słowa, tonacja, obsada), "score" (Nuty — wydanie nut, z plikami: partytura, głosy, zapis nutowy), "recording" (Nagranie — wykonanie: jeden plik albo kilka ścieżek (głosy i instrumenty, odtwarzane razem)), "album" (Płyta, album — zbiór nagrań). Rodzaj decyduje, które pola dzieło ma (jedna z wartości)
+  "title" — Tytuł: Tytuł dzieła (utworu, nagrania, płyty) (tekst)
   "subtitle" — Podtytuł: Podtytuł (albo rodzaj dokumentu, np. "adhortacja apostolska") (tekst)
-  "originalTitle" — Tytuł oryginału: Tytuł oryginału (oryginalny tytuł przekładu) (tekst)
-  "authors" — Autorzy: Autorzy — odwołania do osób, w kolejności (lista odwołań: kennungi albo "@klucze")
+  "originalTitle" — Tytuł oryginału: Tytuł oryginału (oryginalny tytuł przekładu; przy utworze — tytuł w języku oryginału) (tekst)
+  "otherTitles" — Inne tytuły, incipit: Inne nazwy, po których ludzie znają utwór — incipit (pierwsze słowa), tytuł w innym języku, nazwa potoczna; każda w osobnym wierszu (tekst (może mieć wiele wierszy))
+  "authors" — Autorzy: Autorzy — odwołania do osób, w kolejności (przy muzyce: kompozytor, autor słów — pola niżej) (lista odwołań: kennungi albo "@klucze")
+  "composers" — Kompozytor: Kompozytorzy — odwołania do osób; nuty i nagranie, które wskazują utwór, nie muszą go powtarzać (lista odwołań: kennungi albo "@klucze")
+  "lyricists" — Autor słów: Autorzy słów utworu — odwołania do osób (lista odwołań: kennungi albo "@klucze")
+  "arrangers" — Opracowanie: Kto opracował (zharmonizował, zaaranżował) utwór w tej wersji — odwołania do osób (lista odwołań: kennungi albo "@klucze")
   "editors" — Redakcja: Redaktorzy — odwołania do osób (lista odwołań: kennungi albo "@klucze")
-  "translators" — Tłumaczenie: Tłumacze — odwołania do osób (lista odwołań: kennungi albo "@klucze")
+  "translators" — Tłumaczenie: Tłumacze — odwołania do osób (przy utworze: przekład słów) (lista odwołań: kennungi albo "@klucze")
+  "performers" — Wykonawcy: Kto wykonuje — chór, zespół, dyrygent, soliści: odwołania do osób i instytucji (lista odwołań: kennungi albo "@klucze")
+  "piece" — Utwór: Jaki utwór zapisują te nuty albo wykonuje to nagranie — odwołanie do dzieła z "workType": "piece" (odwołanie: kennung albo "@klucz")
+  "album" — Na płycie: Płyta (album), na której jest to nagranie — odwołanie do dzieła z "workType": "album" (odwołanie: kennung albo "@klucz")
+  "track" — Nr na płycie: Numer nagrania na płycie (tekst)
   "container" — W (książka, czasopismo): Dla rozdziału: książka; dla artykułu: czasopismo — odwołanie do źródła (odwołanie: kennung albo "@klucz")
-  "volume" — Tom / rocznik: Tom (książka) albo rocznik (czasopismo) (tekst)
+  "volume" — Tom / rocznik: Tom (książka, zbiór nut) albo rocznik (czasopismo) (tekst)
   "issue" — Numer: Numer czasopisma (tekst)
   "edition" — Wydanie: Które wydanie (tekst)
-  "publisher" — Wydawca: Wydawnictwo (tekst)
+  "catalogue" — Numer katalogowy: Przy utworze: numer w katalogu dzieł (op. 27 nr 2, BWV 147, KV 618); przy nutach i płycie: numer wydawcy (tekst)
+  "musicKey" — Tonacja: Tonacja (tej wersji) (tekst)
+  "voicing" — Obsada: Na jakie głosy i instrumenty (tekst)
+  "genre" — Gatunek: Jaki to utwór (tekst)
+  "duration" — Czas trwania: Jak długo trwa (minuty:sekundy) (tekst)
+  "publisher" — Wydawca: Wydawnictwo (przy nagraniu i płycie: wytwórnia) (tekst)
   "place" — Miejsce wydania: Miejsce wydania (tekst)
-  "year" — Rok: Rok wydania (albo data dokumentu) (tekst)
+  "year" — Rok: Rok wydania (albo data dokumentu; przy utworze — rok powstania, przy nagraniu — rok nagrania) (tekst)
   "series" — Seria: Seria wydawnicza, z numerem tomu w serii (tekst)
   "pages" — Strony: Zakres stron rozdziału albo artykułu (tekst)
   "pageCount" — Liczba stron: Ile stron ma książka (liczba)
@@ -290,11 +304,25 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "length" — Grubość (cm): Trzeci wymiar — grubość (długość grzbietu w głąb) w centymetrach (liczba)
   "siglum" — Skrót przekładu: Dla Pisma Świętego: skrót przekładu, dopisywany do sigli (tekst)
   "isbn" — ISBN: Numer ISBN książki (z kreskami albo bez; kilka — po przecinku) (tekst)
+  "ismn" — ISMN: Numer ISMN wydania nut (tekst)
   "libraryNumber" — Numer w bibliotece: Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować (tekst)
   "doi" — DOI: Identyfikator DOI publikacji (tekst)
   "url" — Adres: Adres w sieci (adres https://…)
   "accessed" — Dostęp: Kiedy strona była czytana (RRRR-MM-DD) (data RRRR-MM-DD)
-  "language" — Język: Język (np. "pl", "la") (tekst)
+  "language" — Język: Język (np. "pl", "la"; przy muzyce — język słów) (tekst)
+  "lyrics" — Słowa: Słowa utworu — zwrotki oddzielone pustym wierszem (tekst (może mieć wiele wierszy))
+  "scheme" — Układ miejsc: Jak wskazuje się miejsca w tym dziele: "pages" (Strony wydania), "bible" (Pismo Święte), "numbered" (Numery (dokumenty)), "aquinas" (Tomasz z Akwinu), "decimal" (Numeracja dziesiętna), "sections" (Paragrafy dzieła), "outline" (Podział dzieła); puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages) (jedna z wartości)
+  "psalms" — Numeracja psalmów: Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata) (jedna z wartości)
+  "editionOf" — Wydanie / przekład dzieła: To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie. (odwołanie: kennung albo "@klucz")
+  "files" — Pliki nut: Pliki tych nut — partytura, głosy, zapis nutowy; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece (lista obiektów o polach:)
+      "id" — Identyfikator: Stały identyfikator pliku na liście; pominięty — nada się sam (tekst)
+      "label" — Co to jest: Co zawiera plik (tekst)
+      "file" — Plik: Plik wgrany w aplikacji (PDF, obraz, MusicXML, MIDI) (plik wgrany w aplikacji: { "file": kennunga pliku, "type": "audio" | "image" | "video" | "document", "name", "mime" } — taki, jaki daje eksport; nowych plików JSON nie wgrywa)
+  "tracks" — Ścieżki: Pliki nagrania — całe nagranie albo osobne głosy i instrumenty, które odtwarza się razem; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece (lista obiektów o polach:)
+      "id" — Identyfikator: Stały identyfikator ścieżki; pominięty — nada się sam (tekst)
+      "label" — Głos / instrument: Czyj to głos albo jaki instrument — albo „Całość” (tekst)
+      "role" — Rola: "part" — głos albo instrument: odtwarzane razem z innymi ścieżkami tego nagrania; "whole" — całe nagranie: odtwarzane samo (jedna z wartości)
+      "file" — Plik: Plik dźwiękowy wgrany w aplikacji (MP3, OGG, M4A, WAV, FLAC) (plik wgrany w aplikacji: { "file": kennunga pliku, "type": "audio" | "image" | "video" | "document", "name", "mime" } — taki, jaki daje eksport; nowych plików JSON nie wgrywa)
 Przykład:
 {
   "kind": "work",
@@ -319,6 +347,62 @@ Przykład:
     "length": 3,
     "isbn": "978-83-7595-061-8",
     "libraryNumber": "B-0042"
+  }
+}
+Przykład (muzyka — utwór):
+{
+  "kind": "work",
+  "key": "mozart-ave-verum",
+  "data": {
+    "workType": "piece",
+    "title": "Ave verum corpus",
+    "otherTitles": "Witaj, Ciało prawdziwe",
+    "composers": [
+      "@mozart"
+    ],
+    "catalogue": "KV 618",
+    "musicKey": "D-dur",
+    "voicing": "chór mieszany, smyczki i organy",
+    "genre": "motet",
+    "year": "1791",
+    "language": "la"
+  }
+}
+Przykład (muzyka — nagranie w głosach):
+{
+  "kind": "work",
+  "key": "ave-verum-schola2024",
+  "data": {
+    "workType": "recording",
+    "title": "Ave verum corpus",
+    "piece": "@mozart-ave-verum",
+    "performers": [
+      "@schola-katedralna"
+    ],
+    "year": "2024",
+    "duration": "3:05",
+    "tracks": [
+      {
+        "label": "Sopran",
+        "role": "part"
+      },
+      {
+        "label": "Alt",
+        "role": "part"
+      },
+      {
+        "label": "Tenor",
+        "role": "part"
+      },
+      {
+        "label": "Bas",
+        "role": "part"
+      },
+      {
+        "label": "Całość",
+        "role": "whole"
+      }
+    ]
   }
 }
 
@@ -363,10 +447,30 @@ Przykład:
     "description": "Papież Benedykt XVI."
   }
 }
+Przykład (kompozytor):
+{
+  "kind": "person",
+  "key": "mozart",
+  "data": {
+    "personType": "person",
+    "givenNames": "Wolfgang Amadeus",
+    "surname": "Mozart",
+    "years": "1756–1791"
+  }
+}
+Przykład (wykonawca — chór jako instytucja):
+{
+  "kind": "person",
+  "key": "schola-katedralna",
+  "data": {
+    "personType": "organization",
+    "name": "Schola Katedralna"
+  }
+}
 
 ## Miejsce w źródle
-Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w "locator" cytatu, w przypisie tekstu, w polu z miejscem w Nauce) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.
-Inne miejsca: "s. 23", "nr 24", "rozdz. 4".
+Miejsce w Piśmie Świętym (odwołanie do dzieła z "workType": "bible" — w "locator" cytatu, w przypisie tekstu, w polu z miejscem w Wiedzy) pisz razem z księgą: Dz 1,14 · Dz 1,14-16 · Łk 1,26–2,5 · Dz 1,8.14 · Ps 23 · Mt 5,3-12; 6,1. Księgi mogą być po polsku (BT), łacinie (Nova Vulgata) albo angielsku (Acts 1:14) — aplikacja je rozpoznaje, porządkuje cytaty w kolejności Biblii i znajduje wszystko, co wskazuje na dany werset, we wszystkich przekładach.
+Inne miejsca: "s. 23", "nr 24", "rozdz. 4"; w nagraniu — czas: "1:23", "1:23–1:45", "1:02:03".
 
 ---
 

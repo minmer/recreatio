@@ -28,6 +28,9 @@ export interface PagePart {
   readonly layout: string;
   readonly config: string | null;
 
+  /** 0133 — nur für die Menschen dieses Bereichs (der Dienst schickt den Baustein sonst nicht); fehlt: für alle. */
+  readonly audienceAreaId?: string | null;
+
   /**
    * WELCHEN Baustein diese Stelle zeigt (0036).
    *
@@ -295,6 +298,9 @@ export interface DraftPart {
   readonly kind: string;
   readonly layout: Layout;
   readonly config: Record<string, string>;
+
+  /** 0133 — nur für die Menschen dieses Bereichs (mit Konto, Link oder ihrem Platz); fehlt oder `null`: für alle. */
+  readonly audienceAreaId?: string | null;
 }
 
 /**
@@ -320,7 +326,8 @@ export function toDraft(part: PagePart): DraftPart {
     moduleId: part.moduleId ?? null,
     kind: part.kind,
     layout,
-    config: readConfig(part.config)
+    config: readConfig(part.config),
+    ...(part.audienceAreaId == null ? {} : { audienceAreaId: part.audienceAreaId })
   };
 }
 
@@ -344,6 +351,7 @@ export const saveParts = (path: string, parts: readonly DraftPart[]): Promise<{ 
         id: part.id,
         moduleId: part.moduleId,
         kind: part.kind,
+        audienceAreaId: part.audienceAreaId ?? null,
         layout: await piece(key, (s, k) => s.sealAad.layout(part.id, k.v), JSON.stringify(part.layout)),
         config: part.kind === 'form'
           ? JSON.stringify(part.config)

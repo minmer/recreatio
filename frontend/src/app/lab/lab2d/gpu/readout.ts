@@ -54,7 +54,7 @@ export interface Readout {
 export type IntervalKey = 'heater' | 'lossWalls' | 'lossOpen' | 'escapedEnergy' | 'escapedWater' | 'escapedAir' | 'escapedOther' | 'escapedSalt' | 'crystallized' | 'produced' | 'condensed' | 'dew' | 'fogMade'
   | 'burstVapour' | 'fluxSL' | 'fluxLG' | 'fluxSG' | 'lossSolids' | 'nucleated' | 'departed' | 'merged' | 'burst' | 'collapsed'
   | 'burstCold' | 'burstWarm' | 'collapsedCold' | 'collapsedWarm' | 'releasedGas' | 'releases' | 'releaseMisses' | 'evapCapped'
-  | 'bodyWork' | 'parked' | 'contFull';
+  | 'bodyWork' | 'parked' | 'contFull' | 'melted' | 'frozen' | 'meltFull';
 /** Platz in cnt und Art (f: f32-Summe, u: u32-Zähler) jeder Zwischensumme. */
 export const INTERVALS: readonly (readonly [IntervalKey, number, 'f' | 'u'])[] = [
   ['heater', C.HEATER_E, 'f'], ['lossWalls', C.LOSS_WALLS, 'f'], ['lossOpen', C.LOSS_OPEN, 'f'], ['escapedEnergy', C.ESC_ENERGY, 'f'],
@@ -64,7 +64,8 @@ export const INTERVALS: readonly (readonly [IntervalKey, number, 'f' | 'u'])[] =
   ['merged', C.MERGED, 'u'], ['burst', C.BURST, 'u'], ['collapsed', C.COLLAPSED, 'u'], ['burstCold', C.BURST_COLD, 'u'],
   ['burstWarm', C.BURST_WARM, 'u'], ['collapsedCold', C.COLL_COLD, 'u'], ['collapsedWarm', C.COLL_WARM, 'u'],
   ['releasedGas', C.REL_MASS, 'f'], ['releases', C.REL_N, 'u'], ['releaseMisses', C.REL_MISS, 'u'], ['evapCapped', C.EVAP_CAP, 'u'],
-  ['bodyWork', C.BODYWORK, 'f'], ['parked', C.PARKED, 'u'], ['contFull', C.CONT_FULL, 'u']
+  ['bodyWork', C.BODYWORK, 'f'], ['parked', C.PARKED, 'u'], ['contFull', C.CONT_FULL, 'u'],
+  ['melted', C.MELTED, 'f'], ['frozen', C.FROZEN, 'f'], ['meltFull', C.MELTFULL, 'u']
 ];
 
 /** Gesamtsummen seit dem Start (f64), wie Engine.flows, Phase und BubbleModel sie führen. */
@@ -83,13 +84,16 @@ export interface Totals {
   /** Körper (seit 2026-10-26): ihre Arbeit an verschlossenem Gas (J, wie flows.bodyWork), Zellen, deren Gas beim Schliessen liegen blieb,
    *  Berührungen ohne Platz. */
   bodyWork: number; parked: number; contFull: number;
+  /** Schmelzen (seit 2026-10-26): geschmolzenes und angefrorenes Eis (kg, wie BodyMelt.melted, frozen); wie oft ein Körper keinen Platz für seine neue Aufteilung fand. */
+  melted: number; frozen: number; meltFull: number;
 }
 
 export const emptyTotals = (): Totals => ({
   time: 0, steps: 0, heater: 0, lossWalls: 0, lossOpen: 0, escapedEnergy: 0, escapedWater: 0, escapedAir: 0, escapedOther: 0, escapedSalt: 0, crystallized: 0,
   produced: 0, condensed: 0, dew: 0, fogMade: 0, burstVapour: 0, nucleated: 0, departed: 0, merged: 0, burst: 0, collapsed: 0,
   burstCold: 0, burstWarm: 0, collapsedCold: 0, collapsedWarm: 0, fluxSL: 0, fluxLG: 0, fluxSG: 0, lossSolids: 0, capped: 0,
-  slowed: 0, vented: 0, releasedGas: 0, releases: 0, releaseMisses: 0, evapCapped: 0, bodyWork: 0, parked: 0, contFull: 0
+  slowed: 0, vented: 0, releasedGas: 0, releases: 0, releaseMisses: 0, evapCapped: 0, bodyWork: 0, parked: 0, contFull: 0,
+  melted: 0, frozen: 0, meltFull: 0
 });
 
 /** Wo im Zwischenpuffer einer Ablesung was liegt (Bytes; bodies: die Ablesung der Körper, nbody Körper). */

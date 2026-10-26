@@ -14,7 +14,8 @@ import type { ReactNode } from 'react';
 import { IsbnTools, NumberTools, savePersons } from './BookLookup';
 import { containerPath, type OpenLibrary } from './library';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { isLibraryKind, kindOf, str, type EntryData } from './libraryKinds';
+import { isLibraryKind, isMusic, kindOf, str, WORK_TYPES, type EntryData } from './libraryKinds';
+import { MusicFiles } from './MusicFiles';
 import type { Entry, LibraryStore } from './libraryStore';
 import { QuoteFigure } from './LibraryText';
 import { viewPath } from '../routes';
@@ -81,6 +82,11 @@ function Editor({ store, library, existing, kind, preset, sources }: {
   const { id, data, set, saved, live, state } = draft;
   const title = def.title(data, store);
   const here = (...trail: string[]) => viewPath('library', library.libraryId, ...trail);
+  /* 2026-10-26 — ein Werk der Musik steht unter „Muzyka", heisst nach seinem Rodzaj und hat seine Dateien. */
+  const music = kind === 'work' && isMusic(data);
+  const workType = str(data, 'workType');
+  const back = music ? 'muzyka' : LIBRARY_TAB[kind] ?? '';
+  const files = workType === 'recording' ? 'tracks' : workType === 'score' ? 'files' : null;
 
   /* Beim Buch: unter der ISBN scannen und aus dem Katalog füllen, unter der eigenen Nummer die nächste freie. */
   const extras: Record<string, ReactNode> = kind !== 'work' ? {} : {
@@ -98,8 +104,8 @@ function Editor({ store, library, existing, kind, preset, sources }: {
   return (
     <div className={`lib-editor lib-editor-${kind}`}>
       <header className="lib-editor-head">
-        <a className="wk-link" href={here(LIBRARY_TAB[kind] ?? '')}>← {def.plural}</a>
-        <span className="lib-editor-kind">{def.label}</span>
+        <a className="wk-link" href={here(back)}>← {music ? 'Muzyka' : def.plural}</a>
+        <span className="lib-editor-kind">{music ? WORK_TYPES.find((t) => t.value === workType)?.label ?? def.label : def.label}</span>
         <h1 className="wk-h1 lib-editor-title">{kind === 'quote' ? <q>{title}</q> : title}</h1>
         {saved !== undefined && kind === 'work' && <KnowledgeLine store={store} work={saved} />}
         <p className={`lib-state is-${state}`} role="status">{draft.status}</p>
@@ -116,7 +122,10 @@ function Editor({ store, library, existing, kind, preset, sources }: {
       <div className="lib-editor-grid">
         <div className="lib-editor-main">
           <FieldList store={store} kind={kind} data={data} set={set} readOnly={readOnly} extras={extras} />
-          {kind === 'work' && saved !== undefined && <QuoteIntake store={store} library={library} work={saved} />}
+          {music && files !== null && (saved !== undefined
+            ? <MusicFiles store={store} data={data} set={set} commit={draft.commit} readOnly={readOnly} which={files} />
+            : <p className="lib-music-status">{files === 'tracks' ? 'Ścieżki nagrania' : 'Pliki nut'} dodasz po zapisaniu wpisu.</p>)}
+          {kind === 'work' && !music && saved !== undefined && <QuoteIntake store={store} library={library} work={saved} />}
           {state === 'new' && !readOnly && (
             <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => void draft.create((made) => window.location.replace(here(made)))}>Zapisz</button></div>
           )}
@@ -132,14 +141,14 @@ function Editor({ store, library, existing, kind, preset, sources }: {
             }} />
           )}
           {saved !== undefined && <AreaBox store={store} library={library} entry={saved} readOnly={readOnly} />}
-          {saved !== undefined && kind === 'work' && <SourceBox store={store} library={library} work={saved} targets={sources} />}
+          {saved !== undefined && kind === 'work' && !music && <SourceBox store={store} library={library} work={saved} targets={sources} />}
           {saved !== undefined && kind === 'work' && saved.data.workType === 'bible' && <PassageBox store={store} work={saved} />}
           {/* 2026-10-25 (Wywód) — was eine lesbare Baza wiedzy über dieses Werk erklärt (ihre Wejścia), als Knöpfe; nichts davon liegt hier. */}
           {saved !== undefined && kind === 'work' && <KnowledgeBox store={store} work={saved} />}
           {saved !== undefined && <Relations store={store} library={library} entry={saved} />}
           {kind === 'quote' && str(data, 'text') !== '' && <section className="lib-box"><h2 className="lib-box-h">Podgląd</h2><QuoteFigure entry={live} look={store} /></section>}
           {!readOnly || saved !== undefined ? <EntryJson store={store} entry={saved ?? live} isNew={saved === undefined} format={libraryFormat(store, library.name)} home={(made) => here(made)} /> : null}
-          {saved !== undefined && !readOnly && <DeleteBox store={store} entry={saved} back={here(LIBRARY_TAB[kind] ?? '')} />}
+          {saved !== undefined && !readOnly && <DeleteBox store={store} entry={saved} back={here(back)} />}
         </aside>
       </div>
     </div>

@@ -16,7 +16,7 @@
  */
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -33,6 +33,11 @@ export { ENTRIES_FORMAT, ENTRIES_KEYS, ONCE_KEY, answerKeys, entriesDescription,
 export { BREAKPOINTS } from '${app}pages/layout';
 export { readVirtualAreas, levelOf } from '${app}forms/virtualAreasJson';
 export { readAppointments, referencesIn, resolveReferences, describePlan, DEFAULT_ENTRY } from '${app}calendar/appointmentsJson';
+export { exportScheme, exportPlan, readScheme, readPlan, SCHEME_JSON, PLAN_JSON, FLOW_TEST_JSON, FLOW_DATE_JSON, SCHEME_FORMAT, PLAN_FORMAT } from '${app}calendar/schemeJson';
+export { SCHEME_TEMPLATES } from '${app}calendar/templates/schemeTemplates';
+export { PLAN_TEMPLATES } from '${app}calendar/templates/planTemplates';
+export { SCHEME_FIELD_TYPES } from '${app}calendar/scheme';
+export { PLAN_NODES, RULE_NODES, PLAN_TESTS, RULE_TESTS } from '${app}calendar/flow/flowModel';
 export { readImageNeeds, resolveImageNeeds, previewImageNeeds, matchFiles, fileProblem, fitsNeed, acceptOf, NEED_PREFIX, PREVIEW_REF, MAX_NEEDS } from '${app}pages/pageImageNeeds';
 export { describe, sectionsOf, samplesOf } from '${app}core/jsonTree';
 export { FORM_FORMAT, NEEDS_FORMAT, minorFormSample } from '${app}forms/formFormat';
@@ -684,6 +689,81 @@ try {
     const samplePlan = m.planImport(m.resolveImageNeeds(sample, sampleRefs).doc, { ...now, parts: [], logic: null }, m.DEFAULT_IMPORT);
     assert.ok(!('error' in samplePlan) && samplePlan.warnings.length === 0, `the example imports without a word:\n${('warnings' in samplePlan ? samplePlan.warnings : []).join('\n')}`);
     ok('page JSON (2026-10-24): files a page asks for — described in "images", placed wherever "page-image:@key" stands, missing ones empty, matched by name, checked by kind, described');
+  }
+
+  {
+    /*
+     * 0132 (2026-10-26) — SCHEMATA UND PLÄNE ALS JSON: jede Vorlage geht hinaus
+     * und kommt gleich zurück (ohne ein Wort), ein zweiter Durchgang ändert
+     * nichts mehr; Unbekanntes fällt mit einem Wort; ein Verweis auf ein
+     * fremdes Schema fällt fort; die Beschreibungen nennen jede Art und jeden Knoten.
+     */
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    for (const t of m.SCHEME_TEMPLATES) {
+      const warnings = [];
+      const once = m.readScheme(JSON.parse(JSON.stringify(m.exportScheme(t.def))), warnings);
+      assert.ok(once !== null && warnings.length === 0, `scheme template ${t.id} reads cleanly: ${warnings.join('; ')}`);
+      const twice = m.readScheme(JSON.parse(JSON.stringify(m.exportScheme(once))), []);
+      assert.ok(same(once, twice), `scheme template ${t.id}: a second round changes nothing`);
+      assert.ok(same(once.fields.map((f) => f.key), t.def.fields.map((f) => f.key)), `scheme template ${t.id} keeps its field keys`);
+      assert.ok(same(once.lists.map((l) => [l.key, l.rule?.nodes.length ?? 0]), t.def.lists.map((l) => [l.key, l.rule?.nodes.length ?? 0])), `scheme template ${t.id} keeps its lists and rules`);
+    }
+    for (const t of m.PLAN_TEMPLATES) {
+      const warnings = [];
+      const ids = t.def.schemeId ? [t.def.schemeId] : [];
+      const once = m.readPlan(JSON.parse(JSON.stringify(m.exportPlan(t.def))), ids, warnings);
+      assert.ok(once !== null && warnings.length === 0, `plan template ${t.id} reads cleanly: ${warnings.join('; ')}`);
+      assert.ok(once.flow.nodes.length === t.def.flow.nodes.length && once.flow.edges.length === t.def.flow.edges.length, `plan template ${t.id} keeps every node and edge`);
+      assert.ok(same(m.readPlan(JSON.parse(JSON.stringify(m.exportPlan(once))), ids, []), once), `plan template ${t.id}: a second round changes nothing`);
+    }
+    const warned = [];
+    const odd = m.readScheme({
+      format: m.SCHEME_FORMAT, name: 'Próba',
+      fields: [{ label: 'Kolor szat', type: 'colour' }, { label: 'Kolor szat', type: 'nope' }, { type: 'text' }],
+      lists: [{ label: 'Intencje', rule: { v: 1, nodes: [{ id: 'a', type: 'slots', x: 0, y: 0, data: {} }], edges: [] } }]
+    }, warned);
+    assert.ok(same(odd.fields.map((f) => f.key), ['kolor_szat', 'kolor_szat_2']) && odd.fields[1].type === 'text', 'keys come from names, unknown types become text');
+    assert.ok(warned.some((w) => w.includes('nieznany typ')) && warned.some((w) => w.includes('bez nazwy')) && warned.some((w) => w.includes('nie pasuje')), `each oddity has a word: ${warned.join(' | ')}`);
+    assert.ok(odd.lists[0].rule.nodes.length === 0, 'a plan node in a rule is dropped');
+    const planWarned = [];
+    const foreign = m.readPlan({ name: 'P', schemeId: 'elsewhere', flow: { v: 1, nodes: [], edges: [] } }, ['mine'], planWarned);
+    assert.ok(foreign.schemeId === null && planWarned.some((w) => w.includes('nie należy')), 'a scheme of another calendar is dropped with a word');
+    assert.ok(m.readScheme({ format: m.PLAN_FORMAT, name: 'x' }, []) === null && m.readPlan({ format: m.SCHEME_FORMAT, name: 'x' }, [], []) === null, 'the formats are not mixed up');
+    /* Die Beschreibung ist ein Teil des Baums: jeder Knoten einmal, derselbe Text in Schema und Plan. */
+    const keysOf = (root) => m.sectionsOf(root).map((s) => s.node.key);
+    assert.deepEqual(keysOf(m.SCHEME_JSON), ['scheme', 'scheme.field', 'scheme.list', 'flow.rule', 'flow', 'flow.test', 'flow.date'], 'scheme → field, list → rule → flow, test → date');
+    assert.deepEqual(keysOf(m.PLAN_JSON), ['plan', 'flow.plan', 'flow', 'flow.date', 'flow.test'], 'plan → its flow → flow, date, test');
+    const sd = m.describe(m.SCHEME_JSON);
+    const pd = m.describe(m.PLAN_JSON);
+    for (const node of [m.FLOW_TEST_JSON, m.FLOW_DATE_JSON]) {
+      assert.equal(sd.split(node.text()).length, 2, `${node.key} stands once in the scheme`);
+      assert.equal(pd.split(node.text()).length, 2, `${node.key} stands once in the plan, with the same text`);
+    }
+    for (const t of m.SCHEME_FIELD_TYPES) assert.ok(sd.includes(`"${t}"`), `the scheme description names field type ${t}`);
+    for (const t of m.RULE_NODES) assert.ok(sd.includes(`"${t}" —`), `the scheme description names rule node ${t}`);
+    for (const t of m.PLAN_NODES) assert.ok(pd.includes(`"${t}" —`), `the plan description names node ${t}`);
+    for (const t of [...m.PLAN_TESTS, ...m.RULE_TESTS]) assert.ok(sd.includes(`{"t":"${t}"`) && pd.includes(`{"t":"${t}"`), `both name the condition ${t}`);
+    for (const r of ['fixed', 'easter', 'advent', 'christmas-sunday', 'baptism', 'nth-weekday', 'sunday-after']) assert.ok(pd.includes(`{"r":"${r}"`), `the plan names the date rule ${r}`);
+    /* Jeder Platzhalter, den `fillTemplate` kennt, steht in der Beschreibung des Plans. */
+    const flowRun = await readFile(new URL('../src/app/calendar/flow/flowRun.ts', import.meta.url), 'utf8');
+    const filler = flowRun.slice(flowRun.indexOf('export function fillTemplate'), flowRun.indexOf('default:', flowRun.indexOf('export function fillTemplate')));
+    const holders = [...filler.matchAll(/case '([a-zA-Z]+)':/g)].map((x) => x[1]);
+    assert.ok(holders.length >= 15, `placeholders found in fillTemplate: ${holders.join(', ')}`);
+    for (const h of holders) assert.ok(pd.includes(`{${h}}`), `the plan description names the placeholder {${h}}`);
+    /* Die Vorlagen sind die Beispiele zum Einsetzen — jedes liest sich ohne ein Wort. */
+    const schemeSamples = m.samplesOf(m.SCHEME_JSON);
+    assert.equal(schemeSamples.length, m.SCHEME_TEMPLATES.length, 'every scheme template is a sample');
+    for (const sample of schemeSamples) {
+      const warnings = [];
+      assert.ok(m.readScheme(JSON.parse(JSON.stringify(sample.doc())), warnings) !== null && warnings.length === 0, `sample ${sample.label} reads cleanly: ${warnings.join(' | ')}`);
+    }
+    const planSamples = m.samplesOf(m.PLAN_JSON);
+    assert.equal(planSamples.length, m.PLAN_TEMPLATES.length, 'every plan template is a sample');
+    for (const sample of planSamples) {
+      const warnings = [];
+      assert.ok(m.readPlan(JSON.parse(JSON.stringify(sample.doc())), [], warnings) !== null && warnings.length === 0, `sample ${sample.label} reads cleanly: ${warnings.join(' | ')}`);
+    }
+    ok(`scheme and plan JSON (0132): templates round-trip without a word, oddities dropped with one, foreign scheme references dropped; the tree (scheme ${keysOf(m.SCHEME_JSON).length}, plan ${keysOf(m.PLAN_JSON).length} sections) names every field type, node, condition, date rule and placeholder; ${schemeSamples.length + planSamples.length} samples read cleanly`);
   }
 
 } finally {

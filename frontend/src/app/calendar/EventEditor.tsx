@@ -31,7 +31,7 @@
  * Punkt etwas anders einträgt, behält es (`followParent`).
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { AreaRow } from '../areas/area';
 import { AreaPick } from '../areas/AreaPick';
@@ -42,7 +42,6 @@ import type { Me } from '../core/me';
 import { plural } from '../core/plural';
 import { useRecent } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
-import { IntentionsPanel } from '../masses/IntentionsPanel';
 import { DEVOTION_NAMES } from '../masses/mass';
 import { askText } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
@@ -55,6 +54,12 @@ import { ProgramOf } from './EventDetails';
 import type { EventTarget } from './EventDialog';
 import { dutyOf, peopleWord } from './eventWords';
 import { PeoplePicker, type Pinned, useAreaPeople } from './PeoplePicker';
+import { areaKeys, newestKey } from '../chat/chat';
+import { useCalendarDocs } from './calendarDocs';
+import { RecordsPanel } from './RecordsPanel';
+import { type SchemeField, schemeOf, shownFields, shownLists, UNIVERSAL_ID } from './scheme';
+import { SchemeInput } from './SchemeInput';
+import { draftValues, editText, saveDayValues } from './schemeValues';
 
 /** Was zu einem Termin dazukommen kann — jedes auf Wunsch („+ Miejsce"), in dieser Reihenfolge. */
 type Extra = 'place' | 'notes' | 'people' | 'link' | 'program';
@@ -238,11 +243,60 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /*
+   * 0132 — DAS SCHEMA: eines dieses Kalenders (versiegelt, `calendarDocs.ts`) oder das
+   * universelle. Ein neuer Termin bekommt das zuletzt in diesem Kalender gewählte, sonst
+   * das erste — einmal je Kalender, danach entscheidet, wer schreibt.
+   */
+  const docs = useCalendarDocs(me.ring, calendarId === PRIVATE ? null : calendarId);
+  const recentScheme = useRecent('calendar.scheme');
+  const [schemeId, setSchemeId] = useState<string | null>(occurrence?.schemeId ?? null);
+  const offeredFor = useRef<string | null>(item !== undefined ? calendarId : null);
+  const scheme = schemeOf(docs?.schemes ?? [], schemeId);
+  const universal = scheme.id === UNIVERSAL_ID;
+  const kindOfScheme = (id: string | null) => {
+    const found = schemeOf(docs?.schemes ?? [], id);
+    return found.id === UNIVERSAL_ID ? calendar?.itemKind ?? 'appointment' : found.def.kind ?? 'appointment';
+  };
+  useEffect(() => {
+    if (docs === null || offeredFor.current === calendarId) return;
+    offeredFor.current = calendarId;
+    const ids = docs.schemes.map((one) => one.docId);
+    const pick = recentScheme.ids.find((id) => ids.includes(id)) ?? docs.schemes[0]?.docId ?? null;
+    setSchemeId(pick);
+    setKind(kindOfScheme(pick));
+  }, [docs, calendarId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickScheme = (id: string | null) => {
+    setSchemeId(id);
+    setKind(kindOfScheme(id));
+  };
+
+  /* Die Felder des Schemas: am Termin, und — für einen einzelnen Tag — am Vorkommen. */
+  const [fieldTexts, setFieldTexts] = useState<Readonly<Record<string, string>>>({});
+  const [fieldsOpen, setFieldsOpen] = useState<ReadonlySet<string>>(new Set());
+  const [freshField, setFreshField] = useState<string | null>(null);
+  const textOf = (f: SchemeField, level: 'item' | 'day') =>
+    fieldTexts[`${level}:${f.key}`] ?? editText(f, (level === 'item' ? item?.itemValues : item?.dayValues)?.get(f.key));
+  const setText = (f: SchemeField, level: 'item' | 'day', text: string) => setFieldTexts((was) => ({ ...was, [`${level}:${f.key}`]: text }));
+
   const booking = isPrivate ? null : calendar?.booking ?? null;
   const bookableNow = bookable ?? booking?.mode === 'all';
   const onlyTime = item !== undefined && repeating && scope === 'one';
-  const liturgy = !isPrivate && isLiturgy(kind);
-  const kinds = isPrivate ? [] : kindsFor(calendar?.itemKind, kind);
+  const liturgy = !isPrivate && (scheme.def.publicTitle ?? isLiturgy(kind));
+  const kinds = isPrivate ? [] : universal ? kindsFor(calendar?.itemKind, kind) : scheme.def.kinds ?? [];
+
+  /* 0132 — welche Felder dastehen: was Pflicht ist oder etwas enthält, und was man dazunahm; der Rest als „+ …". */
+  const itemFields = isPrivate ? [] : shownFields(scheme.def, kind, 'item');
+  /* Tageswerte: an einem einzelnen Termin, an „ten termin" einer Reihe — und beim neuen am ersten Tag. */
+  const dayHere = item === undefined || !repeating || scope === 'one';
+  const dayFields = isPrivate || !dayHere ? [] : shownFields(scheme.def, kind, 'day');
+  const fieldShown = (f: SchemeField, level: 'item' | 'day') =>
+    f.required === true || fieldsOpen.has(`${level}:${f.key}`) || textOf(f, level) !== '';
+  const fieldAdds = [
+    ...(onlyTime ? [] : itemFields.filter((f) => !fieldShown(f, 'item')).map((f) => ({ f, level: 'item' as const }))),
+    ...dayFields.filter((f) => !fieldShown(f, 'day')).map((f) => ({ f, level: 'day' as const }))
+  ];
+  const lists = item === undefined || isPrivate ? [] : shownLists(scheme.def, item.occurrence.kind);
 
   /* Was dazukommen kann: Menschen nur in einem Kalender einer Gruppe, ein Programm nur an einem gespeicherten Termin. */
   const peopleHere = !isPrivate && calendarArea !== null;
@@ -309,6 +363,8 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
     /* Derselbe noch einmal: nichts — sonst fiele die Ausnahme der Sichtbarkeit eines älteren Termins still weg. */
     if (next === calendarId) return;
     setCalendarId(next);
+    /* 0132 — Schemata gehören einem Kalender: im anderen gilt erst das universelle, bis dessen eigene da sind. */
+    setSchemeId(null);
     const chosen = calendars.find((c) => c.calendarId === next);
     /* Ein neuer Eintrag ist, was sein Kalender führt (Msze → msza) — man kann es danach ändern. */
     if (item === undefined) setKind(chosen?.itemKind ?? 'appointment');
@@ -357,9 +413,23 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
     const minutes = Math.round((endAt.getTime() - startAt.getTime()) / 60_000);
     if (minutes <= 0) throw new WorkspaceError('Koniec musi być po początku.');
 
+    /* 0132 — was das Schema verlangt. */
+    const missing = [...(onlyTime ? [] : itemFields.map((f) => ({ f, level: 'item' as const }))), ...dayFields.map((f) => ({ f, level: 'day' as const }))]
+      .find(({ f, level }) => f.required === true && textOf(f, level).trim() === '');
+    if (missing !== undefined) throw new WorkspaceError(`Uzupełnij: ${missing.f.label}.`);
+    const dayTexts = Object.fromEntries(dayFields.map((f) => [f.key, textOf(f, 'day')]));
+    const dayTouched = dayFields.some((f) => fieldTexts[`day:${f.key}`] !== undefined);
+    const writeDay = async (itemId: string, occurrenceAt: string, areaId: string) => {
+      if (!dayTouched) return;
+      const newest = newestKey(await areaKeys(me.ring, areaId, true));
+      if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
+      await saveDayValues(itemId, occurrenceAt, newest, areaId, draftValues(dayFields, dayTexts));
+    };
+
     if (item !== undefined && repeating && scope === 'one') {
       await moveOne(item.occurrence.itemId, item.occurrence.occurrenceAt, startAt);
       if (pinnedChanged) await setPeople(item.occurrence.itemId, pinned, item.occurrence.occurrenceAt);
+      await writeDay(item.occurrence.itemId, item.occurrence.occurrenceAt, item.occurrence.visibilityAreaId);
       return;
     }
 
@@ -370,6 +440,12 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
 
     const cap = capacity.trim() === '' ? null : Math.max(1, Number(capacity) || 1);
     const following = item !== undefined && repeating && scope === 'following' && hasEarlier;
+    /* 0132 — die Werte am Termin: nur, wenn das Schema Felder hat oder der Termin Werte trug (sonst bleiben sie). */
+    const schemeChanged = (occurrence?.schemeId ?? null) !== (schemeId ?? null);
+    const itemValues = itemFields.length > 0 || (item?.itemValues.size ?? 0) > 0 || schemeChanged
+      ? draftValues(itemFields, Object.fromEntries(itemFields.map((f) => [f.key, textOf(f, 'item')])))
+      : undefined;
+    if (!isPrivate && schemeId !== null) recentScheme.touch(schemeId);
     const id = await saveEvent(me.ring, {
       /* Im eigenen Kalender gibt es keinen Gottesdienst — sonst bleibt die Art, was sie ist (auch ein Zadanie). */
       kind: isPrivate && isLiturgy(kind) ? 'appointment' : kind,
@@ -384,8 +460,17 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
       calendarId: calendarId === PRIVATE ? undefined : calendarId,
       bookable: booking === null ? null : bookable,
       capacity: booking === null ? null : cap,
-      reserveAreaId: booking === null || reserveArea === '' ? null : reserveArea
+      reserveAreaId: booking === null || reserveArea === '' ? null : reserveArea,
+      /* Nur, was sich ändert: ein neuer bekommt sein Schema, ein bestehender nur ein anderes. */
+      schemeId: isPrivate ? (occurrence?.schemeId != null ? null : undefined) : item === undefined || schemeChanged ? schemeId : undefined,
+      values: isPrivate ? (item !== undefined && item.itemValues.size > 0 ? [] : undefined) : itemValues,
+      publicTitle: isPrivate ? false : scheme.def.publicTitle
     }, following ? undefined : item?.occurrence.itemId);
+
+    /* Die Werte des Tages: am neuen sein erster Tag, sonst dieses Vorkommen („ten i następne": eine neue Reihe — nicht). */
+    if (!following && !isPrivate) {
+      await writeDay(id, item !== undefined ? item.occurrence.occurrenceAt : startAt.toISOString(), seenBy);
+    }
 
     /*
      * „TA I NASTĘPNE": die neue Reihe steht; jetzt endet die alte vor diesem
@@ -447,10 +532,9 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
 
   return (
     <Modal title={heading} onClose={onClose}>
-      {/* 0079 — was an dieser Messe gelesen wird, hier und nicht in einer anderen Ansicht. */}
-      {item !== undefined && item.occurrence.kind === 'mass' && (
-        <IntentionsPanel calendarId={item.occurrence.calendarId} itemId={item.occurrence.itemId}
-          occurrenceAt={item.occurrence.occurrenceAt} start={start} editable />
+      {/* 0079/0132 — was an DIESEM Vorkommen steht (die Intentionen einer Messe, Anmeldungen …), hier und nicht in einer anderen Ansicht. */}
+      {item !== undefined && lists.length > 0 && (
+        <RecordsPanel me={me} item={item} start={start} calendar={calendar} lists={lists} writer onChanged={onSaved} />
       )}
 
       <form className="wk-form wk-ev-form" onSubmit={(e) => { e.preventDefault(); void save(); }}>
@@ -616,6 +700,43 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
           </div>
         )}
 
+        {/* 0132 — DAS SCHEMA dieses Kalenders: was der Termin ist und welche Felder er hat. */}
+        {!onlyTime && !isPrivate && (docs?.schemes.length ?? 0) > 0 && (
+          <div className="wk-ev-row">
+            <Icon name="layers" />
+            <div className="wk-ev-body">
+              <div className="wk-ev-cals" role="group" aria-label="Schemat">
+                {[{ docId: null as string | null, name: 'Uniwersalny' }, ...docs!.schemes.map((one) => ({ docId: one.docId as string | null, name: one.def.name }))].map((one) => (
+                  <button key={one.docId ?? UNIVERSAL_ID} type="button" className="wk-ev-cal" aria-pressed={(schemeId ?? null) === one.docId}
+                    onClick={() => pickScheme(one.docId)}>{one.name}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {((!onlyTime && itemFields.some((f) => fieldShown(f, 'item'))) || dayFields.some((f) => fieldShown(f, 'day'))) && (
+          <div className="wk-ev-row">
+            <Icon name="list" />
+            <div className="wk-ev-body wk-sc-fields">
+              {!onlyTime && itemFields.filter((f) => fieldShown(f, 'item')).map((f) => (
+                <label key={`item:${f.key}`} className="wk-sc-field">
+                  <span>{f.label}{f.required ? ' *' : ''}</span>
+                  <SchemeInput field={f} value={textOf(f, 'item')} people={candidates} autoFocus={freshField === `item:${f.key}`}
+                    onChange={(v) => setText(f, 'item', v)} />
+                </label>
+              ))}
+              {dayFields.filter((f) => fieldShown(f, 'day')).map((f) => (
+                <label key={`day:${f.key}`} className="wk-sc-field">
+                  <span>{f.label}{f.required ? ' *' : ''}{repeating ? ' (ten dzień)' : ''}</span>
+                  <SchemeInput field={f} value={textOf(f, 'day')} people={candidates} autoFocus={freshField === `day:${f.key}`}
+                    onChange={(v) => setText(f, 'day', v)} />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* 0058 — reservieren: nur in einem Kalender, der Reservierungen führt. */}
         {!onlyTime && booking !== null && (
           <div className="wk-ev-row">
@@ -697,7 +818,7 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
               onQuickAdd={async (partTitle, at, minutes) => {
                 /* Der Punkt teilt alles mit dem Ganzen, wie es gespeichert ist — nur Name und Zeit sind seine. */
                 const id = await saveEvent(me.ring, {
-                  ...draftOf(item), kind: 'appointment', title: partTitle, notes: '',
+                  ...draftOf(item), kind: 'appointment', title: partTitle, notes: '', schemeId: null, values: undefined, publicTitle: undefined,
                   date: localDate(at), time: localTime(at), minutes, allDay: false,
                   repeat: 'none', every: 1, weekdays: 0, until: null, count: null,
                   parentItemId: item.occurrence.itemId
@@ -744,11 +865,17 @@ export function Editor({ me, areas, calendars, scope: allowed, target, events, o
         )}
 
         {/* 2026-10-24 — was noch dazukommen kann. */}
-        {adds.length > 0 && (
+        {(adds.length > 0 || fieldAdds.length > 0) && (
           <div className="wk-ev-adds" role="group" aria-label="Dodaj do terminu">
             {adds.map((x) => (
               <button key={x.key} type="button" className="wk-ev-add" aria-label={`Dodaj: ${x.label}`} onClick={() => add(x.key)}>
                 <span aria-hidden="true">+</span> {x.label}
+              </button>
+            ))}
+            {fieldAdds.map(({ f, level }) => (
+              <button key={`${level}:${f.key}`} type="button" className="wk-ev-add" aria-label={`Dodaj: ${f.label}`}
+                onClick={() => { setFieldsOpen((was) => new Set(was).add(`${level}:${f.key}`)); setFreshField(`${level}:${f.key}`); }}>
+                <span aria-hidden="true">+</span> {f.label}
               </button>
             ))}
           </div>

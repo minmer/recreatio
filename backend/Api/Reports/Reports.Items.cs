@@ -262,7 +262,7 @@ public static partial class Reports
             case "event":
             {
                 Guid? by;
-                await using (var cmd = new SqlCommand("SELECT created_by_role_id FROM app.area_event WHERE area_id = @id;", connection))
+                await using (var cmd = new SqlCommand("SELECT created_by_role_id FROM app.area_profile WHERE area_id = @id;", connection))
                 {
                     cmd.Parameters.AddWithValue("@id", id);
                     var found = await cmd.ExecuteScalarAsync(ct);
@@ -386,7 +386,12 @@ public static partial class Reports
                 break;
 
             case "event":
-                await Run("DELETE FROM app.event_listing WHERE area_id = @id;");
+                /* 0133 — die Wizytówka (Titel, Vorspann, Bild) und ihre Plätze in fremden Listen; der Bereich bleibt. */
+                await Run("""
+                    DELETE FROM app.event_listing WHERE area_id = @id;
+                    UPDATE app.area_profile SET card_sealed = NULL, card_area_id = NULL, card_epoch = NULL, image_id = NULL, updated_at = @now
+                     WHERE area_id = @id;
+                    """);
                 break;
         }
 

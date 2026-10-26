@@ -156,7 +156,8 @@ public static void Map(WebApplication app)
         string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count,
         Guid CalendarId, Guid AreaId, string Zone,
         bool? Bookable = null, int? Capacity = null, Guid? ReserveAreaId = null,
-        Guid? ParentItemId = null, int? Position = null, Guid? ChatId = null, Guid? TopicId = null);
+        Guid? ParentItemId = null, int? Position = null, Guid? ChatId = null, Guid? TopicId = null,
+        Guid? SchemeId = null, string? PlanOrigin = null);
 
     /// <summary>
     /// DER EIGENE KALENDER: jedes Vorkommen jedes Termins in meinen Bereichen,
@@ -189,6 +190,9 @@ public static void Map(WebApplication app)
 
         var rows = new List<Row>();
 
+        /* 0132 — Schema, Herkunft, Werte, Einträge: erst nach der Migration (und nachgeholt). */
+        var schemesReady = await Calendar.RecordsReadyAsync(connection, ctx.RequestAborted);
+
         if (held.Count > 0 && readable.Count > 0)
         {
             var heldNames = string.Join(", ", held.Select((_, i) => $"@h{i}"));
@@ -205,7 +209,8 @@ public static void Map(WebApplication app)
                        i.title_public, i.visibility_area_id, i.status,
                        i.repeat_kind, i.repeat_every, i.repeat_weekdays, i.repeat_until, i.repeat_count,
                        i.calendar_id, c.area_id, c.time_zone, i.bookable, i.capacity, i.reserve_area_id,
-                       i.parent_item_id, i.position, i.chat_id, i.topic_id
+                       i.parent_item_id, i.position, i.chat_id, i.topic_id,
+                       {(schemesReady ? "i.scheme_id, i.plan_origin" : "CAST(NULL AS uniqueidentifier), CAST(NULL AS nvarchar(200))")}
                 FROM app.calendar_item i
                 JOIN app.calendar c ON c.id = i.calendar_id
                 WHERE (c.area_id IN ({heldNames}) OR i.visibility_area_id IN ({heldNames}))
@@ -238,7 +243,9 @@ public static void Map(WebApplication app)
                     reader.IsDBNull(20) ? null : reader.GetGuid(20),
                     reader.IsDBNull(21) ? null : reader.GetInt32(21),
                     reader.IsDBNull(22) ? null : reader.GetGuid(22),
-                    reader.IsDBNull(23) ? null : reader.GetGuid(23)));
+                    reader.IsDBNull(23) ? null : reader.GetGuid(23),
+                    reader.IsDBNull(24) ? null : reader.GetGuid(24),
+                    reader.IsDBNull(25) ? null : reader.GetString(25)));
             }
         }
 
@@ -253,6 +260,10 @@ public static void Map(WebApplication app)
         var intentionCounts = await Mass.CountsAsync(connection,
             rows.Where(r => r.Kind == "mass").Select(r => r.Id).Distinct().ToList(), since.AddDays(-1), till, ctx.RequestAborted);
         var myRoles = mine.Select(r => r.Id).ToHashSet();
+
+        /* 0132 — die Werte nach dem Schema und die Einträge je Liste, je Vorkommen. */
+        var values = await Calendar.ValuesAsync(connection, itemIds, since.AddDays(-1), till, ctx.RequestAborted);
+        var recordCounts = await Calendar.RecordCountsAsync(connection, itemIds, since.AddDays(-1), till, ctx.RequestAborted);
 
         var occurrences = new List<object>();
         foreach (var row in rows)
@@ -305,6 +316,12 @@ public static void Map(WebApplication app)
 
                     /* 0079 — an einer Messe: wie viele Intentionen (angenommen oder gefeiert). */
                     intentions = row.Kind == "mass" ? intentionCounts.GetValueOrDefault((row.Id, at)) : (int?)null,
+
+                    /* 0132 — das Schema (NULL: das universelle), woher aus einem Plan, die Werte, die Einträge je Liste. */
+                    schemeId = row.SchemeId is null ? null : Ids.ToText(row.SchemeId.Value),
+                    planOrigin = row.PlanOrigin,
+                    values = Calendar.ValuesAt(values, row.Id, at),
+                    records = Calendar.CountsAt(recordCounts, row.Id, at),
 
                     /* 0058 — wer da sein muss; `mine`: eine meiner Rollen. */
                     people = present.Select(p => new { roleId = Ids.ToText(p.Role), duty = p.Duty }),

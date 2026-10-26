@@ -28,7 +28,7 @@ export function seedFromMirror(g: GpuEngine): void {
     nucleated: bm.nucleated, departed: bm.departed, merged: bm.merged, burst: bm.burst, collapsed: bm.collapsed,
     burstCold: bm.burstCold, burstWarm: bm.burstWarm, collapsedCold: bm.collapsedCold, collapsedWarm: bm.collapsedWarm,
     fluxSL: e.heat.fluxSL, fluxLG: e.heat.fluxLG, fluxSG: e.heat.fluxSG, lossSolids: e.heat.lossSolids,
-    slowed: x.slowed, vented: x.vented
+    slowed: x.slowed, vented: x.vented, melted: e.melt.melted, frozen: e.melt.frozen
   });
   g.carryErrors({ energy: e.energyError(), water: e.waterError(), other: e.otherError(), salt: e.saltError() });
 }

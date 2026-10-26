@@ -14,7 +14,7 @@
  * </code>
  */
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 import { ensurePrivateArea } from './agenda';
 import { areaPath, type AreaRow } from '../areas/area';
@@ -27,15 +27,19 @@ import { Modal } from '../ui/Modal';
 import { WorkspaceError } from '../core/session';
 import { PRIVATE, writableGroups } from '../areas/WhoSees';
 import { askText } from '../ui/dialogs';
+/* 0132 — erst, wenn die Einstellungen eines bestehenden Kalenders offen sind: die Vorlagen sind gross. */
+const CalendarDocsSection = lazy(() => import('./CalendarDocsSection'));
 
 const KINDS: readonly CalendarKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 const DURATIONS: readonly number[] = [15, 20, 30, 40, 45, 60, 90, 120, 180, 240];
 
 type BookingMode = 'none' | 'all' | 'marked';
 
-export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
+export function CalendarSettings({ me, areas, calendar, calendars = [], onClose, onSaved }: {
   me: Me;
   areas: readonly AreaRow[];
+  /** 0132 — die Kalender, in denen ich schreibe (für „Zastosuj…" eines Plans). */
+  calendars?: readonly CalendarRow[];
   /** Ein bestehender — oder \`null\` für einen neuen. */
   calendar: CalendarRow | null;
   onClose: () => void;
@@ -227,6 +231,12 @@ export function CalendarSettings({ me, areas, calendar, onClose, onSaved }: {
           )}
         </div>
       </form>
+
+      {/* 0132 — was die Termine dieses Kalenders sind (Schematy) und wie sie für Wochen entstehen (Plany). */}
+      {calendar !== null && calendar.mayWrite === true && (
+        <Suspense fallback={null}><CalendarDocsSection me={me} areas={areas} calendar={calendar} calendars={calendars.length > 0 ? calendars : [calendar]}
+          onChanged={() => onSaved(calendar.calendarId)} /></Suspense>
+      )}
     </Modal>
   );
 }

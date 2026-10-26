@@ -22,12 +22,12 @@ Reproduce: `npm run test:lab2d` (fast tests, ~6 min), `npm run test:lab2d:slow` 
 | M1e GPU path | test 17, 1 mm in the budget | built (the accelerated view): test 17 met (test 11 was at the edge, as on the CPU, until the particles of a cell shared their heat: now −0.37 K); 2 mm 4.9 ms per step; **1 mm 7.7 ms, above the 6 ms** (§M1e) |
 | M2a liquids (oil) | tests 18–22 (SANDBOX.md §13), water unchanged | built on the CPU (2026-10-21): all met; every M1 number unchanged to the last printed digit; water scenes as fast as before (§M2a); on the accelerated view since 2026-10-24 (tests 18, 19, 21, 22 met there, §The accelerated view for the new parts) |
 | M2b solutions (salt) | tests 23–27 (SANDBOX.md §13) | built on the CPU (2026-10-22): all met; then particles of a cell share heat and salt at the diffusion rate and salt diffuses between cells (tests 28–30, met); all M1/M2a tests still met, some numbers moved slightly (§M2b); water +2.4 % per step, brine +12 % over water; on the accelerated view since 2026-10-24 (tests 24–30 met there except 29 measured from the start, +3.2 % and +3.6 %: the start-up flow of the GPU stirs; from 1 s on −0.05 %) |
-| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); the accelerated view takes pinned bodies as whole cells and hands free bodies back to the CPU; objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
-| M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); the accelerated view hands ice back to the CPU |
-| B baking and playback | tests 31–34 (SANDBOX.md §13); GPU baking: harness gates G31–G34 | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B). Baking on the graphics card (2026-10-25): G31–G34 met on the RTX 3070 and the integrated AMD GPU in five scenes — frames identical to the CPU sampler of the GPU state outside bodies (±1 rounding in humidity and bubble positions), lossless through the player, keyframes restore to the GPU's errors exactly, going on on the GPU keeps time, heater and errors; boiling bakes at 1.55× real time (RTX) and 1.12× (integrated) at 2 mm, 0.80× and 0.32× at 1 mm — 4.7–19× the CPU; CPU and GPU clips side by side (§GPU baking) |
+| M3a bodies | tests 36–40 (SANDBOX.md §13) | built on the CPU (2026-10-23) and the same day remade as exact rectangles (§M3a): all met — floating depth −0.10 % (pine) and −0.01 % (ice), at rest within 0.06 mm, a sinking square +10 % of its drag law and at rest without jitter, a stack stands, a beaker of water falls back 3° below its tipping angle and over 3° above it, budgets exact with moving solids; the free surface got its sub-cell position, which moved older numbers slightly; a beaker wall lying across two cells needed the thin-wall rule (test 11); on the accelerated view since 2026-10-26: a scene with free bodies (up to eight) runs there with exact fractions for every body — tests 36–40 and the beaker on half cells met in three runs each — while pinned bodies alone stay whole cells (§Bodies and ice on the GPU); objects carry names and settings — pinned among them — set in their own panel (§Objects and their settings) |
+| M3b melting and freezing | tests 41–45 (SANDBOX.md §13) | built on the CPU (2026-10-23): all met — the Stefan fronts within 6 % (melting) and 7 % (freezing) of Neumann at 2 mm, 4 % and 3 % at 1 mm; an ice cube stays one rectangle and becomes water with energy and water exact; brine settles 0.13 K from T_f(w), a cooling mixture stops at the eutectic, freezing brine keeps all its salt, a carved block stays a few rectangles (§M3b); on the accelerated view since 2026-10-26 for ice of one rectangle — tests 41–44, 46, 55, 56 met there in three runs each, the fronts within 6.1 % and 6.3 % of Neumann as on the CPU — while carved ice (test 45) stays on the CPU (§Bodies and ice on the GPU, C2) |
+| B baking and playback | tests 31–34 (SANDBOX.md §13); GPU baking: harness gates G31–G34 | built on the CPU (2026-10-22): all met — playback frame-identical to the live view, seeking exact, going on from a keyframe bit for bit; 33.6 MB per simulated minute of boiling at 2 mm (gate set at 40 from it); the lab never starts by itself, a module can bake on opening, one lab offers several scenarios (§B). Baking on the graphics card (2026-10-25): G31–G34 met on the RTX 3070 and the integrated AMD GPU in five scenes — frames identical to the CPU sampler of the GPU state outside bodies (±1 rounding in humidity and bubble positions), lossless through the player, keyframes restore to the GPU's errors exactly, going on on the GPU keeps time, heater and errors; boiling bakes at 1.55× real time (RTX) and 1.12× (integrated) at 2 mm, 0.80× and 0.32× at 1 mm — 4.7–19× the CPU; CPU and GPU clips side by side (§GPU baking); scenes with free bodies and melting ice bake on the graphics card too since 2026-10-26 (G31–G34 met in three body presets; §Bodies and ice on the GPU, C2) |
 | M3c grains | tests 49–54 (SANDBOX.md §13) | built on the CPU (2026-10-24): all met — salt piles stand at 33.3° (cited 34 ± 3°), a grain sinks at its Ferguson–Church speed (+0.01 %), dissolves in its mass-transfer time (−0.3 %), the solution cools as its enthalpy says (−0.1 %), salt exact through dissolving and growing, grains in superheated water set off violent boiling (§M3c); position-based friction instead of the planned continuum; a scene with grains runs on the CPU |
 | Violent events, full-screen surface (2026-10-24) | tests 47–48, a walk-through of the surface | built on the CPU: met — violent boiling computed without blowing up (the critical heat flux, the ring, guards against feedback with Δt), softened or asked about; the lab only full screen with preparation and simulation, settings, a bake dialog (frame rate, resume points, resolution, violent events); on the accelerated view too (test 47 there) |
-| Ice on a hot plate, tilted ice (2026-10-25) | tests 55–56 | met — the user's cube on the hot plate kept its meltwater unseen (a quarter of the cube after 40 s), then threw it out at once and flew out of the box; tilting ice shut in small air pockets whose pressure shot it away. Now the water appears beside the cube as it melts and the cube melts away in place (145.9 s, budgets exact), tilted ice lands calmly; trapped gas, slivers beside moving bodies, a doubled condensate and the last sliver fixed on the way (§Ice on a hot plate) |
+| Ice on a hot plate, tilted ice (2026-10-25) | tests 55–56 | met — the user's cube on the hot plate kept its meltwater unseen (a quarter of the cube after 40 s), then threw it out at once and flew out of the box; tilting ice shut in small air pockets whose pressure shot it away. Now the water appears beside the cube as it melts and the cube melts away in place (145.9 s, budgets exact), tilted ice lands calmly; trapped gas, slivers beside moving bodies, a doubled condensate and the last sliver fixed on the way (§Ice on a hot plate); on the accelerated view since 2026-10-26 the same in three runs each — 55 to the end melts away after 146.0–148.8 s there, but in two of ten runs its last slab skittered 6.6 and 8.1 mm sideways (gate 5 mm; §Bodies and ice on the GPU, C2) |
 
 Test 16 (≤ 12 ms of simulation per 60 Hz frame at the default resolution) is the one gate that fails throughout: the
 CPU step of the benchmark scene at 2 mm takes 22.9 ms since M3b (21.6 ms after M1d; budget 6 ms per step, two steps
@@ -1257,6 +1257,374 @@ The slow suite (12 tests in 5 files) passes with that gate changed. Unchanged to
 - Grains are pushed along the distance field the same way (`grainFlow.ts`), without the body check.
 - The GPU port of free bodies has to follow fixes 1–3.
 - SIMPLIFICATIONS #34 changed; its Polish version (`i18n.ts`) was not updated (outside the engine).
+
+## Bodies and ice on the GPU (2026-10-25/26)
+
+The owner approved porting free bodies (M3a) and melting ice (M3b) to the accelerated view in stages. The study before
+it (designs, a judge, a go/no-go emulation of every CPU gate) chose **R1c for every body of a body scene**: in a scene
+with a free body every body has exact fractions on the GPU — the CPU's cover and closing rules, the GPU staircase's
+rule for thin walls — while the faces stay binary (a face beside a closed body cell is closed and moves with its body,
+every other face is fully open), so the flow kernels need no cut cells. Pinned bodies kept as the staircase beside free
+ones failed tests 39 and 55 in the emulation. Scenes without free bodies keep the staircase. Stage C1 ports free bodies,
+stage C2 melting and the GPU baking of body scenes.
+
+### C1 — free bodies (2026-10-26)
+
+**What runs where**: `Engine.needsCpu()` sends a scene to the CPU for ice (any meltable body, until C2), grains and more
+than eight free bodies. Free bodies of one or several rectangles (a free beaker) run on the GPU, and so do the pinned
+bodies beside them. Baking a scene with free bodies stays on the CPU (`clip/session.ts`, the bake dialog): the GPU's
+capture draws only bodies that stay put (C2).
+
+**Built** (ARCHITECTURE.md §15, "Bodies"): `gpu/bodies.ts` (buffers; upload and download that write the CPU's
+`Body2D` exactly; the static parts of the contacts; `objectViewGpu`), `kbodylib.ts` (layout and shared WGSL: the
+geometry of `geom.ts` in f32 relative to the cell corner, cover, push-out, face velocity), `kbodycover.ts` (stage 0:
+push-out, cover, closing, gas out and in, φ_s and distance field, the moving faces, region volumes, heaters),
+`kbodycollect.ts` (collect, pressure continuation, forces, the added-mass solves, the readback), `kbodydyn.ts`
+(integration, contacts, sleep, escape — one workgroup), `bodyStep.ts` (which kernel when), `readout.ts` (the readback
+types, out of engine.ts), `renderBodies.ts`, `renderLib.ts` (drawing); changed `engine.ts`, `state.ts`, `slots.ts`,
+`lib.ts`, `solver.ts` (the probe solves reuse the projection's coarse levels), `kgas.ts` (gas volume (1 − fs − φ − α) V,
+solids from capB), `kheat.ts` (mixed cells, body heaters, the Δt limit), `kliquid.ts` (the exact push-out in g2p, the
+classification below), `kbubbles.ts`, `render.ts`, `staircase.ts` (φ_s, below), `gpu.worker.ts`, `LabApp.tsx`,
+`clip/session.ts`, `i18n.ts`; in the CPU engine only `needsCpu` and a getter of the motion fields (`Bodies.motion`).
+The cover matches the CPU (fs, capB, Es within 3–8·10⁻⁶, the same owners); only the pair rule closes thin walls
+differently.
+
+**Deviations from the design, each measured**:
+
+- *Every awake free body measures its added mass* (three solves), not only bodies of several rectangles. With the CPU's
+  predicted boundary value (fix 1 above) the a-priori estimate is unstable: the increment obeys
+  D^n = k (2 D^{n−1} − D^{n−2}), k = (M̃_a − M_a)/(M + M̃_a), stable only for M̃_a > (3 M_a − M)/4; for test 36's 8 × 4 cm
+  pine block the estimate is 24 g against 43 g measured (λ = −1.30), and the run grew ×1.4 per step to NaN.
+- *Free-body cells* (`kbodylib.REOPEN_FREE_GPU`, `kliquid.classify`): a cell a free body has closed opens again below
+  0.88 (the CPU 0.9 both ways), and an open cell of a free body is liquid when its open part is half full,
+  f/(1 − fs) ≥ ½ (the CPU: φ + φ_s ≥ ½). Without them the beaker on half cells had water at 57, 84 and 113 mm/s in the
+  third second (three runs; gate 0.1 m/s, CPU 45 mm/s): the pine block rocked by 0.05°, the cells of its side (fs
+  0.895–0.92) opened and closed every other step, and nearly empty cells of its side above the waterline were liquid
+  (φ 0.04, φ_s 0.74) — columns without pressure whose faces fell at g Δt per step. The hysteresis alone: 105–120 mm/s;
+  the fill rule alone: 97–146 mm/s; both: 22.1–22.7 mm/s. The CPU tried the fill rule for all partly covered cells and
+  dropped it for the meniscus at hot static walls (ARCHITECTURE.md §17); here it acts only beside free bodies.
+- *Thin walls*: the pair rule's tie (the lower or left cell) is decided within 10⁻⁴ — in f32 the two halves of a wall
+  across two cells came out 0.4999992 and 0.5000027, and rounding decided.
+- *Gas of a closing cell* goes to stable gas neighbours; with none it stays in the closed cell, counted (`C.PARKED`:
+  15–122 cells per run in the contact scenes of tests 38, 40 and 56) and booked.
+- *Contacts* at most 128 per step (never reached); the pressure continuation runs an even number of layers, at most 64,
+  from the thickest body.
+- *Freeing or pinning a body* switches the scene between staircase and exact fractions; the budgets go on with the
+  mirror's errors (`carryErrors`). Test 39's glass held 168.80 J on the staircase and 167.32 J in its exact cells — the
+  energy error jumped by −1.44 J at the release before.
+- No cavities on free bodies; a cavity whose wall cell the GPU leaves open does not nucleate, its bubble detaches.
+
+**Gates** (RTX 3070 laptop, headless Edge, harness pages built from the tree, three runs each; ice as a solid that does
+not melt — the GPU has no melting until C2; CPU numbers from the fast suite):
+
+| Test | Gate | CPU | GPU (3 runs) |
+|---|---|---|---|
+| 36 pine | draft ±2 %, bobbing < 0.2 mm | −0.11 %, 0.02 mm | −0.107 %, 0.026 mm |
+| 36 ice | same | −0.01 %, 0.03 mm | −0.006 %, 0.030 mm |
+| 37 square | sinking speed ±15 % | 0.457 m/s (+10.0 %), turned 16°, drift 9.0 mm | 0.4586 m/s (+10.4 %), turned 0.01°, drift 0.0005 mm |
+| 37 stone | rests, moves < 0.1 mm, asleep | 0.000 mm, asleep | 0.000 mm, 0 mm, asleep |
+| 38 | upper block 40 ± 0.3 mm, dx < 0.5 mm, asleep | 40.000 mm, 0.0006 mm | 40.000 mm, −0.0003 mm, both asleep |
+| 39 | −3°: back < 1°; +3°: over > 60°; water ±10⁻⁴ | −0.00° / 90.00° | 0.000° / 90.0°; water −3.1…−3.3·10⁻⁶ / −6.9…−7.2·10⁻⁶ |
+| 40 | bodies give > 1 J, budgets | 28.68 J | 40.9–41.1 J, stone at rest; air +0.9…1.2·10⁻¹¹ of 6.6·10⁻⁵ kg |
+| beaker on half cells, pine | nothing out, water < 0.1 m/s, bobbing < 1 mm, tilt < 2° | 0 mg, 45.2 mm/s, 0.312 mm, 0.28° | 0 mg, 22.6–22.7 mm/s, 0.335 mm, 0.325° |
+| same, ice cube at the wall, 80 °C | nothing out | 0 mg (melts 10.7 %) | 0 mg; water 39–54 mm/s |
+| 56 bar on a step | finite, square, on the plate, < 500 mm/s | (33.99, 11.67) mm, 182 mm/s (melting) | (34.34, 12.00) mm, lowest 8.000 mm, 180.7 mm/s |
+| 56 cube over the edge | on the floor, left edge > 70 mm, < 600 mm/s | (90.00, 10.00), −90°, 274 mm/s | (90.00, 10.00), −90°, 80 mm, 273.9 mm/s |
+| 56 dropped at 25° | < 1000 mm/s | (41.23, 17.67), 577 mm/s (melting) | (41.23, 18.00), 576.8 mm/s |
+
+Energy errors 0.003–5.8 mJ, water errors ≤ 4·10⁻⁸ kg (f32 class). The square of test 37 sinks straight on the GPU (its
+wake stays symmetric with binary faces; SIMPLIFICATIONS #36, #51). Test 40 gives more heat than the CPU because of the
+drop, not the heat model: a hot stone resting on the floor from the start gives 18.15 J (staircase) and 18.17–18.22 J
+(exact, pinned or free) on the GPU, 18.22–18.23 J on the CPU in 2 s; in test 40 the stone lands 2 mm further right
+than on the CPU and the water around it moves 20–40 % faster from 0.4 s on (the CPU before the fixes of 2026-10-25 gave
+42.6 J). The fast suite (100 tests) prints the same numbers as before the stage; its one changed check: the scene with
+two free bodies in `m3a.test.ts` now runs on the accelerated view (`needsCpu` false).
+
+**Static scenes: φ_s** — `gpu/staircase.ts` smoothed φ_s with 1/8, 3/4, 1/8 while its comment named `grid.ts`' 1/6,
+2/3, 1/6 (the study found it); now it uses the CPU's weights. That moves every staircase scene (the box walls count)
+and nothing else: with the old weights patched back the tree reproduces the documented numbers to the last digit
+(tests 1a, 1b, 6). Old weights → new, the same build, runs alternating:
+
+| Test | Old weights | New weights |
+|---|---|---|
+| 1a / 1b | 97.911 / 94.685 Pa/cm (−0.013 %) | 97.921 / 94.695 Pa/cm (−0.003 %) |
+| 2 / 6 | 0.0679 K / surface 11.95 cm, 0.2587 K | 0.0679 K / surface 12.01 cm, 0.2587 K |
+| 3 heating rate | −2.09, −2.51, −2.09 % | −2.52, −1.84, −2.30 % |
+| 11 boiling plateau | −0.300, −0.293, −0.302 K (vapour −0.07…−0.15 %) | **−0.347, −0.370, −0.391, −0.414 K** (vapour −0.10…−0.11 %) |
+| 47 computed / softened | finite (one run at the guard, 1102×) / 4.00 mm, 99.7 % kept | finite, 83.7 and 85.9 % kept / 4.00 mm, 99.7 % kept |
+| 18, 19, 21 | 97.924 / 90.311 Pa/cm; 32.00 mm; −0.09 % | 97.924 / 90.310 Pa/cm; 32.00 mm; −0.09 % |
+| 22 first burst | 3.40, 3.37 s | 3.33, 3.33 s |
+| 24 brine / water | 112.631 / 97.953 Pa/cm (+0.03 %) | 112.629 / 97.923 Pa/cm (−0.00 %) |
+| 25, 28, 30 | 75.14 %; +0.06 %; −0.56 % | 75.15 %; +0.07 %; −0.56 % |
+| 29 salt diffusion rate | +3.16 % | +0.39 % |
+| 26 brine boiling | 50.6 k / 50.4 k nucleated, 4 002 / 3 994 burst, 32.6 / 31.9 mg | 49.8 k / 49.1 k, 4 001 / 4 137, 31.4 / 32.8 mg |
+| 27 boiled dry | 58.00, 57.53 s | 58.24, 54.14 s |
+
+Test 11's plateau moved from −0.30 to −0.35…−0.41 K below T_sat (gate 0.5 K; the CPU −0.17 K): beside a wall φ_s is 0.167
+instead of 0.125, so a wall cell counts as liquid with less water and the meniscus sits differently at the beaker's
+staircase walls. The hydrostatics of tests 1 and 24 came closer to ρ g, test 29's spurious currents changed (its rate
++0.39 % instead of +3.16 %); the rest is within the run-to-run spread documented in "The GPU view gets today's gas
+fixes".
+
+**Speed** (headless Edge; ms per step as throughput — eight steps per submit, a readback after every third, as the
+worker — and simulated time per wall time):
+
+| Scene | Grid | RTX 3070 | AMD iGPU (gcn-5) |
+|---|---|---|---|
+| floating block (4 × 2 cm pine, 20 × 15 cm) | 2 mm | 7.4 ms, 1.12× | 11.7 ms, 0.71× |
+| | 1 mm | 12.1 ms, 0.69× | 52.6 ms, 0.16× |
+| tipping beaker (test 39, +3°, freed) | 2 mm | 8.8 ms, 0.52× (Δt 4.6 ms) | 11.7 ms, 0.22× (Δt 2.5 ms) |
+| | 1 mm | 15.1 ms, 0.06× (Δt 0.95 ms) | 34.0 ms, 0.02× (Δt 0.65 ms) |
+| free 2 cm stone cube on the hot plate in a beaker | 2 mm | 7.0 ms, 1.19× | 7.1 ms, 1.17× |
+| | 1 mm | 9.4 ms, 0.89× | 17.1 ms, 0.49× |
+
+Per kernel (RTX, each kernel timed in its own pass): the three added-mass solves cost 1.7–3.0 ms per free body and
+step (2 mm–1 mm), every other body kernel together 0.23–0.39 ms; stage 0 (into the grid) 0.02–0.13 ms and stage 8
+(collect, forces, motion) 0.10–0.31 ms in the stage timestamps. The tipping beaker's water runs fast after the fall,
+and its Δt follows (as on the CPU).
+
+**For stage C2** (melting, the GPU baking of body scenes):
+
+- The layout is in `kbodylib.ts`: `bod` (BS = 88 f32 per body; `B_AGAIN` forces a new cover in the next step, `B_BAND`
+  marks the bodies whose band of cells is rebuilt, `B_E0` the latent heat per kg, `B_VOL` the volume, `B_KEY` the
+  object), `bgeo` (rectangles with local bounds, column and row boundaries `XO`/`YO`, first internal cell `KO`, body;
+  free segments; static contact parts) — fixed between uploads: a melting side must move its boundaries there (and
+  `M`, `I`, `RMAX`, hull, `VOL`, the segments in `bod`/`bgeo`) and set `B_AGAIN`; `bcell` (E, film, crust, rectangle).
+  `GpuBodies.upload`/`download` write the `Body2D` (pose, velocity, motion fields, E, film, crust); melting adds
+  geometry and the held meltwater.
+- `bodyStep.ts` records the kernels; the CPU order puts melting after collect and before the forces (`finish`).
+- Bubbles: no cavities on free bodies (`state.ts`, radius 10⁻⁹ at upload).
+- Baking: `renderBodies.ts` (`rBodies`) already computes each internal cell's quad, colour inputs and the outlines from
+  the GPU buffers every frame — the capture's `bkQuads` can take the same values for moving bodies instead of the
+  statics of `captureBodies.ts`; `clip/session.ts` and `LabApp.tsx` keep body scenes on the CPU until then.
+- `needsCpu` is `free > 8 || melt.any() || grains`.
+
+**Open**:
+
+- Firefox (wgpu) not run — headless Firefox has no WebGPU; the kernels use only features the existing ones use.
+- The live view in the app shell (worker, object panel from the readback, HUD counts) was not driven in a browser; its
+  pieces (renderer, readback, `objectViewGpu`) ran in the harness.
+- The drawn water reaches about a third of a texel past the outer face of a 2 mm beaker wall at 2 mm (the liquid
+  continued under the bodies, the [1 2 1] blur and linear sampling) — where the staircase drew a whole solid cell.
+- Test 40's heat (above) and test 37's straight sinking differ from the CPU through the flow, inside the gates.
+- The beaker on half cells: its left inner half cell is open, the right one closed (the pair rule's tie) — on the CPU
+  both stay open.
+- Test 11 on the staircase keeps 0.09–0.15 K to its gate of 0.5 K since the φ_s fix (before 0.2 K).
+
+### C2 — melting ice, baking body scenes, the final validation (2026-10-26)
+
+**What runs where**: `Engine.needsCpu()` is `free > 8 || carved ice || grains` — carved ice is a meltable body of
+several rectangles that is not gone. Ice of one rectangle, pinned or free, runs on the GPU and puts the scene into body
+mode (every body with exact fractions, as a free body does); every scene the accelerated view runs also bakes on the
+graphics card. The notes about what stays on the CPU (`accelNoOther`, `bakeCpuOnly`; Polish, German, English) name
+carved ice; `accelNoOther` also names more than 128 contacts at once (review item 4d, below).
+
+**Built** (ARCHITECTURE.md §15 "Melting", §16, §18): `gpu/kbodymelt.ts` (new, 447 lines: the layout of `bmelt` — per
+body the meltwater held at each side and the room kept for its cells —, the table T_f(m), the shared WGSL of sides,
+edge cells, the cells in front, `blocksB`, `bodyAtB`, a new particle; kernels `mSums`, `mApply`, `mSpawn`) and
+`gpu/kbodymelt2.ts` (new, 700 lines: `mMelt`); changed `bodies.ts` (room of a melting body, `B_MELT`, held meltwater up
+and down, the GPU's rectangle and cells of a melting body back into `Body2D`, the readback, `objectViewGpu`),
+`bodyStep.ts`, `kbodylib.ts`, `kbodycollect.ts`, `kbodycover.ts`, `kbodydyn.ts`, `renderBodies.ts`, `readout.ts`,
+`engine.ts`, `handoff.ts`, `kheat.ts`, `state.ts`, `slots.ts`, `kernels.ts`, `gpu.worker.ts`, `capture.ts`,
+`captureKernels.ts`, `captureBodies.ts`, `clip/session.ts`, `LabApp.tsx`, `i18n.ts`, `i18nShell.ts`; in the CPU engine
+only `needsCpu` and exported constants (`bodyMelt`: THIN, THICK, GONE, FREEZE_MAX; `meltWater`: SPLIT, SPAWN,
+SPAWN_MAX).
+
+**The melting as built**: four passes after collect, before the forces as on the CPU — `mSums` (per cell near ice:
+Σ m c_p, Σ m c_p T, water, salt and water-particle mass of its own particles, as `exchange.ts`), `mMelt` (one workgroup
+of 128 threads; the meltable bodies one after another and their sides one after another, as `bodyMelt.step`: T_f and
+"open" from the cells in front with `frontGap`, the supply, the excesses, the planned freezing, the moves, the
+meltwater given to the cells in front or held per side, squeezed out at the ends of a side with no fluid in front, gone
+below 0.25 Δx, the outer rows regridded, derive), `mApply` (per particle: its cell's meltwater by its mass, its cell's
+planned freezing by its water, salt stays, a particle above twice the nominal mass splits) and `mSpawn` (held water from
+a quarter of the nominal mass on becomes particles of at most the nominal mass, at most four per step, along the side,
+at a free spot no other body separates from it; appended like condensate, sorted in the next step). No round trip in a
+step; a body that outgrows the room kept for it (two more rows and columns) sets `C.MELTFULL`, and the live view
+downloads and uploads once. Melting costs 0.17 ms per step at 2 mm and 0.32 ms at 1 mm (RTX, its kernels timed alone).
+
+**Deviations from the CPU** (each argued or measured):
+
+- *f32*: the boundaries, energies and masses are f32. A move smaller than f32 resolves at the side's coordinate (about
+  10⁻⁹ m in the body frame) gives its heat back to the edge cells, as the CPU does when nothing melts; the next step
+  moves the side by the sum.
+- *Shares of meltwater by the masses at the start of the step*: each taker cell collects its share of a side's water
+  by the mass of its water particles as `mSums` found them, then each particle takes by its mass; the CPU gives side
+  after side, the second side's water by the masses after the first side's water. The totals are the same; how a
+  cell's two portions spread over its particles differs by the first portion's share.
+- *Freezing claims*: a cell that two sides want goes to the first side and its first point (an atomic maximum over
+  (3 − side, −point)), as the CPU's "the first side that asks".
+- *T_f(m)*: interpolated in 257 values from pure water to the eutectic, built by the CPU's `freezingPoint`.
+- *No cavities on ice* (they would nucleate on a wall cell that melting opens).
+- *The room*: a melting body has room for two more rows and columns; growing beyond needs a round trip (the live
+  view does it, a bake does not: the outer rows then stay thicker than 1.6 Δx until the end; energy and mass exact).
+  Test 41's freezing at 1 mm grows 1.5 cells and needs none (front −2.51 %, the CPU −2.5 %). The trip itself was run
+  with the spare rows patched away: 1 515 trips in 120 s without a fault, the energy error drifting by 6·10⁻⁵ J per
+  trip — and repeating at every readback, because a trip adds room only for rows already gained; with two spare rows
+  the first growth after an upload always fits, so that loop cannot occur.
+- *The water budget counts new particles at once*: in body mode `measParts` counts every particle up to the appended
+  count (the sorted count lagged one step behind a spawn, so the water error jumped by the spawned mass for a step).
+
+**Gates** (RTX 3070 laptop, headless Edge, harness pages built from the tree, three runs each, melting on; CPU numbers
+from the fast suite, unchanged by this stage):
+
+| Test | Gate | CPU | GPU (3 runs) |
+|---|---|---|---|
+| 36 pine | draft ±2 %, bobbing < 0.2 mm | −0.11 %, 0.02 mm | −0.107 %, 0.026 mm (all three) |
+| 36 ice (melting on) | same | −0.01 %, 0.03 mm | −0.006 %, 0.030 mm |
+| 37 square | sinking speed ±15 % | 0.457 m/s (+10.0 %) | 0.4586 m/s (+10.4 %), turned 0.01° |
+| 37 stone | rests, < 0.1 mm, asleep | 0.000 mm, asleep | 0.000 mm, asleep |
+| 38 | upper block 40 ± 0.3 mm, dx < 0.5 mm, asleep | 40.000 mm, 0.0006 mm | 40.000 mm, −0.0003 mm, both asleep |
+| 39 | −3°: back < 1°; +3°: over > 60°; water ±10⁻⁴ | −0.00° / 90.00° | 0.00001° / 90.0°; water −3.0…−3.1·10⁻⁶ / −7.0…−7.3·10⁻⁶ |
+| 40 | bodies give > 1 J | 28.68 J | 40.31–40.43 J, stone resting |
+| beaker on half cells, pine | nothing out, water < 0.1 m/s, bobbing < 1 mm, tilt < 2° | 0 mg, 45.2 mm/s, 0.312 mm, 0.28° | 0 mg, 58.3 / 89.1 / 79.4 mm/s, 0.31–0.43 mm, 0.23–0.32° |
+| same, ice cube at the wall, 80 °C | nothing out | 0 mg, melts 10.7 % | 0 mg, melts 10.74–10.75 % |
+| 41 melting (pinned ice) | front ±10 % after 4 min, speed 2–4 min ±5 % | +6.0 %, +0.6 % | +6.08 %, +0.66 % (1.618 mm, Neumann 1.526) |
+| 41 freezing | front ±10 % after 2 min | −6.4 %, 267.0 mg | −6.33…−6.34 %, 267 mg |
+| 42 cube in warm water | one rectangle, never above T_m, budgets | 0.179 g melted, 19.39 × 19.63 mm, warmest 0.0025 °C | 0.166–0.173 g, 19.44–19.46 × 19.61–19.63 mm, warmest 0.0025 °C |
+| 43 ice in brine | ice within 0.2 K of T_f(w), brine colder by > 0.5 K, not below T_f by > 0.2 K, upright | ice 0.025 K above T_f, brine −0.825 °C (−2.07 … −0.02), turned 0.97° | ice 0.028–0.032 K above T_f (−2.088 °C), brine −0.746…−0.759 °C (coldest −2.065…−2.074), turned 0.39–0.51° |
+| 44 freezing brine | all salt stays | +165.9 mg, salt −4·10⁻⁹ µg, w 3.5571 % | +164.5 / 164.0 / 159.1 mg, salt −0.42…−0.47 µg of 361.9 mg (f32), w 3.555–3.557 % |
+| 46 block on a 60 °C plate | melts from below, sinks onto the plate | 18.28 × 8.20 mm, on the plate, 1.374 g | 18.28 × 8.198–8.199 mm, on the plate, 1.374 g |
+| 55 cube on the hot plate | held < 5 %, > 20 particles, lower and narrower, stays put, < 10 mm/s | 18.86 × 17.75 mm, held ≤ 1.75 %, 142 particles, 599.6 mg | 18.86 × 17.75 mm, held ≤ 3.19 %, 146 particles, 598.5 mg, moved 0.0003 mm, 0.47 mm/s |
+| 56 bar on a step | finite, square, on the plate, < 500 mm/s | (33.99, 11.67) mm, 182 mm/s | (34.20, 11.67) mm, lowest 8.000 mm, 184.7 mm/s |
+| 56 cube over the edge | on the floor, left edge > 70 mm, < 600 mm/s | (90.00, 10.00), −90°, 274 mm/s | (90.00, 10.00), −90°, left 80 mm, 273.9 mm/s |
+| 56 dropped at 25° | flat, < 1000 mm/s | (41.23, 17.67), 577 mm/s | (41.23, 17.67), 576.8 mm/s |
+| 55 to the end (slow) | gone, finite, drift < 5 mm, < 50 mm/s | gone after 145.49 s, drift 3.20 mm (1.32–3.20 with tiny perturbations), 32 mm/s, held ≤ 7.1 mg, 1053 particles | ten runs: gone after 146.0–148.8 s, finite; drift 1.5–3.6 mm in eight, **6.56 and 8.07 mm** in two; 8.8–49.7 mm/s; held ≤ 6.9–9.0 mg; 848–911 particles |
+| 43 with enough salt (slow, one run) | below −13 °C after 3 min, never below the eutectic | −14.35 °C, coldest particle −20.90 °C, 0.756 g melted | −14.30 °C, coldest −18.81 °C, 0.836 g melted, the cube rolled once onto its side |
+
+Energy errors 0.003–60 mJ (f32; the CPU 10⁻¹⁰ J), water ≤ 3·10⁻⁷ kg, salt ≤ 2·10⁻⁹ kg in tests 43 and 44 (0.36 g of
+salt each) and 1.3·10⁻⁸ kg in the cooling mixture. Every gate is met in every run except the drift of 55 to the end
+in two of its ten runs: the cube's last slab skittered 8.07 mm (at 49.7 mm/s, gate 50) and 6.56 mm (29.4 mm/s)
+sideways, gate 5 mm; the other eight drifted 1.49, 1.57, 1.67, 1.79, 1.85, 2.50, 2.77 and 3.56 mm. The CPU documents
+that this end phase is chance (1.32–3.20 mm in runs changed by ±1 % of the power; its gate stands "against the
+flights of before, not the skittering"); three traced runs show all sideways moves in the last 3–7 s, when 35–110 mg
+of ice are left — a slab 6.2–6.5 mm wide and less than 2 mm high skittering on the boiling under it, as the CPU
+describes. The beaker on half cells moves its water at up to 58–89 mm/s, more than C1
+measured (22.6 mm/s) — the consequence of the symmetric tie (review item 4b, below). Test 37's square sinks straight
+and test 40 gives about 40 J, as in C1 (40.9–41.1 J there; the flow around the landing stone).
+
+**Static scenes** (the staircase, no free body and no ice; the same pages as C1's table above, the same build as the
+gates): tests 1a / 1b 97.921 / 94.695 Pa/cm (−0.003 %), 2 0.0679 K, 6 the surface at 12.01 cm and 0.2587 K — to the
+last digit as in C1; test 3 −2.68, −2.12, −2.26 % (C1 −2.52, −1.84, −2.30 %), test 11 −0.338, −0.376, −0.406 K below
+T_sat with the vapour −0.08…−0.12 % (C1 −0.347…−0.414 K), test 47 computed finite twice (93.0 and 98.6 % of the water
+kept) and softened 4.00 mm with 99.7 % kept; 18 97.924 / 90.311 Pa/cm, 19 32.00 mm, 21 −0.09 %, 22 first burst at
+3.37 s; 24 112.629 / 97.924 Pa/cm, 25 75.15 %, 26 50.5 k nucleated, 3 955 burst, 31.7 mg, 27 dry after 55.72 s with
+all salt in the crust, 28 +0.07 %, 29 +0.39 %, 30 −0.56 % — all within C1's run-to-run spread. None of C2's
+physics acts there: the new kernels run only in body mode, regions keep their identity groups, the parked-gas move
+and the new water count are body-mode only.
+
+**Baking body scenes** (the harness gates G31–G34 of §GPU baking on `clip/gpuBake.ts`; 10 s at 30 frames per second,
+keyframes every 5 s; in a body scene G31 compares the frame of a keyframe with `sampleLayers` of the downloaded mirror
+outside a band of one cell around the bodies, humidity and liquid ±1 — the mirror covers its bodies anew after the
+download): "Lód w ciepłej wodzie", "Przewrócona zlewka" and "Co pływa?" pass G31–G33 in two bakes each — planes
+identical outside the band, humidity ±1 in up to 123 of 7 333 gas cells, the liquid ±1 (up to 3 887 of 120 000 bytes
+in "Lód w ciepłej wodzie", whose water at 40 °C lies exactly on a step of the temperature scale, 0–4 bytes in the
+others), quads identical in temperature, glow and crust and within one unit of 16 bits in position; the player gives
+the frames back unchanged (G31b, 50 of 50), keyframes in order (G32), keyframes restore to the GPU's errors exactly
+(G33a), going on from one drifts 4·10⁻⁹ J in 240 CPU steps (G33b) and keeps time and errors on the GPU (G33c). G34
+(the GPU at least three times the CPU's bake rate): 0.663× real time against the CPU's 0.157× (4.2×), 0.535× against
+0.050× (10.8×), 0.326× against 0.053× (6.2×) in the first bakes; the second bakes ran beside other GPU work of the
+stage (2.1×, 5.0×, 3.1×) — baked again alone, "Lód w ciepłej wodzie" gives 0.667× against 0.159× (4.2×) with every
+gate met. Sizes: 28.3, 15.1–15.5 and 39.7–43.2 MB per simulated minute at 2 mm. The
+staircase preset "Wrzenie" still passes the original criterion (G34 3.8×).
+
+**Fixes from the review of C1** (each checked on the harness, RTX):
+
+1. *Downloads by each body's own record* (blocker): after a free body left the box, the cells of the bodies behind it
+   were read at shifted offsets. Now each body's cells come from its record (`KO`, `NCELL`), copied only when the
+   counts agree: two downloads in a row after the wood block fell out leave the pinned stone at 652.063 J (79.978 °C)
+   both times, the CPU budget at 3.3·10⁻⁵ J.
+2. *Regions behind free bodies* (major): CPU regions that only free bodies separate are one GPU region from the upload
+   on. The reviewer's pot under a free steel lid at 45 °C: the CPU's open region (106.24 cm³) and its pocket under the
+   lid (10.08 cm³) run as one open region of 116.32 cm³ at the room's pressure, energy error 1.6 mJ after 3 s (before:
+   a sealed pocket at +200–380 kPa, 3.81 J).
+3. *Only awake free bodies measure their added mass* (major): chosen after each readback (`bodyStep.select`,
+   `B_PROBE`); `bProbeFin` finishes only the bodies it solved for, and a body woken in between moves with its last
+   measured value (`B_MAOK` kept on waking). A/B in one session: the resting stone 8.55–8.70 → 6.62–6.72 ms per step,
+   six sleeping stones 18.2–18.3 → 6.4–6.5 ms.
+4. (a) *Body mode kept across a rebuild* (a melting body's room growing): the energy error goes on continuously
+   (1.447 mJ before, 1.163 mJ after; the mirror's 2.546 mJ not taken over). (b) *The pair rule's tie* closes the cell
+   farther from its body's centre: the beaker on half cells closes its outer half cells 15 and 35 — its inner half
+   cells stay open on both sides as on the CPU (C1 closed the right inner one, 34; C1's open item). Its water then
+   moves faster beside the pine block (gates below: 58–89 mm/s; with C1's tie 22.4–22.6 mm/s in the same session):
+   the fastest particles sit next to the block's sides near the waterline, in its cells of fs 0.85–0.88. The fill
+   rule for the open cells of pinned bodies as well would calm it (31–32 mm/s, bobbing 0.19 mm) but would also change
+   the meniscus at hot walls, which the CPU rejected for that reason (§Free bodies in a beaker on half cells) — not
+   built. (c) `bStatic`'s array indexed at run time is a `var`. (d) *More than 128 contacts*: counted
+   (`C.CONT_FULL`); the readback sets `cpuOnly`, and the settings' toggle says the scene belongs to the normal view.
+5. *Parked gas*: a closed body cell holding parked gas hands it to a neighbour once one is stable gas (`bFlip`), and
+   a download moves what is still parked to the nearest fluid cell on the CPU — test 38 (1.5 mg of air in 76 cells
+   between the stacked blocks): the mirror's energy error after a download 1.4·10⁻⁵ J instead of −59 mJ; test 40
+   −0.34 mJ instead of −1.4 mJ. *Heater shares within a group*: a hot plate of two pinned pieces gives 20.01 J of
+   20.01 J (energy error 0.38 mJ).
+- Nits: SIMPLIFICATIONS #51 now says the fill rule only demotes cells the usual rule calls liquid. Kernels at eight
+  storage buffers: `bExtInit`, `g2p` (C1), `mApply`, `mMelt` (C2) — the device asks for up to 16, and existing kernels
+  already bind ten (`p2g`, `heatPrep`, `bubAdvance`, `bkQuads`), so the accelerated view needs an adapter with more
+  than WebGPU's default eight anyway.
+
+**The shell** (headless Edge, the real `Lab2D` bundled from the tree; `drive.mjs`): in "Pusta skrzynka" switch on the
+accelerated view, add a hot plate, an ice cube turned by 25° high above it and an ice cube on it — the scene stays on
+the graphics card (no "cpu-only" note), the turned cube falls, lands and lies flat, the cubes melt and their water
+appears beside them, the budgets stay at 10⁻⁴–10⁻³ J and 10⁻⁹ kg; paused, a third cube placed 3 mm over the plate's
+edge tips off and comes to rest on the floor, and its panel shows its state; "Upiecz…" switches to the normal view,
+offers "Licz na: karta graficzna" (no CPU note) and bakes 10 s of the scene on the card (0.43–0.59× real time at 1 mm
+on the RTX); the player says GPU; "Na żywo od tej chwili" at 7 s starts the accelerated view at the keyframe of
+5.13 s, which runs on; no errors in the page or the GPU worker. All 50 checks pass on the RTX and on the integrated
+GPU. The drive found one fault, fixed:
+after a few objects were added in the accelerated view the readbacks stopped for good — the clock and the HUD stood
+still and the object panel showed no state, while the bodies moved on. `encodeReadback` kept at most three staging
+buffers and made a new one only while fewer existed; each new body, region or heater makes the readback larger, so
+after three such steps no buffer was large enough (since M1e; bodies make it common). Now a free buffer that is too
+small gives way to a larger one. C1's open item "the live view in the app shell was not driven" is closed with this.
+
+**Speed** (headless Edge, as in C1: ms per step as throughput — eight steps per submit, a readback after every third —
+and simulated time per wall time). The RTX column was re-measured alone on 2026-10-26 — median and range of three
+runs, each started with no other process on the card and no test or type check running (the study's leftover
+benchmark had shared the card with the first measurements, which were only 1–7 % slower). The card runs every stage
+about 1.9× slower than when C1 measured (C1: floating block 7.43 ms; C1's committed code, built and run alternately
+with the tree, gave 12.40–12.65 ms against the tree's 12.29–12.32 ms): under this load it stays in P3 at 780 MHz
+(maximum 2 100 MHz, 26 W of 87 W), held there by the driver's software thermal slowdown at 54 °C — a setting of the
+laptop, not the code. The integrated GPU gives C1's numbers.
+
+| Scene | Grid | RTX 3070 (alone, 780 MHz) | AMD iGPU (gcn-5) |
+|---|---|---|---|
+| the shell's ice cube on the 40 W plate (melting, awake) | 2 mm | 9.18 ms (9.14–9.19), 0.91× | 5.72 ms, 1.46× |
+| | 1 mm | 13.32 ms (13.27–13.33), 0.60× | 13.98 ms, 0.57× |
+| "Lód w ciepłej wodzie" (a floating cube melting in warm water) | 2 mm | 12.72 ms (12.71–12.74), 0.66× | 10.74 ms, 0.78× |
+| | 1 mm | 20.54 ms (20.50–20.61), 0.41× | 41.64 ms, 0.20× |
+| floating block (4 × 2 cm pine) | 2 mm | 11.92 ms (11.89–11.96), 0.70× | 11.53 ms, 0.72× |
+| | 1 mm | 19.43 ms (19.37–19.46), 0.43× | 44.12 ms, 0.19× |
+| tipping beaker (test 39, +3°, freed) | 2 mm | 14.06 ms (14.00–14.08), 0.32× (Δt 4.5 ms) | 10.66 ms, 0.43× (Δt 4.5 ms) |
+| | 1 mm | 25.54 ms (25.39–25.59), 0.035× (Δt 0.90 ms) | 34.60 ms, 0.02× (Δt 0.77 ms) |
+| free stone cube resting on the hot plate in a beaker | 2 mm | 8.81 ms (8.81–9.00), 0.95× | 6.18 ms, 1.35× |
+| | 1 mm | 11.93 ms (11.92–11.95), 0.70× | 15.30 ms, 0.54× |
+
+The study's estimate for the ice cube on the hot plate, 3.7–4.2 ms per step at 2 mm on the RTX, is not met: 9.18 ms at
+today's 780 MHz, about 4.8 ms scaled to C1's clock, 5.7 ms on the integrated GPU. Melting is 0.17 ms of it; the cube's
+three added-mass solves are 2.1–2.8 ms (a melting body stays awake, so it is measured every step), the rest is the
+flow. Measuring the added mass only every fourth step (in between the last measurement, as a body woken between
+readbacks does) — patched into the harness, not built; three alternating runs each, alone on the card: the cube on
+the plate 9.09 → 7.59 ms per step at 2 mm (−16 %) and 13.25 → 11.47 ms at 1 mm (−13 %), the floating block 11.86 →
+8.55 ms (−28 %), every range within 0.05 ms; tests 36, 37, 39 and 55 come out as before and test 42 just beside its
+spread (0.176 g melted against 0.166–0.173 g). An option for the owner, since it changes the coupling.
+
+**Open**:
+
+- Firefox (wgpu) not run — headless Firefox has no WebGPU. New there: `mMelt` (one workgroup; compare-and-swap loops on
+  workgroup atomics, `workgroupUniformLoad`, a list of 1024 cells in workgroup memory), `mSums`, `mApply`, `mSpawn`
+  (eight storage buffers in `mApply` and `mMelt`), the table T_f(m) as a 257-value `const` array indexed at run time
+  (smaller such arrays already run there), `bkTexB`, `bkBodyB`, and all of C1's body kernels.
+- A melting body that outgrows its room is not re-laid out while a clip bakes (above).
+- Regions are grouped at an upload only: ice that melts through a wall between two regions joins them at the next
+  upload (a tool, a download for saving), not at once; a free lid never seals a pot on the GPU, where the CPU builds
+  pressure under it and blows it off.
+- A GPU bake does not watch for dropped contacts (`C.CONT_FULL`, more than 128 at once).
+- 55 to the end: in two of ten runs the last slab skittered 6.56 and 8.07 mm sideways (gate 5 mm; the other eight
+  1.5–3.6 mm) — the GPU misses this gate about one time in five.
+  Test 55 holds back at most 3.2 % of the melted ice at a time (CPU 1.75 %, gate 5 %); the beaker on half cells moves
+  its water at up to 58–89 mm/s (gate 100 mm/s), the consequence of review item 4b above.
+- Speed: the added-mass solves of an awake body dominate (above); measuring them every fourth step saves 13–28 % (an
+  owner decision: it changes the coupling). The RTX timings are at the 780 MHz the laptop allowed on 2026-10-26
+  (software thermal slowdown); C1's were about 1.9× faster for the same code.
 
 ## Benchmark
 

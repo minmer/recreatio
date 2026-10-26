@@ -49,4 +49,35 @@ internal static class Schema
         if (there) virtualAreas = true;
         return there;
     }
+
+    private static volatile bool records;
+    private static long recordsCheckedAt;
+
+    /// <summary>
+    /// 0132 — Schemata der Termine: <c>app.calendar_doc</c>, <c>app.calendar_value</c>,
+    /// die Spalten <c>scheme_id</c>/<c>plan_origin</c> und die Einträge an Vorkommen
+    /// (<c>app.occurrence_record</c>, wohin die Intentionen gezogen sind). Bis dahin
+    /// lesen die Intentionen aus <c>app.mass_intention</c>, und Neues wird abgewiesen.
+    /// </summary>
+    internal static async Task<bool> RecordsAsync(SqlConnection connection, CancellationToken ct, SqlTransaction? tx = null)
+    {
+        if (records) return true;
+
+        var now = Environment.TickCount64;
+        var last = Interlocked.Read(ref recordsCheckedAt);
+        if (last != 0 && now - last < 30_000) return false;
+
+        await using var cmd = new SqlCommand("""
+            SELECT CASE WHEN OBJECT_ID(N'app.occurrence_record_value', N'U') IS NOT NULL
+                         AND OBJECT_ID(N'app.calendar_value', N'U') IS NOT NULL
+                         AND OBJECT_ID(N'app.calendar_doc', N'U') IS NOT NULL
+                         AND COL_LENGTH(N'app.calendar_item', N'plan_origin') IS NOT NULL
+                        THEN 1 ELSE 0 END;
+            """, connection, tx);
+        var there = (int)(await cmd.ExecuteScalarAsync(ct))! == 1;
+
+        Interlocked.Exchange(ref recordsCheckedAt, now);
+        if (there) records = true;
+        return there;
+    }
 }

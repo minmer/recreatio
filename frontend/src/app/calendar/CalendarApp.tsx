@@ -73,6 +73,8 @@ import { mayTick, maySkip, stateOf, TaskDay, TaskPill, TaskTally, taskWords, tog
 /* 2026-10-17 — die Dialoge erst, wenn einer aufgeht: ein Kalender auf einer öffentlichen Seite lud beide mit. */
 const EventDialog = lazy(() => import('./EventDialog').then((m) => ({ default: m.EventDialog })));
 const TaskDialog = lazy(() => import('./TaskDialog').then((m) => ({ default: m.TaskDialog })));
+/* 0132 — einen Plan anwenden (aus der Glocke: „Plany do przedłużenia" → `#/workspace/calendar/zaplanuj/<kalendarz>`). */
+const PlanApply = lazy(() => import('./PlanApply'));
 import { loadTasks, markSkipped, openTasks, type OpenTask } from './tasks';
 import { groupName } from '../areas/WhoSees';
 import { Loading } from '../ui/Loading';
@@ -139,7 +141,9 @@ export function CalendarApp({ who, trail = [] }: { who: Who; trail?: readonly st
     return <p className="wk-note">Bez klucza w tej karcie kalendarz jest zamknięty — zaloguj się ponownie albo odblokuj klucz.</p>;
   }
 
-  return <Calendar key={trail[0] ?? ''} me={me} at={day} />;
+  /* 0132 — `zaplanuj/<kalendarz>`: gleich das Anwenden eines Plans dieses Kalenders. */
+  const planFor = trail[0] === 'zaplanuj' && (trail[1] ?? '') !== '' ? trail[1] : undefined;
+  return <Calendar key={trail.join('/')} me={me} at={day} planFor={planFor} />;
 }
 
 interface Loaded {
@@ -158,7 +162,9 @@ interface Loaded {
  * gibt es keine Aufgaben und keine eigenen Buchungen darin, und neue Termine
  * gehen nur in diese Kalender.
  */
-export function Calendar({ me, scope, startNew, at }: {
+export function Calendar({ me, scope, startNew, at, planFor }: {
+  /** 0132 — beim Öffnen gleich „Zaplanuj terminy" für diesen Kalender. */
+  planFor?: string;
   me: Me;
   scope?: readonly string[];
 
@@ -211,6 +217,7 @@ export function Calendar({ me, scope, startNew, at }: {
   const [taskDay, setTaskDay] = useState<Date | null>(null);
   const [reservation, setReservation] = useState<string | null>(null);
   const [waitingOpen, setWaitingOpen] = useState(false);
+  const [planning, setPlanning] = useState<string | null>(planFor ?? null);
   const [tick, setTick] = useState(0);
   /* Die Aufgabe, an der gerade abgehakt wird — bis die frischen Daten da sind, sonst spränge das Häkchen kurz zurück. */
   const [taskBusy, setTaskBusy] = useState<string | null>(null);
@@ -620,6 +627,7 @@ export function Calendar({ me, scope, startNew, at }: {
 
       {settings !== null && (
         <CalendarSettings me={me} areas={areas} calendar={settings === 'new' ? null : settings}
+          calendars={calendars.filter((c) => c.mayWrite === true && c.archived !== true)}
           onClose={() => setSettings(null)} onSaved={reload} />
       )}
 
@@ -642,6 +650,13 @@ export function Calendar({ me, scope, startNew, at }: {
           onEdit={shownReservation.item?.editable === true
             ? () => { setReservation(null); setDialog({ at: 'event', event: { ...shownReservation, source: 'item' } }); }
             : undefined} />
+      )}
+
+      {planning !== null && data !== null && (
+        <Suspense fallback={null}>
+          <PlanApply me={me} areas={areas} calendars={calendars.filter((c) => c.mayWrite === true && c.archived !== true)}
+            calendarId={planning} onClose={() => setPlanning(null)} onDone={reload} />
+        </Suspense>
       )}
 
       {waitingOpen && (

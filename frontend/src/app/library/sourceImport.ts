@@ -17,7 +17,7 @@
 import { newId } from '../core/ids';
 import { plural } from '../core/plural';
 import { kindsDoc, LIBRARY_FORMAT, LIBRARY_VERSION, planLibraryImport, type ImportBase, type LibraryImportPlan } from './libraryJson';
-import { kindOf, workTitle, type LibEntry } from './libraryKinds';
+import { kindOf, MUSIC_TYPES, WORK_TYPES, workTitle, type LibEntry, type LibKind } from './libraryKinds';
 import type { LibraryStore } from './libraryStore';
 import { SCHEMES, schemeOf, workScheme, type SchemeId } from './locations';
 import {
@@ -223,10 +223,17 @@ export const WORK_WITH_TEXT_EXAMPLE: Readonly<Record<string, unknown>> = {
   ]
 };
 
+/** 2026-10-26 — ein Werk mit Text hat keine Felder der Musik; ihre Beispiele gehören nicht hierher. */
+const TEXT_TYPES: readonly string[] = WORK_TYPES.filter((t) => !MUSIC_TYPES.has(t.value)).map((t) => t.value);
+const forText = (def: LibKind): LibKind => ({
+  kind: def.kind, label: def.label, plural: def.plural, says: def.says, keyed: def.keyed, title: def.title, sort: def.sort, example: def.example,
+  fields: def.fields.filter((f) => f.when === undefined || TEXT_TYPES.some((workType) => f.when!({ workType })))
+});
+
 /** Wie man ein Werk MIT seinem Text als ein Dokument schreibt — für Mensch und KI. */
 export function workWithTextDescription(scheme?: SchemeId): string {
-  const work = kindOf('work')!;
-  const person = kindOf('person')!;
+  const work = forText(kindOf('work')!);
+  const person = forText(kindOf('person')!);
   return `# Dzieło z pełnym tekstem jako JSON ("${SOURCE_FORMAT}", wersja ${SOURCE_VERSION})
 
 Jeden dokument tworzy w Bibliotece wpis dzieła (książki, artykułu, rozdziału, dokumentu…), wpisy, na które ono wskazuje (autorzy, czasopismo, książka zbiorowa), i jego pełny tekst. Dzieło o kluczu, który już jest w bibliotece, zostaje uzupełnione (podane pola), nie zdublowane; tak samo autor albo czasopismo o istniejącym kluczu.

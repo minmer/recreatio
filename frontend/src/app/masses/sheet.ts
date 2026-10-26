@@ -109,6 +109,16 @@ const collectiveName = (mass: PublicMass) =>
 function intentionsOf(mass: PublicMass): string {
   /* 0079 — eine abgesagte Messe steht da, als abgesagt: wer den Bogen liest, sucht sie sonst. */
   if (mass.status === 'cancelled') return '<div class="one"><em>msza odwołana</em></div>';
+  return feastOf(mass) + listOf(mass);
+}
+
+/** 0132 — was das Schema offen sagt (Obchód, Kolor szat), in einer Zeile über den Intentionen. */
+function feastOf(mass: PublicMass): string {
+  const values = (mass.values ?? []).filter((v) => v.value.trim() !== '' && v.value !== (mass.title ?? ''));
+  return values.length === 0 ? '' : `<div class="feast"><em>${esc(values.map((v) => v.value).join(' · '))}</em></div>`;
+}
+
+function listOf(mass: PublicMass): string {
 
   const ones = single(mass).map((i) => i.text);
   const many = collective(mass);

@@ -89,17 +89,50 @@
   color: hsl(var(--ev-h, 30) 35% var(--ev-ink-l)); box-shadow: inset 0 0 0 1px hsl(var(--ev-h, 30) var(--ev-s) var(--ev-line-l));
 }
 
-/* Die Intentionen einer Messe im Termin-Dialog. */
-.wk-ev-ints {
-  display: grid; gap: 0.5rem; margin: 0 0 1rem; padding: 0.75rem 1rem; border-radius: 0 6px 6px 0;
-  border: 1px solid var(--wk-line); border-left: 3px solid var(--wk-accent); background: var(--wk-soft);
+/*
+   2026-10-26 (0132) — DIE EINTRÄGE EINES VORKOMMENS (RecordsPanel): je Liste des
+   Schemas ein Block — die Intentionen einer Messe, Anmeldungen, Dienste.
+*/
+.wk-recs { display: grid; gap: var(--wk-space-3); }
+.wk-rec {
+  display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line); border-left: 3px solid var(--wk-accent);
+  border-radius: 0 var(--wk-radius-sm) var(--wk-radius-sm) 0; background: var(--wk-soft);
 }
-.wk-ev-ints-head { margin: 0; font-size: var(--wk-text-md); }
-.wk-ev-ints-list { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
-.wk-ev-ints-list li.is-cancelled { opacity: 0.55; text-decoration: line-through; }
-.wk-ev-ints-add { display: flex; flex-wrap: wrap; gap: 0.375rem; }
-.wk-ev-ints-add input { flex: 1 1 14rem; min-width: 0; }
-.wk-ev-ints .wk-hint, .wk-ev-ints .wk-empty { margin: 0; }
+.wk-rec-head { margin: 0; font-size: var(--wk-text-md); }
+.wk-rec .wk-empty { margin: 0; }
+.wk-rec-list { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--wk-space-2); }
+.wk-rec-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-1) var(--wk-space-3); }
+.wk-rec-row.is-cancelled .wk-rec-text, .wk-rec-row.is-declined .wk-rec-text { opacity: 0.55; text-decoration: line-through; }
+.wk-rec-row.is-waiting .wk-rec-text { font-style: italic; }
+.wk-rec-row.is-editing { display: block; }
+.wk-rec-main { display: grid; gap: 0.125rem; min-width: 0; flex: 1 1 14rem; }
+.wk-rec-text { overflow-wrap: anywhere; }
+.wk-rec-meta { display: flex; flex-wrap: wrap; gap: 0 var(--wk-space-3); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-rec-status { font-weight: 600; color: var(--wk-ink-2); }
+.wk-rec-status.is-waiting { color: var(--wk-warn); }
+.wk-rec-acts { display: flex; flex-wrap: wrap; gap: 0 var(--wk-space-1); font-size: var(--wk-text-sm); }
+.wk-rec-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--wk-space-2); }
+.wk-rec-form > input { flex: 1 1 14rem; min-width: 0; }
+.wk-rec-form > .wk-actions { flex: 0 0 auto; }
+.wk-rec-field { display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); color: var(--wk-ink-2); min-width: 0; flex: 1 1 10rem; }
+.wk-rec-office { font-size: var(--wk-text-sm); justify-self: start; }
+
+/* 0132 — die Felder eines Schemas im Termin und ihre Werte zum Lesen. */
+.wk-sc-fields { grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); }
+.wk-sc-field { display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); color: var(--wk-ink-2); min-width: 0; }
+.wk-sc-field > :is(input, select, textarea), .wk-sc-field > .wk-sc-colour, .wk-sc-field > .wk-sc-number { box-sizing: border-box; width: 100%; min-width: 0; }
+.wk-sc-number, .wk-sc-colour { display: inline-flex; align-items: center; gap: var(--wk-space-2); }
+.wk-sc-number input, .wk-sc-colour select { flex: 1 1 auto; min-width: 0; }
+.wk-sc-unit { color: var(--wk-muted); }
+.wk-sc-value { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.wk-sc-show { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--wk-space-1) var(--wk-space-3); }
+.wk-sc-show > div { display: contents; }
+.wk-sc-show dt { color: var(--wk-muted); }
+.wk-sc-show dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Die Plättchen der liturgischen Farben stehen in flows.css (`.wk-lc-…`); hier nur „noch keine Farbe". */
+.wk-lc.is-none { background: none; border-style: dashed; }
 
 /* Die Kanzlei: eine Messe, ihre Intentionen — alles änderbar. */
 .wk-mo-head-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-left: auto; }

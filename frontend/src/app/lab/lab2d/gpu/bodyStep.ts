@@ -7,15 +7,20 @@
  *    abdecken, schliessen (Schwellen, Paare der u-, dann der v-Flächen),
  *    wechseln (Gas hinaus/herein), schreiben, gasApply bucht, φ_s/Abstand.
  *  - In der Flüssigkeit: nach p2g die bewegten Flächen (bFaceL); nach der
- *    Projektion die drei Lösungen der mitbewegten Masse je Körper aus mehreren
- *    Rechtecken (bodies.probe); im Gas nach markFaces bFaceG; vor jedem
+ *    Projektion die drei Lösungen der mitbewegten Masse je wachem freiem
+ *    Körper (höchstens acht, aus der letzten Ablesung gewählt: select);
+ *    im Gas nach markFaces bFaceG; vor jedem
  *    regFinish das Fluidvolumen der Gebiete (bRegVol); vor dem Regler der
  *    Heizungen die Heizplatten (bHeaters).
- *  - Stufe „bodies“ (bodies.finish): collect, die Druckfortsetzung, Kräfte,
- *    die Bewegung in einer Arbeitsgruppe; danach erst stepEnd (Δt mit dem
- *    schnellsten Körper).
+ *  - Stufe „bodies“ (bodies.finish): collect; mit Eis aus einem Rechteck das
+ *    Schmelzen und Anfrieren (kbodymelt.ts: Summen der Zellen, eine
+ *    Arbeitsgruppe für alle Körper, die Teilchen, neues Schmelzwasser); die
+ *    Druckfortsetzung, Kräfte, die Bewegung in einer Arbeitsgruppe; danach erst
+ *    stepEnd (Δt mit dem schnellsten Körper).
  */
 
+import type { BodyRead } from './bodies';
+import { BB, BS } from './kbodylib';
 import type { Resource } from './kernel';
 import type { GpuSolver } from './solver';
 import { SOLVE_PROBE } from './solver';
@@ -47,13 +52,32 @@ export class BodyStep {
     this.writeSel();
   }
 
-  /** Nach jedem Hochladen: welche Körper gemessen werden (die Plätze der Auswahl). */
+  /**
+   * Nach jedem Hochladen und wenn sich die Auswahl ändert: welche Körper gemessen werden (die Plätze der Auswahl) und ihr B_PROBE (nur
+   * gemessene schliesst bProbeFin ab). Kein Kern schreibt B_PROBE; das Schreiben reiht sich hinter die schon abgeschickten Schritte.
+   */
   writeSel(): void {
     const q = this.state.ctx.device.queue;
-    const probed = this.state.bodies.probed;
+    const B = this.state.bodies;
+    const probed = B.probed;
     for (let j = 0; j < Math.min(8, probed.length); j += 1) {
       for (let k = 0; k < 3; k += 1) q.writeBuffer(this.pb, PB_SLOT * (3 * j + k), new Uint32Array([probed[j], k, 0, 0]));
     }
+    for (let k = 0; k < B.nbody; k += 1) q.writeBuffer(B.bod, 4 * (BS * k + BB.PROBE), new Float32Array([probed.includes(k) ? 1 : 0]));
+  }
+
+  /**
+   * Nach einer Ablesung: gemessen werden die freien Körper, die wach waren (wie bodies.probe auf der CPU) — bis 2026-10-26 jeder freie, auch
+   * ein schlafender (1,55 ms je Schritt und Körper: ein ruhender Stein 6,3 statt 4,3 ms, sechs 13,4 statt 4,1 ms). Wacht einer zwischen zwei
+   * Ablesungen auf, rechnet er bis zur nächsten mit seiner zuletzt gemessenen mitbewegten Masse (kbodydyn.ts).
+   */
+  select(reads: readonly BodyRead[]): void {
+    const want: number[] = [];
+    reads.forEach((b, k) => { if (!b.pinned && !b.asleep && !b.gone && want.length < 8) want.push(k); });
+    const cur = this.state.bodies.probed;
+    if (want.length === cur.length && want.every((k, i) => cur[i] === k)) return;
+    this.state.bodies.probed = want;
+    this.writeSel();
   }
 
   destroy(): void { this.state.ctx.release([this.pb]); }
@@ -73,7 +97,7 @@ export class BodyStep {
     h.one(p, 'bPrepEnd');
   }
 
-  /** Nach der Projektion der Flüssigkeit: M_a = Δt Δx² D Jᵀ A⁻¹ J je Körper aus mehreren Rechtecken (drei Lösungen mit ihrer Matrix). */
+  /** Nach der Projektion der Flüssigkeit: M_a = Δt Δx² D Jᵀ A⁻¹ J je gemessenem Körper (select; drei Lösungen mit ihrer Matrix). */
   probe(p: GPUComputePassEncoder, h: BodyHooks): void {
     const probed = this.state.bodies.probed;
     if (probed.length === 0) return;
@@ -92,13 +116,19 @@ export class BodyStep {
     h.one(p, 'bProbeFin');
   }
 
-  /** Stufe „bodies“: collect, Druck fortsetzen, Kräfte, Bewegung. */
+  /** Stufe „bodies“: collect, schmelzen und anfrieren (kbodymelt*.ts — wie die CPU nach collect, vor den Kräften), Druck fortsetzen, Kräfte, Bewegung. */
   finish(p: GPUComputePassEncoder, h: BodyHooks): void {
     const B = this.state.bodies;
     h.cells(p, 'bCollectPrep');
     h.run(p, 'bCollect', Math.max(1, B.ncell), 'bCollect', {});
     h.run(p, 'bCollectRest', Math.max(1, B.ncell), 'bCollectRest', {});
     h.cells(p, 'bCollectEnd');
+    if (B.melting) {
+      h.cells(p, 'mSums', 'A');
+      h.one(p, 'mMelt');
+      h.parts(p, 'mApply');
+      h.run(p, 'mSpawn', 4 * Math.max(1, B.nbody), 'mSpawn', {});
+    }
     h.cells(p, 'bExtInit', 'A');
     for (let k = 0; k < B.layers; k += 2) { h.cells(p, 'bExtA'); h.cells(p, 'bExtB'); }
     h.run(p, 'bForce', 64 * Math.max(1, B.nbody), 'bForce', {});

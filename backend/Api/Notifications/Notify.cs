@@ -581,6 +581,61 @@ public static partial class Notify
         }
 
         /*
+         * 0132 — WAS AN TERMINEN AUF DIE KANZLEI WARTET: Einträge von aussen (eine
+         * Anmeldung, eine Intention über eine Seite), die in einem Kalender warten,
+         * dessen Bereich dieses Konto schreibt — und Kalender mit Plänen, deren
+         * angelegte Termine in den nächsten zwei Wochen enden (seit über zwei
+         * Monaten Beendete fragen nicht mehr: dort wird nicht mehr geplant). Ohne
+         * 0132 steht hier nichts.
+         */
+        var recordsWaiting = new List<(Guid Calendar, string Title, Guid AreaId, int Count)>();
+        var plansEnding = new List<(Guid Calendar, string Title, Guid AreaId, DateTimeOffset Until)>();
+        if (!countsOnly && mine.Count > 0 && await Schema.RecordsAsync(connection, ct))
+        {
+            var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
+            var writable = $"""
+                SELECT scope_id FROM app.certificate
+                WHERE scope_kind = N'area' AND revoked_at IS NULL AND expires_at > @now
+                  AND capability IN (N'write', N'admin') AND subject_role_id IN ({names})
+                """;
+
+            await using (var cmd = new SqlCommand($"""
+                SELECT TOP 30 c.id, c.title, c.area_id, COUNT(*)
+                FROM app.occurrence_record r
+                JOIN app.calendar_item i ON i.id = r.item_id
+                JOIN app.calendar c ON c.id = i.calendar_id
+                WHERE r.status = N'waiting' AND r.occurrence_at > @now AND c.archived_at IS NULL
+                  AND c.area_id IN ({writable})
+                GROUP BY c.id, c.title, c.area_id
+                ORDER BY COUNT(*) DESC;
+                """, connection))
+            {
+                cmd.Parameters.AddWithValue("@now", now);
+                for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct)) recordsWaiting.Add((reader.GetGuid(0), reader.GetString(1), reader.GetGuid(2), reader.GetInt32(3)));
+            }
+
+            await using (var cmd = new SqlCommand($"""
+                SELECT TOP 20 c.id, c.title, c.area_id, MAX(i.starts_at)
+                FROM app.calendar c
+                JOIN app.calendar_item i ON i.calendar_id = c.id AND i.plan_origin IS NOT NULL
+                WHERE c.archived_at IS NULL AND c.area_id IN ({writable})
+                  AND EXISTS (SELECT 1 FROM app.calendar_doc d WHERE d.calendar_id = c.id AND d.kind = N'plan')
+                GROUP BY c.id, c.title, c.area_id
+                HAVING MAX(i.starts_at) < @soon AND MAX(i.starts_at) > @gone;
+                """, connection))
+            {
+                cmd.Parameters.AddWithValue("@now", now);
+                cmd.Parameters.AddWithValue("@soon", now.AddDays(14));
+                cmd.Parameters.AddWithValue("@gone", now.AddDays(-60));
+                for (var i = 0; i < mine.Count; i++) cmd.Parameters.AddWithValue($"@r{i}", mine[i]);
+                await using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct)) plansEnding.Add((reader.GetGuid(0), reader.GetString(1), reader.GetGuid(2), reader.GetDateTimeOffset(3)));
+            }
+        }
+
+        /*
          * 0109 — POWTÓRKA CZEKA [P01, P03]: je Bibliothek, was jetzt dran ist — aus
          * der einen offenen Zeit, die der Browser des Lernenden meldet. Ohne 0109
          * gibt es die Tabelle nicht; dann steht hier nichts.
@@ -712,6 +767,17 @@ public static partial class Notify
 
             /* 0129–0131 — Sprawy do decyzji (Administrator danych, zgłoszone treści, zablokowane, listy wydarzeń). */
             duties,
+
+            /* 0132 — Einträge von aussen, die auf die Kanzlei warten; Kalender, deren geplante Termine bald enden. */
+            records = new
+            {
+                count = recordsWaiting.Sum(x => x.Count),
+                list = recordsWaiting.Select(x => (object)new { calendarId = Ids.ToText(x.Calendar), title = x.Title, areaId = Ids.ToText(x.AreaId), count = x.Count }).ToList()
+            },
+            plans = new
+            {
+                list = plansEnding.Select(x => (object)new { calendarId = Ids.ToText(x.Calendar), title = x.Title, areaId = Ids.ToText(x.AreaId), until = x.Until }).ToList()
+            },
 
             /* Ein Rat, kein Befehl: ist etwas offen, lohnt eine Minute; sonst reichen zwei. */
             nextPollSeconds = unreadTotal + formsTotal > 0 ? 60 : 120

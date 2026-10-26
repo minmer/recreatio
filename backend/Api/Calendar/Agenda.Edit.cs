@@ -187,6 +187,14 @@ public static partial class Agenda
         var parsed = Parse(body, out var error);
         if (parsed is null) { await Fail(ctx, StatusCodes.Status400BadRequest, error); return; }
 
+        /* 0132 — die Werte am Termin (fehlen sie, bleiben sie, wie sie sind). */
+        if (!Calendar.ParseValues(body.Values, Calendar.MaxItemValues, labels: true, sealedAllowed: true, allowEmpty: false,
+                out var values, out var valueError))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, valueError);
+            return;
+        }
+
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var was = await ExistingAsync(connection, id, ctx.RequestAborted);
@@ -196,16 +204,25 @@ public static partial class Agenda
             return;
         }
 
+        var schemesReady = await Schema.RecordsAsync(connection, ctx.RequestAborted);
+        if (!schemesReady && (values.Count > 0 || !string.IsNullOrWhiteSpace(body.SchemeId)))
+        {
+            await Fail(ctx, StatusCodes.Status503ServiceUnavailable, Calendar.NeedsMigration);
+            return;
+        }
+
         /* Eine Messe mit Intentionen wird nichts anderes — sie stünden sonst an einer Beichte. */
         if (was.Kind == "mass" && parsed.Kind != "mass"
-            && await Mass.LiveCountAsync(connection, null, id, null, ctx.RequestAborted) > 0)
+            && await Mass.LiveCountAsync(connection, null, id, null, ctx.RequestAborted, Calendar.IntentionList) > 0)
         {
             await Fail(ctx, StatusCodes.Status409Conflict,
                 "Na tę mszę są przyjęte intencje — nie może stać się innym wpisem. Przenieś je najpierw na inne msze.");
             return;
         }
 
-        foreach (var needed in parsed.Fields.Select(f => f.AreaId).Append(parsed.Visibility).Distinct())
+        foreach (var needed in parsed.Fields.Select(f => f.AreaId)
+                     .Concat(values.Where(v => v.Blob is not null).Select(v => v.AreaId!.Value))
+                     .Append(parsed.Visibility).Distinct())
         {
             if (!await Area.MayAsync(connection, caller, needed, Capability.Write, ctx.RequestAborted))
             {
@@ -288,8 +305,28 @@ public static partial class Agenda
         if (link is null) return;
 
         /*
-         * 0079 — DIE INTENTIONEN GEHEN MIT, nach dem Tag. Fehlt einer ihr Tag,
-         * wird nichts geändert und gesagt, welche es sind.
+         * 0132 — DAS SCHEMA. Genannt: geprüft am Kalender, in dem der Termin danach
+         * steht. Nicht genannt: es bleibt — ausser der Termin wechselt den
+         * Kalender; dann gilt das universelle (ein Schema gehört einem Kalender).
+         */
+        var keepScheme = true;
+        Guid? schemeId = null;
+        if (schemesReady && body.SchemeId is not null)
+        {
+            var scheme = await Calendar.SchemeOfAsync(ctx, connection, calendarId, body.SchemeId, ctx.RequestAborted);
+            if (!scheme.Ok) return;
+            keepScheme = false;
+            schemeId = scheme.Scheme;
+        }
+        else if (schemesReady && calendarId != was.CalendarId)
+        {
+            keepScheme = false;
+        }
+
+        /*
+         * 0079 — DIE INTENTIONEN GEHEN MIT, nach dem Tag (seit 0132 jeder Eintrag
+         * und die Werte einzelner Vorkommen). Fehlt einem sein Tag, wird nichts
+         * geändert und gesagt, welche es sind.
          */
         Mass.Carried? intentions = null;
         if (timing)
@@ -299,7 +336,7 @@ public static partial class Agenda
 
             if (intentions.Lost.Count > 0)
             {
-                await Fail(ctx, StatusCodes.Status409Conflict, Mass.LostMessage(intentions.Lost, zone));
+                await Fail(ctx, StatusCodes.Status409Conflict, Mass.LostMessage(intentions.Lost, zone, intentions.LostIntentions));
                 return;
             }
         }
@@ -311,7 +348,7 @@ public static partial class Agenda
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted);
         try
         {
-            await using (var update = new SqlCommand("""
+            await using (var update = new SqlCommand($"""
                 UPDATE app.calendar_item
                    SET calendar_id = @cal, owner_role_id = @owner, kind = @kind, starts_at = @starts, ends_at = @ends, all_day = @allday,
                        title_public = @public, visibility_area_id = @varea, status = @status,
@@ -322,10 +359,16 @@ public static partial class Agenda
                        position = CASE WHEN @keepParent = 1 THEN position ELSE @position END,
                        chat_id = CASE WHEN @keepChat = 1 THEN chat_id ELSE @chat END,
                        topic_id = CASE WHEN @keepChat = 1 THEN topic_id ELSE @topic END
+                       {(schemesReady ? ", scheme_id = CASE WHEN @keepScheme = 1 THEN scheme_id ELSE @scheme END" : "")}
                  WHERE id = @id;
                 DELETE FROM app.calendar_field WHERE item_id = @id;
                 """, connection, tx))
             {
+                if (schemesReady)
+                {
+                    update.Parameters.AddWithValue("@keepScheme", keepScheme ? 1 : 0);
+                    update.Parameters.AddWithValue("@scheme", (object?)schemeId ?? DBNull.Value);
+                }
                 update.Parameters.AddWithValue("@bookable", (object?)ownRules.Value.Bookable ?? DBNull.Value);
                 update.Parameters.AddWithValue("@capacity", (object?)ownRules.Value.Capacity ?? DBNull.Value);
                 update.Parameters.AddWithValue("@reserve", (object?)ownRules.Value.ReserveAreaId ?? DBNull.Value);
@@ -362,6 +405,12 @@ public static partial class Agenda
                 add.Parameters.AddWithValue("@blob", blob);
                 add.Parameters.AddWithValue("@now", now);
                 await add.ExecuteNonQueryAsync(ctx.RequestAborted);
+            }
+
+            /* 0132 — die Werte am Termin, wenn sie mitkamen (die eines Vorkommens bleiben, wo sie sind). */
+            if (schemesReady && body.Values is not null)
+            {
+                await Calendar.ReplaceItemValuesAsync(connection, tx, id, null, values, now, ctx.RequestAborted);
             }
 
             if (timing)
@@ -434,10 +483,27 @@ public static partial class Agenda
                     0079 — ANGENOMMENE INTENTIONEN halten die Messe: wer die Reihe
                     loswerden will, beendet sie (Kończy się) — die gelesenen
                     Intentionen der vergangenen Wochen bleiben dann stehen.
-                    Zurückgezogene gehen mit.
+                    Zurückgezogene gehen mit. 0132 — jeder festhaltende Eintrag
+                    (auch ein wartender) hält den Termin; die Werte gehen mit
+                    dem Termin (Kaskade), das Archiv `mass_intention` ebenso.
                 */
-                IF EXISTS (SELECT 1 FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone)
-                           AND status IN (N'accepted', N'celebrated'))
+                IF OBJECT_ID(N'app.occurrence_record', N'U') IS NOT NULL
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #gone)
+                               AND list_key = N'intencje' AND status IN (N'accepted', N'celebrated', N'waiting'))
+                        THROW 50079, N'intentions', 1;
+                    IF EXISTS (SELECT 1 FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #gone)
+                               AND status IN (N'accepted', N'celebrated', N'waiting'))
+                        THROW 50132, N'records', 1;
+                    /* Die Zwillinge im Archiv zuerst (nach Kennung) — sonst holte das Nachholen sie wieder hervor. */
+                    DELETE FROM app.mass_intention_field
+                     WHERE intention_id IN (SELECT id FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #gone));
+                    DELETE FROM app.mass_intention
+                     WHERE id IN (SELECT id FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #gone));
+                    DELETE FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #gone);
+                END
+                ELSE IF EXISTS (SELECT 1 FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone)
+                                AND status IN (N'accepted', N'celebrated'))
                     THROW 50079, N'intentions', 1;
                 DELETE FROM app.mass_intention_field
                  WHERE intention_id IN (SELECT id FROM app.mass_intention WHERE item_id IN (SELECT id FROM #gone));
@@ -480,6 +546,13 @@ public static partial class Agenda
             await tx.RollbackAsync(ctx.RequestAborted);
             await Fail(ctx, StatusCodes.Status409Conflict,
                 "Na tej mszy są przyjęte intencje — przenieś je na inne msze albo zakończ serię (Kończy się: w dniu…) zamiast ją usuwać.");
+            return;
+        }
+        catch (SqlException e) when (e.Number == 50132)
+        {
+            await tx.RollbackAsync(ctx.RequestAborted);
+            await Fail(ctx, StatusCodes.Status409Conflict,
+                "Na tym terminie są wpisy (przyjęte albo czekające) — przenieś je albo wycofaj, zanim go usuniesz, albo zakończ serię.");
             return;
         }
         catch (SqlException e) when (e.Number == 50058)
@@ -586,7 +659,7 @@ public static partial class Agenda
         var intentions = await Mass.PlanCarryAsync(connection, null, id, since, series, sameItem: false, ctx.RequestAborted);
         if (intentions.Lost.Count > 0)
         {
-            await Fail(ctx, StatusCodes.Status409Conflict, Mass.LostMessage(intentions.Lost, zone));
+            await Fail(ctx, StatusCodes.Status409Conflict, Mass.LostMessage(intentions.Lost, zone, intentions.LostIntentions));
             return;
         }
 

@@ -179,8 +179,8 @@ export class ClipSession {
     this.previewFrames = -1;
     const charts = this.fresh(e, scene);
     if (o.engine === 'gpu') {
-      /* Freie Körper rechnet die live Ansicht der GPU seit 2026-10-26, die Aufnahme beim Backen zeichnet aber nur Körper, die liegen bleiben (captureBodies.ts). */
-      this.bakeNote = e.needsCpu() || e.bodies.anyFree ? 'cpu-only' : hasWebGpu() ? undefined : 'no-webgpu';
+      /* Freie Körper und schmelzendes Eis backt die Grafikkarte seit 2026-10-26 (die Aufnahme nimmt sie in jedem Bild aus ihren Puffern, capture.ts). */
+      this.bakeNote = e.needsCpu() ? 'cpu-only' : hasWebGpu() ? undefined : 'no-webgpu';
       if (this.bakeNote === undefined && await this.bakeGpu(e, charts, scene, keys, seconds, fps, keyEvery)) return;
       this.bakeNote ??= 'gpu-failed';
     }

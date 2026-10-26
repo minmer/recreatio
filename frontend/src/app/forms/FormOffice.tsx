@@ -23,7 +23,8 @@ import type { ReactNode } from 'react';
 
 import { FormControllerNote } from '../areas/AreaController';
 import { plural } from '../core/plural';
-import { updateModule } from '../modules/module';
+import { questionsAreaOf, updateModule } from '../modules/module';
+import { QuestionsAreaSettings } from './QuestionsAreaSettings';
 import { ModuleSettings } from '../modules/ModuleSettings';
 import { MemberRoleSettings } from '../roles/MemberRoleSettings';
 import { VirtualAreasSettings } from './VirtualAreasSettings';
@@ -115,6 +116,9 @@ export function FormOffice(props: FormOfficeProps) {
             onAct={moduleAct}
             reseal={resealFor}
           />
+
+          {/* 0133 — unter welchem Bereich die Fragen liegen (der, in dem das Formular veröffentlicht ist). */}
+          <QuestionsAreaSettings module={module} areas={areas} ring={ring} busy={busy !== null} onAct={moduleAct} />
 
           {/* 0096 — Gruppe, und bei einem Unterformular wer es ausfüllt (der Name steht schon oben). */}
           <FormBasics module={module} busy={busy !== null} onAct={moduleAct} withName={false} />
@@ -428,7 +432,7 @@ export function FormOffice(props: FormOfficeProps) {
               partId={partId}
               position={allFields.length}
               taken={fields.map((f) => f.identityRole).filter((r) => r !== 'none')}
-              formAreaId={module?.areaId ?? null}
+              formAreaId={module === undefined ? null : questionsAreaOf(module)}
               officeRoleId={person?.id ?? null}
               busy={busy !== null}
               onAdded={() => void look()}

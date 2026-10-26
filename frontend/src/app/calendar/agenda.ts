@@ -19,6 +19,7 @@ import { createArea, loadAreas, type AreaRow } from '../areas/area';
 import { localDate, localTime } from '../areas/WhoSees';
 import { emptyTexts, itemFieldAad, putText, setOccurrence, type ItemField, type ItemKind, type ItemTexts, type SealedField } from './calendar';
 import { areaKeys, newestKey } from '../chat/chat';
+import { type DraftValue, type OpenValue, openValues, sealValues, valuesAsDraft, type ValueRow } from './schemeValues';
 import { fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
 import type { Ring, SealedRole } from '../core/keys';
@@ -72,6 +73,12 @@ export interface AgendaOccurrence {
 
   /** 0079 — an einer Messe: wie viele Intentionen (angenommen oder gefeiert). Sonst fehlt es. */
   readonly intentions?: number | null;
+
+  /* 0132 — das Schema (NULL: das universelle), woher ein geplanter Termin kam, seine Werte, die Einträge je Liste. */
+  readonly schemeId?: string | null;
+  readonly planOrigin?: string | null;
+  readonly values?: readonly ValueRow[];
+  readonly records?: Readonly<Record<string, { readonly live: number; readonly waiting: number }>>;
 }
 
 export interface AgendaClaim {
@@ -127,9 +134,22 @@ export interface OpenedItem {
 
   /** Hat er einen eigenen Titel — oder steht da nur die Art („Termin")? Ein angebotener Termin heisst dann wie sein Ding. */
   readonly named: boolean;
+
+  /**
+   * 0132 — die Werte seines Schemas: am Termin (`values`, dazu die dieses
+   * Vorkommens darübergelegt) und nur die dieses Vorkommens (`dayValues`).
+   * `valuesComplete`: jeder Wert am Termin ging auf — nur dann reist er mit (Kopie).
+   */
+  readonly values: ReadonlyMap<string, OpenValue>;
+  readonly itemValues: ReadonlyMap<string, OpenValue>;
+  readonly dayValues: ReadonlyMap<string, OpenValue>;
+  readonly valuesComplete: boolean;
 }
 
 const fieldAad = itemFieldAad;
+
+/** Derselbe Augenblick, wie auch immer geschrieben („…Z" oder „…+00:00"). */
+const sameAt = (a: string, b: string): boolean => Date.parse(a) === Date.parse(b);
 
 /**
  * Die Termine aufmachen — jedes Feld mit dem Schlüssel SEINES Bereichs.
@@ -141,6 +161,12 @@ export async function openAgenda(
 ): Promise<OpenedItem[]> {
   const byArea = new Map(areas.map((a) => [a.areaId, a]));
   const opened = new Map<string, ItemTexts>();
+  /* 0132 — die Werte, je Vorkommen (am Termin dieselben, am Tag je eigene). */
+  const valued = new Map<AgendaOccurrence, { item: Map<string, OpenValue>; day: Map<string, OpenValue>; complete: boolean }>();
+  for (const one of occurrences) {
+    if ((one.values?.length ?? 0) === 0) continue;
+    valued.set(one, await openValues(ring, one.itemId, one.values!.filter((v) => v.occurrenceAt === null || sameAt(v.occurrenceAt, one.occurrenceAt))));
+  }
 
   for (const one of occurrences) {
     if (opened.has(one.itemId)) continue;
@@ -170,7 +196,11 @@ export async function openAgenda(
       notes: fields.notes,
       link: fields.link,
       linkLabel: fields.linkLabel,
-      editable: OWN_KINDS.includes(one.kind) && (level === 'write' || level === 'admin')
+      editable: OWN_KINDS.includes(one.kind) && (level === 'write' || level === 'admin'),
+      values: valued.has(one) ? new Map([...valued.get(one)!.item, ...valued.get(one)!.day]) : new Map(),
+      itemValues: valued.get(one)?.item ?? new Map(),
+      dayValues: valued.get(one)?.day ?? new Map(),
+      valuesComplete: valued.get(one)?.complete ?? true
     };
   });
 }
@@ -251,6 +281,18 @@ export interface EventDraft {
    * hier jedes geänderte Ding zum Treffen).
    */
   readonly kind?: ItemKind;
+
+  /**
+   * 0132 — DAS SCHEMA und seine Werte am Termin. `schemeId`: `undefined` —
+   * bleibt; `null` — das universelle; sonst ein Schema dieses Kalenders.
+   * `values`: `undefined` — bleiben; sonst ersetzen sie alle Werte am Termin.
+   * `publicTitle`: der Titel geht offen hinaus (fehlt: bei Gottesdiensten).
+   * `planOrigin`: „Plan|Messe|Tag" — nur beim Anlegen aus einem Plan.
+   */
+  readonly schemeId?: string | null;
+  readonly values?: readonly DraftValue[];
+  readonly publicTitle?: boolean;
+  readonly planOrigin?: string | null;
 }
 
 /** „Bez końca" — eine Reihe braucht am Dienst ein Ende; zehn Jahre sind im Kalender keins. */
@@ -283,7 +325,7 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
    * (`titlePublic`) und wird nicht versiegelt — der Schaukasten hat keinen
    * Schlüssel. Ohne Namen steht dort die Art („Msza").
    */
-  const liturgy = isLiturgy(draft.kind);
+  const liturgy = draft.publicTitle ?? isLiturgy(draft.kind);
   const fields: SealedField[] = liturgy ? [] : [await seal('title', draft.title.trim() || 'Termin')];
   if (draft.location.trim() !== '') fields.push(await seal('location', draft.location.trim()));
   if (draft.notes.trim() !== '') fields.push(await seal('notes', draft.notes.trim()));
@@ -318,7 +360,11 @@ export async function saveEvent(ring: Ring, draft: EventDraft, itemId?: string):
     parentItemId: draft.parentItemId === undefined ? null : draft.parentItemId ?? '',
     position: draft.position ?? null,
     chatId: draft.origin === undefined ? null : draft.origin?.chatId ?? '',
-    topicId: draft.origin?.topicId ?? null
+    topicId: draft.origin?.topicId ?? null,
+    /* 0132 — fehlt (null): bleibt; "" — das universelle. */
+    schemeId: draft.schemeId === undefined ? null : draft.schemeId === null ? (itemId === undefined ? null : '') : draft.schemeId,
+    values: draft.values === undefined ? null : await sealValues(newest, draft.areaId, id, null, draft.values),
+    planOrigin: itemId === undefined ? draft.planOrigin ?? null : null
   };
 
   if (itemId === undefined && draft.calendarId !== undefined) {
@@ -391,7 +437,10 @@ export function draftOf(item: OpenedItem): EventDraft {
     count: series.repeatCount ?? null,
     calendarId: occurrence.calendarId,
     bookable: occurrence.bookable ?? null, capacity: occurrence.capacity ?? null,
-    reserveAreaId: occurrence.reserveAreaId ?? null
+    reserveAreaId: occurrence.reserveAreaId ?? null,
+    /* 0132 — das Schema reist mit; die Werte am Termin nur, wenn alle aufgingen (sonst bleiben sie, wie sie sind). */
+    schemeId: occurrence.schemeId ?? undefined,
+    values: item.valuesComplete && item.itemValues.size > 0 ? valuesAsDraft(item.itemValues) : undefined
   };
 }
 

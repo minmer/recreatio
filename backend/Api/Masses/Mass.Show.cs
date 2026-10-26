@@ -184,6 +184,9 @@ public static partial class Mass
         var intentions = await IntentionsAsync(
             connection, itemIds, since, till, office, ctx.RequestAborted);
 
+        /* 0132 — was das Schema offen nennt (Obchód, Kolor szat …): Beschriftung und Wert, nichts Versiegeltes. */
+        var values = await Calendar.ValuesAsync(connection, itemIds, since, till, ctx.RequestAborted, publicOnly: true);
+
         var services = new List<Service>();
 
         foreach (var row in rows)
@@ -268,7 +271,10 @@ public static partial class Mass
                 intentions = intentions
                     .Where(i => i.ItemId == s.Item.Id && i.At == s.OccurrenceAt)
                     .OrderBy(i => i.Ordinal)
-                    .Select(i => Told(i, office))
+                    .Select(i => Told(i, office)),
+
+                /* 0132 — die offenen Werte des Schemas: am Termin und an diesem Vorkommen. */
+                values = Calendar.PublicValuesAt(values, s.Item.Id, s.OccurrenceAt)
             })
         });
     }

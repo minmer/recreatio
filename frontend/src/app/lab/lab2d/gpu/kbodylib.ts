@@ -33,7 +33,10 @@ export const BB = {
   MAT: 45, HEATER: 46, NR: 47, RO: 48, NCELL: 49, KO: 50, NSEG: 51, SO: 52,
   BX0: 53, BY0: 54, BX1: 55, BY1: 56, OX0: 57, OY0: 58, OX1: 59, OY1: 60,
   FX: 61, FY: 62, TQ: 63, TOUCH: 64, BAND: 65, AGAIN: 66, COS: 67, SIN: 68, PROBE: 69, KEY: 70, VOL: 71, E0: 72,
-  MA9: 73, HIT: 82, WAKE: 83
+  MA9: 73, HIT: 82, WAKE: 83,
+  /* Schmelzen (seit 2026-10-26, kbodymelt*.ts): wuchs er in diesem Schritt (Teilchen und Blasen zu Beginn des nächsten hinaus, wie
+     bodyMelt.ts pushOut), schmilzt er auf der GPU (Eis aus einem Rechteck). */
+  PUSH: 84, MELT: 85
 } as const;
 export const BS = 88;
 
@@ -51,9 +54,16 @@ export const GP = { X0: 0, Y0: 1, X1: 2, Y1: 3, ID: 4, FRIC: 5, BOUNCE: 6 } as c
 export const PS = 8;
 /** bcell: je innere Zelle Energie (J), Film, Kruste (kg) und ihr Rechteck. */
 export const BC = 4;
-/** bread: je Körper die Ablesung (Lage, Geschwindigkeit, Zustand, Masse, mittlere Temperatur, Σ E, Film, Kruste, Kraft). */
-export const BRD = { X: 0, Y: 1, A: 2, VX: 3, VY: 4, W: 5, STATE: 6, M: 7, T: 8, E: 9, FILM: 10, CRUST: 11, FX: 12, FY: 13, TQ: 14, MAOK: 15 } as const;
-export const BR = 16;
+/**
+ * bread: je Körper die Ablesung (Lage, Geschwindigkeit, Zustand, Masse, mittlere Temperatur, Σ E, Film, Kruste, Kraft); seit dem
+ * Schmelzen auf der GPU das gesammelte Schmelzwasser (Wasser ohne Salz, Enthalpie, Salz — für die Bilanzen) und das erste Rechteck
+ * im eigenen Rahmen (der Umriss eines schmelzenden Körpers in der Tafel des Gegenstands).
+ */
+export const BRD = {
+  X: 0, Y: 1, A: 2, VX: 3, VY: 4, W: 5, STATE: 6, M: 7, T: 8, E: 9, FILM: 10, CRUST: 11, FX: 12, FY: 13, TQ: 14, MAOK: 15,
+  PM: 16, PH: 17, PS: 18, RX0: 19, RY0: 20, RX1: 21, RY1: 22
+} as const;
+export const BR = 24;
 
 /** Ab diesem bedeckten Anteil schliesst eine Zelle (wie bodyCover.ts: CLOSED, CLOSED_FREE, SQUEEZE). */
 export const CLOSED_GPU = 0.99;

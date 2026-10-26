@@ -442,6 +442,16 @@ public static class AccountDeletion
          WHERE a.parent_area_id IS NOT NULL
            AND (a.parent_area_id IN (SELECT id FROM #dead) OR a.id IN (SELECT id FROM #dead));
         UPDATE app.slug SET controller_area_id = NULL WHERE controller_area_id IN (SELECT id FROM #dead);
+        -- 0133 — Profile, die in einem sterbenden Bereich veröffentlichten: dorthin geht nichts mehr, und die
+        -- Wizytówka unter seinem Schlüssel öffnet niemand mehr. Fragen unter seinem Schlüssel ebenso. (Ein
+        -- Baustein nur für seine Menschen bleibt so: ohne sie sieht ihn niemand ausser dem, der die Seite führt.)
+        -- Dynamisch: vor 0133 fehlen Tabelle und Spalte, und eine fehlende liesse den ganzen Stapel nicht übersetzen.
+        IF OBJECT_ID('app.area_profile', 'U') IS NOT NULL
+            EXEC sp_executesql N'
+                UPDATE app.area_profile SET publish_area_id = NULL WHERE publish_area_id IN (SELECT id FROM #dead);
+                UPDATE app.area_profile SET card_sealed = NULL, card_area_id = NULL, card_epoch = NULL WHERE card_area_id IN (SELECT id FROM #dead);';
+        IF COL_LENGTH('app.module', 'label_area_id') IS NOT NULL
+            EXEC sp_executesql N'UPDATE app.module SET label_area_id = NULL WHERE label_area_id IN (SELECT id FROM #dead);';
         -- Ein Zertifikat, das eine Zusage befugte, bleibt (zurückgenommen) — sonst liesse sich die Unterschrift nicht mehr prüfen.
         UPDATE app.certificate SET revoked_at = COALESCE(revoked_at, @now)
          WHERE id IN (SELECT certificate_id FROM app.controller_attachment WHERE certificate_id IS NOT NULL)
@@ -456,6 +466,23 @@ public static class AccountDeletion
          WHERE parent_item_id IN (SELECT id FROM #items) AND id NOT IN (SELECT id FROM #items);
 
         -- Termine
+        -- 0132: Einträge an Vorkommen (die Intentionen sind dorthin gezogen), Werte und Schemata unter toten Bereichen.
+        IF OBJECT_ID(N'app.occurrence_record', N'U') IS NOT NULL
+        BEGIN
+            DELETE FROM app.mass_intention_field
+             WHERE intention_id IN (SELECT id FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #items));
+            DELETE FROM app.mass_intention
+             WHERE id IN (SELECT id FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #items));
+            DELETE FROM app.occurrence_record_value
+             WHERE record_id IN (SELECT id FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #items))
+                OR area_id IN (SELECT id FROM #dead);
+            DELETE FROM app.occurrence_record WHERE item_id IN (SELECT id FROM #items);
+            DELETE FROM app.calendar_value WHERE item_id IN (SELECT id FROM #items) OR area_id IN (SELECT id FROM #dead);
+            -- Als eigener Stapel: vor 0132 gibt es die Spalte nicht, und der ganze Text liesse sich sonst nicht übersetzen.
+            EXEC sp_executesql N'UPDATE app.calendar_item SET scheme_id = NULL
+             WHERE scheme_id IN (SELECT id FROM app.calendar_doc WHERE area_id IN (SELECT id FROM #dead));';
+            DELETE FROM app.calendar_doc WHERE area_id IN (SELECT id FROM #dead);
+        END
         DELETE FROM app.mass_intention_field
          WHERE intention_id IN (SELECT id FROM app.mass_intention WHERE item_id IN (SELECT id FROM #items))
             OR area_id IN (SELECT id FROM #dead);
@@ -660,6 +687,9 @@ public static class AccountDeletion
         DELETE FROM app.area_member_name WHERE role_id IN (SELECT id FROM #doomed);
         DELETE FROM app.calendar_presence WHERE role_id IN (SELECT id FROM #doomed);
         UPDATE app.mass_intention SET celebrant_role_id = NULL WHERE celebrant_role_id IN (SELECT id FROM #doomed);
+        -- 0132: wer an einem Eintrag hing (wer odprawia, wer sich angemeldet hat), hängt dort nicht mehr.
+        IF OBJECT_ID(N'app.occurrence_record', N'U') IS NOT NULL
+            UPDATE app.occurrence_record SET role_id = NULL WHERE role_id IN (SELECT id FROM #doomed);
 
         -- Künftige Buchungen geben den Platz frei; vergangene sind Geschichte der Gemeinschaft.
         DELETE FROM app.claim        WHERE role_id IN (SELECT id FROM #doomed) AND ends_at > @now;

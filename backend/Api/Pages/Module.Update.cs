@@ -395,6 +395,8 @@ public static partial class Module
                        name_sealed = CASE WHEN @nameSealed IS NULL THEN name_sealed ELSE @nameSealed END,
                        name_epoch = CASE WHEN @nameSealed IS NULL THEN name_epoch ELSE @nameEpoch END,
                        area_id = @area,
+                       /* 0133 — zieht das Formular um, ziehen seine Fragen mit (sie werden unter dem neuen Bereich versiegelt). */
+                       label_area_id = CASE WHEN area_id IS NULL OR @area IS NULL OR area_id <> @area THEN NULL ELSE label_area_id END,
                        for_kind = @for,
                        config = CASE WHEN @config IS NULL THEN config ELSE @config END,
                        repeat_kind = COALESCE(@repeat, repeat_kind),

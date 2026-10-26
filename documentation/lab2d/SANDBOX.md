@@ -380,7 +380,10 @@ Each milestone is then ported (M2a and M2b since 2026-10-24: ARCHITECTURE.md §1
 - grains in the liquid kernels plus the frictional contacts (built on the CPU as position-based dynamics: one thread
   per grain with graph colouring or Jacobi sweeps instead of Gauss–Seidel).
 
-Not ported yet (2026-10-24): free bodies (M3a), ice (M3b) and grains (M3c) — such a scene runs on the CPU.
+Ported since 2026-10-26 (MILESTONES.md, "Bodies and ice on the GPU"): free bodies (M3a; up to eight, every body of
+such a scene with exact fractions and binary faces) and the melting and freezing of ice of one rectangle (M3b), with
+the GPU baking of these scenes. Not ported: grains (M3c), carved ice (several rectangles, recomposed on the CPU) and
+more than eight free bodies — such a scene runs on the CPU.
 
 Before adding kernels, the workgroup memory of the tile kernels should shrink (MILESTONES.md, M1e: in Firefox it
 costs most of the step and 20 s of compile time).

@@ -34,10 +34,15 @@ export const KIND_NAME: Record<Member['kind'], string> = {
   role: 'Rola'
 };
 
-/** 2026-10-16 — die Reiter eines Bereichs, als Adresse: `areas/<kennung>/osoby`. */
-export type AreaTab = 'przeglad' | 'osoby' | 'dostep' | 'ustawienia';
+/**
+ * 2026-10-16 — die Reiter eines Bereichs, als Adresse: `areas/<kennung>/osoby`.
+ * 0133 — `profil`: der Reiter der Art (Wydarzenie, Grupa …), nur mit einem
+ * Profil; er heisst wie die Art (`AreaPage`).
+ */
+export type AreaTab = 'profil' | 'przeglad' | 'osoby' | 'dostep' | 'ustawienia';
 
 export const AREA_TABS: readonly { readonly id: AreaTab; readonly label: string }[] = [
+  { id: 'profil', label: 'Rodzaj' },
   { id: 'przeglad', label: 'Przegląd' },
   { id: 'osoby', label: 'Osoby' },
   { id: 'dostep', label: 'Dostęp' },

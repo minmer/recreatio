@@ -23,12 +23,15 @@ import {
 } from './library';
 import { originOf } from './libraryCite';
 import {
-  ALIASES, aliasesOf, entryTitle, fieldRefs, kindOf, mapMarkups, markupsOf, nextAliases, refTarget, storedMarkup, suggestKey, uniqueKey,
+  ALIASES, aliasesOf, entryTitle, fieldRefs, itemsOf, kindOf, mapMarkups, markupsOf, nextAliases, refTarget, storedMarkup, suggestKey, uniqueKey,
   type EntryData, type LibEntry, type Lookup
 } from './libraryKinds';
 import { citedKeys, mapRefTokens } from './libraryMarkup';
 import { HEAVY_KINDS, TEXT_KIND } from './sourceText';
 import { WorkspaceError } from '../core/session';
+import { fileUrl, removeFile, uploadFile } from '../cogita/files';
+import type { MediaRef } from '../cogita/schema';
+import { mediaOf } from './music';
 
 export interface Entry extends LibEntry {
   /** 2026-10-22 — die Bibliothek (und damit der Bereich), in der er liegt. */
@@ -439,6 +442,22 @@ export class LibraryStore implements Lookup {
     return keys;
   }
 
+  /**
+   * 2026-10-26 (Muzyka) — EINE DATEI IN DIESE BIBLIOTHEK: im Browser versiegelt unter dem jüngsten Schlüssel
+   * des Bereichs, wie in Nauka (`cogita/files.ts`); zurück kommt der Verweis, der in ein Feld gehört.
+   */
+  async upload(file: File): Promise<MediaRef> {
+    return uploadFile(this.libraryId, await this.writeKey(), file);
+  }
+
+  /** … und eine öffnen, als `blob:`-Adresse — liegt sie in einer Nachbarbibliothek, mit deren Schlüssel. */
+  openFile(ref: MediaRef): Promise<string | null> {
+    const owner = ref.library ?? this.libraryId;
+    const home: LibraryStore | undefined = owner === this.libraryId ? this : this.peers().find((p) => p.libraryId === owner);
+    if (home === undefined) return Promise.resolve(null);
+    return fileUrl(owner, ref, async (epoch) => (await home.keysFor([epoch])).get(epoch));
+  }
+
   /** Ob dieser Speicher eine Abschrift auf dem Gerät halten darf — nur der eines Kontos, und nur bei `kept`. */
   private get copies(): boolean {
     return cacheOn && this.ring !== null;
@@ -644,10 +663,73 @@ export class LibraryStore implements Lookup {
   }
 
   async remove(id: string): Promise<void> {
+    const files = this.ownFiles(this.entries.get(id));
     await removeEntry(this.libraryId, id);
     this.drop(id);
     this.changed();
     this.written();
+    await this.dropFiles(files);
+  }
+
+  /**
+   * 2026-10-26 (Muzyka) — DIE DATEIEN EINES EINTRAGS (die Spuren eines Nagrania, die Dateien der Nuty), die in
+   * dieser Bibliothek liegen: sie gehören ihm allein und gehen mit ihm — beim Löschen weg, beim Umzug mit.
+   */
+  private ownFiles(entry: Pick<Entry, 'kind' | 'data'> | undefined): MediaRef[] {
+    const def = entry === undefined ? undefined : kindOf(entry.kind);
+    if (entry === undefined || def === undefined) return [];
+    const out: MediaRef[] = [];
+    for (const field of def.fields) {
+      const media = field.type === 'items' ? (field.item ?? []).filter((sub) => sub.type === 'media') : [];
+      for (const item of media.length === 0 ? [] : itemsOf(entry.data, field.key)) {
+        for (const sub of media) {
+          const ref = mediaOf(item[sub.key]);
+          if (ref !== null && (ref.library ?? this.libraryId) === this.libraryId) out.push(ref);
+        }
+      }
+    }
+    return out;
+  }
+
+  private async dropFiles(files: readonly MediaRef[]): Promise<void> {
+    for (const ref of files) await removeFile(this.libraryId, ref.file).catch(() => undefined);
+  }
+
+  /** Die eigenen Dateien eines Eintrags drüben neu versiegelt — die Daten mit den neuen Verweisen, und was drüben entstand. */
+  private async carryFiles(kind: string, data: EntryData, target: LibraryStore): Promise<{ data: EntryData; made: MediaRef[] }> {
+    const def = kindOf(kind);
+    const own = this.ownFiles({ kind, data });
+    if (def === undefined || own.length === 0) return { data, made: [] };
+    const made: MediaRef[] = [];
+    const moved = new Map<string, MediaRef>();
+    try {
+      for (const ref of own) {
+        const url = await this.openFile(ref);
+        if (url === null) throw new WorkspaceError(`Pliku „${ref.name ?? 'plik'}” nie da się otworzyć — wpis zostaje tutaj.`);
+        const blob = await (await fetch(url)).blob();
+        const copy = await target.upload(new File([blob], ref.name ?? 'plik', { type: ref.mime ?? blob.type }));
+        made.push(copy);
+        moved.set(ref.file, copy);
+      }
+    } catch (e) {
+      await target.dropFiles(made);
+      throw e;
+    }
+    const out: EntryData = { ...data };
+    for (const field of def.fields) {
+      const media = field.type === 'items' ? (field.item ?? []).filter((sub) => sub.type === 'media') : [];
+      if (media.length === 0 || !Array.isArray(data[field.key])) continue;
+      out[field.key] = itemsOf(data, field.key).map((item) => {
+        let next = item;
+        for (const sub of media) {
+          const ref = mediaOf(item[sub.key]);
+          const copy = ref === null ? undefined : moved.get(ref.file);
+          if (copy !== undefined) next = { ...next, [sub.key]: copy };
+        }
+        return next;
+      });
+    }
+    return { data: out, made };
   }
 
   /**
@@ -660,8 +742,10 @@ export class LibraryStore implements Lookup {
     let done = 0;
     for (let at = 0; at < own.length; at += 200) {
       const chunk = own.slice(at, at + 200);
+      const files = chunk.flatMap((id) => this.ownFiles(this.entries.get(id)));
       await removeEntries(this.libraryId, chunk);
       for (const id of chunk) this.drop(id);
+      await this.dropFiles(files);
       done += chunk.length;
       progress?.(done, own.length);
       this.changed();
@@ -691,7 +775,10 @@ export class LibraryStore implements Lookup {
     if (entry === undefined) throw new WorkspaceError('Ten wpis należy do innej biblioteki.');
     const newest = await target.writeKey();
     const kind = as?.kind ?? entry.kind;
-    const shaped = as === undefined ? entry.data : storedMarkup(kind, as.data, target);
+    /* 2026-10-26 — die eigenen Dateien ziehen mit (die Musik): drüben neu versiegelt, hier nach dem Umzug entfernt. */
+    const left = this.ownFiles(entry);
+    const carried = await this.carryFiles(kind, as === undefined ? entry.data : storedMarkup(kind, as.data, target), target);
+    const shaped = carried.data;
     const key = target.keyFor({ ...entry, kind, data: shaped }, entry.key);
     const aliases = nextAliases(entry.key, key, aliasesOf(shaped));
     const data: EntryData = { ...shaped };
@@ -703,9 +790,11 @@ export class LibraryStore implements Lookup {
         toLibrary: target.libraryId, kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: entry.version
       });
     } catch (e) {
+      await target.dropFiles(carried.made);
       if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
       throw e;
     }
+    await this.dropFiles(left);
     this.drop(id);
     const moved: Entry = {
       ...entry, kind, libraryId: target.libraryId, ...(key === undefined ? {} : { key }), data,

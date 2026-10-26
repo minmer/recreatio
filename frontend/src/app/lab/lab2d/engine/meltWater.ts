@@ -27,11 +27,11 @@ import { fluidFront } from './meltSides';
 import { NACL } from './solution';
 import { LIQUID } from './units';
 
-/** Ein Teilchen über dieser Masse (Vielfaches der Nennmasse) teilt sich; neues Schmelzwasser ab diesem Anteil wird ein Teilchen. */
-const SPLIT = 2;
-const SPAWN = 0.25;
+/** Ein Teilchen über dieser Masse (Vielfaches der Nennmasse) teilt sich; neues Schmelzwasser ab diesem Anteil wird ein Teilchen (auch gpu/kbodymelt.ts). */
+export const SPLIT = 2;
+export const SPAWN = 0.25;
 /** Höchstens so viele neue Teilchen je Seite und Schritt (jedes höchstens eine Nennmasse). */
-const SPAWN_MAX = 4;
+export const SPAWN_MAX = 4;
 
 /** Schmelzwasser, das noch kein Teilchen ist (je Körper und Seite): Masse samt Salz (kg), Enthalpie (J), Salz (kg), Ort und Normale der Stelle, an der es hervorkommt. */
 export interface Pending { m: number; H: number; s: number; x: number; y: number; nx: number; ny: number }

@@ -616,8 +616,8 @@ export function LabApp({ config, createWorker, createAccelWorker, onClose }: {
   }
 
   const cpuOnly = stats?.engine.cpuOnly ?? false;
-  /* Backen: freie Körper rechnet die Grafikkarte live, ihre Aufnahme zeichnet aber noch keine (clip/session.ts). */
-  const bakeCpuOnly = cpuOnly || (stats?.engine.bodies.free ?? 0) > 0;
+  /* Backen: was die Grafikkarte live rechnet, backt sie auch (freie Körper und schmelzendes Eis seit 2026-10-26, clip/session.ts). */
+  const bakeCpuOnly = cpuOnly;
   /* Das Fenster des Backens ist offen: die Grafikkarte schon vorbereiten (ihre Kerne übersetzen Sekunden lang; B). */
   useEffect(() => { if (bakeOpen && ready && !accel && HAS_WEBGPU && !bakeCpuOnly) hostRef.current?.bakePrepare(); }, [bakeOpen, ready, accel, bakeCpuOnly]);
   const lower: Quality | undefined = QUALITIES[QUALITIES.indexOf(quality) + 1];

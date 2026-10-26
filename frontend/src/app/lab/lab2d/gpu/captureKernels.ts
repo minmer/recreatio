@@ -22,6 +22,10 @@
  *   Puffer — die CPU rechnet sie an Ort und Stelle: neben Körpern weicht sie ab).
  * - bkArrows, bkBubbles, bkQuads (Temperatur, Glühen und Kruste der Vierecke aus
  *   den Treppenzellen, wie GpuState.download → collect sie hinterliesse).
+ * - Mit genauen Anteilen (K.body; freie Körper, schmelzendes Eis, seit
+ *   2026-10-26) statt der festen Masken und bkQuads: bkTexB (die Texel in einem
+ *   Körper, je Bild) und bkBodyB (je innere Zelle das ganze Viereck, je
+ *   Rechteck der Umriss, ihre Zahl im Kopf — aus den Puffern der Körper).
  *
  * Jeder Kern kehrt sofort zurück, wenn kein Bild fällig ist, und schreibt nur
  * seine eigenen Ausgaben (kein Feld, das ein Kern liest, schreibt er im selben
@@ -36,6 +40,7 @@ import { RHO_CRYSTAL } from '../engine/solution';
 import { FOG_REF, PRES_TOP, SALT_FULL, SPEED_TOP, T_BASE, T_STEP, VAPOUR_FULL } from '../render/layers';
 import { T_SCALE } from '../render/palette';
 import type { KernelDef } from './kernel';
+import { BODY_ACCESS } from './kbodylib';
 import { f } from './lib';
 
 /** Einheiten der Uhr je Sekunde: 60·2²⁴ (Bilder bei 15, 30 und 60 je Sekunde liegen auf ganzen Einheiten). */
@@ -44,11 +49,11 @@ export const CLOCK_UNITS = 60 * 2 ** 24;
 /** Die Wörter von bkc (u32): Uhr, fällig, Bilder im Bündel, Platz, verlorene Bilder, nächstes Bild, Zahl der Bilder, gemerktes Δt, Einblendungen, Probe. */
 export const BKC = { LO: 0, HI: 1, DUE: 2, K: 3, SLOT: 7, LOST: 8, NEXT_LO: 9, NEXT_HI: 10, FRAMES: 11, DT: 12, OV: 13, PROBE: 14 } as const;
 export const BKC_WORDS = 16;
-/** Wörter je Kopf eines Platzes: Uhr (lo), Druck- und Geschwindigkeitsmaximum (Stufen), Blasen, Nummer des Bildes, Uhr (hi). */
+/** Wörter je Kopf eines Platzes: Uhr (lo), Druck- und Geschwindigkeitsmaximum (Stufen), Blasen, Nummer des Bildes, Uhr (hi); mit genauen Anteilen die Vierecke und Rechtecke des Bildes. */
 export const HEAD_WORDS = 8;
-export const HEAD = { LO: 0, PMAX: 1, VMAX: 2, NB: 3, INDEX: 4, HI: 5 } as const;
+export const HEAD = { LO: 0, PMAX: 1, VMAX: 2, NB: 3, INDEX: 4, HI: 5, NQ: 6, NR: 7 } as const;
 /** Wörter des Uniforms K (die Reihenfolge wie im Struct Bk unten). */
-export const BK_WORDS = 24;
+export const BK_WORDS = 28;
 
 const MAIN = '@compute @workgroup_size(WG) fn main(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(local_invocation_id) lid3: vec3<u32>)';
 
@@ -59,7 +64,8 @@ struct Bk {
   oPres: u32, oSpeed: u32, oHum: u32, oVap: u32,
   oFog: u32, oLiq: u32, oArw: u32, oBub: u32,
   oQuad: u32, nq: u32, na: u32, nax: u32,
-  astep: u32, ahalf: u32, every: u32, pad: u32,
+  astep: u32, ahalf: u32, every: u32, body: u32,
+  oRect: u32, ncell: u32, pad1: u32, pad2: u32,
 }
 fn rnd(x: f32) -> f32 { return floor(x + 0.5); }
 fn u8q(x: f32) -> u32 { return u32(floor(255.0 * clamp(x, 0.0, 1.0) + 0.5)); }
@@ -144,7 +150,10 @@ ${MAIN} {
     if (c >= n) { break; }
     let kind = cu[U_KIND * n + c];
     let sol = cu[U_SOLID * n + c];
-    let built = kind == SOLID && sol != 0u && bkm[c] == 0u;
+    /* Ein Körper zeichnet sich selbst: die Treppenzellen (bkm) — mit genauen Anteilen die Zellen, die ein Körper besitzt (wie sampleLayers: owner). */
+    var mine = bkm[c] != 0u;
+    if (K.body != 0u) { mine = cu[U_OWNER * n + c] != 0u; }
+    let built = kind == SOLID && sol != 0u && !mine;
     let T = cf[F_T * n + c];
     let i = ci(c);
     let j = cj(c);
@@ -391,6 +400,127 @@ ${MAIN} {
   let gl = u8q((T - T0 - 60.0) / 340.0);
   let cr = u8q(crustCov(max(Kc, 0.0), q0[3u * qd + 2u]));
   bko[bkc[7] * K.sw + K.oQuad + qd] = gl | (cr << 8u) | (tq(T) << 16u);
+}`
+  },
+  {
+    /* Mit genauen Anteilen (Körper in Bewegung, schmelzendes Eis; seit 2026-10-26): die Texel, deren Mitte in einem Körper liegt — in jedem
+       Bild neu aus den Puffern der Körper (layers.extendUnderBodies; die Lage nach dem Schritt). */
+    name: 'bkTexB', wg: 128,
+    bind: 'P:u bkc:r<u32> bod:r bgeo:r bkt:w<u32>',
+    code: `${BODY_ACCESS}
+fn inBodiesT(x: f32, y: f32) -> bool {
+  for (var b = 0u; b < P.nbody; b++) {
+    if (bGone(b)) { continue; }
+    let dx = x - bv(b, B_X);
+    let dy = y - bv(b, B_Y);
+    let rm = bv(b, B_RMAX) + 1e-6;
+    if (dx * dx + dy * dy > rm * rm) { continue; }
+    let a = bv(b, B_A);
+    let c = cos(a);
+    let s = sin(a);
+    let l = vec2<f32>(c * dx + s * dy, -s * dx + c * dy);
+    let nr = u32(bv(b, B_NR));
+    for (var r = 0u; r < nr; r++) {
+      let bx = rBox(rectOf(b, r));
+      if (l.x >= bx.x && l.x <= bx.z && l.y >= bx.y && l.y <= bx.w) { return true; }
+    }
+  }
+  return false;
+}
+${MAIN} {
+  if (bkc[2] == 0u) { return; }
+  let t = gid.x;
+  let lx = 2u * P.nx;
+  let ly = 2u * P.ny;
+  if (t >= lx * ly) { return; }
+  let h = 0.5 * P.dx;
+  bkt[t] = select(0u, 1u, inBodiesT((f32(t % lx) + 0.5) * h, (f32(t / lx) + 0.5) * h));
+}`
+  },
+  {
+    /* Mit genauen Anteilen: je innere Zelle ihr Viereck (Mitte, Grösse, Winkel, Werkstoff, Glühen und Kruste, Temperatur — wie sampleBodies), je
+       Rechteck sein Umriss (ein Faden, es sind wenige), die Zahlen im Kopf — aus den Puffern der Körper nach dem Schritt (Lage, Grenzen, Energie). */
+    name: 'bkBodyB', wg: 64,
+    bind: 'P:u K:u<Bk> bkc:r<u32> bod:r bgeo:r bcell:r bko:w<u32> bkh:a',
+    code: `${COMMON}
+${BODY_ACCESS}
+fn cellTK(E: f32, C: f32, film: f32, crust: f32) -> f32 {
+  let cs = C + crust * CP_CRYSTAL;
+  if (!(cs > 0.0)) { return 293.15; }
+  if (film <= 0.0) { return T0 + E / cs; }
+  var T = 293.15;
+  for (var it = 0; it < 3; it++) { T -= (cs * (T - T0) + film * hL(T) - E) / (cs + film * cpL(T)); }
+  return T;
+}
+fn angQ(a: f32) -> u32 { let t = a / ${f(2 * Math.PI)} + 0.5; return u32(rnd(65535.0 * (t - floor(t)))) & 65535u; }
+fn posQ(v: f32, w: f32) -> u32 { return u32(rnd(65535.0 * clamp(v / w, 0.0, 1.0))); }
+fn putU16(w0: u32, i: u32, v: u32) {
+  let w = w0 + i / 2u;
+  if ((i & 1u) == 0u) { bko[w] = (bko[w] & 0xffff0000u) | v; } else { bko[w] = (bko[w] & 0xffffu) | (v << 16u); }
+}
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  if (bkc[2] == 0u) { return; }
+  let t = gid.x;
+  let slot = bkc[7];
+  let base = slot * K.sw;
+  if (t == 0u) {
+    var nq = 0u;
+    var nr = 0u;
+    for (var b = 0u; b < P.nbody; b++) {
+      if (bGone(b)) { continue; }
+      nq += u32(bv(b, B_NCELL));
+      let a = bv(b, B_A);
+      let c = cos(a);
+      let s = sin(a);
+      let nrb = u32(bv(b, B_NR));
+      for (var r = 0u; r < nrb; r++) {
+        let bx = rBox(rectOf(b, r));
+        let lx = 0.5 * (bx.x + bx.z);
+        let ly = 0.5 * (bx.y + bx.w);
+        let o = base + K.oRect;
+        putU16(o, 5u * nr, posQ(bv(b, B_X) + c * lx - s * ly, P.boxw));
+        putU16(o, 5u * nr + 1u, posQ(bv(b, B_Y) + s * lx + c * ly, P.boxh));
+        putU16(o, 5u * nr + 2u, min(65535u, u32(rnd(5e4 * (bx.z - bx.x)))));
+        putU16(o, 5u * nr + 3u, min(65535u, u32(rnd(5e4 * (bx.w - bx.y)))));
+        putU16(o, 5u * nr + 4u, angQ(a));
+        nr += 1u;
+      }
+    }
+    atomicStore(&bkh[slot * 8u + 6u], nq);
+    atomicStore(&bkh[slot * 8u + 7u], nr);
+  }
+  if (t >= K.ncell) { return; }
+  let rq = u32(bcell[BC * t + 3u]);
+  let b = u32(rv(rq, GR_BODY));
+  if (bGone(b)) { return; }
+  let local = t - u32(bv(b, B_KO));
+  if (local >= u32(bv(b, B_NCELL))) { return; }
+  var qi = local;
+  for (var o = 0u; o < b; o++) { if (!bGone(o)) { qi += u32(bv(o, B_NCELL)); } }
+  let loc = t - u32(rv(rq, GR_KO));
+  let ni = u32(rv(rq, GR_NI));
+  let p = loc % ni;
+  let q = loc / ni;
+  let x0 = rxs(rq, p);
+  let x1 = rxs(rq, p + 1u);
+  let y0 = rys(rq, q);
+  let y1 = rys(rq, q + 1u);
+  let a = bv(b, B_A);
+  let c = cos(a);
+  let s = sin(a);
+  let lx = 0.5 * (x0 + x1);
+  let ly = 0.5 * (y0 + y1);
+  let mb = u32(bv(b, B_MAT)) + 1u;
+  let C = solidRho(mb) * solidCp(mb) * P.depth * (x1 - x0) * (y1 - y0);
+  let crust = bcell[BC * t + 2u];
+  let T = cellTK(bcell[BC * t], C, bcell[BC * t + 1u], crust);
+  let gl = u8q((T - T0 - 60.0) / 340.0);
+  let cr = u8q(crustCov(crust, max(1e-6, min(x1 - x0, y1 - y0))));
+  let o4 = base + K.oQuad + 4u * qi;
+  bko[o4] = posQ(bv(b, B_X) + c * lx - s * ly, P.boxw) | (posQ(bv(b, B_Y) + s * lx + c * ly, P.boxh) << 16u);
+  bko[o4 + 1u] = min(65535u, u32(rnd(5e5 * (x1 - x0)))) | (min(65535u, u32(rnd(5e5 * (y1 - y0)))) << 16u);
+  bko[o4 + 2u] = angQ(a) | (mb << 16u);
+  bko[o4 + 3u] = gl | (cr << 8u) | (tq(T) << 16u);
 }`
   }
 ];

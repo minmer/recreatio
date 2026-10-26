@@ -710,10 +710,11 @@ do), only NaCl, one diffusion coefficient for all concentrations, no new crystal
 The button "Widok przyspieszony" (shown where the browser has WebGPU) restarts the lab in a second worker,
 `gpu.worker.ts`, that runs the whole step on the GPU — at 1 mm, or at the saved quality — and draws with WebGPU;
 "Widok zwykły" returns to the CPU worker with the same scene. If the device or a kernel fails, the shell falls back
-to the CPU worker with a note; a scene with ice, grains or more than eight free bodies goes back to the CPU worker the
-same way, with its tools applied (`needsCpu`; melting (M3b) and grains (M3c) are not ported). Everything else is
-ported — violent events (§19), other liquids (M2a) and salt (M2b) since 2026-10-24 (MILESTONES.md, "The accelerated
-view for the new parts"), free bodies since 2026-10-26 (below, "Bodies"):
+to the CPU worker with a note; a scene with carved ice (a meltable body of several rectangles), grains or more than
+eight free bodies goes back to the CPU worker the same way, with its tools applied (`needsCpu`: grains (M3c) and the
+recomposition of carved ice are not ported). Everything else is ported — violent events (§19), other liquids (M2a)
+and salt (M2b) since 2026-10-24 (MILESTONES.md, "The accelerated view for the new parts"), free bodies and the melting
+and freezing of single-rectangle ice since 2026-10-26 (below, "Bodies" and "Melting"):
 - **Oil**: the liquid of a particle in bits 8–15 of its flags; the laws of every liquid as WGSL functions; only water
   exchanges mass (gather, flash, mass to the particles) and condensate in a cell without water particles spawns one;
   viscosity as 24 Jacobi steps per step on the faces (`kmix.ts`), the droplet drift in the transport.
@@ -731,8 +732,8 @@ view for the new parts"), free bodies since 2026-10-26 (below, "Bodies"):
   stays in the cell), a particle that would keep almost no water evaporates whole, and only cells with water particles
   evaporate.
 - **Bodies** (since 2026-10-26; `gpu/bodies.ts`, `kbodylib.ts`, `kbodycover.ts`, `kbodycollect.ts`, `kbodydyn.ts`,
-  `bodyStep.ts`, `renderBodies.ts`; MILESTONES.md "Bodies and ice on the GPU"): in a scene with a free body every body
-  runs with exact fractions (the model "R1c"); without one the staircase stays (§17). Three buffers hold the bodies —
+  `bodyStep.ts`, `renderBodies.ts`; MILESTONES.md "Bodies and ice on the GPU"): in a scene with a free body or ice every
+  body runs with exact fractions (the model "R1c"); without one the staircase stays (§17). Three buffers hold the bodies —
   `bod` (per body: pose, velocity, the boundary value U = V + P and the prediction, added mass, state, bounding boxes,
   force sums), `bgeo` (rectangles with their column and row boundaries, free segments, the static parts of the
   contacts) and `bcell` (energy, film, crust per internal cell) — written from and back into the mirror's `Body2D`
@@ -741,32 +742,62 @@ view for the new parts"), free bodies since 2026-10-26 (below, "Bodies"):
   (`bCover`: exact quad-in-box of the internal cells, relative to the cell corner in f32 — fs within about 10⁻⁵ of the
   CPU; capB, Es, film, crust, owner, matB, the split test); closing (`bClose1/2`: 0.99 pinned, 0.9 free, split, ½ beside
   other solid, then the staircase's pair rule — a face covered whole between two cells that stay open closes the one
-  with the larger share, the lower or left one on a tie within 10⁻⁴); `bFlip` (a closing cell's gas to stable gas
-  neighbours by atomics, else parked in place and counted; an opening cell becomes liquid or takes at most ¼ of each
+  with the larger share, on a tie within 10⁻⁴ the one farther from its body's centre, so a symmetric beaker stays
+  symmetric); `bFlip` (a closing cell's gas to stable gas neighbours by atomics, else parked in place and counted —
+  re-routed in a later step once a neighbour is stable gas; an opening cell becomes liquid or takes at most ¼ of each
   stable gas neighbour); `bApply`; φ_s (weights 1/6, 2/3, 1/6) and the distance field in a band of six cells around the
-  awake bodies (`bStatic`). Pinned bodies are covered once after each upload. Faces are binary: a face beside a closed
+  awake bodies (`bStatic`). Pinned bodies are covered once after each upload and again after melting moved one of
+  their sides (`B_AGAIN`). Faces are binary: a face beside a closed
   body cell is closed and moves with that body (U at the face midpoint; `bFaceL` after P2G, `bFaceG` after the gas
   marks its faces), every other face is fully open — the flow kernels know no apertures. Two consequences for free
-  bodies only: a cell a free body has closed opens again below 0.88 (not 0.9), and an open cell of a free body is
-  liquid when its open part is half full, f/(1 − fs) ≥ ½ (not by φ + φ_s): with fully open faces a block that rocked by
+  bodies only: a cell a free body has closed opens again below 0.88 (not 0.9), and an open cell of a free body that the
+  usual rule (φ + φ_s ≥ ½) calls liquid stays liquid only when its open part is half full, f/(1 − fs) ≥ ½ (the rule
+  only demotes, `kliquid.classify`): with fully open faces a block that rocked by
   0.05° opened and closed the cells of its side every other step, and its almost empty cells above the waterline were
   liquid, columns without pressure that fell freely — water at up to 0.12 m/s beside it. Particles that no body hit
   take the distance-field push, which stops before the first body on its way. Heat: mixed cells as on the CPU (capacity
-  capB + film c_pL + crust c, conductance fs k_s + (1 − fs) k_f, the exponential exchange inside a cell); a heater body
-  heats its internal cells by volume. Regions: vFluid = Σ (1 − fs) V, a cell a body opens takes a neighbour's region,
-  and a free body never seals a pocket. After the liquid projection all awake free bodies measure their added mass with
-  three solves of the same matrix (its coarse levels kept; `bProbeRhs/Dot/Fin`); stage 8 (`bodyStep.finish`) collects
-  the cells' changes into the internal cells (`bCollect`, `bCollectRest`), continues the pressure into the solids by
-  ping-pong layers (`bExtA/B`, an even number up to 64 from the thickest body), integrates the forces over the free
-  segments (`bForce`) and moves the bodies in one workgroup (`bDyn`: solve3 with the added mass and the lag term, the
-  CPU's contacts in one thread — separating axes, clipped manifolds, block solver, warm starts by key, Coulomb, bounce;
-  at most 128 contacts — sleep and wake, escape through open sides); `stepEnd` limits the next Δt so that no point of
-  an awake body moves more than half a cell. Readbacks carry per body pose, state, mass, mean temperature, energy, film,
-  crust (`bMeas`): the HUD, the object panel (`objectViewGpu`) and the budgets read them. Drawing as §17: each internal
+  capB + film c_pL + crust c, conductance fs k_s + (1 − fs) k_f, the exponential exchange inside a cell); a heater
+  group's power is shared by volume over the internal cells of all its bodies. Regions: vFluid = Σ (1 − fs) V, a cell a
+  body opens takes a neighbour's region, and a free body never seals a pocket: CPU regions that only free bodies
+  separate are one GPU region from the upload on (`state.ts`, `regionGroups`; a pot under a free lid, which the CPU
+  had closed into a pocket of its own, ran away to +200–380 kPa as a sealed GPU region before), and gas the GPU left
+  parked in a closed body cell is moved to the nearest fluid cell on the CPU at download. After the liquid projection
+  the awake free bodies — at most eight, chosen from the last readback (`bodyStep.select`, `B_PROBE`); a body that wakes
+  in between moves with its last measured added mass — measure their added mass with three solves of the same matrix
+  (its coarse levels kept; `bProbeRhs/Dot/Fin`); stage 8 (`bodyStep.finish`) collects
+  the cells' changes into the internal cells (`bCollect`, `bCollectRest`), melts and freezes ice (below), continues the
+  pressure into the solids by ping-pong layers (`bExtA/B`, an even number up to 64 from the thickest body), integrates
+  the forces over the free segments (`bForce`) and moves the bodies in one workgroup (`bDyn`: solve3 with the added
+  mass and the lag term, the CPU's contacts in one thread — separating axes, clipped manifolds, block solver, warm
+  starts by key, Coulomb, bounce; at most 128 contacts, more are dropped and counted (`C.CONT_FULL`), and the settings'
+  toggle then says the scene belongs to the normal view — sleep and wake, escape through open sides); `stepEnd` limits
+  the next Δt so that no point of an awake body moves more than half a cell. Readbacks carry per body pose, state,
+  mass, mean temperature, energy, film, crust, and for ice its held meltwater and rectangle (`bMeas`): the HUD, the
+  object panel (`objectViewGpu`) and the budgets read them. Drawing as §17: each internal
   cell a rotated quad in the colour of its material or temperature, the outlines on top, the liquid continued under the
   bodies, their closed cells empty in the cell texture. When a body is freed or pinned and the scene changes between
   staircase and exact fractions, the budgets go on with the mirror's errors (`carryErrors`): the staircase held another
   energy of the bodies than their exact cells (test 39: 168.80 J of glass against 167.32 J).
+- **Melting** (since 2026-10-26; `gpu/kbodymelt.ts`, `kbodymelt2.ts`; §18, MILESTONES.md "C2"): ice of one rectangle,
+  pinned or free, melts and freezes on the GPU by the CPU's rules, after collect and before the forces as on the CPU.
+  Four passes: `mSums` (per cell in a band of three cells around each meltable body: Σ m c_p, Σ m c_p T, water, salt
+  and the mass of the water particles of the cell, as `exchange.ts`; the per-cell collectors of the last step
+  cleared), `mMelt` (one workgroup of 128 threads takes the meltable bodies one after another and their sides one
+  after another, as `bodyMelt.step`, with many threads per side — the points along it, its edge cells, the internal
+  cells: T_f and open from the liquid in front (`freezingAt` with `frontGap`; T_f(m) interpolated in a table of 257
+  values up to the eutectic that the CPU builds), the supply, the excesses, the planned freezing — a cell freezes onto
+  the first side that asks, kept by an atomic maximum over (side, point) —, the moves, the meltwater to the cells in
+  front or held per side (squeezed out at the ends of a side with no fluid in front), the regridding of the outer rows,
+  gone below 0.25 Δx, derive; the new boundaries go into `bgeo`, the body is covered anew in the next step
+  (`B_AGAIN`) and wakes, a grown body pushes particles out), `mApply` (per particle: its cell's meltwater by its mass
+  share, its cell's planned freezing by its water share with the enthalpy of ice, salt stays; a particle above twice
+  the nominal mass splits) and `mSpawn` (per body and side: held water from a quarter of the nominal mass on becomes
+  particles of at most the nominal mass, at most four per step, along the side, at a free spot that no other body
+  separates from it — appended like condensate, sorted in the next step). Held meltwater lives in `bmelt` and comes
+  back into `MeltWater.pending` at a download; the GPU budgets count the ice and the held water. A melting body has
+  room for (ni + 2)(nj + 2) internal cells; one that outgrows it sets `C.MELTFULL`, and the worker downloads and uploads
+  once with more room. The interface is f32: a move smaller than the f32 resolution of the boundary gives its heat back
+  to the edge cells, as the CPU does when nothing melts. Cavities on ice never nucleate on the GPU.
 The sharing of heat inside a cell (§6.5) is ported: kernel `heatShare`, one thread per cell over its sorted particles,
 after the heat solve. The view is not bit-reproducible (float atomics, order-free merging): the prompt's
 determinism stays a property of the CPU engine. Checked in two WebGPU implementations: Edge/Chrome (Dawn) and Firefox
@@ -826,7 +857,12 @@ in the other (§15, solves). Checked on 2026-10-21 by running every kernel with 
   (`captureBodies.ts`), from the mirror at the start: the staircase cells get the kind without material (their quads
   draw them), a texel mask continues the liquid under them, and each quad's temperature, glow and crust come from its
   staircase cells with the cover weights — the linear part of `collect`, re-based at every keyframe as `collect` runs
-  on from each download; moving bodies on the GPU (C4) would replace these statics with per-step values. A probe mode
+  on from each download. In a body scene (a free body or ice, exact fractions; since 2026-10-26) nothing of the bodies
+  is static: `bkTexB` writes the texel mask of every frame from the bodies' rectangles in `bod`/`bgeo`, `bkBodyB` the
+  quads (each internal cell's corners, temperature from its energy, glow, crust, as `sampleBodies`) and the rectangles'
+  outlines from `bod`, `bgeo` and `bcell`, and `bkCells` marks a cell by its owner and fraction as the CPU sampler does;
+  the slot has room for as many quads and rectangles as the bodies' capacity, the slot head carries the counts of the
+  frame (`NQ`, `NR`) — a melting cube draws fewer quads as it shrinks. A probe mode
   captures the current state into an extra slot without touching the clock (the harness compares it with
   `sampleLayers` of the downloaded state).
 
@@ -898,8 +934,9 @@ calmer scenes several times faster (convection: 0.43×). On the graphics card (b
 (RTX 3070) or 1.12× (integrated AMD GPU).
 
 **Baking on the graphics card** (since 2026-10-25; `clip/gpuBake.ts`, MILESTONES.md "GPU baking"). The dialog offers
-"Licz na: procesor | karta graficzna" when the browser has WebGPU and the scene runs on the accelerated view (free
-bodies, ice and grains still bake on the CPU — the dialog says so); the choice defaults to the graphics card and is
+"Licz na: procesor | karta graficzna" when the browser has WebGPU and the scene runs on the accelerated view — free
+bodies and ice of one rectangle too since 2026-10-26 (carved ice, grains and more than eight free bodies bake on the
+CPU — the dialog says so); the choice defaults to the graphics card and is
 remembered with the frame rate and the keyframe spacing. Opening the dialog already prepares the device and compiles
 the kernels (`bakePrepare`: 4–7 s cold in Edge, 0.3–1.1 s warm on the RTX, 2.6–3.6 s on the integrated GPU); the progress
 says "Przygotowuję kartę graficzną…" while they compile.
@@ -918,7 +955,11 @@ says "Przygotowuję kartę graficzną…" while they compile.
   the state comes into the mirror (`GpuState.download`), the chart sampler takes the GPU's marks, `Engine.rebaseline`
   sets the budgets to the GPU's errors (without it a keyframe showed the staircase's offset, +5.8 J after 5 s) and the
   snapshot is taken. It carries the last captured frame; the state lies less than one frame after it (keyframes at
-  5 s land at frame 154 instead of 150). The GPU idles 13–30 ms per keyframe at 2 mm, 56–110 ms at 1 mm.
+  5 s land at frame 154 instead of 150). The GPU idles 13–30 ms per keyframe at 2 mm, 56–110 ms at 1 mm. In a body
+  scene the download brings the bodies along (pose, velocity, motion fields, internal cells, a melting body's rectangle
+  and held meltwater), so the keyframe holds them; the mirror then covers them anew. A melting body that outgrows its
+  room on the GPU (`C.MELTFULL`, §15) is not re-laid out during a bake: its outer rows stay thicker than 1.6 Δx until
+  the bake ends (energy and mass stay exact; the live view makes the round trip).
 - *Header*: the same format and version 2, with `engine: 'gpu'`, `exact: false` and the adapter. `ClipInfo` tells the
   surface which engine baked a clip, whether it resumes exactly (`exact`) and the clip of the other engine (`alt`).
 - *Side by side*: when both clips of a scene exist, the player shows which one plays ("CPU | GPU") and switches at
@@ -941,6 +982,14 @@ GPU's state — measured identical outside bodies except humidity (±1 in up to 
 copy) and the staircase cells the CPU keeps open (78 at 2 mm in "Wrzenie", hidden under the quads). Sizes: 24–28 MB per
 simulated minute of boiling at 2 mm (keyframes 78–84 bytes per cell), 78–86 MB at 1 mm (70–72 bytes per cell); the
 dialog's estimate uses these and warns near the store's 600 MB.
+
+In a body scene (a free body or ice; since 2026-10-26: "Lód w ciepłej wodzie", "Przewrócona zlewka", "Co pływa?") the
+frames are identical outside a band of one cell around the bodies — after the download of a keyframe the mirror covers
+its bodies anew and may close or open a cell there differently (up to 71 temperature bytes inside the band) — with
+humidity ±1 in up to 123 of 7 333 gas cells and the liquid ±1 (up to 3 887 of 120 000 bytes in "Lód w ciepłej wodzie",
+whose water stands at 40 °C, exactly on a step of the temperature scale; 0–4 elsewhere); the quads are identical in
+temperature, glow and crust and within one unit of 16 bits in position. Keyframes of body scenes hold 50–146 bytes per
+cell; 15–43 MB per simulated minute at 2 mm.
 
 ## 17. Bodies (M3a; exact rectangles since 2026-10-23)
 
@@ -1093,8 +1142,9 @@ compute), material and heater group; φ_s (the weights of `grid.ts` since 2026-1
 distance field, the regions' fluid volume and the cavities' wall cells follow the staircase, and the gas of a cell that
 turns solid there stays in it. On download the staircase cells give their temperatures back to the bodies (their
 share's energy, then `collect`). In the presets the beaker and the plate lie exactly on the 1 mm cells, so the
-staircase is the body. With a free body every body runs with exact fractions on the GPU (§15, "Bodies": the CPU's
-cover, binary faces); ice, grains and more than eight free bodies send the scene back to the CPU (`needsCpu`).
+staircase is the body. With a free body or ice every body runs with exact fractions on the GPU (§15, "Bodies": the
+CPU's cover, binary faces); carved ice, grains and more than eight free bodies send the scene back to the CPU
+(`needsCpu`).
 
 ## 18. Melting and freezing (M3b)
 
@@ -1159,6 +1209,17 @@ follow Neumann within 6 % at 2 mm and 4 % at 1 mm (melting, after 4 min; its spe
 within 7 % and 3 % (freezing, after 2 min). The interface lives in cells — first order in Δx: in the first seconds,
 while the thermal layer is thinner than a cell, melting runs ahead and freezing lags (SIMPLIFICATIONS.md #31, #40;
 MILESTONES.md §M3b).
+
+**On the accelerated view** (since 2026-10-26; §15 "Melting", SIMPLIFICATIONS.md #52) ice of one rectangle melts and
+freezes by these rules, step for step and in the CPU's order of bodies and sides; carved ice (several rectangles, the
+recomposition above) sends the scene to the CPU. What differs: everything is f32 (a move smaller than f32 resolves at
+the side's coordinate gives its heat back to the edge cells, as when nothing melts); T_f(m) is interpolated in a
+257-point table; a side's meltwater is shared among the taker cells by the water-particle masses at the start of the
+step (the CPU: after the previous side's water); cavities on ice never nucleate; a body that grows by more than the two
+spare rows and columns it is given is re-laid out by one download and upload (not while baking). The tests come out
+as on the CPU — the Stefan fronts +6.1 % and −6.3 % of Neumann at 2 mm (CPU +6.0 %, −6.4 %), the cube in warm water
+melts 3–7 % less, the cube on the hot plate ends 18.86 × 17.75 mm as on the CPU — and the budgets close in f32
+(millijoules; MILESTONES.md, "C2").
 
 ## 19. Violent events (since 2026-10-24)
 

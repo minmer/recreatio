@@ -20,6 +20,7 @@ import { WorkspaceError } from '../core/session';
 import { viewPath } from '../routes';
 import { libraryKindOf, partOf, type OpenLibrary } from './library';
 import { fieldRefs, ids, str } from './libraryKinds';
+import { filesOf, tracksOf } from './music';
 import { useLibraries } from './LibraryPick';
 import { storeOf, type Entry, type LibraryStore } from './libraryStore';
 
@@ -46,6 +47,7 @@ export function AreaBox({ store, library, entry, readOnly }: { store: LibrarySto
   /* Was er nennt und was auf ihn zeigt, aber drüben niemand lesen könnte, der nur den neuen Bereich sieht. */
   const refs = fieldRefs(entry).length;
   const back = store.backlinks(entry.id).length;
+  const files = [...tracksOf(entry.data), ...filesOf(entry.data)].filter((f) => f.file !== null).length;
   /* Ein Text eines Rodzaju, der hier liegt: er kann mitgehen. */
   const type = entry.kind === 'text' ? store.own(ids(entry.data, 'textType')[0] ?? '') : undefined;
   const typeHere = type !== undefined && type.kind === 'texttype';
@@ -92,6 +94,8 @@ export function AreaBox({ store, library, entry, readOnly }: { store: LibrarySto
                   <span>Przenieś też rodzaj tekstu „{str(type.data, 'name')}” — bez niego czytelnicy tamtego skryptorium nie zobaczą pól tego rodzaju (inne teksty tego rodzaju dalej z niego korzystają).</span>
                 </label>
               )}
+              {/* 2026-10-26 — die Dateien der Musik gehen mit: drüben neu versiegelt, hier danach entfernt. */}
+              {files > 0 && <p>Pliki ({files}) przejdą razem z wpisem — zaszyfrowane kluczem tamtego obszaru; to może chwilę potrwać.</p>}
               {(refs > 0 || back > 0) && (
                 <p className="wk-warn">
                   Kto widzi tylko jedną z bibliotek, zobaczy w miejscu odwołania „[odwołanie niedostępne]” — bez tytułu i treści.

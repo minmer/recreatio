@@ -48,6 +48,13 @@ public static partial class Mass
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        /* 0132 — Intentionen sind Einträge (`occurrence_record`); vor der Migration nimmt der Dienst keine neuen an. */
+        if (!await Calendar.RecordsReadyAsync(connection, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status503ServiceUnavailable, Calendar.NeedsMigration);
+            return;
+        }
+
         var item = await ItemAsync(connection, id, ctx.RequestAborted);
         if (item is null)
         {
@@ -100,8 +107,8 @@ public static partial class Mass
         if (ordinal is null)
         {
             await using var next = new SqlCommand("""
-                SELECT ISNULL(MAX(ordinal), -1) + 1 FROM app.mass_intention
-                WHERE item_id = @item AND occurrence_at = @at;
+                SELECT ISNULL(MAX(ordinal), -1) + 1 FROM app.occurrence_record
+                WHERE item_id = @item AND occurrence_at = @at AND list_key = N'intencje';
                 """, connection);
 
             next.Parameters.AddWithValue("@item", id);
@@ -118,10 +125,10 @@ public static partial class Mass
         try
         {
             await using (var insert = new SqlCommand("""
-                INSERT INTO app.mass_intention
-                    (id, item_id, occurrence_at, ordinal, text_public, kind,
+                INSERT INTO app.occurrence_record
+                    (id, item_id, occurrence_at, list_key, ordinal, text_public, mode, status, origin,
                      created_by_role_id, created_at, updated_at)
-                VALUES (@id, @item, @at, @ord, @text, @kind, @role, @now, @now);
+                VALUES (@id, @item, @at, N'intencje', @ord, @text, @kind, N'accepted', N'office', @role, @now, @now);
                 """, connection, tx))
             {
                 insert.Parameters.AddWithValue("@id", intentionId);
@@ -229,9 +236,15 @@ public static partial class Mass
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        if (!await Calendar.RecordsReadyAsync(connection, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status503ServiceUnavailable, Calendar.NeedsMigration);
+            return;
+        }
+
         Guid itemId;
         await using (var find = new SqlCommand(
-            "SELECT item_id FROM app.mass_intention WHERE id = @id;", connection))
+            "SELECT item_id FROM app.occurrence_record WHERE id = @id AND list_key = N'intencje';", connection))
         {
             find.Parameters.AddWithValue("@id", id);
             if (await find.ExecuteScalarAsync(ctx.RequestAborted) is not Guid found)
@@ -290,8 +303,8 @@ public static partial class Mass
             if (body.Ordinal is null)
             {
                 await using var next = new SqlCommand("""
-                    SELECT ISNULL(MAX(ordinal), -1) + 1 FROM app.mass_intention
-                    WHERE item_id = @item AND occurrence_at = @at AND id <> @id;
+                    SELECT ISNULL(MAX(ordinal), -1) + 1 FROM app.occurrence_record
+                    WHERE item_id = @item AND occurrence_at = @at AND list_key = N'intencje' AND id <> @id;
                     """, connection);
                 next.Parameters.AddWithValue("@item", moveTo.Value);
                 next.Parameters.AddWithValue("@at", moveAt.Value);
@@ -312,12 +325,12 @@ public static partial class Mass
              * Stand aendern wollte, nebenbei den Text.
              */
             await using (var update = new SqlCommand("""
-                UPDATE app.mass_intention
+                UPDATE app.occurrence_record
                 SET text_public       = ISNULL(@text, text_public),
                     status            = ISNULL(@status, status),
-                    kind              = ISNULL(@kind, kind),
+                    mode              = ISNULL(@kind, mode),
                     ordinal           = ISNULL(@ord, ordinal),
-                    celebrant_role_id = CASE WHEN @clear = 1 THEN NULL ELSE ISNULL(@celebrant, celebrant_role_id) END,
+                    role_id           = CASE WHEN @clear = 1 THEN NULL ELSE ISNULL(@celebrant, role_id) END,
                     item_id           = ISNULL(@moveTo, item_id),
                     occurrence_at     = ISNULL(@moveAt, occurrence_at),
                     updated_at        = @now
@@ -373,9 +386,16 @@ public static partial class Mass
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
+        if (!await Calendar.RecordsReadyAsync(connection, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status503ServiceUnavailable, Calendar.NeedsMigration);
+            return;
+        }
+
         Guid itemId;
         string status;
-        await using (var find = new SqlCommand("SELECT item_id, status FROM app.mass_intention WHERE id = @id;", connection))
+        await using (var find = new SqlCommand(
+            "SELECT item_id, status FROM app.occurrence_record WHERE id = @id AND list_key = N'intencje';", connection))
         {
             find.Parameters.AddWithValue("@id", id);
             await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
@@ -402,10 +422,8 @@ public static partial class Mass
             return;
         }
 
-        await using var drop = new SqlCommand("""
-            DELETE FROM app.mass_intention_field WHERE intention_id = @id;
-            DELETE FROM app.mass_intention WHERE id = @id;
-            """, connection);
+        /* 0132 — mit seinem Zwilling im Archiv, sonst holte das Nachholen ihn wieder hervor. */
+        await using var drop = new SqlCommand(Calendar.DropRecordsSql("id = @id"), connection);
         drop.Parameters.AddWithValue("@id", id);
         await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
 

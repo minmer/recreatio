@@ -20,24 +20,28 @@
  */
 
 import type { Engine } from '../engine/engine';
-import { arrowPoints, arrowStep, presOf, speedOf, velOf, type Layers } from '../render/layers';
+import { arrowPoints, arrowStep, presOf, QUAD, RECT, speedOf, velOf, type Layers } from '../render/layers';
 import { OVERLAY_EVERY } from '../clip/codec';
 import { BK_WORDS, BKC, BKC_WORDS, CLOCK_UNITS, HEAD, HEAD_WORDS } from './captureKernels';
 import { bodyStatics, fillQuads, rebaseQuads, type BodyStatics } from './captureBodies';
 import type { GpuEngine } from './engine';
 import { F } from './slots';
 
-/** Wo im Platz eines Bildes welche Ebene beginnt (Wörter), und sein Umfang. */
+/** Wo im Platz eines Bildes welche Ebene beginnt (Wörter), und sein Umfang; rect: die Umrisse (nur mit genauen Anteilen, fünf u16 je Rechteck). */
 export interface SlotLayout {
   readonly sw: number;
   readonly flags: number; readonly crust: number; readonly glow: number; readonly temp: number; readonly pres: number;
   readonly speed: number; readonly hum: number; readonly vap: number; readonly fog: number; readonly liq: number;
-  readonly arw: number; readonly bub: number; readonly quad: number;
+  readonly arw: number; readonly bub: number; readonly quad: number; readonly rect: number;
   /** Punkte des Pfeilrasters, Punkte je Zeile, Abstand, erster Punkt. */
   readonly na: number; readonly nax: number; readonly astep: number; readonly ahalf: number;
 }
 
-export function slotLayout(nx: number, ny: number, dx: number, bcap: number, nq: number): SlotLayout {
+/**
+ * nq Vierecke: ohne genaue Anteile (die Treppe, Körper liegen still) ein Wort je Viereck (Temperatur, Glühen, Kruste — die Lage steht fest);
+ * mit genauen Anteilen (body) das ganze Viereck (vier Wörter) und nr Umrisse — Körper bewegen sich, Eis schmilzt (seit 2026-10-26).
+ */
+export function slotLayout(nx: number, ny: number, dx: number, bcap: number, nq: number, nr = 0, body = false): SlotLayout {
   const n = nx * ny;
   const q4 = Math.ceil(n / 4);
   const astep = arrowStep(dx);
@@ -47,9 +51,11 @@ export function slotLayout(nx: number, ny: number, dx: number, bcap: number, nq:
   const arw = liq + 4 * n;
   const bub = arw + Math.ceil(na / 2);
   const quad = bub + 2 * bcap;
+  const rect = quad + (body ? 4 : 1) * Math.max(1, nq);
+  const end = rect + (body ? Math.ceil((RECT * Math.max(1, nr)) / 2) : 0);
   return {
-    sw: 4 * Math.ceil((quad + Math.max(1, nq)) / 4), flags: q4, crust: 2 * q4, glow: 3 * q4, temp: 4 * q4, pres: 6 * q4, speed: 7 * q4,
-    hum: 8 * q4, vap: 9 * q4, fog: 10 * q4, liq, arw, bub, quad, na, nax: Math.max(0, Math.ceil((nx - ahalf) / astep)), astep, ahalf
+    sw: 4 * Math.ceil(end / 4), flags: q4, crust: 2 * q4, glow: 3 * q4, temp: 4 * q4, pres: 6 * q4, speed: 7 * q4,
+    hum: 8 * q4, vap: 9 * q4, fog: 10 * q4, liq, arw, bub, quad, rect, na, nax: Math.max(0, Math.ceil((nx - ahalf) / astep)), astep, ahalf
   };
 }
 
@@ -65,7 +71,9 @@ export class Capture {
   /** Plätze je Bündel (ein weiterer für die Probe). */
   readonly kmax: number;
   readonly lay: SlotLayout;
-  readonly bodies: BodyStatics;
+  /** Ohne genaue Anteile: das Feste der Körper (sie liegen still); mit genauen Anteilen null — jedes Bild nimmt die Körper aus ihren Puffern. */
+  readonly bodies: BodyStatics | null;
+  readonly body: boolean;
   /** Bytes im Zwischenpuffer eines Bündels: Uhr (64), Köpfe (32 je Platz), Plätze. */
   readonly batchBytes: number;
   private readonly headAt = 4 * BKC_WORDS;
@@ -89,12 +97,16 @@ export class Capture {
     this.g = g;
     this.e = g.cpu;
     const S = g.state;
+    /* Mit genauen Anteilen (freie Körper, schmelzendes Eis) bewegen sich Körper und ändern ihre Form: bkTexB und bkBodyB nehmen sie in jedem Bild aus
+       ihren Puffern (seit 2026-10-26); sonst liegen sie still, und ihr Festes steht einmal hier (captureBodies.ts). */
+    this.body = S.body;
     const stair = S.staircase;
-    if (stair === null) throw new Error('capture: no staircase (state not uploaded)');
-    this.bodies = bodyStatics(this.e, stair, L0);
+    if (stair === null && !this.body) throw new Error('capture: no staircase (state not uploaded)');
+    this.bodies = stair !== null && !this.body ? bodyStatics(this.e, stair, L0) : null;
     const grid = this.e.grid;
     const n = grid.n;
-    this.lay = slotLayout(grid.nx, grid.ny, grid.dx, S.d.bcap, this.bodies.nq);
+    const nq = this.bodies !== null ? this.bodies.nq : S.bodies.ncell;
+    this.lay = slotLayout(grid.nx, grid.ny, grid.dx, S.d.bcap, nq, S.bodies.nrect, this.body);
     /* Ein Schritt nimmt höchstens ein Bild auf (Δt ≤ 1/120 s < 1/60 s); in einem Bündel höchstens so viele, wie in steps · Δt_max fallen, und eins mehr. */
     const dtmax = Math.fround(this.e.dtMax);
     this.kmax = Math.min(steps, Math.ceil(steps * dtmax * fps) + 1);
@@ -117,25 +129,31 @@ export class Capture {
     const lq2 = buf('lq2', 16 * n);
     const L = this.lay;
     const K = new Uint32Array(BK_WORDS);
-    K.set([L.sw, this.kmax, Math.round(CLOCK_UNITS / fps), S.d.bcap, L.flags, L.crust, L.glow, L.temp, L.pres, L.speed, L.hum, L.vap, L.fog, L.liq, L.arw, L.bub, L.quad, st.nq, L.na, L.nax, L.astep, L.ahalf, OVERLAY_EVERY, 0]);
+    K.set([L.sw, this.kmax, Math.round(CLOCK_UNITS / fps), S.d.bcap, L.flags, L.crust, L.glow, L.temp, L.pres, L.speed, L.hum, L.vap, L.fog, L.liq, L.arw, L.bub, L.quad,
+      st !== null ? st.nq : 0, L.na, L.nax, L.astep, L.ahalf, OVERLAY_EVERY, this.body ? 1 : 0, L.rect, S.bodies.ncell, 0, 0]);
     const kbuf = ctx.uniform('bk', K.buffer);
     this.own.push(kbuf);
-    this.q0 = buf('q0', st.q0.length, st.q0);
-    this.c0 = buf('c0', st.c0.length, st.c0);
+    /* Mit genauen Anteilen brauchen die Kerne der Treppe nichts (leere Puffer); die Maske der Texel schreibt bkTexB in jedem Bild. */
+    const none = new Uint32Array(4);
+    this.q0 = buf('q0', st !== null ? st.q0.length : 4, st?.q0 ?? none);
+    this.c0 = buf('c0', st !== null ? st.c0.length : 4, st?.c0 ?? none);
     const res = {
       P: S.params, K: kbuf, glob: S.glob, cnt: S.cnt, cf: S.cf, cu: S.cu, ff: S.ff, reg: S.reg, parts: S.partsA, ccount: S.ccountB, cstart: S.cstart,
       bsum: S.bsum, bubs: S.bubs, bkc: this.bkc, bko: this.bko, bkh: this.bkh, lq, lq2,
-      bkm: buf('bkm', n, st.cellMask), bkt: buf('bkt', 4 * n, st.texMask), qs: buf('qs', st.qs.length, st.qs), qc: buf('qc', st.qc.length, st.qc),
-      qw: buf('qw', st.qw.length, st.qw), qx: buf('qx', st.qx.length, st.qx), q0: this.q0, c0: this.c0
+      bkm: buf('bkm', n, st?.cellMask ?? new Uint32Array(n)), bkt: buf('bkt', 4 * n, st?.texMask), qs: buf('qs', st !== null ? st.qs.length : 4, st?.qs ?? none),
+      qc: buf('qc', st !== null ? st.qc.length : 4, st?.qc ?? none), qw: buf('qw', st !== null ? st.qw.length : 4, st?.qw ?? none),
+      qx: buf('qx', st !== null ? st.qx.length : 4, st?.qx ?? none), q0: this.q0, c0: this.c0,
+      bod: S.bodies.bod, bgeo: S.bodies.bgeo, bcell: S.bodies.bcell
     };
     const bind = (name: string, extra: Record<string, GPUBuffer> = {}): GPUBindGroup => ctx.bind(name, { ...res, ...extra });
     this.groups = {
       clock: bind('bkClock'), cells: bind('bkCells'), splat: bind('bkLiqSplat'), ext1: bind('bkLiqExt', { lqa: lq, lqb: lqE }), ext2: bind('bkLiqExt', { lqa: lqE, lqb: lq }),
-      blurX: bind('bkLiqBlurX', { lqa: lqE }), out: bind('bkLiqOut'), arrows: bind('bkArrows'), bubbles: bind('bkBubbles'), quads: bind('bkQuads')
+      blurX: bind('bkLiqBlurX', { lqa: lqE }), out: bind('bkLiqOut'), arrows: bind('bkArrows'), bubbles: bind('bkBubbles'), quads: bind('bkQuads'),
+      texB: bind('bkTexB'), bodyB: bind('bkBodyB')
     };
     this.quads = new Uint16Array(Math.max(16, L0.quads.length));
     this.rects = new Uint16Array(Math.max(16, L0.rects.length));
-    this.rects.set(st.rects);
+    if (st !== null) this.rects.set(st.rects);
   }
 
   /** Die Uhr auf den Anfang: Bild 0 kam von der CPU, das nächste fällt auf 1/fps; gemerkt ist das Δt des ersten Schritts (glob.DT wie hochgeladen). */
@@ -153,7 +171,8 @@ export class Capture {
    */
   rebase(): void {
     const st = this.bodies;
-    if (st.nq === 0) return;
+    /* Mit genauen Anteilen rechnen die Vierecke aus den inneren Zellen selbst (collect läuft auf der GPU): kein Bezug. */
+    if (st === null || st.nq === 0) return;
     rebaseQuads(this.e, st);
     const dev = this.g.ctx.device;
     dev.queue.writeBuffer(this.q0, 0, st.q0 as BufferSource);
@@ -179,6 +198,7 @@ export class Capture {
     ctx.dispatch(p, 'bkClock', gr.clock, 1);
     ctx.dispatch(p, 'bkCells', gr.cells, Math.ceil(n / 4));
     ctx.dispatch(p, 'bkLiqSplat', gr.splat, 4 * n);
+    if (this.body) ctx.dispatch(p, 'bkTexB', gr.texB, 4 * n);
     ctx.dispatch(p, 'bkLiqExt', gr.ext1, 4 * n);
     ctx.dispatch(p, 'bkLiqExt', gr.ext2, 4 * n);
     ctx.dispatch(p, 'bkLiqExt', gr.ext1, 4 * n);
@@ -186,7 +206,8 @@ export class Capture {
     ctx.dispatch(p, 'bkLiqOut', gr.out, 4 * n);
     ctx.dispatch(p, 'bkArrows', gr.arrows, Math.ceil(this.lay.na / 2));
     ctx.dispatch(p, 'bkBubbles', gr.bubbles, this.g.state.d.bcap);
-    ctx.dispatch(p, 'bkQuads', gr.quads, Math.max(1, this.bodies.nq));
+    if (this.bodies !== null) ctx.dispatch(p, 'bkQuads', gr.quads, Math.max(1, this.bodies.nq));
+    else ctx.dispatch(p, 'bkBodyB', gr.bodyB, Math.max(1, this.g.state.bodies.ncell));
     p.end();
   }
 
@@ -262,11 +283,20 @@ export class Capture {
     }
     L.vGas = vGas;
     L.vLiq = vLiq;
-    fillQuads(this.bodies, new Uint32Array(all, at + 4 * lay.quad, Math.max(1, this.bodies.nq)), this.quads);
+    const st = this.bodies;
+    if (st === null) {
+      /* Mit genauen Anteilen: die Vierecke und Umrisse, wie bkBodyB sie schrieb (ihre Zahl im Kopf: ein Körper, der wegschmolz, eine neue Aufteilung). */
+      L.nq = head[HEAD.NQ];
+      L.nr = head[HEAD.NR];
+      L.quads = new Uint16Array(all, at + 4 * lay.quad, QUAD * L.nq);
+      L.rects = new Uint16Array(all, at + 4 * lay.rect, RECT * L.nr);
+      return L;
+    }
+    fillQuads(st, new Uint32Array(all, at + 4 * lay.quad, Math.max(1, st.nq)), this.quads);
     L.quads = this.quads;
     L.rects = this.rects;
-    L.nq = this.bodies.nq;
-    L.nr = this.bodies.nr;
+    L.nq = st.nq;
+    L.nr = st.nr;
     return L;
   }
 

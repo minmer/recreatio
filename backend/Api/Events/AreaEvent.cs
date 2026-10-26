@@ -6,20 +6,22 @@ using Microsoft.Data.SqlClient;
 namespace Api;
 
 /// <summary>
-/// 0131 — EIN BEREICH ALS WYDARZENIE.
+/// 0131/0133 — WIZYTÓWKI IN LISTEN: die Bereiche mit einem Profil (<see cref="Profiles"/>),
+/// wie die Bausteine „Wydarzenia" und „Wizytówka" sie zeigen.
 ///
 /// <para>
-/// Die Marke zeigt auf Hauptseite und Haupttermin und hält sonst nichts: Titel, Vorspann und
-/// Bild stehen auf der Seite, Datum, Ort und Programm im Termin, Menschen, Formulare und
-/// Rozmowy im Bereich, wer für die Daten geradesteht in dessen Datensatz. Listen zeigen
-/// Wydarzenia nach einer Regel („die Wydarzenia dieser Bereiche und darunter") und auf
-/// Bitte (<c>event_listing</c>); den Katalog <c>recreatio.pl/events</c> gibt der Betreiber
-/// frei, Karte für Karte, und eine Änderung an der Karte nimmt die Freigabe zurück.
+/// Listen zeigen Profile einer Art (Wydarzenia, Grupy …) nach einer Regel („diese Bereiche
+/// und darunter") und auf Bitte (<c>event_listing</c>); den Katalog <c>recreatio.pl/events</c>
+/// gibt der Betreiber frei, Karte für Karte, und eine Änderung an der Karte nimmt die
+/// Freigabe zurück.
 /// </para>
 ///
 /// <para>
-/// Hinaus gehen nur öffentliche Wydarzenia: die Hauptseite an keinen Bereich gebunden und
-/// nicht versiegelt, der Termin für jeden sichtbar, nichts davon nach einer Meldung gesperrt.
+/// Hinaus geht eine Karte nur mit öffentlicher, unversiegelter, ungesperrter Hauptseite. Die
+/// Wizytówka (Titel, Vorspann) steht darauf versiegelt, wenn ihr Bereich jawny ist — der
+/// Browser öffnet sie mit dem offengelegten Schlüssel; sonst Titel und Vorspann der Seite.
+/// Der Haupttermin steht nur darauf, wenn er für jeden sichtbar ist; nach dem Ende zeigt die
+/// Karte die Seite „po wydarzeniu", wenn es eine gibt.
 /// </para>
 /// </summary>
 public static class AreaEvent
@@ -29,8 +31,10 @@ public static class AreaEvent
 
     public static void Map(WebApplication app)
     {
+        /* Die Aufrufe von 0131 — Browser von gestern; sie lesen und schreiben das Profil der Art „event". */
         app.MapGet("/workspace/area/{id:guid}/event", GetAsync);
         app.MapPost("/workspace/area/{id:guid}/event", SetAsync);
+
         app.MapGet("/workspace/event/{id:guid}/listings", ListingsAsync);
         app.MapPost("/workspace/event/{id:guid}/listing", AskAsync);
         app.MapPost("/workspace/listing/{areaId:guid}/{moduleId:guid}", DecideAsync);
@@ -39,36 +43,17 @@ public static class AreaEvent
         app.MapGet("/event/{id:guid}", OneAsync);
     }
 
-    /* -- Die Marke ------------------------------------------------------------------ */
+    /* -- Die Aufrufe von 0131 --------------------------------------------------------- */
 
-    private sealed record Mark(Guid Area, Guid? Slug, string? Path, Guid? Item, string? Kind, Guid? Image, DateTimeOffset Created);
-
-    private static async Task<Mark?> MarkAsync(SqlConnection connection, Guid areaId, CancellationToken ct)
+    private static object? MarkJson(Profiles.Profile? p) => p is null ? null : new
     {
-        await using var cmd = new SqlCommand("""
-            SELECT e.area_id, e.slug_id, s.path, e.item_id, e.kind, p.image_id, e.created_at
-            FROM app.area_event e
-            LEFT JOIN app.slug s ON s.id = e.slug_id
-            LEFT JOIN app.slug_page p ON p.slug_id = e.slug_id
-            WHERE e.area_id = @area;
-            """, connection);
-        cmd.Parameters.AddWithValue("@area", areaId);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return new Mark(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetString(2),
-            reader.IsDBNull(3) ? null : reader.GetGuid(3), reader.IsDBNull(4) ? null : reader.GetString(4),
-            reader.IsDBNull(5) ? null : reader.GetGuid(5), reader.GetDateTimeOffset(6));
-    }
-
-    private static object? MarkJson(Mark? m) => m is null ? null : new
-    {
-        areaId = Ids.ToText(m.Area),
-        slugId = m.Slug is null ? null : Ids.ToText(m.Slug.Value),
-        path = m.Path,
-        itemId = m.Item is null ? null : Ids.ToText(m.Item.Value),
-        kind = m.Kind,
-        imageId = m.Image is null ? null : Ids.ToText(m.Image.Value),
-        createdAt = m.Created
+        areaId = Ids.ToText(p.Area),
+        slugId = p.Slug is null ? null : Ids.ToText(p.Slug.Value),
+        path = p.Path,
+        itemId = p.Item is null ? null : Ids.ToText(p.Item.Value),
+        kind = p.Category,
+        imageId = p.Image is null ? null : Ids.ToText(p.Image.Value),
+        createdAt = p.Created
     };
 
     private static async Task GetAsync(HttpContext ctx, Db db, Guid id)
@@ -81,30 +66,23 @@ public static class AreaEvent
             await Fail(ctx, StatusCodes.Status404NotFound, "Takiego obszaru nie ma.");
             return;
         }
-        var mark = await MarkAsync(connection, id, ctx.RequestAborted);
-        var controller = await Controllers.OfAreaAsync(connection, id, ctx.RequestAborted);
+        var profile = await Profiles.OfAsync(connection, id, ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new
         {
             areaId = Ids.ToText(id),
-            mark = MarkJson(mark),
-            /* Was noch fehlt, damit Zapisy ruszą: wer geradesteht, ob der Bereich jawny ist. */
-            controller = Controllers.Json(controller),
-            @public = await PublicAreaAsync(connection, id, ctx.RequestAborted)
+            mark = MarkJson(profile),
+            controller = Controllers.Json(await Controllers.OfAreaAsync(connection, id, ctx.RequestAborted)),
+            @public = await Profiles.PublicAreaAsync(connection, id, ctx.RequestAborted)
         });
     }
 
     public sealed record SetRequest(string? Path, string? ItemId, string? Kind, string? ImageId, bool? Off);
 
-    /// <summary>
-    /// Einen Bereich als Wydarzenie markieren (oder die Marke abnehmen). Wer ihn führt, und —
-    /// für die Hauptseite — wer die Seite führt. Der Haupttermin liegt in einem Kalender des
-    /// Bereichs und wiederholt sich nicht.
-    /// </summary>
+    /// <summary>Die alte Marke: Hauptseite, Haupttermin, Art, Bild — als Profil der Art „event".</summary>
     private static async Task SetAsync(HttpContext ctx, Db db, Guid id, SetRequest body)
     {
         var who = await Auth.WhoAsync(ctx, db);
         if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var mine = (await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted)).Select(r => r.Id).ToList();
         var admins = await Controllers.AdminRolesAsync(connection, mine, id, ctx.RequestAborted);
@@ -112,7 +90,7 @@ public static class AreaEvent
 
         if (body.Off == true)
         {
-            await using var off = new SqlCommand("DELETE FROM app.area_event WHERE area_id = @area;", connection);
+            await using var off = new SqlCommand("DELETE FROM app.area_profile WHERE area_id = @area;", connection);
             off.Parameters.AddWithValue("@area", id);
             await off.ExecuteNonQueryAsync(ctx.RequestAborted);
             await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), mark = (object?)null });
@@ -166,66 +144,67 @@ public static class AreaEvent
             image = parsed;
         }
 
-        await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(ctx.RequestAborted))
+        var now = DateTimeOffset.UtcNow;
+        await using (var cmd = new SqlCommand("""
+            UPDATE app.area_profile SET slug_id = @slug, item_id = @item, category = @kind,
+                   image_id = CASE WHEN @image IS NOT NULL OR @clear = 1 THEN @image ELSE image_id END, updated_at = @now
+             WHERE area_id = @area;
+            IF @@ROWCOUNT = 0
+                INSERT INTO app.area_profile (area_id, kind, slug_id, item_id, category, image_id, created_at, created_by_role_id, updated_at)
+                VALUES (@area, N'event', @slug, @item, @kind, @image, @now, @role, @now);
+            """, connection))
         {
-            await using (var cmd = new SqlCommand("""
-                UPDATE app.area_event SET slug_id = @slug, item_id = @item, kind = @kind WHERE area_id = @area;
-                IF @@ROWCOUNT = 0
-                    INSERT INTO app.area_event (area_id, slug_id, item_id, kind, created_at, created_by_role_id)
-                    VALUES (@area, @slug, @item, @kind, @now, @role);
-                UPDATE app.slug_page SET image_id = @image WHERE slug_id = @slug AND @slug IS NOT NULL AND (@image IS NOT NULL OR @clear = 1);
-                """, connection, tx))
+            cmd.Parameters.AddWithValue("@area", id);
+            cmd.Parameters.AddWithValue("@slug", slug is null ? DBNull.Value : slug.Value);
+            cmd.Parameters.AddWithValue("@item", item is null ? DBNull.Value : item.Value);
+            cmd.Parameters.AddWithValue("@kind", kind.Length == 0 ? DBNull.Value : kind);
+            cmd.Parameters.AddWithValue("@image", image is null ? DBNull.Value : image.Value);
+            cmd.Parameters.AddWithValue("@clear", body.ImageId == "" ? 1 : 0);
+            cmd.Parameters.AddWithValue("@now", now);
+            cmd.Parameters.AddWithValue("@role", admins[0].RoleId);
+            try { await cmd.ExecuteNonQueryAsync(ctx.RequestAborted); }
+            catch (SqlException e) when (e.Number is 2601 or 2627)
             {
-                cmd.Parameters.AddWithValue("@area", id);
-                cmd.Parameters.AddWithValue("@slug", slug is null ? DBNull.Value : slug.Value);
-                cmd.Parameters.AddWithValue("@item", item is null ? DBNull.Value : item.Value);
-                cmd.Parameters.AddWithValue("@kind", kind.Length == 0 ? DBNull.Value : kind);
-                cmd.Parameters.AddWithValue("@image", image is null ? DBNull.Value : image.Value);
-                cmd.Parameters.AddWithValue("@clear", body.ImageId == "" ? 1 : 0);
-                cmd.Parameters.AddWithValue("@now", DateTimeOffset.UtcNow);
-                cmd.Parameters.AddWithValue("@role", admins[0].RoleId);
-                try { await cmd.ExecuteNonQueryAsync(ctx.RequestAborted); }
-                catch (SqlException e) when (e.Number is 2601 or 2627)
-                {
-                    await Fail(ctx, StatusCodes.Status409Conflict, "Ta strona jest już stroną innego wydarzenia.");
-                    return;
-                }
+                await Fail(ctx, StatusCodes.Status409Conflict, "Ta strona jest już stroną innego wydarzenia.");
+                return;
             }
-            await tx.CommitAsync(ctx.RequestAborted);
         }
 
-        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), mark = MarkJson(await MarkAsync(connection, id, ctx.RequestAborted)) });
+        await ctx.Response.WriteAsJsonAsync(new { areaId = Ids.ToText(id), mark = MarkJson(await Profiles.OfAsync(connection, id, ctx.RequestAborted)) });
     }
 
     /* -- Karten ----------------------------------------------------------------------- */
 
-    private static async Task<bool> PublicAreaAsync(SqlConnection connection, Guid areaId, CancellationToken ct)
-    {
-        await using var cmd = new SqlCommand("""
-            SELECT CASE WHEN EXISTS (SELECT 1 FROM app.area a WHERE a.id = @area AND a.public_level <> N'none'
-                AND EXISTS (SELECT 1 FROM app.area_epoch e WHERE e.area_id = a.id AND e.key_public IS NOT NULL)) THEN 1 ELSE 0 END;
-            """, connection);
-        cmd.Parameters.AddWithValue("@area", areaId);
-        return (int)(await cmd.ExecuteScalarAsync(ct))! == 1;
-    }
+    private const string Published = """
+        EXISTS (SELECT 1 FROM app.area va WHERE va.id = {0} AND va.public_level <> N'none'
+                AND EXISTS (SELECT 1 FROM app.area_epoch ve WHERE ve.area_id = va.id AND ve.key_public IS NOT NULL))
+        """;
 
     /// <summary>
-    /// Die Wydarzenia, wie eine Karte sie zeigt — nur mit öffentlicher, unversiegelter, ungesperrter Hauptseite.
-    /// Der Haupttermin steht nur darauf, wenn er für jeden sichtbar und nicht gesperrt ist; sonst zeigt die Karte
-    /// die Seite ohne Datum (ein Datum eines nicht öffentlichen Termins ginge sonst hinaus).
+    /// Die Profile, wie eine Karte sie zeigt — nur mit öffentlicher, unversiegelter, ungesperrter
+    /// Hauptseite. Die Wizytówka nur, wenn ihr Bereich jawny ist; der Haupttermin nur, wenn er
+    /// für jeden sichtbar und nicht gesperrt ist; die Seite danach nur nach dem Ende und öffentlich.
     /// </summary>
-    private const string CardsSql = """
-        SELECT e.area_id, e.kind, a.name, s.path, p.title, p.lead, p.image_id, p.updated_at,
+    private static readonly string CardsSql = $"""
+        SELECT e.area_id, e.category, a.name, s.path, p.title, p.lead, e.image_id, p.updated_at,
                i.id, i.starts_at, i.ends_at, i.all_day, i.status, i.updated_at,
-               (SELECT TOP 1 pa.name FROM app.area pa WHERE pa.id = a.parent_area_id) AS organiser
-        FROM app.area_event e
+               (SELECT TOP 1 pa.name FROM app.area pa WHERE pa.id = a.parent_area_id) AS organiser,
+               CASE WHEN e.card_sealed IS NOT NULL AND {string.Format(Published, "e.card_area_id")} THEN e.card_area_id END,
+               e.card_epoch,
+               CASE WHEN e.card_sealed IS NOT NULL AND {string.Format(Published, "e.card_area_id")} THEN e.card_sealed END,
+               e.kind, e.archived_at,
+               CASE WHEN af.id IS NOT NULL AND (e.archived_at IS NOT NULL OR ie.ends_at < SYSDATETIMEOFFSET()) THEN af.path END,
+               ie.ends_at
+        FROM app.area_profile e
         JOIN app.area a ON a.id = e.area_id
         JOIN app.slug s ON s.id = e.slug_id
         JOIN app.slug_page p ON p.slug_id = s.id
+        LEFT JOIN app.calendar_item ie ON ie.id = e.item_id
         LEFT JOIN app.calendar_item i ON i.id = e.item_id
-             AND EXISTS (SELECT 1 FROM app.area va WHERE va.id = i.visibility_area_id AND va.public_level <> N'none'
-                          AND EXISTS (SELECT 1 FROM app.area_epoch ve WHERE ve.area_id = va.id AND ve.key_public IS NOT NULL))
+             AND {string.Format(Published, "i.visibility_area_id")}
              AND NOT EXISTS (SELECT 1 FROM app.takedown ti WHERE ti.item_kind = N'item' AND ti.item_id = i.id AND ti.item_at IS NULL)
+        LEFT JOIN app.slug af ON af.id = e.after_slug_id AND af.page_seal IS NULL
+             AND NOT EXISTS (SELECT 1 FROM app.slug_area fa WHERE fa.slug_id = af.id)
         WHERE NOT EXISTS (SELECT 1 FROM app.slug_area sa WHERE sa.slug_id = s.id)
           AND s.page_seal IS NULL
           AND NOT EXISTS (SELECT 1 FROM app.takedown t WHERE t.item_at IS NULL
@@ -233,8 +212,13 @@ public static class AreaEvent
         """;
 
     private sealed record Card(
-        Guid Area, string? Kind, string AreaName, string Path, string? Title, string? Lead, Guid? Image, DateTimeOffset? PageAt,
-        Guid? Item, DateTimeOffset? Starts, DateTimeOffset? Ends, bool AllDay, string? Status, DateTimeOffset? ItemAt, string? Organiser);
+        Guid Area, string? Category, string AreaName, string Path, string? Title, string? Lead, Guid? Image, DateTimeOffset? PageAt,
+        Guid? Item, DateTimeOffset? Starts, DateTimeOffset? Ends, bool AllDay, string? Status, DateTimeOffset? ItemAt, string? Organiser,
+        Guid? CardArea, int? CardEpoch, byte[]? CardSealed, string Type, DateTimeOffset? ArchivedAt, string? AfterPath, DateTimeOffset? MainEnds)
+    {
+        /// <summary>Vorbei — archiviert, oder der Haupttermin (auch wenn er nicht öffentlich ist) ist zu Ende.</summary>
+        public bool Ended(DateTimeOffset now) => ArchivedAt is not null || (MainEnds is { } e && e < now);
+    }
 
     private static Card ReadCard(SqlDataReader r) => new(
         r.GetGuid(0), r.IsDBNull(1) ? null : r.GetString(1), r.GetString(2), r.GetString(3),
@@ -242,7 +226,10 @@ public static class AreaEvent
         r.IsDBNull(7) ? null : r.GetDateTimeOffset(7),
         r.IsDBNull(8) ? null : r.GetGuid(8), r.IsDBNull(9) ? null : r.GetDateTimeOffset(9), r.IsDBNull(10) ? null : r.GetDateTimeOffset(10),
         !r.IsDBNull(11) && r.GetBoolean(11), r.IsDBNull(12) ? null : r.GetString(12), r.IsDBNull(13) ? null : r.GetDateTimeOffset(13),
-        r.IsDBNull(14) ? null : r.GetString(14));
+        r.IsDBNull(14) ? null : r.GetString(14),
+        r.IsDBNull(15) ? null : r.GetGuid(15), r.IsDBNull(16) ? null : r.GetInt32(16), r.IsDBNull(17) ? null : (byte[])r[17],
+        r.GetString(18), r.IsDBNull(19) ? null : r.GetDateTimeOffset(19), r.IsDBNull(20) ? null : r.GetString(20),
+        r.IsDBNull(21) ? null : r.GetDateTimeOffset(21));
 
     /// <summary>Die versiegelten Felder (Titel, Ort) der Haupttermine — geöffnet wird mit veröffentlichten Schlüsseln, im Browser.</summary>
     private static async Task<Dictionary<Guid, List<object>>> FieldsAsync(SqlConnection connection, IEnumerable<Guid> items, CancellationToken ct)
@@ -266,44 +253,22 @@ public static class AreaEvent
         return map;
     }
 
-    /// <summary>
-    /// „Zapisy otwarte" — nur, wenn ein Formular des Wydarzenia wirklich annimmt: offen, für
-    /// alle, mit Fragen, auf einer öffentlichen Seite, ungesperrt, in einem jawnen Bereich, und
-    /// jemand steht für die Daten gerade.
-    /// </summary>
-    private static async Task<List<Guid>> OpenFormsAsync(SqlConnection connection, Guid area, CancellationToken ct)
-    {
-        var forms = new List<Guid>();
-        if (!await PublicAreaAsync(connection, area, ct)) return forms;
-        if (await Controllers.OfAreaAsync(connection, area, ct) is null) return forms;
-        await using var cmd = new SqlCommand("""
-            SELECT m.id FROM app.module m
-            WHERE m.area_id = @area AND m.kind = N'form' AND m.closed_at IS NULL AND m.audience = N'public'
-              AND EXISTS (SELECT 1 FROM app.slug_field f WHERE f.part_id = m.id AND f.removed_at IS NULL)
-              AND EXISTS (SELECT 1 FROM app.slug_part sp JOIN app.slug s ON s.id = sp.slug_id
-                          WHERE sp.module_id = m.id AND s.page_seal IS NULL
-                            AND NOT EXISTS (SELECT 1 FROM app.slug_area sa WHERE sa.slug_id = s.id))
-              AND NOT EXISTS (SELECT 1 FROM app.takedown t WHERE t.item_kind = N'form' AND t.item_id = m.id)
-            ORDER BY m.created_at;
-            """, connection);
-        cmd.Parameters.AddWithValue("@area", area);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) forms.Add(reader.GetGuid(0));
-        return forms;
-    }
-
-    private static object CardJson(Card c, List<object>? fields, bool open, string via) => new
+    private static object CardJson(Card c, List<object>? fields, bool open, string via, DateTimeOffset now) => new
     {
         areaId = Ids.ToText(c.Area),
-        kind = c.Kind,
+        type = c.Type,
+        kind = c.Category,
         name = c.AreaName,
         organiser = c.Organiser,
+        card = c.CardSealed is null ? null : new { areaId = Ids.ToText(c.CardArea!.Value), epoch = c.CardEpoch, @sealed = Base64Url.Encode(c.CardSealed) },
         page = new { path = c.Path, title = c.Title, lead = c.Lead, imageId = c.Image is null ? null : Ids.ToText(c.Image.Value) },
+        after = c.AfterPath is null ? null : new { path = c.AfterPath },
         item = c.Item is null ? null : new
         {
             id = Ids.ToText(c.Item.Value), startsAt = c.Starts, endsAt = c.Ends, allDay = c.AllDay, status = c.Status,
             fields = fields ?? []
         },
+        ended = c.Ended(now),
         open,
         via
     };
@@ -317,6 +282,8 @@ public static class AreaEvent
         var text = new StringBuilder();
         text.Append(c.AreaName).Append('\n').Append(c.Organiser).Append('\n').Append(c.Path).Append('\n')
             .Append(c.Title).Append('\n').Append(c.Lead).Append('\n').Append(c.Image).Append('\n')
+            .Append(c.CardSealed is null ? "" : Convert.ToHexString(c.CardSealed)).Append('\n')
+            .Append(c.AfterPath).Append('\n')
             .Append(c.Starts?.ToUnixTimeSeconds()).Append('\n').Append(c.Ends?.ToUnixTimeSeconds()).Append('\n').Append(c.Status).Append('\n');
         if (c.Item is not null)
         {
@@ -344,9 +311,9 @@ public static class AreaEvent
     }
 
     /// <summary>
-    /// Die Liste: Wydarzenia dieser Bereiche (und darunter), dazu die, die in dieser Liste
-    /// stehen dürfen (<c>module</c>) — im Katalog nur freigegebene Karten in dem Stand, den der
-    /// Betreiber gesehen hat. Ohne Konto.
+    /// Die Liste: Profile einer Art (<c>type</c>, sonst Wydarzenia) dieser Bereiche (und darunter),
+    /// dazu die, die in dieser Liste stehen dürfen (<c>module</c>) — im Katalog nur freigegebene
+    /// Karten in dem Stand, den der Betreiber gesehen hat. Ohne Konto.
     /// </summary>
     private static async Task ListAsync(HttpContext ctx, Db db)
     {
@@ -355,6 +322,7 @@ public static class AreaEvent
             .Select(s => Guid.TryParse(s, out var g) ? g : (Guid?)null).Where(g => g is not null).Select(g => g!.Value).Distinct().Take(20).ToList();
         var deep = q["deep"].ToString() != "0";
         var kind = q["kind"].ToString().Trim();
+        var type = q["type"].ToString().Trim() is { Length: > 0 } t && Profiles.Kinds.Contains(t) ? t : "event";
         var when = q["when"].ToString() is "past" or "all" ? q["when"].ToString() : "coming";
         var limit = int.TryParse(q["limit"].ToString(), out var l) ? Math.Clamp(l, 1, 200) : 50;
         Guid? module = Guid.TryParse(q["module"].ToString(), out var m) ? m : null;
@@ -362,7 +330,7 @@ public static class AreaEvent
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var catalogue = module is not null && await IsCatalogueAsync(connection, module.Value, ctx.RequestAborted);
 
-        var cards = new List<(Card Card, string Via, byte[]? Print)>();
+        var cards = new List<(Card Card, string Via)>();
 
         if (sources.Count > 0 && !catalogue)
         {
@@ -377,22 +345,25 @@ public static class AreaEvent
             await using var cmd = new SqlCommand($"""
                 {tree}
                 {CardsSql}
-                  AND e.area_id IN (SELECT id FROM tree)
+                  AND e.area_id IN (SELECT id FROM tree) AND e.kind = @type
                 OPTION (MAXRECURSION 40);
                 """, connection);
             for (var i = 0; i < sources.Count; i++) cmd.Parameters.AddWithValue($"@s{i}", sources[i]);
+            cmd.Parameters.AddWithValue("@type", type);
             await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted)) cards.Add((ReadCard(reader), "rule", null));
+            while (await reader.ReadAsync(ctx.RequestAborted)) cards.Add((ReadCard(reader), "rule"));
         }
 
         if (module is not null)
         {
             await using var cmd = new SqlCommand($"""
                 {CardsSql}
+                  AND e.kind = @type
                   AND EXISTS (SELECT 1 FROM app.event_listing x WHERE x.area_id = e.area_id AND x.module_id = @module AND x.state = N'shown');
                 SELECT area_id, approved_print FROM app.event_listing WHERE module_id = @module AND state = N'shown';
                 """, connection);
             cmd.Parameters.AddWithValue("@module", module.Value);
+            cmd.Parameters.AddWithValue("@type", type);
             var listed = new List<Card>();
             var prints = new Dictionary<Guid, byte[]?>();
             await using (var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted))
@@ -411,17 +382,17 @@ public static class AreaEvent
                     var current = await PrintAsync(connection, card, ctx.RequestAborted);
                     if (approved is null || !approved.SequenceEqual(current)) continue;
                 }
-                cards.Add((card, "request", null));
+                cards.Add((card, "request"));
             }
         }
 
         var now = DateTimeOffset.UtcNow;
         var chosen = cards
-            .Where(c => kind.Length == 0 || string.Equals(c.Card.Kind, kind, StringComparison.OrdinalIgnoreCase))
+            .Where(c => kind.Length == 0 || string.Equals(c.Card.Category, kind, StringComparison.OrdinalIgnoreCase))
             .Where(c => when switch
             {
-                "past" => c.Card.Ends is { } e && e < now,
-                "coming" => c.Card.Ends is null ? c.Card.Starts is null : c.Card.Ends.Value >= now,
+                "past" => c.Card.Ended(now),
+                "coming" => !c.Card.Ended(now),
                 _ => true
             })
             .OrderBy(c => when == "past" ? -(c.Card.Starts?.ToUnixTimeSeconds() ?? 0) : c.Card.Starts?.ToUnixTimeSeconds() ?? long.MaxValue)
@@ -430,15 +401,15 @@ public static class AreaEvent
 
         var fields = await FieldsAsync(connection, chosen.Where(c => c.Card.Item is not null).Select(c => c.Card.Item!.Value), ctx.RequestAborted);
         var output = new List<object>();
-        foreach (var (card, via, _) in chosen)
+        foreach (var (card, via) in chosen)
             output.Add(CardJson(card, card.Item is null ? null : fields.GetValueOrDefault(card.Item.Value),
-                (await OpenFormsAsync(connection, card.Area, ctx.RequestAborted)).Count > 0, via));
+                (await Profiles.OpenFormsAsync(connection, card.Area, ctx.RequestAborted)).Count > 0, via, now));
 
         ctx.Response.Headers.CacheControl = "no-store";
         await ctx.Response.WriteAsJsonAsync(new { events = output, catalogue });
     }
 
-    /// <summary>Ein Wydarzenie — für den Baustein „Wydarzenie" (auch auf der Seite eines anderen): die Karte und seine offenen Formulare.</summary>
+    /// <summary>Eine Karte — für den Baustein „Wizytówka" (auch auf der Seite eines anderen): die Karte und die offenen Formulare.</summary>
     private static async Task OneAsync(HttpContext ctx, Db db, Guid id)
     {
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
@@ -452,10 +423,10 @@ public static class AreaEvent
         if (card is null) { await Fail(ctx, StatusCodes.Status404NotFound, "Takiego wydarzenia nie ma albo nie jest publiczne."); return; }
 
         var fields = card.Item is null ? null : (await FieldsAsync(connection, [card.Item.Value], ctx.RequestAborted)).GetValueOrDefault(card.Item.Value);
-        var forms = await OpenFormsAsync(connection, id, ctx.RequestAborted);
+        var forms = await Profiles.OpenFormsAsync(connection, id, ctx.RequestAborted);
         await ctx.Response.WriteAsJsonAsync(new
         {
-            @event = CardJson(card, fields, forms.Count > 0, "rule"),
+            @event = CardJson(card, fields, forms.Count > 0, "rule", DateTimeOffset.UtcNow),
             forms = forms.Select(Ids.ToText).ToList(),
             controller = Controllers.Json(await Controllers.OfAreaAsync(connection, id, ctx.RequestAborted))
         });
@@ -518,9 +489,9 @@ public static class AreaEvent
     public sealed record AskRequest(string? ModuleId, string? Path);
 
     /// <summary>
-    /// „Pokaż też na…": das Wydarzenie bittet, in einer Liste zu stehen (genannt durch ihren
-    /// Baustein oder die Adresse ihrer Seite). Wer die Liste selbst pflegt, nimmt gleich an —
-    /// ausser im Katalog, dort entscheidet immer der Betreiber.
+    /// „Pokaż też na…": ein Profil bittet, in einer Liste zu stehen (genannt durch ihren Baustein
+    /// oder die Adresse ihrer Seite). Wer die Liste selbst pflegt, nimmt gleich an — ausser im
+    /// Katalog, dort entscheidet immer der Betreiber.
     /// </summary>
     private static async Task AskAsync(HttpContext ctx, Db db, IConfiguration config, Guid id, AskRequest body)
     {
@@ -530,9 +501,9 @@ public static class AreaEvent
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var mine = (await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted)).Select(r => r.Id).ToList();
         var admins = await Controllers.AdminRolesAsync(connection, mine, id, ctx.RequestAborted);
-        if (admins.Count == 0 || await MarkAsync(connection, id, ctx.RequestAborted) is null)
+        if (admins.Count == 0 || await Profiles.OfAsync(connection, id, ctx.RequestAborted) is null)
         {
-            await Fail(ctx, StatusCodes.Status404NotFound, "To nie jest wydarzenie, które prowadzisz.");
+            await Fail(ctx, StatusCodes.Status404NotFound, "To nie jest obszar z wizytówką, który prowadzisz.");
             return;
         }
 

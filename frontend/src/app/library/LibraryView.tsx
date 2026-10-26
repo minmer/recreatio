@@ -11,7 +11,8 @@
  * </code>
  *
  * 2026-10-23 — DIE BIBLIOTHEK HÄLT NUR QUELLEN: Źródła, Cytaty, Osoby (dazu
- * die Mapa, Import / eksport, Ustawienia). Texte schreibt man im Skryptorium,
+ * die Mapa, Import / eksport, Ustawienia). 2026-10-26 — und Muzyka: die Werke
+ * der Musik (Utwory, Nuty, Nagrania, Płyty), Werke wie die anderen, eigener Reiter. Texte schreibt man im Skryptorium,
  * Komentarze und Ordnungen sind eigene Arten in Nauka; Themen gibt es keine.
  *
  * 2026-10-22 — alle lesbaren Bibliotheken zusammen: geöffnet wird eine,
@@ -39,7 +40,9 @@ import { LibraryEditor } from './LibraryEditor';
 import { PassageList } from './LibraryRelations';
 import { parseBible } from './bible';
 import { exportLibrary, libraryDescription, planLibraryImport } from './libraryJson';
-import { ids, isLibraryKind, kindOf, LIBRARY_KINDS, quoteOrder, str, type LibEntry } from './libraryKinds';
+import { ids, isLibraryKind, isMusic, kindOf, LIBRARY_KINDS, MUSIC_GROUP, quoteOrder, str, WORK_TYPES, type LibEntry } from './libraryKinds';
+import { filesOf, musicPeople, tracksOf } from './music';
+import { plural } from '../core/plural';
 import { storeOf, useLibraryStore, type Entry, type LibraryStore } from './libraryStore';
 import { TEXT_KINDS } from './sourceText';
 import { WorkWithTextButton, type SourceTargets } from './SourceBox';
@@ -56,12 +59,26 @@ import { later } from '../ui/later';
 /* 2026-10-24 — der Czytnik eines Textes kommt erst, wenn einer gelesen wird. */
 const SourceReader = later(() => import('./SourceReader').then((m) => m.SourceReader));
 
-/** Die Reiter einer Bibliothek — Wort in der Adresse, Art (2026-10-23: nur Quellen). */
-export const TABS = [
-  { slug: 'zrodla', kind: 'work' },
+/** Ein Reiter: Wort in der Adresse, Art — und (2026-10-26) welche Einträge der Art er zeigt. */
+interface Tab {
+  readonly slug: string;
+  readonly kind: string;
+  readonly label?: string;
+  readonly only?: (entry: LibEntry) => boolean;
+}
+
+/** Die Reiter einer Bibliothek (2026-10-23: nur Quellen; 2026-10-26: die Musik für sich). */
+export const TABS: readonly Tab[] = [
+  { slug: 'zrodla', kind: 'work', only: (e) => !isMusic(e.data) },
+  { slug: 'muzyka', kind: 'work', label: 'Muzyka', only: (e) => isMusic(e.data) },
   { slug: 'cytaty', kind: 'quote' },
   { slug: 'osoby', kind: 'person' }
-] as const;
+];
+
+const inTab = (tab: Tab) => (entry: LibEntry): boolean => tab.only === undefined || tab.only(entry);
+
+/** Was man unter „Muzyka" anlegt — ein neues Werk mit seinem Rodzaj. */
+const MUSIC_NEW = WORK_TYPES.filter((t) => t.group === MUSIC_GROUP);
 
 const tabOfKind = (kind: string) => TABS.find((t) => t.kind === kind)?.slug ?? 'zrodla';
 
@@ -253,7 +270,7 @@ function LibraryHome({ me, library, libraries, areas, trail, onChanged }: {
       <nav className="wk-tabs lib-tabs" aria-label="Działy biblioteki">
         {TABS.map((t) => (
           <a key={t.slug} className={t.slug === tab ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, t.slug)}>
-            {kindOf(t.kind)!.plural} <span className="lib-count">{store.ofKind(t.kind).length}</span>
+            {t.label ?? kindOf(t.kind)!.plural} <span className="lib-count">{store.ofKind(t.kind).filter(inTab(t)).length}</span>
           </a>
         ))}
         <a className={tab === 'mapa' ? 'wk-tab wk-tab-on' : 'wk-tab'} href={viewPath('library', library.libraryId, 'mapa')}>Mapa</a>
@@ -266,7 +283,7 @@ function LibraryHome({ me, library, libraries, areas, trail, onChanged }: {
           : tab === 'json' ? <LibraryJson store={store} library={library} />
           : tab === 'mapa' ? <LibraryMap store={store} libraryId={library.libraryId} />
           : tab === 'stare' ? <OldEntries store={store} known={known} writes={library.writes} where="Teksty, wygłoszenia i projekty są teraz w Skryptorium, komentarze to rodzaj w Wiedzy." />
-          : <KindList store={store} library={library} kind={TABS.find((t) => t.slug === tab)!.kind} sources={{ libraries, storeFor: (row) => storeOf(me.ring, row) }} />}
+          : <KindList store={store} library={library} tab={TABS.find((t) => t.slug === tab)!} sources={{ libraries, storeFor: (row) => storeOf(me.ring, row) }} />}
       </div>
     </>
   );
@@ -320,24 +337,28 @@ function lineOf(entry: LibEntry, store: LibraryStore): string {
   switch (entry.kind) {
     case 'quote': return `„${store.title(entry)}” — ${originOf(entry, store)}`;
     case 'work': {
-      const authors = ids(d, 'authors').map((id) => store.get(id)).filter((p): p is Entry => p !== undefined).map((p) => store.title(p));
+      /* 2026-10-26 — Musik: der Komponist (beim Nagranie ohne ihn die Ausführenden). */
+      const people = isMusic(d) ? musicPeople(entry, store) : ids(d, 'authors');
+      const authors = people.map((id) => store.get(id)).filter((p): p is Entry => p !== undefined).map((p) => store.title(p));
       return [authors.join(', '), store.title(entry), str(d, 'year')].filter(Boolean).join(' · ');
     }
     default: return store.title(entry);
   }
 }
 
-function KindList({ store, library, kind, sources }: { store: LibraryStore; library: OpenLibrary; kind: string; sources?: SourceTargets }) {
+function KindList({ store, library, tab, sources }: { store: LibraryStore; library: OpenLibrary; tab: Tab; sources?: SourceTargets }) {
+  const kind = tab.kind;
   const def = kindOf(kind)!;
+  const music = tab.slug === 'muzyka';
   const [query, setQuery] = useState('');
   /* 2026-10-22 — auch die anderen lesbaren Bibliotheken (jede Zeile sagt, in welcher sie liegt). */
   const [everywhere, setEverywhere] = useState(false);
   const peers = store.peers();
   const here = (e: Entry) => everywhere || e.libraryId === store.libraryId;
 
-  const all = everywhere ? store.readable().filter((e) => e.kind === kind) : store.ofKind(kind);
+  const all = (everywhere ? store.readable().filter((e) => e.kind === kind) : store.ofKind(kind)).filter(inTab(tab));
 
-  let list = query.trim() === '' ? all : store.search(query, [kind]).filter(here);
+  let list = query.trim() === '' ? all : store.search(query, [kind]).filter(here).filter(inTab(tab));
   /* 2026-10-22 — Zitate nach Werk und Stelle (die Schrift nach dem Kanon), nicht nach dem Wortlaut ihrer Herkunft. */
   const sortKey = (e: Entry) => (kind === 'quote' ? quoteOrder(e, store) : lineOf(e, store).toLowerCase());
   list = [...list].sort((a, b) => sortKey(a).localeCompare(sortKey(b), 'pl'));
@@ -349,18 +370,20 @@ function KindList({ store, library, kind, sources }: { store: LibraryStore; libr
   return (
     <>
       <div className="lib-toolbar">
-        <input type="search" value={query} placeholder={`Szukaj: ${def.plural.toLowerCase()}`} onChange={(e) => setQuery(e.target.value)} aria-label={`Szukaj: ${def.plural}`} />
+        <input type="search" value={query} placeholder={`Szukaj: ${(tab.label ?? def.plural).toLowerCase()}`} onChange={(e) => setQuery(e.target.value)} aria-label={`Szukaj: ${tab.label ?? def.plural}`} />
         {peers.length > 0 && (
           <label className="pe-check">
             <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} />
             <span>też z innych bibliotek ({peers.length})</span>
           </label>
         )}
-        {library.writes && <a className="wk-btn" href={add}>+ {def.label}</a>}
+        {library.writes && !music && <a className="wk-btn" href={add}>+ {def.label}</a>}
+        {/* 2026-10-26 — unter „Muzyka" ein neues Werk mit seinem Rodzaj: er entscheidet, welche Felder es hat. */}
+        {library.writes && music && MUSIC_NEW.map((t) => <a key={t.value} className="wk-btn" href={viewPath('library', library.libraryId, 'nowy', 'work', `workType=${t.value}`)}>+ {t.label}</a>)}
         {/* 2026-10-24 — ein Werk mit seinem ganzen Text aus einem Dokument (`SourceBox.tsx`, `sourceImport.ts`). */}
-        {kind === 'work' && <WorkWithTextButton store={store} library={library} targets={sources} />}
+        {kind === 'work' && !music && <WorkWithTextButton store={store} library={library} targets={sources} />}
       </div>
-      <p className="wk-hint">{def.says}</p>
+      <p className="wk-hint">{music ? 'Utwory, nuty i nagrania — także nagrania w głosach (sopran, alt, tenor, bas, instrumenty), które brzmią razem. Rodzaj decyduje, jakie pola ma wpis; pliki są szyfrowane w przeglądarce.' : def.says}</p>
 
       {list.length === 0 ? (
         <p className="wk-empty">{all.length === 0 ? `Nie ma jeszcze żadnego wpisu tego rodzaju.` : 'Nic nie pasuje.'}</p>
@@ -380,7 +403,7 @@ function KindList({ store, library, kind, sources }: { store: LibraryStore; libr
           ))}
         </ul>
       )}
-      <LibraryJson key={kind} store={store} library={library} only={kind} />
+      <LibraryJson key={tab.slug} store={store} library={library} only={kind} filter={tab.only} label={tab.label} />
       <PickBar store={store} picked={picked} all={list.filter((e) => e.libraryId === store.libraryId).map((e) => e.id)} onPicked={set} writes={library.writes} />
     </>
   );
@@ -391,6 +414,14 @@ function metaOf(entry: Entry, store: LibraryStore): string {
   switch (entry.kind) {
     case 'quote': return originOf(entry, store);
     case 'work': {
+      /* 2026-10-26 — Musik: Rodzaj, Katalog, Obsada, wie viele Spuren oder Dateien, der Schlüssel. */
+      if (isMusic(d)) {
+        const type = WORK_TYPES.find((t) => t.value === str(d, 'workType'))?.label ?? '';
+        const tracks = tracksOf(d).length;
+        const files = filesOf(d).length;
+        const count = (n: number, one: string, few: string, many: string) => (n === 0 ? '' : `${n} ${plural(n, one, few, many)}`);
+        return [type, str(d, 'catalogue'), str(d, 'voicing'), count(tracks, 'ścieżka', 'ścieżki', 'ścieżek'), count(files, 'plik', 'pliki', 'plików'), entry.key === undefined ? '' : `[@${entry.key}]`].filter(Boolean).join(' · ');
+      }
       const quotes = store.backlinks(entry.id).filter((e) => e.kind === 'quote').length;
       const number = str(d, 'libraryNumber');
       return [number === '' ? '' : `nr ${number}`, lineOf(entry, store).replace(`${store.title(entry)} · `, ''), quotes > 0 ? `${quotes} cytatów` : '', entry.key === undefined ? '' : `[@${entry.key}]`].filter(Boolean).join(' · ');
@@ -487,9 +518,17 @@ export function SettleBox({ store, library, busy, understood, onUnderstood, onSe
 /* -- JSON ------------------------------------------------------------------------------------------ */
 
 /** `only`: unter einer Liste — nur diese Art (mit dem, worauf sie zeigt, beim Import). */
-function LibraryJson({ store, library, only }: { store: LibraryStore; library: OpenLibrary; only?: string }) {
+function LibraryJson({ store, library, only, filter, label }: {
+  store: LibraryStore;
+  library: OpenLibrary;
+  only?: string;
+  /** 2026-10-26 — nur diese Einträge der Art (der Reiter Muzyka: die Werke der Musik). */
+  filter?: (entry: LibEntry) => boolean;
+  label?: string;
+}) {
   const [kinds, setKinds] = useState<readonly string[]>(only === undefined ? LIBRARY_KINDS.map((k) => k.kind) : [only]);
   const onlyDef = only === undefined ? undefined : kindOf(only);
+  const onlyName = (label ?? onlyDef?.plural ?? '').toLowerCase();
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const planned = planLibraryImport(doc, store);
@@ -508,12 +547,12 @@ function LibraryJson({ store, library, only }: { store: LibraryStore; library: O
         ))}
       </fieldset>}
       <JsonPanel
-        summary={onlyDef === undefined ? 'JSON biblioteki — eksport i import' : `Import / eksport JSON: ${onlyDef.plural.toLowerCase()}`}
+        summary={onlyDef === undefined ? 'JSON biblioteki — eksport i import' : `Import / eksport JSON: ${onlyName}`}
         lead={onlyDef === undefined
           ? <>Wszystkie wpisy (albo wybrane rodzaje) jako jeden dokument — kopia zapasowa, przeniesienie, praca z AI. Import zmienia istniejące wpisy w miejscu i dodaje nowe; niczego nie usuwa.</>
           : <>{onlyDef.plural} jako JSON — np. kilka książek naraz przygotowanych przez AI. Import przyjmuje też osoby i źródła, na które wskazują; istniejące wpisy zmienia w miejscu, niczego nie usuwa.</>}
         fileName={`biblioteka-${library.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}${only === undefined ? '' : `-${only}`}.json`}
-        exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind) && isLibraryKind(e.kind)), store)}
+        exportDoc={() => exportLibrary(library.name, store.all().filter((e) => kinds.includes(e.kind) && isLibraryKind(e.kind) && (filter === undefined || filter(e))), store)}
         description={libraryDescription}
         preview={preview}
         importLabel="Importuj i zapisz"

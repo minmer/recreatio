@@ -254,7 +254,7 @@ export function NewFieldForm({
       <p className="wk-hint">
         {formAreaId !== null
           ? 'Odpowiedzi trafią do wybranego obszaru — przeczyta je tylko ten, kto ma do niego dostęp. '
-            + 'Samo pytanie leży w obszarze formularza.'
+            + 'Samo pytanie leży w obszarze pytań formularza.'
           : 'Pytanie zostanie zapieczętowane kluczem tego obszaru — publicznie czytelne tylko, gdy obszar jest jawny.'}
         
       </p>

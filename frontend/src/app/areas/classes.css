@@ -1,0 +1,50 @@
+/* 0134 — der Reiter einer Klasa (`ClassTools.tsx`) und ihr Dziennik (`ClassJournal.tsx`). */
+
+.wk-class-programs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.wk-class-programs > li { min-width: 0; overflow-wrap: anywhere; }
+.wk-class-checks { display: grid; gap: var(--wk-space-1); margin: 0; padding: 0; border: 0; min-width: 0; }
+.wk-class-checks > legend { padding: 0; margin-bottom: var(--wk-space-1); }
+.wk-class-check { display: flex; gap: var(--wk-space-2); align-items: baseline; font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
+
+/* Der Dziennik. */
+.wk-journal { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.wk-journal-bar { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); align-items: center; }
+.wk-journal > .wk-actions { margin: 0; flex-wrap: wrap; }
+.wk-journal-extra {
+  padding: var(--wk-space-3);
+  border: 1px dashed var(--wk-line-strong);
+  border-radius: var(--wk-radius-sm);
+}
+
+.wk-journal-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.wk-journal-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 8.5rem) minmax(0, 1fr);
+  gap: var(--wk-space-2) var(--wk-space-3);
+  padding: var(--wk-space-2) var(--wk-space-3);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  min-width: 0;
+}
+.wk-journal-row.is-today { border-color: var(--wk-accent); }
+.wk-journal-row.is-past:not(.is-done):not(.is-partial):not(.is-skipped) { border-style: dashed; }
+.wk-journal-row.is-skipped .wk-journal-title, .wk-journal-row.is-skipped select { text-decoration: line-through; }
+
+.wk-journal-when { display: grid; align-content: start; gap: var(--wk-space-1); font-size: var(--wk-text-sm); font-variant-numeric: tabular-nums; }
+.wk-journal-day { font-weight: 600; }
+.wk-journal-body { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-journal-body > .wk-actions { margin: 0; flex-wrap: wrap; }
+.wk-journal-line { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); align-items: center; min-width: 0; }
+.wk-journal-line > select { flex: 1 1 14rem; min-width: 0; max-width: 100%; }
+.wk-journal-title { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.wk-journal-states { flex-wrap: wrap; }
+.wk-journal-states .wk-seg-opt { font-size: var(--wk-text-sm); }
+.wk-journal-states .wk-seg-on.is-done { background: var(--wk-ok); border-color: var(--wk-ok); color: var(--wk-on-accent); }
+.wk-journal-states .wk-seg-on.is-skipped { background: var(--wk-warn); border-color: var(--wk-warn); color: var(--wk-on-accent); }
+.wk-journal-texts { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--wk-space-2); min-width: 0; }
+
+@media (max-width: 40rem) {
+  .wk-journal-row { grid-template-columns: minmax(0, 1fr); }
+  .wk-journal-when { grid-auto-flow: column; justify-content: start; }
+}

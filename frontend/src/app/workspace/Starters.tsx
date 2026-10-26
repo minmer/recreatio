@@ -11,63 +11,64 @@
  * `createLink`) — nichts davon ist eigens für diesen Weg gebaut.
  *
  * <code>
- *   Nowe wydarzenie        Bereich · Haupttermin im Kalender des Bereichs
- *                          · Formular (Imię, Nazwisko, Telefon, E-mail)
- *                          · Seite mit dem Formular · Rola uczestników
- *                          · die Marke Wydarzenie (0131: Seite + Haupttermin)
- *   Nowa grupa             Bereich · Rola członków · Rozmowa · Link zaproszenia
- *   Kurs (0109)            Bereich · Baza wiedzy · Rola uczących się · Przyjęcia
- *                          für die Antworten · Powtórka codzienna · Link zum Kurs
+ *   Nowe wydarzenie        Bereich mit der Art Wydarzenie (0133) · Haupttermin
+ *                          (sichtbar im nächsten jawnen Bereich darüber) · Formular
+ *                          (Imię, Nazwisko, Telefon, E-mail; Fragen ebendort)
+ *                          · Seite mit Wizytówka und Formular · Rola uczestników
+ *   Nowa grupa             Bereich mit der Art Grupa · Rola członków · Rozmowa
+ *                          · Link, der in den Bereich führt
+ *   Kurs (0109)            Bereich mit der Art Kurs · Baza wiedzy · Rola uczących się
+ *                          · Przyjęcia für die Antworten · Powtórka codzienna · Link zum Kurs
+ *   Nowa szkoła (0134)     Bereich mit der Art Szkoła · Rola nauczycieli · Skryptorium für die
+ *                          Programme · Klassen als Bereiche darin (Art Klasa, mit den Nauczyciele)
  * </code>
+ *
+ * 0133 — die Stücke dafür stehen in `areas/AreaKindPanel.tsx`; der Reiter der Art
+ * nimmt dieselben, und dort geht es nach dem Anlegen weiter.
  */
 
 import { useEffect, useState } from 'react';
 
 import { LinkShare } from '../links/AccessLinks';
-import { createArea, type AreaRow } from '../areas/area';
+import { createArea, loadMembers, type AreaRow } from '../areas/area';
+import {
+  cardPart, createAreaRole, createCourseBase, createSignupForm, createSubpage, formPart, publishAreaFor, slugOf
+} from '../areas/AreaKindPanel';
+import { loadProfile, saveImportKeys, saveProfile, sealCard } from '../areas/profile';
+import { savePublishedItem } from '../areas/profileItem';
 import { startAreaChat } from '../chat/chat';
-import { createCommonRole } from '../roles/commonRole';
 import { loadDesk, type PageCard } from './desk';
-import { writeFormContent } from '../forms/formJson';
-import { newId } from '../core/ids';
-import { createIntake } from '../forms/intake';
-import { createLibrary } from '../library/library';
-import { storeOf } from '../library/libraryStore';
 import { createLink } from '../links/linkAccess';
 import { setMemberRole } from '../roles/memberRole';
 import { Modal } from '../ui/Modal';
-import { savePage, saveParts } from '../pages/page';
 import { forgetKeys, keysFor } from '../core/ringOf';
 import { selfOf } from '../roles/roles';
-import { formPath, formsPath, pageSteps, viewPath } from '../routes';
+import { formPath, formsPath, viewPath } from '../routes';
 import type { IconName } from '../ui/icons';
 import { MenuButton } from '../ui/Menu';
-import { createModule } from '../modules/module';
-import { call, WorkspaceError, type Who } from '../core/session';
+import { WorkspaceError, type Who } from '../core/session';
 import { areasNow, invalidate, refreshDesk } from './viewData';
 import { AreaPick } from '../areas/AreaPick';
-import { saveEvent } from '../calendar/agenda';
-import { loadAreaEvent, setAreaEvent } from '../events/events';
 import { leadOf, mainTermOf } from '../events/mainTerm';
 
-type Starter = 'signup' | 'group' | 'course';
+/* Die Prüfung der Plattform (`app-platform-check`) liest es von hier. */
+export { slugOf };
+
+type Starter = 'signup' | 'group' | 'course' | 'school';
 
 /** 0131 — was nach dem Anlegen noch zu tun ist, mit dem Weg dorthin. */
 interface Note { readonly text: string; readonly href: string; readonly link: string }
 
 const STARTERS: readonly { id: Starter; title: string; says: string; makes: string }[] = [
   { id: 'signup', title: 'Nowe wydarzenie', says: 'Rekolekcje, wyjazd, warsztaty — strona, termin i formularz zgłoszeń.',
-    makes: 'Powstanie: obszar wydarzenia, jego główny termin, formularz (imię, nazwisko, telefon, e-mail), strona z formularzem i rola uczestników — a obszar zostanie oznaczony jako wydarzenie.' },
+    makes: 'Powstanie: obszar-wydarzenie z wizytówką, główny termin, formularz (imię, nazwisko, telefon, e-mail), strona z wizytówką i formularzem oraz rola uczestników. Resztę dodasz w karcie „Wydarzenie” obszaru.' },
   { id: 'group', title: 'Nowa grupa', says: 'Schola, oaza, rada — miejsce, rozmowa i link dla członków.',
-    makes: 'Powstanie: obszar grupy, rola członków, rozmowa grupy i link zaproszenia.' },
+    makes: 'Powstanie: obszar-grupa, rola członków, rozmowa grupy i link, który otwiera grupę.' },
   { id: 'course', title: 'Kurs do nauki', says: 'Słówka, katechizm, przygotowanie do egzaminu — powtórki dla uczących się.',
-    makes: 'Powstanie: obszar kursu, baza wiedzy z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.' }
+    makes: 'Powstanie: obszar-kurs, baza wiedzy z codzienną powtórką, rola uczących się (czytają), przyjęcia odpowiedzi (widzisz postępy) i link dla uczących się.' },
+  { id: 'school', title: 'Nowa szkoła', says: 'Klasy, programy nauczania raz dla wszystkich, dziennik każdej klasy.',
+    makes: 'Powstanie: obszar-szkoła, rola nauczycieli, skryptorium na programy i lekcje oraz klasy — każda jako obszar w szkole, z rolą nauczycieli. Plan lekcji, uczniów i dziennik ustawisz w karcie każdej klasy.' }
 ];
-
-/** „Rekolekcje 2027" → „rekolekcje-2027" — so, wie eine Adresse heissen darf. */
-export const slugOf = (name: string): string => name.toLowerCase()
-  .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
-  .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'wydarzenie';
 
 export function Starters({ who }: { who: Who }) {
   const [open, setOpen] = useState<Starter | null>(null);
@@ -106,6 +107,8 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
   const [endTime, setEndTime] = useState('');
   const [place, setPlace] = useState('');
   const [kind, setKind] = useState('');
+  /* 0134 — die Klassen einer neuen Szkoła („1a, 1b, 2a"). */
+  const [classNames, setClassNames] = useState('');
 
   useEffect(() => {
     void areasNow().then(setAreas).catch(() => undefined);
@@ -128,24 +131,21 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
       setBusy('Tworzenie obszaru…');
       const area = await createArea(ring, person, name.trim(), parent === '' ? undefined : parent);
 
+      const notes: Note[] = [];
+      const settings = viewPath('areas', area.areaId, 'ustawienia');
+      const kindTab = viewPath('areas', area.areaId, 'profil');
+      /* 0133 — ging das Profil nicht, steht der Bereich trotzdem; die Art setzt man dann in den Ustawienia. */
+      const kindLost = (): void => { notes.push({ text: 'Rodzaju obszaru nie udało się zapisać.', href: settings, link: 'Ustaw go w ustawieniach obszaru' }); };
+
       if (starter === 'course') {
         /*
          * 0109 — der Kurs: die Baza wiedzy im Bereich, die Antworten in DENSELBEN
          * Bereich (Przyjęcia: nur das Amt öffnet sie), eine Powtórka aus allen
          * Karten, und ein Link, der die Rolle gibt und in den Kurs führt.
          */
-        setBusy('Zakładanie bazy wiedzy…');
-        const libraryId = await createLibrary(ring, area.areaId, name.trim(), 'knowledge');
-        setBusy('Klucz przyjęć odpowiedzi (kilka sekund)…');
-        await createIntake(ring, area.areaId, person.id);
-        setBusy('Codzienna powtórka…');
-        const store = storeOf(ring, { libraryId, areaId: area.areaId });
-        await store.sync();
-        const [{ CogitaLibrary }, { REVISION_PRESETS }] = await Promise.all([import('../cogita/store'), import('../cogita/presets')]);
-        const lib = new CogitaLibrary(store, true);
-        await lib.saveDoc('revision', REVISION_PRESETS[0].make());
-        await lib.saveSettings({ storageAreaId: area.areaId, motivation: 'progress' });
-        const role = await createCommonRole(ring, person, { name: `Uczący się: ${name.trim()}`, areas: [{ areaId: area.areaId, capability: 'read' }] }, setBusy);
+        await saveProfile(area.areaId, { kind: 'course' }).catch(kindLost);
+        const libraryId = await createCourseBase(ring, person, area.areaId, name.trim(), setBusy);
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Uczący się: ${name.trim()}`, capability: 'read', onStage: setBusy });
         setBusy('Tworzenie linku dla uczących się…');
         const link = await createLink(role.ring, person, {
           label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 365,
@@ -154,93 +154,130 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({ open: viewPath('knowledge', libraryId, 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url });
+        setDone({ open: viewPath('knowledge', libraryId, 'wpisy'), label: 'Dodaj pierwsze wpisy', link: link.url, notes });
+        return;
+      }
+
+      if (starter === 'school') {
+        /*
+         * 0134 — die Szkoła: das Profil, die Rolle Nauczyciele (unter ihrem Schlüssel „teachers", wie
+         * im Reiter), das Skryptorium für die Programme, dann die Klassen mit den Nauczyciele darin.
+         */
+        await saveProfile(area.areaId, { kind: 'school' }).catch(kindLost);
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Nauczyciele: ${name.trim()}`, capability: 'write', onStage: setBusy });
+        await saveImportKeys(area.areaId, [{ kind: 'role', key: 'teachers', refId: role.roleId, refText: 'Nauczyciele' }]).catch(() => undefined);
+        const teacher = (await loadMembers(area.areaId).catch(() => ({ members: [] }))).members.find((m) => m.roleId === role.roleId) ?? null;
+        setBusy('Skryptorium na programy…');
+        const [{ ensureScriptorium, parseClassNames }, { addClassesTo }] = await Promise.all([import('../areas/school'), import('../areas/SchoolTools')]);
+        await ensureScriptorium(role.ring, area.areaId, name.trim()).catch((e: unknown) => {
+          notes.push({ text: `Skryptorium szkoły nie powstało (${e instanceof WorkspaceError ? e.message : 'błąd'}).`, href: kindTab, link: 'Utwórz je w karcie „Szkoła”' });
+        });
+        const wanted = parseClassNames(classNames);
+        if (wanted.length > 0) {
+          const made = await addClassesTo(role.ring, person, area.areaId, wanted,
+            teacher === null ? null : { roleId: role.roleId, wrapPublicKey: teacher.wrapPublicKey, name: `Nauczyciele: ${name.trim()}` }, setBusy);
+          if (made.note !== null) notes.push({ text: made.note, href: kindTab, link: 'Karta „Szkoła”' });
+        }
+        const now = await loadProfile(area.areaId).catch(() => null);
+        if (now !== null && now.controller === null) {
+          notes.push({ text: 'Listy uczniów przyjmą wpisy, gdy szkoła będzie miała administratora danych.', href: settings, link: 'Wskaż go w ustawieniach szkoły' });
+        }
+        forgetKeys();
+        invalidate();
+        refreshDesk();
+        setDone({ open: kindTab, label: 'Otwórz szkołę', notes });
         return;
       }
 
       if (starter === 'group') {
-        const role = await createCommonRole(ring, person, { name: `Członkowie: ${name.trim()}`, areas: [{ areaId: area.areaId, capability: 'write' }] }, setBusy);
+        await saveProfile(area.areaId, { kind: 'group' }).catch(kindLost);
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Członkowie: ${name.trim()}`, capability: 'write', onStage: setBusy });
         setBusy('Zakładanie rozmowy grupy…');
         /* 0129 — eine Rozmowa des Bereichs braucht einen Administrator danych; ohne ihn sagt es der Abschluss. */
         const chatMade = await startAreaChat(area.areaId, person.id).then(() => true, () => false);
-        setBusy('Tworzenie linku zaproszenia…');
-        const link = await createLink(role.ring, person, { label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 90, aim: null });
+        if (!chatMade) notes.push({ text: 'Rozmowa grupy jeszcze nie powstała: obszar nie ma administratora danych.', href: settings, link: 'Wskaż go w ustawieniach obszaru' });
+        setBusy('Tworzenie linku dla członków…');
+        /* 0133 — der Link führt in die eigene Ansicht der Grupa. */
+        const link = await createLink(role.ring, person, {
+          label: name.trim(), roles: [{ roleId: role.roleId, lead: false }], once: false, expiresDays: 90,
+          aim: `workspace/areas/${area.areaId}`
+        });
+        forgetKeys();
         invalidate();
         refreshDesk();
-        setDone({
-          open: viewPath('areas', area.areaId), label: 'Otwórz grupę', link: link.url,
-          notes: chatMade ? [] : [{
-            text: 'Rozmowa grupy jeszcze nie powstała: obszar nie ma administratora danych.',
-            href: viewPath('areas', area.areaId, 'ustawienia'), link: 'Wskaż go w ustawieniach obszaru'
-          }]
-        });
+        setDone({ open: kindTab, label: 'Otwórz grupę', link: link.url, notes });
         return;
       }
 
-      /* 0131 — der Haupttermin im Kalender des Bereichs (der Kalender entsteht dabei, wenn es keinen gibt). */
+      /*
+       * 0133 — der Bereich IST das Wydarzenie: das Profil gleich zu Beginn (hängt
+       * ein späterer Schritt, steht es trotzdem), veröffentlicht im nächsten jawnen
+       * Bereich darüber, den ich führe — sonst in ihm selbst.
+       */
+      const publishTo = publishAreaFor(areas, parent === '' ? null : parent, area.areaId);
+      setBusy('Wydarzenie…');
+      await saveProfile(area.areaId, { kind: 'event', ...(publishTo !== area.areaId ? { publishAreaId: publishTo } : {}) }).catch(kindLost);
+      const first = await loadProfile(area.areaId).catch(() => null);
+
+      /* Der Haupttermin im Kalender des Bereichs (der Kalender entsteht dabei), zu sehen dort, wo veröffentlicht wird. */
       const term = mainTermOf({ date, time, endDate, endTime });
       let itemId: string | null = null;
       if (term !== null) {
         setBusy('Główny termin w kalendarzu…');
-        itemId = await saveEvent(ring, {
-          title: name.trim(), location: place.trim(), notes: '', areaId: area.areaId, ownerRoleId: person.id,
-          date: term.date, time: term.time, minutes: term.minutes, allDay: term.allDay,
-          repeat: 'none', every: 1, weekdays: 0, until: null, count: null
+        itemId = await savePublishedItem(ring, {
+          areaId: area.areaId, visibilityAreaId: publishTo, ownerRoleId: person.id,
+          item: { title: name.trim(), location: place.trim(), ...term }
         });
       }
 
-      /* Zapisy: das Formular im Bereich des Ereignisses, seine Fragen, die Seite, die Rolle. */
-      setBusy('Tworzenie formularza…');
-      const formId = newId();
-      /* 0097 — der Name des Formulars geht versiegelt, unter dem Schlüssel des Bereichs. */
-      await createModule(formId, 'form', name.trim(), area.areaId, 'person');
-      await writeFormContent(who, { moduleId: formId, areaId: area.areaId }, {
-        questions: [
-          { id: 'q1', kind: 'line', label: 'Imię', required: true, halfWidth: true, identity: 'given_name' },
-          { id: 'q2', kind: 'line', label: 'Nazwisko', required: true, halfWidth: true, identity: 'surname' },
-          { id: 'q3', kind: 'phone', label: 'Telefon', required: true, halfWidth: true, identity: 'phone' },
-          { id: 'q4', kind: 'email', label: 'E-mail', required: false, halfWidth: true, identity: 'email' }
-        ]
-      }, { replace: false, answersTo: area.areaId, onStage: setBusy });
+      /* Zapisy: das Formular im Bereich, seine Fragen dort, wo veröffentlicht wird. */
+      const form = await createSignupForm(who, ring, { areaId: area.areaId, name: name.trim(), publishTo, onStage: setBusy });
+      if (form.note !== null) notes.push({ text: form.note, href: formPath(form.formId), link: 'Otwórz formularz' });
 
       let page: string | null = null;
       if (under !== '') {
         setBusy('Tworzenie strony…');
         page = `${under}/${slugOf(name)}`;
-        await call('/workspace/subpage', { method: 'POST', body: JSON.stringify({ path: page, roleId: person.id }) });
-        await savePage(page, { title: name.trim(), lead: leadOf(term, place) });
-        const frame = (colSpan: number) => ({ position: { row: 1, col: 1 }, size: { colSpan, rowSpan: 5 } });
-        await saveParts(page, [{ id: newId(), moduleId: formId, kind: 'form', layout: { desktop: frame(6), tablet: frame(4), mobile: frame(2) }, config: {} }]);
+        /* Oben die Wizytówka, darunter das Formular; für die Seite steht der Administrator danych des Bereichs (wenn er einen hat). */
+        const made = await createSubpage({
+          path: page, roleId: person.id, areaId: first?.controller != null ? area.areaId : null,
+          title: name.trim(), lead: leadOf(term, place), parts: [cardPart(area.areaId), formPart(form.formId)]
+        });
+        if (made.note !== null) notes.push({ text: made.note, href: kindTab, link: 'Karta „Wydarzenie”' });
       }
 
       if (withRole) {
-        const role = await createCommonRole(ring, person, { name: `Uczestnicy: ${name.trim()}`, areas: [{ areaId: area.areaId, capability: 'read' }] }, setBusy);
+        const role = await createAreaRole(ring, person, { areaId: area.areaId, name: `Uczestnicy: ${name.trim()}`, capability: 'read', onStage: setBusy });
         setBusy('Łączenie formularza z rolą uczestników…');
-        await setMemberRole(formId, role.roleId);
+        await setMemberRole(form.formId, role.roleId);
       }
 
-      /* 0131 — die Marke: dieser Bereich IST das Wydarzenie, mit Seite und Haupttermin. */
-      const notes: Note[] = [];
-      const settings = viewPath('areas', area.areaId, 'ustawienia');
-      setBusy('Oznaczanie wydarzenia…');
+      /* Die Wizytówka — unter dem Schlüssel des Bereichs, in dem sie zu sehen ist —, dazu Seite, Termin, Kategorie. */
+      setBusy('Wizytówka wydarzenia…');
       try {
-        await setAreaEvent(area.areaId, { path: page, itemId, kind: kind.trim() === '' ? null : kind.trim() });
-        const now = await loadAreaEvent(area.areaId);
+        const card = await sealCard(ring, area.areaId, publishTo, { title: name.trim(), lead: leadOf(term, place) ?? '' });
+        await saveProfile(area.areaId, {
+          card,
+          ...(page === null ? {} : { path: page }),
+          ...(itemId === null ? {} : { itemId }),
+          ...(kind.trim() === '' ? {} : { category: kind.trim() })
+        });
+        const now = await loadProfile(area.areaId);
         if (now.controller === null) {
           notes.push({ text: 'Formularz nie przyjmie zgłoszeń, dopóki obszar nie ma administratora danych.', href: settings, link: 'Wskaż go w ustawieniach obszaru' });
         }
-        if (!now.public || page === null) {
-          notes.push({ text: 'Na listach „Wydarzenia” pokaże się, gdy obszar będzie jawny, a strona publiczna — co jeszcze brakuje, widać w ustawieniach obszaru.', href: settings, link: 'Ustawienia wydarzenia' });
+        if (!now.publishPublic || page === null) {
+          notes.push({ text: 'Na listach „Wydarzenia” pokaże się, gdy wizytówka będzie w jawnym obszarze, a strona publiczna — co jeszcze brakuje, widać w karcie „Wydarzenie”.', href: kindTab, link: 'Karta „Wydarzenie”' });
         }
       } catch (e) {
-        notes.push({ text: `Obszaru nie udało się oznaczyć jako wydarzenie: ${e instanceof WorkspaceError ? e.message : 'błąd'}`, href: settings, link: 'Spróbuj w ustawieniach obszaru' });
+        notes.push({ text: `Wizytówki nie udało się zapisać: ${e instanceof WorkspaceError ? e.message : 'błąd'}`, href: kindTab, link: 'Spróbuj w karcie „Wydarzenie”' });
       }
-      if (term === null) notes.push({ text: 'Bez daty nie powstał główny termin — dodaj go w kalendarzu i wybierz w ustawieniach wydarzenia.', href: settings, link: 'Ustawienia wydarzenia' });
+      if (term === null) notes.push({ text: 'Bez daty nie powstał główny termin — dodasz go w karcie „Wydarzenie”.', href: kindTab, link: 'Karta „Wydarzenie”' });
 
       forgetKeys();
       invalidate();
       refreshDesk();
-      setDone({ open: page === null ? formPath(formId) : viewPath('pages', ...pageSteps(page)), label: page === null ? 'Otwórz formularz' : 'Otwórz stronę w edytorze', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}`, notes });
+      setDone({ open: kindTab, label: 'Otwórz wydarzenie', link: page === null ? undefined : `${window.location.origin}${window.location.pathname}#/${page}`, notes });
     } catch (e) {
       setFailed(e instanceof WorkspaceError ? e.message : 'Nie udało się — część mogła już powstać; sprawdź w Obszarach.');
     } finally {
@@ -268,9 +305,15 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
         <form className="wk-form" onSubmit={(e) => { e.preventDefault(); void run(); }}>
           <p className="wk-hint">{def.makes}</p>
           <label className="wk-field">
-            <span>{starter === 'group' ? 'Nazwa grupy' : starter === 'course' ? 'Nazwa kursu' : 'Nazwa wydarzenia'}</span>
-            <input value={name} autoComplete="off" data-starter-name="" placeholder={starter === 'group' ? 'np. Schola' : starter === 'course' ? 'np. Bierzmowanie 2027 — pytania' : 'np. Rekolekcje 2027'} onChange={(e) => setName(e.target.value)} />
+            <span>{starter === 'group' ? 'Nazwa grupy' : starter === 'course' ? 'Nazwa kursu' : starter === 'school' ? 'Nazwa szkoły' : 'Nazwa wydarzenia'}</span>
+            <input value={name} autoComplete="off" data-starter-name="" placeholder={starter === 'group' ? 'np. Schola' : starter === 'course' ? 'np. Bierzmowanie 2027 — pytania' : starter === 'school' ? 'np. Szkoła Podstawowa nr 3' : 'np. Rekolekcje 2027'} onChange={(e) => setName(e.target.value)} />
           </label>
+          {starter === 'school' && (
+            <label className="wk-field">
+              <span>Klasy (opcjonalnie — dodasz je też później)</span>
+              <input value={classNames} autoComplete="off" maxLength={600} data-starter-classes="" placeholder="np. 1a, 1b, 2a" onChange={(e) => setClassNames(e.target.value)} />
+            </label>
+          )}
           <label className="wk-field">
             <span>Wewnątrz obszaru (opcjonalnie)</span>
             <AreaPick
@@ -336,7 +379,7 @@ function StarterDialog({ who, starter, onClose }: { who: Who; starter: Starter; 
 
 /* -- 2026-10-16: „Nowe" im Kopf von Teraz ------------------------------------------------ */
 
-const STARTER_ICON: Record<Starter, IconName> = { signup: 'form', group: 'users', course: 'cap' };
+const STARTER_ICON: Record<Starter, IconName> = { signup: 'form', group: 'users', course: 'cap', school: 'book' };
 
 /**
  * DIE ANFÄNGE ALS MENÜ — im Kopf von „Teraz", wo man etwas anlegt. Als Kacheln

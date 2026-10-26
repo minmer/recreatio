@@ -131,20 +131,6 @@ public static partial class Page
         }
 
         /*
-         * Die Bausteine gehen MIT der Seite hinaus, nicht auf einen zweiten
-         * Ruf. Ein Besucher, der erst die Seite und dann ihren Inhalt holt,
-         * sieht dazwischen eine leere Seite — und wer sie in dem Augenblick
-         * wegklickt, kommt nicht wieder.
-         */
-        var parts = await PartsOfAsync(connection, slugId, ctx.RequestAborted);
-
-        /*
-         * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder das der nächsten
-         * darüber, mit dem Pfad, von dem aus seine relativen Ziele gelten.
-         */
-        var menu = await Menu.ForPageAsync(connection, aliasOf ?? wanted, includeSelf: true, ctx.RequestAborted);
-
-        /*
          * 0099 — DARF DIESES KONTO DIE SEITE BEARBEITEN? Dann steht oben „Edytuj
          * stronę" und führt gleich in den Editor. Bearbeitet wird, wo der Inhalt
          * liegt: bei einem Alias sein Ziel. Ohne Sitzung keine Anfrage.
@@ -152,6 +138,36 @@ public static partial class Page
         var editable = false;
         if (await Auth.WhoAsync(ctx, db) is { } me)
             editable = (await Access.OfAsync(connection, me.AccountId, aliasOf ?? wanted, ctx.RequestAborted)).MayWrite;
+
+        /*
+         * 0133 — DIE SEITE „PO WYDARZENIU" ist vorbereitet, aber erst nach dem Ende zu sehen
+         * (für die, die sie führen, immer — sie bereiten sie ja vor).
+         */
+        if (!editable && await Profiles.OfAfterPageAsync(connection, slugId, ctx.RequestAborted) is { } before
+            && !before.Ended(DateTimeOffset.UtcNow))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            await ctx.Response.WriteAsJsonAsync(new { error = "Ta strona pojawi się po zakończeniu wydarzenia.", verdict = "later" });
+            return;
+        }
+
+        /*
+         * Die Bausteine gehen MIT der Seite hinaus, nicht auf einen zweiten
+         * Ruf. Ein Besucher, der erst die Seite und dann ihren Inhalt holt,
+         * sieht dazwischen eine leere Seite — und wer sie in dem Augenblick
+         * wegklickt, kommt nicht wieder.
+         *
+         * 0133 — ein Baustein nur für die Menschen eines Bereichs geht nur an sie (der
+         * eigene Platz, ein Link, ein Konto, das dort liest); wer die Seite führt, sieht alle.
+         */
+        var parts = await PartsOfAsync(connection, slugId, ctx.RequestAborted,
+            editable ? null : area => SeesAreaAsync(ctx, db, connection, area, seat, links));
+
+        /*
+         * 0054 — DAS MENÜ, das hier gilt: das eigene der Seite oder das der nächsten
+         * darüber, mit dem Pfad, von dem aus seine relativen Ziele gelten.
+         */
+        var menu = await Menu.ForPageAsync(connection, aliasOf ?? wanted, includeSelf: true, ctx.RequestAborted);
 
         /* 0129 — wer für die Seite geradesteht: der Bereich, den sie (oder eine darüber) nennt, und sein Datensatz. */
         var (responsible, responsibleArea, responsibleFrom) = await Controllers.OfPageAsync(connection, aliasOf ?? wanted, ctx.RequestAborted);

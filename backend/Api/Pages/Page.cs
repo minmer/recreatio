@@ -71,7 +71,9 @@ public static partial class Page
     /// Stellen.
     /// </summary>
     public sealed record PartInput(
-        string Id, string Kind, string Layout, string? Config, string? ModuleId = null);
+        string Id, string Kind, string Layout, string? Config, string? ModuleId = null,
+        /* 0133 — nur für die Menschen dieses Bereichs (mit Konto, Link oder ihrem Platz); leer: für alle. */
+        string? AudienceAreaId = null);
 
     public sealed record PartsRequest(string Path, IReadOnlyList<PartInput> Parts);
 

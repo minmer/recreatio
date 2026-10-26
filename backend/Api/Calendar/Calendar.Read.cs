@@ -80,13 +80,13 @@ public static partial class Calendar
         Guid Id, Guid OwnerRoleId, string Kind, DateTimeOffset StartsAt, DateTimeOffset EndsAt,
         bool AllDay, string? TitlePublic, Guid VisibilityAreaId, string Status,
         string RepeatKind, int RepeatEvery, int? Weekdays, DateTimeOffset? Until, int? Count,
-        Guid? ParentItemId = null, int? Position = null);
+        Guid? ParentItemId = null, int? Position = null, Guid? SchemeId = null);
 
     private sealed record Shown(
         Guid ItemId, Guid OwnerRoleId, string Kind, DateTimeOffset OccurrenceAt,
         DateTimeOffset StartsAt, DateTimeOffset EndsAt, bool AllDay,
         string? TitlePublic, Guid VisibilityAreaId, string Status,
-        Guid? ParentItemId = null, int? Position = null);
+        Guid? ParentItemId = null, int? Position = null, Guid? SchemeId = null);
 
     private static async Task ShowAsync(
         HttpContext ctx, SqlConnection connection, Guid calendarId, Guid? accountId,
@@ -146,6 +146,9 @@ public static partial class Calendar
         var wanted = string.IsNullOrWhiteSpace(kind) ? null : kind.Trim().ToLowerInvariant();
         var rows = new List<Row>();
 
+        /* 0132 — das Schema jedes Termins, und seine Werte (versiegelt hinaus wie die Felder). */
+        var schemesReady = await Schema.RecordsAsync(connection, ctx.RequestAborted);
+
         var areaNames = string.Join(", ", readable.Select((_, i) => $"@a{i}"));
         var byKind = wanted is null ? "" : "AND kind = @kind";
 
@@ -153,7 +156,8 @@ public static partial class Calendar
             SELECT id, owner_role_id, kind, starts_at, ends_at, all_day,
                    title_public, visibility_area_id, status,
                    repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
-                   parent_item_id, position
+                   parent_item_id, position,
+                   {(schemesReady ? "scheme_id" : "CAST(NULL AS uniqueidentifier)")}
             FROM app.calendar_item
             WHERE calendar_id = @cal
               AND starts_at <= @to
@@ -183,13 +187,15 @@ public static partial class Calendar
                     reader.IsDBNull(12) ? null : reader.GetDateTimeOffset(12),
                     reader.IsDBNull(13) ? null : reader.GetInt32(13),
                     reader.IsDBNull(14) ? null : reader.GetGuid(14),
-                    reader.IsDBNull(15) ? null : reader.GetInt32(15)));
+                    reader.IsDBNull(15) ? null : reader.GetInt32(15),
+                    reader.IsDBNull(16) ? null : reader.GetGuid(16)));
             }
         }
 
         var itemIds = rows.Select(r => r.Id).ToList();
         var exceptions = await ExceptionsAsync(connection, itemIds, ctx.RequestAborted);
         var fields = await FieldsAsync(connection, itemIds, ctx.RequestAborted);
+        var values = await ValuesAsync(connection, itemIds, since, till, ctx.RequestAborted);
 
         var zone = Zones.Of(found.Value.Zone);
         var shown = new List<Shown>();
@@ -218,7 +224,7 @@ public static partial class Calendar
 
                 shown.Add(new Shown(row.Id, row.OwnerRoleId, row.Kind, at,
                     starts, starts + span, row.AllDay, row.TitlePublic, row.VisibilityAreaId, row.Status,
-                    row.ParentItemId, row.Position));
+                    row.ParentItemId, row.Position, row.SchemeId));
             }
         }
 
@@ -271,7 +277,11 @@ public static partial class Calendar
                         epoch = f.Epoch,
                         @sealed = Base64Url.Encode(f.Blob)
                     })
-                    : []
+                    : [],
+
+                /* 0132 — das Schema (NULL: das universelle) und die Werte am Termin und an diesem Vorkommen. */
+                schemeId = o.SchemeId is null ? null : Ids.ToText(o.SchemeId.Value),
+                values = ValuesAt(values, o.ItemId, o.OccurrenceAt)
             })
         });
     }

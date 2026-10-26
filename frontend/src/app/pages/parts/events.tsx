@@ -1,19 +1,22 @@
 /**
- * 0131 — „WYDARZENIA" und „WYDARZENIE": Wydarzenia als Karten auf einer Seite.
+ * 0131/0133 — „WYDARZENIA" und „WIZYTÓWKA": Bereiche mit einer Art als Karten auf einer Seite.
  *
- * <b>Wydarzenia</b> zeigt die Wydarzenia gewählter Bereiche (und, auf Wunsch, der
- * Bereiche darin) — dazu die, die gebeten haben, hier zu stehen, und angenommen
- * wurden. Im Katalog `recreatio.pl/events` nur, was der Betreiber freigegeben hat.
+ * <b>Wydarzenia</b> zeigt die Profile EINER Art (`type`: Wydarzenia, Grupy, Parafie i
+ * organizacje, Kursy) gewählter Bereiche (und, auf Wunsch, der Bereiche darin) — dazu die,
+ * die gebeten haben, hier zu stehen, und angenommen wurden. Im Katalog `recreatio.pl/events`
+ * nur, was der Betreiber freigegeben hat.
  *
- * <b>Wydarzenie</b> zeigt EINES, grösser: gewählt im Baustein, oder — leer — aus
- * der Adresse (`?wydarzenie=<obszar>`), damit eine Seite jedes zeigen kann.
+ * <b>Wizytówka</b> (die Art heisst weiter `event`) zeigt EINE, grösser — eines Bereichs jeder
+ * Art: gewählt im Baustein, oder — leer — aus der Adresse (`?wydarzenie=<obszar>`), damit eine
+ * Seite jede zeigen kann.
  *
- * Eine Karte trägt nur, was öffentlich ist: Titel, Vorspann und Bild der Hauptseite,
- * Zeit und Ort des Haupttermins (Ort und Titel mit dem offengelegten Schlüssel des
- * Bereichs, hier im Browser geöffnet), „Zapisy otwarte", wenn ein Formular annimmt.
+ * Eine Karte trägt nur, was öffentlich ist: Titel und Vorspann der Wizytówka (sonst der
+ * Hauptseite), ihr Bild, Zeit und Ort des Haupttermins (mit dem offengelegten Schlüssel, hier
+ * im Browser geöffnet), „Zapisy otwarte", wenn ein Formular annimmt — und nach dem Ende den
+ * Weg zur Seite „Po wydarzeniu".
  *
- * <b>Je Grösse:</b> im Streifen das nächste in einer Zeile; als Block wenige, knapp;
- * hoch die ganze Liste mit Bildern und Vorspann; über die ganze Breite ein Raster.
+ * <b>Je Grösse:</b> im Streifen das erste in einer Zeile; als Block wenige, knapp; hoch die
+ * ganze Liste mit Bildern und Vorspann; über die ganze Breite ein Raster.
  */
 
 import { useEffect, useState } from 'react';
@@ -22,8 +25,9 @@ import { AreaPick, AreaPickMany } from '../../areas/AreaPick';
 import type { AreaRow } from '../../areas/area';
 import type { ControllerInfo } from '../../areas/controllers';
 import { ControllerClause } from '../../areas/ControllerClause';
+import { kindLabel, loadPublicProfile, openCard as openFace, type ProfileKind } from '../../areas/profile';
 import { eventImageUrl, loadEvent, loadEvents, openCard, whenText, type EventCard, type EventWhen } from '../../events/events';
-import { pagePath } from '../../routes';
+import { pagePath, parsePath } from '../../routes';
 import { FadeImg } from '../../ui/fadeImage';
 import { Loading } from '../../ui/Loading';
 import { areasNow } from '../../workspace/viewData';
@@ -31,43 +35,129 @@ import { definePart, flag, maybeNumber, text, type EditorProps, type PartContext
 
 /* -- Gemeinsam ------------------------------------------------------------------------ */
 
-const WHEN: readonly { readonly value: EventWhen; readonly label: string }[] = [
-  { value: 'coming', label: 'Nadchodzące i trwające' },
-  { value: 'past', label: 'Minione' },
-  { value: 'all', label: 'Wszystkie' }
-];
+/** Die Worte einer Art — in der Liste, im Editor und in „co pokazuje". */
+interface Words {
+  /** Der Kopf der Liste und der Name in der Wahl. */
+  readonly label: string;
+  /** Im Streifen: das erste. */
+  readonly first: string;
+  /** „Wszystkie …" */
+  readonly all: string;
+  /** „Do czterech …" */
+  readonly many: string;
+  readonly facts: string;
+  readonly factsShort: string;
+  readonly none: string;
+  readonly noneEnded: string;
+  /** Die Wahl „Które". */
+  readonly when: Readonly<Record<EventWhen, string>>;
+  /** Die Marke einer Karte, die vorbei ist. */
+  readonly done: string;
+}
 
-const whenOf = (said: string): EventWhen => (WHEN.some((one) => one.value === said) ? said as EventWhen : 'coming');
+const KEPT: Readonly<Record<EventWhen, string>> = { coming: 'Aktywne', past: 'W archiwum', all: 'Wszystkie' };
+
+const WORDS: Readonly<Record<ProfileKind, Words>> = {
+  event: {
+    label: 'Wydarzenia', first: 'Najbliższe wydarzenie', all: 'wydarzenia', many: 'najbliższych',
+    facts: 'data, miejsce, kategoria', factsShort: 'data i miejsce',
+    none: 'Na razie nie ma tu wydarzeń.', noneEnded: 'Nie było tu jeszcze wydarzeń.',
+    when: { coming: 'Nadchodzące i trwające', past: 'Minione', all: 'Wszystkie' }, done: 'zakończone'
+  },
+  group: {
+    label: 'Grupy', first: 'Pierwsza grupa', all: 'grupy', many: 'grup',
+    facts: 'nazwa, termin, kategoria', factsShort: 'nazwa i termin',
+    none: 'Na razie nie ma tu grup.', noneEnded: 'Nie ma tu grup w archiwum.', when: KEPT, done: 'w archiwum'
+  },
+  organisation: {
+    label: 'Parafie i organizacje', first: 'Pierwsza parafia lub organizacja', all: 'parafie i organizacje', many: 'parafii lub organizacji',
+    facts: 'nazwa, termin, kategoria', factsShort: 'nazwa i termin',
+    none: 'Na razie nie ma tu parafii ani organizacji.', noneEnded: 'Nie ma tu parafii ani organizacji w archiwum.', when: KEPT, done: 'w archiwum'
+  },
+  course: {
+    label: 'Kursy', first: 'Pierwszy kurs', all: 'kursy', many: 'kursów',
+    facts: 'nazwa, termin, kategoria', factsShort: 'nazwa i termin',
+    none: 'Na razie nie ma tu kursów.', noneEnded: 'Nie ma tu kursów w archiwum.', when: KEPT, done: 'w archiwum'
+  },
+  /* 0134 */
+  school: {
+    label: 'Szkoły', first: 'Pierwsza szkoła', all: 'szkoły', many: 'szkół',
+    facts: 'nazwa, kategoria', factsShort: 'nazwa',
+    none: 'Na razie nie ma tu szkół.', noneEnded: 'Nie ma tu szkół w archiwum.', when: KEPT, done: 'w archiwum'
+  },
+  class: {
+    label: 'Klasy', first: 'Pierwsza klasa', all: 'klasy', many: 'klas',
+    facts: 'nazwa, kategoria', factsShort: 'nazwa',
+    none: 'Na razie nie ma tu klas.', noneEnded: 'Nie ma tu klas w archiwum.', when: KEPT, done: 'w archiwum'
+  }
+};
+
+const TYPES: readonly ProfileKind[] = ['event', 'group', 'organisation', 'course', 'school', 'class'];
+
+const typeOf = (said: string): ProfileKind => ((TYPES as readonly string[]).includes(said) ? said as ProfileKind : 'event');
+
+const WHENS: readonly EventWhen[] = ['coming', 'past', 'all'];
+
+const whenOf = (said: string): EventWhen => ((WHENS as readonly string[]).includes(said) ? said as EventWhen : 'coming');
+
+const filled = (said: string | null | undefined): string | null => {
+  const t = (said ?? '').trim();
+  return t === '' ? null : t;
+};
 
 /** Eine Karte mit dem, was dieser Browser aus ihr geöffnet hat. */
 interface Shown {
   readonly card: EventCard;
   readonly title: string;
+  readonly lead: string | null;
   readonly location: string | null;
   readonly when: string | null;
 }
 
-/** Der Titel steht auf der Seite; fehlt er, der des Haupttermins, sonst der Name des Bereichs. */
+/**
+ * Der Titel: der der Wizytówka, sonst der der Hauptseite, sonst der des Haupttermins, sonst
+ * der Name des Bereichs. Der Vorspann: der der Wizytówka, sonst der der Hauptseite.
+ */
 async function shownOf(card: EventCard): Promise<Shown> {
-  const texts = await openCard(card).catch(() => ({ title: null, location: null }));
+  const [face, texts] = await Promise.all([
+    card.card == null ? null : openFace(card.card, card.areaId, null).catch(() => null),
+    /* Ohne die Wizytówka: nur Titel und Ort des Haupttermins. */
+    openCard({ ...card, card: null }).catch(() => ({ title: null, location: null }))
+  ]);
   return {
     card,
-    title: (card.page.title ?? '').trim() || (texts.title ?? '').trim() || card.name,
-    location: texts.location,
+    title: filled(face?.title) ?? filled(card.page.title) ?? filled(texts.title) ?? card.name,
+    lead: filled(face?.lead) ?? filled(card.page.lead),
+    location: filled(texts.location),
     when: whenText(card.item)
   };
 }
 
-function Tags({ one }: { one: Shown }) {
-  const cancelled = one.card.item?.status === 'cancelled';
-  if (one.card.kind === null && !one.card.open && !cancelled) return null;
+/** Vorbei: abgesagt nicht mitgezählt. Nach dem Ende kein „Zapisy otwarte" mehr. */
+const doneOf = (card: EventCard): boolean => card.ended === true && card.item?.status !== 'cancelled';
+
+function Tags({ one, withType = false }: { one: Shown; withType?: boolean }) {
+  const card = one.card;
+  const cancelled = card.item?.status === 'cancelled';
+  const done = doneOf(card);
+  const open = card.open && !cancelled && !done;
+  const type = withType ? card.type ?? null : null;
+  if (type === null && card.kind === null && !open && !cancelled && !done) return null;
   return (
     <span className="wk-tags">
-      {one.card.kind !== null && <span className="wk-tag">{one.card.kind}</span>}
+      {type !== null && <span className="wk-tag">{kindLabel(type)}</span>}
+      {card.kind !== null && <span className="wk-tag">{card.kind}</span>}
       {cancelled && <span className="wk-tag">odwołane</span>}
-      {one.card.open && !cancelled && <span className="wk-tag wk-tag-open">Zapisy otwarte</span>}
+      {done && <span className="wk-tag">{WORDS[card.type ?? 'event'].done}</span>}
+      {open && <span className="wk-tag wk-tag-open">Zapisy otwarte</span>}
     </span>
   );
+}
+
+/** Nach dem Ende: der Weg zur Seite „Po wydarzeniu" — der Dienst nennt sie erst dann. */
+function After({ card }: { card: EventCard }) {
+  if (card.after == null) return null;
+  return <a className="wk-event-after" href={pagePath(card.after.path)}>Po wydarzeniu →</a>;
 }
 
 /** Eine Karte in der Liste — `rich`: mit Bild, Vorspann und Veranstalter. */
@@ -85,9 +175,10 @@ function EventItem({ one, rich }: { one: Shown; rich: boolean }) {
         <a className="wk-event-title" href={href}>{one.title}</a>
         {one.when !== null && <span className="wk-event-when">{one.when}</span>}
         {one.location !== null && <span className="wk-event-where">{one.location}</span>}
-        {rich && one.card.page.lead !== null && one.card.page.lead.trim() !== '' && <p className="wk-event-lead">{one.card.page.lead}</p>}
+        {rich && one.lead !== null && <p className="wk-event-lead">{one.lead}</p>}
         {rich && one.card.organiser !== null && <span className="wk-event-who">{one.card.organiser}</span>}
         <Tags one={one} />
+        <After card={one.card} />
       </div>
     </li>
   );
@@ -97,6 +188,7 @@ function EventItem({ one, rich }: { one: Shown; rich: boolean }) {
 
 interface ListConfig {
   readonly title: string;
+  readonly type: ProfileKind;
   readonly areas: readonly string[];
   readonly deep: boolean;
   readonly kind: string;
@@ -110,6 +202,7 @@ const readList = (raw: RawConfig): ListConfig => {
   const limit = maybeNumber(raw, 'limit');
   return {
     title: text(raw, 'title'),
+    type: typeOf(text(raw, 'type')),
     areas: idsOf(text(raw, 'areas')),
     deep: flag(raw, 'deep', true),
     kind: text(raw, 'kind'),
@@ -135,7 +228,8 @@ function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
     void (async () => {
       try {
         const out = await loadEvents({
-          areas: config.areas, deep: config.deep, kind: config.kind, when: config.when, limit: config.limit ?? 24, module: ctx.moduleId
+          areas: config.areas, type: config.type, deep: config.deep, kind: config.kind, when: config.when,
+          limit: config.limit ?? 24, module: ctx.moduleId
         });
         const opened = await Promise.all(out.events.map(shownOf));
         if (alive) setList(opened);
@@ -145,18 +239,16 @@ function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- die Liste der Bereiche zählt als Text
-  }, [areasKey, config.deep, config.kind, config.when, config.limit, ctx.moduleId]);
+  }, [areasKey, config.type, config.deep, config.kind, config.when, config.limit, ctx.moduleId]);
 
+  const words = WORDS[config.type];
   const whole = ctx.whole === true;
   const strip = ctx.size.height === 'strip' && !whole;
-  const title = config.title !== '' ? config.title : 'Wydarzenia';
-  const head = <h2 className="wk-card-title">{title}</h2>;
+  const head = <h2 className="wk-card-title">{config.title !== '' ? config.title : words.label}</h2>;
 
   if (list === null) return <>{head}<Loading lines={strip ? 1 : 3} /></>;
-  if (list === 'failed') return <>{head}<p className="wk-card-muted">Nie udało się wczytać wydarzeń.</p></>;
-  if (list.length === 0) {
-    return <>{head}<p className="wk-card-muted">{config.when === 'past' ? 'Nie było tu jeszcze wydarzeń.' : 'Na razie nie ma tu wydarzeń.'}</p></>;
-  }
+  if (list === 'failed') return <>{head}<p className="wk-card-muted">Nie udało się wczytać listy.</p></>;
+  if (list.length === 0) return <>{head}<p className="wk-card-muted">{config.when === 'past' ? words.noneEnded : words.none}</p></>;
 
   if (strip) {
     const next = list[0];
@@ -167,6 +259,7 @@ function EventsView({ config, ctx }: { config: ListConfig; ctx: PartContext }) {
           <a className="wk-event-title" href={pagePath(next.card.page.path)}>{next.title}</a>
           {next.when !== null && <span className="wk-event-when">{next.when}</span>}
           <Tags one={next} />
+          <After card={next.card} />
           {list.length > 1 && <span className="wk-card-muted">i {list.length - 1} więcej</span>}
         </p>
       </>
@@ -206,19 +299,27 @@ function useAreas(): readonly AreaRow[] | null {
 function EventsEditor({ raw, onSet, busy }: EditorProps) {
   const areas = useAreas();
   const config = readList(raw);
+  const words = WORDS[config.type];
 
   return (
     <>
       <label className="wk-field">
         <span>Nagłówek</span>
-        <input value={raw.title ?? ''} disabled={busy} placeholder="Wydarzenia" onChange={(e) => onSet({ title: e.target.value })} />
+        <input value={raw.title ?? ''} disabled={busy} placeholder={words.label} onChange={(e) => onSet({ title: e.target.value })} />
+      </label>
+
+      <label className="wk-field">
+        <span>Rodzaj</span>
+        <select value={config.type} disabled={busy} onChange={(e) => onSet({ type: e.target.value })}>
+          {TYPES.map((one) => <option key={one} value={one}>{WORDS[one].label}</option>)}
+        </select>
       </label>
 
       <div className="wk-field">
-        <span>Wydarzenia z obszarów</span>
+        <span>{words.label} z obszarów</span>
         {areas === null ? <Loading lines={2} /> : (
           <AreaPickMany
-            label="Wydarzenia z obszarów"
+            label={`${words.label} z obszarów`}
             areas={areas}
             only={areas.filter((a) => a.personal !== true)}
             value={config.areas}
@@ -233,14 +334,14 @@ function EventsEditor({ raw, onSet, busy }: EditorProps) {
       </label>
 
       <label className="wk-field">
-        <span>Tylko rodzaj (opcjonalnie)</span>
+        <span>Tylko kategoria (opcjonalnie)</span>
         <input value={raw.kind ?? ''} disabled={busy} placeholder="np. rekolekcje" maxLength={40} onChange={(e) => onSet({ kind: e.target.value })} />
       </label>
 
       <label className="wk-field">
         <span>Które</span>
         <select value={config.when} disabled={busy} onChange={(e) => onSet({ when: e.target.value })}>
-          {WHEN.map((one) => <option key={one.value} value={one.value}>{one.label}</option>)}
+          {WHENS.map((one) => <option key={one} value={one}>{words.when[one]}</option>)}
         </select>
       </label>
 
@@ -250,8 +351,8 @@ function EventsEditor({ raw, onSet, busy }: EditorProps) {
       </label>
 
       <p className="wk-note">
-        {config.areas.length === 0 ? 'Bez wybranych obszarów lista pokaże tylko wydarzenia, które poprosiły o miejsce i zostały przyjęte. ' : ''}
-        Inne wydarzenia mogą poprosić o miejsce na tej liście — prośby trafiają do „Sprawy” osoby, która prowadzi stronę.
+        {config.areas.length === 0 ? 'Bez wybranych obszarów lista pokaże tylko te, które poprosiły o miejsce i zostały przyjęte. ' : ''}
+        Inne obszary mogą poprosić o miejsce na tej liście — prośby trafiają do „Sprawy” osoby, która prowadzi stronę.
       </p>
     </>
   );
@@ -260,45 +361,51 @@ function EventsEditor({ raw, onSet, busy }: EditorProps) {
 export const eventsPart = definePart<ListConfig>({
   kind: 'events',
   label: 'Wydarzenia',
-  use: 'Wydarzenia wybranych obszarów jako karty (data, miejsce, zdjęcie, „Zapisy otwarte”); inne wydarzenia mogą poprosić o miejsce na liście.',
+  use: 'Wydarzenia, grupy, parafie albo kursy wybranych obszarów jako karty (data, miejsce, zdjęcie, „Zapisy otwarte”); inne mogą poprosić o miejsce na liście.',
   box: { colSpan: 6, rowSpan: 3 },
 
-  example: { title: 'Wydarzenia w parafii', areas: '<id-obszaru-1>,<id-obszaru-2>', deep: 'yes', kind: 'rekolekcje', when: 'coming', limit: '12' },
+  example: { title: 'Wydarzenia w parafii', type: 'event', areas: '<id-obszaru-1>,<id-obszaru-2>', deep: 'yes', kind: 'rekolekcje', when: 'coming', limit: '12' },
   fields: [],
   extra: [
-    { key: 'title', shape: 'line', says: 'nagłówek listy; puste — „Wydarzenia”' },
-    { key: 'areas', shape: 'ids', says: 'obszary, z których lista bierze wydarzenia (identyfikatory) — najprościej wybrać w edytorze; puste — tylko wydarzenia przyjęte na prośbę' },
-    { key: 'deep', shape: 'line', says: '"yes" — także wydarzenia obszarów w nich (zwykle), "no" — tylko tych obszarów' },
-    { key: 'kind', shape: 'line', says: 'tylko wydarzenia tego rodzaju (np. "rekolekcje"); puste — wszystkie' },
-    { key: 'when', shape: 'line', says: '"coming" — nadchodzące i trwające (zwykle), "past" — minione, "all" — wszystkie' },
-    { key: 'limit', shape: 'line', says: 'najwyżej tyle wydarzeń (1–200); puste — 24' }
+    { key: 'title', shape: 'line', says: 'nagłówek listy; puste — nazwa rodzaju („Wydarzenia”, „Grupy” …)' },
+    { key: 'type', shape: 'line', says: 'co lista pokazuje: "event" — wydarzenia (zwykle), "group" — grupy, "organisation" — parafie i organizacje, "course" — kursy' },
+    { key: 'areas', shape: 'ids', says: 'obszary, z których lista bierze karty (identyfikatory) — najprościej wybrać w edytorze; puste — tylko karty przyjęte na prośbę' },
+    { key: 'deep', shape: 'line', says: '"yes" — także obszary w nich (zwykle), "no" — tylko te obszary' },
+    { key: 'kind', shape: 'line', says: 'tylko karty tej kategorii (np. "rekolekcje"); puste — wszystkie' },
+    { key: 'when', shape: 'line', says: '"coming" — nadchodzące i trwające, u grup, parafii i kursów: aktywne (zwykle); "past" — minione albo w archiwum; "all" — wszystkie' },
+    { key: 'limit', shape: 'line', says: 'najwyżej tyle kart (1–200); puste — 24' }
   ],
   Editor: EventsEditor,
 
   read: readList,
-  /* Auch ohne Bereiche zeigt sie etwas: die Wydarzenia, die hier stehen dürfen. */
+  /* Auch ohne Bereiche zeigt sie etwas: die Karten, die hier stehen dürfen. */
   hasContent: () => true,
 
   fullscreen: true,
-  shows: (_config, size) => size.height === 'strip'
-    ? 'Najbliższe wydarzenie w jednym wierszu.'
-    : size.height === 'tall'
-      ? (size.width === 'full' || size.width === 'wide' ? 'Wszystkie wydarzenia jako siatka kart ze zdjęciami i opisem.' : 'Wszystkie wydarzenia ze zdjęciami i opisem, jedno pod drugim.')
-      : size.width === 'full'
-        ? 'Do czterech najbliższych w rzędzie — data, miejsce, rodzaj.'
-        : 'Do czterech najbliższych krótko — data i miejsce.',
+  shows: (config, size) => {
+    const words = WORDS[config.type];
+    return size.height === 'strip'
+      ? `${words.first} w jednym wierszu.`
+      : size.height === 'tall'
+        ? (size.width === 'full' || size.width === 'wide'
+          ? `Wszystkie ${words.all} jako siatka kart ze zdjęciami i opisem.`
+          : `Wszystkie ${words.all} ze zdjęciami i opisem, jedna karta pod drugą.`)
+        : size.width === 'full'
+          ? `Do czterech ${words.many} w rzędzie — ${words.facts}.`
+          : `Do czterech ${words.many} krótko — ${words.factsShort}.`;
+  },
 
   View: EventsView
 });
 
-/* -- „Wydarzenie": eines ------------------------------------------------------------- */
+/* -- „Wizytówka": eine ---------------------------------------------------------------- */
 
 interface OneConfig {
   readonly title: string;
   readonly area: string;
 }
 
-/** `?wydarzenie=<obszar>` aus der Adresse — eine Seite für viele Wydarzenia. */
+/** `?wydarzenie=<obszar>` aus der Adresse — eine Seite für viele. */
 function useHashParam(name: string): string {
   const read = () => {
     if (typeof window === 'undefined') return '';
@@ -318,8 +425,43 @@ function useHashParam(name: string): string {
 
 interface One {
   readonly shown: Shown;
+  /** Die Hauptseite — `null`: keine. */
+  readonly href: string | null;
   readonly forms: number;
   readonly controller: ControllerInfo | null;
+}
+
+/**
+ * Die Wizytówka eines Bereichs jeder Art (`/area/{id}/profile`). Steht er mit öffentlicher
+ * Hauptseite in Listen, kommt deren Karte dazu: Titel und Vorspann der Hauptseite, wer
+ * veranstaltet, ob abgesagt.
+ */
+async function oneOf(areaId: string): Promise<One> {
+  const [profile, listed] = await Promise.all([
+    loadPublicProfile(areaId),
+    loadEvent(areaId).then((one) => one.event, () => null)
+  ]);
+  const path = profile.main?.path ?? listed?.page.path ?? null;
+  const card: EventCard = {
+    areaId,
+    type: profile.kind,
+    kind: profile.category,
+    name: filled(profile.name) ?? kindLabel(profile.kind),
+    organiser: listed?.organiser ?? null,
+    page: {
+      path: path ?? '',
+      title: listed?.page.title ?? null,
+      lead: listed?.page.lead ?? null,
+      imageId: profile.imageId ?? listed?.page.imageId ?? null
+    },
+    card: profile.card,
+    after: profile.after,
+    ended: profile.ended,
+    item: profile.item === null ? null : { ...profile.item, status: listed?.item?.status ?? null },
+    open: profile.forms.length > 0,
+    via: 'rule'
+  };
+  return { shown: await shownOf(card), href: path === null ? null : pagePath(path), forms: profile.forms.length, controller: profile.controller };
 }
 
 function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
@@ -331,15 +473,7 @@ function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
     if (areaId === '') { setOne('failed'); return undefined; }
     let alive = true;
     setOne(null);
-    void (async () => {
-      try {
-        const out = await loadEvent(areaId);
-        const shown = await shownOf(out.event);
-        if (alive) setOne({ shown, forms: out.forms.length, controller: out.controller });
-      } catch {
-        if (alive) setOne('failed');
-      }
-    })();
+    void oneOf(areaId).then((found) => { if (alive) setOne(found); }, () => { if (alive) setOne('failed'); });
     return () => { alive = false; };
   }, [areaId]);
 
@@ -349,46 +483,61 @@ function EventView({ config, ctx }: { config: OneConfig; ctx: PartContext }) {
 
   if (one === null) return <>{head}<Loading lines={strip ? 1 : 3} /></>;
   if (one === 'failed') {
-    return <>{head}<p className="wk-card-muted">{areaId === '' ? 'Tu pojawi się wydarzenie — wybierz je w ustawieniach modułu albo podaj w adresie (?wydarzenie=…).' : 'Tego wydarzenia nie ma albo nie jest publiczne.'}</p></>;
+    return (
+      <>
+        {head}
+        <p className="wk-card-muted">{areaId === ''
+          ? 'Tu pojawi się wizytówka — wybierz obszar w ustawieniach modułu albo podaj go w adresie (?wydarzenie=…).'
+          : 'Ten obszar nie ma wizytówki albo nie jest ona publiczna.'}</p>
+      </>
+    );
   }
 
   const s = one.shown;
-  const href = pagePath(s.card.page.path);
+  const href = one.href;
+  /* Auf ihrer eigenen Hauptseite: Titel und Vorspann stehen schon im Kopf der Seite, das Formular darunter. */
+  const own = s.card.page.path !== '' && parsePath(window.location.hash).page === s.card.page.path;
+  const title = own ? null : href === null ? <span className="wk-event-title">{s.title}</span> : <a className="wk-event-title" href={href}>{s.title}</a>;
+  const join = !own && one.forms > 0 && href !== null && s.card.item?.status !== 'cancelled' && !doneOf(s.card);
 
   if (strip) {
     return (
       <>
         {head}
         <p className="wk-events-strip">
-          <a className="wk-event-title" href={href}>{s.title}</a>
+          {title}
           {s.when !== null && <span className="wk-event-when">{s.when}</span>}
-          <Tags one={s} />
+          <Tags one={s} withType />
+          <After card={s.card} />
         </p>
       </>
     );
   }
 
   const tall = whole || ctx.size.height === 'tall';
-  const image = s.card.page.imageId;
+  const image = s.card.page.imageId === null ? null : <FadeImg src={eventImageUrl(s.card.page.imageId)} alt="" loading="lazy" decoding="async" />;
   const side = !tall && (ctx.size.width === 'wide' || ctx.size.width === 'full');
 
   return (
     <>
       {head}
       <div className={`wk-event-one${side ? ' is-side' : ''}${tall ? ' is-tall' : ''}`} data-event={s.card.areaId}>
-        {image !== null && (
-          <a className="wk-event-image" href={href} tabIndex={-1} aria-hidden="true">
-            <FadeImg src={eventImageUrl(image)} alt="" loading="lazy" decoding="async" />
-          </a>
-        )}
+        {image !== null && (href === null
+          ? <span className="wk-event-image">{image}</span>
+          : <a className="wk-event-image" href={href} tabIndex={-1} aria-hidden="true">{image}</a>)}
         <div className="wk-event-body">
-          <a className="wk-event-title" href={href}>{s.title}</a>
+          {title}
           {s.when !== null && <span className="wk-event-when">{s.when}</span>}
           {s.location !== null && <span className="wk-event-where">{s.location}</span>}
-          {s.card.page.lead !== null && s.card.page.lead.trim() !== '' && <p className="wk-event-lead">{s.card.page.lead}</p>}
+          {!own && s.lead !== null && <p className="wk-event-lead">{s.lead}</p>}
           {tall && s.card.organiser !== null && <span className="wk-event-who">Organizuje: {s.card.organiser}</span>}
-          <Tags one={s} />
-          {one.forms > 0 && s.card.item?.status !== 'cancelled' && <a className="wk-btn wk-btn-small wk-event-go" href={href}>Zapisz się</a>}
+          <Tags one={s} withType />
+          {(join || s.card.after != null) && (
+            <span className="wk-event-actions">
+              {join && <a className="wk-btn wk-btn-small" href={href}>Zapisz się</a>}
+              <After card={s.card} />
+            </span>
+          )}
         </div>
       </div>
       {tall && <ControllerClause controller={one.controller} context="page" className="is-footer" report={{ kind: 'event', id: s.card.areaId }} />}
@@ -405,20 +554,21 @@ function EventEditor({ raw, onSet, busy }: EditorProps) {
         <input value={raw.title ?? ''} disabled={busy} placeholder="np. Najbliższe rekolekcje" onChange={(e) => onSet({ title: e.target.value })} />
       </label>
       <div className="wk-field">
-        <span>Które wydarzenie</span>
+        <span>Wizytówka obszaru</span>
         {areas === null ? <Loading lines={1} /> : (
           <AreaPick
-            label="Które wydarzenie"
+            label="Wizytówka obszaru"
             areas={areas}
             only={areas.filter((a) => a.personal !== true)}
             value={raw.area ?? ''}
             onChange={(area) => onSet({ area })}
             extras={[{ value: '', label: '— z adresu strony (?wydarzenie=…) —' }]}
+            disabled={busy}
           />
         )}
       </div>
       <p className="wk-note">
-        Pusty wybór: strona pokaże wydarzenie podane w adresie, np. #/strona?wydarzenie=&lt;identyfikator obszaru&gt; — jedna strona dla wielu wydarzeń.
+        Pusty wybór: strona pokaże wizytówkę obszaru podanego w adresie, np. #/strona?wydarzenie=&lt;identyfikator obszaru&gt; — jedna strona dla wielu.
       </p>
     </>
   );
@@ -426,27 +576,27 @@ function EventEditor({ raw, onSet, busy }: EditorProps) {
 
 export const eventPart = definePart<OneConfig>({
   kind: 'event',
-  label: 'Wydarzenie',
-  use: 'Jedno wydarzenie jako duża karta — wybrane tutaj albo podane w adresie strony (?wydarzenie=…).',
+  label: 'Wizytówka',
+  use: 'Wizytówka jednego obszaru — wydarzenia, grupy, parafii albo kursu: zdjęcie, nazwa, opis, termin, „Zapisz się”, po zakończeniu „Po wydarzeniu”; wybrana tutaj albo podana w adresie strony (?wydarzenie=…).',
   box: { colSpan: 4, rowSpan: 3 },
 
-  example: { title: 'Najbliższe rekolekcje', area: '<id-obszaru-wydarzenia>' },
+  example: { title: 'Najbliższe rekolekcje', area: '<id-obszaru>' },
   fields: [],
   extra: [
     { key: 'title', shape: 'line', says: 'nagłówek nad kartą; puste — bez nagłówka' },
-    { key: 'area', shape: 'line', says: 'obszar wydarzenia (identyfikator) — najprościej wybrać w edytorze; puste — wydarzenie z adresu strony (?wydarzenie=<id>)' }
+    { key: 'area', shape: 'line', says: 'obszar, którego wizytówkę pokazać (identyfikator) — najprościej wybrać w edytorze; puste — obszar z adresu strony (?wydarzenie=<id>)' }
   ],
   Editor: EventEditor,
 
   read: (raw: RawConfig): OneConfig => ({ title: text(raw, 'title'), area: text(raw, 'area') }),
-  /* Ohne Wahl zeigt er das Wydarzenie aus der Adresse. */
+  /* Ohne Wahl zeigt er die Wizytówka aus der Adresse. */
   hasContent: () => true,
 
   fullscreen: true,
   shows: (_config, size) => size.height === 'strip'
-    ? 'Nazwa, data i „Zapisy otwarte” w jednym wierszu.'
+    ? 'Nazwa, data, rodzaj i „Zapisy otwarte” w jednym wierszu.'
     : size.height === 'tall'
-      ? 'Duże zdjęcie, data, miejsce, opis, organizator, „Zapisz się” i kto odpowiada za treść.'
+      ? 'Duże zdjęcie, nazwa, data, miejsce, opis, organizator, „Zapisz się” (po zakończeniu „Po wydarzeniu”) i kto odpowiada za treść.'
       : size.width === 'wide' || size.width === 'full'
         ? 'Zdjęcie obok: nazwa, data, miejsce, opis i „Zapisz się”.'
         : 'Zdjęcie, nazwa, data, miejsce i „Zapisz się”.',

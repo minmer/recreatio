@@ -14,6 +14,7 @@ import { fromBase64Url, openText } from '../core/crypto';
 import { API, call } from '../core/session';
 import { itemFieldAad } from '../calendar/calendar';
 import type { ControllerInfo } from '../areas/controllers';
+import { openCard as openProfileCard, type ProfileKind, type SealedCard } from '../areas/profile';
 
 /** Die Adresse des Katalogs — die eigene Seite des Betreibers. */
 export const CATALOGUE_PATH = 'events';
@@ -92,10 +93,18 @@ export interface SealedField {
 
 export interface EventCard {
   readonly areaId: string;
+  /** 0133 — die Art des Profils (Wydarzenie, Grupa …). */
+  readonly type?: ProfileKind;
+  /** Das Wort für Filter („rekolekcje"). */
   readonly kind: string | null;
   readonly name: string;
   readonly organiser: string | null;
   readonly page: { readonly path: string; readonly title: string | null; readonly lead: string | null; readonly imageId: string | null };
+  /** 0133 — die Wizytówka, versiegelt unter dem Schlüssel ihres (jawnen) Bereichs. */
+  readonly card?: SealedCard | null;
+  /** 0133 — nach dem Ende: die Seite „po wydarzeniu". */
+  readonly after?: { readonly path: string } | null;
+  readonly ended?: boolean;
   readonly item: null | {
     readonly id: string; readonly startsAt: string | null; readonly endsAt: string | null; readonly allDay: boolean;
     readonly status: string | null; readonly fields: readonly SealedField[];
@@ -109,6 +118,8 @@ export type EventWhen = 'coming' | 'past' | 'all';
 
 export interface EventQuery {
   readonly areas: readonly string[];
+  /** 0133 — welche Art von Profil (Vorgabe: Wydarzenia). */
+  readonly type?: ProfileKind;
   readonly deep?: boolean;
   readonly kind?: string;
   readonly when?: EventWhen;
@@ -123,6 +134,7 @@ export function loadEvents(q: EventQuery): Promise<{ events: readonly EventCard[
   if (q.deep === false) params.set('deep', '0');
   if (q.kind !== undefined && q.kind.trim() !== '') params.set('kind', q.kind.trim());
   if (q.when !== undefined) params.set('when', q.when);
+  if (q.type !== undefined && q.type !== 'event') params.set('type', q.type);
   if (q.limit !== undefined) params.set('limit', String(q.limit));
   if (q.module) params.set('module', q.module);
   return call(`/events?${params.toString()}`);
@@ -152,12 +164,19 @@ const keyAt = (areaId: string, epoch: number): Promise<Uint8Array | null> => {
   return found;
 };
 
-export interface CardTexts { readonly title: string | null; readonly location: string | null }
+export interface CardTexts {
+  /** 0133 — der Titel der Wizytówka, sonst der des Haupttermins (`null`: keiner zu öffnen). */
+  readonly title: string | null;
+  /** 0133 — der Vorspann der Wizytówka (`null`: keine). */
+  readonly lead?: string | null;
+  readonly location: string | null;
+}
 
-/** Titel und Ort des Haupttermins — mit den offengelegten Schlüsseln, hier im Browser. */
+/** Titel und Vorspann der Wizytówka, Titel und Ort des Haupttermins — mit den offengelegten Schlüsseln, hier im Browser. */
 export async function openCard(card: EventCard): Promise<CardTexts> {
   let title: string | null = null;
   let location: string | null = null;
+  const profile = card.card == null ? null : await openProfileCard(card.card, card.areaId, null).catch(() => null);
   for (const f of card.item?.fields ?? []) {
     const key = await keyAt(f.areaId, f.epoch);
     if (key === null) continue;
@@ -168,7 +187,11 @@ export async function openCard(card: EventCard): Promise<CardTexts> {
       // Nicht offen ausgehängt — dann der Titel der Seite.
     }
   }
-  return { title, location };
+  return {
+    title: profile !== null && profile.title.trim() !== '' ? profile.title : title,
+    lead: profile !== null && profile.lead.trim() !== '' ? profile.lead : null,
+    location
+  };
 }
 
 /** Wann, in Worten: „sob., 14 lis. 2026, 18:00–20:00" — oder `null`. */

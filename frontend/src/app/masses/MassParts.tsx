@@ -15,6 +15,7 @@ import {
   byDay, CONFESSION, dayKey, DEVOTION, fullDayLabel, hour, isMass, loadPlan, type PublicMass
 } from './mass';
 import { isAhead, soon, type MassView } from './massShape';
+import { colourClass } from '../calendar/scheme';
 
 /* -- Die Uhr ------------------------------------------------------------------ */
 
@@ -250,12 +251,32 @@ export function Row({ ctx, mass }: { ctx: Ctx; mass: PublicMass }) {
                 {cancelled && <span className="wk-mass-off">odwołana</span>}
               </span>
             )}
+            <PublicValues mass={mass} />
             {ctx.place && <span className="wk-mass-where">{mass.calendarTitle}</span>}
             {!cancelled && ctx.shown.intentions === 'all' && <Intentions mass={mass} />}
           </>
         )}
       </span>
     </div>
+  );
+}
+
+/**
+ * 0132 — WAS DAS SCHEMA OFFEN SAGT: der Obchód als Text, eine liturgische Farbe
+ * als Plättchen (das Wort steht im Hinweis und für Vorleser im Etikett).
+ */
+export function PublicValues({ mass }: { mass: PublicMass }) {
+  const values = mass.values ?? [];
+  if (values.length === 0) return null;
+  const colours = values.filter((v) => colourClass(v.value) !== null);
+  const texts = values.filter((v) => colourClass(v.value) === null && v.value !== (mass.title ?? ''));
+  return (
+    <span className="wk-mass-values">
+      {colours.map((v) => (
+        <span key={v.field} className={`wk-lc ${colourClass(v.value)}`} role="img" aria-label={`${v.label}: ${v.value}`} title={`${v.label}: ${v.value}`} />
+      ))}
+      {texts.map((v) => <span key={v.field} className="wk-mass-value">{v.value}</span>)}
+    </span>
   );
 }
 

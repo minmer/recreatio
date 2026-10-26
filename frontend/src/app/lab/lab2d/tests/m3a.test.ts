@@ -342,7 +342,7 @@ describe('M3a — bodies in the scene format and on the accelerated view', () =>
     expect(wood.pinned).toBe(false);
     expect(Math.abs(wood.a - (15 * Math.PI) / 180)).toBeLessThan(1e-12);
     expect(stone.pinned).toBe(true);
-    /* Freie Körper (bis acht, ohne Eis und Körner) rechnet seit 2026-10-26 auch der beschleunigte Weg (gpu/kbody*.ts). */
+    /* Freie Körper (bis acht) und Eis aus einem Rechteck rechnet seit 2026-10-26 auch der beschleunigte Weg (gpu/kbody*.ts); ausgeschnittenes Eis und Körner nicht. */
     expect(e.needsCpu()).toBe(false);
     /* Nur angeheftete Körper: der beschleunigte Weg kann die Szene. */
     const old = scene({ ops: raw.ops.slice(0, 2) });

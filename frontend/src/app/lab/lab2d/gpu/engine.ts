@@ -44,6 +44,8 @@ export class GpuEngine {
   solver!: GpuSolver;
   /** Die Körper im Schritt (bodyStep.ts; nur wenn alle genaue Anteile haben). */
   private bstep!: BodyStep;
+  /** Rechneten beim letzten Hochladen alle Körper mit genauen Anteilen (null: noch keins)? */
+  private lastBody: boolean | null = null;
   private sub!: GPUBuffer;
   private groups = new Map<string, GPUBindGroup>();
   /** Zählt die Neuaufbauten des Zustands (der Zeichner baut dann seine Gruppen neu). */
@@ -133,11 +135,12 @@ export class GpuEngine {
   /** Den Zustand der CPU-Engine hochladen (nach einem Handgriff); passt er nicht in die Puffer, alles neu. */
   upload(): void {
     if (!this.state.fits(this.cpu)) { this.rebuild(); return; }
-    const wasBody = this.state.body;
     this.state.upload(this.cpu);
     /* Treppe ↔ genaue Anteile (ein Körper wurde frei oder angeheftet): die Treppe trug eine andere Energie der Körper als ihre genauen
-       Zellen (test 39: das Glas 168,80 statt 167,32 J) — die Bilanzen gehen mit den Abweichungen der CPU-Engine weiter, die eben alles bekam. */
-    if (this.state.body !== wasBody) this.carryErrors({ energy: this.cpu.energyError(), water: this.cpu.waterError(), other: this.cpu.otherError(), salt: this.cpu.saltError() });
+       Zellen (test 39: das Glas 168,80 statt 167,32 J) — die Bilanzen gehen mit den Abweichungen der CPU-Engine weiter, die eben alles bekam.
+       Der Modus des letzten Hochladens überdauert einen Neuaufbau (mehr Platz ist kein Wechsel). */
+    if (this.lastBody !== null && this.state.body !== this.lastBody) this.carryErrors({ energy: this.cpu.energyError(), water: this.cpu.waterError(), other: this.cpu.otherError(), salt: this.cpu.saltError() });
+    this.lastBody = this.state.body;
     this.bstep.writeSel();
     this.mixed = this.cpu.particles.hasOther();
     this.salty = this.cpu.particles.hasSalt();
@@ -170,6 +173,8 @@ export class GpuEngine {
     bm.burstCold = t.burstCold; bm.burstWarm = t.burstWarm; bm.collapsedCold = t.collapsedCold; bm.collapsedWarm = t.collapsedWarm;
     e.heat.fluxSL = t.fluxSL; e.heat.fluxLG = t.fluxLG; e.heat.fluxSG = t.fluxSG; e.heat.lossSolids = t.lossSolids;
     f.bodyWork = t.bodyWork;
+    e.melt.melted = t.melted;
+    e.melt.frozen = t.frozen;
     if (this.last !== null && this.last.firstSuperheat !== null && bm.firstSuperheat === null) bm.firstSuperheat = this.last.firstSuperheat;
   }
 
@@ -197,7 +202,7 @@ export class GpuEngine {
       hacc: S.hacc, sites: S.sites, sbub: S.sbub, bubs: S.bubs, bubs2: S.bubs2, bacc: S.bacc, btarget: S.btarget, meas: S.meas, probe: S.probe,
       mgF: S.mgF, mgU: S.mgU, cgv: S.cgv, cgs: S.cgs, lab: S.lab, cfl: S.cfl, csum: S.csum, pkey: S.pkey, pslot: S.pslot, pargs: S.pargs,
       cstart: S.cstart, bsum: S.bsum, L: this.solver.level0,
-      bod: S.bodies.bod, bgeo: S.bodies.bgeo, bcell: S.bodies.bcell, bcon: S.bodies.bcon, bat: S.bodies.bat, bread: S.bodies.bread
+      bod: S.bodies.bod, bgeo: S.bodies.bgeo, bcell: S.bodies.bcell, bcon: S.bodies.bcon, bat: S.bodies.bat, bread: S.bodies.bread, bmelt: S.bodies.bmelt
     };
     if (v === 'A') { base.parts = S.partsA; base.ccount = S.ccountB; }
     if (v === 'B') { base.parts = S.partsB; base.ccount = S.ccountA; }
@@ -432,6 +437,10 @@ export class GpuEngine {
     const L = this.layout();
     let buf = this.staging.find((b) => !this.busy.has(b) && b.size >= L.total);
     if (buf === undefined) {
+      /* Die Aufteilung wuchs (ein Körper, ein Gebiet, eine Heizung mehr): ein freier, zu kleiner Puffer weicht. Sonst waren nach drei
+         solchen Schritten alle drei zu klein, und es kam keine Ablesung mehr — die Anzeige stand still (die Fahrt der Oberfläche, 2026-10-26). */
+      const small = this.staging.findIndex((b) => !this.busy.has(b) && b.size < L.total);
+      if (small >= 0) { this.staging[small].destroy(); this.staging.splice(small, 1); }
       if (this.staging.length >= 3) return null;
       buf = this.ctx.device.createBuffer({ label: 'readback', size: Math.ceil(L.total / 16) * 16 + 16, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
       this.staging.push(buf);
@@ -456,9 +465,12 @@ export class GpuEngine {
     enc.clearBuffer(S.cnt, 4 * C.ESC_OTHER, 4 * 3);
     enc.clearBuffer(S.cnt, 4 * C.REL_MASS, 4 * 4);
     enc.clearBuffer(S.cnt, 4 * C.BODYWORK, 4 * (C.CONT_FULL + 1 - C.BODYWORK));
+    enc.clearBuffer(S.cnt, 4 * C.MELTED, 4 * (C.MELTFULL + 1 - C.MELTED));
     this.busy.add(buf);
+    /* Je Gebiet der GPU einmal (mit genauen Anteilen legt das Hochladen Gebiete der CPU zusammen, die nur freie Körper trennen — sonst zählte
+       ihr −p0 V doppelt). */
     const regions: number[] = [];
-    for (let k = 0; k < this.cpu.regions.count; k += 1) regions.push(S.gpuRegion(k));
+    for (let k = 0; k < this.cpu.regions.count; k += 1) { const r = S.gpuRegion(k); if (!regions.includes(r)) regions.push(r); }
     this.reading.set(buf, { version: this.stateVersion, layout: L, regions, heaters: this.cpu.heat.heaters.length, groups: [...S.measGroups], nreg: S.d.nreg, nheat: S.d.nheat });
     return buf;
   }
@@ -585,6 +597,8 @@ export class GpuEngine {
       this.nsub = r.nsub;
       this.bstep.adapt(r.itP, r.capP);
     }
+    /* Gemessen werden die freien Körper, die eben wach waren (BodyStep.select). */
+    if (this.state.body && r.bodies.length > 0) this.bstep.select(r.bodies);
   }
 
   /* -- Kennzahlen im Format der CPU-Engine ---------------------------------------------------------- */
@@ -652,7 +666,8 @@ export class GpuEngine {
       ambientP: e.pRef,
       g: e.gy,
       extremes: { ...e.extremes.stats(), slowed: t.slowed, vented: t.vented },
-      cpuOnly: false
+      /* Mehr als 128 Berührungen zugleich (kbodydyn.ts MAXC) fielen weg: die Oberfläche sagt, dass die Szene in den normalen Weg gehört. */
+      cpuOnly: t.contFull > 0
     };
   }
 
@@ -666,13 +681,20 @@ export class GpuEngine {
     return { count, free, awake };
   }
 
-  /** Die Körper in der Bilanz (genaue Anteile): ihre inneren Zellen samt dem Versatz eines schmelzenden Stoffs, Film, Kruste, Eis als Wasser. */
-  private bodySums(): { E: number; film: number; crust: number; ice: number } {
+  /**
+   * Die Körper in der Bilanz (genaue Anteile): ihre inneren Zellen samt dem Versatz eines schmelzenden Stoffs, Film, Kruste, Eis als Wasser;
+   * dazu das Schmelzwasser, das noch kein Teilchen ist (Wasser, Enthalpie, Salz — es zählt zur Flüssigkeit, wie budget.ts).
+   */
+  private bodySums(): { E: number; film: number; crust: number; ice: number; pm: number; pH: number; ps: number } {
     const rd = this.last?.bodies ?? [];
-    let E = 0, film = 0, crust = 0;
+    let E = 0, film = 0, crust = 0, pm = 0, pH = 0, ps = 0;
     const list = this.cpu.bodies.list;
-    rd.forEach((b, k) => { if (b.gone) return; E += b.E + latentPerKg(list[k]?.mat ?? 0) * b.m; film += b.film; crust += b.crust; });
-    return { E, film, crust, ice: rd.length > 0 ? iceMass(this.cpu, rd) : 0 };
+    rd.forEach((b, k) => {
+      pm += b.pm; pH += b.pH; ps += b.ps;
+      if (b.gone) return;
+      E += b.E + latentPerKg(list[k]?.mat ?? 0) * b.m; film += b.film; crust += b.crust;
+    });
+    return { E, film, crust, ice: rd.length > 0 ? iceMass(this.cpu, rd) : 0, pm, pH, ps };
   }
 
   /** Die Bilanz aus der letzten Ablesung (wie budget.ts measure). */
@@ -681,8 +703,10 @@ export class GpuEngine {
     const t = this.totals;
     let pv = 0;
     for (const q of r?.regions ?? []) if (q.sealed) pv -= q.p0 * q.vFluid;
-    const liquid = r?.liquidH ?? 0;
     const bs = this.bodySums();
+    /* Schmelzwasser, das noch kein Teilchen ist, zählt zur Flüssigkeit (wie budget.ts). */
+    const liquid = (r?.liquidH ?? 0) + bs.pH;
+    const liquidMass = (r?.liquidMass ?? 0) + bs.pm;
     /* Das Salz am Boden der Kiste zählt mit seiner Enthalpie zu den Feststoffen (wie budget.ts). */
     const solids = (r?.solids ?? 0) + (r?.floorH ?? 0) + bs.E;
     const gas = r?.gas ?? 0;
@@ -690,8 +714,8 @@ export class GpuEngine {
     const film = (r?.film ?? 0) + bs.film;
     const water = {
       /* Eis: die Masse der schmelzbaren Körper (mit genauen Anteilen; ohne sie schmilzt keins). */
-      liquid: r?.liquidMass ?? 0, ice: bs.ice, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
-      total: (r?.liquidMass ?? 0) + bs.ice + (r?.vapour ?? 0) + (r?.fog ?? 0) + film + (r?.bubWater ?? 0) + t.escapedWater
+      liquid: liquidMass, ice: bs.ice, vapour: r?.vapour ?? 0, fog: r?.fog ?? 0, film, bubbles: r?.bubWater ?? 0, escaped: t.escapedWater,
+      total: liquidMass + bs.ice + (r?.vapour ?? 0) + (r?.fog ?? 0) + film + (r?.bubWater ?? 0) + t.escapedWater
     };
     const om = r?.otherMass ?? 0;
     return { energy: solids + liquid + gas + bubbles + pv, solids, liquid, gas, bubbles, pv, water, other: { liquid: om, escaped: t.escapedOther, total: om + t.escapedOther }, salt: this.saltBudget(), air: (r?.air ?? 0) + (r?.bubAir ?? 0) + t.escapedAir };
@@ -700,8 +724,9 @@ export class GpuEngine {
   /** Das Salz aus der letzten Ablesung (gelöst, Kruste, Boden, entwichen). */
   private saltBudget(): EngineStats['budget']['salt'] {
     const r = this.last;
-    const liquid = r?.saltLiquid ?? 0;
-    const crust = (r?.crust ?? 0) + this.bodySums().crust;
+    const bs = this.bodySums();
+    const liquid = (r?.saltLiquid ?? 0) + bs.ps;
+    const crust = (r?.crust ?? 0) + bs.crust;
     const floor = r?.floor ?? 0;
     const escaped = this.totals.escapedSalt;
     return { liquid, crust, grains: 0, floor, escaped, total: liquid + crust + floor + escaped };

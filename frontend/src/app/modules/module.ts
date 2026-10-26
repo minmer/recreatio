@@ -135,7 +135,18 @@ export interface ModuleRow {
   /** 0096 — die Gruppe von Formularen (ein Ordner), in der es steht, und an welcher Stelle. */
   readonly groupId?: string | null;
   readonly groupPosition?: number | null;
+
+  /**
+   * 0133 — UNTER WELCHEM BEREICH DIE FRAGEN LIEGEN, wenn nicht unter dem eigenen
+   * (`null`/fehlt): der Bereich, in dem das Formular veröffentlicht ist. Die
+   * Antworten gehen weiter in den eigenen Bereich (`forms/questionsArea.ts`).
+   */
+  readonly labelAreaId?: string | null;
 }
+
+/** 0133 — der Bereich, unter dessen Schlüssel die Fragen (und der Aufbau) eines Formulars liegen. */
+export const questionsAreaOf = (row: Pick<ModuleRow, 'areaId' | 'labelAreaId'>): string | null =>
+  row.labelAreaId ?? row.areaId;
 
 /**
  * GRUPA FORMULARZY (0096) — ein Ordner: Formulare und Unterformulare unter

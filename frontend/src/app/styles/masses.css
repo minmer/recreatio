@@ -222,6 +222,9 @@
 .wk-mass-what { min-width: 0; display: grid; gap: 0.125rem; }
 .wk-mass-title { font-size: var(--wk-text-sm); color: var(--wk-muted); }
 .wk-mass-int { font-size: var(--wk-text-sm); }
+/* 0132 — was das Schema offen sagt: der Obchód kursiv, die liturgische Farbe als Plättchen. */
+.wk-mass-values { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-mass-value { font-style: italic; }
 
 /* „1)", „2)" — genau wie auf dem Bogen, und aus demselben Grund. */
 .wk-mass-ints { margin: 0; padding: 0; list-style: none; counter-reset: intencja; font-size: var(--wk-text-sm); }

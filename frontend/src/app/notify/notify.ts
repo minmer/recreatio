@@ -121,6 +121,10 @@ export interface Digest {
   readonly learn: { readonly count: number; readonly list: readonly { readonly libraryId: string; readonly count: number; readonly dueAt: string }[] };
   /** 0129–0131 — Sprawy do decyzji (ein Dienst von vorher schickt es nicht). */
   readonly duties?: Duties;
+  /** 0132 — Einträge von aussen (Anmeldungen …), die auf die Kanzlei warten — je Kalender, in dem dieses Konto schreibt. */
+  readonly records?: { readonly count: number; readonly list: readonly { readonly calendarId: string; readonly title: string; readonly areaId: string; readonly count: number }[] };
+  /** 0132 — Kalender mit Plänen, deren angelegte Termine bald enden (das letzte geplante Datum). */
+  readonly plans?: { readonly list: readonly { readonly calendarId: string; readonly title: string; readonly areaId: string; readonly until: string }[] };
   readonly nextPollSeconds: number;
 }
 

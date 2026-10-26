@@ -63,13 +63,22 @@ fn fsC(x: u32) -> f32 { return cf[F_FS * P.n + x]; }
 /* Die Fläche zwischen zwei Nachbarn ist ganz bedeckt (die linke bzw. untere Fläche der Zelle b). */
 fn coveredU(b: u32) -> bool { return cf[F_COVL * P.n + b] >= 1.0 - COVERED_EPS; }
 fn coveredV(b: u32) -> bool { return cf[F_COVB * P.n + b] >= 1.0 - COVERED_EPS; }
-/* Welche Zelle eine ganz bedeckte Fläche zwischen a und b schliesst: die mit dem grösseren Anteil, gleich die erste — „gleich“ bis auf das
-   Rauschen von f32 (zwei halbe Zellen einer Wand quer über zwei Zellen sind 0,4999992 und 0,5000027): sonst entschiede die Rundung. */
+/* Abstand² der Mitte der Zelle x vom Schwerpunkt ihres Körpers. */
+fn ownDist(x: u32) -> f32 {
+  let o = ownerC(x) - 1u;
+  let d = vec2<f32>((f32(ci(x)) + 0.5) * P.dx - bv(o, B_X), (f32(cj(x)) + 0.5) * P.dx - bv(o, B_Y));
+  return dot(d, d);
+}
+/* Welche Zelle eine ganz bedeckte Fläche zwischen a und b schliesst: die mit dem grösseren Anteil — „gleich“ bis auf das Rauschen von f32 (zwei
+   halbe Zellen einer Wand quer über zwei Zellen sind 0,4999992 und 0,5000027) die vom Schwerpunkt ihres Körpers weiter entfernte: die äussere
+   Hälfte einer Becherwand schliesst auf allen Seiten, die innere bleibt offen wie auf der CPU (bis 2026-10-26 die linke/untere: links schloss
+   die äussere, rechts die innere Hälfte). */
 fn pickPair(a: u32, b: u32) -> u32 {
   let fa = select(-1.0, fsC(a), ownerC(a) != 0u);
   let fb = select(-1.0, fsC(b), ownerC(b) != 0u);
   if (fa < 0.0 && fb < 0.0) { return NONE; }
-  return select(a, b, fb > fa + 1e-4);
+  if (fa >= 0.0 && fb >= 0.0 && abs(fb - fa) <= 1e-4) { return select(a, b, ownDist(b) > ownDist(a)); }
+  return select(a, b, fb > fa);
 }
 `;
 
@@ -177,7 +186,8 @@ ${ONE} {
 }`
   },
   {
-    /* Teilchen aus den Rechtecken der wachen Körper (bodyCover.pushOut): auf ihrem Weg im Rahmen des Körpers von seiner alten Lage zur neuen. */
+    /* Teilchen aus den Rechtecken der wachen Körper (bodyCover.pushOut): auf ihrem Weg im Rahmen des Körpers von seiner alten Lage zur neuen —
+       und aus einem Körper, an den im letzten Schritt Eis anfror (B_PUSH, bodyMelt.ts: ein angehefteter schöbe sonst nie). */
     name: 'bPush', wg: WG,
     bind: 'P:u cnt:a bod:r bgeo:r parts:w',
     code: `${BODY_ACCESS}
@@ -194,7 +204,7 @@ ${MAIN} {
   var moved = false;
   let m = 2.0 * P.dx;
   for (var b = 0u; b < P.nbody; b++) {
-    if (!bAwake(b)) { continue; }
+    if (!bAwake(b) && bv(b, B_PUSH) == 0.0) { continue; }
     if (pos.x < bv(b, B_BX0) - m || pos.x > bv(b, B_BX1) + m || pos.y < bv(b, B_BY0) - m || pos.y > bv(b, B_BY1) + m) { continue; }
     let o = moveOut(b, pos, pos, vec3<f32>(bv(b, B_RX), bv(b, B_RY), bv(b, B_RA)));
     if (!o.hit) { continue; }
@@ -224,7 +234,7 @@ ${BODY_CELLS}
   var moved = false;
   let m = 2.0 * P.dx;
   for (var b = 0u; b < P.nbody; b++) {
-    if (!bAwake(b)) { continue; }
+    if (!bAwake(b) && bv(b, B_PUSH) == 0.0) { continue; }
     if (pos.x < bv(b, B_BX0) - m || pos.x > bv(b, B_BX1) + m || pos.y < bv(b, B_BY0) - m || pos.y > bv(b, B_BY1) + m) { continue; }
     let o = moveOut(b, pos, pos, vec3<f32>(bv(b, B_RX), bv(b, B_RY), bv(b, B_RA)));
     if (!o.hit) { continue; }
@@ -311,8 +321,14 @@ ${MAIN} {
     }
     /* Der Körper mit dem grössten Anteil besitzt die Zelle (bei Gleichstand der erste). */
     if (acc > best) { best = acc; owner = b + 1u; mat = mb; }
-    /* Eine Heizplatte: ihr Anteil an der Leistung ihrer Gruppe nach dem Volumen (Heat.bodyHeat): ncell · bedecktes Volumen / Volumen. */
-    if (bv(b, B_HEATER) >= 0.0 && acc > hbest) { hbest = acc; hgrp = u32(bv(b, B_HEATER)) + 1u; hw = bv(b, B_NCELL) * acc * P.vcell / max(1e-30, bv(b, B_VOL)); }
+    /* Eine Heizplatte: ihr Anteil an der Leistung ihrer Gruppe nach dem Volumen (Heat.bodyHeat): ncell · bedecktes Volumen / Volumen; zwei Platten
+       derselben Gruppe in einer Zelle zählen zusammen (verschiedene Gruppen: die mit dem grösseren Anteil). */
+    if (bv(b, B_HEATER) >= 0.0 && acc > 0.0) {
+      let grp = u32(bv(b, B_HEATER)) + 1u;
+      let wh = bv(b, B_NCELL) * acc * P.vcell / max(1e-30, bv(b, B_VOL));
+      if (grp == hgrp) { hw += wh; hbest += acc; }
+      else if (acc > hbest) { hbest = acc; hgrp = grp; hw = wh; }
+    }
   }
   cf[F_FS * n + c] = min(1.0, fs);
   cf[F_CAPB * n + c] = capB;
@@ -354,8 +370,8 @@ ${MAIN} {
   {
     /* Die Paare der v-Flächen nach dem Stand der u-Flächen (wie die Treppe: erst u, dann v). */
     name: 'bClose2', wg: WG,
-    bind: 'P:u cf:r cu:w',
-    code: `${BODY_CONSTS}
+    bind: 'P:u bod:r cf:r cu:w',
+    code: `${BODY_REC}
 ${CLOSE_LIB}
 fn closedNow(x: u32) -> bool { return cu[U_NOW1 * P.n + x] != 0u || paintedC(x); }
 ${MAIN} {
@@ -415,9 +431,19 @@ ${MAIN} {
   let c = gid.x;
   if (c >= P.n) { return; }
   let n = P.n;
-  if (cu[U_BAND * n + c] == 0u || cu[U_PAINT * n + c] != 0u) { return; }
+  if (cu[U_PAINT * n + c] != 0u) { return; }
   let was = cu[U_SOLID * n + c] != 0u;
   let now = cu[U_NOW2 * n + c] != 0u;
+  if (now && was) {
+    /* Gas, das beim Schliessen liegen blieb (C_PARKED: kein freier Nachbar, kein freier Platz im Fenster): zu den freien Nachbarn, sobald es welche
+       gibt — auch ausserhalb des Bands (ein Körper, der eingeschlafen ist); sonst fiele es beim Zurückholen aus der Bilanz der CPU. */
+    if (cu[U_OWNER * n + c] == 0u || (gasMass(c) <= 0.0 && cf[F_HG * n + c] == 0.0)) { return; }
+    var ws = 0.0;
+    for (var k = 0u; k < 4u; k++) { let nb = acrossB(c, k); if (nb != NONE && freeB(nb)) { ws += gasVol(nb); } }
+    if (ws > 0.0) { for (var k = 0u; k < 4u; k++) { let nb = acrossB(c, k); if (nb != NONE && freeB(nb)) { moveGasB(c, nb, gasVol(nb) / ws); } } }
+    return;
+  }
+  if (cu[U_BAND * n + c] == 0u) { return; }
   if (now && !was) {
     if (gasMass(c) <= 0.0 && cf[F_HG * n + c] == 0.0) { return; }
     var wsum = 0.0;
@@ -518,7 +544,8 @@ ${MAIN} {
   if (!inBandM(i, j, 6.0 * P.dx)) { return; }
   let n = P.n;
   let inSolid = cu[U_SOLID * n + c] != 0u;
-  let K = array<f32, 3>(1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0);
+  /* var, nicht let: mit Laufzeit-Index (naga in Firefox). */
+  var K = array<f32, 3>(1.0 / 6.0, 2.0 / 3.0, 1.0 / 6.0);
   var phis = 1.0;
   if (!inSolid) {
     phis = 0.0;
@@ -560,6 +587,7 @@ ${ONE} {
     let o = b * BS;
     bod[o + B_OX0] = bod[o + B_BX0]; bod[o + B_OY0] = bod[o + B_BY0]; bod[o + B_OX1] = bod[o + B_BX1]; bod[o + B_OY1] = bod[o + B_BY1];
     if (bAwake(b)) { bod[o + B_RX] = bod[o + B_X]; bod[o + B_RY] = bod[o + B_Y]; bod[o + B_RA] = bod[o + B_A]; }
+    bod[o + B_PUSH] = 0.0;
   }
 }`
   },

@@ -49,7 +49,15 @@ public static partial class Calendar
          * 0070 — TEIL EINES TERMINS: unter welchem (NULL: wie bisher; "": keiner),
          * an welcher Stelle; und aus welcher Rozmowa / welchem Thema er entstand.
          */
-        string? ParentItemId = null, int? Position = null, string? ChatId = null, string? TopicId = null);
+        string? ParentItemId = null, int? Position = null, string? ChatId = null, string? TopicId = null,
+
+        /*
+         * 0132 — DAS SCHEMA UND SEINE WERTE. `SchemeId`: fehlt — bleibt (neu: das
+         * universelle); "" — das universelle; sonst ein Schema DIESES Kalenders.
+         * `Values`: fehlt — bleiben; sonst ersetzen sie alle Werte am Termin.
+         * `PlanOrigin`: woher aus einem Plan (nur beim Anlegen, nur für die Vorschau).
+         */
+        string? SchemeId = null, IReadOnlyList<ValueIn>? Values = null, string? PlanOrigin = null);
 
     /// <summary>
     /// Einen Eintrag anlegen.
@@ -165,6 +173,22 @@ public static partial class Calendar
             return;
         }
 
+        /* 0132 — die Werte nach dem Schema, und woher aus einem Plan. */
+        if (!ParseValues(body.Values, MaxItemValues, labels: true, sealedAllowed: true, allowEmpty: false,
+                out var values, out var valueError))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, valueError);
+            return;
+        }
+
+        if (!ValidOrigin(body.PlanOrigin))
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, "Nieczytelne pochodzenie z planu.");
+            return;
+        }
+
+        var planOrigin = string.IsNullOrEmpty(body.PlanOrigin) ? null : body.PlanOrigin;
+
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
 
         var found = await CalendarOfAsync(connection, id, ctx.RequestAborted);
@@ -189,7 +213,9 @@ public static partial class Calendar
          * niemand koennte sie oeffnen, und der Fremde faende sie in seiner
          * Epoche wieder, ohne je davon gehoert zu haben.
          */
-        foreach (var needed in sealedFields.Select(f => f.AreaId).Append(visibilityAreaId).Distinct())
+        foreach (var needed in sealedFields.Select(f => f.AreaId)
+                     .Concat(values.Where(v => v.Blob is not null).Select(v => v.AreaId!.Value))
+                     .Append(visibilityAreaId).Distinct())
         {
             if (!await Area.MayAsync(connection, caller, needed, Capability.Write, ctx.RequestAborted))
             {
@@ -197,6 +223,25 @@ public static partial class Calendar
                     "Pod obszar, w którym nie możesz pisać, nic nie schowasz.");
                 return;
             }
+        }
+
+        /*
+         * 0132 — vor der Migration gibt es weder Schemata noch Werte. Wer keine
+         * schickt, merkt davon nichts; wer welche schickt, erfährt es.
+         */
+        var schemesReady = await Schema.RecordsAsync(connection, ctx.RequestAborted);
+        if (!schemesReady && (values.Count > 0 || !string.IsNullOrWhiteSpace(body.SchemeId) || planOrigin is not null))
+        {
+            await Fail(ctx, StatusCodes.Status503ServiceUnavailable, NeedsMigration);
+            return;
+        }
+
+        Guid? schemeId = null;
+        if (schemesReady && body.SchemeId is not null)
+        {
+            var scheme = await SchemeOfAsync(ctx, connection, id, body.SchemeId, ctx.RequestAborted);
+            if (!scheme.Ok) return;
+            schemeId = scheme.Scheme;
         }
 
         /* Wem er gehört: einer eigenen Rolle — bei einem Link der Linkrolle selbst. */
@@ -282,20 +327,28 @@ public static partial class Calendar
 
         try
         {
-            await using (var insert = new SqlCommand("""
+            await using (var insert = new SqlCommand($"""
                 INSERT INTO app.calendar_item
                     (id, calendar_id, owner_role_id, kind, starts_at, ends_at, all_day,
                      title_public, visibility_area_id, status,
                      repeat_kind, repeat_every, repeat_weekdays, repeat_until, repeat_count,
                      bookable, capacity, reserve_area_id,
-                     created_at, updated_at, parent_item_id, position, chat_id, topic_id)
+                     created_at, updated_at, parent_item_id, position, chat_id, topic_id
+                     {(schemesReady ? ", scheme_id, plan_origin" : "")})
                 VALUES (@id, @cal, @owner, @kind, @starts, @ends, @allday,
                         @public, @varea, @status,
                         @rkind, @revery, @rdays, @runtil, @rcount,
                         @bookable, @capacity, @reserve,
-                        @now, @now, @parent, @position, @chat, @topic);
+                        @now, @now, @parent, @position, @chat, @topic
+                        {(schemesReady ? ", @scheme, @origin" : "")});
                 """, connection, tx))
             {
+                if (schemesReady)
+                {
+                    insert.Parameters.AddWithValue("@scheme", (object?)schemeId ?? DBNull.Value);
+                    insert.Parameters.AddWithValue("@origin", (object?)planOrigin ?? DBNull.Value);
+                }
+
                 insert.Parameters.AddWithValue("@bookable", (object?)ownRules.Value.Bookable ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@capacity", (object?)ownRules.Value.Capacity ?? DBNull.Value);
                 insert.Parameters.AddWithValue("@reserve", (object?)ownRules.Value.ReserveAreaId ?? DBNull.Value);
@@ -339,6 +392,12 @@ public static partial class Calendar
                 await add.ExecuteNonQueryAsync(ctx.RequestAborted);
             }
 
+            /* 0132 — die Werte am Termin. */
+            if (schemesReady && values.Count > 0)
+            {
+                await ReplaceItemValuesAsync(connection, tx, itemId, null, values, now, ctx.RequestAborted);
+            }
+
             await tx.CommitAsync(ctx.RequestAborted);
         }
         catch
@@ -356,7 +415,9 @@ public static partial class Calendar
             endsAt = ends,
             visibilityAreaId = Ids.ToText(visibilityAreaId),
             timeZone = zoneId,
-            fields = sealedFields.Count
+            fields = sealedFields.Count,
+            schemeId = schemeId is null ? null : Ids.ToText(schemeId.Value),
+            values = values.Count
         });
     }
 
@@ -451,11 +512,20 @@ public static partial class Calendar
          */
         if (cancelled)
         {
-            var live = await Mass.LiveCountAsync(connection, null, id, original, ctx.RequestAborted);
+            var live = await Mass.LiveCountAsync(connection, null, id, original, ctx.RequestAborted, IntentionList);
             if (live > 0)
             {
                 await Fail(ctx, StatusCodes.Status409Conflict,
                     $"Na tę mszę są przyjęte intencje ({live}) — przenieś je na inną mszę, zanim ją odwołasz.");
+                return;
+            }
+
+            /* 0132 — und jede andere Liste (Anmeldungen …): sie hingen sonst an einem Termin, den es nicht gibt. */
+            var held = await Mass.LiveCountAsync(connection, null, id, original, ctx.RequestAborted);
+            if (held > 0)
+            {
+                await Fail(ctx, StatusCodes.Status409Conflict,
+                    $"Na tym terminie są wpisy ({held}) — przenieś je albo wycofaj, zanim go odwołasz.");
                 return;
             }
         }

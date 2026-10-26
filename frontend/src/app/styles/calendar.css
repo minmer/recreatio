@@ -231,3 +231,53 @@
     overflow-y: auto;
   }
 }
+
+/*
+   2026-10-26 (0132) — SCHEMATA UND PLÄNE: die Liste in den Einstellungen eines
+   Kalenders, die Editoren im Vollbild (Felder, Listen, Regel, Probe) und das
+   Anwenden eines Plans mit seiner Vorschau Tag für Tag.
+*/
+.wk-calset-docs { display: grid; gap: var(--wk-space-2); padding-top: var(--wk-space-3); border-top: 1px solid var(--wk-line); }
+.wk-calset-docs .wk-h3 { margin: 0; }
+.wk-calset-doclist { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--wk-space-1); }
+.wk-calset-doclist li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-1) var(--wk-space-2); }
+.wk-calset-docs select { max-width: 100%; }
+
+.wk-sch { display: grid; gap: var(--wk-space-4); max-width: 80rem; margin: 0 auto; width: 100%; box-sizing: border-box; }
+.wk-sch-head { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: var(--wk-space-2) var(--wk-space-3); align-items: end; }
+.wk-sch-head .wk-field { margin: 0; }
+.wk-sch-part { display: grid; gap: var(--wk-space-2); }
+.wk-sch-part > .wk-h3 { margin: 0; }
+.wk-sch-sub { margin: var(--wk-space-2) 0 0; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+.wk-sch-fields { display: grid; gap: var(--wk-space-2); }
+.wk-sch-field {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: var(--wk-space-2) var(--wk-space-3);
+  align-items: end; padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface);
+}
+.wk-sch-field .wk-field { margin: 0; }
+.wk-sch-wide { grid-column: 1 / -1; }
+.wk-sch-checks { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); }
+.wk-sch-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--wk-space-2); }
+.wk-sch-key { font-family: var(--wk-mono); font-size: var(--wk-text-xs); color: var(--wk-muted); }
+.wk-sch-list { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-left: 3px solid var(--wk-accent); border-radius: 0 var(--wk-radius-sm) var(--wk-radius-sm) 0; background: var(--wk-soft); }
+.wk-sch-rule { padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
+.wk-sch-probe { display: grid; gap: var(--wk-space-2); }
+.wk-sch-probe .wk-field { margin: 0; }
+.wk-sch-verdict { margin: 0; font-weight: 600; }
+.wk-sch-verdict.is-allow { color: var(--wk-ok); }
+.wk-sch-verdict.is-wait { color: var(--wk-warn); }
+.wk-sch-verdict.is-refuse { color: var(--wk-danger); }
+.wk-sch-trace { margin: 0; font-size: var(--wk-text-xs); color: var(--wk-muted); overflow-wrap: anywhere; }
+.wk-sch-day { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); font-weight: 600; }
+.wk-sch-masses { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+
+.wk-plan { display: grid; gap: var(--wk-space-3); }
+.wk-plan-days { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--wk-space-2); max-height: 60vh; overflow-y: auto; }
+.wk-plan-day { display: grid; gap: var(--wk-space-1); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
+.wk-plan-day.is-festive { background: var(--wk-soft); }
+.wk-plan-dayhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); }
+.wk-plan-date { font-weight: 700; font-variant-numeric: tabular-nums; }
+.wk-plan-cel { color: var(--wk-ink-2); }
+.wk-plan-masses { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.125rem; font-size: var(--wk-text-sm); }
+.wk-plan-masses li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--wk-space-1); }
+.wk-plan-masses li.is-there { opacity: 0.6; }

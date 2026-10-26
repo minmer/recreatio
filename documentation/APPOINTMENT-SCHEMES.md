@@ -1,7 +1,7 @@
 # Appointment schemes, liturgy and mass plans
 
-*Design for decision, 2026-10-26. Nothing here is built. Each decision ends with a line **Your decision:** — fill it
-in (or choose on the decision page) and the build plan follows from it.*
+*Decided and built 2026-10-26 (migration 0132). §4 holds the owner's decisions, §7 what they mean together, §8 three
+points read from the notes, §9 what was built and how it is used.*
 
 ## 1. What is asked
 
@@ -68,7 +68,7 @@ People and program are used by every kind of appointment and have server logic (
 out costs much and gains little; keeping intentions in the core (C) keeps the problem the owner wants gone.
 Affects D2–D5, D12.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — Core = time, repeat, calendar, who sees, title/place/notes/link, program, pinned people, exceptions.
 
 ### D2 — How is a scheme defined and stored?
 
@@ -84,7 +84,7 @@ The structure of a scheme ("an intention has a text and a kind") is not a secret
 let the service enforce record rules (D4). JSON export/import and a description beside it, as for every feature.
 Depends on D1. Affects D3, D4, D7, D13.
 
-**Your decision:**
+**Your decision (2026-10-26):** B — Definitions sealed under the area key.
 
 ### D3 — On which level does a value live?
 
@@ -97,7 +97,7 @@ Depends on D1. Affects D3, D4, D7, D13.
 Intentions already hang on (item, occurrence); a feast is per day; "Msza niedzielna" is per series. B forbids a
 manual colour change for one day; C multiplies data for series. Depends on D2. Affects D4, D9, D11.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — Appointment, day and record levels. *Note:* The normal way is a React Flow rule, saved and applied to a range of dates, that creates real single appointments disconnected from the flow — so a single appointment can be changed, or several at once by selection (as shifting now).
 
 ### D4 — Record lists: one generic engine or built-in kinds?
 
@@ -113,7 +113,7 @@ A gives the openness asked for and removes three parallel builds, but it is the 
 current rule (handover "ten i następne", intention only on a mass that takes place, booking capacity). C would accept
 two single intentions on one mass. Depends on D2, D3. Affects D5, D10, D14, D15.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — One generic "lista wpisów przy terminie". *Note:* The rules are declared as React Flow rules described in the schemes themselves.
 
 ### D5 — What happens to existing intentions and claims?
 
@@ -126,7 +126,7 @@ two single intentions on one mass. Depends on D2, D3. Affects D5, D10, D14, D15.
 B leaves two ways of doing the same thing for good. C on the one production database is the risk the owner has
 avoided so far. Depends on D4. Affects the phases (§6).
 
-**Your decision:**
+**Your decision (2026-10-26):** A — New generic tables, migrate, old endpoints answer for one step. *Note:* At first every old appointment gets a generic scheme able of everything (mass, intentions …); it can be simplified in a next step.
 
 ### D6 — Where does the liturgical calendar come from?
 
@@ -143,7 +143,7 @@ calendar changes (new memorials are added every few years) — in the repository
 every year. C: no reliable, licensed Polish feed is known; texts of readings are copyrighted — store only references
 (sigla), never texts. Affects D7, D8, D16.
 
-**Your decision:**
+**Your decision (2026-10-26):** B — Entered by users. *Note:* Entered once and reused every year: the whole React Flow is created one time, saved, and applied to the coming month / year / range the user selects.
 
 ### D7 — Liturgical day: stored or computed? and the mass colour
 
@@ -154,7 +154,7 @@ every year. C: no reliable, licensed Polish feed is known; texts of readings are
 
 Computing keeps one truth and costs nothing; storing gives a second copy that can drift. Depends on D6. Affects D8.
 
-**Your decision:**
+**Your decision (2026-10-26):** B — Stored. *Note:* After applying a React Flow the values are stored on the specific mass.
 
 ### D8 — The plan rule (React Flow): what does it decide, in what order?
 
@@ -173,7 +173,7 @@ simpler to build and to read, and could be the first step with the graph added l
 A starting template ("Typowa parafia — diecezja X") is needed in every case — nobody should draw it from nothing.
 Depends on D6, D7. Affects D9, D10, D14.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — Two stages: slots → per date and slot a condition graph. *Note:* And a lot of other things too.
 
 ### D9 — Generate appointments, or compute them on reading?
 
@@ -185,7 +185,7 @@ A gives real appointments that can carry intentions, sign-ups and manual changes
 like today. B never runs out of weeks, but every view (public, print, office, widgets, the server's "only on a mass
 that takes place") would need the rule engine. Depends on D8. Affects D10, D11, D12.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — Generate N weeks ahead with preview and diff.
 
 ### D10 — Who runs the generation?
 
@@ -196,7 +196,7 @@ that takes place") would need the rule engine. Depends on D8. Affects D10, D11, 
 
 Sealed fields (notes, sealed record fields) need a key, so only a browser can write them. Depends on D9.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — The browser of a calendar writer, on demand + digest reminder.
 
 ### D11 — Re-running the rule after manual changes
 
@@ -208,7 +208,7 @@ Sealed fields (notes, sealed record fields) need a key, so only a browser can wr
 
 B destroys manual work; C makes a changed rule useless for weeks already planned. Depends on D3, D9.
 
-**Your decision:**
+**Your decision (2026-10-26):** C — Generate once, never update.
 
 ### D12 — Generated masses: single appointments or series?
 
@@ -220,7 +220,7 @@ Per-day values (feast, colour, title) are the normal case for masses, so series 
 every day. With A the "ten i następne" of masses becomes "change the rule from date X" — the handover of 0079 is
 still needed for manual series. Depends on D9. Affects D5.
 
-**Your decision:**
+**Your decision (2026-10-26):** B (see O1) — One series per slot with per-day values. *Note:* Every mass after creating gets an own appointment.
 
 ### D13 — Schemes and fields per area
 
@@ -234,7 +234,7 @@ still needed for manual series. Depends on D9. Affects D5.
 Changing who reads a field later means re-sealing existing values in a writer's browser (like key rotation).
 Depends on D2. Affects D4, D14.
 
-**Your decision:**
+**Your decision (2026-10-26):** C — Schemes per calendar only. *Note:* There can be prepared schemes, but they are not imported automatically.
 
 ### D14 — Fixed parts from a rule (e.g. *za parafian*)
 
@@ -244,7 +244,7 @@ Depends on D2. Affects D4, D14.
 
 A keeps one place where intentions are counted (a single intention excludes others). Depends on D4, D8.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — Rule node "Dodaj wpis" creates a record marked "z reguły". *Note:* The React Flow creates the field, and the value is stored in it when it is the mass at … on the day …
 
 ### D15 — Collective intentions and their limits
 
@@ -255,7 +255,7 @@ A keeps one place where intentions are counted (a single intention excludes othe
 
 Depends on D4.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — Parameters of the record list, editable per parish. *Note:* The rules behind them are described by a React Flow.
 
 ### D16 — What the app stores about readings and texts
 
@@ -265,7 +265,7 @@ Depends on D4.
 
 Lectionary texts are copyrighted (Pallottinum). Depends on D6.
 
-**Your decision:**
+**Your decision (2026-10-26):** A — References only (sigla). *Note:* An optional additional property — it can be stored, it does not have to be.
 
 ## 5. Problems to expect
 
@@ -287,14 +287,90 @@ Lectionary texts are copyrighted (Pallottinum). Depends on D6.
 9. **Schemes versioning.** Changing a scheme with existing values: added fields are empty, removed fields keep their
    values hidden until deleted; renamed labels keep their keys.
 
-## 6. Phases (if the recommendations are taken)
+## 6. Phases
 
-1. **Liturgical day engine** (D6, D7): data files, computus, precedence, colours; shown in the calendar and the mass
-   plan; tests for known years. Useful on its own.
-2. **Schemes and fields** (D2, D3, D13): definitions, values on appointment and day level, editor ("+ …" extras
-   already exist), JSON.
-3. **Generic record lists** (D4, D15) with the preset "Intencje"; migration of `mass_intention` (D5); then claims and
-   attendance.
-4. **Plan rule** (D8, D9, D10, D11, D12, D14): stage 1 slots, stage 2 graph, preview/diff, templates per diocese.
+The first proposal (a built-in liturgy engine first) is replaced by §9: with D6 B the liturgy lives in the user's
+flows.
 
-Each phase ends usable; phase 1 needs no migration.
+## 7. What the decisions mean together
+
+**The flow is the engine.** A calendar keeps three kinds of saved things, all sealed (D2 B):
+
+- **Schemes** — fields on the appointment and day level, record lists, and the rule flows of those lists (D4, D15).
+  One calendar can have several (D13 C); prepared schemes exist as templates and are copied in by hand. A scheme is
+  sealed under the key of the area that **sees** the calendar's appointments: whoever reads an appointment must be able
+  to read the scheme that explains its values.
+- **Plan flows** — stage 1 the slots (which masses exist), stage 2 a condition graph per date and slot (what each mass
+  is), with results: title, values (feast, colour, readings), fixed records (*za parafian*). A writer's browser applies
+  a plan flow to a range it chooses (D8, D9, D10). What it creates are ordinary single appointments with no tie to the
+  flow (D3 note, D11 C, D12 note); they keep the values the flow gave them (D7 B, D14). Selecting several, shifting,
+  copying, cutting and pasting work on them as on any appointment.
+- **The liturgical knowledge is the user's** (D6 B): names, ranks, colours, which evening mass is votive — all in the
+  flow, entered once. The app gives only what a flow entered once cannot know by itself — **computation nodes**:
+  Easter (computus) and days relative to it (Popielec −46, Zesłanie Ducha Świętego +49, Boże Ciało +60, Serce Jezusa
+  +68), the first Sunday of Advent, the Christmas cycle (Święta Rodzina, Chrzest Pański), Chrystusa Króla, the week of
+  a season, "n-ty dzień tygodnia w miesiącu" (pierwszy piątek), the weekday. Precedence is the order of the flow's
+  conditions: the first matching path wins. A prepared flow "Rok liturgiczny — Polska" can be offered as a template,
+  copied in by hand, never automatically.
+
+**What the server still knows.** It cannot read a scheme, so it does not know what a field means. It stores:
+
+- sealed values, each under the key of the calendar's seeing area;
+- a **public projection** the browser writes beside a value when the scheme marks the field public: label and value as
+  plain text ("Kolor: biały", "Wspomnienie św. Jana Pawła II", the intention text read at the mass). The public mass
+  plan, the gablota, the print sheet and widgets show only the projection — as `title_public` and `text_public` do
+  today;
+- for each record: its list, status, mode word and time, so plans can count without reading anything sealed.
+
+The rules of record lists (single or collective, limits, who may add) run as flows in browsers (D4/D15 notes); see O2.
+
+**Migration** (D5 A and its note): a built-in **universal scheme**, defined in the app's code (the same for everyone, so
+it is neither sealed nor stored), can do everything appointments do today: meeting, mass, confession, devotion, visit;
+public name; intentions single or collective; booking; people. Every existing appointment refers to it until its
+calendar gets a scheme of its own. Each `mass_intention` becomes a record of its list "Intencje"; their sealed fields
+keep their old AAD (giver, offering), and the reader knows migrated records by a marker.
+
+## 8. Three points read from the notes — correct me where I am wrong
+
+- **O1 — D12.** The choice is B (one series per slot), the note says "every mass after creating gets an own
+  appointment", which is A. I build A: one appointment per mass. Series stay for manual repetition.
+- **O2 — sealed schemes (D2 B) and rules in flows (D4).** Only a browser that can read a scheme can apply its rules; the
+  server cannot check them. For the office, who writes, that is enough. For records added from outside — a person
+  ordering an intention through a page, a candidate choosing a date — the server could neither refuse a second single
+  intention nor stop two people taking the last place at the same moment. Proposal: such records arrive as **"czeka"**,
+  and the office browser applies the scheme's flow when it accepts them (as bookings wait for the office today).
+  Optionally a list may publish one plain number, "najwyżej N na termin", which the server enforces — chosen per list,
+  because it shows that much of the scheme.
+- **O3 — generated once (D11 C).** Generated appointments keep no tie to the flow, so applying a flow twice to
+  overlapping weeks would create each mass twice. Proposal: each generated appointment keeps a short note "plan P,
+  slot S, day D", read only by the preview to say "already planned — skip". It never updates anything.
+
+## 9. As built (2026-10-26)
+
+Everything above is built in one go (no phases); O1–O3 as read in §8.
+
+**Where things are.** Migration `0132_appointment_schemes.sql` (`calendar_doc`, `calendar_value`,
+`calendar_item.scheme_id` / `plan_origin`, `occurrence_record`, `occurrence_record_value`, the copy of
+`mass_intention`). Service: `Calendar/Calendar.Docs.cs`, `Calendar.Values.cs`, `Calendar.Records.cs`; the intention
+endpoints, the mass plan, carrying records with a changed series, deletion and account deletion work on the new tables
+(a catch-up copies intentions written between the migration and the deploy). Browser: `frontend/src/app/calendar/` —
+`scheme.ts` (model, the universal scheme), `schemeValues.ts`, `records.ts`, `RecordsPanel.tsx`, `SchemeEditor.tsx`,
+`PlanEditor.tsx`, `PlanApply.tsx`, `CalendarDocsSection.tsx`, `schemeJson.ts`, `flow/` (model, `liturgy.ts`,
+`flowRun.ts`, the React Flow editor), `templates/`.
+
+**How it is used.**
+- Kalendarze → Ustawienia of a calendar → **Schematy terminów** (new, or from a template: Msza, Nabożeństwo, Spowiedź,
+  Spotkanie z zapisami) and **Plany** (new, or from the template "Rok liturgiczny — parafia (Polska)", which brings the
+  scheme Msza with it). Both open full screen; JSON export/import with its description beside each.
+- A new appointment in such a calendar gets its scheme (the last used there, else the first); chips switch it.
+  Scheme fields stand as rows or as "+ …"; fields of one day appear for a single date or "Ten termin" of a series.
+- Records (intentions, sign-ups) are listed on the appointment; adding one runs the list's rule in the browser.
+  Someone who does not write in the calendar may sign up on a list marked "outside" — public fields only; the record
+  waits, the bell tells the office ("Wpisy do przyjęcia"), "Przyjmij" runs the rule again.
+- **Zastosuj…** on a plan: a calendar, a range, a preview day by day (title, colour, obchód, records, "już jest"), then
+  the browser creates single appointments with the plan's scheme and values. The bell reminds when the planned weeks of
+  a calendar end within two weeks ("Plany do przedłużenia" → the same dialog).
+- The public mass plan, the print sheet and the details show public values (obchód as text, colour as a swatch).
+
+**Owner.** Apply 0132 before deploying the API (the API also runs before it: intentions are read from the old table and
+new schemes or records are refused until 0132 is there). Then deploy the API and the site.

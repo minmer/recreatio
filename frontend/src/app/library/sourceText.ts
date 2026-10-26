@@ -25,7 +25,7 @@
  * bleiben. Erfunden wird nichts — was fehlt, bleibt leer.
  */
 
-import { contains, formatPlace, overlap, pagesOverlap, parsePlace, placeSortKey, SCHEMES, schemeOf, workScheme, type PageSpan, type Place, type PlaceOptions, type SchemeId, type Span } from './locations';
+import { contains, formatPlace, overlap, pagesOverlap, parsePlace, placeSortKey, SCHEMES, schemeOf, TEXT_SCHEMES, workScheme, type PageSpan, type Place, type PlaceOptions, type SchemeId, type Span } from './locations';
 import { ids, type EntryData, type LibEntry, type Lookup } from './libraryKinds';
 
 export const SOURCE_FORMAT = 'recreatio/source-text';
@@ -512,7 +512,8 @@ export function exportSourcePart(work: LibEntry, manifest: TextManifest, part: P
 /* -- Die Beschreibung für Mensch und KI ---------------------------------------------------------- */
 
 /** Beispiele je Regel — sie werden in der Prüfung importiert (`app-library-check.mjs`), müssen also ohne Warnung durchgehen. */
-export const SOURCE_EXAMPLES: Readonly<Record<SchemeId, Record<string, unknown>>> = {
+/* 2026-10-26 — ohne `time`: die Zeit gehört einem Nagranie, und ein Nagranie hat keinen Quellentext. */
+export const SOURCE_EXAMPLES: Readonly<Record<Exclude<SchemeId, 'time'>, Record<string, unknown>>> = {
   pages: {
     format: SOURCE_FORMAT, version: SOURCE_VERSION, work: '@ratzinger2007', scheme: 'pages', edition: { pdfPageOffset: 12, language: 'pl' },
     portion: { key: 'rozdz-1', label: 'Rozdział 1. Chrzest Jezusa', order: 1 },
@@ -587,8 +588,9 @@ export const SOURCE_EXAMPLES: Readonly<Record<SchemeId, Record<string, unknown>>
 };
 
 /** Die Beschreibung des Formats — vollständig und ohne Wissen über die App zu schreiben. */
-export function sourceTextDescription(scheme?: SchemeId): string {
-  const schemes = scheme === undefined ? SCHEMES : SCHEMES.filter((x) => x.id === scheme);
+export function sourceTextDescription(asked?: SchemeId): string {
+  const scheme = asked === 'time' ? undefined : asked;
+  const schemes = scheme === undefined ? TEXT_SCHEMES : TEXT_SCHEMES.filter((x) => x.id === scheme);
   return `# Tekst źródła jako JSON ("${SOURCE_FORMAT}", wersja ${SOURCE_VERSION})
 
 Tekst dzieła składa się z CZĘŚCI (np. księga Biblii, rozdział książki, cały krótki dokument albo artykuł). Dokument JSON zawiera jedną część ("portion" + "blocks") albo kilka naraz ("portions": [ … ] — także cały tekst). Część z tym samym "portion.key" zastępuje poprzednią, inne zostają — więc długie dzieło można przysyłać w kilku dokumentach po kolei, a powtórzony dokument niczego nie zdubluje.
@@ -648,7 +650,7 @@ ${schemes.map((x) => `- "${x.id}" — ${x.label}: ${x.says} Przykłady: ${x.exam
 Zwróć JEDEN obiekt JSON, bez komentarzy.
 
 ## Przykłady
-${schemes.map((x) => `### ${x.label} ("${x.id}")\n${JSON.stringify(SOURCE_EXAMPLES[x.id], null, 2)}`).join('\n\n')}
+${schemes.map((x) => `### ${x.label} ("${x.id}")\n${JSON.stringify(SOURCE_EXAMPLES[x.id as Exclude<SchemeId, 'time'>], null, 2)}`).join('\n\n')}
 `;
 }
 

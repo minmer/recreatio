@@ -213,7 +213,10 @@ public static partial class Calendar
         var readable = (await ReadableAreasAsync(connection, who?.AccountId, ctx.RequestAborted, null, linkRoles)).ToHashSet();
 
         var rows = new List<(Guid Id, Guid? Parent, int? Position, string Kind, DateTimeOffset Starts, DateTimeOffset Ends,
-            bool AllDay, string? TitlePublic, Guid Visibility, string Status, string Repeat, int Depth)>();
+            bool AllDay, string? TitlePublic, Guid Visibility, string Status, string Repeat, int Depth, Guid? Scheme, string? Origin)>();
+
+        /* 0132 — Schema, Herkunft, Werte und Einträge je Punkt: erst nach der Migration. */
+        var schemesReady = await Schema.RecordsAsync(connection, ctx.RequestAborted);
         Guid calendarId = Guid.Empty;
         string zone = Zones.Home, calendarTitle = "";
 
@@ -226,7 +229,8 @@ public static partial class Calendar
                 WHERE t.depth < {MaxProgramDepth})
             SELECT i.id, i.parent_item_id, i.position, i.kind, i.starts_at, i.ends_at, i.all_day,
                    i.title_public, i.visibility_area_id, i.status, i.repeat_kind, t.depth,
-                   cal.id, cal.time_zone, cal.title
+                   cal.id, cal.time_zone, cal.title,
+                   {(schemesReady ? "i.scheme_id, i.plan_origin" : "CAST(NULL AS uniqueidentifier), CAST(NULL AS nvarchar(200))")}
             FROM tree t
             JOIN app.calendar_item i ON i.id = t.id
             JOIN app.calendar cal ON cal.id = i.calendar_id
@@ -242,7 +246,9 @@ public static partial class Calendar
                 rows.Add((reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetInt32(2),
                     reader.GetString(3), reader.GetDateTimeOffset(4), reader.GetDateTimeOffset(5), reader.GetBoolean(6),
                     reader.IsDBNull(7) ? null : reader.GetString(7), reader.GetGuid(8), reader.GetString(9), reader.GetString(10),
-                    reader.GetInt32(11)));
+                    reader.GetInt32(11),
+                    reader.IsDBNull(15) ? null : reader.GetGuid(15),
+                    reader.IsDBNull(16) ? null : reader.GetString(16)));
 
                 if (reader.GetInt32(11) == 0)
                 {
@@ -270,6 +276,10 @@ public static partial class Calendar
 
         var visible = rows.Where(r => shown.Contains(r.Id)).ToList();
         var fields = await FieldsAsync(connection, visible.Select(r => r.Id).ToList(), ctx.RequestAborted);
+        var visibleIds = visible.Select(r => r.Id).ToList();
+        var values = await ValuesAsync(connection, visibleIds, null, null, ctx.RequestAborted);
+        var counts = visible.Count == 0 ? [] : await RecordCountsAsync(connection, visibleIds,
+            visible.Min(r => r.Starts), visible.Max(r => r.Starts), ctx.RequestAborted);
 
         await ctx.Response.WriteAsJsonAsync(new
         {
@@ -293,7 +303,13 @@ public static partial class Calendar
                 visibilityAreaId = Ids.ToText(r.Visibility),
                 fields = fields.TryGetValue(r.Id, out var list)
                     ? list.Select(f => new { field = f.Field, areaId = Ids.ToText(f.AreaId), epoch = f.Epoch, @sealed = Base64Url.Encode(f.Blob) })
-                    : []
+                    : [],
+
+                /* 0132 — das Schema, woher aus einem Plan, die Werte (am Termin und an seinem ersten Vorkommen), die Einträge dort. */
+                schemeId = r.Scheme is null ? null : Ids.ToText(r.Scheme.Value),
+                planOrigin = r.Origin,
+                values = ValuesAt(values, r.Id, r.Starts),
+                records = CountsAt(counts, r.Id, r.Starts)
             })
         });
     }

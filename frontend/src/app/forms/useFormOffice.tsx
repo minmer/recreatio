@@ -10,7 +10,7 @@ import type { Ring, SealedRole } from '../core/keys';
 import { sealSeatNames } from '../seats/seatNames';
 import { keysFor } from '../core/ringOf';
 import { type Who, WorkspaceError } from '../core/session';
-import type { ModuleRow, ResealIn, Resealed } from '../modules/module';
+import { questionsAreaOf, type ModuleRow, type ResealIn, type Resealed } from '../modules/module';
 import { markFormSeen } from '../notify/notify';
 import { handOverRoleKeys } from '../roles/memberRole';
 import { applyFormVirtualAreas } from './virtualAreas';
@@ -663,7 +663,13 @@ export function useFormOffice(props: FormOfficeProps) {
   const moduleAct = (what: string, todo: () => Promise<unknown>) =>
     act(what, async () => { await todo(); await onModuleChanged?.(); });
 
-  const formArea = module?.areaId == null ? undefined : areas.find((a) => a.areaId === module.areaId);
+  /*
+   * 0133 — DER BEREICH DER FRAGEN: der des Formulars — oder der, in dem es veröffentlicht
+   * ist (`labelAreaId`, `questionsArea.ts`). Unter seinem Schlüssel liegen Fragen und Aufbau;
+   * die Antworten gehen weiter in den Bereich des Formulars.
+   */
+  const questionsArea = module === undefined ? null : questionsAreaOf(module);
+  const formArea = questionsArea === null ? undefined : areas.find((a) => a.areaId === questionsArea);
 
   /* Vor allem, was beim Zeichnen einen Bereich beim Namen nennt — auch den Warnungen. */
   const areaLabel = (areaId: string) =>
@@ -717,10 +723,10 @@ export function useFormOffice(props: FormOfficeProps) {
    * er ist, und umgekehrt.
    */
   const saveDesignNow = async (next: FormDesign) => {
-    if (module?.areaId == null) throw new WorkspaceError('Formularz potrzebuje najpierw własnego obszaru.');
+    if (module?.areaId == null || questionsArea === null) throw new WorkspaceError('Formularz potrzebuje najpierw własnego obszaru.');
     if (designLocked) throw new WorkspaceError('Zapisany układ jest zapieczętowany kluczem, którego nie masz.');
-    const { key, epoch } = await keyOf(module.areaId);
-    await saveDesign(partId, module.areaId, epoch, await sealDesign(next, key, partId));
+    const { key, epoch } = await keyOf(questionsArea);
+    await saveDesign(partId, questionsArea, epoch, await sealDesign(next, key, partId));
   };
 
   /* Der vollständige Aufbau: jede Frage genau einmal, neue am Ende. */
@@ -730,7 +736,7 @@ export function useFormOffice(props: FormOfficeProps) {
   const byId = new Map(fields.map((f) => [f.fieldId, f]));
 
   /* Fragen, die noch unter dem Schlüssel ihrer Antworten liegen, nicht des Formulars. */
-  const stale = module?.areaId == null ? [] : allFields.filter((f) => f.labelAreaId !== module.areaId);
+  const stale = questionsArea === null ? [] : allFields.filter((f) => f.labelAreaId !== questionsArea);
 
   const resealStale = async () => {
     for (const f of stale) {
@@ -775,7 +781,7 @@ export function useFormOffice(props: FormOfficeProps) {
    */
   const hiddenNotice = formArea !== undefined && formArea.publicLevel === 'none' && (
     <p className="wk-warn">
-      Obszar formularza „{areaLabel(formArea.areaId)}" nie jest jawny — na stronie pytania przeczyta
+      {questionsArea !== module?.areaId ? 'Obszar pytań' : 'Obszar formularza'} „{areaLabel(formArea.areaId)}" nie jest jawny — na stronie pytania przeczyta
       tylko ten, kto czyta ten obszar (zalogowany albo przez link z dostępem); dla pozostałych będą
       nieczytelne. Ma być dla wszystkich? Ustaw w tym obszarze, w zakładce „Dla wszystkich",
       „Każdy czyta" — albo wybierz tu obszar jawny.
@@ -789,16 +795,16 @@ export function useFormOffice(props: FormOfficeProps) {
     <div className="wk-warn">
       <p>
         {stale.length === 1 ? 'Jedno pytanie jest zapieczętowane' : `${stale.length} pytań jest zapieczętowanych`}{' '}
-        kluczem obszaru odpowiedzi ({staleUnder}), a nie formularza — na stronie publicznej
+        kluczem innego obszaru ({staleUnder}) niż obszar pytań formularza — na stronie publicznej
         {stale.length === 1 ? ' jest nieczytelne' : ' są nieczytelne'}.
         {!stale.every((f) => f.label !== null) && ' Nie wszystkie da się teraz odczytać — potrzebny jest klucz tamtego obszaru.'}
-        {formArea === undefined && ' Nie masz klucza obszaru formularza.'}
+        {formArea === undefined && ' Nie masz klucza obszaru pytań.'}
       </p>
       <button
         type="button" className="wk-link-btn" disabled={busy !== null || !canReseal}
         onClick={() => void act('Przepieczętowywanie pytań…', resealStale)}
       >
-        Przepieczętuj kluczem formularza
+        Przepieczętuj kluczem obszaru pytań
       </button>
     </div>
   );
@@ -808,7 +814,7 @@ export function useFormOffice(props: FormOfficeProps) {
    * und wenn ihre Antworten woandershin sollen, mit JEDER Antwort neu verpackt.
    */
   const saveField = async (f: OpenField, change: FieldChange) => {
-    const place = module?.areaId ?? change.areaId;
+    const place = questionsArea ?? change.areaId;
     const { key, epoch } = await keyOf(place);
     let moveTo: { areaId: string; moved: readonly MovedValue[] } | undefined;
 
@@ -840,7 +846,7 @@ export function useFormOffice(props: FormOfficeProps) {
 
     await editField(f.fieldId, {
       key,
-      labelArea: module?.areaId == null ? null : { areaId: module.areaId, epoch },
+      labelArea: questionsArea === null ? null : { areaId: questionsArea, epoch },
       label: change.label, help: change.help, options: change.options,
       kind: change.kind, isRequired: change.isRequired, isHalfWidth: change.isHalfWidth,
       selfEdit: change.selfEdit,

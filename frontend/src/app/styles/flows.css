@@ -1,0 +1,242 @@
+/* Die Abläufe des Kalenders (2026-10-26): Pläne für Messen und Regeln für Einträge — React Flow mit einer Tafel daneben.
+   Teil von app.css: dort steht, in welcher Reihenfolge die Dateien gelten. */
+
+/* Die Breite gibt der Ort, an dem der Editor steht (Dialog, Seite) — darum fragt er seinen Behälter, nicht das Fenster. */
+.wk-flow { container-type: inline-size; display: grid; gap: var(--wk-space-3); min-width: 0; }
+
+/* -- Die Palette: eine Gruppe je Rolle, die Rolle am Rand des Knopfes ------------------- */
+
+.wk-flow-palette { display: flex; flex-wrap: wrap; gap: var(--wk-space-2) var(--wk-space-5); }
+.wk-flow-palgroup { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); }
+.wk-flow-pallabel {
+  font-size: var(--wk-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--wk-muted);
+  margin-right: var(--wk-space-1);
+}
+.wk-flow-pal {
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--wk-line);
+  border-left-width: 3px;
+  border-radius: var(--wk-radius-xs);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-flow-pal:hover:not(:disabled) { border-color: var(--wk-accent); }
+.wk-flow-pal:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+.wk-flow-pal:disabled { opacity: 0.5; cursor: default; }
+.wk-flow-pal.is-entry { border-left-color: var(--wk-ok); }
+.wk-flow-pal.is-test { border-left-color: var(--wk-info); }
+.wk-flow-pal.is-end { border-left-color: var(--wk-accent); }
+
+.wk-flow-problems {
+  margin: 0;
+  padding: var(--wk-space-2) var(--wk-space-3) var(--wk-space-2) var(--wk-space-6);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-warn-soft);
+  color: var(--wk-warn);
+  font-size: var(--wk-text-sm);
+}
+
+/* -- Karte und Tafel ------------------------------------------------------------------- */
+
+.wk-flow-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+  gap: var(--wk-space-3);
+  align-items: stretch;
+}
+
+.wk-flow-canvas {
+  height: 36rem;
+  min-width: 0;
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-ground);
+  overflow: hidden;
+}
+
+.wk-flow-panel {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  max-height: 36rem;
+  overflow-y: auto;
+  padding: var(--wk-space-4);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+}
+
+@container (max-width: 52rem) {
+  .wk-flow-split { grid-template-columns: minmax(0, 1fr); }
+  .wk-flow-canvas { height: 26rem; }
+  .wk-flow-panel { max-height: none; }
+}
+
+/* React Flow im Ton des Arbeitsplatzes — auch im dunklen. */
+.wk-flow-canvas .react-flow__controls-button { background: var(--wk-surface); border-bottom-color: var(--wk-line); fill: var(--wk-ink); }
+.wk-flow-canvas .react-flow__background { color: var(--wk-line); }
+.wk-flow-canvas .react-flow__edge-path { stroke: var(--wk-muted); stroke-width: 2; }
+.wk-flow-canvas .react-flow__edge.selected .react-flow__edge-path { stroke: var(--wk-accent); }
+.wk-flow-canvas .wk-fedge-yes .react-flow__edge-path { stroke: var(--wk-ok); }
+.wk-flow-canvas .wk-fedge-no .react-flow__edge-path { stroke: var(--wk-danger); }
+.wk-flow-canvas .react-flow__edge-textbg { fill: var(--wk-surface); }
+.wk-flow-canvas .react-flow__edge-text { fill: var(--wk-ink); font-size: var(--wk-text-xs); }
+.wk-flow-canvas .react-flow__arrowhead polyline { stroke: var(--wk-muted); fill: var(--wk-muted); }
+
+/* -- Ein Knoten: die Rolle am linken Rand, darunter eine Zeile über seine Daten ------------ */
+
+.wk-fnode {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  min-width: 9rem;
+  max-width: 14rem;
+  padding: 0.5rem 1.75rem 0.5rem 0.75rem;
+  border: 1px solid var(--wk-line);
+  border-left: 4px solid var(--wk-line-strong);
+  border-radius: var(--wk-radius-xs);
+  background: var(--wk-surface);
+  color: var(--wk-ink);
+  font-size: var(--wk-text-sm);
+  line-height: 1.35;
+}
+.wk-fnode.is-entry { border-left-color: var(--wk-ok); background: var(--wk-ok-soft); }
+.wk-fnode.is-test { border-left-color: var(--wk-info); }
+.wk-fnode.is-end { border-left-color: var(--wk-accent); }
+.wk-fnode.is-on { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.wk-fnode.has-problem { border-style: dashed; border-left-style: solid; }
+.wk-fnode-kind { font-weight: 600; }
+.wk-fnode-sum { color: var(--wk-muted); overflow-wrap: anywhere; }
+.wk-fnode-problem { color: var(--wk-warn); font-size: var(--wk-text-xs); }
+
+.wk-fhandle.react-flow__handle {
+  width: 11px;
+  height: 11px;
+  background: var(--wk-surface);
+  border: 2px solid var(--wk-muted);
+}
+.wk-fhandle.react-flow__handle-connecting { border-color: var(--wk-danger); }
+.wk-fhandle.react-flow__handle-valid { border-color: var(--wk-ok); }
+.react-flow__handle.wk-fhandle-yes { top: 32%; border-color: var(--wk-ok); }
+.react-flow__handle.wk-fhandle-no { top: 72%; border-color: var(--wk-danger); }
+.wk-fhandle-tag {
+  position: absolute;
+  right: 0.5rem;
+  font-size: var(--wk-text-xs);
+  line-height: 1;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.wk-fhandle-tag-yes { top: 32%; color: var(--wk-ok); }
+.wk-fhandle-tag-no { top: 72%; color: var(--wk-danger); }
+
+/* -- Die Tafel des gewählten Knotens ------------------------------------------------------ */
+
+.wk-flow-panel-in { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.wk-flow-panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-2); }
+.wk-flow-title { margin: 0; font-size: var(--wk-text-lg); }
+.wk-flow-sub { margin: 0; font-size: var(--wk-text-sm); font-weight: 600; }
+.wk-flow-note { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-flow-problem { font-size: var(--wk-text-xs); color: var(--wk-warn); }
+.wk-flow-stack { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-flow-test, .wk-flow-rule { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.wk-flow-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.wk-flow-inline > select, .wk-flow-inline > input:not([type="number"]):not([type="time"]) { min-width: 0; flex: 1 1 8rem; }
+.wk-flow-num { width: 5rem; }
+.wk-flow-key { font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
+.wk-flow-unit { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.wk-flow-panel .wk-field :is(input, select) { width: 100%; box-sizing: border-box; }
+
+.wk-flow-tokens { display: flex; flex-wrap: wrap; gap: var(--wk-space-1); }
+.wk-flow-token {
+  font-family: var(--wk-mono);
+  font-size: var(--wk-text-xs);
+  padding: 0.125rem 0.375rem;
+  border: 1px dashed var(--wk-line-strong);
+  border-radius: var(--wk-radius-xs);
+  background: none;
+  color: var(--wk-ink-2);
+  cursor: pointer;
+}
+.wk-flow-token:hover:not(:disabled) { border-color: var(--wk-accent); color: var(--wk-accent); }
+.wk-flow-token:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 1px; }
+
+/* Farben je Abschnitt und besondere Tage. */
+.wk-flow-table { width: 100%; border-collapse: collapse; font-size: var(--wk-text-sm); }
+.wk-flow-table th, .wk-flow-table td { padding: 0.25rem 0.375rem; text-align: left; border-bottom: 1px solid var(--wk-line); vertical-align: middle; }
+.wk-flow-table thead th { font-weight: 600; color: var(--wk-muted); font-size: var(--wk-text-xs); text-transform: uppercase; letter-spacing: 0.05em; }
+.wk-flow-table tbody th { font-weight: 500; }
+.wk-flow-colour { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; }
+.wk-flow-colour > input { flex: 1 1 6rem; min-width: 0; }
+
+/*
+   Die liturgischen Farben als Plättchen (auch für den Kalender: `colourClass`
+   in calendar/scheme.ts). Es sind die Farben der Gewänder, nicht des Themas —
+   darum feste Werte, und ein Rand, damit Weiss auf Weiss sichtbar bleibt.
+*/
+.wk-lc {
+  display: inline-block;
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 1px solid var(--wk-line-strong);
+  vertical-align: middle;
+  background: var(--wk-sunk);
+}
+.wk-lc-white { background: #f8f5ec; }
+.wk-lc-red { background: #b3261e; }
+.wk-lc-green { background: #2e7d32; }
+.wk-lc-violet { background: #5e3a8c; }
+.wk-lc-rose { background: #e08aa6; }
+.wk-lc-black { background: #1d1b19; }
+.wk-lc-gold { background: #c9a227; }
+.wk-lc-blue { background: #3b6db3; }
+.wk-lc.is-unknown { background: repeating-linear-gradient(45deg, var(--wk-sunk) 0 2px, var(--wk-surface) 2px 4px); }
+
+/* Die Feste: jede Zeile zu, bis man sie aufmacht. */
+.wk-flow-rows { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.125rem; }
+.wk-flow-row { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); background: var(--wk-surface); }
+.wk-flow-row.is-open { border-color: var(--wk-accent); }
+.wk-flow-rowhead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0 var(--wk-space-2);
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  font: inherit;
+  font-size: var(--wk-text-sm);
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--wk-ink);
+  cursor: pointer;
+}
+.wk-flow-rowhead:hover { background: var(--wk-soft); }
+.wk-flow-rowhead:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.wk-flow-rowname { font-weight: 600; overflow-wrap: anywhere; }
+.wk-flow-rowmeta { grid-column: 2; color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.wk-flow-rowedit { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3) var(--wk-space-3); border-top: 1px solid var(--wk-line); }
+
+/* Die Messen eines Tages. */
+.wk-flow-slots { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--wk-space-2); }
+.wk-flow-slot { display: grid; gap: var(--wk-space-1); padding: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs); }
+.wk-flow-add { justify-self: start; }
+
+/* Die Vorschau des Aufrufers. */
+.wk-flow-preview {
+  display: grid;
+  gap: var(--wk-space-2);
+  padding: var(--wk-space-3) var(--wk-space-4);
+  border: 1px solid var(--wk-line);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface);
+  min-width: 0;
+}

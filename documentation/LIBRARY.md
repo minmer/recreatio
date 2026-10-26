@@ -7,7 +7,7 @@ explains the design; the code comments carry the details.
 
 | part | job | holds | document |
 |---|---|---|---|
-| **Library** (Biblioteka) | normalise every reference; it holds nothing else | works, quotes, persons as authors, media files | this file |
+| **Library** (Biblioteka) | normalise every reference; it holds nothing else | works (texts and, since 2026-10-26, music), quotes, persons as authors, media files | this file |
 | **Scriptorium** (Skryptorium) | writing that uses the knowledge and cites the sources | texts, deliveries, projects, text types | [SCRIPTORIUM.md](SCRIPTORIUM.md) |
 | **Cogita** (Nauka) | knowledge: the owner's own kinds, their entries and links; learning | own kinds and entries (places, persons as subjects, events, mysteries, comments…), questions, templates, revisions, flows, views | [COGITA.md](COGITA.md) |
 
@@ -52,7 +52,7 @@ An **entry** is one typed document. The kinds live in `frontend/src/app/library/
 | kind | what | key fields |
 |---|---|---|
 | `person` | author, editor, translator, institution | given names, surname or single name, years, description |
-| `work` | a source: book, chapter, article, periodical, Church document, Bible, web page, talk | authors / editors / translators (refs), container (ref), volume, issue, edition, publisher, place, year, series, pages, page count, binding, height / width / thickness, siglum, ISBN, own number, DOI, URL, original title |
+| `work` | a source: book, chapter, article, periodical, Church document, Bible, web page, talk — and music (2026-10-26): piece, score, recording, album | authors / editors / translators (refs), container (ref), volume, issue, edition, publisher, place, year, series, pages, page count, binding, height / width / thickness, siglum, ISBN, own number, DOI, URL, original title; music has its own fields (below, „Music”) |
 | `quote` | a passage of a work | text, work (ref), locator (`s. 23`, `J 3,16`, `nr 24`), translation |
 
 Media files belong to the library they are uploaded into (`library_file`, sealed under the area key).
@@ -170,6 +170,7 @@ by the **scheme** of its work (the work field "Układ miejsc", else from its kin
 | `decimal` | decimal propositions (Tractatus) | `2.0121`, `4.1–4.116`, `TLP 6.54` |
 | `sections` | numbered remarks with parts (Philosophical Investigations) | `§ 43`, `§§ 1–5`, `cz. II, xi` |
 | `outline` | volume, part, book, chapter, section, paragraph — as many levels as the work has | `t. 2, cz. 1, rozdz. 3`, `ks. II, rozdz. 4, § 2` |
+| `time` | minutes and seconds of a recording (2026-10-26) — like pages, of this performance only | `1:23`, `1:23–1:45`, `0:45; 2:10–2:30`, `1:02:03` |
 
 - **Structure vs. edition.** A *structural* place (a verse, a number, a proposition, a chapter) is the same in every
   edition and translation; a *page* belongs to the one edition whose work entry is cited. A place may carry both
@@ -292,6 +293,86 @@ The library is meant to work with real shelves:
   - In the editor, "Uzupełnij z katalogu" fills **only empty fields**.
 - **Own numbers**: "Nadaj kolejny" proposes the next free number in the style of the last one (`B-0042` → `B-0043`);
   a duplicate number is flagged; a label can be scanned into the field.
+
+## Music (2026-10-26)
+
+The library stores music as well as books. It is its own tab, **„Muzyka”**, next to „Źródła”. A music work is
+an ordinary `work` with a music kind, so it is cited, referred to with a place, searched, exported and moved like any
+other source. **The kind decides which fields the work has** (the `when` of each field in `libraryKinds.ts`; the kind
+select groups the kinds under „Teksty i wystąpienia” and „Muzyka”). The tab has one button per kind.
+
+| kind | what it is | its own fields |
+|---|---|---|
+| `piece` — Utwór muzyczny | the piece as such: what one names when asked „what is this?” | composer, lyricist, arrangement, translation of the words, other titles and incipit, catalogue number (KV 618, BWV 147), key, voicing, genre, year written, language, lyrics |
+| `score` — Nuty | an edition of the notation | its piece, composer, lyricist, arrangement, editors, edition, volume, publisher, place, year, catalogue number, ISMN, pages, binding, size, shelf number — and its **files** |
+| `recording` — Nagranie | a performance | its piece, performers (a choir, a conductor, soloists), album and track number, arrangement, key, voicing, other titles, duration, publisher, year — and its **tracks** |
+| `album` — Płyta, album | a CD or album of recordings | performers, publisher, year, catalogue number, duration, shelf number |
+
+A score and a recording point at their piece (`piece`); a recording at its album (`album`). The pickers offer only
+pieces (only albums), and a name typed there makes a new piece (album). A score or recording without its own title or
+composer takes them from its piece. Typing a performer that starts like an ensemble („Chór…”, „Schola…”, „Zespół…”,
+„Orkiestra…”, „Ensemble…”) makes an institution with its whole name, not a first name and a surname.
+
+**Files** (`library/MusicFiles.tsx`, `library/music.ts`):
+
+- **Tracks of a recording.** A recording is one file (the whole) or several tracks: one per voice or instrument. Each
+  track has a name (Sopran, Alt, Tenor, Bas, Organy, …) and a role: „Głos albo instrument” (`part`, sounds together
+  with the other parts) or „Całe nagranie” (`whole`, heard alone). Several files can be added at once; the file name
+  suggests the voice („Barka - Sopran.mp3” → Sopran, „ave_verum_Tenor2.ogg” → Tenor II, „Barka S.mp3” → Sopran,
+  „full mix” → Całość). A single track without a voice in its name is the whole recording.
+- **Files of a score:** the full score, separate parts, notation files (PDF, images, MusicXML, MIDI), each with what
+  it is.
+- Files are uploaded only after the entry is saved, and only for writers. Each file is encrypted in the browser under
+  the area's key, like every entry (`library_file`, up to 50 MB each, 2 GB per library). The list of files is saved
+  at once with every upload, replacement or removal (`entryDraft.commit`), not after the usual pause: the file is
+  already on the server, and a closed tab must not leave it without its entry. A file is opened only when
+  someone asks: „▶ Odsłuchaj” plays a track, „Pokaż” shows a PDF or image in place, anything else downloads. A page
+  with five tracks does not download five files.
+- **Files belong to their entry.** They go away when the entry is deleted (also many at once) or when a track is
+  removed (after a question that names it). They move with it to another library, sealed again under that area's
+  key; this is how a recording becomes public. A track can be replaced and reordered.
+
+**Places in a recording are times** (`locations.ts`, scheme `time`): `1:23`, `1:23–1:45`, `0:45; 2:10–2:30`,
+`1:02:03`, `1:23.5`. A recording reads its places this way by its kind. Like a page, a time belongs to this one
+performance, not to the piece (`isStructural` says no), so it never matches another recording. Quotes of a recording
+are ordered by time.
+
+**Footnotes** (`libraryCite.ts`):
+
+| kind | full |
+|---|---|
+| piece | W. A. Mozart, *Ave verum corpus*, KV 618, sł. …, oprac. … |
+| score | W. A. Mozart, *Ave verum corpus* [nuty], oprac. J. Kowalski, Stuttgart 2005, s. 3 |
+| recording | *Ave verum corpus* (W. A. Mozart), wyk. Schola Katedralna, [nagranie], w: *Muzyka katedry*, nr 5, Dux, 2024, 1:23 |
+| album | *Muzyka katedry*, wyk. Schola Katedralna, [płyta], Dux, 2010 |
+
+The short form is „W. A. Mozart, *Ave verum corpus*, dz. cyt., 2:10”. A recording without a composer is listed by its
+performers.
+
+**JSON.** The music fields are described with the others, with two more examples (a piece, and a recording in voices
+with its composer and choir). A file is written as the export writes it (`{ "file", "type", "name", "mime",
+"library" }`); a file the document invents is dropped with a warning, and the track stays. So an AI can describe
+pieces, recordings and their tracks without files; the files are added in the app. An export followed by an import of
+the same library changes nothing.
+
+**Built for what comes later** (not built now; the data is ready):
+
+1. **A player on a public page that plays the voices together.** A page module will take a recording. It plays its
+   parts (`partsOf`: tracks with role `part` and a file) in sync, one volume and mute or solo per voice, so a singer
+   hears all voices or practises one. The whole (`wholeOf`) plays alone. Visitors of a public area open the files
+   sealed under its published key (`/library/{id}/file/{fileId}/sealed`), as they open its entries. Moving a recording
+   into a public library carries its files.
+   Still to decide then: a shared start offset per track (if files do not start together), and whether the score is
+   shown beside the player.
+2. **Listening cards in Cogita.** A card template will play a recording from a moment and ask for the piece:
+   - choosing among several pieces (wrong answers from other pieces of the same library or genre), or typing the
+     title;
+   - a typed answer counts if it matches any name the piece is known by (`titlesOf`: the title, the original title,
+     the other titles and the incipit of the piece and of the recording);
+   - several recordings of one piece are one answer (`pieceBehind`).
+   - The moment is a reference with a place, as Cogita already stores it: `{ "value": <recording>, "locator": "1:23" }`,
+     or chosen by the card from the length.
+3. Later still: bars as places in a score (`t. 12–16`, `cz. 2`, `zwr. 3`), and showing MusicXML as notation.
 
 ## Quotes from a book
 
@@ -418,6 +499,8 @@ area, and nothing of other areas), chooses how long it lasts (a week, a month, t
   removed, and old entries stand under "Stare wpisy".
 - 2026-10-24: one model of places for every reference (schemes, structure vs. edition, editions); source texts in
   portions with a reader, imported as JSON (IMPLEMENTATION-LOG, L1).
+- 2026-10-26: music — pieces, scores with their files, recordings with their tracks (voices and instruments), albums;
+  places in time (IMPLEMENTATION-LOG, M1).
 
 ## Adding a kind
 

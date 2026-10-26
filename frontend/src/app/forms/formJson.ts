@@ -29,7 +29,7 @@ import {
 import { openDesign, readDesign, saveDesign, sealDesign, type FormDesign, type LayoutItem } from './formDesign';
 import { createIntake, loadPublicIntake } from './intake';
 import type { Ring } from '../core/keys';
-import { updateModule } from '../modules/module';
+import { loadModules, updateModule } from '../modules/module';
 import { keysFor } from '../core/ringOf';
 import { selfOf } from '../roles/roles';
 import { WorkspaceError, type Who } from '../core/session';
@@ -289,9 +289,19 @@ const same = (a: readonly string[], b: readonly string[]) => a.length === b.leng
  */
 export async function writeFormContent(
   who: Who,
-  form: { readonly moduleId: string; readonly areaId: string | null },
+  form: {
+    readonly moduleId: string; readonly areaId: string | null;
+    /** 0133 — unter welchem Bereich die Fragen liegen, wenn nicht unter dem eigenen; fehlt: aus der Liste der Module. */
+    readonly labelAreaId?: string | null;
+  },
   doc: { readonly questions?: unknown; readonly design?: unknown },
-  options: { readonly replace: boolean; readonly answersTo: string | null; readonly onStage?: (what: string) => void }
+  options: {
+    readonly replace: boolean; readonly answersTo: string | null; readonly onStage?: (what: string) => void;
+    /** 0133 — Kennung im Dokument → Frage, wie ein früherer Import sie anlegte (der Import eines Bereichs merkt es sich). */
+    readonly known?: ReadonlyMap<string, string>;
+    /** 0133 — eine Frage ohne bekannte Kennung ist die vorhandene gleicher Art mit demselben Wortlaut (statt einer zweiten). */
+    readonly byLabel?: boolean;
+  }
 ): Promise<FormWrite> {
   const warnings: string[] = [];
   const wanted = readQuestions(doc.questions, warnings);
@@ -300,10 +310,32 @@ export async function writeFormContent(
   const every = [...await openFields(loaded.fields, keys.open)].sort((a, b) => a.position - b.position);
 
   /*
+   * 0133 — WELCHE VORHANDENE FRAGE eine Frage des Dokuments ist: die mit ihrer Kennung, sonst
+   * die, unter der ein früherer Import sie anlegte (`known`), sonst — auf Wunsch — die gleicher
+   * Art mit demselben Wortlaut. Jede vorhandene höchstens einmal.
+   */
+  const allById = new Map(every.map((f) => [f.fieldId, f]));
+  const matchOf = new Map<string, string>();
+  const claimed = new Set<string>();
+  for (const q of wanted) {
+    const via = options.known?.get(q.id);
+    const hit = allById.has(q.id) ? q.id : via !== undefined && allById.has(via) ? via : undefined;
+    if (hit !== undefined && !claimed.has(hit)) { matchOf.set(q.id, hit); claimed.add(hit); }
+  }
+  if (options.byLabel === true) {
+    const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+    for (const q of wanted) {
+      if (matchOf.has(q.id)) continue;
+      const same = every.find((f) => !claimed.has(f.fieldId) && f.removedAt == null && f.label !== null && f.kind === q.kind && norm(f.label) === norm(q.label));
+      if (same !== undefined) { matchOf.set(q.id, same.fieldId); claimed.add(same.fieldId); }
+    }
+  }
+
+  /*
    * 0086 — EINE VOM FORMULAR GENOMMENE FRAGE, die das Dokument wieder nennt,
    * kommt zurück (mit ihren Antworten) und wird wie jede vorhandene behandelt.
    */
-  const named = new Set(wanted.map((q) => q.id));
+  const named = new Set(matchOf.values());
   for (const f of every) {
     if (f.removedAt == null || !named.has(f.fieldId)) continue;
     options.onStage?.(`Przywracanie pytania „${f.label ?? f.fieldId}”…`);
@@ -314,13 +346,22 @@ export async function writeFormContent(
   const byId = new Map(now.map((f) => [f.fieldId, f]));
 
   let formArea = form.areaId;
-  const fresh = wanted.filter((q) => !byId.has(q.id));
+  const fieldOf = (q: { readonly id: string }) => { const id = matchOf.get(q.id); return id === undefined ? undefined : byId.get(id); };
+  const fresh = wanted.filter((q) => fieldOf(q) === undefined);
 
   if (formArea === null && now.length === 0 && options.answersTo !== null && (fresh.length > 0 || doc.design != null)) {
     options.onStage?.('Ustawianie obszaru formularza…');
     await updateModule(form.moduleId, { areaId: options.answersTo });
     formArea = options.answersTo;
   }
+
+  /*
+   * 0133 — DIE FRAGEN UNTER DEM BEREICH, IN DEM SIE VERÖFFENTLICHT SIND (`labelAreaId`), wenn das
+   * Formular einen hat — sonst unter seinem eigenen. Die Antworten gehen in den eigenen.
+   */
+  const labelAreaId = form.labelAreaId !== undefined ? form.labelAreaId
+    : (await loadModules().then((r) => r.modules.find((m) => m.moduleId === form.moduleId)?.labelAreaId ?? null, () => null));
+  const questionsArea = formArea === null ? null : labelAreaId ?? formArea;
 
   const ids = new Map<string, string>();
   let added = 0;
@@ -329,7 +370,7 @@ export async function writeFormContent(
 
   /* Erst die vorhandenen: geändert, wo etwas anders ist. */
   for (const q of wanted) {
-    const f = byId.get(q.id);
+    const f = fieldOf(q);
     if (f === undefined) continue;
     ids.set(q.id, f.fieldId);
     if (f.label === null) { warnings.push(`Pytanie ${q.id} jest zapieczętowane kluczem, którego nie masz — pominięte.`); continue; }
@@ -342,10 +383,10 @@ export async function writeFormContent(
     if (!differs) { unchanged += 1; continue; }
 
     options.onStage?.(`Pieczętowanie pytania „${q.label}”…`);
-    const { key, epoch } = await sealingKey(keys, formArea ?? f.areaId);
+    const { key, epoch } = await sealingKey(keys, questionsArea ?? f.areaId);
     await editField(f.fieldId, {
       key,
-      labelArea: formArea === null ? null : { areaId: formArea, epoch },
+      labelArea: questionsArea === null ? null : { areaId: questionsArea, epoch },
       label: q.label, help: q.help, options: q.kind === 'choice' ? q.options : [],
       kind: q.kind, isRequired: q.required, isHalfWidth: q.halfWidth, identityRole: q.identity, selfEdit: q.selfEdit,
       personOnly: q.personOnly
@@ -376,7 +417,7 @@ export async function writeFormContent(
 
     options.onStage?.(`Pieczętowanie pytania „${q.label}”…`);
     const answers = await sealingKey(keys, target);
-    const labelArea = formArea === null ? undefined : { areaId: formArea, ...(await sealingKey(keys, formArea)) };
+    const labelArea = questionsArea === null ? undefined : { areaId: questionsArea, ...(await sealingKey(keys, questionsArea)) };
     const done = await addField(form.moduleId, {
       areaId: target, areaKey: answers.key, epoch: answers.epoch,
       labelArea,
@@ -393,7 +434,7 @@ export async function writeFormContent(
   /* Gelöscht wird nur auf Wunsch — eine Frage mit Antworten nimmt der Dienst nur vom Formular (0086). */
   let removed = 0;
   if (options.replace) {
-    const keep = new Set(wanted.map((q) => q.id));
+    const keep = new Set(matchOf.values());
     for (const f of now) {
       if (keep.has(f.fieldId)) continue;
       try {
@@ -408,12 +449,12 @@ export async function writeFormContent(
   /* Der Aufbau — mit den Kennungen der eben entstandenen Fragen. */
   let designSaved = false;
   if (doc.design !== undefined) {
-    if (formArea === null) {
+    if (formArea === null || questionsArea === null) {
       warnings.push('Układ i logika wymagają obszaru formularza — ustaw go w module i zaimportuj jeszcze raz.');
     } else {
       options.onStage?.('Zapisywanie układu…');
-      const { key, epoch } = await sealingKey(keys, formArea);
-      await saveDesign(form.moduleId, formArea, epoch, doc.design === null ? null : await sealDesign(remapDesign(doc.design, ids), key, form.moduleId));
+      const { key, epoch } = await sealingKey(keys, questionsArea);
+      await saveDesign(form.moduleId, questionsArea, epoch, doc.design === null ? null : await sealDesign(remapDesign(doc.design, ids), key, form.moduleId));
       designSaved = true;
     }
   }

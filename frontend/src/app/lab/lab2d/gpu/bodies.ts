@@ -17,7 +17,8 @@ import type { Engine } from '../engine/engine';
 import { SOLIDS } from '../engine/materials';
 import { objectKey, type ObjectView } from '../engine/objects';
 import type { ObjectOp } from '../engine/scene';
-import { BB, BC, BR, BRD, BS, GEO_RECTS, GH, PS, RS, SS } from './kbodylib';
+import { BB, BC, BR, BRD, BS, GEO_RECTS, GH, GR, PS, RS, SS } from './kbodylib';
+import { MLT, MLT_BODY, MLT_HEAD, PEND_W } from './kbodymelt';
 import type { GpuCtx } from './kernel';
 
 /** bat: je Körper die atomaren Summen (f32): Rest an Film und Kruste (collect), Σ Film und Kruste danach, die neun Summen der Messung der mitbewegten Masse. */
@@ -36,17 +37,41 @@ export const MAX_FREE = 8;
 /** Die Seiten der Kiste als Stoff (wie bodyContacts.ts). */
 const WALL = { friction: 0.5, bounce: 0.1 } as const;
 
-/** Rechnen in dieser Szene alle Körper mit genauen Anteilen (eine Szene mit freien Körpern)? */
-export function bodyMode(e: Engine): boolean {
-  return e.bodies.anyFree;
+/** Schmilzt der Körper auf der GPU (Eis aus einem Rechteck; ausgeschnittenes Eis bleibt auf der CPU, Engine.needsCpu)? */
+export function meltsOnGpu(b: Body2D): boolean {
+  return !b.gone && b.ncell > 0 && b.nr === 1 && meltsAt(b.mat) > 0;
 }
 
-/** Was eine Ablesung je Körper bringt. */
+/**
+ * Rechnen in dieser Szene alle Körper mit genauen Anteilen — eine Szene mit freien Körpern oder mit Eis, das schmilzt oder wächst
+ * (oder dessen Schmelzwasser noch kein Teilchen ist)?
+ */
+export function bodyMode(e: Engine): boolean {
+  if (e.bodies.anyFree) return true;
+  if (e.bodies.list.some((b) => !b.gone && meltsAt(b.mat) > 0)) return true;
+  for (const p of e.melt.water.pending.values()) if (p.m > 0) return true;
+  return false;
+}
+
+/** Platz eines Körpers auf der GPU: innere Zellen, Spalten- und Zeilengrenzen je Rechteck; ein schmelzender Körper bekommt Reserve zum Wachsen (zwei Reihen und Spalten). */
+function roomOf(b: Body2D): { cells: number; xs: number; ys: number } {
+  if (!meltsOnGpu(b)) {
+    let xs = 0;
+    let ys = 0;
+    for (let r = 0; r < b.nr; r += 1) { xs += b.xs[r].length; ys += b.ys[r].length; }
+    return { cells: b.ncell, xs, ys };
+  }
+  return { cells: (b.ni[0] + 2) * (b.nj[0] + 2), xs: b.ni[0] + 3, ys: b.nj[0] + 3 };
+}
+
+/** Was eine Ablesung je Körper bringt (pm, pH, ps: sein Schmelzwasser, das noch kein Teilchen ist; rect: sein erstes Rechteck im eigenen Rahmen). */
 export interface BodyRead {
   readonly x: number; readonly y: number; readonly a: number; readonly vx: number; readonly vy: number; readonly w: number;
   readonly pinned: boolean; readonly asleep: boolean; readonly gone: boolean;
   readonly m: number; readonly T: number; readonly E: number; readonly film: number; readonly crust: number;
   readonly fx: number; readonly fy: number; readonly tq: number;
+  readonly pm: number; readonly pH: number; readonly ps: number;
+  readonly rect: readonly [number, number, number, number];
 }
 
 /** Die Umgrenzung eines Körpers in der Welt bei seiner Lage. */
@@ -63,16 +88,20 @@ export class GpuBodies {
   readonly bcon: GPUBuffer;
   readonly bat: GPUBuffer;
   readonly bread: GPUBuffer;
-  /** Kapazität (Körper, Rechtecke, innere Zellen, Wörter von bgeo). */
+  /** Schmelzen (kbodymelt.ts): je Körper das gesammelte Schmelzwasser je Seite und der Platz, dahinter der Arbeitsspeicher der neuen Aufteilung. */
+  readonly bmelt: GPUBuffer;
+  /** Kapazität (Körper, Rechtecke, innere Zellen, Wörter von bgeo und bmelt). */
   readonly capBodies: number;
   readonly capCells: number;
   readonly capGeo: number;
-  /** Beim letzten Hochladen: Körper, innere Zellen, Rechtecke, Lagen der Druckfortsetzung, die freien Körper, die ihre mitbewegte Masse messen. */
+  readonly capMelt: number;
+  /** Beim letzten Hochladen: Körper, innere Zellen (mit der Reserve schmelzender Körper), Rechtecke, Lagen der Druckfortsetzung, die freien Körper, die ihre mitbewegte Masse messen; schmilzt einer? */
   nbody = 0;
   ncell = 0;
   nrect = 0;
   layers = 2;
   probed: number[] = [];
+  melting = false;
   private readonly ctx: GpuCtx;
   private readonly own: GPUBuffer[] = [];
 
@@ -82,6 +111,7 @@ export class GpuBodies {
     this.capBodies = Math.max(4, need.bodies + 4);
     this.capCells = Math.max(16, Math.ceil(need.cells * 1.25) + 64);
     this.capGeo = Math.max(64, Math.ceil(need.geo * 1.25) + 256);
+    this.capMelt = Math.max(64, MLT_HEAD + MLT_BODY * this.capBodies + Math.ceil(need.scratch * 1.25) + 64);
     const b = (label: string, words: number): GPUBuffer => { const x = ctx.buffer(label, 4 * Math.max(4, words)); this.own.push(x); return x; };
     this.bod = b('bod', BS * this.capBodies);
     this.bgeo = b('bgeo', this.capGeo);
@@ -89,28 +119,32 @@ export class GpuBodies {
     this.bcon = b('bcon', BCON_WORDS);
     this.bat = b('bat', BA_STRIDE * this.capBodies);
     this.bread = b('bread', BR * this.capBodies);
+    this.bmelt = b('bmelt', this.capMelt);
   }
 
-  /** Was die Körper einer Engine an Platz brauchen (nur in einer Szene mit freien Körpern). */
-  private static need(e: Engine): { bodies: number; cells: number; geo: number } {
-    if (!bodyMode(e)) return { bodies: 0, cells: 0, geo: 0 };
+  /** Was die Körper einer Engine an Platz brauchen (nur im Modus der genauen Anteile); scratch: der Arbeitsspeicher der neuen Aufteilung (der grösste schmelzende Körper). */
+  private static need(e: Engine): { bodies: number; cells: number; geo: number; scratch: number } {
+    if (!bodyMode(e)) return { bodies: 0, cells: 0, geo: 0, scratch: 0 };
     let cells = 0;
     let geo = GEO_RECTS;
+    let scratch = 0;
     for (const b of e.bodies.list) {
       if (b.gone) continue;
-      cells += b.ncell;
-      geo += b.nr * RS + SS * b.nseg;
-      for (let r = 0; r < b.nr; r += 1) geo += b.xs[r].length + b.ys[r].length;
+      const room = roomOf(b);
+      cells += room.cells;
+      geo += b.nr * RS + SS * b.nseg + room.xs + room.ys;
+      if (meltsOnGpu(b)) scratch = Math.max(scratch, 3 * room.cells + room.xs + room.ys);
     }
     /* Die festen Teile der Berührungen: höchstens vier Wände und die Läufe gemalter Feststoffe. */
     geo += PS * (4 + e.grid.n / 2);
-    return { bodies: e.bodies.list.length, cells, geo };
+    return { bodies: e.bodies.list.length, cells, geo, scratch };
   }
 
   /** Passen die Körper der Engine in diese Puffer? */
   fits(e: Engine): boolean {
     const need = GpuBodies.need(e);
-    return need.bodies <= this.capBodies && need.cells <= this.capCells && need.geo <= this.capGeo;
+    return need.bodies <= this.capBodies && need.cells <= this.capCells && need.geo <= this.capGeo
+      && MLT_HEAD + MLT_BODY * need.bodies + need.scratch <= this.capMelt;
   }
 
   destroy(): void {
@@ -140,6 +174,12 @@ export class GpuBodies {
     let cellIndex = 0;
     let segIndex = 0;
     let maxHalf = 0;
+    /* Je Körper der Anfang seiner inneren Zellen (ein schmelzender hat danach Reserve zum Wachsen). */
+    const cellAt: number[] = [];
+    /* Schmelzen (kbodymelt.ts): das gesammelte Schmelzwasser je Seite und der Platz je Körper. */
+    const melt = new Float32Array(MLT_HEAD + MLT_BODY * nb);
+    melt[0] = MLT_HEAD + MLT_BODY * nb;
+    this.melting = false;
     /* Erst die Rechtecke (fester Platz), die Grenzen hinter allen Rechtecken. */
     let nrect = 0;
     for (const b of list) if (!b.gone && b.ncell > 0) nrect += b.nr;
@@ -148,6 +188,21 @@ export class GpuBodies {
       const o = BS * k;
       const gone = b.gone || b.ncell === 0;
       const box = gone ? [1e9, 1e9, -1e9, -1e9] : worldBox(b);
+      const melts = meltsOnGpu(b);
+      const room = roomOf(b);
+      /* Das Schmelzwasser, das noch kein Teilchen ist (auch eines weggeschmolzenen Körpers: es kommt noch hervor). */
+      for (let s = 0; s < 4; s += 1) {
+        const p = e.melt.water.pending.get(4 * k + s);
+        if (p === undefined || !(p.m > 0)) continue;
+        melt.set([p.m, p.H, p.s, p.x, p.y, p.nx, p.ny], MLT_HEAD + MLT_BODY * k + MLT.PEND + PEND_W * s);
+        this.melting = true;
+      }
+      if (melts) {
+        this.melting = true;
+        melt[MLT_HEAD + MLT_BODY * k + MLT.CAPC] = room.cells;
+        melt[MLT_HEAD + MLT_BODY * k + MLT.CAPX] = room.xs;
+        melt[MLT_HEAD + MLT_BODY * k + MLT.CAPY] = room.ys;
+      }
       const v = (f: number, x: number): void => { bod[o + f] = x; };
       v(BB.X, b.x); v(BB.Y, b.y); v(BB.A, b.a); v(BB.VX, b.vx); v(BB.VY, b.vy); v(BB.W, b.w);
       v(BB.UX, b.ux); v(BB.UY, b.uy); v(BB.UW, b.uw);
@@ -168,30 +223,40 @@ export class GpuBodies {
       /* Nach dem Hochladen deckt die GPU jeden Körper einmal neu ab (die Paare dünner Wände, ihre eigenen Anteile). */
       v(BB.AGAIN, gone ? 0 : 1);
       v(BB.COS, Math.cos(b.a)); v(BB.SIN, Math.sin(b.a));
-      /* Jeder freie Körper misst seine mitbewegte Masse (bodies.probe): mit dem vorhergesagten Randwert der CPU ist die Schätzung zu klein (MILESTONES.md). */
-      v(BB.PROBE, !gone && !b.pinned ? 1 : 0);
+      /* Jeder wache freie Körper misst seine mitbewegte Masse (bodies.probe): mit dem vorhergesagten Randwert der CPU ist die Schätzung zu klein
+         (MILESTONES.md); welche, sagt danach jede Ablesung (BodyStep.select). */
+      v(BB.PROBE, 0);
       v(BB.KEY, b.key);
       let V = 0;
       for (let c = 0; c < b.ncell; c += 1) V += b.cellVolume(c);
       v(BB.VOL, V);
       v(BB.E0, latentPerKg(b.mat));
+      v(BB.PUSH, 0);
+      v(BB.MELT, melts ? 1 : 0);
+      cellAt.push(cellIndex);
       if (gone) return;
-      if (!b.pinned && this.probed.length < MAX_FREE) this.probed.push(k);
+      if (!b.pinned && !b.asleep && this.probed.length < MAX_FREE) { this.probed.push(k); v(BB.PROBE, 1); }
       for (let r = 0; r < b.nr; r += 1) {
         const [x0, y0, x1, y1] = b.bounds(r);
         maxHalf = Math.max(maxHalf, Math.min(x1 - x0, y1 - y0));
+        /* Die Grenzen; ein schmelzender Körper hat Platz für mehr (seine Randreihen teilen sich, wenn er wächst). */
         const xo = coordAt;
         for (const x of b.xs[r]) coords.push(x);
-        coordAt += b.xs[r].length;
+        const nx = melts ? room.xs : b.xs[r].length;
+        for (let p = b.xs[r].length; p < nx; p += 1) coords.push(0);
+        coordAt += nx;
         const yo = coordAt;
         for (const y of b.ys[r]) coords.push(y);
-        coordAt += b.ys[r].length;
+        const ny = melts ? room.ys : b.ys[r].length;
+        for (let p = b.ys[r].length; p < ny; p += 1) coords.push(0);
+        coordAt += ny;
         rects.push(x0, y0, x1, y1, b.ni[r], b.nj[r], xo, yo, cellIndex + b.off[r], k, 0, 0);
         for (let c = 0; c < b.ni[r] * b.nj[r]; c += 1) cells.push(rectIndex + r);
       }
+      for (let c = b.ncell; c < room.cells; c += 1) cells.push(rectIndex);
       for (let s = 0; s < b.nseg; s += 1) segs.push(rectIndex + b.segR[s], b.segS[s], b.segT0[s], b.segT1[s], k, 0, 0, 0);
       rectIndex += b.nr;
-      cellIndex += b.ncell;
+      cellIndex += room.cells;
       segIndex += b.nseg;
     });
     const segBase = coordAt;
@@ -208,24 +273,24 @@ export class GpuBodies {
     geo.set(coords, GEO_RECTS + RS * nrect);
     geo.set(segs, segBase);
     geo.set(parts, partBase);
-    /* Innere Zellen: Energie, Film, Kruste, Rechteck. */
+    /* Innere Zellen: Energie, Film, Kruste, Rechteck (die Reserve eines schmelzenden Körpers leer, mit seinem Rechteck). */
     const bc = new Float32Array(BC * Math.max(1, cellIndex));
-    let at = 0;
-    for (const b of list) {
-      if (b.gone || b.ncell === 0) continue;
+    for (let at = 0; at < cellIndex; at += 1) bc[BC * at + 3] = cells[at];
+    list.forEach((b, k) => {
+      if (b.gone || b.ncell === 0) return;
+      const at = cellAt[k];
       for (let c = 0; c < b.ncell; c += 1) {
-        bc[BC * at] = b.E[c];
-        bc[BC * at + 1] = b.film[c];
-        bc[BC * at + 2] = b.crust[c];
-        bc[BC * at + 3] = cells[at];
-        at += 1;
+        bc[BC * (at + c)] = b.E[c];
+        bc[BC * (at + c) + 1] = b.film[c];
+        bc[BC * (at + c) + 2] = b.crust[c];
       }
-    }
+    });
     q.writeBuffer(this.bod, 0, bod);
     q.writeBuffer(this.bgeo, 0, geo);
     q.writeBuffer(this.bcell, 0, bc);
     q.writeBuffer(this.bcon, 0, this.warmTable(e));
     q.writeBuffer(this.bat, 0, new Uint32Array(BA_STRIDE * this.capBodies));
+    q.writeBuffer(this.bmelt, 0, melt);
     this.nbody = nb;
     this.ncell = cellIndex;
     this.nrect = rectIndex;
@@ -272,25 +337,47 @@ export class GpuBodies {
    */
   async download(e: Engine, read: (ranges: { buf: GPUBuffer; offset: number; size: number }[]) => Promise<ArrayBuffer[]>): Promise<void> {
     if (this.nbody === 0) return;
-    const [bodB, cellB, conB] = await read([
+    const [bodB, cellB, conB, geoB, meltB] = await read([
       { buf: this.bod, offset: 0, size: 4 * BS * this.nbody },
       { buf: this.bcell, offset: 0, size: 4 * BC * Math.max(1, this.ncell) },
-      { buf: this.bcon, offset: 0, size: 4 * BCON_LIVE }
+      { buf: this.bcon, offset: 0, size: 4 * BCON_LIVE },
+      { buf: this.bgeo, offset: 0, size: 4 * this.capGeo },
+      { buf: this.bmelt, offset: 0, size: 4 * (MLT_HEAD + MLT_BODY * this.nbody) }
     ]);
     const bod = new Float32Array(bodB);
     const bc = new Float32Array(cellB);
+    const geo = new Float32Array(geoB);
+    const melt = new Float32Array(meltB);
     const list = e.bodies.list;
     const mo = e.bodies.motion;
-    let at = 0;
+    const pending = e.melt.water.pending;
     list.forEach((b, k) => {
       if (k >= this.nbody) return;
       const o = BS * k;
       const v = (f: number): number => bod[o + f];
-      const wasGone = b.gone || b.ncell === 0;
-      if (!wasGone) {
-        for (let c = 0; c < b.ncell; c += 1) { b.E[c] = bc[BC * at]; b.film[c] = bc[BC * at + 1]; b.crust[c] = bc[BC * at + 2]; at += 1; }
+      /* Das Schmelzwasser, das noch kein Teilchen ist (auch eines weggeschmolzenen Körpers: es kommt noch hervor). */
+      for (let s = 0; s < 4; s += 1) {
+        const at = MLT_HEAD + MLT_BODY * k + MLT.PEND + PEND_W * s;
+        if (melt[at] > 0) pending.set(4 * k + s, { m: melt[at], H: melt[at + 1], s: melt[at + 2], x: melt[at + 3], y: melt[at + 4], nx: melt[at + 5], ny: melt[at + 6] });
+        else pending.delete(4 * k + s);
       }
+      const wasGone = b.gone || b.ncell === 0;
       if (wasGone) return;
+      /* Ein Körper, der auf der GPU schmilzt: seine Grenzen, wie sie die Seiten rückten und die inneren Zellen neu aufteilten. */
+      const melting = v(BB.MELT) !== 0 && v(BB.GONE) === 0;
+      if (melting) {
+        const g0 = GEO_RECTS + RS * v(BB.RO);
+        const xo = geo[g0 + GR.XO];
+        const yo = geo[g0 + GR.YO];
+        b.setRects([Float64Array.from(geo.subarray(xo, xo + geo[g0 + GR.NI] + 1))], [Float64Array.from(geo.subarray(yo, yo + geo[g0 + GR.NJ] + 1))]);
+      }
+      /* Die inneren Zellen nach dem Satz der GPU (Anfang und Zahl), nie nach einer laufenden Stelle: ein Körper, den ein früheres Zurückholen schon als
+         weg führte, verschob sonst alle späteren (zwei Abfragen ohne Hochladen dazwischen: der Stein der Prüfung 652 J → 354 J). */
+      const ko = v(BB.KO);
+      const nk = v(BB.NCELL);
+      if (nk > 0 && b.ncell === nk) {
+        for (let c = 0; c < nk; c += 1) { b.E[c] = bc[BC * (ko + c)]; b.film[c] = bc[BC * (ko + c) + 1]; b.crust[c] = bc[BC * (ko + c) + 2]; }
+      }
       b.x = v(BB.X); b.y = v(BB.Y); b.a = v(BB.A); b.vx = v(BB.VX); b.vy = v(BB.VY); b.w = v(BB.W);
       b.ux = v(BB.UX); b.uy = v(BB.UY); b.uw = v(BB.UW);
       b.asleep = v(BB.ASLEEP) !== 0; b.rest = v(BB.REST);
@@ -303,8 +390,10 @@ export class GpuBodies {
       b.maOk = v(BB.MAOK) !== 0;
       b.ma = v(BB.MA);
       b.Ia = v(BB.IA);
+      /* Masse, Trägheit, Hülle und Seiten aus den neuen Grenzen (in f64; der Schwerpunkt liegt schon im Ursprung, bis auf die Rundung in f32). */
+      if (melting) b.derive();
       if (v(BB.GONE) !== 0) {
-        /* Durch eine offene Seite hinaus (die GPU buchte das Entwichene): weg, seine Zellen baut die CPU ohne ihn. */
+        /* Durch eine offene Seite hinaus (die GPU buchte das Entwichene) oder ganz geschmolzen (sein Wasser ist in den Teilchen oder wartet): weg, seine Zellen baut die CPU ohne ihn. */
         e.bodies.cover.release(b);
         b.gone = true;
         b.ncell = 0;
@@ -345,7 +434,9 @@ export class GpuBodies {
         x: r[o + BRD.X], y: r[o + BRD.Y], a: r[o + BRD.A], vx: r[o + BRD.VX], vy: r[o + BRD.VY], w: r[o + BRD.W],
         pinned: (st & 1) !== 0, asleep: (st & 2) !== 0, gone: (st & 4) !== 0,
         m: r[o + BRD.M], T: r[o + BRD.T], E: r[o + BRD.E], film: r[o + BRD.FILM], crust: r[o + BRD.CRUST],
-        fx: r[o + BRD.FX], fy: r[o + BRD.FY], tq: r[o + BRD.TQ]
+        fx: r[o + BRD.FX], fy: r[o + BRD.FY], tq: r[o + BRD.TQ],
+        pm: r[o + BRD.PM], pH: r[o + BRD.PH], ps: r[o + BRD.PS],
+        rect: [r[o + BRD.RX0], r[o + BRD.RY0], r[o + BRD.RX1], r[o + BRD.RY1]]
       });
     }
     return out;
@@ -411,12 +502,15 @@ export function objectViewGpu(e: Engine, id: string, reads: readonly BodyRead[] 
     const a = rd?.a ?? b.a;
     const cs = Math.cos(a);
     const sn = Math.sin(a);
+    /* Ein Körper, der auf der GPU schmilzt: sein Rechteck und seine Masse, wie die GPU sie hat (die CPU-Engine kennt nur den Stand beim Hochladen). */
+    const gpuShape = rd !== undefined && meltsOnGpu(b) && rd.rect[2] > rd.rect[0];
     for (let r = 0; r < b.nr; r += 1) {
-      const [x0, y0, x1, y1] = b.bounds(r);
+      const [x0, y0, x1, y1] = gpuShape ? rd.rect : b.bounds(r);
       for (const [lx, ly] of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) outline.push(x + cs * lx - sn * ly, y + sn * lx + cs * ly);
     }
-    mass += b.m;
-    const c = b.m * SOLIDS[b.mat].cp;
+    const bm = gpuShape ? rd.m : b.m;
+    mass += bm;
+    const c = bm * SOLIDS[b.mat].cp;
     CT += c * (rd !== undefined && rd.T > 0 ? rd.T : b.meanT());
     C += c;
     const s = b.pinned ? 'pinned' : (rd?.asleep ?? b.asleep) ? 'asleep' : 'moving';

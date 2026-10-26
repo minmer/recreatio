@@ -88,6 +88,8 @@ export { anchorProblems } from '${app}cogita/anchors';
 export { recogniseScheme } from '${app}cogita/structure';
 export { baseEntryTitle } from '${app}library/refLabels';
 export { SourceBlockView } from '${app}library/SourceBlocks';
+export * as music from '${app}library/music';
+export { baseKind } from '${app}cogita/kinds';
 export { renderToStaticMarkup } from 'react-dom/server';
 export { createElement } from 'react';
 `);
@@ -1114,7 +1116,8 @@ try {
     const aqq = [aq('b', 'I-II, q. 1, a. 1'), aq('a', 'I, q. 2, a. 3'), aq('c', 'I-II, q. 90, a. 1, ad 2'), aq('d', 'I-II, q. 90, a. 1')];
     const AL = look([AQ, ...aqq]);
     assert.deepEqual([...aqq].sort((x, y) => m.quoteOrder(x, AL).localeCompare(m.quoteOrder(y, AL))).map((q) => q.id), ['a', 'b', 'd', 'c'], 'quotes ordered by the scheme of their work (part, question, article, answer)');
-    assert.ok(m.kindOf('work').fields.some((f) => f.key === 'scheme' && f.options.length === m.loc.SCHEMES.length) && m.kindOf('work').fields.some((f) => f.key === 'editionOf' && f.type === 'ref'), 'a work says its scheme and of which work it is an edition');
+    /* 2026-10-26 — zur Wahl stehen die Regeln für Texte; die Zeit (`time`) bekommt ein Nagranie von seinem Rodzaj. */
+    assert.ok(m.kindOf('work').fields.some((f) => f.key === 'scheme' && f.options.length === m.loc.TEXT_SCHEMES.length && m.loc.TEXT_SCHEMES.length === m.loc.SCHEMES.length - 1) && m.kindOf('work').fields.some((f) => f.key === 'editionOf' && f.type === 'ref'), 'a work says its scheme and of which work it is an edition');
     ok('places in a work: Scripture (both Psalm numberings), documents, Aquinas, Tractatus, Investigations, outlines, pages — structure vs. edition; pieces with „;" (deeper ones merged, bare numbers, pages first), unread parts kept and named');
   }
 
@@ -1202,7 +1205,7 @@ try {
     const snap = m.snapshotDoc([{ store: { libraryId: 'L', all: () => [BT, quote, text] }, kind: 'books', name: 'Biblioteka' }], 'L', 'now');
     assert.ok(!snap.entries.some((e) => e.kind === 'sourcetext'), 'the AI snapshot leaves the text directory out');
     const desc = S.sourceTextDescription();
-    assert.ok(m.loc.SCHEMES.every((s) => desc.includes(`"${s.id}"`)) && desc.includes('{{page 46 pdf 52}}') && desc.includes('Nie wymyślaj tekstu'), 'the description names every scheme, the marks and the rule: never invent text');
+    assert.ok(m.loc.TEXT_SCHEMES.every((s) => desc.includes(`"${s.id}"`)) && !desc.includes('"time"') && desc.includes('{{page 46 pdf 52}}') && desc.includes('Nie wymyślaj tekstu'), 'the description names every scheme, the marks and the rule: never invent text');
     assert.ok(S.sourceTextPrompt(BT, 'Biblia Tysiąclecia', 'bible').includes('"@bt"'), 'the prompt names the work by its key');
     ok('source texts: JSON with examples for every scheme, checked import in portions (no duplicates), places → blocks, ambiguity said, links made while reading, invisible to readers without access');
   }
@@ -1308,6 +1311,98 @@ try {
     assert.deepEqual(pl.map((h) => [h.anchor.name, h.edition?.id]), [['Czy Bóg istnieje?', S]], 'another edition shows anchors with a place of the structure (an article), never pages of that edition');
     assert.equal(m.baseEntryTitle({ id: ROOT, kind: 'entity', libraryId: 'K', data: { _kinds: ['k'], tresc: [{ type: 'paragraph', text: 'Czy Bóg istnieje? Tak.' }] } }, store('K', [{ id: 'k', kind: 'kind', data: { name: 'Krok', fields: [{ key: 'tresc', label: 'Treść', type: 'blocks' }] } }])), 'Czy Bóg istnieje?', 'a statement row in „Powiązania" is titled by its thesis, not „Wpis"');
     ok('„W Wiedzy": anchors found through the readable stores only, ordered by place, matched to the part being read, across editions for structural places; statement rows titled by thesis');
+  }
+
+  /* 2026-10-26 — Muzyka: Rodzaje mit ihren Feldern, Dateien und Spuren, die Zeit als Stelle, wie man Musik nennt. */
+  {
+    const M = m.music;
+    const W = m.kindOf('work');
+    const shown = (workType) => W.fields.filter((f) => f.when === undefined || f.when({ workType })).map((f) => f.key);
+    const has = (workType, keys) => keys.every((k) => shown(workType).includes(k));
+    const hasNone = (workType, keys) => keys.every((k) => !shown(workType).includes(k));
+    assert.deepEqual(m.WORK_TYPES.filter((t) => t.group === m.MUSIC_GROUP).map((t) => t.value), ['piece', 'score', 'recording', 'album'], 'four kinds of music, under their own heading');
+    assert.ok(m.isMusic({ workType: 'recording' }) && !m.isMusic({ workType: 'book' }) && !m.isMusic({}), 'a work is music by its kind');
+    assert.ok(has('piece', ['composers', 'lyricists', 'arrangers', 'otherTitles', 'catalogue', 'musicKey', 'voicing', 'genre', 'lyrics', 'translators'])
+      && hasNone('piece', ['authors', 'isbn', 'scheme', 'files', 'tracks', 'pageCount', 'binding', 'publisher', 'performers', 'editionOf']), 'a piece: composer, words, arrangement, catalogue, key, voicing, genre, lyrics — no shelf, no files');
+    assert.ok(has('score', ['composers', 'piece', 'files', 'ismn', 'pageCount', 'binding', 'libraryNumber', 'editors', 'publisher', 'edition'])
+      && hasNone('score', ['tracks', 'isbn', 'performers', 'otherTitles', 'lyrics']), 'a score: its piece, its files, ISMN and the shelf');
+    assert.ok(has('recording', ['tracks', 'performers', 'piece', 'album', 'track', 'duration', 'otherTitles', 'composers'])
+      && hasNone('recording', ['files', 'pageCount', 'isbn', 'binding', 'libraryNumber', 'scheme', 'editors']), 'a recording: tracks, performers, its piece and album, its length');
+    assert.ok(has('album', ['performers', 'catalogue', 'libraryNumber', 'duration', 'publisher']) && hasNone('album', ['tracks', 'files', 'composers', 'piece']), 'an album: performers, catalogue number, shelf number');
+    assert.ok(has('book', ['authors', 'isbn', 'scheme', 'editionOf', 'pageCount']) && hasNone('book', ['composers', 'tracks', 'files', 'performers', 'piece']), 'a book is as it was');
+    const pieceField = W.fields.find((f) => f.key === 'piece');
+    assert.ok(pieceField.pick.only({ kind: 'work', data: { workType: 'piece' } }) && !pieceField.pick.only({ kind: 'work', data: { workType: 'book' } }) && pieceField.pick.makeWith.workType === 'piece',
+      'the piece of a recording is chosen among pieces, and a new one is a piece');
+    assert.ok(!m.baseKind('work').fields.some((f) => f.key === 'tracks' || f.key === 'files'), 'Nauka sees no list of files as a field of a work (it reads the data)');
+
+    /* Die Beispiele (auch die der Musik) gehen ohne Warnung durch; Spuren ohne Datei bekommen eine Kennung. */
+    const examples = m.LIBRARY_KINDS.flatMap((def) => [{ kind: def.kind, key: def.example.key, data: def.example.data }, ...(def.more ?? []).map((one) => ({ kind: def.kind, key: one.key, data: one.data }))]);
+    const planned = m.planLibraryImport({ format: m.LIBRARY_FORMAT, version: m.LIBRARY_VERSION, entries: examples }, { get: () => undefined, byKey: () => undefined });
+    assert.ok(!('error' in planned), 'all examples import, music too');
+    assert.deepEqual(planned.warnings, [], 'the music examples import without a warning');
+    const rec = planned.drafts.find((d) => d.key === 'ave-verum-schola2024');
+    const piece = planned.drafts.find((d) => d.key === 'mozart-ave-verum');
+    assert.ok(rec.data.piece === piece.id && rec.data.tracks.length === 5 && rec.data.tracks.every((t) => typeof t.id === 'string' && t.id !== ''), 'the recording points at its piece; every track has an id');
+    const desc = m.libraryDescription();
+    assert.ok(desc.includes('"piece" (Utwór muzyczny') && desc.includes('Przykład (muzyka — nagranie w głosach)') && desc.includes('"1:23–1:45"') && desc.includes('"tracks" — Ścieżki'), 'the description names the music kinds, shows a recording in voices and the place in time');
+
+    /* Dateien im JSON: wie exportiert, so zurück; was keine Datei aus dem Export ist, fällt mit einer Warnung weg. */
+    const FILE = '01a1c0de-0000-7000-8000-00000000f001';
+    const LIB = '01a1c0de-0000-7000-8000-0000000001b1';
+    const stored = { id: '01a1c0de-0000-7000-8000-0000000000c1', kind: 'work', key: 'barka2020', data: { workType: 'recording', title: 'Barka', tracks: [{ id: 'tabcde', label: 'Sopran', role: 'part', file: { file: FILE, type: 'audio', name: 'Barka - Sopran.mp3', mime: 'audio/mpeg', library: LIB } }] } };
+    const L = look([stored]);
+    const again = m.planLibraryImport(m.exportLibrary('L', [stored], L), L);
+    assert.ok(!('error' in again) && again.drafts.length === 0 && again.unchanged === 1, 'a recording with its files: export, import — nothing changes');
+    const broken = m.planLibraryImport({ entries: [{ kind: 'work', data: { workType: 'recording', title: 'X', tracks: [{ label: 'Alt', file: { name: 'alt.mp3' } }] } }] }, L);
+    assert.ok(broken.warnings.some((w) => w.includes('Pliki wgrywa się w aplikacji')) && broken.drafts[0].data.tracks[0].file === undefined && broken.drafts[0].data.tracks[0].label === 'Alt', 'a file that is not from an export is dropped with a warning; the track stays');
+
+    /* Die Zeit eines Nagrania als Stelle. */
+    const T = (text) => m.loc.parsePlace(text, 'time');
+    assert.deepEqual([T('1:23').spans, T('1:23–1:45').spans, T('0:45; 2:10-2:30').spans.length, T('1:02:03').spans[0].from[0], T('1:23.5').spans[0].from[0], T('95').spans[0].from[0]],
+      [[{ from: [83], to: [83] }], [{ from: [83], to: [105] }], 2, 3723, 83.5, 95], 'times read as seconds: a moment, a range, several, hours, tenths, bare seconds');
+    assert.deepEqual([m.loc.formatPlace(T('1:23-1:45')), m.loc.formatPlace(T('62:03')), m.loc.formatPlace(T('3725')), m.loc.formatPlace(T('1:23.5'))], ['1:23–1:45', '1:02:03', '1:02:05', '1:23.5'], 'times written one way');
+    assert.ok(m.loc.overlap(T('1:30').spans[0], T('1:23–1:45').spans[0]) && !m.loc.overlap(T('2:00').spans[0], T('1:23–1:45').spans[0]) && !m.loc.isStructural(T('1:23')), 'a moment inside a range touches it; a time belongs to this recording only');
+    assert.ok(T('1:75').spans.length === 0 && T('zwrotka 2').rest === 'zwrotka 2' && T('1:45-1:23').spans.length === 0, 'impossible times and words stay unread');
+    assert.ok(m.loc.workScheme({ workType: 'recording' }) === 'time' && m.loc.workScheme({ workType: 'score' }) === 'pages', 'a recording is read in time, a score in pages');
+    const rq = (id, locator) => ({ id, kind: 'quote', data: { text: id, work: ['r'], locator } });
+    const RL = look([{ id: 'r', kind: 'work', data: { workType: 'recording', title: 'Barka' } }, rq('c', '10:00'), rq('a', '0:45'), rq('b', '1:23')]);
+    assert.deepEqual(['c', 'a', 'b'].map((id) => RL.get(id)).sort((x, y) => m.quoteOrder(x, RL).localeCompare(m.quoteOrder(y, RL))).map((q) => q.id), ['a', 'b', 'c'], 'places in a recording ordered by time');
+
+    /* Wie man Musik nennt. */
+    const people = [
+      { id: 'moz', kind: 'person', key: 'mozart', data: { personType: 'person', givenNames: 'Wolfgang Amadeus', surname: 'Mozart' } },
+      { id: 'sch', kind: 'person', key: 'schola', data: { personType: 'organization', name: 'Schola Katedralna' } },
+      { id: 'kow', kind: 'person', key: 'kowalski', data: { personType: 'person', givenNames: 'Jan', surname: 'Kowalski' } }
+    ];
+    const works = [
+      { id: 'pc', kind: 'work', key: 'ave', data: { workType: 'piece', title: 'Ave verum corpus', composers: ['moz'], catalogue: 'KV 618', otherTitles: 'Witaj, Ciało prawdziwe\nAve verum' } },
+      { id: 'sc', kind: 'work', key: 'ave-nuty', data: { workType: 'score', title: 'Ave verum corpus', piece: 'pc', arrangers: ['kow'], publisher: 'Carus', place: 'Stuttgart', year: '2005' } },
+      { id: 'al', kind: 'work', key: 'koledy', data: { workType: 'album', title: 'Muzyka katedry', performers: ['sch'], publisher: 'Dux', year: '2010' } },
+      { id: 'rc', kind: 'work', key: 'ave-schola', data: { workType: 'recording', title: '', piece: 'pc', performers: ['sch'], album: 'al', track: '5', year: '2024',
+        tracks: [{ label: 'Sopran', role: 'part', file: { file: FILE, type: 'audio' } }, { label: 'Alt', file: { file: FILE, type: 'audio' } }, { label: 'Całość', file: { file: FILE, type: 'audio' } }, { label: 'Tenor' }] } }
+    ];
+    const ML = look([...people, ...works]);
+    const cite = (id, mode, at = '') => m.segText(m.workSegs(ML.get(id), ML, mode, at));
+    assert.deepEqual([cite('pc', 'full'), cite('sc', 'full', 's. 3'), cite('rc', 'full', '1:23'), cite('al', 'full'), cite('rc', 'short', '2:10'), cite('pc', 'bib')], [
+      'W. A. Mozart, Ave verum corpus, KV 618',
+      'W. A. Mozart, Ave verum corpus [nuty], oprac. J. Kowalski, Stuttgart 2005, s. 3',
+      'Ave verum corpus (W. A. Mozart), wyk. Schola Katedralna, [nagranie], w: Muzyka katedry, nr 5, Dux, 2024, 1:23',
+      'Muzyka katedry, wyk. Schola Katedralna, [płyta], Dux, 2010',
+      'W. A. Mozart, Ave verum corpus, dz. cyt., 2:10',
+      'Mozart W. A., Ave verum corpus, KV 618'
+    ], 'music named in footnotes: piece, score [nuty], recording (title and composer from its piece, performers, album, track, time), album, short, bibliography');
+
+    /* Für später: was zusammen klingt, was allein, und unter welchen Namen man das Stück kennt. */
+    const recData = ML.get('rc').data;
+    assert.deepEqual([M.tracksOf(recData).map((t) => `${t.label}:${t.role}`), M.partsOf(recData).map((t) => t.label), M.wholeOf(recData)?.label], [['Sopran:part', 'Alt:part', 'Całość:whole', 'Tenor:part'], ['Sopran', 'Alt'], 'Całość'],
+      'tracks: voices sound together (only those with a file), the whole alone; a track named „Całość” is the whole');
+    assert.equal(M.tracksOf({ tracks: [{ label: 'Barka' }] })[0].role, 'whole', 'a single track is the whole recording');
+    assert.deepEqual([M.pieceBehind(ML.get('rc'), ML).id, M.pieceBehind(ML.get('pc'), ML).id, M.titlesOf(ML.get('rc'), ML), M.musicPeople(ML.get('rc'), ML)],
+      ['pc', 'pc', ['Ave verum corpus', 'Witaj, Ciało prawdziwe', 'Ave verum'], ['moz']], 'the piece behind a recording, the names it is known by, its composer');
+    const guess = (name) => { const g = M.guessVoice(name); return `${g.label}${g.role === 'whole' ? '*' : ''}${g.known ? '' : '?'}`; };
+    assert.deepEqual(['Barka - Sopran.mp3', 'ave_verum_Tenor2.ogg', 'Barka S.mp3', 'Mozart full mix.wav', 'Kontrabas.mp3', 'Bassoon.mp3', 'Tenor i Bas.mp3', 'Organy.wav', 'Nagranie.mp3', 'Altówka.mp3', 'Alto 1.mp3', 'SOPRAN II.m4a'].map(guess),
+      ['Sopran', 'Tenor II', 'Sopran', 'Całość*', 'Kontrabas', 'Fagot', 'Tenor', 'Organy', 'Nagranie?', 'Altówka', 'Alt I', 'Sopran II'], 'a file name says whose voice it is (and „i” in „Tenor i Bas” is not a number)');
+    ok('music: piece, score, recording, album with their own fields; files and tracks (voices together, the whole alone) in JSON as exported; places in time; footnotes; names and parts for the player and the cards to come');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

@@ -133,6 +133,12 @@ export interface PublicMass {
   readonly moved?: boolean;
 
   readonly intentions: readonly PublicIntention[];
+
+  /**
+   * 0132 — was das Schema der Messe offen sagt (Obchód, Kolor szat …): Beschriftung
+   * und Wert im Klartext. Ältere Dienste nennen es nicht.
+   */
+  readonly values?: readonly { readonly field: string; readonly label: string; readonly value: string }[];
 }
 
 export interface Plan {

@@ -161,7 +161,10 @@ public static partial class Module
                    m.name_sealed, m.name_epoch,
 
                    /* 0120 — alle Rollen, die seine Menschen bekommen (Spalte 21: die Nummern davor bleiben). */
-                   {memberRoles} AS member_roles
+                   {memberRoles} AS member_roles,
+
+                   /* 0133 — unter welchem Bereich die Fragen liegen, wenn nicht unter dem eigenen (Spalte 22). */
+                   m.label_area_id
             FROM app.module m
             LEFT JOIN app.area a ON a.id = m.area_id
             WHERE
@@ -236,7 +239,10 @@ public static partial class Module
 
                 /* 0096 — die Gruppe von Formularen (ein Ordner), und die Stelle darin. */
                 groupId = reader.IsDBNull(17) ? null : Ids.ToText(reader.GetGuid(17)),
-                groupPosition = reader.IsDBNull(18) ? (int?)null : reader.GetInt32(18)
+                groupPosition = reader.IsDBNull(18) ? (int?)null : reader.GetInt32(18),
+
+                /* 0133 — der Bereich, unter dem die Fragen liegen (null: der eigene). */
+                labelAreaId = reader.IsDBNull(22) ? null : Ids.ToText(reader.GetGuid(22))
             });
         }
 

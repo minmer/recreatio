@@ -19,9 +19,9 @@
  *   coverCollect.ts; ein Mittel nach der Fläche traf nur 275 von 353
  *   Vierecken, um bis zu 4 K daneben).
  *
- * Bewegen sich Körper einmal auf der GPU (C4), ersetzt ein Kern je Schritt die
- * feste Lage und die festen Masken — die Schnittstelle (BodyStatics, fillQuads)
- * bleibt.
+ * Mit genauen Anteilen (freie Körper, schmelzendes Eis; seit 2026-10-26) gilt
+ * das hier nicht: dort nehmen bkTexB und bkBodyB (captureKernels.ts) Lage,
+ * Form und Wärme der Körper in jedem Bild aus ihren Puffern (capture.ts).
  */
 
 import { Body2D } from '../engine/body';

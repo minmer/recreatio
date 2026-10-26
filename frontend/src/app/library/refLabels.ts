@@ -10,7 +10,8 @@
 import { anchorPath, readAnchor } from '../cogita/anchors';
 import { cogitaPath } from '../cogita/parts';
 import { containerPath, openedLibraryKind } from './library';
-import { entryTitle, kindOf, str, type LibEntry, type Lookup } from './libraryKinds';
+import { entryTitle, isMusic, kindOf, str, type LibEntry, type Lookup } from './libraryKinds';
+import { musicPeople } from './music';
 import { plainText } from './libraryMarkup';
 import { blocksKeyOf, blocksOf, thesisOf } from './blocks';
 import type { Entry, LibraryStore } from './libraryStore';
@@ -25,7 +26,8 @@ export function entryLine(entry: LibEntry, store: LibraryStore): string {
   const title = store.title(entry);
   if (entry.kind === 'person') return [title, str(entry.data, 'years')].filter(Boolean).join(' · ');
   if (entry.kind === 'work') {
-    const author = store.get((entry.data.authors as string[] | undefined)?.[0] ?? '');
+    /* 2026-10-26 — Musik nach ihrem Komponisten (sonst nach den Ausführenden). */
+    const author = store.get((isMusic(entry.data) ? musicPeople(entry, store) : (entry.data.authors as string[] | undefined) ?? [])[0] ?? '');
     return [author === undefined ? '' : store.title(author), title, str(entry.data, 'year')].filter(Boolean).join(' · ');
   }
   return title;

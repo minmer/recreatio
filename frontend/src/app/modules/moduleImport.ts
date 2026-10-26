@@ -32,6 +32,9 @@ export interface ModuleImportOptions {
   /** Wohin die Antworten neuer Fragen gehen — `null`: wie im Dokument, sonst der Bereich des Formulars. */
   readonly answersTo: string | null;
   readonly stage: (what: string) => void;
+  /** 0133 — Fragen, die ein früherer Import anlegte (Kennung im Dokument → Frage), und Treffer nach Wortlaut. */
+  readonly known?: ReadonlyMap<string, string>;
+  readonly byLabel?: boolean;
 }
 
 const sameRoles = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -43,7 +46,7 @@ export function wantedConfig(kind: string, have: Readonly<Record<string, string>
   return def === undefined ? wanted : keepOwn(def.json, have, wanted);
 }
 
-export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish, options: ModuleImportOptions): Promise<{ lines: string[]; warnings: string[] }> {
+export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish, options: ModuleImportOptions): Promise<{ lines: string[]; warnings: string[]; ids: ReadonlyMap<string, string> }> {
   const form = row.kind === 'form';
   const { stage } = options;
   const lines: string[] = [];
@@ -119,7 +122,7 @@ export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish
   let ids: ReadonlyMap<string, string> = new Map();
   if (form && (wish.questions !== undefined || wish.design !== undefined)) {
     const written = await writeFormContent(who, { moduleId: row.moduleId, areaId: row.areaId }, { questions: wish.questions, design: wish.design },
-      { replace: options.replace, answersTo: options.answersTo, onStage: stage });
+      { replace: options.replace, answersTo: options.answersTo, onStage: stage, known: options.known, byLabel: options.byLabel });
     ids = written.ids;
     lines.push(`Pytania: nowe — ${written.added}, zmienione — ${written.changed}, bez zmian — ${written.unchanged}${written.removed > 0 ? `, usunięte — ${written.removed}` : ''}${written.designSaved ? '; układ zapisany' : ''}.`);
     warnings.push(...written.warnings);
@@ -135,5 +138,5 @@ export async function applyModuleWish(who: Who, row: ModuleRow, wish: ModuleWish
     warnings.push(...done.warnings);
   }
 
-  return { lines, warnings };
+  return { lines, warnings, ids };
 }

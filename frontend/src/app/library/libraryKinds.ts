@@ -27,7 +27,7 @@
 
 import { blockMarkups, blockRefs, blocksOf, blocksTitle, statementBlocks } from './blocks';
 import { mapRefTokens } from './libraryMarkup';
-import { SCHEMES, workLocatorKey } from './locations';
+import { TEXT_SCHEMES, workLocatorKey } from './locations';
 
 export type EntryData = Record<string, unknown>;
 
@@ -81,7 +81,7 @@ export interface Lookup {
  * `fields` (2026-10-23): die Felder eines Rodzaj tekstu — Felder wie die
  * eines Rodzaj in Nauka (`cogita/schema.ts`, `FieldDef`), mit demselben Editor.
  */
-export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items' | 'blocks' | 'fields';
+export type LibFieldType = 'line' | 'text' | 'markup' | 'number' | 'date' | 'select' | 'url' | 'ref' | 'refs' | 'outline' | 'items' | 'blocks' | 'fields' | 'media';
 
 export interface LibField {
   readonly key: string;
@@ -90,9 +90,15 @@ export interface LibField {
   /** Was das Feld im JSON bedeutet — für die Beschreibung neben dem Import. */
   readonly says: string;
   readonly hint?: string;
-  readonly options?: readonly { readonly value: string; readonly label: string }[];
+  /** 2026-10-26 — `group`: unter welcher Überschrift die Wahl steht (die Rodzaje: Texte, Musik). */
+  readonly options?: readonly { readonly value: string; readonly label: string; readonly group?: string }[];
   /** Bei `ref`/`refs`: auf welche Arten es zeigen darf. */
   readonly to?: readonly string[];
+  /**
+   * 2026-10-26 — bei `ref`/`refs`: nur diese Einträge zur Wahl, und was ein dort neu angelegter bekommt
+   * („Utwór" eines Nagrania: nur Utwory; ein neuer ist ein Utwór).
+   */
+  readonly pick?: { readonly only?: (entry: LibEntry) => boolean; readonly makeWith?: EntryData };
   /** Nur gezeigt, wenn — etwa Seitenzahlen nur bei Kapitel und Artikel. */
   readonly when?: (data: EntryData) => boolean;
   /**
@@ -116,6 +122,8 @@ export interface LibKind {
   readonly sort: (entry: LibEntry, look: Lookup) => string;
   /** Ein ausgefülltes Beispiel für die Beschreibung (Verweise als `@schlüssel`). */
   readonly example: { readonly key?: string; readonly data: EntryData };
+  /** 2026-10-26 — weitere Beispiele mit einer Überschrift (ein Werk: auch Musik). */
+  readonly more?: readonly { readonly label: string; readonly key?: string; readonly data: EntryData }[];
 }
 
 /* -- Duldsame Leser ------------------------------------------------------------------ */
@@ -197,22 +205,58 @@ const PERSON: LibKind = {
   example: {
     key: 'ratzinger',
     data: { personType: 'person', givenNames: 'Joseph', surname: 'Ratzinger', years: '1927–2022', description: 'Papież Benedykt XVI.' }
-  }
+  },
+  /* 2026-10-26 — der Komponist und der Chor der Musikbeispiele (beim Werk). */
+  more: [
+    { label: 'kompozytor', key: 'mozart', data: { personType: 'person', givenNames: 'Wolfgang Amadeus', surname: 'Mozart', years: '1756–1791' } },
+    { label: 'wykonawca — chór jako instytucja', key: 'schola-katedralna', data: { personType: 'organization', name: 'Schola Katedralna' } }
+  ]
 };
 
 /* -- Werke (Quellen) --------------------------------------------------------------------- */
 
+/** Die Überschriften der Rodzaje in der Auswahl (2026-10-26). */
+export const TEXT_GROUP = 'Teksty i wystąpienia';
+export const MUSIC_GROUP = 'Muzyka';
+
 export const WORK_TYPES = [
-  { value: 'book', label: 'Książka' },
-  { value: 'chapter', label: 'Rozdział w książce' },
-  { value: 'article', label: 'Artykuł w czasopiśmie' },
-  { value: 'periodical', label: 'Czasopismo' },
-  { value: 'document', label: 'Dokument (Kościoła, urzędowy)' },
-  { value: 'bible', label: 'Pismo Święte' },
-  { value: 'web', label: 'Strona internetowa' },
-  { value: 'talk', label: 'Wykład, kazanie, nagranie' },
-  { value: 'other', label: 'Inne' }
+  { value: 'book', label: 'Książka', group: TEXT_GROUP },
+  { value: 'chapter', label: 'Rozdział w książce', group: TEXT_GROUP },
+  { value: 'article', label: 'Artykuł w czasopiśmie', group: TEXT_GROUP },
+  { value: 'periodical', label: 'Czasopismo', group: TEXT_GROUP },
+  { value: 'document', label: 'Dokument (Kościoła, urzędowy)', group: TEXT_GROUP },
+  { value: 'bible', label: 'Pismo Święte', group: TEXT_GROUP },
+  { value: 'web', label: 'Strona internetowa', group: TEXT_GROUP },
+  { value: 'talk', label: 'Wykład, kazanie, nagranie', group: TEXT_GROUP },
+  { value: 'other', label: 'Inne', group: TEXT_GROUP },
+  /*
+    2026-10-26 — MUSIK, ein eigener Teil der Bibliothek („Muzyka"): der Utwór als solcher, Nuty (eine Ausgabe,
+    mit ihren Dateien), ein Nagranie (eine Aufführung: eine Datei oder mehrere — die Stimmen, die Instrumente,
+    die zusammen spielen) und die Płyta, auf der Nagrania stehen. Was der Rodzaj ist, entscheidet, welche Felder es gibt.
+  */
+  { value: 'piece', label: 'Utwór muzyczny', group: MUSIC_GROUP },
+  { value: 'score', label: 'Nuty', group: MUSIC_GROUP },
+  { value: 'recording', label: 'Nagranie', group: MUSIC_GROUP },
+  { value: 'album', label: 'Płyta, album', group: MUSIC_GROUP }
 ] as const;
+
+/** Was ein Rodzaj im JSON heisst und bedeutet. */
+const MUSIC_SAYS: Readonly<Record<string, string>> = {
+  piece: 'sam utwór: kompozytor, słowa, tonacja, obsada',
+  score: 'wydanie nut, z plikami: partytura, głosy, zapis nutowy',
+  recording: 'wykonanie: jeden plik albo kilka ścieżek (głosy i instrumenty, odtwarzane razem)',
+  album: 'zbiór nagrań'
+};
+
+export const MUSIC_TYPES: ReadonlySet<string> = new Set(['piece', 'score', 'recording', 'album']);
+
+/** Ein Werk der Musik — es steht unter „Muzyka", nicht unter „Źródła". */
+export const isMusic = (data: EntryData): boolean => MUSIC_TYPES.has(str(data, 'workType'));
+
+const typeIs = (...types: readonly string[]) => (data: EntryData): boolean => types.includes(str(data, 'workType'));
+const typeIsNot = (...types: readonly string[]) => (data: EntryData): boolean => !types.includes(str(data, 'workType'));
+const notMusic = (data: EntryData): boolean => !isMusic(data);
+const ofType = (type: string) => (entry: LibEntry): boolean => entry.kind === 'work' && str(entry.data, 'workType') === type;
 
 const PSALMS = [
   { value: 'hebrew', label: 'Hebrajska (BT)' },
@@ -221,8 +265,31 @@ const PSALMS = [
 
 const isPart = (data: EntryData) =>['chapter', 'article'].includes(str(data, 'workType'));
 
-/** Was man in die Hand nimmt und ins Regal stellt — Seiten, Einband, Masse, eine eigene Nummer. */
-const isVolume = (data: EntryData) => !['chapter', 'article', 'web', 'talk'].includes(str(data, 'workType'));
+/** Was man in die Hand nimmt und ins Regal stellt — Seiten, Einband, Masse, eine eigene Nummer (auch Nuty). */
+const isVolume = typeIsNot('chapter', 'article', 'web', 'talk', 'piece', 'recording', 'album');
+
+/** Eine Datei der Nuty: was sie ist (die Partitur, eine Stimme) und die Datei. */
+const SCORE_FILE_ITEM: readonly LibField[] = [
+  { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator pliku na liście; pominięty — nada się sam' },
+  { key: 'label', label: 'Co to jest', type: 'line', says: 'Co zawiera plik', hint: 'np. Partytura · Sopran · Organy · MusicXML' },
+  { key: 'file', label: 'Plik', type: 'media', says: 'Plik wgrany w aplikacji (PDF, obraz, MusicXML, MIDI)' }
+];
+
+/** Eine Spur eines Nagrania: die Stimme oder das Instrument (oder das Ganze) und die Datei. */
+export const TRACK_ROLES = [
+  { value: 'part', label: 'Głos albo instrument' },
+  { value: 'whole', label: 'Całe nagranie' }
+] as const;
+
+const TRACK_ITEM: readonly LibField[] = [
+  { key: 'id', label: 'Identyfikator', type: 'line', says: 'Stały identyfikator ścieżki; pominięty — nada się sam' },
+  { key: 'label', label: 'Głos / instrument', type: 'line', says: 'Czyj to głos albo jaki instrument — albo „Całość”', hint: 'np. Sopran · Alt · Tenor · Bas · Organy · Całość' },
+  {
+    key: 'role', label: 'Rola', type: 'select', options: TRACK_ROLES,
+    says: '"part" — głos albo instrument: odtwarzane razem z innymi ścieżkami tego nagrania; "whole" — całe nagranie: odtwarzane samo'
+  },
+  { key: 'file', label: 'Plik', type: 'media', says: 'Plik dźwiękowy wgrany w aplikacji (MP3, OGG, M4A, WAV, FLAC)' }
+];
 
 export const BINDINGS = [
   { value: 'soft', label: 'Miękka' },
@@ -246,23 +313,51 @@ const WORK: LibKind = {
   kind: 'work',
   label: 'Źródło',
   plural: 'Źródła',
-  says: 'Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona.',
+  says: 'Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Kościoła, Pismo Święte, strona — albo muzyka: utwór, nuty, nagranie, płyta.',
   keyed: true,
   fields: [
-    { key: 'workType', label: 'Rodzaj', type: 'select', options: WORK_TYPES, says: `Rodzaj: ${WORK_TYPES.map((t) => `"${t.value}" (${t.label})`).join(', ')}` },
-    { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł dzieła' },
+    {
+      key: 'workType', label: 'Rodzaj', type: 'select', options: WORK_TYPES,
+      says: `Rodzaj: ${WORK_TYPES.filter((t) => !MUSIC_TYPES.has(t.value)).map((t) => `"${t.value}" (${t.label})`).join(', ')}; muzyka: ${WORK_TYPES.filter((t) => MUSIC_TYPES.has(t.value)).map((t) => `"${t.value}" (${t.label} — ${MUSIC_SAYS[t.value]})`).join(', ')}. Rodzaj decyduje, które pola dzieło ma`
+    },
+    { key: 'title', label: 'Tytuł', type: 'line', says: 'Tytuł dzieła (utworu, nagrania, płyty)' },
     { key: 'subtitle', label: 'Podtytuł', type: 'line', says: 'Podtytuł (albo rodzaj dokumentu, np. "adhortacja apostolska")' },
-    { key: 'originalTitle', label: 'Tytuł oryginału', type: 'line', says: 'Tytuł oryginału (oryginalny tytuł przekładu)' },
-    { key: 'authors', label: 'Autorzy', type: 'refs', to: ['person'], says: 'Autorzy — odwołania do osób, w kolejności' },
-    { key: 'editors', label: 'Redakcja', type: 'refs', to: ['person'], says: 'Redaktorzy — odwołania do osób' },
-    { key: 'translators', label: 'Tłumaczenie', type: 'refs', to: ['person'], says: 'Tłumacze — odwołania do osób' },
+    { key: 'originalTitle', label: 'Tytuł oryginału', type: 'line', says: 'Tytuł oryginału (oryginalny tytuł przekładu; przy utworze — tytuł w języku oryginału)', when: typeIsNot('score', 'album') },
+    /* 2026-10-26 — wonach man einen Utwór kennt: der Incipit, ein Titel in einer anderen Sprache (auch eine Antwort, die später gelten soll). */
+    {
+      key: 'otherTitles', label: 'Inne tytuły, incipit', type: 'text', when: typeIs('piece', 'recording'),
+      says: 'Inne nazwy, po których ludzie znają utwór — incipit (pierwsze słowa), tytuł w innym języku, nazwa potoczna; każda w osobnym wierszu', hint: 'np. Pan kiedyś stanął nad brzegiem'
+    },
+    { key: 'authors', label: 'Autorzy', type: 'refs', to: ['person'], says: 'Autorzy — odwołania do osób, w kolejności (przy muzyce: kompozytor, autor słów — pola niżej)', when: notMusic },
+    { key: 'composers', label: 'Kompozytor', type: 'refs', to: ['person'], says: 'Kompozytorzy — odwołania do osób; nuty i nagranie, które wskazują utwór, nie muszą go powtarzać', when: typeIs('piece', 'score', 'recording') },
+    { key: 'lyricists', label: 'Autor słów', type: 'refs', to: ['person'], says: 'Autorzy słów utworu — odwołania do osób', when: typeIs('piece', 'score', 'recording') },
+    { key: 'arrangers', label: 'Opracowanie', type: 'refs', to: ['person'], says: 'Kto opracował (zharmonizował, zaaranżował) utwór w tej wersji — odwołania do osób', when: typeIs('piece', 'score', 'recording') },
+    { key: 'editors', label: 'Redakcja', type: 'refs', to: ['person'], says: 'Redaktorzy — odwołania do osób', when: typeIsNot('piece', 'recording', 'album') },
+    { key: 'translators', label: 'Tłumaczenie', type: 'refs', to: ['person'], says: 'Tłumacze — odwołania do osób (przy utworze: przekład słów)', when: typeIsNot('score', 'recording', 'album') },
+    { key: 'performers', label: 'Wykonawcy', type: 'refs', to: ['person'], says: 'Kto wykonuje — chór, zespół, dyrygent, soliści: odwołania do osób i instytucji', when: typeIs('recording', 'album') },
+    {
+      key: 'piece', label: 'Utwór', type: 'ref', to: ['work'], when: typeIs('score', 'recording'),
+      says: 'Jaki utwór zapisują te nuty albo wykonuje to nagranie — odwołanie do dzieła z "workType": "piece"',
+      pick: { only: ofType('piece'), makeWith: { workType: 'piece' } }
+    },
+    {
+      key: 'album', label: 'Na płycie', type: 'ref', to: ['work'], when: typeIs('recording'),
+      says: 'Płyta (album), na której jest to nagranie — odwołanie do dzieła z "workType": "album"',
+      pick: { only: ofType('album'), makeWith: { workType: 'album' } }
+    },
+    { key: 'track', label: 'Nr na płycie', type: 'line', says: 'Numer nagrania na płycie', hint: 'np. 5', when: typeIs('recording') },
     { key: 'container', label: 'W (książka, czasopismo)', type: 'ref', to: ['work'], says: 'Dla rozdziału: książka; dla artykułu: czasopismo — odwołanie do źródła', when: isPart },
-    { key: 'volume', label: 'Tom / rocznik', type: 'line', says: 'Tom (książka) albo rocznik (czasopismo)', hint: 'np. 1' },
+    { key: 'volume', label: 'Tom / rocznik', type: 'line', says: 'Tom (książka, zbiór nut) albo rocznik (czasopismo)', hint: 'np. 1', when: typeIsNot('piece', 'recording', 'album') },
     { key: 'issue', label: 'Numer', type: 'line', says: 'Numer czasopisma', when: (d) => str(d, 'workType') === 'article' },
-    { key: 'edition', label: 'Wydanie', type: 'line', says: 'Które wydanie', hint: 'np. 2' },
-    { key: 'publisher', label: 'Wydawca', type: 'line', says: 'Wydawnictwo' },
-    { key: 'place', label: 'Miejsce wydania', type: 'line', says: 'Miejsce wydania', hint: 'np. Kraków' },
-    { key: 'year', label: 'Rok', type: 'line', says: 'Rok wydania (albo data dokumentu)', hint: 'np. 2007' },
+    { key: 'edition', label: 'Wydanie', type: 'line', says: 'Które wydanie', hint: 'np. 2', when: typeIsNot('piece', 'recording', 'album') },
+    { key: 'catalogue', label: 'Numer katalogowy', type: 'line', says: 'Przy utworze: numer w katalogu dzieł (op. 27 nr 2, BWV 147, KV 618); przy nutach i płycie: numer wydawcy', hint: 'np. KV 618', when: typeIs('piece', 'score', 'album') },
+    { key: 'musicKey', label: 'Tonacja', type: 'line', says: 'Tonacja (tej wersji)', hint: 'np. D-dur', when: typeIs('piece', 'score', 'recording') },
+    { key: 'voicing', label: 'Obsada', type: 'line', says: 'Na jakie głosy i instrumenty', hint: 'np. SATB a cappella · chór mieszany i organy · unisono', when: typeIs('piece', 'score', 'recording') },
+    { key: 'genre', label: 'Gatunek', type: 'line', says: 'Jaki to utwór', hint: 'np. pieśń, psalm, motet, msza, kolęda', when: typeIs('piece') },
+    { key: 'duration', label: 'Czas trwania', type: 'line', says: 'Jak długo trwa (minuty:sekundy)', hint: 'np. 4:32', when: typeIs('recording', 'album') },
+    { key: 'publisher', label: 'Wydawca', type: 'line', says: 'Wydawnictwo (przy nagraniu i płycie: wytwórnia)', when: typeIsNot('piece') },
+    { key: 'place', label: 'Miejsce wydania', type: 'line', says: 'Miejsce wydania', hint: 'np. Kraków', when: typeIsNot('piece') },
+    { key: 'year', label: 'Rok', type: 'line', says: 'Rok wydania (albo data dokumentu; przy utworze — rok powstania, przy nagraniu — rok nagrania)', hint: 'np. 2007' },
     { key: 'series', label: 'Seria', type: 'line', says: 'Seria wydawnicza, z numerem tomu w serii', hint: 'np. Źródła Monastyczne, t. 45', when: isVolume },
     { key: 'pages', label: 'Strony', type: 'line', says: 'Zakres stron rozdziału albo artykułu', hint: 'np. 45–60', when: isPart },
     { key: 'pageCount', label: 'Liczba stron', type: 'number', says: 'Ile stron ma książka', hint: 'np. 384', when: isVolume },
@@ -271,28 +366,35 @@ const WORK: LibKind = {
     { key: 'width', label: 'Szerokość (cm)', type: 'number', says: 'Szerokość w centymetrach', hint: 'np. 14,5', when: isVolume },
     { key: 'length', label: 'Grubość (cm)', type: 'number', says: 'Trzeci wymiar — grubość (długość grzbietu w głąb) w centymetrach', hint: 'np. 2,5', when: isVolume },
     { key: 'siglum', label: 'Skrót przekładu', type: 'line', says: 'Dla Pisma Świętego: skrót przekładu, dopisywany do sigli', hint: 'np. BT', when: (d) => str(d, 'workType') === 'bible' },
-    { key: 'isbn', label: 'ISBN', type: 'line', says: 'Numer ISBN książki (z kreskami albo bez; kilka — po przecinku)' },
-    { key: 'libraryNumber', label: 'Numer w bibliotece', type: 'line', says: 'Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować', hint: 'np. B-0124', when: isVolume },
-    { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji' },
+    { key: 'isbn', label: 'ISBN', type: 'line', says: 'Numer ISBN książki (z kreskami albo bez; kilka — po przecinku)', when: notMusic },
+    { key: 'ismn', label: 'ISMN', type: 'line', says: 'Numer ISMN wydania nut', hint: 'np. 979-0-2025-0123-4', when: typeIs('score') },
+    { key: 'libraryNumber', label: 'Numer w bibliotece', type: 'line', says: 'Własny numer egzemplarza w tej bibliotece (numer inwentarzowy, sygnatura) — można po nim szukać i go zeskanować', hint: 'np. B-0124', when: (d) => isVolume(d) || typeIs('album')(d) },
+    { key: 'doi', label: 'DOI', type: 'line', says: 'Identyfikator DOI publikacji', when: notMusic },
     { key: 'url', label: 'Adres', type: 'url', says: 'Adres w sieci' },
     { key: 'accessed', label: 'Dostęp', type: 'date', says: 'Kiedy strona była czytana (RRRR-MM-DD)', when: (d) => str(d, 'workType') === 'web' || str(d, 'url') !== '' },
-    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la")' },
+    { key: 'language', label: 'Język', type: 'line', says: 'Język (np. "pl", "la"; przy muzyce — język słów)', when: typeIsNot('album') },
+    { key: 'lyrics', label: 'Słowa', type: 'text', says: 'Słowa utworu — zwrotki oddzielone pustym wierszem', when: typeIs('piece') },
     /* 2026-10-24 — wie Stellen in diesem Werk gelesen werden, und wovon es eine Ausgabe ist (`locations.ts`, `sourceText.ts`). */
     {
-      key: 'scheme', label: 'Układ miejsc', type: 'select', options: SCHEMES.map((s) => ({ value: s.id, label: s.label })),
-      says: `Jak wskazuje się miejsca w tym dziele: ${SCHEMES.map((s) => `"${s.id}" (${s.label})`).join(', ')}; puste — z rodzaju (Pismo Święte: bible, dokument: numbered, inne: pages)`,
-      hint: 'puste: z rodzaju'
+      key: 'scheme', label: 'Układ miejsc', type: 'select', options: TEXT_SCHEMES.map((s) => ({ value: s.id, label: s.label })),
+      says: `Jak wskazuje się miejsca w tym dziele: ${TEXT_SCHEMES.map((s) => `"${s.id}" (${s.label})`).join(', ')}; puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages)`,
+      hint: 'puste: z rodzaju', when: notMusic
     },
     {
       key: 'psalms', label: 'Numeracja psalmów', type: 'select', options: PSALMS,
       says: 'Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata)',
       when: (d) => str(d, 'workType') === 'bible' || str(d, 'scheme') === 'bible'
     },
-    { key: 'editionOf', label: 'Wydanie / przekład dzieła', type: 'ref', to: ['work'], says: 'To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie.' }
+    { key: 'editionOf', label: 'Wydanie / przekład dzieła', type: 'ref', to: ['work'], says: 'To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie.', when: notMusic },
+    /* 2026-10-26 — die Dateien der Musik: die Seiten der Nuty, die Spuren eines Nagrania (`MusicFiles.tsx`). */
+    { key: 'files', label: 'Pliki nut', type: 'items', item: SCORE_FILE_ITEM, says: 'Pliki tych nut — partytura, głosy, zapis nutowy; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece', when: typeIs('score') },
+    { key: 'tracks', label: 'Ścieżki', type: 'items', item: TRACK_ITEM, says: 'Pliki nagrania — całe nagranie albo osobne głosy i instrumenty, które odtwarza się razem; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece', when: typeIs('recording') }
   ],
   title: (data) => workTitle(data),
   sort: (entry, look) => {
-    const first = ids(entry.data, 'authors')[0];
+    /* 2026-10-26 — Musik nach dem Komponisten, sonst nach den Ausführenden. */
+    const people = isMusic(entry.data) ? [...ids(entry.data, 'composers'), ...ids(entry.data, 'performers')] : ids(entry.data, 'authors');
+    const first = people[0];
     const author = first === undefined ? undefined : look.get(first);
     const by = author === undefined ? '' : `${(str(author.data, 'surname') || personName(author.data)).toLowerCase()} `;
     return clip(`${by}${str(entry.data, 'title').toLowerCase()} ${str(entry.data, 'year')}`, 64);
@@ -305,7 +407,24 @@ const WORK: LibKind = {
       series: 'Dzieła wybrane, t. 1', pageCount: 384, binding: 'hard', height: 24, width: 16.5, length: 3,
       isbn: '978-83-7595-061-8', libraryNumber: 'B-0042'
     }
-  }
+  },
+  /* 2026-10-26 — Musik: der Utwór und ein Nagranie davon in Stimmen (die Dateien kommen in der App dazu). */
+  more: [
+    {
+      label: 'muzyka — utwór', key: 'mozart-ave-verum',
+      data: {
+        workType: 'piece', title: 'Ave verum corpus', otherTitles: 'Witaj, Ciało prawdziwe', composers: ['@mozart'],
+        catalogue: 'KV 618', musicKey: 'D-dur', voicing: 'chór mieszany, smyczki i organy', genre: 'motet', year: '1791', language: 'la'
+      }
+    },
+    {
+      label: 'muzyka — nagranie w głosach', key: 'ave-verum-schola2024',
+      data: {
+        workType: 'recording', title: 'Ave verum corpus', piece: '@mozart-ave-verum', performers: ['@schola-katedralna'], year: '2024', duration: '3:05',
+        tracks: [{ label: 'Sopran', role: 'part' }, { label: 'Alt', role: 'part' }, { label: 'Tenor', role: 'part' }, { label: 'Bas', role: 'part' }, { label: 'Całość', role: 'whole' }]
+      }
+    }
+  ]
 };
 
 /* -- Zitate ------------------------------------------------------------------------------- */
@@ -400,6 +519,22 @@ const COVERAGE_ITEM: readonly LibField[] = [
   { key: 'note', label: 'Uwaga', type: 'text', says: 'Co było inaczej niż w planie' }
 ];
 
+/*
+ * 0134 — EINE LEKCJA IN EINER KLASSE ist ein Wygłoszenie des Textes (der Lekcja aus dem Programm):
+ * mit der Klasse, ihrem Stand — geplant, gehalten, teilweise, nicht gehalten — und dem Zadanie für
+ * die Klasse. Ohne Klasse ist es ein gewöhnliches Wygłoszenie (ein Kazanie), und der Stand fehlt.
+ */
+export const LESSON_STATES = [
+  { value: 'planned', label: 'Zaplanowana' },
+  { value: 'done', label: 'Zrealizowana' },
+  { value: 'partial', label: 'Częściowo' },
+  { value: 'skipped', label: 'Nie odbyła się' }
+] as const;
+
+const CLASS_ITEM: readonly LibField[] = [
+  { key: 'area', label: 'Klasa', type: 'line', says: 'Identyfikator obszaru klasy (z eksportu albo z karty szkoły)' }
+];
+
 const ADDED_ITEM: readonly LibField[] = [
   { key: 'text', label: 'Co', type: 'markup', says: 'Co zostało powiedziane (jedno-dwa zdania), w zapisie treści' },
   { key: 'at', label: 'Czas', type: 'line', says: 'Kiedy w nagraniu (mm:ss)' },
@@ -485,7 +620,11 @@ const DELIVERY: LibKind = {
       key: 'added', label: 'Co doszło', type: 'items', item: ADDED_ITEM,
       says: 'Co zostało powiedziane, a nie było w planie: { "text", "at", "after" }'
     },
-    { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' }
+    { key: 'transcript', label: 'Zapis (transkrypcja)', type: 'markup', says: 'To, co zostało powiedziane, spisane słowo w słowo — w zapisie treści' },
+    /* 0134 — eine Lekcja in einer Klasse. */
+    { key: 'classArea', label: 'Klasa', type: 'line', says: 'Lekcja w szkole: identyfikator obszaru klasy, w której była (albo ma być) ta lekcja; pominięty — zwykłe wygłoszenie' },
+    { key: 'state', label: 'Stan lekcji', type: 'select', options: LESSON_STATES, says: `Tylko lekcja w klasie: ${LESSON_STATES.map((s) => `"${s.value}" (${s.label})`).join(', ')}; pominięty — zrealizowana` },
+    { key: 'homework', label: 'Zadanie dla klasy', type: 'text', says: 'Tylko lekcja w klasie: zadanie domowe albo to, co klasa ma przygotować' }
   ],
   title: (data, look) => {
     const text = deliveredText(data, look);
@@ -513,6 +652,8 @@ export const PROJECT_TYPES = [
   { value: 'series', label: 'Cykl kazań' },
   { value: 'collection', label: 'Zbiór' },
   { value: 'article', label: 'Artykuł' },
+  /* 0134 — das Programm einer Schule: seine Lekcje in der Gliederung, die Klassen, die es verwirklichen. */
+  { value: 'program', label: 'Program nauczania' },
   { value: 'other', label: 'Inny' }
 ] as const;
 
@@ -537,7 +678,9 @@ const PROJECT: LibKind = {
     { key: 'outline', label: 'Plan', type: 'outline', says: 'Plan: lista {"heading": "Część I"} i {"text": <odwołanie do tekstu>} w kolejności; czytelnik widzi te teksty, które może czytać' },
     { key: 'status', label: 'Stan', type: 'select', options: PROJECT_STATUS, says: `Stan: ${PROJECT_STATUS.map((t) => `"${t.value}"`).join(', ')}` },
     { key: 'deadline', label: 'Termin', type: 'date', says: 'Do kiedy (RRRR-MM-DD)' },
-    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć całość' }
+    { key: 'targetWords', label: 'Docelowa liczba słów', type: 'number', says: 'Ile słów ma mieć całość' },
+    /* 0134 — ein Programm (der Projekt einer Schule) und die Klassen, die es verwirklichen. */
+    { key: 'classes', label: 'Klasy', type: 'items', item: CLASS_ITEM, says: 'Program nauczania w szkole: klasy, które go realizują — lista { "area": identyfikator obszaru klasy }' }
   ],
   title: (data) => str(data, 'title').trim() || 'Projekt',
   sort: (entry) => str(entry.data, 'title').toLowerCase(),
@@ -817,7 +960,8 @@ export function suggestKey(entry: LibEntry, look: Lookup): string {
       return slug(str(data, 'surname') || personName(data)).slice(0, 40) || 'osoba';
     case 'work': {
       if (str(data, 'workType') === 'bible') return slug(str(data, 'siglum')) || 'biblia';
-      const author = look.get(ids(data, 'authors')[0] ?? '');
+      /* 2026-10-26 — Musik nach dem Komponisten (ein Nagranie ohne ihn nach dem Titel). */
+      const author = look.get(ids(data, isMusic(data) ? 'composers' : 'authors')[0] ?? '');
       const who = author === undefined ? firstWord(str(data, 'title')) : slug(str(author.data, 'surname') || personName(author.data)).split('-').pop() ?? '';
       const year = (str(data, 'year').match(/\d{4}/) ?? [''])[0];
       return `${who || 'zrodlo'}${year}`.slice(0, 40);
