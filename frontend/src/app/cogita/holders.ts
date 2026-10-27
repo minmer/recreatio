@@ -64,14 +64,20 @@ export async function targetFor(lib: CogitaLibrary, holder: Holder, override?: s
   return targetOf(lib.areaId);
 }
 
-/** Ein Lernender in dieser Bibliothek — geladen, und neu gezeichnet, wenn sich sein Fortschritt ändert. */
+/**
+ * Ein Lernender in dieser Bibliothek — geladen, und neu gezeichnet, wenn sich sein Fortschritt ändert.
+ * 2026-10-27 — nur der des JETZIGEN Halters: wechselt er (jemand stellt sich vor, eine andere Person wird
+ * gewählt), ist es `null`, bis der neue geladen ist. Vorher galt so lange der alte weiter, und die ersten
+ * Antworten gingen an ihn (im Browser statt an den Kurs).
+ */
 export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, override?: string | null): { learner: Learner | null; tick: number; failed: string | null } {
-  const [learner, setLearner] = useState<Learner | null>(null);
+  const [held, setHeld] = useState<{ key: string; learner: Learner } | null>(null);
   const [tick, setTick] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
   const key = holder === null ? '' : holder.kind === 'role' ? holder.roleId : holder.kind === 'seat' ? holder.seatId : holder.id;
+  const whose = `${lib?.libraryId ?? ''}|${key}|${override ?? ''}`;
   useEffect(() => {
-    if (lib === null || holder === null) { setLearner(null); return undefined; }
+    if (lib === null || holder === null) { setHeld(null); return undefined; }
     let alive = true;
     let off = () => undefined as void;
     void (async () => {
@@ -80,7 +86,7 @@ export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, ove
         const made = new Learner(lib.libraryId, holder, target);
         off = made.subscribe(() => setTick((n) => n + 1));
         await made.load();
-        if (alive) { setLearner(made); setFailed(null); }
+        if (alive) { setHeld({ key: whose, learner: made }); setFailed(null); }
       } catch (e) {
         if (alive) setFailed(e instanceof Error ? e.message : 'Nie udało się wczytać postępów.');
       }
@@ -88,6 +94,7 @@ export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, ove
     return () => { alive = false; off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lib?.libraryId, key, override]);
+  const learner = held !== null && held.key === whose ? held.learner : null;
   useEffect(() => {
     if (learner === null) return undefined;
     const online = () => { void learner.flush().catch(() => undefined); };

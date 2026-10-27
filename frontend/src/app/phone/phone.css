@@ -193,6 +193,30 @@
 .ph-share-name { display: flex; align-items: center; gap: var(--wk-space-2); min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .ph-share small { color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .ph-share-tools { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
+/* Ein neuer (aus diesem Fenster): umrandet, mit dem ganzen Link zum Ansehen und Markieren. */
+.ph-share.is-new { border-color: var(--wk-accent); }
+.ph-share-name .wk-tag { margin-left: var(--wk-space-1); }
+.ph-share-link { box-sizing: border-box; width: 100%; min-width: 0; font-family: var(--wk-mono); font-size: var(--wk-text-sm); }
+.ph-shares-fresh { margin: 0 0 var(--wk-space-2); }
+
+/* 2026-10-27 — selbst einen Link machen: wählen, auf die Seite ziehen, einfügen. Ränder statt flex-gap:
+   die WebView alter Telefone kennt gap nur im Raster. */
+.ph-share-add { display: grid; gap: var(--wk-space-2); margin: 0 0 var(--wk-space-4); padding: var(--wk-space-3); border: 1px dashed var(--wk-line-strong); border-radius: var(--wk-radius); background: var(--wk-sunk); }
+.ph-share-add-row { display: flex; flex-wrap: wrap; align-items: center; margin: 0 0 calc(-1 * var(--wk-space-2)); }
+.ph-share-add-row > * { margin: 0 var(--wk-space-4) var(--wk-space-2) 0; }
+.ph-share-days { display: inline-flex; align-items: center; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.ph-share-days > span { margin-right: var(--wk-space-2); }
+.ph-share-days select { min-height: var(--wk-control-h-sm); }
+.ph-share-add-note { margin: 0; color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.ph-sending { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.ph-send .ph-progress { display: block; }
+.ph-send .wk-error { margin: 0; font-size: var(--wk-text-sm); }
+.ph-send.is-failed { border-color: var(--wk-danger); }
+
+/* Eine Datei schwebt über der Seite: alles darunter nimmt sie (fileDrop.tsx). Fängt keine Ereignisse. */
+.ph-drop-veil { position: fixed; inset: 0; z-index: var(--wk-z-pop); display: grid; place-items: center; padding: var(--wk-space-4); background: var(--wk-scrim); pointer-events: none; }
+.ph-drop-text { display: inline-flex; align-items: center; max-width: 32rem; padding: var(--wk-space-3) var(--wk-space-4); border: 2px dashed var(--wk-accent); border-radius: var(--wk-radius); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop); color: var(--wk-ink); font-weight: 600; text-align: center; }
+.ph-drop-text > svg { flex: none; margin-right: var(--wk-space-2); }
 
 /* 0125 — Thunderbird: verbundene Programme und der Kod połączenia (einmal gezeigt). */
 .ph-conn { display: grid; gap: var(--wk-space-2); margin-top: var(--wk-space-5); }

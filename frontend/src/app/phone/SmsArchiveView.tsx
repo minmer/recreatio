@@ -48,6 +48,7 @@ import {
   archivedFileUrl, archiveIndex, conversationKey, loadAll, loadConversation, readableArchives,
   type ArchivedConversation, type ArchivedMessage, type ArchivedPart, type ArchiveProgress, type ArchiveSummary
 } from './smsArchive';
+import { DropVeil, usePageDrop } from './fileDrop';
 import { shareFile } from './share';
 import { daysLabel, SHARE_DAYS, SHARE_MAX, shareLink, sizeText } from './shareSeal';
 import { PlanDialog, PlannedRow, SmsHeader, SmsLog, useRoomFrame, type SmsItem } from './smsChat';
@@ -602,6 +603,10 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   const lineMenu = useButtonMenu();
   const top = useBarHeight();
   const group = conversation.peers.length > 1;
+  const replying = !native && mayWrite && conversation.peers.length === 1;
+  /* 2026-10-27 — eine Datei auf das Gespräch gezogen: sie geht mit der Antwort als Link. */
+  const [dropped, setDropped] = useState<Dropped | null>(null);
+  const dropping = usePageDrop(replying ? (files) => setDropped((was) => ({ files, n: (was?.n ?? 0) + 1 })) : null);
   useRoomFrame();
   useCrumbs(native ? [{ label: 'Archiwum', href: back }] : []);
 
@@ -676,7 +681,6 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
   });
 
   const from = messages !== null && messages.length > 0 ? messages[0].at : conversation.first;
-  const replying = !native && mayWrite && conversation.peers.length === 1;
   const ruleText = rule === null ? '' : rule.why === 'thread' ? ' — wybrany dla tej rozmowy' : ` — grupa „${rule.group ?? ''}”`;
   const lineItems: MenuItem[] = [
     ...options.map((l) => ({
@@ -712,9 +716,10 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
         more={more} onEarlier={earlier} tail={tail} empty="W archiwum nie ma jeszcze wiadomości tej rozmowy."
         place={`archive:${ctx.areaId}:${conversation.key}`} firstNew={null} />
       {!native && (
-        <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite}
+        <ReplyBox who={who} ctx={ctx} conversation={conversation} line={line} mayWrite={mayWrite} dropped={dropped}
           onQueued={() => { setFollow((n) => n + 1); reloadOutbox(); }} onWrite={() => setFollow((n) => n + 1)} />
       )}
+      {dropping && <DropVeil text="Upuść — plik pójdzie w odpowiedzi jako link" />}
       {askingLine && (
         <OtherLine value={ownText} onClose={() => setAskingLine(false)}
           onSave={(value) => { setOwnText(value); setThreadRule(conversation.peers, phoneKey(value)); setAskingLine(false); }} />
@@ -740,14 +745,21 @@ function OtherLine({ value, onSave, onClose }: { value: string; onSave: (value: 
   );
 }
 
+/** Auf das Gespräch gezogene Dateien — `n` zählt, damit dieselbe Datei zweimal auch zweimal ankommt. */
+interface Dropped { readonly files: readonly File[]; readonly n: number }
+
 /**
  * DIE ANTWORT AUS DEM BROWSER — wie das Feld des Chats: 📎 (eine Datei geht als Link mit),
  * die Lasche für „Wyślij później", Senden. An die eine Person der Rozmowa, von der Nummer
  * im Kopf; nur das Telefon mit dieser Nummer nimmt sie (FCM weckt es, sonst spätestens in
  * einer Viertelstunde).
+ *
+ * 2026-10-27 — die Datei kommt auch, wenn man sie auf das Gespräch zieht (`dropped`) oder
+ * ins Feld einfügt (ein Bildschirmfoto mit Strg+V).
  */
-function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued, onWrite }: {
+function ReplyBox({ who, ctx, conversation, line, mayWrite, dropped, onQueued, onWrite }: {
   who: Who; ctx: PhoneCtx; conversation: ArchivedConversation; line: string; mayWrite: boolean; onQueued: () => void;
+  dropped: Dropped | null;
   /** Man beginnt zu schreiben — das Gespräch geht ans Ende. */
   onWrite: () => void;
 }) {
@@ -763,6 +775,22 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued, onWrite }:
   const picker = useRef<HTMLInputElement | null>(null);
   const days = (SHARE_DAYS as readonly number[]).includes(Number(daysText)) ? Number(daysText) : 30;
 
+  /** Eine Datei für die Antwort — gewählt, hineingezogen oder eingefügt. Eine SMS trägt einen Link. */
+  const take = (files: readonly File[]) => {
+    const chosen = files[0];
+    if (chosen === undefined) return;
+    if (busy) { toast('Poczekaj, aż ta wiadomość pójdzie do telefonu.'); return; }
+    if (chosen.size > SHARE_MAX) { toast('Plik może mieć najwyżej 25 MB.'); return; }
+    uploaded.current = null;
+    setFile(chosen);
+    if (files.length > 1) toast(`W odpowiedzi pójdzie jeden plik: ${chosen.name}. Kilka naraz dodasz w „Pliki przez link”.`);
+  };
+  useEffect(() => {
+    if (dropped !== null) take(dropped.files);
+    // Nur, wenn wieder etwas hineingezogen wurde.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dropped]);
+
   if (!mayWrite) return <p className="ch-compose is-readonly">To archiwum możesz czytać; odpowiadać mogą ci, którzy mogą w nim pisać.</p>;
   if (conversation.peers.length !== 1) return <p className="ch-compose is-readonly">Z przeglądarki można odpowiadać w rozmowach z jedną osobą.</p>;
 
@@ -770,12 +798,9 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued, onWrite }:
   const withLink = (link: string) => (text.trim() === '' ? link : `${text.trimEnd()}\n${link}`);
   const count = smsParts(file === null ? text : withLink(shareLink('x'.repeat(22))));
   const pick = (e: ChangeEvent<HTMLInputElement>) => {
-    const chosen = e.target.files?.[0];
+    const chosen = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (chosen === undefined) return;
-    if (chosen.size > SHARE_MAX) { toast('Plik może mieć najwyżej 25 MB.'); return; }
-    uploaded.current = null;
-    setFile(chosen);
+    take(chosen);
   };
   const send = async (at: number | null) => {
     if (line === '') { toast('Wybierz w nagłówku numer, z którego telefon ma wysłać.'); return; }
@@ -833,6 +858,12 @@ function ReplyBox({ who, ctx, conversation, line, mayWrite, onQueued, onWrite }:
       <div className="ch-compose-row">
         <div className="ch-field">
           <textarea rows={1} value={text} placeholder="Odpowiedź — SMS wyśle telefon" aria-label="Treść odpowiedzi" onChange={(e) => setText(e.target.value)} onFocus={onWrite}
+            onPaste={(e) => {
+              const pasted = Array.from(e.clipboardData.files);
+              if (pasted.length === 0) return;
+              if (e.clipboardData.getData('text') === '') e.preventDefault();
+              take(pasted);
+            }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(null); } }} />
           <button type="button" className="ch-icon-btn" aria-label="Dołącz plik (pójdzie jako link)" title="Dołącz plik (pójdzie jako link)" disabled={busy}
             onClick={() => picker.current?.click()}>

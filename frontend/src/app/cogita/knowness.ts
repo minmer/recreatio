@@ -93,6 +93,17 @@ export function knownessOf(marks: readonly Mark[], now: number): number {
   return knowledge(terms.q1, terms.d1, terms.q2, terms.d2, t);
 }
 
+/**
+ * 2026-10-27 — WIE SICHER ES SITZT, für Sperren und die Ścieżka: die Kenntnis mal die Richtigkeit
+ * der letzten Antwort. Gleich nach einer FALSCHEN Antwort steht die Formel bei 10^0,5 wie nach
+ * einer richtigen (sie hält nur kürzer) — eine Voraussetzung darf darauf nicht als „sitzt" gelten.
+ */
+export function masteryOf(marks: readonly Mark[], now: number): number {
+  const terms = termsOf(marks);
+  if (terms === null) return 0;
+  return knownessOf(marks, now) * terms.q2;
+}
+
 /** Wann die Kenntnis auf 1 fällt und die Karte wieder dran ist; `null`: noch nie gefragt (also gleich). */
 export function dueAt(marks: readonly Mark[]): number | null {
   const terms = termsOf(marks);

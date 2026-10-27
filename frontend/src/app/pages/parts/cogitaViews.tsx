@@ -24,6 +24,7 @@ import { publicEntity } from '../../cogita/publish';
 import { useEntitySubject } from '../../cogita/entitySubject';
 import { usePageBase } from '../../cogita/pageBase';
 import { useLocalLearner } from '../../cogita/PublicRun';
+import { IntroduceToLearn, LearnerLine, usePageLearner } from '../../cogita/pageLearner';
 import { levelsOf, readPlan } from '../../cogita/revision';
 import { planFor, RevisionRun } from '../../cogita/RevisionRun';
 import { seatCtx, useSeatLearner, useSeatLibrary } from '../../cogita/seatLearn';
@@ -57,7 +58,9 @@ function Closed({ title, lib }: { title: string; lib: CogitaLibrary | null | und
  */
 export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  const learner = useLocalLearner(config.library);
+  /* 2026-10-27 — als wer: die Person der Seite, ein Platz aus dem Link, sonst der Browser (`pageLearner.tsx`). */
+  const who = usePageLearner(lib);
+  const learner = who.learner;
   const [running, setRunning] = useState(false);
   const doc = lib == null ? undefined : lib.docs('revision').find((e) => e.id === config.revision);
   const name = typeof doc?.data.name === 'string' ? doc.data.name : '';
@@ -67,9 +70,11 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
   if (doc === undefined) return <><Head title={title} /><p className="wk-card-muted">Tej powtórki nie ma w bazie wiedzy.</p></>;
 
   if (running || isTall(ctx)) {
+    /* Hoch läuft die Powtórka gleich — wer nur den Link hat, stellt sich darüber vor; danach lernt er neu als er selbst. */
     return (
       <CogitaContext.Provider value={cg}>
-        <RevisionRun lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setRunning(false)} />
+        {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <RevisionRun key={who.as ?? ''} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setRunning(false)} />
       </CogitaContext.Provider>
     );
   }
@@ -81,10 +86,11 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
       <Head title={title} />
       <p className="wk-card-muted">{planned === undefined ? 'Liczenie kart…' : `${total} kart`}{levels !== null && levels.known + levels.learning > 0 ? ` · ${LEVEL_LABEL.known}: ${levels.known} · ${LEVEL_LABEL.learning}: ${levels.learning}` : ''}</p>
       {levels !== null && levels.known > 0 && <Bar value={levels.known / Math.max(1, total)} label="Ile już umiesz" />}
+      {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => setRunning(true)}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
+        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setRunning(true)}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
       </div>
-      <p className="wk-card-muted">Bez konta postępy zostają w tej przeglądarce.</p>
+      <LearnerLine learner={who} lib={lib} />
     </>
   );
 }
@@ -92,7 +98,8 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
 /** Ein Przebieg der Baza wiedzy selbst — Schritte, Fragen und Dateien aus ihren Einträgen. */
 export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  const learner = useLocalLearner(config.library);
+  const who = usePageLearner(lib);
+  const learner = who.learner;
   const [playing, setPlaying] = useState(false);
   const cards = useAsync(lib == null ? null : () => lib.cards('flow').then((r) => r.cards), [lib, lib?.revision]);
   const content = useMemo(() => (lib == null || cards == null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
@@ -106,7 +113,8 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
     return (
       <CogitaContext.Provider value={cg}>
         {!isTall(ctx) && <Head title={title} />}
-        <FlowPlayer flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setPlaying(false)} presentationAs="link" />
+        {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
+        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setPlaying(false)} presentationAs="link" />
       </CogitaContext.Provider>
     );
   }
@@ -117,9 +125,11 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
       <Head title={title} />
       <p className="wk-card-muted">{LOOK_LABEL[flow.look]} · {flow.graph.nodes.length} kroków{questions > 0 ? ` · ${questions} pytań` : ''}</p>
       {flow.goals.length > 0 && ctx.size.width !== 'narrow' && <p className="wk-card-muted">Cele: {flow.goals.map((g) => g.title).join(' · ')}</p>}
+      {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" onClick={() => setPlaying(true)}>{saved !== null ? 'Wróć tam, gdzie skończyłeś' : 'Zacznij'}</button>
+        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setPlaying(true)}>{saved !== null ? 'Wróć tam, gdzie skończyłeś' : 'Zacznij'}</button>
       </div>
+      <LearnerLine learner={who} lib={lib} />
     </>
   );
 }
@@ -335,7 +345,7 @@ export function TopicExplorerView({ config }: { config: TopicsConfig; ctx: PartC
 /** Die Karte des Wissens einer Powtórka — aus den Einträgen der Baza selbst, im eigenen Nebel. */
 export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  const learner = useLocalLearner(config.library);
+  const learner = usePageLearner(lib).learner;
   const [chosen, setChosen] = useState<string | null>(null);
   const [learning, setLearning] = useState<string | null>(null);
   const planned = useAsync(lib == null || config.revision === '' ? null : () => planFor(lib, config.revision, null, 'page'), [lib, lib?.revision, config.revision]);

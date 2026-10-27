@@ -19,9 +19,11 @@
  *   { v: 1, library, part: books|writing|knowledge, name, madeAt, notes,
  *     kinds:   [{ id, name, says?, label?, fields: [{ key, label, type, says?, … }] }],
  *     entries: [{ id, kind, kinds?, kindName, typeName?, title, tell?, key?, updatedAt?, refs?, data }],
- *     texts?:  [{ id, work, workTitle?, workKey?, scheme, edition, parts: [{ key, label, order, first?, last?, pages?,
+ *     texts?:  [{ id, work, workTitle?, workKey?, scheme, edition, pageSeries?, parts: [{ key, label, order, first?, last?, pages?,
  *                 blocks: [{ type, level?, loc?, at?, pages?, text }] }] }] }
  * </code>
+ * `pageSeries` (2026-10-27): die Muster der Seiten-Serien des Textes außer den gewöhnlichen („#*", „A#") — der
+ * Dienst kennt damit die Zeichen, mit denen er die Seitenzahlen der Blöcke wieder schreibt (`AiAccess.PageWord`).
  *
  * 2026-10-24 — `texts`: die vollständigen Texte der Werke (`library/sourceText.ts`), die IN diesem
  * Behälter liegen — wer den Behälter liest, liest auch sie; ein Text in einem anderen (privaten)
@@ -33,6 +35,7 @@
 import { CogitaLibrary } from '../cogita/store';
 import { fieldData, textTypeKind } from '../cogita/kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, labelOf, tellOf, VALUE_STATE_LABEL, VALUE_STATES, type KindDef } from '../cogita/schema';
+import { QUESTION_TYPES } from '../cogita/questionTypes';
 import type { LibraryKind } from '../library/library';
 import { BIBLE_DOC, MARKUP_DOC } from '../library/libraryJson';
 import {
@@ -40,7 +43,7 @@ import {
   type LibEntry, type LibField, type LibKind, type Lookup
 } from '../library/libraryKinds';
 import { citedKeys } from '../library/libraryMarkup';
-import { blockPages, pieces, placeLabel, readManifest, readPart, type SourceBlock } from '../library/sourceText';
+import { blockPages, pageSeriesIn, pieces, placeLabel, readManifest, readPart, type SourceBlock } from '../library/sourceText';
 import type { LibraryStore } from '../library/libraryStore';
 
 export const SNAPSHOT_VERSION = 1;
@@ -75,6 +78,7 @@ export interface SnapshotText {
   readonly workKey?: string;
   readonly scheme: string;
   readonly edition?: Readonly<Record<string, unknown>>;
+  readonly pageSeries?: readonly string[];
   readonly parts: readonly { readonly key: string; readonly label: string; readonly order: number; readonly first?: string; readonly last?: string; readonly pages?: readonly [number, number]; readonly blocks: readonly SnapshotBlock[] }[];
 }
 
@@ -127,7 +131,8 @@ Typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', '
 Wartość bywa niepewna: {"value", "state", "source": {"work": id dzieła, "locator": "s. 23"}, "note"}; stany: ${VALUE_STATES.map((s) => `"${s}" (${VALUE_STATE_LABEL[s]})`).join(', ')}.
 Odwołanie to id innego wpisu (z tytułem w "refs" wpisu); odwołanie z miejscem: {"value": id, "locator": "Ps 110"}.
 Pole "blocks" to wypowiedź: akapity {"type": "paragraph", "text"}, listy {"type": "ordered"|"unordered", "items"}, tabele {"type": "table", "columns", "rows"}; komórka to lista kawałków {"text"} albo {"ref": id, "locator"}. Teza = pierwsze zdanie pierwszego akapitu.
-Pytanie (rodzaj "question"): "form", "prompt", "answers", "options", "correct".
+Pytanie: jeden rodzaj "question"; "form" (rodzaj pytania) mówi, jak się pyta: ${QUESTION_TYPES.map((t) => `"${t.form}" (${t.label})`).join(", ")}; pole z "when" należy tylko do podanych rodzajów pytań; "about" — wpisy, które pytanie sprawdza; "needs" — co trzeba umieć przed nim.
+Kolejność nauki: pole odwołania z "prerequisite": "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga”); "down" — wskazane wpisy budują na tym. Z takich pól aplikacja liczy poziomy od podstaw (poziom 1 — nic przed nim) i pyta najpierw o ogólne, potem o szczegółowe.
 Daty: "1999", "1999-05", "1999-05-03", "-1000" (przed Chr.); zakres: {"segments": [{"from", "to"}]}.
 Struktura (np. wywód artykułu): pole odwołania z "structure": "up" — ten wpis leży POD tym, na co wskazuje (krok pod pytaniem, odpowiedź na zarzut pod zarzutem); "structure": "down" — wskazane wpisy leżą pod nim. Korzeń (bez wartości w polu "up") to zwykle pytanie wiodące. Jego drzewo: przez MCP get_related(id korzenia, direction "in", fields: [klucz pola "up"], depth 3), potem znowu od każdego wpisu z głębokości 3 (najwyżej 60 wpisów na wywołanie; przy "truncated" krawędzie nazywają też te, które się nie zmieściły — od nich dalej); przez REST /entry/{id}: wpisy w "linkedFrom" z tym polem leżą bezpośrednio niżej — i tak dalej od każdego z nich (albo, przeglądając wszystkie wpisy: pod wpisem X leżą te, których pole "up" ma wartość X). Kolejność kroków to kolejność ich miejsc w dziele (pole odwołania z miejscem do dzieła z biblioteki). Wpisy wskazujące krok polem bez "structure" (np. komentarz: "O czym") nie należą do rekonstrukcji — to cudze lub własne uwagi.
 
@@ -305,10 +310,12 @@ export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): Snapsh
   for (const text of texts) {
     const manifest = readManifest(text.entry.data);
     const work = look.get(manifest.work);
+    const series = new Set<string>(manifest.parts.flatMap((p) => p.series ?? []));
     const parts = manifest.parts.map((p) => {
       const found = text.parts.find((x) => x.id === p.id);
       const blocks = found === undefined ? [] : readPart(found.data).blocks;
       const pages = blockPages(blocks);
+      for (const key of pageSeriesIn(blocks)) series.add(key);
       let current = '';
       return {
         key: p.key, label: p.label, order: p.order,
@@ -335,6 +342,7 @@ export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): Snapsh
       ...(work === undefined ? {} : { workTitle: entryTitle(work, look), ...(work.key === undefined ? {} : { workKey: work.key }) }),
       scheme: manifest.scheme,
       ...(Object.keys(manifest.edition).length === 0 ? {} : { edition: { ...manifest.edition } }),
+      ...(series.size === 0 ? {} : { pageSeries: [...series] }),
       parts
     });
   }

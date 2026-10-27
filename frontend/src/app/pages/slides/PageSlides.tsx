@@ -20,13 +20,14 @@
  * (`slide.motion`) legen sich um seine Tafel (`MotionBox`).
  */
 
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useContext, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { Fullscreen } from '../../ui/Modal';
 import { MotionBox } from '../motion/MotionBox';
 import type { DraftPart } from '../page';
 import { partSize, text } from '../part';
 import { usePageLogic } from '../pageLogic';
+import { PreviewControlContext } from '../previewControl';
 import { partLabel, partOf } from '../parts/registry';
 import { SlideDeck, type DeckActor, type DeckSlide } from './SlideDeck';
 import { COVER_KEY, readSlide, type SlideCompanion, type StageFrame } from './slides';
@@ -77,6 +78,8 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
   control?: Parameters<typeof SlideDeck>[0]['control'];
 }) {
   const logic = usePageLogic();
+  /* 2026-10-27 — in der Vorschau für Assistenten hält sie die Bahn (`previewControl.ts`); sonst null. */
+  const preview = useContext(PreviewControlContext);
   const [whole, setWhole] = useState<string | null>(null);
   const deck = deckOf(look);
 
@@ -118,7 +121,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
     const canFull = def !== undefined && def.fullFor(part.config) && !hidden.has(part.id);
     return (
       <MotionBox motions={slide.motion} bare className="wk-deck-move">
-        <article className={`wk-card wk-card-${part.kind} wk-deck-card${canFull ? ' has-full' : ''}`} data-w={size.width} data-h={size.height}>
+        <article className={`wk-card wk-card-${part.kind} wk-deck-card${canFull ? ' has-full' : ''}`} data-w={size.width} data-h={size.height} data-part={part.id}>
           {hidden.has(part.id) ? (
             <p className="wk-card-muted">{messages.get(part.id)}</p>
           ) : part.kind === BLOCKED_KIND ? (
@@ -222,7 +225,7 @@ export function PageSlides({ parts, look, title, lead, extra, after, embedded = 
 
   return (
     <>
-      <SlideDeck slides={slides} actors={actors} theme={look.theme} deck={deck} title={title} embedded={embedded} control={control} />
+      <SlideDeck slides={slides} actors={actors} theme={look.theme} deck={deck} title={title} embedded={embedded} control={control ?? preview?.deck} />
 
       {opened !== undefined && openedDef !== undefined && (
         <Fullscreen title={text(opened.config, 'title') || openedDef.label} onClose={() => setWhole(null)}>

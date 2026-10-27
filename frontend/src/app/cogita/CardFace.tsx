@@ -209,8 +209,9 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         <div className="cg-answer">
           <p className="cg-muted">Wybierz pozycję z jednej strony, potem jej parę z drugiej. Ponowne wybranie rozłącza parę.</p>
           <div className="cg-match">
-            <div className="cg-match-side">{a.left.map((l, i) => item('l', i, l, pairs[i] === undefined ? undefined : i))}</div>
-            <div className="cg-match-side">{a.right.map((r, j) => item('r', j, r, leftOf(j)))}</div>
+            {/* 2026-10-27 — was die Spalten sind („Rok” — „Wydarzenie”). */}
+            <div className="cg-match-side">{a.heads !== undefined && a.heads[0] !== '' && <span className="cg-match-head">{a.heads[0]}</span>}{a.left.map((l, i) => item('l', i, l, pairs[i] === undefined ? undefined : i))}</div>
+            <div className="cg-match-side">{a.heads !== undefined && a.heads[1] !== '' && <span className="cg-match-head">{a.heads[1]}</span>}{a.right.map((r, j) => item('r', j, r, leftOf(j)))}</div>
           </div>
           <button type="button" className="wk-btn" disabled={shut || lefts.length === 0} onClick={() => submit(lefts.map((l) => [l, pairs[l]]))}>
             Sprawdź{lefts.length > 0 && lefts.length < a.left.length ? ` (${lefts.length} z ${a.left.length})` : ''}
@@ -221,7 +222,8 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     case 'flash':
       return flipped ? (
         <div className="cg-answer">
-          <div className="cg-flash-back">{a.back.map((b, i) => <p key={i}><Markup text={b} /></p>)}</div>
+          {/* 2026-10-27 — ein Block je Zeile, kein <p>: der Zapis bringt seine eigenen Absätze mit (<p> in <p> ist kein HTML). */}
+          <div className="cg-flash-back">{a.back.map((b, i) => <div key={i}><Markup text={b} /></div>)}</div>
           <div className="cg-row">
             <button type="button" className="cg-option is-right" disabled={shut} onClick={() => submit('knew')}>Umiałem</button>
             <button type="button" className="cg-option" disabled={shut} onClick={() => submit('partly')}>Częściowo</button>

@@ -57,7 +57,7 @@ export { viewPath } from '${app}routes';
 export { lineText, pickSpeaker, unreadOf, conversationTitle, MAX_LINES } from '${app}notify/notifyRich';
 export { roundOf, roundValid, shiftRound, roundLabel, roundShort, roundRange, roundsBetween, roundAhead, repeatOf } from '${app}forms/rounds';
 export { quickFields, chipText, isBlank, byPerson, tallyOf, tallyText, addressOrder, cellText, roundsCsv } from '${app}forms/roundSheet';
-export { filledNow, stepsFor } from '${app}steps/steps';
+export { filledNow, stepsFor, bookingTags } from '${app}steps/steps';
 export { isYes, YES } from '${app}forms/form';
 export { linkSecrets, aimOf } from '${app}links/linkAccess';
 export { keepLinkFromAddress, linkHref, freshLink } from '${app}links/linkKeep';
@@ -77,7 +77,7 @@ export { intentionsSheetHtml } from '${app}masses/sheet';
 export { meetingAreas, othersWrite } from '${app}areas/audience';
 export { chatMode, hasSeats, fixedPolicy } from '${app}chat/chat';
 export { epochAad } from '${app}areas/area';
-export { columnsOf, deskRows, pickRows, neighbours, readEntryQuery, entryQueryString, withEntryQuery, filterWords, stepKindsOf, folded, readSections, PANEL_SECTIONS, NO_FILTER } from '${app}forms/entryDesk';
+export { columnsOf, deskRows, pickRows, neighbours, readEntryQuery, entryQueryString, withEntryQuery, filterWords, stepKindsOf, stepMatches, folded, readSections, PANEL_SECTIONS, NO_FILTER } from '${app}forms/entryDesk';
 export { readSubject, writeSubject, subjectKindOf, implicitSubject } from '${app}pages/pageSubject';
 export { peselValid, peselBirth, birthOf, ageOn } from '${app}forms/pesel';
 export { consentValue, consentGiven, consentText, shownAnswer } from '${app}forms/form';
@@ -791,8 +791,40 @@ try {
     assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, q: 'grzegorzki' })), ['r4'], 'in any answer');
     assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, step: 'todo:step:zgoda' })), ['r2', 'r4'], 'who still lacks the step');
     assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, step: 'done' })), ['r1']);
-    assert.deepEqual(m.stepKindsOf(rows).map(([key]) => key), ['confirm', 'step:zgoda']);
-    assert.equal(m.filterWords({ q: 'kow', step: 'todo:step:zgoda', hidden: true }, m.stepKindsOf(rows)), 'brakuje: Zgoda rodziców · „kow" · z ukrytymi');
+    assert.deepEqual(m.stepKindsOf(rows).map((k) => k.key), ['confirm', 'step:zgoda']);
+    assert.deepEqual(m.stepKindsOf(rows)[1].options.map(([v]) => v), ['done:step:zgoda', 'todo:step:zgoda'], 'every step both ways: done and lacking');
+    assert.deepEqual(ids(m.pickRows(rows, { ...m.NO_FILTER, step: 'done:step:zgoda' })), ['r1'], 'who has done the step');
+    assert.equal(m.filterWords({ q: 'kow', step: 'todo:step:zgoda', hidden: true }, m.stepKindsOf(rows)), 'Zgoda rodziców: brakuje · „kow" · z ukrytymi');
+
+    /* 2026-10-27 — „Wybierz termin": wer einen Termin hat, wer keinen, wartend, kommend, gewesen. */
+    {
+      const now = new Date('2026-11-10T12:00:00');
+      const booking = { stepId: 'spotkanie', key: 'spotkanie', label: 'Spotkanie z księdzem', help: null, dueAt: null, doneBy: 'person',
+        visibleToPerson: true, areaId: 'a', epoch: 1, position: 1, kind: 'booking', booking: { resourceId: 'res', resourceName: 'Spotkania 26/27' } };
+      const held = (status, startsAt, endsAt) => ({ stepId: 'spotkanie', doneAt: '2026-10-01', byPerson: true, booking: { status, startsAt, endsAt } });
+      const bookedRegs = [
+        sub('b1', '2026-09-01', { marks: [held('confirmed', '2026-11-03T18:00:00', '2026-11-03T18:30:00')] }),
+        sub('b2', '2026-09-02', { marks: [held('confirmed', '2026-11-17T18:00:00', '2026-11-17T18:30:00')] }),
+        sub('b3', '2026-09-03', { marks: [held('pending', '2026-11-24T18:00:00', '2026-11-24T18:30:00')] }),
+        sub('b4', '2026-09-04')
+      ];
+      const bookedOpen = new Map([['b1', 'Adam'], ['b2', 'Bartek'], ['b3', 'Celina'], ['b4', 'Dorota']].map(([id, n]) => [id, new Map([['imie', n]])]));
+      const bookedRows = m.deskRows({ registrations: bookedRegs, fields, opened: bookedOpen }, { steps: [booking], extensions: [] });
+      const kinds = m.stepKindsOf(bookedRows);
+      assert.deepEqual(kinds.find((k) => k.key === 'step:spotkanie').options.map(([v, l]) => `${v.split(':')[0]} ${l}`),
+        ['done ma termin', 'next termin dopiero będzie', 'past termin już był', 'wait termin czeka na potwierdzenie', 'todo bez terminu'], 'a booking step filters by its dates');
+      const pick = (how) => bookedRows.filter((r) => m.stepMatches(`${how}:step:spotkanie`, r.states, now)).map((r) => r.s.registrationId);
+      assert.deepEqual(pick('done'), ['b1', 'b2', 'b3'], 'has a date — a waiting one counts (the person did their part)');
+      assert.deepEqual(pick('todo'), ['b4'], 'has no date');
+      assert.deepEqual(pick('past'), ['b1'], 'the date was already');
+      assert.deepEqual(pick('next'), ['b2', 'b3'], 'the date is still to come');
+      assert.deepEqual(pick('wait'), ['b3'], 'the date waits for a yes');
+      assert.equal(m.filterWords({ q: '', step: 'todo:step:spotkanie', hidden: false }, kinds), 'Spotkanie z księdzem: bez terminu');
+      const tags = bookedRows.map((r) => m.bookingTags(r.states, now).map((t) => `${t.state}|${t.text}`)[0]);
+      assert.deepEqual(tags, ['past|termin był 3.11, 18:00', 'next|termin 17.11, 18:00', 'wait|termin 24.11, 18:00 · czeka', 'none|bez terminu'],
+        'the list shows each date — or that there is none');
+      assert.ok(m.bookingTags(bookedRows[0].states, now)[0].title.startsWith('Spotkanie z księdzem — '), 'the step name in the hint');
+    }
 
     const lacking = m.pickRows(rows, { ...m.NO_FILTER, step: 'todo:step:zgoda' });
     assert.deepEqual([m.neighbours(rows, lacking, 'r2').prev, ids([m.neighbours(rows, lacking, 'r2').next])[0], m.neighbours(rows, lacking, 'r2').at], [null, 'r4', 1],
@@ -1492,7 +1524,7 @@ try {
     assert.deepEqual(m.readAlerts(JSON.stringify({ order: ['forms', 'chats', 'tasks', 'today', 'links'] })).order, defaults.order,
       'kinds that came later (bookings, steps) join at their place');
     const mine = m.readAlerts(JSON.stringify({ order: ['links', 'forms', 'chats', 'chats', 'bogus', 'tasks', 'today'], off: ['today', 'bogus'] }));
-    assert.deepEqual(mine.order, ['links', 'duties', 'forms', 'chats', 'bookings', 'steps', 'tasks', 'today', 'learn'], 'own order kept, doubles and unknowns dropped, new kinds behind their neighbour');
+    assert.deepEqual(mine.order, ['links', 'duties', 'records', 'plans', 'forms', 'chats', 'bookings', 'steps', 'tasks', 'today', 'learn'], 'own order kept, doubles and unknowns dropped, new kinds behind their neighbour');
     assert.deepEqual(mine.off, ['today']);
     assert.deepEqual(m.readAlerts(m.alertsJson(mine)), mine, 'read back');
     assert.equal(m.moveAlert(defaults, 'forms', -1), defaults, 'at the top it stays');

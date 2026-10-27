@@ -296,10 +296,24 @@ export function defaultLayers(label: string, theme: Theme): Layer[] {
   ];
 }
 
+/**
+ * 2026-10-27 — DIE VORSCHAU FÜR ASSISTENTEN (`preview/`): Dateien, um die ein
+ * Dokument erst bittet (`page-image:@schlüssel`), haben dort eine Kennung, die
+ * es beim Dienst nicht gibt; gezeigt wird ein Platzhalter oder die Datei, die
+ * der Assistent mitgegeben hat. Ausserhalb der Vorschau ist die Tafel leer.
+ */
+const previewFiles = new Map<string, string>();
+
+export function showPreviewFiles(files: ReadonlyMap<string, string>): void {
+  previewFiles.clear();
+  for (const [id, url] of files) previewFiles.set(id.toLowerCase(), url);
+}
+
 /** Wo ein Bild liegt: eine Adresse, oder ein Bild dieser Seite beim Dienst. */
 export function imageUrl(url: string): string {
   const own = /^page-image:([0-9a-f-]{36})$/i.exec(url.trim());
-  return own === null ? url.trim() : `${API}/page-image/${own[1]}`;
+  if (own === null) return url.trim();
+  return previewFiles.get(own[1].toLowerCase()) ?? `${API}/page-image/${own[1]}`;
 }
 
 /* -- Das Thema ------------------------------------------------------------------ */

@@ -267,7 +267,9 @@ const MOTION_KEYS: Readonly<Record<string, string>> = {
   path: 'move — droga: lista punktów [x, y]',
   times: 'move — kiedy w którym punkcie (0–1)',
   keys: 'keys — klatki',
-  length: 'draw poza rysunkiem — długość kreski'
+  length: 'draw poza rysunkiem — długość kreski',
+  /* 2026-10-27 — gelesen seit 2026-10-19 (`motion.ts`), aber hier nicht beschrieben: die Vorschau für Assistenten fand es. */
+  by: '"scene", "enter" albo "leave" — w prezentacji ruch idzie z przewijaniem (postęp sceny, jej przyjścia albo odejścia) zamiast z zegarem'
 };
 
 const KEY_KEYS: Readonly<Record<string, string>> = {

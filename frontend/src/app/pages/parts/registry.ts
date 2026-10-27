@@ -158,6 +158,18 @@ export const PARTS: readonly PartModule[] = [
 const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));
 
 /**
+ * 2026-10-27 — DIE VORSCHAU FÜR ASSISTENTEN (`preview/`) zeichnet eine Art an
+ * ihrer Stelle anders: ein Formular, dessen Fragen erst der Import anlegt, aus
+ * dem Dokument. Ausserhalb der Vorschau ist die Tafel leer.
+ */
+const STAND_INS = new Map<string, PartModule>();
+
+export function standIn(kind: string, def: PartModule | null): void {
+  if (def === null) STAND_INS.delete(kind);
+  else STAND_INS.set(kind, def);
+}
+
+/**
  * Der Baustein zu einem Wort — oder nichts.
  *
  * <b>`undefined` ist ein echter Zustand.</b> Eine Seite kann eine Art tragen,
@@ -165,7 +177,7 @@ const BY_KIND = new Map(PARTS.map((one) => [one.kind, one]));
  * früher entfernt. Sie wird dann NICHT gelöscht und nicht verschwiegen —
  * gezeigt wird, dass dort etwas steht, das hier niemand zeichnen kann.
  */
-export const partOf = (kind: string): PartModule | undefined => BY_KIND.get(kind);
+export const partOf = (kind: string): PartModule | undefined => STAND_INS.get(kind) ?? BY_KIND.get(kind);
 
 /** Der Name einer Art — oder ihr Wort, wenn es sie hier nicht gibt. */
 export const partLabel = (kind: string): string =>

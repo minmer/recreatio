@@ -14,12 +14,13 @@
  * ein Titel ohne Text, der auf einer Bühne sehr wohl etwas ist.
  */
 
-import { useCallback, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { useCallback, useContext, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import type { DraftPart } from '../page';
 import { partSize, text } from '../part';
 import { usePageLogic } from '../pageLogic';
+import { PreviewControlContext } from '../previewControl';
 import { partLabel, partOf } from '../parts/registry';
 import { readPiece, readShow, type TextType } from './presentation';
 import { PresentationView, type ShowPiece } from './PresentationView';
@@ -110,7 +111,9 @@ export function PagePresentation({
   /* Ein Vortrag auf dem ganzen Bildschirm — von der Stelle aus, an der die Seite gerade steht; sie selbst steht solange still. */
   const [presenting, setPresenting] = useState<{ readonly at: number; readonly route: readonly string[] | null } | null>(null);
   const own = useRef<DriveControl | null>(null);
-  const ctl = control ?? own;
+  /* 2026-10-27 — in der Vorschau für Assistenten stellt sie die Bühne (`previewControl.ts`); sonst null. */
+  const preview = useContext(PreviewControlContext);
+  const ctl = control ?? preview?.show ?? own;
   const read = readShow(look.show);
   /*
    * 2026-10-21 — eine Präsentation mit Fragen hat einen Przebieg, auch wenn

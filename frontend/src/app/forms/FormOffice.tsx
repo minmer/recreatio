@@ -549,6 +549,7 @@ export function FormOffice(props: FormOfficeProps) {
           removed={removedFields}
           submissions={submissions}
           opened={opened}
+          stepInfo={isExtension ? null : stepInfo}
           fileName={module?.name ?? conf.title ?? 'zgloszenia'}
           onSave={ring === null ? undefined : saveTable}
           canAdd={!isExtension}

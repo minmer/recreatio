@@ -39,7 +39,8 @@ public static class AiMcp
         "Start with list_collections, read entry types with get_schema, find entries with search_entries (all words; a short reference like \"J 21\" matches as a phrase), " +
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
-        "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", or part by part) and search_text. " +
+        "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
+        "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish.";
 
     public static void AddServices(IServiceCollection services)
@@ -355,7 +356,8 @@ public sealed class AiMcpTools
 
     private const int MaxTextBlocks = 200;
 
-    private static string PagesText(int? from, int? to) => from is null ? "" : to is null || to == from ? $"s. {from}" : $"s. {from}–{to}";
+    /* 2026-10-27 — Seiten einer Serie („12*", „3'") so, wie sie im Buch stehen (`AiAccess.PageWord`). */
+    private static string PagesText(int? from, int? to) => from is not int f ? "" : to is not int t || t == f ? $"s. {AiAccess.PageWord(f)}" : $"s. {AiAccess.PageWord(f)}–{AiAccess.PageWord(t)}";
     private static string? PagesOf(int[]? pages) => pages is { Length: 2 } ? PagesText(pages[0], pages[1]) : null;
 
     /// <summary>Wo der Czytnik der App den Text (an dieser Stelle) aufschlägt — nur für den, der die Bibliothek liest.</summary>
@@ -389,7 +391,7 @@ public sealed class AiMcpTools
     }
 
     [McpServerTool(Name = "read_text", Title = "Czytaj tekst", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Read a full text exactly as transcribed. Either by place (locator) — written as in the work: \"J 21,15\", a whole unit \"J 21\", a range \"J 21,15-17\" or \"I, q. 2, a. 3 - I, q. 2, a. 3, ad 1\", \"nr 24\", \"2.0121\", \"§ 43\", or pages \"s. 45-47\" — or part by part (part key from list_texts, start block, limit). Each block carries its place (place), its own number (loc) and pages; [s. 46] marks a page break, [^3] a footnote reference, word[?] an uncertain reading, […] a gap. Page with nextStart.")]
+    [Description("Read a full text exactly as transcribed. Either by place (locator) — written as in the work: \"J 21,15\", a whole unit \"J 21\", a range \"J 21,15-17\" or \"I, q. 2, a. 3 - I, q. 2, a. 3, ad 1\", \"nr 24\", \"2.0121\", \"§ 43\", or pages \"s. 45-47\" (also pages of a separately numbered part, written as printed: \"s. 12*\", \"s. 3'\", \"s. (7)\", \"s. A12\") — or part by part (part key from list_texts, start block, limit). Each block carries its place (place), its own number (loc) and pages; [s. 46] marks a page break, [^3] a footnote reference, word[?] an uncertain reading, […] a gap. Page with nextStart.")]
     public static async Task<TextReadResult> ReadText(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Text id, or the work's id or citation key.")] string text,

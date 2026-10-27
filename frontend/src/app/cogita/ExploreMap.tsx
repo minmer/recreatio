@@ -21,6 +21,7 @@ import { readPlan } from './revision';
 import { RevisionRun } from './RevisionRun';
 import { fieldsOf, valuesOf } from './schema';
 import { useCtx } from './ui';
+import { cardsAbout } from './prerequisites';
 
 export function ExploreMap({ learner, cards }: { learner: Learner | null; cards: readonly Card[] }) {
   const { lib } = useCtx();
@@ -58,17 +59,18 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   }, [lib, look, lib.revision, kindId]);
 
   const knowness = (id: string) => {
-    const of = cards.filter((c) => c.entity === id);
+    /* 2026-10-27 — auch die Pytania über ihn („O czym”). */
+    const of = cardsAbout(cards, id);
     if (of.length === 0 || learner === null) return 0;
     return average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), Date.now())));
   };
-  const seen = (id: string) => learner !== null && cards.some((c) => c.entity === id && learner.marks(c.key, c.fingerprint).length > 0);
+  const seen = (id: string) => learner !== null && cardsAbout(cards, id).some((c) => learner.marks(c.key, c.fingerprint).length > 0);
   const fog = fogOf(nodes, edges, knowness, seen);
 
   /* Der Plan bleibt derselbe, solange derselbe Eintrag gelernt wird — sonst finge der Lauf bei jedem Bild neu an. */
   const source = useMemo(() => {
     if (learning === null) return null;
-    const of = cards.filter((c) => c.entity === learning);
+    const of = cardsAbout(cards, learning);
     const e = lib.entity(learning);
     return { plan: readPlan(of, null, { mode: 'once', order: 'random' }), cards: of, title: e === undefined ? 'Powtórka' : lib.label(e) };
   }, [learning, cards, lib]);
@@ -113,7 +115,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
       {entity !== undefined && (
         <div className="cg-card">
           <EntityGlance lib={lib} entity={entity} onEntity={setChosen} />
-          {cards.some((c) => c.entity === entity.id) && <button type="button" className="wk-btn" onClick={() => setLearning(entity.id)}>Ucz się tego ({cards.filter((c) => c.entity === entity.id).length} kart)</button>}
+          {cardsAbout(cards, entity.id).length > 0 && <button type="button" className="wk-btn" onClick={() => setLearning(entity.id)}>Ucz się tego ({cardsAbout(cards, entity.id).length} kart)</button>}
         </div>
       )}
     </div>

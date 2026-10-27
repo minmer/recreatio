@@ -224,6 +224,11 @@ function IntakeState({ areaId, areas }: { areaId: string | null; areas: readonly
   );
 }
 
+/**
+ * Die Zależności zwischen einzelnen Einträgen. 2026-10-27: die Reihenfolge des Lernens kommt vor
+ * allem aus den Feldern „Najpierw trzeba znać" der Rodzaje (`prerequisites.ts`) — hier steht, was
+ * dazukommt (und Pogłębia / Daje tło, die nur die Kenntnis weitergeben).
+ */
 function Dependencies({ edges, busy, onSave }: { edges: readonly DependencyEdge[]; busy: boolean; onSave: (e: DependencyEdge[]) => void }) {
   const { lib } = useCtx();
   const [parent, setParent] = useState<string | null>(null);
@@ -233,7 +238,7 @@ function Dependencies({ edges, busy, onSave }: { edges: readonly DependencyEdge[
   return (
     <section className="cg-card">
       <h3>Zależności</h3>
-      <p className="wk-hint">„Najpierw trzeba znać" blokuje karty, dopóki podstawa nie jest opanowana; każda krawędź przekazuje część znajomości (waga) w górę.</p>
+      <p className="wk-hint">Kolejność nauki bierze się przede wszystkim z pól „Najpierw trzeba znać” w rodzajach i pytaniach (Nauka → Ścieżka); tutaj — dodatkowe zależności między pojedynczymi wpisami. „Najpierw trzeba znać" blokuje karty, dopóki podstawa nie jest opanowana; każda krawędź przekazuje część znajomości (waga) w górę.</p>
       <ul>
         {edges.map((d, i) => (
           <li key={`${d.parent}>${d.child}`} className="cg-row">

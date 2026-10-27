@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "app:check": "tsc -p tsconfig.json --noEmit && node scripts/app-urgency-check.mjs && node scripts/app-menu-check.mjs && node scripts/app-chat-check.mjs && node scripts/app-event-check.mjs && node scripts/app-scheme-check.mjs && node scripts/app-json-check.mjs &&node scripts/app-library-check.mjs && node scripts/app-platform-check.mjs && node scripts/app-duty-check.mjs && node scripts/app-seal-check.mjs && node scripts/app-lamp-check.mjs && node scripts/app-presentation-check.mjs && node scripts/app-slides-check.mjs && node scripts/app-motion-check.mjs && node scripts/app-sim-check.mjs && node scripts/app-world-check.mjs && node scripts/app-cogita-check.mjs && node scripts/app-style-check.mjs && node scripts/app-lab-check.mjs && vitest run src/app/lab/particles",
+    "preview:mcp": "node mcp/server.mjs",
+    "app:check": "tsc -p tsconfig.json --noEmit && node scripts/app-urgency-check.mjs && node scripts/app-menu-check.mjs && node scripts/app-chat-check.mjs && node scripts/app-event-check.mjs && node scripts/app-scheme-check.mjs && node scripts/app-json-check.mjs && node scripts/app-preview-check.mjs &&node scripts/app-library-check.mjs && node scripts/app-platform-check.mjs && node scripts/app-duty-check.mjs && node scripts/app-seal-check.mjs && node scripts/app-lamp-check.mjs && node scripts/app-presentation-check.mjs && node scripts/app-slides-check.mjs && node scripts/app-motion-check.mjs && node scripts/app-sim-check.mjs && node scripts/app-world-check.mjs && node scripts/app-cogita-check.mjs && node scripts/app-style-check.mjs && node scripts/app-lab-check.mjs && vitest run src/app/lab/particles",
     "app:style": "node scripts/app-style-check.mjs",
     "android:apk": "node scripts/android-apk.mjs",
     "android:keystore": "node scripts/android-keystore.mjs",
@@ -37,12 +38,14 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/node": "^26.4.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "zod": "^4.6.7"
   }
 }

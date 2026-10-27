@@ -22,7 +22,13 @@
  *
  * <b>Voraussetzungen sperren beim Füllen</b> (COGITA.md A.2): eine Karte kommt
  * erst in den Stapel, wenn ihre Grundlagen sitzen. Liegt sie schon darin, bleibt
- * sie, auch wenn eine Grundlage inzwischen wieder wackelt.
+ * sie, auch wenn eine Grundlage inzwischen wieder wackelt. 2026-10-27: die
+ * Voraussetzungen kommen auch aus den Feldern „Najpierw trzeba znać"
+ * (`prerequisites.ts`); „sitzt" heisst Kenntnis MAL Richtigkeit der letzten
+ * Antwort (`masteryOf` — eine falsche Antwort öffnet nichts); ein Pytanie zählt
+ * für das, was es prüft („O czym"); „Najpierw podstawy" holt die Karten
+ * fehlender Grundlagen dazu; und NEUE Karten kommen in der Reihenfolge der
+ * Ebenen — erst das Allgemeine, dann das Besondere —, auch ohne Sperre.
  *
  * <b>Der Lauf ist eine reine Zustandsmaschine</b>: `start`, dann `answer` je
  * Antwort, jeder Schritt gibt einen neuen Zustand. Der Zufall hat einen Samen
@@ -32,7 +38,8 @@
 
 import { rngOf, shuffle, type Card } from './cardBasics';
 import { evaluate, paletteOf, type Graph, type NodeKind, type Port } from './graph';
-import { average, blockedBy, dueAt, knownessOf, KNOWN, levelOf, propagate, snapshotOf, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
+import { dueAt, knownessOf, KNOWN, levelOf, masteryOf, propagate, snapshotOf, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
+import { cardEntities, cardLevel, entityMastery, prerequisiteGraph, unmetNeeds, withBasics, type PrerequisiteGraph } from './prerequisites';
 import type { TextRule } from './check';
 import { pick, STEP_WORDS, type SelectContext, type Step } from './selection';
 
@@ -57,6 +64,8 @@ export interface RevisionContext {
   readonly from?: (entity: string) => string | undefined;
   /** 2026-10-22 (Schritt 9) — die Auswahl, die ein Widok auch benutzt (`selection.ts`); fehlt sie, lassen die Schritte alles durch. */
   readonly select?: SelectContext;
+  /** 2026-10-27 — die Abhängigkeiten (Ustawienia und Felder „Najpierw trzeba znać") — „Najpierw podstawy" holt damit Grundlagen dazu. */
+  readonly deps?: readonly Dependency[];
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -214,11 +223,13 @@ const UNION: Kind = {
 
 const GATE: Kind = {
   type: 'gate', label: 'Najpierw podstawy', group: 'Zawężenie',
-  says: 'Karta trafia na stos dopiero wtedy, gdy to, co trzeba znać wcześniej, jest już opanowane (od wybranego progu).',
+  says: 'Karta trafia na stos dopiero wtedy, gdy to, co trzeba znać wcześniej („Najpierw trzeba znać” w rodzajach i pytaniach, zależności w Ustawieniach), jest już opanowane (od wybranego progu). Brakujące podstawy dobiera z całej bazy (chyba że „pull”: false).',
   ports: () => ({ inputs: [port('cards', 'Karty', true)], outputs: [port('cards', 'Karty')] }),
-  run: ({ config, inputs }) => {
+  run: ({ config, inputs, ctx }) => {
     const flow = merge(flowsAt(inputs, 'cards'));
-    return { cards: { cards: flow.cards, gate: Math.max(0, num(config.threshold, KNOWN)) } satisfies CardFlow };
+    /* 2026-10-27 — die Karten fehlender Grundlagen dazu: wer Orbitale lernt, beginnt beim Atom. */
+    const cards = config.pull === false || ctx.deps === undefined ? flow.cards : withBasics(flow.cards, ctx.cards, prerequisiteGraph(ctx.deps));
+    return { cards: { cards, gate: Math.max(0, num(config.threshold, KNOWN)) } satisfies CardFlow };
   }
 };
 
@@ -323,49 +334,60 @@ export interface Start {
   readonly levelsBefore?: ReadonlyMap<string, number>;
 }
 
-function knownessMap(cards: readonly Card[], marks: ReadonlyMap<string, readonly Mark[]>, fallback: (key: string) => readonly Mark[], now: number): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const card of cards) out.set(card.key, knownessOf(marks.get(card.key) ?? fallback(card.key), now));
-  return out;
-}
-
-/** Wessen Voraussetzungen noch nicht sitzen — auf Ebene der Einträge, und die Teile eines Zitats. */
-function openGate(card: Card, perCard: ReadonlyMap<string, number>, totals: ReadonlyMap<string, number>, deps: readonly Dependency[], threshold: number): boolean {
-  if (card.requires.some((key) => (perCard.get(key) ?? 0) < threshold)) return false;
-  return card.entity === undefined || blockedBy(card.entity, totals, deps, threshold).length === 0;
-}
-
-interface Gauge {
+export interface Gauge {
+  /** Je Karte, wie sicher sie sitzt (`masteryOf`). */
   readonly perCard: Map<string, number>;
+  /** Je Eintrag: nur seine Karten (und die Pytania über ihn). */
+  readonly own: Map<string, number>;
+  /** Je Eintrag: seine Karten (und die Pytania über ihn), dazu was auf ihm aufbaut (A.3). */
   readonly totals: Map<string, number>;
+  /** Einträge, die eine Karte prüft — nur sie können sperren (`prerequisites.ts`). */
+  readonly askable: ReadonlySet<string>;
 }
 
-function gauge(all: readonly Card[], marks: ReadonlyMap<string, readonly Mark[]>, fallback: (key: string) => readonly Mark[], deps: readonly Dependency[], now: number): Gauge {
-  const perCard = knownessMap(all, marks, fallback, now);
-  const byEntity = new Map<string, number[]>();
-  for (const card of all) {
-    if (card.entity === undefined) continue;
-    byEntity.set(card.entity, [...(byEntity.get(card.entity) ?? []), perCard.get(card.key) ?? 0]);
-  }
-  const own = new Map<string, number>();
-  for (const [entity, values] of byEntity) own.set(entity, average(values));
-  return { perCard, totals: propagate(own, deps) };
+/**
+ * WIE SICHER ES SITZT, je Karte und je Eintrag — für die Sperre und die Ścieżka. 2026-10-27:
+ * Kenntnis mal Richtigkeit der letzten Antwort; ein Pytanie zählt auch für „O czym".
+ */
+export function gauge(all: readonly Card[], marks: (key: string) => readonly Mark[], deps: readonly Dependency[], now: number): Gauge {
+  const perCard = new Map<string, number>();
+  for (const card of all) perCard.set(card.key, masteryOf(marks(card.key), now));
+  const own = entityMastery(all, (card) => perCard.get(card.key) ?? 0);
+  return { perCard, own, totals: propagate(own, deps), askable: new Set(own.keys()) };
+}
+
+/** Was vor einer Karte noch nicht sitzt — die Teile eines Zitats und die Grundlagen ihrer Einträge. */
+export function closedBy(card: Card, g: Gauge, graph: PrerequisiteGraph, threshold: number): string[] {
+  const parts = card.requires.filter((key) => (g.perCard.get(key) ?? 0) < threshold);
+  const needs = unmetNeeds(cardEntities(card), (id) => g.totals.get(id) ?? 0, graph, threshold, (id) => g.askable.has(id));
+  return [...parts, ...needs];
 }
 
 interface Internal extends Session {
   readonly all: readonly Card[];
   readonly fallback: (key: string) => readonly Mark[];
   readonly deps: readonly Dependency[];
+  /** 2026-10-27 — die Voraussetzungen als Graph: Sperre und Reihenfolge der neuen Karten. */
+  readonly graph: PrerequisiteGraph;
 }
 
 const rngAt = (seed: string, step: number) => rngOf(`${seed}#${step}`);
 
-function eligible(s: Pick<Internal, 'plan' | 'all' | 'marks' | 'fallback' | 'deps'>, now: number): Card[] {
+const marksIn = (s: Pick<Internal, 'marks' | 'fallback'>) => (key: string): readonly Mark[] => s.marks.get(key) ?? s.fallback(key);
+
+function eligible(s: Pick<Internal, 'plan' | 'all' | 'marks' | 'fallback' | 'deps' | 'graph'>, now: number): Card[] {
   const unique = s.plan.cards.filter((c, i, all) => all.findIndex((o) => o.key === c.key) === i);
   if (s.plan.gate === null) return unique;
-  const g = gauge(s.all, s.marks, s.fallback, s.deps, now);
-  return unique.filter((c) => openGate(c, g.perCard, g.totals, s.deps, s.plan.gate!));
+  const g = gauge(s.all, marksIn(s), s.deps, now);
+  return unique.filter((c) => closedBy(c, g, s.graph, s.plan.gate!).length === 0);
 }
+
+/** 2026-10-27 — erst das Allgemeine: nach der Ebene, sonst wie gegeben (ohne Graph ändert sich nichts). */
+const byLevel = (keys: readonly string[], s: Pick<Internal, 'all' | 'plan' | 'graph'>): string[] => {
+  if (s.graph.edges.length === 0) return [...keys];
+  const level = (key: string) => { const c = s.all.find((x) => x.key === key) ?? s.plan.cards.find((x) => x.key === key); return c === undefined ? 0 : cardLevel(c, s.graph); };
+  return keys.map((key) => ({ key, l: level(key) })).sort((a, b) => a.l - b.l).map((x) => x.key);
+};
 
 /** Füllt den Stapel nach der Kenntnis: erst was unter 1 liegt (das Schwächste zuerst), dann das nie Gefragte. */
 function fillTemporal(s: Internal, active: readonly string[], now: number, rng: () => number): string[] {
@@ -381,7 +403,7 @@ function fillTemporal(s: Internal, active: readonly string[], now: number, rng: 
     if (k < KNOWN) weak.push({ key: card.key, k, tie: rng() });
   }
   weak.sort((a, b) => a.k - b.k || a.tie - b.tie);
-  for (const one of [...weak.map((w) => w.key), ...shuffle(fresh, rng)]) {
+  for (const one of [...weak.map((w) => w.key), ...byLevel(shuffle(fresh, rng), s)]) {
     if (out.length >= s.plan.stackSize) break;
     out.push(one);
   }
@@ -399,8 +421,8 @@ function fillLevels(s: Internal, active: readonly string[], levels: ReadonlyMap<
   const taken = new Set(out);
   const pool = eligible(s, now).filter((c) => !taken.has(c.key) && !(asked.has(c.key) && (levels.get(c.key) ?? 1) >= s.plan.levels));
   const ranked = pool
-    .map((c) => ({ key: c.key, level: levels.get(c.key) ?? 1, asked: asked.has(c.key) ? 1 : 0, tie: rng() }))
-    .sort((a, b) => a.level - b.level || a.asked - b.asked || a.tie - b.tie);
+    .map((c) => ({ key: c.key, level: levels.get(c.key) ?? 1, asked: asked.has(c.key) ? 1 : 0, tie: rng(), basic: cardLevel(c, s.graph) }))
+    .sort((a, b) => a.level - b.level || a.asked - b.asked || a.basic - b.basic || a.tie - b.tie);
   for (const one of ranked) {
     if (out.length >= s.plan.stackSize) break;
     out.push(one.key);
@@ -408,13 +430,29 @@ function fillLevels(s: Internal, active: readonly string[], levels: ReadonlyMap<
   return out;
 }
 
-/** Die nächste Karte aus dem Stapel — nicht dieselbe wie eben, wenn es eine andere gibt. */
-function pickFrom(active: readonly string[], previous: string | null, rng: () => number): string | null {
+/**
+ * Die nächste Karte aus dem Stapel — nicht dieselbe wie eben, wenn es eine andere gibt. 2026-10-27:
+ * hat die Baza eine Reihenfolge des Lernens, zuerst eine der niedrigsten Ebene (das Allgemeine vor
+ * dem Besonderen, auch im Stapel); sonst wie bisher irgendeine.
+ */
+function pickFrom(active: readonly string[], previous: string | null, rng: () => number, level?: (key: string) => number): string | null {
   if (active.length === 0) return null;
   const others = active.filter((k) => k !== previous);
-  const from = others.length > 0 ? others : active;
+  let from = others.length > 0 ? others : active;
+  if (level !== undefined) {
+    const low = Math.min(...from.map(level));
+    from = from.filter((k) => level(k) === low);
+  }
   return from[Math.floor(rng() * from.length)];
 }
+
+/** Die Ebene einer Karte im Stapel — nur, wenn es eine Reihenfolge gibt. */
+const levelIn = (s: Pick<Internal, 'all' | 'plan' | 'graph'>): ((key: string) => number) | undefined => {
+  if (s.graph.edges.length === 0) return undefined;
+  const at = new Map<string, number>();
+  for (const c of [...s.plan.cards, ...s.all]) if (!at.has(c.key)) at.set(c.key, cardLevel(c, s.graph));
+  return (key) => at.get(key) ?? 0;
+};
 
 const seal = (s: Internal): Session => s;
 
@@ -432,13 +470,19 @@ export function start(input: Start): Session {
     current: null,
     all: input.all,
     fallback: input.marks,
-    deps: input.deps
+    deps: input.deps,
+    graph: prerequisiteGraph(input.deps)
   };
   const rng = rngAt(input.seed, 0);
 
   if (input.plan.mode === 'random' || input.plan.mode === 'once') {
     let cards = eligible(base, input.now);
     if (input.plan.order === 'random') cards = shuffle(cards, rng);
+    /* 2026-10-27 — mit „Najpierw podstawy": auch eine feste Folge beginnt beim Allgemeinen. */
+    if (input.plan.gate !== null && input.plan.order !== 'given') {
+      const order = byLevel(cards.map((c) => c.key), base);
+      cards = order.map((key) => cards.find((c) => c.key === key)!);
+    }
     else if (input.plan.order === 'due') {
       const dueOf = (c: Card) => dueAt(input.marks(c.key)) ?? Number.NEGATIVE_INFINITY;
       cards = cards.slice().sort((a, b) => dueOf(a) - dueOf(b));
@@ -450,7 +494,7 @@ export function start(input: Start): Session {
   const active = input.plan.mode === 'levels'
     ? fillLevels(base, [], base.levels, base.asked, input.now, rng)
     : fillTemporal(base, [], input.now, rng);
-  return seal({ ...base, active, current: pickFrom(active, null, rng) });
+  return seal({ ...base, active, current: pickFrom(active, null, rng, levelIn(base)) });
 }
 
 export interface Answered {
@@ -497,7 +541,7 @@ export function answer(session: Session, correctness: number, at: number): Answe
     }
     const kept = good ? s.active.filter((k) => k !== key) : s.active.slice();
     const active = good ? fillLevels({ ...next, levels, wrongSinceCorrect: wrong }, kept, levels, asked, at, rng) : kept;
-    return { session: seal({ ...next, levels, wrongSinceCorrect: wrong, active, current: pickFrom(active, key, rng) }), snapshot };
+    return { session: seal({ ...next, levels, wrongSinceCorrect: wrong, active, current: pickFrom(active, key, rng, levelIn(next)) }), snapshot };
   }
 
   /*
@@ -510,7 +554,27 @@ export function answer(session: Session, correctness: number, at: number): Answe
   const good = correctness >= s.plan.minCorrectness - 1e-9;
   const kept = good ? s.active.filter((k) => k !== key) : s.active.slice();
   const active = fillTemporal(next, kept, at, rng);
-  return { session: seal({ ...next, active, current: pickFrom(active, key, rng) }), snapshot };
+  return { session: seal({ ...next, active, current: pickFrom(active, key, rng, levelIn(next)) }), snapshot };
+}
+
+/**
+ * 2026-10-27 — WAS NOCH AUF GRUNDLAGEN WARTET: Karten des Plans, die nicht gefragt wurden, weil vor
+ * ihnen etwas noch nicht sitzt — und was das ist (das Häufigste zuerst). Für das Ende eines Laufs.
+ */
+export function heldBack(session: Session, now: number): { readonly cards: number; readonly needs: readonly string[] } {
+  const s = session as Internal;
+  if (s.plan.gate === null || s.graph === undefined) return { cards: 0, needs: [] };
+  const g = gauge(s.all, marksIn(s), s.deps, now);
+  const count = new Map<string, number>();
+  let cards = 0;
+  for (const card of s.plan.cards) {
+    if (s.asked.has(card.key)) continue;
+    const by = closedBy(card, g, s.graph, s.plan.gate);
+    if (by.length === 0) continue;
+    cards += 1;
+    for (const id of by) count.set(id, (count.get(id) ?? 0) + 1);
+  }
+  return { cards, needs: [...count].sort((a, b) => b[1] - a[1]).map(([id]) => id) };
 }
 
 /** Wie weit der Lauf ist. `total` gibt es nur bei fester Folge. */

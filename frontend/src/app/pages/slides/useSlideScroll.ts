@@ -5,7 +5,9 @@
  * zu schreiben hiesse, jede dieser Runden noch einmal zu drehen. Neu ist nur
  * `keyboard`: in der Vorschau des Editors gehören die Pfeiltasten der Seite —
  * und (2026-10-25) „Staying put": ändern sich die Masse, während nichts die Bahn
- * bewegt, bleibt der Leser auf seinem Slajd, statt mitten im Wechsel zu stehen.
+ * bewegt, bleibt der Leser auf seinem Slajd, statt mitten im Wechsel zu stehen —
+ * und (2026-10-27) „Held": die Vorschau für Assistenten stellt die Bahn auf eine
+ * genaue Stelle, um sie abzubilden.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -315,6 +317,8 @@ export function useSlideScroll(slideCount: number, options: { readonly keyboard?
   const armedRef = useRef(true);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
+  /** 2026-10-27 — where the preview holds the track (`hold`); `null`: it does not. */
+  const heldRef = useRef<number | null>(null);
   const interpolationRef = useRef(TRACK_INTERPOLATION);
   const touchYRef = useRef<number | null>(null);
   /** Where the finger went down, so a gesture's direction can be judged. */
@@ -465,6 +469,8 @@ export function useSlideScroll(slideCount: number, options: { readonly keyboard?
     const changed = measuresRef.current !== measures;
     measuresRef.current = measures;
     if (geometry.length === 0) return;
+    // 2026-10-27 — held by the preview: the place is exactly where it was put.
+    if (heldRef.current !== null) return;
 
     const tween = tweenRef.current;
     if (changed && tween !== null) {
@@ -1056,8 +1062,32 @@ export function useSlideScroll(slideCount: number, options: { readonly keyboard?
     setPosition(0);
   }, [cancelResolveTimer, stopSettle]);
 
+  // ── Held (2026-10-27) ─────────────────────────────────────────────────────
+
+  /**
+   * The preview for assistants (`preview/`) stands the track at an exact place —
+   * also in the middle of a change — to take a picture of it. Nothing moves it on
+   * ("Staying put" included) until it lets go with `null`.
+   */
+  const hold = useCallback((at: number | null) => {
+    heldRef.current = at === null ? null : clamp(at, 0, maxScrollRef.current);
+    if (heldRef.current === null) return;
+    stopSettle();
+    cancelResolveTimer();
+    peekRef.current = null;
+    pullRef.current = null;
+    tweenRef.current = null;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    positionRef.current = heldRef.current;
+    targetRef.current = heldRef.current;
+    setPosition(heldRef.current);
+  }, [cancelResolveTimer, stopSettle]);
+
   useEffect(() => {
-    if (targetRef.current > maxScroll) setTarget(maxScroll);
+    if (heldRef.current === null && targetRef.current > maxScroll) setTarget(maxScroll);
   }, [maxScroll, setTarget]);
 
   // ── Input ─────────────────────────────────────────────────────────────────
@@ -1291,6 +1321,7 @@ export function useSlideScroll(slideCount: number, options: { readonly keyboard?
     interacted,
     activeIndex,
     scrollToSlide,
-    scrollToTop
+    scrollToTop,
+    hold
   };
 }

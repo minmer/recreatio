@@ -1,0 +1,877 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Pytania — jeden schemat, wiele rodzajów pytań",
+  "kinds": [
+    {
+      "ref": "@pytania/pytanie",
+      "builtin": "question",
+      "name": "Pytanie",
+      "label": "{prompt}",
+      "tells": "form",
+      "system": "question",
+      "fields": [
+        {
+          "key": "form",
+          "label": "Rodzaj pytania",
+          "type": "choice",
+          "options": [
+            {
+              "value": "text",
+              "label": "Odpowiedź słowami"
+            },
+            {
+              "value": "number",
+              "label": "Liczba"
+            },
+            {
+              "value": "date",
+              "label": "Data"
+            },
+            {
+              "value": "gap",
+              "label": "Luka w tekście"
+            },
+            {
+              "value": "one",
+              "label": "Jedna z kilku"
+            },
+            {
+              "value": "many",
+              "label": "Kilka z kilku"
+            },
+            {
+              "value": "truefalse",
+              "label": "Prawda czy fałsz"
+            },
+            {
+              "value": "match",
+              "label": "Połącz w pary"
+            },
+            {
+              "value": "order",
+              "label": "Ułóż w kolejności"
+            },
+            {
+              "value": "flash",
+              "label": "Fiszka (sam oceniasz)"
+            },
+            {
+              "value": "point",
+              "label": "Miejsce na mapie"
+            },
+            {
+              "value": "code",
+              "label": "Kod (Python)"
+            },
+            {
+              "value": "interactive",
+              "label": "Rysunek do poruszania"
+            }
+          ],
+          "says": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: text (Odpowiedź słowami), number (Liczba), date (Data), gap (Luka w tekście), one (Jedna z kilku), many (Kilka z kilku), truefalse (Prawda czy fałsz), match (Połącz w pary), order (Ułóż w kolejności), flash (Fiszka (sam oceniasz)), point (Miejsce na mapie), code (Kod (Python)), interactive (Rysunek do poruszania)"
+        },
+        {
+          "key": "prompt",
+          "label": "Pytanie",
+          "type": "markup",
+          "says": "Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]]"
+        },
+        {
+          "key": "answers",
+          "label": "Poprawne odpowiedzi",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "text",
+              "number",
+              "date",
+              "gap"
+            ]
+          },
+          "says": "Przyjmowane odpowiedzi (text, number, date, gap) — pierwsza jest wzorcowa"
+        },
+        {
+          "key": "options",
+          "label": "Do wyboru",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "one",
+              "many"
+            ]
+          },
+          "says": "Możliwości (one, many)"
+        },
+        {
+          "key": "correct",
+          "label": "Które są dobre",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "one",
+              "many"
+            ]
+          },
+          "says": "Numery dobrych możliwości, od 0 (one, many)"
+        },
+        {
+          "key": "value",
+          "label": "Prawda?",
+          "type": "bool",
+          "when": {
+            "field": "form",
+            "values": [
+              "truefalse"
+            ]
+          },
+          "says": "Czy zdanie jest prawdziwe (truefalse)"
+        },
+        {
+          "key": "left",
+          "label": "Lewa strona",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "match"
+            ]
+          },
+          "says": "Lewa strona par, np. lata (match)"
+        },
+        {
+          "key": "right",
+          "label": "Prawa strona",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "match"
+            ]
+          },
+          "says": "Prawa strona par, w tej samej kolejności, np. wydarzenia (match)"
+        },
+        {
+          "key": "leftLabel",
+          "label": "Nagłówek lewej strony",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "match"
+            ]
+          },
+          "says": "Nad lewą kolumną karty, np. „Rok” (match)"
+        },
+        {
+          "key": "rightLabel",
+          "label": "Nagłówek prawej strony",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "match"
+            ]
+          },
+          "says": "Nad prawą kolumną karty, np. „Wydarzenie” (match)"
+        },
+        {
+          "key": "show",
+          "label": "Ile par naraz",
+          "type": "number",
+          "when": {
+            "field": "form",
+            "values": [
+              "match"
+            ]
+          },
+          "says": "Długa lista: tyle par na jednej karcie (2–12) — każda para ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne pary; puste: wszystkie pary na jednej karcie (match)"
+        },
+        {
+          "key": "items",
+          "label": "W dobrej kolejności",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "order"
+            ]
+          },
+          "says": "Elementy w poprawnej kolejności (order)"
+        },
+        {
+          "key": "back",
+          "label": "Odwrotna strona",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "flash"
+            ]
+          },
+          "says": "Co jest na odwrocie fiszki (flash)"
+        },
+        {
+          "key": "tolerance",
+          "label": "Tolerancja",
+          "type": "number",
+          "when": {
+            "field": "form",
+            "values": [
+              "number",
+              "date"
+            ]
+          },
+          "says": "Ile wolno się pomylić (liczba; data — w jednostkach dokładności)"
+        },
+        {
+          "key": "relative",
+          "label": "Tolerancja względna",
+          "type": "bool",
+          "when": {
+            "field": "form",
+            "values": [
+              "number"
+            ]
+          },
+          "says": "Tolerancja jako ułamek wartości (liczba)"
+        },
+        {
+          "key": "unit",
+          "label": "Jednostka",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "number"
+            ]
+          },
+          "says": "Jednostka liczby"
+        },
+        {
+          "key": "quantity",
+          "label": "Wielkość",
+          "type": "choice",
+          "options": [
+            {
+              "value": "Dimensionless",
+              "label": "bez wymiaru"
+            },
+            {
+              "value": "PlaneAngle",
+              "label": "kąt"
+            },
+            {
+              "value": "Length",
+              "label": "długość"
+            },
+            {
+              "value": "Area",
+              "label": "pole powierzchni"
+            },
+            {
+              "value": "Volume",
+              "label": "objętość"
+            },
+            {
+              "value": "Mass",
+              "label": "masa"
+            },
+            {
+              "value": "Time",
+              "label": "czas"
+            },
+            {
+              "value": "Frequency",
+              "label": "częstotliwość"
+            },
+            {
+              "value": "AngularVelocity",
+              "label": "prędkość kątowa"
+            },
+            {
+              "value": "Velocity",
+              "label": "prędkość"
+            },
+            {
+              "value": "Acceleration",
+              "label": "przyspieszenie"
+            },
+            {
+              "value": "Force",
+              "label": "siła"
+            },
+            {
+              "value": "Momentum",
+              "label": "pęd"
+            },
+            {
+              "value": "Energy",
+              "label": "energia (praca, ciepło)"
+            },
+            {
+              "value": "Torque",
+              "label": "moment siły"
+            },
+            {
+              "value": "Power",
+              "label": "moc"
+            },
+            {
+              "value": "Pressure",
+              "label": "ciśnienie"
+            },
+            {
+              "value": "ThermodynamicTemperature",
+              "label": "temperatura"
+            },
+            {
+              "value": "Density",
+              "label": "gęstość"
+            },
+            {
+              "value": "DynamicViscosity",
+              "label": "lepkość dynamiczna"
+            },
+            {
+              "value": "KinematicViscosity",
+              "label": "lepkość kinematyczna"
+            },
+            {
+              "value": "SpecificEnergy",
+              "label": "energia właściwa (entalpia na kilogram)"
+            },
+            {
+              "value": "SpecificHeatCapacity",
+              "label": "ciepło właściwe"
+            },
+            {
+              "value": "ThermalConductivity",
+              "label": "przewodność cieplna"
+            },
+            {
+              "value": "ElectricCurrent",
+              "label": "natężenie prądu"
+            },
+            {
+              "value": "ElectricCharge",
+              "label": "ładunek elektryczny"
+            },
+            {
+              "value": "Voltage",
+              "label": "napięcie"
+            },
+            {
+              "value": "Resistance",
+              "label": "opór elektryczny"
+            },
+            {
+              "value": "Capacitance",
+              "label": "pojemność elektryczna"
+            },
+            {
+              "value": "AmountOfSubstance",
+              "label": "liczność materii"
+            },
+            {
+              "value": "AmountOfSubstanceConcentration",
+              "label": "stężenie molowe"
+            },
+            {
+              "value": "MolarMass",
+              "label": "masa molowa"
+            },
+            {
+              "value": "LuminousIntensity",
+              "label": "światłość"
+            }
+          ],
+          "when": {
+            "field": "form",
+            "values": [
+              "number"
+            ]
+          },
+          "says": "Jaka wielkość (number): Torque, Energy, Mass, Length … — wtedy odpowiedź może mieć inną jednostkę tej wielkości (przeliczana), a jednostka innej wielkości jest błędem (12 J na pytanie o moment siły)"
+        },
+        {
+          "key": "precision",
+          "label": "Dokładność daty",
+          "type": "choice",
+          "options": [
+            {
+              "value": "year",
+              "label": "rok"
+            },
+            {
+              "value": "month",
+              "label": "miesiąc"
+            },
+            {
+              "value": "day",
+              "label": "dzień"
+            }
+          ],
+          "when": {
+            "field": "form",
+            "values": [
+              "date"
+            ]
+          },
+          "says": "year, month albo day"
+        },
+        {
+          "key": "task",
+          "label": "Zadanie",
+          "type": "text",
+          "when": {
+            "field": "form",
+            "values": [
+              "code"
+            ]
+          },
+          "says": "Opis zadania (code)"
+        },
+        {
+          "key": "starter",
+          "label": "Początek kodu",
+          "type": "text",
+          "when": {
+            "field": "form",
+            "values": [
+              "code"
+            ]
+          },
+          "says": "Kod na start, z def transform(x): (code)"
+        },
+        {
+          "key": "createInput",
+          "label": "Dane testowe",
+          "type": "text",
+          "when": {
+            "field": "form",
+            "values": [
+              "code"
+            ]
+          },
+          "says": "def create_input(seed): … — dane do sprawdzenia (code)"
+        },
+        {
+          "key": "reference",
+          "label": "Rozwiązanie wzorcowe",
+          "type": "text",
+          "when": {
+            "field": "form",
+            "values": [
+              "code"
+            ]
+          },
+          "says": "def reference(x): … — wynik, z którym porównuje się kod (code)"
+        },
+        {
+          "key": "cases",
+          "label": "Ile przypadków",
+          "type": "number",
+          "when": {
+            "field": "form",
+            "values": [
+              "code"
+            ]
+          },
+          "says": "Na ilu danych sprawdzić (code)"
+        },
+        {
+          "key": "place",
+          "label": "Miejsce",
+          "type": "geo",
+          "when": {
+            "field": "form",
+            "values": [
+              "point"
+            ]
+          },
+          "says": "Szukany punkt: {\"lat\": …, \"lon\": …} (point)"
+        },
+        {
+          "key": "radius",
+          "label": "Promień (m)",
+          "type": "number",
+          "when": {
+            "field": "form",
+            "values": [
+              "point"
+            ]
+          },
+          "says": "Jak blisko trzeba trafić, w metrach (point)"
+        },
+        {
+          "key": "drawing",
+          "label": "Rysunek (JSON)",
+          "type": "text",
+          "when": {
+            "field": "form",
+            "values": [
+              "interactive"
+            ]
+          },
+          "says": "Rysunek do poruszania — ten sam JSON co w module „Animacja” strony: vars, sim, controls, rules (z \"goal\": true — cel), world (rzeczy do budowania, np. waga), elements (interactive)"
+        },
+        {
+          "key": "goal",
+          "label": "Cel (wyrażenie)",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "interactive"
+            ]
+          },
+          "says": "Kiedy odpowiedź jest dobra, np. \"abs(x - cel) < 0.5 && y <= 0\" — liczone w symulacji do końca; puste: reguły rysunku z \"goal\": true (interactive)"
+        },
+        {
+          "key": "solution",
+          "label": "Rozwiązanie",
+          "type": "line",
+          "when": {
+            "field": "form",
+            "values": [
+              "interactive"
+            ]
+          },
+          "says": "Wartości, które rozwiązują zadanie, np. \"kat = 45; v0 = 12\" albo własności rzeczy \"w2.pos = 5\" — pokazywane po złej odpowiedzi; puste: \"task.solve\" rysunku (interactive)"
+        },
+        {
+          "key": "explain",
+          "label": "Wyjaśnienie",
+          "type": "ref",
+          "multi": true,
+          "says": "Wpisy pokazywane po odpowiedzi (np. wypowiedź z treścią w blokach)"
+        },
+        {
+          "key": "about",
+          "label": "O czym",
+          "type": "ref",
+          "multi": true,
+          "inverse": "pytania",
+          "says": "Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi"
+        },
+        {
+          "key": "needs",
+          "label": "Najpierw trzeba znać",
+          "type": "ref",
+          "multi": true,
+          "inverse": "Trzeba znać przed pytaniem",
+          "prerequisite": "up",
+          "says": "Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)"
+        }
+      ]
+    }
+  ],
+  "forms": [
+    {
+      "ref": "@pytania/f-prawda-falsz",
+      "name": "Prawda czy fałsz — wiele naraz",
+      "says": "W każdym wierszu zdanie i „prawda” albo „fałsz”, np. „Atom jest niepodzielny | fałsz”. Na początek można wybrać, o czym są (np. pojęcie) — pytania liczą się wtedy do jego znajomości i czekają na to, co trzeba znać przed nim.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "o",
+            "type": "pick",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "label": "O czym (dla wszystkich wierszy)",
+              "kinds": [],
+              "many": true,
+              "optional": true,
+              "value": []
+            }
+          },
+          {
+            "id": "q",
+            "type": "entry",
+            "x": 320,
+            "y": 0,
+            "config": {
+              "kind": "question",
+              "label": "Pytanie",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "prompt"
+              ],
+              "fields": {
+                "form": {
+                  "from": "fixed",
+                  "value": "truefalse"
+                },
+                "prompt": {
+                  "from": "type"
+                },
+                "value": {
+                  "from": "type"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "o",
+            "out": "out",
+            "to": "q",
+            "in": "about"
+          }
+        ]
+      },
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    },
+    {
+      "ref": "@pytania/f-slowami",
+      "name": "Pytania z odpowiedzią słowami — wiele naraz",
+      "says": "W każdym wierszu pytanie i dobra odpowiedź; kilka dobrych oddziela „;”, np. „Ile protonów ma atom węgla? | 6; sześć”.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "o",
+            "type": "pick",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "label": "O czym (dla wszystkich wierszy)",
+              "kinds": [],
+              "many": true,
+              "optional": true,
+              "value": []
+            }
+          },
+          {
+            "id": "q",
+            "type": "entry",
+            "x": 320,
+            "y": 0,
+            "config": {
+              "kind": "question",
+              "label": "Pytanie",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "prompt"
+              ],
+              "fields": {
+                "form": {
+                  "from": "fixed",
+                  "value": "text"
+                },
+                "prompt": {
+                  "from": "type"
+                },
+                "answers": {
+                  "from": "type"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "o",
+            "out": "out",
+            "to": "q",
+            "in": "about"
+          }
+        ]
+      },
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    },
+    {
+      "ref": "@pytania/f-jedna",
+      "name": "Jedna z kilku — wiele naraz (pierwsza możliwość jest dobra)",
+      "says": "W każdym wierszu pytanie i możliwości oddzielone „;” — PIERWSZA jest dobra (na karcie i tak się mieszają), np. „Co jest w jądrze atomu? | protony i neutrony; elektrony; fotony”.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "o",
+            "type": "pick",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "label": "O czym (dla wszystkich wierszy)",
+              "kinds": [],
+              "many": true,
+              "optional": true,
+              "value": []
+            }
+          },
+          {
+            "id": "q",
+            "type": "entry",
+            "x": 320,
+            "y": 0,
+            "config": {
+              "kind": "question",
+              "label": "Pytanie",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "prompt"
+              ],
+              "fields": {
+                "form": {
+                  "from": "fixed",
+                  "value": "one"
+                },
+                "prompt": {
+                  "from": "type"
+                },
+                "options": {
+                  "from": "type"
+                },
+                "correct": {
+                  "from": "fixed",
+                  "value": "0"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "o",
+            "out": "out",
+            "to": "q",
+            "in": "about"
+          }
+        ]
+      },
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    },
+    {
+      "ref": "@pytania/f-fiszki",
+      "name": "Fiszki — wiele naraz",
+      "says": "W każdym wierszu przód i odwrotna strona, np. „Izotop | atom tego samego pierwiastka o innej liczbie neutronów”.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "o",
+            "type": "pick",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "label": "O czym (dla wszystkich wierszy)",
+              "kinds": [],
+              "many": true,
+              "optional": true,
+              "value": []
+            }
+          },
+          {
+            "id": "q",
+            "type": "entry",
+            "x": 320,
+            "y": 0,
+            "config": {
+              "kind": "question",
+              "label": "Pytanie",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "prompt"
+              ],
+              "fields": {
+                "form": {
+                  "from": "fixed",
+                  "value": "flash"
+                },
+                "prompt": {
+                  "from": "type"
+                },
+                "back": {
+                  "from": "type"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "o",
+            "out": "out",
+            "to": "q",
+            "in": "about"
+          }
+        ]
+      },
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    }
+  ],
+  "views": [
+    {
+      "ref": "@pytania/w-rodzaj",
+      "name": "Pytania według rodzaju",
+      "mode": "tree",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "question"
+          }
+        }
+      ],
+      "group": {
+        "by": "field",
+        "field": "form"
+      },
+      "query": "",
+      "columns": [
+        "prompt",
+        "form",
+        "about"
+      ],
+      "positions": {}
+    }
+  ]
+}

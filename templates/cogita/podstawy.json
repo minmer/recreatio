@@ -1,0 +1,521 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Pojęcia z kolejnością nauki — od podstaw do szczegółów",
+  "kinds": [
+    {
+      "ref": "@podstawy/pojecie",
+      "name": "Pojęcie",
+      "label": "{nazwa}",
+      "tells": "dziedzina",
+      "fields": [
+        {
+          "key": "nazwa",
+          "label": "Nazwa",
+          "type": "line",
+          "says": "Jak się nazywa pojęcie: „Atom”, „Orbital”, „Liczba atomowa”."
+        },
+        {
+          "key": "czym",
+          "label": "Czym jest",
+          "type": "markup",
+          "says": "Jedno–dwa zdania: czym jest to pojęcie — tak, żeby zrozumiał je ktoś, kto zna już to, czego ono wymaga."
+        },
+        {
+          "key": "wymaga",
+          "label": "Wymaga",
+          "type": "ref",
+          "to": [
+            "@podstawy/pojecie"
+          ],
+          "multi": true,
+          "prerequisite": "up",
+          "inverse": "Na tym budują",
+          "says": "Pojęcia, które trzeba znać WCZEŚNIEJ, żeby zrozumieć to (orbital wymaga powłoki elektronowej; elektron wymaga atomu). Tylko bezpośrednie — dalsze wynikają same. Puste: pojęcie podstawowe. Z tego pola aplikacja liczy poziomy od podstaw: karty pojęcia przychodzą, gdy umiesz to, czego ono wymaga."
+        },
+        {
+          "key": "dziedzina",
+          "label": "Dziedzina",
+          "type": "line",
+          "says": "Np. „Chemia”, „Fizyka” — odróżnia pojęcia o tej samej nazwie."
+        },
+        {
+          "key": "przyklad",
+          "label": "Przykład",
+          "type": "text",
+          "says": "Przykład albo ilustracja (nieobowiązkowo)."
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "ref": "@podstawy/t-czym",
+      "name": "Czym jest pojęcie? (fiszka)",
+      "kinds": [
+        "@podstawy/pojecie"
+      ],
+      "direction": "nazwa→czym",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n2",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Czym jest: {0}?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n3",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n4",
+            "type": "field",
+            "x": 0,
+            "y": 140,
+            "config": {
+              "key": "czym"
+            }
+          },
+          {
+            "id": "n5",
+            "type": "answer.flash",
+            "x": 460,
+            "y": 140,
+            "config": {}
+          },
+          {
+            "id": "n6",
+            "type": "card",
+            "x": 690,
+            "y": 60,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "n1",
+            "out": "entities",
+            "to": "n2",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "n2",
+            "out": "text",
+            "to": "n3",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "n4",
+            "out": "values",
+            "to": "n5",
+            "in": "back"
+          },
+          {
+            "id": "e4",
+            "from": "n3",
+            "out": "prompt",
+            "to": "n6",
+            "in": "prompt"
+          },
+          {
+            "id": "e5",
+            "from": "n5",
+            "out": "answer",
+            "to": "n6",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@podstawy/t-nazwa",
+      "name": "Jakie to pojęcie? (wpisz nazwę)",
+      "kinds": [
+        "@podstawy/pojecie"
+      ],
+      "direction": "czym→nazwa",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "czym"
+            }
+          },
+          {
+            "id": "n7",
+            "type": "when",
+            "x": 115,
+            "y": 60,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Jakie to pojęcie: {0}",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n3",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n4",
+            "type": "field",
+            "x": 0,
+            "y": 140,
+            "config": {
+              "key": "nazwa"
+            }
+          },
+          {
+            "id": "n5",
+            "type": "answer.text",
+            "x": 460,
+            "y": 140,
+            "config": {}
+          },
+          {
+            "id": "n6",
+            "type": "card",
+            "x": 690,
+            "y": 60,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "n1",
+            "out": "values",
+            "to": "n7",
+            "in": "items"
+          },
+          {
+            "id": "e6",
+            "from": "n7",
+            "out": "items",
+            "to": "n2",
+            "in": "p0"
+          },
+          {
+            "id": "e2",
+            "from": "n2",
+            "out": "text",
+            "to": "n3",
+            "in": "parts"
+          },
+          {
+            "id": "e3",
+            "from": "n4",
+            "out": "values",
+            "to": "n5",
+            "in": "expected"
+          },
+          {
+            "id": "e4",
+            "from": "n3",
+            "out": "prompt",
+            "to": "n6",
+            "in": "prompt"
+          },
+          {
+            "id": "e5",
+            "from": "n5",
+            "out": "answer",
+            "to": "n6",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@podstawy/t-pary",
+      "name": "Pojęcia i ich znaczenie — połącz w pary",
+      "kinds": [
+        "@podstawy/pojecie"
+      ],
+      "direction": "nazwa↔czym",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n2",
+            "type": "entries",
+            "x": 0,
+            "y": 140,
+            "config": {
+              "kind": "@podstawy/pojecie",
+              "self": true,
+              "count": 12
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pairs.fields",
+            "x": 230,
+            "y": 60,
+            "config": {
+              "left": "nazwa",
+              "right": "czym",
+              "count": 4
+            }
+          },
+          {
+            "id": "n4",
+            "type": "pattern",
+            "x": 230,
+            "y": 220,
+            "config": {
+              "text": "Połącz pojęcia z tym, czym są",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n5",
+            "type": "prompt",
+            "x": 460,
+            "y": 220,
+            "config": {}
+          },
+          {
+            "id": "n6",
+            "type": "answer.match",
+            "x": 460,
+            "y": 60,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "card",
+            "x": 690,
+            "y": 120,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "field",
+            "x": 0,
+            "y": 280,
+            "config": {
+              "key": "czym"
+            }
+          },
+          {
+            "id": "n9",
+            "type": "when",
+            "x": 115,
+            "y": 280,
+            "config": {
+              "test": "filled"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "n1",
+            "out": "entities",
+            "to": "n3",
+            "in": "items"
+          },
+          {
+            "id": "e2",
+            "from": "n2",
+            "out": "entities",
+            "to": "n3",
+            "in": "items"
+          },
+          {
+            "id": "e3",
+            "from": "n4",
+            "out": "text",
+            "to": "n5",
+            "in": "parts"
+          },
+          {
+            "id": "e4",
+            "from": "n3",
+            "out": "left",
+            "to": "n6",
+            "in": "left"
+          },
+          {
+            "id": "e5",
+            "from": "n3",
+            "out": "right",
+            "to": "n6",
+            "in": "right"
+          },
+          {
+            "id": "e6",
+            "from": "n5",
+            "out": "prompt",
+            "to": "n7",
+            "in": "prompt"
+          },
+          {
+            "id": "e7",
+            "from": "n6",
+            "out": "answer",
+            "to": "n7",
+            "in": "answer"
+          },
+          {
+            "id": "e8",
+            "from": "n8",
+            "out": "values",
+            "to": "n9",
+            "in": "items"
+          },
+          {
+            "id": "e9",
+            "from": "n9",
+            "out": "items",
+            "to": "n4",
+            "in": "p0"
+          }
+        ]
+      }
+    }
+  ],
+  "forms": [
+    {
+      "ref": "@podstawy/f-pojecia",
+      "name": "Pojęcia — wiersz po wierszu, z tym, czego wymagają",
+      "says": "W każdym wierszu nazwa, czym jest i czego wymaga (kilka oddziela „;”), np. „Orbital | obszar wokół jądra, w którym najpewniej jest elektron | Powłoka elektronowa”. Pojęcie, którego jeszcze nie ma, powstaje (opis dopiszesz później); pojęcie podstawowe ma trzecią kolumnę pustą.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "p",
+            "type": "entry",
+            "x": 320,
+            "y": 0,
+            "config": {
+              "kind": "@podstawy/pojecie",
+              "label": "Pojęcie",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "nazwa"
+              ],
+              "fields": {
+                "nazwa": {
+                  "from": "type"
+                },
+                "czym": {
+                  "from": "type"
+                }
+              }
+            }
+          },
+          {
+            "id": "w",
+            "type": "entry",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "kind": "@podstawy/pojecie",
+              "label": "Wymaga",
+              "many": true,
+              "optional": true,
+              "reuse": "same",
+              "identity": [
+                "nazwa"
+              ],
+              "fields": {
+                "nazwa": {
+                  "from": "type"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "w",
+            "out": "out",
+            "to": "p",
+            "in": "wymaga"
+          }
+        ]
+      },
+      "order": [
+        "p",
+        "w"
+      ],
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    }
+  ],
+  "views": [
+    {
+      "ref": "@podstawy/w-od-podstaw",
+      "name": "Od podstaw",
+      "mode": "tree",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@podstawy/pojecie"
+          }
+        }
+      ],
+      "group": {
+        "by": "level"
+      },
+      "query": "",
+      "columns": [
+        "nazwa",
+        "czym",
+        "wymaga"
+      ],
+      "positions": {}
+    }
+  ]
+}

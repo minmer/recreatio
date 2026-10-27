@@ -353,7 +353,8 @@ const WORK: LibKind = {
     { key: 'catalogue', label: 'Numer katalogowy', type: 'line', says: 'Przy utworze: numer w katalogu dzieł (op. 27 nr 2, BWV 147, KV 618); przy nutach i płycie: numer wydawcy', hint: 'np. KV 618', when: typeIs('piece', 'score', 'album') },
     { key: 'musicKey', label: 'Tonacja', type: 'line', says: 'Tonacja (tej wersji)', hint: 'np. D-dur', when: typeIs('piece', 'score', 'recording') },
     { key: 'voicing', label: 'Obsada', type: 'line', says: 'Na jakie głosy i instrumenty', hint: 'np. SATB a cappella · chór mieszany i organy · unisono', when: typeIs('piece', 'score', 'recording') },
-    { key: 'genre', label: 'Gatunek', type: 'line', says: 'Jaki to utwór', hint: 'np. pieśń, psalm, motet, msza, kolęda', when: typeIs('piece') },
+    /* 2026-10-27 — auch bei Büchern: eine Powieść biograficzna erzählt Wirkliches anders als eine Biografia, ein Mszał ist ein Zbiór numerierter Teile. */
+    { key: 'genre', label: 'Gatunek', type: 'line', says: 'Jaki to utwór albo jaka to książka (powieść, powieść biograficzna, biografia, reportaż, mszał, modlitewnik, podręcznik…)', hint: 'np. pieśń, psalm, motet · powieść biograficzna, mszał', when: typeIs('piece', 'book') },
     { key: 'duration', label: 'Czas trwania', type: 'line', says: 'Jak długo trwa (minuty:sekundy)', hint: 'np. 4:32', when: typeIs('recording', 'album') },
     { key: 'publisher', label: 'Wydawca', type: 'line', says: 'Wydawnictwo (przy nagraniu i płycie: wytwórnia)', when: typeIsNot('piece') },
     { key: 'place', label: 'Miejsce wydania', type: 'line', says: 'Miejsce wydania', hint: 'np. Kraków', when: typeIsNot('piece') },
@@ -379,6 +380,15 @@ const WORK: LibKind = {
       key: 'scheme', label: 'Układ miejsc', type: 'select', options: TEXT_SCHEMES.map((s) => ({ value: s.id, label: s.label })),
       says: `Jak wskazuje się miejsca w tym dziele: ${TEXT_SCHEMES.map((s) => `"${s.id}" (${s.label})`).join(', ')}; puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages)`,
       hint: 'puste: z rodzaju', when: notMusic
+    },
+    /*
+     * 2026-10-27 — Seiten in Serien, für jedes Buch: in welcher Reihenfolge sie im Buch stehen — je eine Beispielseite
+     * (`locations.ts` readSeries). Welche Zeichen eine Serie hat, sagt die Seite selbst; hier nur die Reihenfolge.
+     */
+    {
+      key: 'pageSeries', label: 'Serie stron', type: 'line',
+      says: 'Gdy książka numeruje swoje części osobno (wstęp, dodatki, wkładki): po jednej przykładowej stronie z każdej serii, tak jak jest wydrukowana, w kolejności książki, oddzielone spacją — np. "xii 12* 1 3\' (1) A1" (rzymskie, z gwiazdką, zwykłe, z apostrofem, w nawiasie, z literą; znaki mogą być dowolne). Strona "12*" i strona "12" to dwie różne strony. Puste — rzymskie, potem zwykłe, potem pozostałe',
+      hint: "np. xii 12* 1 3'", when: (d) => notMusic(d) && ['', 'pages', 'outline'].includes(str(d, 'scheme'))
     },
     {
       key: 'psalms', label: 'Numeracja psalmów', type: 'select', options: PSALMS,

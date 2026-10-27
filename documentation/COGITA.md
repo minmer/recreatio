@@ -101,6 +101,11 @@ Formula, code and duration are not field types.
   - They do not count for Informacja / Interpretacja (§3), they stay out of „o: …” and card subjects, and they are not
     a content dependency in „Do zrobienia”.
   - Fields are matched by this declaration only, never by their key or role.
+- **A learning order** (2026-10-27): a reference field declared „Kolejność nauki” (`prerequisite`) says what has to
+  be known first. `up`: what it points at comes before this entry („Wymaga”); `down`: what it names builds on it.
+  The engine reads only this declaration (§6, „The learning order”). Set in Schematy → the field → „Kolejność nauki”.
+- **A field shown only for some values** (`when`, 2026-10-27): „Pokaż, gdy” names a choice field and its values; the
+  editor hides the field otherwise and keeps its value. The question kind is built this way (§3).
 
 **Several kinds per entity** [B11]. The entity has the union of their fields, and its label comes from its first kind.
 
@@ -125,6 +130,18 @@ Formula, code and duration are not field types.
 - **`komentarz.json`**: the kind "Komentarz" — `about` "O czym" (references with a place, several, to any kind in any store the base reads) and `content` "Treść" (`blocks`), named by its thesis — with the card templates "Teza" and "Tabela z treści".
 - **`slownik.json`**: Język, Słowo (tekst, język), Tłumaczenie (słowa), Synonimy, Antonimy, with four "Słówka" templates.
 - **`psalterz.json`**: the breviary schema with "Miejsce w Piśmie" as a reference with a place.
+- **`pytania.json`** (2026-10-27): ways of adding questions („Prawda czy fałsz — kilka naraz”, „Pytania słowami”,
+  „Jedna dobra z kilku”, „Fiszki”) and the view „Pytania według rodzaju”. Generated from the app
+  (`scripts/pytania-template.mjs`); `app-cogita-check` fails when it drifts.
+- **`podstawy.json`** with **`przyklad-atom.json`**: „Pojęcie” with „Wymaga” as its learning order, a card template, a
+  gated revision and the view „Od podstaw”; the example is the atom (atom → nucleus and electron → shell → orbital →
+  configuration) with questions of several types.
+- **`fakty.json`**: „Fakt” — what a work says, with the place, what kind of statement it is (event, person, opinion,
+  invention of the author), how sure it is and why, other sources. For a novel about a real person: what the book
+  tells and what is historically so, each with the book as its source.
+- **`jednostki.json`**: „Jednostka” — a numbered part of a work (a preface of a Missal: number, title, beginning, what
+  it is about, how it differs from its neighbours), learnt by number, beginning and theme.
+- **`ksiazka-AI.md`** — the guide for one's own AI to turn a book into all this (§14).
 - `app-cogita-check` imports all three and checks that the templates in `komentarz.json` are the presets.
 - **Importing a file again** (2026-10-25, [WYWOD.md](WYWOD.md) §4): its kinds, card templates and forms carry lasting names (`@komentarz/rodzaj`, `@komentarz/t-teza`, `@psalterz/f-nieszpory` …) and are changed in place — a kind the owner renamed is found again instead of a second, empty one being made. A template or form imported before the files had names is recognised by its name and kinds, only when exactly one such exists, and only after every document has taken what it names (two passes). Kinds that exist are completed: the document's fields in its order, the others kept behind their old neighbours; name, label, `tells` and `system` kept unless named, and the review says what changes. An import never removes a field.
 - **The import review** (2026-10-25, `importReview.ts`, `ImportReviewPanel.tsx`): under the plan of every import (Wiedza → JSON, Schematy), each change to an existing entry, document or kind is listed field by field (before, after) and saved only when accepted; its proposed value can be edited first. New entries are ticked and can be unticked. An import completes an existing entry: fields it does not name stay, `null` removes one, its kinds stay and the document's are added.
@@ -219,7 +236,7 @@ Since 2026-10-23 the engine knows one fixed learning kind; everything else is th
 
 | kind | what it is |
 |---|---|
-| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. It stays built in because grading depends on it: cards, sessions, flows, proposals and the page module "Pytanie" ask it. |
+| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. It stays built in because grading depends on it: cards, sessions, flows, proposals and the page module "Pytanie" ask it. **One kind with a type, not a kind per type** (2026-10-27, `questionTypes.ts`): „Rodzaj pytania” (`form`) chooses one of thirteen types in four groups — *napisz* (Odpowiedź słowami, Liczba, Data, Luka w tekście), *wybierz* (Jedna z kilku, Kilka z kilku, Prawda czy fałsz), *połącz i ułóż* (Połącz w pary, Ułóż w kolejności, Fiszka), *zrób* (Kod, Punkt na mapie, Rysunek do poruszania). Every type shares Pytanie, Wyjaśnienie, „O czym” and „Trzeba znać przed pytaniem” (learning order `up`); the other fields are shown by type (`when`). The editor (`QuestionFields.tsx`) has type chips, options with the right one ticked, pairs (also pasted, „Ile par naraz”, headings of the two sides), a live preview card to answer and a list of what is missing; switching type keeps what fits. Schematy → Rodzaje lists Pytanie with a table of its types. |
 | **statements** | **Any entry whose kind has a field of type `blocks`** (decision 4; `library/blocks.ts`, `library/statement.ts`, `cogita/statements.ts`) — the ready kind is "Komentarz" from `templates/cogita/komentarz.json`. Computed, never stored: **the thesis** is the first sentence of the first paragraph of the first `blocks` field (`firstSentence` skips abbreviations such as "św.", "np.", initials, and ignores markup and citations); it names the entry and is the front of a card; missing or longer than 200 characters is a warning in the editor and under "Do zrobienia". **A question** is a statement whose thesis ends with "?"; it is answered as soon as another readable statement points at it (2026-10-25: also when a step lies under it in a structure; computed once per state of the base, so Cogita no longer shows every question as „Pytanie otwarte”). **The badge** "Informacja" / "Interpretacja" comes from references only: only Library sources → information; another statement, or no source → interpretation (a table alone no longer makes an interpretation; since 2026-10-25 links through structure fields do not count — a reconstructed step under its question still reports the source). In texts `![@id]` embeds a statement whole (tables included); `[@id]` or `[[words\|@id]]` links to it. |
 | `text` | A text of a Scriptorium: material and a narrative [C2, K1]; it embeds statements the way it embeds quotes. |
 
@@ -288,6 +305,11 @@ A template is a graph built from these blocks [D2]:
 
 There are no spoken answers.
 
+**Long pair lists** (2026-10-27). „Połącz w pary” with „Ile par naraz” smaller than the list makes one card per pair
+(`questionCards`, key `<question>:p<hash of the left side>`, fingerprint of its own pair): the pair with `n − 1`
+others drawn per attempt, so a revision brings back exactly the pairs not yet known, and a list of forty years is
+never shown whole. A flow and the page module ask the whole question as one card with `n` pairs drawn per attempt.
+
 **Distractors** come from [D15]:
 - the same field of other entities of the kind;
 - only the current collection;
@@ -331,6 +353,22 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 
 **Collections** are saved filters with AND / OR groups, plus explicit lists [F1, F19].
 
+**The learning order** (2026-10-27, `prerequisites.ts`) — declared in the schema, run by the engine:
+- **The graph**: reference fields with „Kolejność nauki” (§2.2), a question's „Trzeba znać przed pytaniem” and the
+  base's own dependencies (Ustawienia). A question counts for what it is „O czym”.
+- **Levels** from the basics: level 1 needs nothing, each next one needs only lower ones. Entries without cards are
+  passed through; circles are named in „Do zrobienia”.
+- **Mastery** = knowness now × correctness of the last answer, mastered at ≥ 1 (`masteryOf`): a forgotten basic
+  counts as not mastered again.
+- **The gate** (revision node; on in the daily preset and the template revisions) holds a card back until what it
+  needs is mastered; a card never waits for what it tests itself. It pulls the missing basics from the whole base
+  into the revision (`withBasics`; off with `"pull": false`).
+- **Order**: fresh cards lowest level first, so the general comes before the specific; the strategy takes the next
+  stack from the lowest open level.
+- **Seen**: Nauka → **Ścieżka** (levels; known, learning, waiting and for what; „Ucz się od podstaw”), an entry's place
+  („Poziom 4”, „Najpierw trzeba znać”, „Na tym budują”), the view grouping „Od podstaw”, and the end of a revision
+  („3 karty czekają na podstawy — najpierw: Atom”).
+
 **Dependencies:**
 - Three kinds: prerequisite, elaboration and context. Each edge has an impact weight, and only prerequisites gate [E3].
 - Propagation: parent knowness += child knowness × impact [E4].
@@ -353,6 +391,19 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - **Reminders.** The service sees one plain “next due” time per learner and library, and nothing more [E8].
 - **A learner’s place in a flow** is kept across devices, together with their progress [G14].
 - **Learners without an account** keep their progress in the browser and can save it to an account after signing in [L6, I13].
+- **Learning on a page** (2026-10-27, `pageLearner.tsx`): the modules Powtórka, Przebieg and Mapa learn as the page's
+  person (`usePerson`) — signed in: oneself; a seat from a form's link: that person; only an access link: „Przedstaw
+  się” (given name, surname) makes a person of the link, as in Rozmowy (`createLinkPerson`), and from then on the
+  answers go sealed to the course's area; nobody: in the browser. A line under the module says as whom one learns and
+  who sees it. A page with an access link reads a base that is not public (`/workspace/libraries` and its entries
+  answer the link's roles, `Caller`). The learner of a holder is used only once it is loaded, so the first answers
+  after introducing oneself cannot stay in the browser.
+- **Statistics** (2026-10-27, `measures.ts`, Nauka → Postępy): per learner and per question — answers, right, time per
+  answer (each answer carries it), when last, knowness now and in a week, how long it holds — and known / learning /
+  not yet, counted one of three ways chosen above the table: **Pamięć** (A.1: spacing makes it last — right today and
+  in a week holds longer than today and tomorrow — and it fades with time), **Z hierarchią** (as Pamięć, and knowing
+  the specific counts for the general it builds on, A.3), **Ostatnia odpowiedź**. Scope: the whole base or one
+  revision. One's own under „Moje pytania”; the learners' table of a course opens by itself.
 - **Offline revision** [E9, F21]. A revision runs without the network. Its answers and knowness are saved later.
   - The browser keeps a cache of some questions by itself.
   - The Android app keeps a larger amount when the learner chooses one.
@@ -549,7 +600,8 @@ Phones stay awake.
 | Pages with one module | One common way to put a module on its own page (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever creates it, without building a page by hand; the module reads the base itself | F20 |
 | Search | Library and knowledge-base content in Ctrl K | P12 |
 | Wiedza and Nauka | Two workspace views of Cogita on the same bases (2026-10-24, §14.1): Wiedza for the knowledge (`#/workspace/knowledge/<id>`), Nauka for learning (`#/workspace/learn/<id>`): due now, sessions, offline practice. The library itself has no Cogita tab. | A1 |
-| JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review | P13 |
+| Course (Kurs) | An area of kind Kurs (2026-10-27, `AreaKindPanel.tsx`, nothing built beside the existing pieces): „Utwórz bazę” (a base with the daily gated revision, answers to the area's intake), the main page made with that revision on it („Nauka na stronie” adds it to an existing one), the role Uczący się and its link to that page — whoever opens it introduces themselves and learns without an account — and „Postępy uczących się” (Nauka → Postępy). | A2 |
+| JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review. A whole book: `templates/cogita/ksiazka-AI.md` — step 1 the work with its text and bibliography at once, step 2 after reading a menu (chronology, chosen parts, overview, deep dive, question types, numbered units, history vs. the book) from which the owner picks two or three; general, not per book; its appendices come from the app (`scripts/ksiazka-guide.mjs`, checked by `app-cogita-check`) | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
 
 ### 14.1 Wiedza and Nauka (2026-10-24)
@@ -581,7 +633,7 @@ does, not of the data (`cogita/parts.ts`):
 - Each part ends its tab row with the way into the other („Ucz się z tej bazy" / „Wiedza tej bazy"). The menu groups
   Biblioteka, Skryptorium, Wiedza and Nauka under „Studium".
 - **Addresses.** `#/workspace/knowledge/<base>/wpisy[/<id>|/widok/<view>]`, `…/dodaj[/nowy/<kind>|/<form>]`,
-  `…/schematy/rodzaje|dodawanie|wyswietlanie[/<id>]`; `#/workspace/learn/<base>/nauka|powtorki|przebiegi|sesje|postepy|karty|mapa`.
+  `…/schematy/rodzaje|dodawanie|wyswietlanie[/<id>]`; `#/workspace/learn/<base>/nauka|sciezka|powtorki|przebiegi|sesje|postepy|karty|mapa`.
   Old ones (`learn/<base>/wpisy`, `schemat`, `schemat/formularz/<id>`, `wpisy/dodaj/<id>`, `wpisy/nowy/<kind>`)
   are replaced by their new place (`cogitaTrail`), so links in texts, pages, notifications, MCP results and
   bookmarks keep working. Settings stay in the part one opened them from.

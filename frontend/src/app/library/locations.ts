@@ -15,7 +15,7 @@
  * <b>Welche Struktur, sagt das Werk</b> (`scheme`, sonst aus dem Rodzaj: Pismo Święte →
  * `bible`, Dokument → `numbered`, sonst `pages`). Es gibt feste Regeln für:
  * <code>
- *   pages     nur Seiten dieser Ausgabe              s. 23 · s. 23–25 · s. 23, 27 · s. xii
+ *   pages     nur Seiten dieser Ausgabe              s. 23 · s. 23–25 · s. 23, 27 · s. xii · s. 12* · s. (7) · s. A12
  *   bible     Buch, Kapitel, Vers                    J 21,15-17 · Ps 51(50),3 · Łk 1,26–2,5
  *   numbered  nummerierte Absätze (Dokumente, Kodizes) nr 24 · nn. 24–26 · KKK 1234 · kan. 915 § 1
  *   aquinas   Teil, Quaestio, Artikel, Einwand, Antwort  I-II, q. 90, a. 1, ad 2 · I q. 2 a. 3 co.
@@ -28,6 +28,9 @@
  * Aufführung desselben Stücks hat andere Zeiten (`isStructural` sagt darum nein).
  * Was keine Regel liest, bleibt als `rest` erhalten — nichts geht verloren, nur
  * verknüpft wird es dann nicht.
+ *
+ * <b>Seiten in Serien</b> (2026-10-27): wenn ein Buch seine Teile eigens zählt, trägt die Seite die Zeichen
+ * ihrer Serie, wie sie gedruckt sind — für jedes Buch und jedes Zeichen, unten bei `readPage`.
  */
 
 import { bibleBooks, bookById, formatBible, parseBible, type BibleSpan } from './bible';
@@ -43,7 +46,7 @@ export interface SchemeDef {
 }
 
 export const SCHEMES: readonly SchemeDef[] = [
-  { id: 'pages', label: 'Strony wydania', says: 'Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji).', examples: ['s. 23', 's. 23–25', 's. 23, 27', 's. xii'] },
+  { id: 'pages', label: 'Strony wydania', says: 'Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Gdy książka numeruje swoje części osobno (wstęp „xii” albo „12*”, dodatek „3\'”, wkładki „(7)”, „A12”), strona niesie znaki swojej serii tak, jak są wydrukowane — dowolne — a dzieło w polu „Serie stron” mówi, w jakiej kolejności serie stoją w książce.', examples: ['s. 23', 's. 23–25', 's. 23, 27', 's. xii', 's. 12*', "s. 45'–47'", 's. (7)', 's. A12'] },
   { id: 'bible', label: 'Pismo Święte', says: 'Księga, rozdział, werset — wspólne dla wszystkich przekładów (numeracja psalmów: hebrajska, grecka w nawiasie).', examples: ['J 21,15-17', 'Ps 51(50),3', 'Łk 1,26–2,5', 'Mt 5,3-12; 6,1'] },
   { id: 'numbered', label: 'Numery (dokumenty)', says: 'Numerowane punkty dokumentów Kościoła, katechizmu, kodeksów; paragraf w numerze po „§".', examples: ['nr 24', 'nn. 24–26', 'KKK 1234', 'kan. 915 § 1'] },
   { id: 'aquinas', label: 'Tomasz z Akwinu', says: 'Część, kwestia, artykuł; zarzut (arg.), sed contra, odpowiedź (co.), odpowiedź na zarzut (ad).', examples: ['I, q. 2, a. 3', 'I-II, q. 90, a. 1, ad 2', 'II-II q. 23 a. 1 arg. 1', 'III q. 75 a. 1 co.'] },
@@ -109,15 +112,148 @@ export function roman(text: string): number {
 }
 
 const ROMAN_PAGE = -10000;
-/** Eine Seitenzahl: arabisch, oder römisch (Vorspann, vor 1). */
-function pageNumber(text: string): number | null {
-  const t = text.trim();
-  if (/^\d{1,5}$/.test(t)) return Number(t);
-  const r = roman(t);
-  return r > 0 ? ROMAN_PAGE + r : null;
+
+/*
+ * 2026-10-27 — SEITEN IN SERIEN, für jedes Buch. Eine gedruckte Seite ist eine Zahl — arabisch oder römisch —
+ * mit den Zeichen ihrer Serie davor, dahinter oder darum herum, wie sie gedruckt ist: „45", „12*", „3''", „(7)",
+ * „[7]", „A12", „†3", „xii", „iv*". Die SERIE ist das Muster dieser Zeichen: „#" steht für eine arabische Zahl,
+ * „i" für eine römische („#*", „#''", „(#)", „A#", „†#", „i*"; „#" allein die gewöhnlichen Seiten, „i" allein die
+ * römische Titelei). Eine Liste der Serien gibt es nicht — jedes Zeichen geht, ausser Leerraum, Ziffern, Trennern
+ * (. , ; : und Striche), Anführungszeichen und Buchstaben HINTER der Zahl („23n" ist „23 i n.", „12a" eine Spalte).
+ * Vor der Zahl dürfen Buchstaben stehen („A12"); Klammern zählen nur als Paar: „(7)" ist eine Seite, in „(s. 7)"
+ * schliesst die Klammer den Satz.
+ *
+ * Jede Serie hat ihr eigenes ZAHLENBAND, aus ihrem Muster gerechnet (FNV-1a → 1 … 20 000, mal 100 000;
+ * `AiAccess.PageValue` im Dienst rechnet dasselbe): dieselbe Zahl in zwei Serien bleibt zwei Seiten, und die
+ * Zahlen bleiben gleich, wo sie gespeichert sind (`ManifestPart.pages`). Zurückgeschrieben wird über die Muster,
+ * die schon gelesen wurden (`SEEN`; das Verzeichnis eines Textes nennt seine Serien, `ManifestPart.series`).
+ * In welcher Reihenfolge die Serien im Buch stehen, sagt das Werk („Serie stron": je eine Beispielseite in der
+ * Reihenfolge des Buches, „xii 12* 1 3'"); ohne Angabe: die römische Titelei, die gewöhnlichen, dann die anderen.
+ */
+const BAND = 100_000;
+const BANDS = 20_000;
+/** Was nie Zeichen einer Serie ist. */
+const NOT_MARK = String.raw`\s\d.,;:\-–—()\[\]{}„”“«»`;
+/** Zeichen vor einer arabischen Zahl (auch Buchstaben: „A12"); hinter ihr und um eine römische ohne Buchstaben. */
+const BEFORE = String.raw`[^${NOT_MARK}]`;
+const AFTER = String.raw`[^${NOT_MARK}\p{L}]`;
+const PAGE_BODY = String.raw`(?:${BEFORE}{0,3}?\d{1,5}${AFTER}{0,3}|${AFTER}{0,3}?[ivxlcdm]+${AFTER}{0,3})`;
+const ARABIC_PAGE = new RegExp(String.raw`^(${BEFORE}{0,3}?)(\d{1,5})(${AFTER}{0,3})$`, 'u');
+const ROMAN_LABEL = new RegExp(String.raw`^(${AFTER}{0,3}?)([ivxlcdm]+)(${AFTER}{0,3})$`, 'iu');
+
+/** Die Zeichen, die Setzer für Strich und Doppelstrich nehmen: ’ ′ ` ´ → ', ″ " → ''. */
+const primes = (text: string): string => text.replace(/[’′`´]/g, "'").replace(/[″"]/g, "''");
+const upperAscii = (text: string): string => text.replace(/[a-z]/g, (c) => c.toUpperCase());
+
+/** Eine gedruckte Seite: ihre Serie (das Muster ihrer Zeichen) und ihre Zahl darin. */
+export interface PageLabel {
+  readonly key: string;
+  readonly k: number;
 }
 
-const pageWord = (n: number): string => (n < 0 ? romanOf(n - ROMAN_PAGE) : String(n));
+/** Die Nummer des Bandes einer Serie: die gewöhnlichen 0, die römische Titelei −1, jede andere aus ihrem Muster (FNV-1a). */
+export function seriesIndex(key: string): number {
+  if (key === '#') return 0;
+  if (key === 'i') return -1;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i += 1) { h ^= key.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return 1 + (h % BANDS);
+}
+
+/** Die Muster, die schon gelesen wurden — damit eine Zahl wieder so geschrieben wird, wie sie gedruckt war. */
+const SEEN = new Map<number, string>();
+function remember(page: PageLabel): PageLabel {
+  const index = seriesIndex(page.key);
+  if (index > 0 && !SEEN.has(index)) SEEN.set(index, page.key);
+  return page;
+}
+
+/** Die Serien eines Verzeichnisses (oder eines Werks) bekanntmachen. */
+export function rememberSeries(keys: Iterable<string>): void {
+  for (const key of keys) if (typeof key === 'string' && key.length <= 24 && /[#i]/.test(key)) remember({ key, k: 0 });
+}
+
+/** „12*" → {„#*", 12}, „(7)" → {„(#)", 7}, „A12" → {„A#", 12}, „xii" → {„i", 12}, „iv*" → {„i*", 4}; keine Seite → null. */
+export function readPage(text: string): PageLabel | null {
+  let t = primes(text.trim());
+  let open = '';
+  let close = '';
+  const wrap = /^([([])\s*(.*?)\s*([)\]])$/.exec(t);
+  if (wrap !== null) {
+    if ((wrap[1] === '(') !== (wrap[3] === ')')) return null;
+    open = wrap[1]!;
+    close = wrap[3]!;
+    t = wrap[2]!;
+  }
+  const arabic = ARABIC_PAGE.exec(t);
+  if (arabic !== null) return remember({ key: `${open}${upperAscii(arabic[1]!)}#${arabic[3]!}${close}`, k: Number(arabic[2]) });
+  const r = ROMAN_LABEL.exec(t);
+  if (r === null) return null;
+  const k = roman(r[2]!);
+  if (k <= 0) return null;
+  return remember({ key: `${open}${r[1]!}i${r[3]!}${close}`, k });
+}
+
+/** Die Serie einer gedruckten Seite — `null`: keine Seite. */
+export const seriesKeyOf = (label: string): string | null => readPage(label)?.key ?? null;
+
+/** Eine Seitenzahl: arabisch, römisch (Titelei, vor 1) — mit den Zeichen ihrer Serie in deren Band. */
+function pageNumber(text: string): number | null {
+  const page = readPage(text);
+  if (page === null) return null;
+  if (page.key === 'i') return page.k <= 9_999 ? ROMAN_PAGE + page.k : null;
+  return page.k < BAND ? seriesIndex(page.key) * BAND + page.k : null;
+}
+
+/** Zu welcher Serie eine Seite gehört (`null`: ein Muster, das hier noch niemand gelesen hat), und ihre Zahl darin. */
+export function pageSeriesOf(n: number): { readonly series: string | null; readonly k: number } {
+  if (n < 0) return { series: 'i', k: n - ROMAN_PAGE };
+  const index = Math.floor(n / BAND);
+  return { series: index === 0 ? '#' : SEEN.get(index) ?? null, k: n - index * BAND };
+}
+
+const pageWord = (n: number): string => {
+  const { series, k } = pageSeriesOf(n);
+  if (series === null) return `${k}?`;
+  return series.includes('#') ? series.replace('#', String(k)) : series.replace('i', romanOf(k));
+};
+
+/**
+ * 2026-10-27 — WO EINE SEITE IM BUCH STEHT: ihre Serie in der Reihenfolge des Werks (`options.series`), sonst
+ * die römische Titelei, die gewöhnlichen Seiten, dann die anderen; darin ihre Zahl. Nur zum Ordnen — gespeichert
+ * wird das Band.
+ */
+export function pageOrdinal(n: number, options: PlaceOptions = {}): number {
+  const index = n < 0 ? -1 : Math.floor(n / BAND);
+  const k = n < 0 ? n - ROMAN_PAGE : n - index * BAND;
+  const declared = (options.series ?? []).map(seriesIndex);
+  const at = declared.indexOf(index);
+  const rank = at >= 0 ? at : declared.length + (index === -1 ? 0 : index === 0 ? 1 : 1 + index);
+  return rank * BAND + k;
+}
+
+/**
+ * 2026-10-27 — DIE SERIEN EINES WERKS in der Reihenfolge des Buches, aus dem Feld „Serie stron": je eine
+ * Beispielseite („xii 12* 1 3' (1) A1") — oder nur die Zeichen („* 1 ' ''": ein Zeichen allein steht hinter der
+ * Zahl, Buchstaben davor, „()" und „[]" darum herum).
+ */
+export function readSeries(text: unknown): string[] {
+  if (typeof text !== 'string') return [];
+  const out: string[] = [];
+  for (const raw of primes(text).split(/[\s,;]+/)) {
+    const token = raw.trim();
+    if (token === '') continue;
+    const read = readPage(token);
+    const key = read !== null ? read.key
+      : /^[()]+$/.test(token) ? '(#)'
+      : /^[[\]]+$/.test(token) ? '[#]'
+      : /^\p{L}{1,3}$/u.test(token) ? `${upperAscii(token)}#`
+      : readPage(`1${token}`)?.key ?? null;
+    if (key !== null && !out.includes(key)) out.push(key);
+  }
+  rememberSeries(out);
+  return out;
+}
 
 function romanOf(n: number): string {
   const table: readonly [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
@@ -151,8 +287,16 @@ function ranges(text: string, read: (t: string) => number | null): { from: numbe
   return out;
 }
 
-/* Seiten: „s. 23", „ss. 23–25", „str. 23", „p. 23", „pp. 23-25", „S. 23", „s. xii". */
-const PAGES = /(?:^|[\s,;(])(?:ss?|str|pp?|S)\.\s*((?:[0-9ivxlcdm]+\s*(?:[-–—]\s*[0-9ivxlcdm]+)?\s*(?:nn?|ff?)?\.?\s*(?:,\s*|\s+i\s+)?)+)/gi;
+/* Seiten: „s. 23", „ss. 23–25", „str. 23", „p. 23", „pp. 23-25", „S. 23", „s. xii" — 2026-10-27 auch in Serien: „s. 12*", „s. 45'–47'", „s. (7)", „s. A12". */
+const PAGE_TOKEN = String.raw`(?:\(\s*${PAGE_BODY}\s*\)|\[\s*${PAGE_BODY}\s*\]|${PAGE_BODY})`;
+const PAGES = new RegExp(String.raw`(?:^|[\s,;(])(?:ss?|str|pp?|S)\.\s*((?:${PAGE_TOKEN}\s*(?:[-–—]\s*${PAGE_TOKEN})?\s*(?:nn?|ff?)?\.?\s*(?:,\s*|\s+i\s+)?)+)`, 'giu');
+
+/** Ist der ganze Text eine Liste von Seiten („12*, 15*–17*")? Dann gilt er bei `pages` auch ohne „s.". */
+function allPages(text: string): PageSpan[] {
+  const items = text.replace(DASH, '-').split(/[,;]|\s+i\s+/).map((x) => x.trim()).filter((x) => x !== '');
+  const read = ranges(text, pageNumber);
+  return items.length > 0 && read.length === items.length ? read : [];
+}
 
 function takePages(text: string): { pages: PageSpan[]; rest: string } {
   const pages: PageSpan[] = [];
@@ -505,8 +649,8 @@ function parseOne(source: string, scheme: SchemeId, options: PlaceOptions): Plac
   const { pages, rest } = takePages(scheme === 'aquinas' && AQ_Q.test(source) ? sedContra(source) : source);
   if (scheme === 'pages') {
     if (pages.length === 0) {
-      const bare = ranges(rest, pageNumber);
-      if (bare.length > 0 && /^[0-9ivxlcdm\s,;\-–—nf.]+$/i.test(rest)) return { scheme, spans: [], pages: bare, rest: '' };
+      const bare = allPages(rest);
+      if (bare.length > 0) return { scheme, spans: [], pages: bare, rest: '' };
     }
     /* Auch ein Buch mit Seiten hat oft Kapitel: „rozdz. 3, s. 45" bleibt lesbar. */
     const outline = rest === '' ? { spans: [], rest: '' } : outlineSpans(rest);
@@ -525,6 +669,8 @@ export interface PlaceOptions {
    * Gespeichert und verglichen wird immer hebräisch; so liegen Ausgaben nebeneinander.
    */
   readonly psalms?: 'hebrew' | 'greek';
+  /** 2026-10-27 — die Serien der Seiten in der Reihenfolge des Buches (`readSeries`: Muster wie „#*", „i", „A#"): nur zum Ordnen. */
+  readonly series?: readonly string[];
 }
 
 const PSALMS_ORDER = 23;
@@ -609,17 +755,19 @@ export function contains(a: Span, b: Span): boolean {
 
 export const pagesOverlap = (a: PageSpan, b: PageSpan): boolean => a.from <= b.to && b.from <= a.to;
 
-/** Ein Schlüssel zum Ordnen nach der Struktur, dann nach Seiten; Unlesbares ans Ende. */
-export function placeSortKey(place: Place): string {
+/** Ein Schlüssel zum Ordnen nach der Struktur, dann nach Seiten (2026-10-27: in der Reihenfolge der Serien); Unlesbares ans Ende. */
+export function placeSortKey(place: Place, options: PlaceOptions = {}): string {
   const pad = (n: number | null) => (n === null ? '000000' : String(Math.max(0, n + 20000)).padStart(6, '0'));
   if (place.spans.length > 0) return place.spans[0]!.from.map(pad).join('.');
-  if (place.pages.length > 0) return `p.${pad(place.pages[0]!.from)}`;
+  if (place.pages.length > 0) return `p.${String(pageOrdinal(place.pages[0]!.from, options) + 20000).padStart(12, '0')}`;
   return `~${place.rest.toLowerCase()}`;
 }
 
-/** Die Zählung, in der die Stellen eines Werks geschrieben sind (nur Pismo Święte: `psalms`). */
-export const workOptions = (work: Readonly<Record<string, unknown>> | undefined): PlaceOptions =>
-  work?.psalms === 'greek' ? { psalms: 'greek' } : {};
+/** Die Zählung, in der die Stellen eines Werks geschrieben sind (Pismo Święte: `psalms`; 2026-10-27: die Serien der Seiten). */
+export const workOptions = (work: Readonly<Record<string, unknown>> | undefined): PlaceOptions => {
+  const series = readSeries(work?.pageSeries);
+  return { ...(work?.psalms === 'greek' ? { psalms: 'greek' as const } : {}), ...(series.length > 0 ? { series } : {}) };
+};
 
 /** Eine Stelle, gelesen nach der Regel ihres Werks (ohne Werk: Seiten). */
 export const workPlace = (locator: string, work: Readonly<Record<string, unknown>> | undefined): Place =>
@@ -627,7 +775,7 @@ export const workPlace = (locator: string, work: Readonly<Record<string, unknown
 
 /** Eine Stelle zum Ordnen nach der Regel ihres Werks — Seiten als Zahlen, die Schrift nach dem Kanon, Quaestionen nach Teil und Artikel. */
 export const workLocatorKey = (locator: string, work: Readonly<Record<string, unknown>> | undefined): string =>
-  locator.trim() === '' ? '' : placeSortKey(workPlace(locator, work));
+  locator.trim() === '' ? '' : placeSortKey(workPlace(locator, work), workOptions(work));
 
 /* -- Schreiben ------------------------------------------------------------------------------- */
 

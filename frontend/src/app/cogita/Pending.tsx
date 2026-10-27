@@ -52,6 +52,8 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
   const answered = lib.answeredIds();
   const openQuestions = statements.filter((e) => isQuestion(entityBlocks(e, look)) && !answered.has(e.id));
   const pathOf = (id: string) => { const from = lib.origin(id); return from === undefined ? '#' : originPath(from, id, 'wpisy'); };
+  /* 2026-10-27 — Kreise in der Reihenfolge des Lernens: eine Kante, die einen schlösse, wirkt nicht. */
+  const circles = lib.prerequisites().circles;
 
   const reports = useAsync(me === null || !writes ? null : async () => {
     const intake = await openIntakeKey(await loadIntake(lib.areaId), me.ring);
@@ -89,6 +91,17 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
             </li>
           ))}</ul>}
       </section>
+      {circles.length > 0 && (
+        <section className="cg-card" data-pending-circles={circles.length}>
+          <h3>Koła w kolejności nauki ({circles.length})</h3>
+          <span className="cg-muted">Wpis wymaga czegoś, co (przez inne wpisy) wymaga jego samego. Taka zależność nie działa — popraw „Najpierw trzeba znać” w jednym z nich.</span>
+          <ul>{circles.slice(0, 60).map((d) => (
+            <li key={`${d.parent}>${d.child}`}>
+              <button type="button" className="cg-ref" onClick={() => onOpen(d.child)}>{entityName(lib, d.child)}</button> wymaga <button type="button" className="cg-ref" onClick={() => onOpen(d.parent)}>{entityName(lib, d.parent)}</button>
+            </li>
+          ))}</ul>
+        </section>
+      )}
       <section className="cg-card">
         <h3>Do sprawdzenia — coś, na co wskazuje wypowiedź, zmieniło się ({stale.length})</h3>
         {stale.length === 0 ? <span className="wk-hint">Wszystko aktualne.</span> : <ul>{stale.slice(0, 60).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e).slice(0, 120)}</button></li>)}</ul>}
@@ -102,7 +115,9 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
             : <ul>{flags.slice(-60).reverse().map((f, i) => {
                 const body = isObject(f.body) ? f.body : {};
                 const question = typeof body.question === 'string' ? body.question : '';
-                const entity = question.split(':')[1] ?? question;
+                /* Ein Szablon: „szablon:wpis"; ein Pytanie: der Eintrag selbst — oder (2026-10-27) „pytanie:p<para>". */
+                const parts = question.split(':');
+                const entity = lib.entity(parts[1] ?? '') !== undefined ? parts[1] : parts[0];
                 return <li key={i}>{new Date(f.createdAt).toLocaleDateString('pl-PL')} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}>{entityName(lib, entity)}</button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}</li>;
               })}</ul>}
           {counts.length > 0 && (

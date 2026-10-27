@@ -515,8 +515,19 @@ const sourceOf = (from?: { kind?: string; library?: string; collection?: string 
     : from?.collection !== undefined ? node('source.collection', 0, 0, { collection: from.collection })
     : node('source.all', 0, 0);
 
+/**
+ * 2026-10-27 — die Powtórka codzienna mit „Najpierw podstawy": wo die Baza eine Reihenfolge des
+ * Lernens hat (Felder „Najpierw trzeba znać"), kommt das Besondere erst nach dem Allgemeinen; wo
+ * nicht, ändert die Sperre nichts.
+ */
+const gatedGraph = (source: GraphNode, strategy: Record<string, unknown>) => {
+  const gate = node('gate', 230, 0, { threshold: 1 });
+  const s = node('strategy', 460, 0, strategy);
+  return graphOf([source, gate, s], [edge(source, 'cards', gate, 'cards'), edge(gate, 'cards', s, 'cards')]);
+};
+
 export const REVISION_PRESETS: readonly RevisionPreset[] = [
-  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, co się zaciera, potem nowe — stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: revisionGraph(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
+  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, co się zaciera, potem nowe — od podstaw do szczegółów; stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: gatedGraph(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
   { id: 'random', label: '20 losowych', says: 'Dwadzieścia kart, każda raz.', make: (from) => ({ name: '20 losowych', graph: revisionGraph(sourceOf(from), { mode: 'random', count: 20, order: 'random' }) }) },
   { id: 'once', label: 'Wszystko raz', says: 'Cały zbiór, każda karta raz — sprawdzian.', make: (from) => ({ name: 'Wszystko raz', graph: revisionGraph(sourceOf(from), { mode: 'once', order: 'random' }) }) },
   { id: 'levels', label: 'Poziomy', says: 'Dobra odpowiedź podnosi kartę o poziom, zła wraca na pierwszy; koniec, gdy wszystko na górze.', make: (from) => ({ name: 'Poziomy', graph: revisionGraph(sourceOf(from), { mode: 'levels', levels: 5, stackSize: 10, minCorrectness: 1 }) }) },
@@ -530,13 +541,8 @@ export const REVISION_PRESETS: readonly RevisionPreset[] = [
     }
   },
   {
-    id: 'gated', label: 'Najpierw podstawy', says: 'Karta wchodzi dopiero, gdy to, czego wymaga, jest opanowane.',
-    make: (from) => {
-      const source = sourceOf(from);
-      const gate = node('gate', 230, 0, { threshold: 1 });
-      const s = node('strategy', 460, 0, { mode: 'temporal', stackSize: 20 });
-      return { name: 'Od podstaw', graph: graphOf([source, gate, s], [edge(source, 'cards', gate, 'cards'), edge(gate, 'cards', s, 'cards')]) };
-    }
+    id: 'gated', label: 'Najpierw podstawy', says: 'Karta wchodzi dopiero, gdy to, czego wymaga („Najpierw trzeba znać”), jest opanowane; brakujące podstawy dochodzą same.',
+    make: (from) => ({ name: 'Od podstaw', graph: gatedGraph(sourceOf(from), { mode: 'temporal', stackSize: 20 }) })
   }
 ];
 

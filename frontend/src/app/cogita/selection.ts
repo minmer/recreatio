@@ -37,6 +37,7 @@
 import { fieldKind, fieldsOf, fieldText, fieldUnit, labelOf, plainOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 import { convert, measures, parseQuantity } from '../core/quantities';
 import { childrenOf, parentsOf } from './structure';
+import { levelLabel, type PrerequisiteGraph } from './prerequisites';
 
 /** 2026-10-25 — wie viele Einträge „Idź po strukturze" höchstens erreicht (ein Kreis endet ohnehin). */
 const STRUCTURE_CAP = 5000;
@@ -158,6 +159,8 @@ export interface SelectContext {
   readonly from?: (id: string) => string | undefined;
   /** 2026-10-22 (Schritt 11) — worauf ein Eintrag verweist (Felder, Zapis, Plan, Gegenstände), auch einer aus einer Bibliothek. */
   readonly refsOf?: (id: string) => readonly string[];
+  /** 2026-10-27 — die Voraussetzungen als Graph (`prerequisites.ts`): die Gruppierung nach Ebenen. */
+  readonly prerequisites?: () => PrerequisiteGraph;
 }
 
 /* -- Die Schritte ------------------------------------------------------------------------------ */
@@ -333,7 +336,9 @@ export interface Axis {
 export type Grouping =
   | { readonly by: 'kind' }
   | { readonly by: 'field'; readonly field: string }
-  | ({ readonly by: 'axis' } & Axis);
+  | ({ readonly by: 'axis' } & Axis)
+  /* 2026-10-27 — nach der Ebene in der Reihenfolge des Lernens (`prerequisites.ts`): Poziom 1 — podstawy, 2, 3 … */
+  | { readonly by: 'level' };
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.map(str).filter((x) => x !== '') : str(v) === '' ? [] : [str(v)]);
 
@@ -354,6 +359,7 @@ export function readAxis(raw: Record<string, unknown>): Axis | null {
 export function readGrouping(raw: unknown): Grouping | null {
   if (!isObject(raw)) return null;
   if (raw.by === 'kind') return { by: 'kind' };
+  if (raw.by === 'level') return { by: 'level' };
   if (raw.by === 'field' && str(raw.field) !== '') return { by: 'field', field: str(raw.field) };
   if (raw.by === 'axis') { const axis = readAxis(raw); return axis === null ? null : { by: 'axis', ...axis }; }
   return null;
@@ -447,6 +453,20 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
     if (!g.ids.includes(id)) g.ids.push(id);
     groups.set(key, g);
   };
+  /* 2026-10-27 — die Ebenen der Reihenfolge des Lernens, von den Grundlagen her; wer in keiner Voraussetzung steht, zuletzt. */
+  if (grouping.by === 'level') {
+    const graph = ctx.prerequisites?.();
+    const levels = new Map<number, string[]>();
+    for (const id of ids) {
+      const at = graph?.level.get(id);
+      if (at === undefined) { rest.push(id); continue; }
+      levels.set(at, [...(levels.get(at) ?? []), id]);
+    }
+    return [
+      ...[...levels.keys()].sort((a, b) => a - b).map((at) => ({ key: `level:${at}`, label: levelLabel(at), ids: levels.get(at)! })),
+      ...(rest.length > 0 ? [{ key: '', label: 'poza kolejnością nauki', ids: rest }] : [])
+    ];
+  }
   if (grouping.by === 'axis') {
     const values = axisValues(ctx, grouping);
     const known = new Set(values.map((v) => v.value.id));

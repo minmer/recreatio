@@ -93,7 +93,8 @@ export type AnswerSpec =
   | { readonly form: 'many'; readonly options: readonly string[]; readonly correct: readonly number[] }
   | { readonly form: 'truefalse'; readonly value: boolean }
   | { readonly form: 'order'; readonly items: readonly string[]; readonly shown: readonly string[] }
-  | { readonly form: 'match'; readonly left: readonly string[]; readonly right: readonly string[]; readonly pairs: readonly (readonly [number, number])[] }
+  /* 2026-10-27 — `heads`: was über den beiden Spalten steht („Rok” — „Wydarzenie”). */
+  | { readonly form: 'match'; readonly left: readonly string[]; readonly right: readonly string[]; readonly pairs: readonly (readonly [number, number])[]; readonly heads?: readonly [string, string] }
   | { readonly form: 'flash'; readonly back: readonly string[] }
   | { readonly form: 'code'; readonly task: string; readonly starter: string; readonly createInput: string; readonly reference: string; readonly cases: number }
   | { readonly form: 'point'; readonly on: 'map' | 'image'; readonly target: PointExpected }
@@ -118,6 +119,14 @@ export interface Card {
   readonly varies: boolean;
   /** Karten, die vorher sitzen müssen — die Teile eines Zitats vor dem Ganzen. */
   readonly requires: readonly string[];
+  /**
+   * 2026-10-27 — WAS DIE KARTE AUSSERDEM PRÜFT: die Einträge, über die ein Pytanie ist („O czym”).
+   * Ihre Kenntnis zählt dort mit, und die Karte wartet auf das, was dort zuerst zu können ist
+   * (`prerequisites.ts`). Eine Karte aus einer Vorlage prüft ihren Eintrag (`entity`).
+   */
+  readonly about?: readonly string[];
+  /** 2026-10-27 — was diese Karte fragt, kurz, für Listen (die Karte eines Paars: „1410 — Grunwald”). */
+  readonly label?: string;
 }
 
 export const cardKey = (question: string, direction: string): string => (direction === '' ? question : `${question}|${direction}`);

@@ -15,9 +15,9 @@ import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
 import { keepOffline } from './offline';
-import { answer, levelsOf, planOf, progress, start, type Plan, type Session } from './revision';
+import { answer, heldBack, levelsOf, planOf, progress, start, type Plan, type Session } from './revision';
 import type { CogitaLibrary } from './store';
-import { Bar, CogitaContext } from './ui';
+import { Bar, CogitaContext, entityName } from './ui';
 
 export interface RunSource {
   /** Aus der Bibliothek: die Wiederholung (ihr Graph wählt). */
@@ -140,12 +140,19 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
 
   if (session.current === null || card === undefined) {
     const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now());
+    /* 2026-10-27 — was noch auf Grundlagen wartet, und welche das sind. */
+    const held = heldBack(session, Date.now());
     return (
       <section className="cg-face">
         <h2>Koniec powtórki</h2>
         <p>Odpowiedzi: {stats.answered}, dobrze: {stats.correct}{stats.answered > 0 ? ` (${Math.round((stats.correct / stats.answered) * 100)}%)` : ''}.</p>
         <p className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
         {due !== null && <p className="cg-muted">{due.next === null ? 'Nic nie czeka.' : `Następna powtórka: ${new Date(due.next).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}.`}</p>}
+        {held.cards > 0 && (
+          <p className="wk-note" data-held-back={held.cards}>
+            {held.cards} {held.cards === 1 ? 'karta czeka' : 'kart czeka'} na podstawy{lib !== null && held.needs.length > 0 ? ` — najpierw: ${held.needs.slice(0, 4).map((id) => entityName(lib, id)).join(', ')}` : ''}. Wrócą, gdy je opanujesz.
+          </p>
+        )}
         {learner !== null && learner.waiting > 0 && <p className="wk-note">{learner.waiting} pakietów odpowiedzi czeka na internet — wyślą się same.</p>}
         {learner === null && <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce.</p>}
         <div className="wk-actions">

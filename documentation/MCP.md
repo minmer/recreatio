@@ -9,6 +9,9 @@ It is a thin layer over the AI link of an area (LIBRARY.md → "An AI reads the 
 AI access). Nothing is copied or stored for MCP: every call opens the authorized links' sealed snapshots for the
 length of the call, exactly as `GET /ai/{link}` does.
 
+Seeing how a page JSON will look after its import is a different, local server: `recreatio-preview`
+([PREVIEW-MCP.md](PREVIEW-MCP.md)).
+
 ## Endpoint
 
 | what | address |

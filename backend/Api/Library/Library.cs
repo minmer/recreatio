@@ -114,13 +114,19 @@ public static partial class Library
     };
 
     /// <summary>Die Bibliotheken der Bereiche, deren Schlüssel ich halte — mit dem, was ich dort darf.</summary>
+    /*
+     * 2026-10-27 — auch für einen Link ohne Konto (den Rufer), wie schon seine Einträge (`EntriesAsync`): wer über
+     * den Link eines Kurses lernt, findet hier dessen Baza wiedzy — ohne diese Zeile öffnet die Seite sie ihm nicht.
+     * Er sieht nur Bibliotheken der Bereiche, deren Schlüssel seine Linkrollen halten, also nichts, was er nicht
+     * schon lesen darf. Mit Sitzung zählt wie bisher nur das Konto.
+     */
     private static async Task ListAsync(HttpContext ctx, Db db)
     {
-        var who = await Auth.WhoAsync(ctx, db);
-        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
-
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
-        var held = await Agenda.HeldAreasAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        var caller = await Callers.OfAsync(ctx, db, connection);
+        if (caller is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        var held = await HeldLinks.KeyedAreasAsync(connection, caller.RoleIds, ctx.RequestAborted);
         var rows = new List<(Guid Id, Guid AreaId, int Epoch, byte[] Name, DateTimeOffset Created, DateTimeOffset Updated, int Entries, int Published, string Kind, DateTimeOffset? AreaRule)>();
         var hasRule = await HasAreaRuleAsync(connection, ctx.RequestAborted);
 
@@ -152,7 +158,7 @@ public static partial class Library
         var open = new Dictionary<Guid, bool>();
         foreach (var area in rows.Select(r => r.AreaId).Distinct())
         {
-            writes[area] = await Area.MayAsync(connection, who.Value.AccountId, area, Capability.Write, ctx.RequestAborted);
+            writes[area] = await Area.MayAsync(connection, caller, area, Capability.Write, ctx.RequestAborted);
             open[area] = await AreaIsPublicAsync(connection, area, ctx.RequestAborted);
         }
 

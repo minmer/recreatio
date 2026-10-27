@@ -15,7 +15,10 @@ import { WhoSees } from './BaseWho';
 import {
   dateText, FIELD_TYPE_LABEL, fieldsOf, labelOf, outsideOf, parseRange, rangeText, readDate, readRange, VALUE_STATE_LABEL, VALUE_STATES,
   type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState, placeText,
-  enteredText, fieldKind, fieldUnit, quantityEnvelope } from './schema';
+  enteredText, fieldKind, fieldShown, fieldUnit, quantityEnvelope } from './schema';
+import { QUESTION } from './kinds';
+import { QuestionFields, QuestionPreview } from './QuestionFields';
+import { tidyQuestion } from './questionTypes';
 import { kindById, parseQuantity, unitById } from '../core/quantities';
 import { linkedOf } from './store';
 import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
@@ -65,6 +68,13 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
   const draft: Entity = { id: entityId ?? 'new', kinds, data };
   const look = lib.look;
   const fields = fieldsOf(draft, look);
+  /*
+    2026-10-27 — EIN PYTANIE zeigt seine Felder nach dem Rodzaj pytania (`QuestionFields`); jedes
+    andere Feld, das nur zu einigen Werten eines Wahlfeldes gehört („Pokaż, gdy"), nur dann.
+  */
+  const asks = kinds.includes('question');
+  const questionKeys = asks ? new Set(QUESTION.fields.map((f) => f.key)) : null;
+  const shown = fields.filter((f) => (questionKeys === null || !questionKeys.has(f.key)) && fieldShown(f, data));
   const outside = outsideOf(draft, look);
   const change = (key: string, value: unknown) => {
     setData((was) => {
@@ -76,7 +86,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
   };
 
   const save = () => run(async () => {
-    const saved = await lib.saveEntity({ ...(entityId === null ? {} : { id: entityId }), kinds, data });
+    const saved = await lib.saveEntity({ ...(entityId === null ? {} : { id: entityId }), kinds, data: asks ? tidyQuestion(data) : data });
     setDirty(false);
     setSaid('Zapisano.');
     if (entityId === null) onDone(saved.id);
@@ -101,7 +111,14 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         <KindsRow kinds={kinds} writes={writes} onChange={(k) => { setKinds(k); setDirty(true); }} />
         {/* 2026-10-23 — eine Aussage (ein Rodzaj mit Feld blocks): Informacja oder Interpretacja, Frage — gerechnet aus dem, worauf sie gerade zeigt. */}
         {blocksField(draft, look) !== undefined && <StatementMarks entry={{ id: entityId ?? 'new', kind: 'entity', data: { ...data, _kinds: [...kinds] } }} look={lib.markupLook} author />}
-        {fields.map((field) => (
+        {asks && (
+          <QuestionFields id={entityId ?? 'new'} data={data} writes={writes} onSet={change}
+            field={(key, over) => {
+              const f = fields.find((x) => x.key === key);
+              return f === undefined ? null : <FieldEditor key={key} field={over === undefined ? f : { ...f, ...Object.fromEntries(Object.entries(over).filter(([, v]) => v !== undefined)) }} raw={data[key]} writes={writes} onChange={(v) => change(key, v)} onOpen={onOpen} />;
+            }} />
+        )}
+        {shown.map((field) => (
           <FieldEditor key={field.key} field={field} raw={data[field.key]} writes={writes} onChange={(v) => change(field.key, v)} onOpen={onOpen} />
         ))}
         {outside.length > 0 && (
@@ -129,6 +146,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         )}
       </form>
       <aside className="cg">
+        {/* 2026-10-27 — die Karte, wie der Lernende sie sieht (neben dem Formular: sie hat ihr eigenes). */}
+        {asks && <QuestionPreview id={entityId ?? 'new'} data={data} lib={lib} />}
         {existing !== undefined && knowledgeLike && changedLinks.length > 0 && (
           <div className="cg-card">
             <strong>Zmieniło się, o czym jest ten wpis</strong>

@@ -163,11 +163,12 @@ export function describeForm(form: AddForm, look: Pick<Lookup, 'kind'>): string[
       }
     }
     const pairs = refFields(kind).filter((f) => !f.multi && form.graph.edges.some((e) => e.to === id && e.in === f.key && entryConfig(byId.get(e.from)?.config).many && byId.get(e.from)?.type === 'entry'));
-    const needs = [...new Set(form.graph.edges.filter((e) => e.to === id && byId.get(e.from)?.type === 'entry').map((e) => quote(nodeLabel(byId.get(e.from)!, look, form.graph))))];
+    const needs = [...new Set(form.graph.edges.filter((e) => e.to === id && byId.get(e.from)?.type === 'entry' && entryConfig(byId.get(e.from)!.config).optional !== true).map((e) => quote(nodeLabel(byId.get(e.from)!, look, form.graph))))];
     const identity = c.reuse === 'never' ? [] : identityOf(form, node, kind);
     const sentence = [
       `${quote(nodeLabel(node, look, form.graph))} (${kind.name}): ${parts.join('; ') || 'bez pól'}.`,
       c.many ? 'Kilka w jednym wierszu.' : '',
+      c.optional === true ? 'Może zostać puste.' : '',
       choicesOf(c, look).length > 1 ? `Przy każdej wartości wybiera się rodzaj: ${choicesOf(c, look).map((ch) => `${ch.kind.name} (${ch.field.label})`).join(' albo ')}; na liście — przedrostek, np. „${choicesOf(c, look)[1].kind.name}: …”.` : '',
       pairs.length > 0 ? `Po jednym dla każdej pary (${pairs.map((f) => f.label).join(', ')} przyjmuje jeden wpis).` : '',
       needs.length > 0 ? `Powstaje tylko, gdy w wierszu jest ${needs.join(' i ')}.` : '',

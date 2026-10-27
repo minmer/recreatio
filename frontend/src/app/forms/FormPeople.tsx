@@ -10,7 +10,7 @@ import { WorkspaceError } from '../core/session';
 import { formPath } from '../routes';
 import { checkText } from '../seats/seatCheck';
 import { PersonSteps } from '../steps/StepList';
-import { progressOf } from '../steps/steps';
+import { bookingTagClass, bookingTags, progressOf } from '../steps/steps';
 import { askText } from '../ui/dialogs';
 import { type DeskRow, type EntryDesk, type Numbered, PANEL_SECTIONS, type PanelSection, STEP_CHOICES, type StepInfo, deskChanged, deskRows, formAreasOf, seatAreasOf, stepKindsOf, stepMatches } from './entryDesk';
 import { ExtensionEntry } from './ExtensionSheet';
@@ -205,8 +205,11 @@ export function People({
           {stepKinds.length > 0 && (
             <select className="wk-step-filter" value={stepFilter} onChange={(e) => setStepFilter(e.target.value)} aria-label="Pokaż osoby">
               {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-              {stepKinds.map(([key, label]) => (
-                <option key={key} value={`todo:${key}`}>brakuje: {label}</option>
+              {/* Je Schritt beide Richtungen — bei „Wybierz termin": ma termin / bez terminu / już był … */}
+              {stepKinds.map((k) => (
+                <optgroup key={k.key} label={k.label}>
+                  {k.options.map(([value, short]) => <option key={value} value={value}>{short}</option>)}
+                </optgroup>
               ))}
             </select>
           )}
@@ -318,6 +321,10 @@ export function People({
                       postęp {progress.done}/{progress.total}{progress.overdue > 0 ? ' · po terminie!' : ''}
                     </span>
                   )}
+                  {/* „Wybierz termin": der Termin selbst — oder dass keiner gewählt ist. */}
+                  {bookingTags(states).map((tag) => (
+                    <span key={tag.key} className={bookingTagClass(tag)} title={tag.title} data-booking-tag={tag.state}>{tag.text}</span>
+                  ))}
                 </span>
 
                 <button

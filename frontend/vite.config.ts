@@ -38,7 +38,9 @@ export default defineConfig({
         main: 'index.html',
         runner: 'runner.html',
         /* 2026-10-19 — das Partikel-Labor in einer eigenen Karte mit allen Kernen (public/lab-sw.js setzt seine Kopfzeilen). */
-        lab: 'lab.html'
+        lab: 'lab.html',
+        /* 2026-10-27 — die Vorschau eines Dokuments der Seite (Assistenten über frontend/mcp/, Menschen zum Einfügen). */
+        preview: 'preview.html'
       },
       output: {
         manualChunks(id) {

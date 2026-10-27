@@ -183,6 +183,12 @@ by the **scheme** of its work (the work field "Układ miejsc", else from its kin
   place cited in one edition may open the text of another (shown as such); a page never.
 - Quotes are ordered by the scheme of their work (`workLocatorKey`): pages as numbers, the Scripture by the canon,
   Aquinas by part, question, article.
+- **Page series** (2026-10-27): a book whose parts are paged separately (a Missal: `s. 12*`, `s. 45`, `s. 3'`,
+  `s. 3''`, `s. (7)`, `s. [7]`, roman `s. xii`). Each series is a band of its own — the same number in two series stays
+  two pages — and a range stays in its series (`s. 45'–47'`). The work field „Serie stron” (`pageSeries`, e.g.
+  `* 1 ' ''`) gives their order in the book, else `i * ** () [] 1 ' '' '''`; it orders quotes, places and Cogita
+  structures (`pageOrdinal`, never stored). The AI link and MCP read the same marks (`AiAccess.PageValue`). A book has
+  „Gatunek” too (powieść biograficzna, mszał …), which the guide `templates/cogita/ksiazka-AI.md` uses.
 
 **A source text** is stored like everything else, sealed under its area's key, in **any library one may write** —
 not necessarily the work's. So the work can stand in a public library and its text in a private one; whoever reads

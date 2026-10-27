@@ -175,6 +175,22 @@ export interface FieldDef {
    * ist kein Urteil über die Quelle.
    */
   readonly structure?: 'up' | 'down';
+  /**
+   * 2026-10-27 — `ref` IN DER REIHENFOLGE DES LERNENS, vom Besitzer erklärt: `up` — was er nennt,
+   * muss man VORHER können („Najpierw trzeba znać", „Wymaga": Orbital → Elektron, Atom); `down` —
+   * was er nennt, baut auf IHM auf („Na tym budują"). Die Maschine liest daraus EINEN Graphen der
+   * Voraussetzungen (`prerequisites.ts`): Ebenen von den Grundlagen her, gesperrte Karten, neue
+   * Karten in dieser Reihenfolge, die Ścieżka in der Nauka. Eine Struktur (`structure`) ist etwas
+   * anderes: wer worunter liegt, nicht was man zuerst können muss.
+   */
+  readonly prerequisite?: 'up' | 'down';
+  /**
+   * 2026-10-27 — NUR FÜR EINIGE WERTE EINES WAHLFELDES desselben Rodzaj („Pokaż, gdy"): ein Rodzaj
+   * mit einem Feld „Rodzaj pytania" (oder „Typ") und Feldern, die nur zu einigen Typen gehören — EIN
+   * Schema statt eines je Typ. Der Editor zeigt das Feld nur, wenn das Wahlfeld einen dieser Werte
+   * hat; ein Wert, der schon dasteht, bleibt gespeichert, wenn der Typ wechselt.
+   */
+  readonly when?: FieldWhen;
   /** `media`: welche Dateien. */
   readonly media?: readonly MediaType[];
   /** `range`: woraus die Stücke bestehen. */
@@ -184,6 +200,20 @@ export interface FieldDef {
   /** Was das Feld bedeutet — für die Beschreibung neben dem JSON. */
   readonly says?: string;
   /* 2026-10-22 — keine „privaten" Felder mehr: wer ein Feld liest, entscheidet der Bereich, nicht das Feld. */
+}
+
+/** 2026-10-27 — wann ein Feld gilt: das Wahlfeld (`field`) hat einen dieser Werte. */
+export interface FieldWhen {
+  readonly field: string;
+  readonly values: readonly string[];
+}
+
+/** Gilt das Feld für diese Daten? Ohne `when` immer; mit `when` nur, wenn das Wahlfeld einen der Werte hat (leer: nicht). */
+export function fieldShown(field: Pick<FieldDef, 'when'>, data: Readonly<Record<string, unknown>>): boolean {
+  if (field.when === undefined) return true;
+  const raw = data[field.when.field];
+  const values = (Array.isArray(raw) ? raw : [raw]).map((v) => (typeof v === 'string' ? v : isObject(v) && typeof v.value === 'string' ? v.value : ''));
+  return values.some((v) => v !== '' && field.when!.values.includes(v));
 }
 
 /**
@@ -301,6 +331,14 @@ export const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 const pick = <T extends string>(allowed: readonly T[], v: unknown): T | undefined =>
   typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
 
+/** 2026-10-27 — „Pokaż, gdy": ein anderes Feld (nicht dieses) und mindestens ein Wert. */
+function readWhen(raw: unknown, own: string): FieldWhen | undefined {
+  if (!isObject(raw)) return undefined;
+  const field = str(raw.field).trim();
+  const values = (Array.isArray(raw.values) ? raw.values : [raw.values]).map((v) => str(v).trim()).filter((v) => v !== '');
+  return FIELD_KEY.test(field) && field !== own && values.length > 0 ? { field, values: [...new Set(values)] } : undefined;
+}
+
 export function readField(raw: unknown): FieldDef | null {
   if (!isObject(raw)) return null;
   const key = str(raw.key);
@@ -333,6 +371,8 @@ export function readField(raw: unknown): FieldDef | null {
     symmetric: type === 'ref' && raw.symmetric === true ? true : undefined,
     locator: type === 'ref' && raw.locator === true ? true : undefined,
     structure: type === 'ref' && (raw.structure === 'up' || raw.structure === 'down') ? raw.structure : undefined,
+    prerequisite: type === 'ref' && (raw.prerequisite === 'up' || raw.prerequisite === 'down') ? raw.prerequisite : undefined,
+    when: readWhen(raw.when, key),
     media: type === 'media' ? (media && media.length > 0 ? media : [...MEDIA_TYPES]) : undefined,
     rangeOf: type === 'range' ? pick(RANGE_OF, raw.rangeOf) ?? 'number' : undefined,
     role: str(raw.role).trim() !== '' ? clip(str(raw.role).trim(), 40) : undefined,
@@ -378,6 +418,16 @@ export function problemsOf(kind: KindDef, look: Pick<Lookup, 'kind'>): string[] 
       if (target !== kind.id && look.kind(target) === undefined) out.push(`Pole „${field.label}" odwołuje się do rodzaju, którego nie ma.`);
     }
     if (field.type === 'choice' && (field.options ?? []).length === 0) out.push(`Pole „${field.label}" nie ma nic do wyboru.`);
+    /* 2026-10-27 — „Pokaż, gdy": das Wahlfeld muss es in diesem Rodzaj geben. */
+    if (field.when !== undefined) {
+      const by = kind.fields.find((f) => f.key === field.when!.field);
+      if (by === undefined) out.push(`Pole „${field.label}" pokazuje się tylko przy wartościach pola „${field.when.field}", którego ten rodzaj nie ma.`);
+      else if (by.type !== 'choice') out.push(`Pole „${field.label}" zależy od pola „${by.label}", które nie jest wyborem z listy.`);
+      else {
+        const missing = field.when.values.filter((v) => !(by.options ?? []).some((o) => o.value === v));
+        if (missing.length > 0) out.push(`Pole „${field.label}" zależy od wartości ${missing.map((v) => `„${v}"`).join(', ')}, których nie ma w polu „${by.label}".`);
+      }
+    }
   }
   if (kind.fields.length === 0) out.push('Rodzaj nie ma jeszcze żadnego pola.');
   return out;
@@ -564,8 +614,9 @@ export function readNumber(raw: unknown): number | null {
 function readBool(raw: unknown): BoolValue | null {
   if (raw === true || raw === false) return raw;
   const text = str(raw).trim().toLowerCase();
-  if (['tak', 'yes', 'true', 't'].includes(text)) return true;
-  if (['nie', 'no', 'false', 'n'].includes(text)) return false;
+  /* 2026-10-27 — auch „prawda" / „fałsz": so schreibt man die Antwort eines Pytania „Prawda czy fałsz" in eine Zeile. */
+  if (['tak', 'yes', 'true', 't', 'prawda'].includes(text)) return true;
+  if (['nie', 'no', 'false', 'n', 'fałsz', 'falsz'].includes(text)) return false;
   if (['unknown', 'nie wiadomo', '?'].includes(text)) return 'unknown';
   return null;
 }

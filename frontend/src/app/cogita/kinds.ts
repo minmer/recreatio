@@ -51,6 +51,7 @@
 import { KINDS as LIBRARY_KINDS, type LibEntry, type LibField, type LibFieldType } from '../library/libraryKinds';
 import { readKind, type Entity, type FieldDef, type FieldType, type KindDef } from './schema';
 import { QUANTITY_KINDS } from '../core/quantities';
+import { formsOfField, QUESTION_TYPES, SHOW_MAX } from './questionTypes';
 
 /** Die Art im Klartext für jeden Eintrag, der keine eingebaute ist. */
 export const ENTITY = 'entity';
@@ -140,7 +141,17 @@ function builtin(id: string): KindDef {
   };
 }
 
-/** Eine von Hand geschriebene Frage [C4, D1] — die Felder, die `questionCard` liest. */
+/**
+ * EINE FRAGE [C4, D1] — die Felder, die `questionCard` liest. 2026-10-27: EIN Schema für jede Art
+ * der Frage (`questionTypes.ts`): „Rodzaj pytania" (`form`) entscheidet, welche Felder gelten
+ * (`when`); gemeinsam sind die Frage, „Wyjaśnienie", „O czym" (was die Frage prüft: ihre Kenntnis
+ * zählt dort, und sie wartet auf das, was dort zuerst zu können ist) und „Najpierw trzeba znać".
+ */
+const q = (key: string, label: string, type: FieldType, more: Partial<FieldDef> = {}): FieldDef => {
+  const forms = formsOfField(key);
+  return field(key, label, type, { ...more, ...(forms === undefined ? {} : { when: { field: 'form', values: forms } }) });
+};
+
 export const QUESTION: KindDef = {
   id: 'question',
   name: 'Pytanie',
@@ -148,42 +159,41 @@ export const QUESTION: KindDef = {
   tells: 'form',
   system: 'question',
   fields: [
-    field('form', 'Forma odpowiedzi', 'choice', {
-      options: [
-        { value: 'text', label: 'Tekst' }, { value: 'number', label: 'Liczba' }, { value: 'date', label: 'Data' },
-        { value: 'one', label: 'Jedna z kilku' }, { value: 'many', label: 'Kilka z kilku' }, { value: 'truefalse', label: 'Prawda / fałsz' },
-        { value: 'order', label: 'Kolejność' }, { value: 'match', label: 'Dopasowanie' }, { value: 'gap', label: 'Luka w cytacie' },
-        { value: 'flash', label: 'Fiszka (ocena własna)' }, { value: 'code', label: 'Kod (Python)' }, { value: 'point', label: 'Miejsce na mapie' },
-        { value: 'interactive', label: 'Rysunek do poruszania' }
-      ],
-      says: 'Jak się odpowiada: text, number, date, one, many, truefalse, order, match, gap, flash, code, point, interactive (ustawia się rysunek — suwaki, przeciąganie — i sprawdza)'
+    field('form', 'Rodzaj pytania', 'choice', {
+      options: QUESTION_TYPES.map((t) => ({ value: t.form, label: t.label })),
+      says: `Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: ${QUESTION_TYPES.map((t) => `${t.form} (${t.label})`).join(', ')}`
     }),
-    field('prompt', 'Pytanie', 'markup', { role: 'text', says: 'Treść pytania (dla luki: tekst z lukami [[słowo]])' }),
-    field('answers', 'Poprawne odpowiedzi', 'list', { says: 'Przyjmowane odpowiedzi (tekst, liczba, data, luka) — pierwsza jest wzorcowa' }),
-    field('options', 'Do wyboru', 'list', { says: 'Możliwości (one, many)' }),
-    field('correct', 'Które są dobre', 'list', { says: 'Numery dobrych możliwości, od 0 (one, many)' }),
-    field('items', 'W dobrej kolejności', 'list', { says: 'Elementy w poprawnej kolejności (order)' }),
-    field('left', 'Lewa strona', 'list', { says: 'Lewa strona par (match)' }),
-    field('right', 'Prawa strona', 'list', { says: 'Prawa strona par, w tej samej kolejności (match)' }),
-    field('value', 'Prawda?', 'bool', { says: 'Czy zdanie jest prawdziwe (truefalse)' }),
-    field('back', 'Odwrotna strona', 'list', { says: 'Co jest na odwrocie fiszki (flash)' }),
-    field('tolerance', 'Tolerancja', 'number', { says: 'Ile wolno się pomylić (liczba; data — w jednostkach dokładności)' }),
-    field('relative', 'Tolerancja względna', 'bool', { says: 'Tolerancja jako ułamek wartości (liczba)' }),
-    field('unit', 'Jednostka', 'line', { says: 'Jednostka liczby' }),
-    field('quantity', 'Wielkość', 'choice', { options: QUANTITY_KINDS.map((k) => ({ value: k.id, label: k.label })), says: 'Jaka wielkość (number): Torque, Energy, Mass, Length … — wtedy odpowiedź może mieć inną jednostkę tej wielkości (przeliczana), a jednostka innej wielkości jest błędem (12 J na pytanie o moment siły)' }),
-    field('precision', 'Dokładność daty', 'choice', { options: [{ value: 'year', label: 'rok' }, { value: 'month', label: 'miesiąc' }, { value: 'day', label: 'dzień' }], says: 'year, month albo day' }),
-    field('task', 'Zadanie', 'text', { says: 'Opis zadania (code)' }),
-    field('starter', 'Początek kodu', 'text', { says: 'Kod na start, z def transform(x): (code)' }),
-    field('createInput', 'Dane testowe', 'text', { says: 'def create_input(seed): … — dane do sprawdzenia (code)' }),
-    field('reference', 'Rozwiązanie wzorcowe', 'text', { says: 'def reference(x): … — wynik, z którym porównuje się kod (code)' }),
-    field('cases', 'Ile przypadków', 'number', { says: 'Na ilu danych sprawdzić (code)' }),
-    field('place', 'Miejsce', 'geo', { says: 'Szukany punkt: {"lat": …, "lon": …} (point)' }),
-    field('radius', 'Promień (m)', 'number', { says: 'Jak blisko trzeba trafić, w metrach (point)' }),
-    field('drawing', 'Rysunek (JSON)', 'text', { says: 'Rysunek do poruszania — ten sam JSON co w module „Animacja” strony: vars, sim, controls, rules (z "goal": true — cel), world (rzeczy do budowania, np. waga), elements (interactive)' }),
-    field('goal', 'Cel (wyrażenie)', 'line', { says: 'Kiedy odpowiedź jest dobra, np. "abs(x - cel) < 0.5 && y <= 0" — liczone w symulacji do końca; puste: reguły rysunku z "goal": true (interactive)' }),
-    field('solution', 'Rozwiązanie', 'line', { says: 'Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" albo własności rzeczy "w2.pos = 5" — pokazywane po złej odpowiedzi; puste: "task.solve" rysunku (interactive)' }),
+    q('prompt', 'Pytanie', 'markup', { role: 'text', says: 'Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]]' }),
+    q('answers', 'Poprawne odpowiedzi', 'list', { says: 'Przyjmowane odpowiedzi (text, number, date, gap) — pierwsza jest wzorcowa' }),
+    q('options', 'Do wyboru', 'list', { says: 'Możliwości (one, many)' }),
+    q('correct', 'Które są dobre', 'list', { says: 'Numery dobrych możliwości, od 0 (one, many)' }),
+    q('value', 'Prawda?', 'bool', { says: 'Czy zdanie jest prawdziwe (truefalse)' }),
+    q('left', 'Lewa strona', 'list', { says: 'Lewa strona par, np. lata (match)' }),
+    q('right', 'Prawa strona', 'list', { says: 'Prawa strona par, w tej samej kolejności, np. wydarzenia (match)' }),
+    q('leftLabel', 'Nagłówek lewej strony', 'line', { says: 'Nad lewą kolumną karty, np. „Rok” (match)' }),
+    q('rightLabel', 'Nagłówek prawej strony', 'line', { says: 'Nad prawą kolumną karty, np. „Wydarzenie” (match)' }),
+    q('show', 'Ile par naraz', 'number', { says: `Długa lista: tyle par na jednej karcie (2–${SHOW_MAX}) — każda para ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne pary; puste: wszystkie pary na jednej karcie (match)` }),
+    q('items', 'W dobrej kolejności', 'list', { says: 'Elementy w poprawnej kolejności (order)' }),
+    q('back', 'Odwrotna strona', 'list', { says: 'Co jest na odwrocie fiszki (flash)' }),
+    q('tolerance', 'Tolerancja', 'number', { says: 'Ile wolno się pomylić (liczba; data — w jednostkach dokładności)' }),
+    q('relative', 'Tolerancja względna', 'bool', { says: 'Tolerancja jako ułamek wartości (liczba)' }),
+    q('unit', 'Jednostka', 'line', { says: 'Jednostka liczby' }),
+    q('quantity', 'Wielkość', 'choice', { options: QUANTITY_KINDS.map((k) => ({ value: k.id, label: k.label })), says: 'Jaka wielkość (number): Torque, Energy, Mass, Length … — wtedy odpowiedź może mieć inną jednostkę tej wielkości (przeliczana), a jednostka innej wielkości jest błędem (12 J na pytanie o moment siły)' }),
+    q('precision', 'Dokładność daty', 'choice', { options: [{ value: 'year', label: 'rok' }, { value: 'month', label: 'miesiąc' }, { value: 'day', label: 'dzień' }], says: 'year, month albo day' }),
+    q('task', 'Zadanie', 'text', { says: 'Opis zadania (code)' }),
+    q('starter', 'Początek kodu', 'text', { says: 'Kod na start, z def transform(x): (code)' }),
+    q('createInput', 'Dane testowe', 'text', { says: 'def create_input(seed): … — dane do sprawdzenia (code)' }),
+    q('reference', 'Rozwiązanie wzorcowe', 'text', { says: 'def reference(x): … — wynik, z którym porównuje się kod (code)' }),
+    q('cases', 'Ile przypadków', 'number', { says: 'Na ilu danych sprawdzić (code)' }),
+    q('place', 'Miejsce', 'geo', { says: 'Szukany punkt: {"lat": …, "lon": …} (point)' }),
+    q('radius', 'Promień (m)', 'number', { says: 'Jak blisko trzeba trafić, w metrach (point)' }),
+    q('drawing', 'Rysunek (JSON)', 'text', { says: 'Rysunek do poruszania — ten sam JSON co w module „Animacja” strony: vars, sim, controls, rules (z "goal": true — cel), world (rzeczy do budowania, np. waga), elements (interactive)' }),
+    q('goal', 'Cel (wyrażenie)', 'line', { says: 'Kiedy odpowiedź jest dobra, np. "abs(x - cel) < 0.5 && y <= 0" — liczone w symulacji do końca; puste: reguły rysunku z "goal": true (interactive)' }),
+    q('solution', 'Rozwiązanie', 'line', { says: 'Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" albo własności rzeczy "w2.pos = 5" — pokazywane po złej odpowiedzi; puste: "task.solve" rysunku (interactive)' }),
     field('explain', 'Wyjaśnienie', 'ref', { multi: true, says: 'Wpisy pokazywane po odpowiedzi (np. wypowiedź z treścią w blokach)' }),
-    field('about', 'O czym', 'ref', { multi: true, inverse: 'pytania', says: 'Wpisy, których dotyczy pytanie' })
+    field('about', 'O czym', 'ref', { multi: true, inverse: 'pytania', says: 'Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi' }),
+    /* 2026-10-27 — Voraussetzungen der Frage selbst (eine andere Frage, ein Eintrag): erst sie, dann diese. */
+    field('needs', 'Najpierw trzeba znać', 'ref', { multi: true, prerequisite: 'up', inverse: 'Trzeba znać przed pytaniem', says: 'Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)' })
   ]
 };
 
@@ -272,6 +282,8 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
       if (f.symmetric === true) out.symmetric = true;
       if (f.locator === true) out.locator = true;
       if (f.structure !== undefined) out.structure = f.structure;
+      if (f.prerequisite !== undefined) out.prerequisite = f.prerequisite;
+      if (f.when !== undefined) out.when = { field: f.when.field, values: [...f.when.values] };
       if (f.media !== undefined) out.media = f.media;
       if (f.rangeOf !== undefined) out.rangeOf = f.rangeOf;
       if (f.role !== undefined && !isBaseKind(kind.id)) out.role = f.role;

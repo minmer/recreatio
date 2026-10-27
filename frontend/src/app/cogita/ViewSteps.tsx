@@ -48,8 +48,9 @@ export function shortFieldKeys(lib: CogitaLibrary): FieldKey[] {
   return out;
 }
 
-const groupWord = (g: Grouping | null): string => (g === null || g.by === 'kind' ? 'kind' : g.by === 'field' ? `field:${g.field}` : `axis:${g.kind}`);
+const groupWord = (g: Grouping | null): string => (g === null || g.by === 'kind' ? 'kind' : g.by === 'level' ? 'level' : g.by === 'field' ? `field:${g.field}` : `axis:${g.kind}`);
 const groupOfWord = (word: string, was: Grouping | null): Grouping => {
+  if (word === 'level') return { by: 'level' };
   if (word.startsWith('field:')) return { by: 'field', field: word.slice(6) };
   if (word.startsWith('axis:')) {
     const kind = word.slice(5);
@@ -68,6 +69,8 @@ function GroupingSelect({ label, value, kindLabel, onChange }: { label: string; 
         <span>{label}</span>
         <select value={groupWord(value)} onChange={(e) => onChange(groupOfWord(e.target.value, value))}>
           <option value="kind">{kindLabel}</option>
+          {/* 2026-10-27 — die Ebenen von den Grundlagen her (Felder „Najpierw trzeba znać”, `prerequisites.ts`). */}
+          <option value="level">według kolejności nauki (poziomy od podstaw)</option>
           {axes.length > 0 && (
             <optgroup label="według osi — rodzaju (jego wpisy to wartości)">
               {axes.map((k) => <option key={k.id} value={`axis:${k.id}`}>{k.name}</option>)}

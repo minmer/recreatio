@@ -216,6 +216,11 @@ Texts (a body, plan points, the paragraphs of a statement, markup fields) use on
   of a work (its leading question and argumentation) follows `templates/cogita/wywod-AI.md`.
 - **Page**: the page editor → JSON (Appendix D has the page structure, the page-texts rule, the presentation, and the
   modules of the three parts; the full page description covers every module kind and is too long to include).
+  **See it before it is imported:** with the MCP server `recreatio-preview` (PREVIEW-MCP.md — an agent on the
+  owner's computer, or over HTTP through a tunnel) the page is drawn by the real app at every screen size, slide by
+  slide, scene by scene, with filmstrips of the transitions and a list of what the import ignores and what looks
+  wrong; `page_format` gives the full description. Without it, the owner can paste the JSON into
+  `recreatio.pl/preview.html`.
 - Return **one JSON object, without comments**. Use `@keys` to refer between entries of the same document.
 
 ## 13. Reading the owner's data: the AI link
@@ -290,7 +295,7 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "catalogue" — Numer katalogowy: Przy utworze: numer w katalogu dzieł (op. 27 nr 2, BWV 147, KV 618); przy nutach i płycie: numer wydawcy (tekst)
   "musicKey" — Tonacja: Tonacja (tej wersji) (tekst)
   "voicing" — Obsada: Na jakie głosy i instrumenty (tekst)
-  "genre" — Gatunek: Jaki to utwór (tekst)
+  "genre" — Gatunek: Jaki to utwór albo jaka to książka (powieść, powieść biograficzna, biografia, reportaż, mszał, modlitewnik, podręcznik…) (tekst)
   "duration" — Czas trwania: Jak długo trwa (minuty:sekundy) (tekst)
   "publisher" — Wydawca: Wydawnictwo (przy nagraniu i płycie: wytwórnia) (tekst)
   "place" — Miejsce wydania: Miejsce wydania (tekst)
@@ -312,6 +317,7 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "language" — Język: Język (np. "pl", "la"; przy muzyce — język słów) (tekst)
   "lyrics" — Słowa: Słowa utworu — zwrotki oddzielone pustym wierszem (tekst (może mieć wiele wierszy))
   "scheme" — Układ miejsc: Jak wskazuje się miejsca w tym dziele: "pages" (Strony wydania), "bible" (Pismo Święte), "numbered" (Numery (dokumenty)), "aquinas" (Tomasz z Akwinu), "decimal" (Numeracja dziesiętna), "sections" (Paragrafy dzieła), "outline" (Podział dzieła); puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages) (jedna z wartości)
+  "pageSeries" — Serie stron: Gdy części książki mają własną numerację stron: znaki serii w kolejności książki, oddzielone spacją — "i" rzymskie (xii), "1" zwykłe (45), "*" z gwiazdką (12*), "'" z apostrofem (3'), "''" z dwoma apostrofami (3''), "'''" z trzema apostrofami (3'''), "()" w nawiasie ((7)), "[]" w nawiasie kwadratowym ([7]), "**" z dwiema gwiazdkami (5**); np. "* 1 ' ''" (najpierw strony z gwiazdką, potem zwykłe, potem z apostrofem i z dwoma); puste — i * ** () [] 1 ' '' ''' (tekst)
   "psalms" — Numeracja psalmów: Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata) (jedna z wartości)
   "editionOf" — Wydanie / przekład dzieła: To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie. (odwołanie: kennung albo "@klucz")
   "files" — Pliki nut: Pliki tych nut — partytura, głosy, zapis nutowy; pliki wgrywa się w aplikacji, JSON z eksportu przenosi je w tej samej bibliotece (lista obiektów o polach:)
@@ -843,9 +849,14 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote — z biblioteki; text, delivery, project — ze skryptorium; question);
     innych wbudowanych treści nie ma: rodzaje pisze właściciel bazy albo importuje gotowy schemat (niżej)
-  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "media", "rangeOf", "says"}]
+  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "prerequisite", "when", "media", "rangeOf", "says"}]
   "structure" (odwołanie) — połączenie w STRUKTURZE (np. wywód artykułu): "up" — ten wpis leży POD tym, na co wskazuje (krok → krok wyżej: „Należy do"); "down" — wskazane wpisy leżą pod nim („Argumenty za");
     widok „Struktura" z krokiem "structure" rysuje z tego drzewo w kolejności miejsc w dziele; takie pole nie czyni wypowiedzi „interpretacją"
+  "prerequisite" (odwołanie) — KOLEJNOŚĆ NAUKI: "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga": orbital wymaga elektronu i atomu); "down" — to, na co wskazuje, buduje na tym wpisie („Prowadzi do");
+    z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (powtórka z „Najpierw podstawy”, Nauka → Ścieżka), nowe karty idą od ogólnych do szczegółowych;
+    to coś innego niż "structure" (co pod czym leży); koło (A wymaga B, B wymaga A) nie działa i stoi w „Do zrobienia"
+    np. {"key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@pojecie"], "multi": true, "prerequisite": "up", "inverse": "Na tym budują"}
+  "when" — pole tylko dla niektórych wartości pola-wyboru tego samego rodzaju: {"field": "typ", "values": ["bitwa", "traktat"]} — JEDEN rodzaj z polem „typ” zamiast osobnego rodzaju dla każdego typu; edytor pokazuje pole tylko przy tych wartościach
   "quantity" (liczba) — jaka wielkość (identyfikator z QUDT, np. "Torque", "Mass"); wtedy wartość wpisuje się w dowolnej jednostce tej wielkości, a zapisuje tak, jak wpisano, razem z SI:
     {"value": 1.5, "unit": "KiloN", "si": 1500} ("unit" — identyfikator jednostki z QUDT: "N", "KiloN", "N-M", "J", "KiloGM", "DEG_C" …; liczba bez jednostki — w jednostce pola);
     np. {"key": "moment", "label": "Moment obrotowy", "type": "number", "unit": "N·m", "quantity": "Torque"}, a we wpisie: "moment": {"value": 12, "unit": "N-M", "si": 12};
@@ -863,6 +874,11 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   gotowe schematy to pliki w repozytorium, importowane jak każdy schemat (Wiedza → Schematy → Rodzaje wpisów → „Schemat jako JSON” → Import): templates/cogita/komentarz.json (Komentarz: „O czym” — odwołania z miejscem do dowolnego wpisu, „Treść” — bloki; z szablonami kart „Teza” i „Tabela z treści”),
     templates/cogita/slownik.json (Język, Słowo, Tłumaczenie, Synonimy, Antonimy — z szablonami „Słówka”), templates/cogita/psalterz.json (psalm z miejscem w Piśmie, miejsca brewiarza),
     templates/cogita/komentarz-biblijny.json (Komentarz z argumentami za i zarzutami, Komentarz biblijny do fragmentu Pisma),
+    templates/cogita/pytania.json (jeden schemat pytań: wbudowany rodzaj „Pytanie” z jego rodzajami pytań i polami, sposoby dodawania wielu pytań naraz — prawda/fałsz, odpowiedź słowami, fiszki — i widok „Pytania według rodzaju”),
+    templates/cogita/podstawy.json (kolejność nauki: „Pojęcie” z polem „Wymaga” — "prerequisite": "up" —, karty „czym jest”, widok „Od podstaw” i sposób dodawania pojęć z tym, czego wymagają; przykład z atomem do zaimportowania jako kurs: templates/cogita/przyklad-atom.json),
+    templates/cogita/fakty.json (dzieło o rzeczywistości: „Fakt” — twierdzenie o prawdziwym świecie z datą, okresem, miejscem w dziele, tym, jak przedstawia to dzieło, oceną zgodności z historią i innymi źródłami; „Okres”; karty „Prawda czy fikcja?”; widoki według okresów, prawdy i fikcji, od podstaw),
+    templates/cogita/jednostki.json (księga z numerowanymi częściami — prefacje, modlitwy, pieśni, artykuły: „Część księgi” z numerem, oznaczeniem, początkiem, tematem, grupą, stroną, podobnymi i różnicą; „Grupa części”; karty „Która to?”, początki ↔ nazwy, tematy),
+    templates/cogita/ksiazka-AI.md (jak przygotować książkę z KI w dwóch krokach: Biblioteka z całym tekstem, potem menu wyboru — zakres, warstwy, pytania, kolejność nauki, powtórki — i kurs Cogita),
     templates/cogita/wywod.json (opis dzieła: „Krok wywodu” — rola (pytanie, teza, argument, zarzut… albo wątek, część utworu, wydarzenie, etap, opis), miejsce w dziele, treść, ważny fragment, „Należy do” — połączenie w strukturze, także w kilku strukturach naraz, czas opowieści; „Element stały” — pojęcie, postać, miejsce, motyw… w dziele albo ponad dziełami („Ogólnie”); Komentarz — własna uwaga; widoki „Wywód” (drzewo, kolejność tekstu, czas opowieści), „Elementy stałe”; karty ze ścisłym sprawdzaniem: fragmenty ↔ tezy, teza do fragmentu, dzieło tezy, znaczenie elementu; jak przygotować tekst i strukturę dzieła dla KI w dwóch krokach: templates/cogita/wywod-AI.md)
   typy pól: "line" (Wiersz tekstu), "text" (Dłuższy tekst), "markup" (Tekst z przypisami), "blocks" (Treść w blokach (akapity, listy, tabele)), "number" (Liczba z jednostką), "date" (Data (rok, miesiąc albo dzień)), "bool" (Tak / nie / nie wiadomo), "choice" (Wybór z listy), "ref" (Odwołanie), "media" (Obraz, dźwięk, film, dokument), "url" (Adres strony), "list" (Lista w kolejności), "geo" (Miejsce na mapie), "range" (Zakres z kilku odcinków)
   wartość niepewna: {"value": …, "state": "known|approximate|disputed|unknown|na|pending", "source": {"work": "@dzielo", "locator": "s. 23"}, "note": "…"}
@@ -878,7 +894,28 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
     zapis tekstu w akapicie i w polach "markup" (ten sam co w Skryptorium): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
     [[słowo|@wpis]] — link do wpisu (tej bazy, innej bazy albo biblioteki) z tymi słowami; nigdy przypis;
     [@dzielo, s. 23] — źródło: dzieło, cytat, osoba z biblioteki staje się przypisem; ten sam zapis na wypowiedź, wpis czy tekst daje w tekście link „(zob. etykieta)”
-  pytanie: "kinds": ["question"], "data": {"form": "text|number|date|one|many|truefalse|order|match|gap|flash|code|point|interactive", "prompt", "answers", "options", "correct", …}
+  pytanie — JEDEN rodzaj "question"; "form" (rodzaj pytania) mówi, jak się pyta, i od niego zależy, które pola się wypełnia:
+    "text" — Odpowiedź słowami: Uczący się wpisuje odpowiedź; liczy się podobieństwo — literówka daje część punktów. Dobrych odpowiedzi może być kilka. Pola: "prompt" (pytanie), "answers" (poprawne odpowiedzi, np. ["siedem", "7"])
+    "number" — Liczba: Uczący się wpisuje liczbę, może z jednostką; tolerancja mówi, ile wolno się pomylić. Pola: "prompt" (pytanie), "answers" (poprawne odpowiedzi, np. ["12"]), "unit" (jednostka, np. "N·m"), "quantity" (wielkość, np. "Torque"), "tolerance" (tolerancja, np. 0.5), "relative" (tolerancja względna, np. false)
+    "date" — Data: Uczący się wpisuje datę — z dokładnością do roku, miesiąca albo dnia. Pola: "prompt" (pytanie), "answers" (poprawne odpowiedzi, np. ["1410-07-15"]), "precision" (dokładność daty, np. "year"), "tolerance" (tolerancja, np. 0)
+    "gap" — Luka w tekście: Tekst z zakrytym słowem — w treści [[słowo]] (albo „…” i dobre odpowiedzi niżej); uczący się wpisuje, czego brakuje. Pola: "prompt" (tekst z luką), "answers" (poprawne odpowiedzi, np. ["Ojczyzno"])
+    "one" — Jedna z kilku: Kilka możliwości, dobra jest jedna; kolejność miesza się przy każdym pytaniu. Pola: "prompt" (pytanie), "options" (do wyboru, np. ["Pięć", "Siedem", "Dwanaście"]), "correct" (które są dobre, np. [1])
+    "many" — Kilka z kilku: Kilka możliwości, dobrych może być kilka — trzeba zaznaczyć wszystkie. Pola: "prompt" (pytanie), "options" (do wyboru, np. ["Pięć", "Siedem", "Dwanaście"]), "correct" (które są dobre, np. [1])
+    "truefalse" — Prawda czy fałsz: Jedno zdanie; uczący się mówi, czy jest prawdziwe. Pola: "prompt" (zdanie), "value" (prawda?, np. true)
+    "match" — Połącz w pary: Dwie kolumny (np. rok — wydarzenie); uczący się łączy je w pary. Długa lista pokazuje się po kilka par naraz. Pola: "prompt" (polecenie), "left" (lewa strona, np. ["1410", "1569", "1791"]), "right" (prawa strona, np. ["Bitwa pod Grunwaldem", "Unia lubelska", "Konstytucja 3 maja"]), "leftLabel" (nagłówek lewej strony, np. "Rok"), "rightLabel" (nagłówek prawej strony, np. "Wydarzenie"), "show" (ile par naraz, np. 4)
+    "order" — Ułóż w kolejności: Elementy pomieszane; uczący się układa je po kolei. Pola: "prompt" (polecenie), "items" (w dobrej kolejności, np. ["1s", "2s", "2p", "3s"])
+    "flash" — Fiszka (sam oceniasz): Przód i odwrotna strona; uczący się odwraca kartę i sam mówi, czy umiał. Pola: "prompt" (przód fiszki), "back" (odwrotna strona, np. ["Najmniejsza część pierwiastka"])
+    "point" — Miejsce na mapie: Uczący się wskazuje punkt na mapie; liczy się, czy trafił w promień. Pola: "prompt" (pytanie), "place" (miejsce, np. {"lat": 53.49, "lon": 20.1}), "radius" (promień (m), np. 20000)
+    "code" — Kod (Python): Uczący się pisze funkcję w Pythonie; sprawdza ją porównanie z rozwiązaniem wzorcowym na danych testowych. Pola: "prompt" (pytanie), "task" (zadanie, np. "…"), "starter" (początek kodu, np. "def transform(x): …"), "createInput" (dane testowe, np. "def create_input(seed): …"), "reference" (rozwiązanie wzorcowe, np. "def reference(x): …"), "cases" (ile przypadków, np. 5)
+    "interactive" — Rysunek do poruszania: Uczący się ustawia rysunek (suwaki, przeciąganie) i sprawdza; dobrze, gdy symulacja osiąga cel. Pola: "prompt" (pytanie), "drawing" (rysunek (JSON), np. "{… JSON rysunku …}"), "goal" (cel (wyrażenie), np. "abs(x - cel) < 0.5"), "solution" (rozwiązanie, np. "v0 = 12")
+    wspólne dla każdego: "form" (rodzaj pytania), "prompt" (pytanie), "explain" (wyjaśnienie), "about" (o czym), "needs" (najpierw trzeba znać);
+      "about": ["@wpis"] — co pytanie sprawdza: jego wynik liczy się do znajomości tych wpisów, a pytanie czeka, aż opanujesz to, co trzeba znać przed nimi;
+      "needs": ["@wpis albo @pytanie"] — co trzeba opanować przed tym pytaniem (pytanie ogólne przed szczegółowym)
+    pary: lewa i prawa strona w tej samej kolejności; długa lista z "show" (2–12) — na karcie tyle par, każda para ma swoją kartę, wracają te, których uczący się jeszcze nie umie
+    np. {"ref": "@q-lata", "kinds": ["question"], "data": {"form": "match", "prompt": "Połącz rok z wydarzeniem", "left": ["1410", "1569", "1791", "1918"], "right": ["Bitwa pod Grunwaldem", "Unia lubelska", "Konstytucja 3 maja", "Odzyskanie niepodległości"], "leftLabel": "Rok", "rightLabel": "Wydarzenie", "show": 3}}
+    np. {"ref": "@q-atom", "kinds": ["question"], "data": {"form": "one", "prompt": "Co jest w jądrze atomu?", "options": ["Elektrony", "Protony i neutrony", "Tylko neutrony"], "correct": [1], "about": ["@atom"]}}
+    np. {"ref": "@q-orbital", "kinds": ["question"], "data": {"form": "truefalse", "prompt": "Na jednym orbitalu mogą być najwyżej dwa elektrony.", "value": true, "about": ["@orbital"], "needs": ["@q-atom"]}}
+    "gap" — w treści [[słowo]] to luka (uczący się widzi „…”), a bez "answers" dobrą odpowiedzią jest to słowo
     "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, world, elements — jako tekst JSON),
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
@@ -913,7 +950,7 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   części oddziela „;”; część, która zaczyna się niżej niż poprzednia, należy do jej ramy („I q. 2 a. 3; a. 4” — artykuł 4 tej samej kwestii; „t. 2, rozdz. 1; rozdz. 9” — rozdział 9 tego samego tomu)
 "forms" — formularze dodawania (należą do schematu): {"ref", "name", "says", "graph", "keys", "paste", "order"}
   węzeł "pick" — wybór na początek, zostaje dla wszystkich wierszy: "config": {"label", "kinds": ["@rodzaj"], "many", "optional", "value": ["@wpis"]}
-  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "also": ["@inny rodzaj"] (rodzaj wybierany przy każdej wartości; na liście przedrostek „Nazwa rodzaju: …”), "label", "many" (kilka w wierszu), "reuse": "same|never", "identity": ["pole"],
+  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "also": ["@inny rodzaj"] (rodzaj wybierany przy każdej wartości; na liście przedrostek „Nazwa rodzaju: …”), "label", "many" (kilka w wierszu), "optional": true (może zostać puste — wpisy, do których prowadzi, powstają i bez niego), "reuse": "same|never", "identity": ["pole"],
     "fields": {"pole": {"from": "type|ask|fixed", "value": "tekst"}}} — type: wpisywane w wierszu, ask: ustawiane na początek ("value" — domyślnie), fixed: stała wartość
   krawędź {"id", "from": węzeł, "out": "out", "to": węzeł "entry", "in": klucz pola-odwołania} — wypełnia to pole wpisem z węzła "from";
     kilka krawędzi do pola, które przyjmuje kilka: wartości po kolei według położenia węzłów (z góry na dół); wpis powstaje, gdy w wierszu są wszystkie połączone

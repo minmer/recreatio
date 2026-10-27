@@ -45,7 +45,8 @@ export function contextOf(pairs: readonly { readonly grouping: Grouping; readonl
     words.push(group.label);
     if (grouping.by === 'axis') links.push({ id: group.key, via: grouping.via });
     else if (grouping.by === 'kind') kind = group.key;
-    else fields[grouping.field] = group.key.startsWith('t:') ? group.label : group.key;
+    /* 2026-10-27 — eine Ebene der Reihenfolge des Lernens ist kein Wert, den ein neuer Eintrag bekommt. */
+    else if (grouping.by === 'field') fields[grouping.field] = group.key.startsWith('t:') ? group.label : group.key;
   }
   return { links, fields, kind, words };
 }

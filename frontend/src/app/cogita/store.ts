@@ -23,7 +23,7 @@ import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { refsOf } from '../library/refIndex';
-import { cardsOf, questionCard, readTemplate, templatesFor, type Template } from './cards';
+import { cardsOf, questionCards, readTemplate, templatesFor, type Template } from './cards';
 import { blockMarkups, blockRefs, blocksKeyOf } from '../library/blocks';
 import { statementTokens } from '../library/statement';
 import { citedKeys } from '../library/libraryMarkup';
@@ -34,6 +34,7 @@ import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
 import { DEPENDENCY_KINDS } from './knowness';
+import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
 import { readRule, ruleMatches, type RuleGroup, type SelectContext } from './selection';
 
@@ -198,6 +199,8 @@ interface Memo {
   materialKinds: readonly KindDef[] | null;
   /** 2026-10-23 (Schritt 5) — die Arten der anderen Teile: der Bibliothek, des Skryptorium und seine Rodzaje tekstów. */
   foreign: ReadonlySet<string>;
+  /** 2026-10-27 — die Abhängigkeiten (Ustawienia und Felder „Najpierw trzeba znać") und ihr Graph der Voraussetzungen. */
+  deps: { readonly all: Dependency[]; readonly graph: PrerequisiteGraph } | null;
   /** 2026-10-22 (Schritt 9) — wer auf welchen Eintrag zeigt, überhaupt (für „Idź po odwołaniu" rückwärts). */
   links: Map<string, Set<string>> | null;
 }
@@ -290,7 +293,7 @@ export class CogitaLibrary {
         wo es Einträge von ihnen gibt. Die Maschine kennt sie trotzdem (`look`).
       */
       stamp, kinds, contentKinds: kinds.filter((k) => !foreign.has(k.id) && (!isBaseKind(k.id) || byKind.has(k.id) || added.has(k.id))), entities, refs,
-      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, refs2: null, answered: null, search: null, refSearch: null, markup: null, materialKinds: null, foreign, links: null
+      look: lookupOf(kinds, [...entities, ...refs]), byKind, docs, origin, backlinks: null, refs2: null, answered: null, search: null, refSearch: null, markup: null, materialKinds: null, foreign, links: null, deps: null
     };
     return this.memo;
   }
@@ -340,7 +343,9 @@ export class CogitaLibrary {
       marks,
       now,
       from: (id) => this.origin(id)?.libraryId,
-      select: this.selectContext()
+      select: this.selectContext(),
+      /* 2026-10-27 — „Najpierw podstawy" holt damit die Karten fehlender Grundlagen dazu. */
+      deps: this.dependencies()
     };
   }
   get look(): Lookup { return this.fresh().look; }
@@ -548,7 +553,9 @@ export class CogitaLibrary {
         const entry = this.entry(id);
         if (entry === undefined) return [];
         return [...new Set(refsOf(entry, (token) => this.resolve(token)).map((r) => r.target))].filter((t) => t !== id && this.entity(t) !== undefined);
-      }
+      },
+      /* 2026-10-27 — die Ebenen der Reihenfolge des Lernens (Gruppierung „według kolejności nauki"). */
+      prerequisites: () => this.prerequisites()
     };
   }
 
@@ -559,15 +566,31 @@ export class CogitaLibrary {
   /**
    * Die bestätigten Abhängigkeiten — was die Kenntnis weitergibt und sperrt.
    * 0110: die wiederverwendeter Bazy wiedzy gelten mit; die eigene gewinnt.
+   * 2026-10-27: dazu die Felder „Najpierw trzeba znać" aller Einträge (`prerequisites.ts`) —
+   * hinter den Kanten der Ustawienia (bei einem Kreis gewinnt die frühere Kante).
    */
   dependencies(): Dependency[] {
+    return this.depsMemo().all;
+  }
+
+  /** 2026-10-27 — die Voraussetzungen als Graph: Ebenen, was vor und nach einem Eintrag kommt, Kreise. */
+  prerequisites(): PrerequisiteGraph {
+    return this.depsMemo().graph;
+  }
+
+  private depsMemo(): { readonly all: Dependency[]; readonly graph: PrerequisiteGraph } {
+    const m = this.fresh();
+    if (m.deps !== null) return m.deps;
     const out = new Map<string, Dependency>();
     const add = (list: readonly DependencyEdge[]) => {
       for (const d of list) if (d.proposed !== true) out.set(`${d.parent}>${d.child}`, { parent: d.parent, child: d.child, kind: d.kind, impact: d.impact });
     };
     for (const s of this.sources) if (s.kind === 'knowledge') add(readSettings(s.store.all().find((e) => e.kind === 'settings')?.data).dependencies);
     add(this.settings().dependencies);
-    return [...out.values()];
+    for (const d of fieldDependencies(m.entities, m.look)) if (!out.has(`${d.parent}>${d.child}`)) out.set(`${d.parent}>${d.child}`, d);
+    const all = [...out.values()];
+    m.deps = { all, graph: prerequisiteGraph(all) };
+    return m.deps;
   }
 
   /** Zusammengeführt [B16]: wer in wen aufging. */
@@ -774,10 +797,8 @@ export class CogitaLibrary {
           cards.push(...done.cards);
           if (done.problems.length > 0) problems.set(template.id, [...(problems.get(template.id) ?? []), ...done.problems]);
         }
-        if (entity.kinds.includes('question')) {
-          const card = questionCard(entity, seed);
-          if (card !== null) cards.push(card);
-        }
+        /* 2026-10-27 — eine lange Liste von Paaren: jedes Paar seine Karte (`questionCards`). */
+        if (entity.kinds.includes('question')) cards.push(...questionCards(entity, seed));
       }
       const material = (kind: string) => this.material(kind);
       const foreign = this.fresh().foreign;

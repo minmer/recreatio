@@ -26,7 +26,8 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { readFlow } from './flow';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
-import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, type DocKind } from './kinds';
+import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, QUESTION, type DocKind } from './kinds';
+import { QUESTION_SHARED, QUESTION_TYPES, SHOW_MAX } from './questionTypes';
 import { anchorData, readAnchor } from './anchors';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, fieldsOf, labelOf, readKind, valuesOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import { childrenOf, isStructured, parentsOf, placeOf, rootsAbove, structureFields, structureTree, type StructNode, type StructureSource } from './structure';
@@ -935,10 +936,40 @@ export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (
 const kindsOfBase = (lib?: CogitaLibrary): string =>
   lib === undefined ? '' : `\nRodzaje tej bazy wiedzy:\n${lib.kinds.map((k) => `  "${isBaseKind(k.id) ? k.id : k.name}" — ${k.name}: ${k.fields.map((f) => `${f.key} (${FIELD_TYPE_LABEL[f.type]}${f.multi ? ', kilka' : ''}${f.uncertain ? ', niepewne' : ''})`).join(', ')}`).join('\n')}\n`;
 
+/** Ein Beispielwert je Feld einer Frage — für die Beschreibung (die Art bestimmt, welche gelten). */
+const QUESTION_EXAMPLE: Readonly<Record<string, string>> = {
+  answers: '["siedem", "7"]', 'number.answers': '["12"]', 'date.answers': '["1410-07-15"]', 'gap.answers': '["Ojczyzno"]', 'date.tolerance': '0', options: '["Pięć", "Siedem", "Dwanaście"]', correct: '[1]', value: 'true',
+  left: '["1410", "1569", "1791"]', right: '["Bitwa pod Grunwaldem", "Unia lubelska", "Konstytucja 3 maja"]', leftLabel: '"Rok"', rightLabel: '"Wydarzenie"', show: '4',
+  items: '["1s", "2s", "2p", "3s"]', back: '["Najmniejsza część pierwiastka"]', tolerance: '0.5', relative: 'false', unit: '"N·m"', quantity: '"Torque"', precision: '"year"',
+  task: '"…"', starter: '"def transform(x): …"', createInput: '"def create_input(seed): …"', reference: '"def reference(x): …"', cases: '5',
+  place: '{"lat": 53.49, "lon": 20.1}', radius: '20000', drawing: '"{… JSON rysunku …}"', goal: '"abs(x - cel) < 0.5"', solution: '"v0 = 12"'
+};
+
+/**
+ * 2026-10-27 — DAS SCHEMA DER FRAGE im JSON: ein Rodzaj, die Rodzaje pytań aus `questionTypes.ts`
+ * (was der Lernende tut, welche Felder dazugehören) — erzeugt, nie abgeschrieben.
+ */
+export function questionSection(): string {
+  const small = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+  const label = (key: string) => small(QUESTION.fields.find((f) => f.key === key)?.label ?? key);
+  const example = (form: string, key: string) => QUESTION_EXAMPLE[`${form}.${key}`] ?? QUESTION_EXAMPLE[key] ?? '…';
+  const types = QUESTION_TYPES.map((t) => `    "${t.form}" — ${t.label}: ${t.says} Pola: "prompt" (${small(t.prompt)})${t.fields.map((k) => `, "${k}" (${label(k)}, np. ${example(t.form, k)})`).join('')}`).join('\n');
+  return `  pytanie — JEDEN rodzaj "question"; "form" (rodzaj pytania) mówi, jak się pyta, i od niego zależy, które pola się wypełnia:
+${types}
+    wspólne dla każdego: ${QUESTION_SHARED.map((k) => `"${k}" (${label(k)})`).join(', ')};
+      "about": ["@wpis"] — co pytanie sprawdza: jego wynik liczy się do znajomości tych wpisów, a pytanie czeka, aż opanujesz to, co trzeba znać przed nimi;
+      "needs": ["@wpis albo @pytanie"] — co trzeba opanować przed tym pytaniem (pytanie ogólne przed szczegółowym)
+    pary: lewa i prawa strona w tej samej kolejności; długa lista z "show" (2–${SHOW_MAX}) — na karcie tyle par, każda para ma swoją kartę, wracają te, których uczący się jeszcze nie umie
+    np. {"ref": "@q-lata", "kinds": ["question"], "data": {"form": "match", "prompt": "Połącz rok z wydarzeniem", "left": ["1410", "1569", "1791", "1918"], "right": ["Bitwa pod Grunwaldem", "Unia lubelska", "Konstytucja 3 maja", "Odzyskanie niepodległości"], "leftLabel": "Rok", "rightLabel": "Wydarzenie", "show": 3}}
+    np. {"ref": "@q-atom", "kinds": ["question"], "data": {"form": "one", "prompt": "Co jest w jądrze atomu?", "options": ["Elektrony", "Protony i neutrony", "Tylko neutrony"], "correct": [1], "about": ["@atom"]}}
+    np. {"ref": "@q-orbital", "kinds": ["question"], "data": {"form": "truefalse", "prompt": "Na jednym orbitalu mogą być najwyżej dwa elektrony.", "value": true, "about": ["@orbital"], "needs": ["@q-atom"]}}
+    "gap" — w treści [[słowo]] to luka (uczący się widzi „…”), a bez "answers" dobrą odpowiedzią jest to słowo`;
+}
+
 /** Was ein Formularz dodawania im JSON ist — im Kurs, im Schema und für sich. */
 const formsSection = (): string => `"forms" — formularze dodawania (należą do schematu): {"ref", "name", "says", "graph", "keys", "paste", "order"}
   węzeł "pick" — wybór na początek, zostaje dla wszystkich wierszy: "config": {"label", "kinds": ["@rodzaj"], "many", "optional", "value": ["@wpis"]}
-  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "also": ["@inny rodzaj"] (rodzaj wybierany przy każdej wartości; na liście przedrostek „Nazwa rodzaju: …”), "label", "many" (kilka w wierszu), "reuse": "same|never", "identity": ["pole"],
+  węzeł "entry" — wpis z każdego wiersza: "config": {"kind": "@rodzaj", "also": ["@inny rodzaj"] (rodzaj wybierany przy każdej wartości; na liście przedrostek „Nazwa rodzaju: …”), "label", "many" (kilka w wierszu), "optional": true (może zostać puste — wpisy, do których prowadzi, powstają i bez niego), "reuse": "same|never", "identity": ["pole"],
     "fields": {"pole": {"from": "type|ask|fixed", "value": "tekst"}}} — type: wpisywane w wierszu, ask: ustawiane na początek ("value" — domyślnie), fixed: stała wartość
   krawędź {"id", "from": węzeł, "out": "out", "to": węzeł "entry", "in": klucz pola-odwołania} — wypełnia to pole wpisem z węzła "from";
     kilka krawędzi do pola, które przyjmuje kilka: wartości po kolei według położenia węzłów (z góry na dół); wpis powstaje, gdy w wierszu są wszystkie połączone
@@ -951,9 +982,14 @@ const kindsSection = (): string => `"kinds" — rodzaje:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote — z biblioteki; text, delivery, project — ze skryptorium; question);
     innych wbudowanych treści nie ma: rodzaje pisze właściciel bazy albo importuje gotowy schemat (niżej)
-  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "media", "rangeOf", "says"}]
+  "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "prerequisite", "when", "media", "rangeOf", "says"}]
   "structure" (odwołanie) — połączenie w STRUKTURZE (np. wywód artykułu): "up" — ten wpis leży POD tym, na co wskazuje (krok → krok wyżej: „Należy do"); "down" — wskazane wpisy leżą pod nim („Argumenty za");
     widok „Struktura" z krokiem "structure" rysuje z tego drzewo w kolejności miejsc w dziele; takie pole nie czyni wypowiedzi „interpretacją"
+  "prerequisite" (odwołanie) — KOLEJNOŚĆ NAUKI: "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga": orbital wymaga elektronu i atomu); "down" — to, na co wskazuje, buduje na tym wpisie („Prowadzi do");
+    z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (powtórka z „Najpierw podstawy”, Nauka → Ścieżka), nowe karty idą od ogólnych do szczegółowych;
+    to coś innego niż "structure" (co pod czym leży); koło (A wymaga B, B wymaga A) nie działa i stoi w „Do zrobienia"
+    np. {"key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@pojecie"], "multi": true, "prerequisite": "up", "inverse": "Na tym budują"}
+  "when" — pole tylko dla niektórych wartości pola-wyboru tego samego rodzaju: {"field": "typ", "values": ["bitwa", "traktat"]} — JEDEN rodzaj z polem „typ” zamiast osobnego rodzaju dla każdego typu; edytor pokazuje pole tylko przy tych wartościach
   "quantity" (liczba) — jaka wielkość (identyfikator z QUDT, np. "Torque", "Mass"); wtedy wartość wpisuje się w dowolnej jednostce tej wielkości, a zapisuje tak, jak wpisano, razem z SI:
     {"value": 1.5, "unit": "KiloN", "si": 1500} ("unit" — identyfikator jednostki z QUDT: "N", "KiloN", "N-M", "J", "KiloGM", "DEG_C" …; liczba bez jednostki — w jednostce pola);
     np. {"key": "moment", "label": "Moment obrotowy", "type": "number", "unit": "N·m", "quantity": "Torque"}, a we wpisie: "moment": {"value": 12, "unit": "N-M", "si": 12};
@@ -971,6 +1007,11 @@ const kindsSection = (): string => `"kinds" — rodzaje:
   gotowe schematy to pliki w repozytorium, importowane jak każdy schemat (Wiedza → Schematy → Rodzaje wpisów → „Schemat jako JSON” → Import): templates/cogita/komentarz.json (Komentarz: „O czym” — odwołania z miejscem do dowolnego wpisu, „Treść” — bloki; z szablonami kart „Teza” i „Tabela z treści”),
     templates/cogita/slownik.json (Język, Słowo, Tłumaczenie, Synonimy, Antonimy — z szablonami „Słówka”), templates/cogita/psalterz.json (psalm z miejscem w Piśmie, miejsca brewiarza),
     templates/cogita/komentarz-biblijny.json (Komentarz z argumentami za i zarzutami, Komentarz biblijny do fragmentu Pisma),
+    templates/cogita/pytania.json (jeden schemat pytań: wbudowany rodzaj „Pytanie” z jego rodzajami pytań i polami, sposoby dodawania wielu pytań naraz — prawda/fałsz, odpowiedź słowami, fiszki — i widok „Pytania według rodzaju”),
+    templates/cogita/podstawy.json (kolejność nauki: „Pojęcie” z polem „Wymaga” — "prerequisite": "up" —, karty „czym jest”, widok „Od podstaw” i sposób dodawania pojęć z tym, czego wymagają; przykład z atomem do zaimportowania jako kurs: templates/cogita/przyklad-atom.json),
+    templates/cogita/fakty.json (dzieło o rzeczywistości: „Fakt” — twierdzenie o prawdziwym świecie z datą, okresem, miejscem w dziele, tym, jak przedstawia to dzieło, oceną zgodności z historią i innymi źródłami; „Okres”; karty „Prawda czy fikcja?”; widoki według okresów, prawdy i fikcji, od podstaw),
+    templates/cogita/jednostki.json (księga z numerowanymi częściami — prefacje, modlitwy, pieśni, artykuły: „Część księgi” z numerem, oznaczeniem, początkiem, tematem, grupą, stroną, podobnymi i różnicą; „Grupa części”; karty „Która to?”, początki ↔ nazwy, tematy),
+    templates/cogita/ksiazka-AI.md (jak przygotować książkę z KI w dwóch krokach: Biblioteka z całym tekstem, potem menu wyboru — zakres, warstwy, pytania, kolejność nauki, powtórki — i kurs Cogita),
     templates/cogita/wywod.json (opis dzieła: „Krok wywodu” — rola (pytanie, teza, argument, zarzut… albo wątek, część utworu, wydarzenie, etap, opis), miejsce w dziele, treść, ważny fragment, „Należy do” — połączenie w strukturze, także w kilku strukturach naraz, czas opowieści; „Element stały” — pojęcie, postać, miejsce, motyw… w dziele albo ponad dziełami („Ogólnie”); Komentarz — własna uwaga; widoki „Wywód” (drzewo, kolejność tekstu, czas opowieści), „Elementy stałe”; karty ze ścisłym sprawdzaniem: fragmenty ↔ tezy, teza do fragmentu, dzieło tezy, znaczenie elementu; jak przygotować tekst i strukturę dzieła dla KI w dwóch krokach: templates/cogita/wywod-AI.md)
   typy pól: ${FIELD_TYPES.map((t) => `"${t}" (${FIELD_TYPE_LABEL[t]})`).join(', ')}`;
 
@@ -1032,7 +1073,7 @@ ${kindsSection()}
     zapis tekstu w akapicie i w polach "markup" (ten sam co w Skryptorium): akapity oddziela pusta linia, "## śródtytuł", **pogrubienie**, *kursywa*, [opis](https://…), ^[przypis], "> cytat", "- punkt";
     [[słowo|@wpis]] — link do wpisu (tej bazy, innej bazy albo biblioteki) z tymi słowami; nigdy przypis;
     [@dzielo, s. 23] — źródło: dzieło, cytat, osoba z biblioteki staje się przypisem; ten sam zapis na wypowiedź, wpis czy tekst daje w tekście link „(zob. etykieta)”
-  pytanie: "kinds": ["question"], "data": {"form": "text|number|date|one|many|truefalse|order|match|gap|flash|code|point|interactive", "prompt", "answers", "options", "correct", …}
+${questionSection()}
     "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, world, elements — jako tekst JSON),
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
@@ -1079,7 +1120,8 @@ export function aiPrompt(lib: CogitaLibrary, what: 'entities' | 'statements' | '
   const task = {
     entities: 'Wypisz z tekstu osoby, miejsca, dzieła i inne rzeczy jako wpisy.',
     statements: `Rozbij tekst na wypowiedzi — wpisy rodzaju z polem "blocks" (${said.length > 0 ? `w tej bazie: ${said.join(', ')}` : 'w tej bazie jeszcze go nie ma: dodaj w "kinds" {"ref": "@komentarz", "name": "Komentarz", "label": "{content}", "fields": [{"key": "about", "label": "O czym", "type": "ref", "multi": true, "locator": true}, {"key": "content", "label": "Treść", "type": "blocks"}]}'}). Każda zaczyna się od tezy — jednego krótkiego zdania; dalej akapity, listy, tabele; odwołania do wpisów jako {"ref": "@…", "locator": "…"} w komórkach albo [[słowo|@ref]] w akapicie.`,
-    questions: 'Ułóż z tekstu pytania sprawdzające (rodzaj "question") w różnych formach odpowiedzi.',
+    /* 2026-10-27 — ein Schema mit Rodzaje pytań, und die Reihenfolge: das Allgemeine vor dem Besonderen. */
+    questions: 'Ułóż z tekstu pytania sprawdzające (jeden rodzaj "question"), w różnych rodzajach pytań ("form": text, one, many, truefalse, match, order, gap, flash…) — dobierz rodzaj do tego, o co pytasz (daty i ich wydarzenia: "match" z "show"; zdanie do oceny: "truefalse"). Najpierw pytania o rzeczy ogólne, potem szczegółowe: pytanie, do którego trzeba znać odpowiedź na inne, ma "needs": ["@tamto"]; "about" wskazuje wpisy, które pytanie sprawdza.',
     flow: `Ułóż przebieg (format ${FLOW_FORMAT}): kroki pokazujące wypowiedzi i pytania; wszystkie teksty to wypowiedzi (wpisy z polem "blocks"), a nie tekst przebiegu.`,
     schema: 'Zaproponuj rodzaje (kinds) z polami, które opiszą takie wpisy.'
   }[what];

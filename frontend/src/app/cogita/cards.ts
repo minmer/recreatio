@@ -38,6 +38,7 @@ import { type AnswerSpec, type Card, type Fragment, type Item, type PromptPart, 
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
+import { choicesOf, GAP, pairsOf, showOf } from './questionTypes';
 
 /** Was als richtig gilt, ohne die Reihenfolge, in der es gezeigt wird — gemischte Wahlmöglichkeiten ändern nichts. */
 function expectedOf(answer: AnswerSpec): unknown {
@@ -234,11 +235,15 @@ const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', '
  *   answers     die richtigen Antworten (Text, Zahl, Datum, Lücke; die erste ist die Vorlage)
  *   options     zur Wahl (one, many)              correct     die richtigen Stellen in options
  *   items       in richtiger Reihenfolge (order)  left/right  Paare (match), gleiche Stelle = Paar
+ *   leftLabel, rightLabel  (2026-10-27) über den Spalten   show  wie viele Paare je Karte (lange Listen)
  *   value       wahr oder falsch                  back        die Rückseite (flash)
  *   tolerance, relative, unit, precision, rule    wie streng
  *   quantity    (Schritt 13) welche Grösse eine Zahl ist — dann zählt die Einheit der Antwort
  *   explain     Wissen und Einträge zur Erklärung
+ *   about       (2026-10-27) was die Frage prüft — die Karte trägt es als `about`
+ *   needs       (2026-10-27) was vorher sitzen muss — ein Feld der Voraussetzungen (`prerequisites.ts`)
  * </code>
+ * Welche Felder zu welcher Art gehören, sagt `questionTypes.ts`.
  */
 /** 2026-10-23 (Schritt 13) — eine richtige Antwort, auch mit Einheit geschrieben („0,012 kN·m"), in der Einheit der Frage. */
 function numberAnswer(text: string, unitText: string, quantity: string | undefined): number | null {
@@ -250,15 +255,51 @@ function numberAnswer(text: string, unitText: string, quantity: string | undefin
   return convert(read.value, read.unit, own) ?? read.value;
 }
 
+/** Die Kennungen in einem Verweisfeld — auch in einer Hülle ({ value }). */
+const refIds = (v: unknown): string[] => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v])
+  .map((x) => (typeof x === 'string' ? x : isObject(x) && typeof x.value === 'string' ? x.value : '')).filter((x) => x !== '');
+
+/** 2026-10-27 — was über den beiden Spalten steht; ohne beide Nagłówki nichts. */
+const headsOf = (d: Readonly<Record<string, unknown>>): readonly [string, string] | undefined => {
+  const l = str(d.leftLabel).trim();
+  const r = str(d.rightLabel).trim();
+  return l === '' && r === '' ? undefined : [l, r];
+};
+
+/** Paare als Antwort: links in der gegebenen Folge, rechts gemischt. */
+function matchAnswer(pairs: readonly { left: string; right: string }[], heads: readonly [string, string] | undefined, rng: () => number): AnswerSpec {
+  const n = pairs.length;
+  const order = shuffle(Array.from({ length: n }, (_, i) => i), rng);
+  return {
+    form: 'match', left: pairs.map((p) => p.left), right: order.map((i) => pairs[i].right),
+    pairs: Array.from({ length: n }, (_, i): [number, number] => [i, order.indexOf(i)]),
+    ...(heads === undefined ? {} : { heads })
+  };
+}
+
+/**
+ * DIE FRAGE ALS EINE KARTE — so fragen ein Przebieg und das Modul „Pytanie" auf einer Seite. Eine
+ * lange Liste von Paaren („Ile par naraz") zeigt dann je Versuch andere Paare; zum Lernen gibt
+ * `questionCards` jedem Paar seine eigene Karte.
+ */
 export function questionCard(entity: Entity, seed = ''): Card | null {
   const d = entity.data;
   const form = FORMS.find((f) => f === d.form) ?? 'text';
   const rng = rngOf(`${seed}:${entity.id}`);
   const answers = lines(d.answers);
   let answer: AnswerSpec | null = null;
+  /* Ein Fingerabdruck, der nicht vom Würfeln abhängt (eine lange Liste: alle Paare). */
+  let print: unknown;
   switch (form) {
     case 'text': answer = answers.length === 0 ? null : { form, accepted: answers, rule: readRule(d.rule, TEXT_RULE) }; break;
-    case 'gap': answer = answers.length === 0 ? null : { form, shown: plainOf(str(d.prompt)), accepted: answers, rule: readRule(d.rule, GAP_RULE) }; break;
+    case 'gap': {
+      /* 2026-10-27 — die Lücke im Text selbst: [[słowo]] wird „…", und ohne eigene Antworten gilt das Wort (mehrere: nacheinander). */
+      const raw = str(d.prompt);
+      const gaps = [...raw.matchAll(GAP)].map((m) => m[1].trim()).filter((x) => x !== '');
+      const accepted = answers.length > 0 ? answers : gaps.length > 0 ? [gaps.join(' ')] : [];
+      answer = accepted.length === 0 ? null : { form, shown: plainOf(raw.replace(GAP, '…')), accepted, rule: readRule(d.rule, GAP_RULE) };
+      break;
+    }
     case 'number': {
       /* 2026-10-23 (Schritt 13) — die Grösse: genannt, sonst die der Einheit, wenn diese eindeutig ist. */
       const quantity = kindById(str(d.quantity))?.id ?? guessKind(str(d.unit));
@@ -274,8 +315,8 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     }
     case 'one':
     case 'many': {
-      const options = lines(d.options);
-      const correct = (Array.isArray(d.correct) ? d.correct : [d.correct]).filter((i): i is number => typeof i === 'number' && i >= 0 && i < options.length);
+      /* 2026-10-27 — leere Möglichkeiten fallen weg, die Nummern der richtigen rücken mit (`choicesOf`). */
+      const { options, correct } = choicesOf(d);
       if (options.length < 2 || correct.length === 0) break;
       const order = shuffle(options.map((_o, i) => i), rng);
       const shown = order.map((i) => options[i]);
@@ -291,12 +332,12 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       break;
     }
     case 'match': {
-      const left = lines(d.left);
-      const right = lines(d.right);
-      const n = Math.min(left.length, right.length);
-      if (n < 2) break;
-      const order = shuffle(Array.from({ length: n }, (_, i) => i), rng);
-      answer = { form, left: left.slice(0, n), right: order.map((i) => right[i]), pairs: Array.from({ length: n }, (_, i): [number, number] => [i, order.indexOf(i)]) };
+      const pairs = pairsOf(d);
+      if (pairs.length < 2) break;
+      const show = showOf(d, pairs.length);
+      /* 2026-10-27 — eine lange Liste: je Versuch `show` Paare, gewürfelt; die Geschichte gilt der ganzen Liste. */
+      if (show !== null) print = { f: 'match-all', p: pairs.map((p) => `${p.left}→${p.right}`).sort(), n: show };
+      answer = matchAnswer(show === null ? pairs : shuffle(pairs, rng).slice(0, show), headsOf(d), rng);
       break;
     }
     case 'flash': {
@@ -316,6 +357,8 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
   }
   if (answer === null) return null;
   const prompt = plainOf(str(d.prompt));
+  /* 2026-10-27 — was die Frage prüft („O czym"): ihre Kenntnis zählt dort mit, und sie wartet auf das, was dort zuerst zu können ist. */
+  const about = refIds(d.about).filter((id) => id !== entity.id);
   return {
     question: entity.id,
     direction: '',
@@ -324,10 +367,52 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     prompt: form === 'gap' || prompt === '' ? [] : [{ text: prompt }],
     answer,
     explain: lines(d.explain),
-    fingerprint: hashOf(stable(expectedOf(answer))),
-    /* Ein Bild mit Zufall (ein Ziel jedes Mal woanders) fragt jedes Mal anderes. */
-    varies: answer.form === 'interactive' && Object.keys(answer.fixed).length > 0,
-    requires: []
+    fingerprint: hashOf(stable(print ?? expectedOf(answer))),
+    /* Ein Bild mit Zufall (ein Ziel jedes Mal woanders) fragt jedes Mal anderes; eine lange Liste von Paaren auch. */
+    varies: (answer.form === 'interactive' && Object.keys(answer.fixed).length > 0) || print !== undefined,
+    requires: [],
+    ...(about.length > 0 ? { about } : {})
   };
 }
 
+/**
+ * 2026-10-27 — DIE KARTEN EINER FRAGE ZUM LERNEN. Gewöhnlich eine. „Połącz w pary" mit „Ile par
+ * naraz" kleiner als die Liste: JEDES PAAR SEINE KARTE (`frage:p<hash der linken Seite>`) — mit
+ * `show − 1` anderen Paaren, je Versuch anders gewürfelt. So holt die Wiederholung gerade die Paare
+ * zurück, die noch nicht sitzen, und eine Liste von 40 Jahren zeigt nie alle 40 auf einmal. Der
+ * Fingerabdruck ist der des eigenen Paars: ändert sich ein anderes, bleibt die Geschichte.
+ */
+export function questionCards(entity: Entity, seed = ''): Card[] {
+  const whole = questionCard(entity, seed);
+  if (whole === null) return [];
+  const d = entity.data;
+  const pairs = whole.answer.form === 'match' ? pairsOf(d) : [];
+  const show = pairs.length < 2 ? null : showOf(d, pairs.length);
+  if (show === null) return [whole];
+  const heads = headsOf(d);
+  const seen = new Map<string, number>();
+  return pairs.map((pair, i) => {
+    let variant = `p${hashOf(pair.left)}`;
+    const n = seen.get(variant) ?? 0;
+    seen.set(variant, n + 1);
+    if (n > 0) variant = `${variant}.${n}`;
+    const rng = rngOf(`${seed}:${entity.id}:${variant}`);
+    /* Daneben andere Paare — keines mit derselben linken oder rechten Seite (sonst wäre es nicht zu unterscheiden). */
+    const others: { left: string; right: string }[] = [];
+    for (const other of shuffle(pairs.filter((_, j) => j !== i), rng)) {
+      if (others.length >= show - 1) break;
+      if ([pair, ...others].some((p) => p.left === other.left || p.right === other.right)) continue;
+      others.push(other);
+    }
+    const question = `${entity.id}:${variant}`;
+    return {
+      ...whole,
+      question,
+      key: cardKey(question, ''),
+      answer: matchAnswer(shuffle([pair, ...others], rng), heads, rng),
+      fingerprint: hashOf(stable({ f: 'pair', l: pair.left, r: pair.right, n: show })),
+      varies: true,
+      label: `${pair.left} — ${pair.right}`
+    };
+  });
+}

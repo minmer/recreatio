@@ -27,7 +27,7 @@ import {
   EntryFilterBar, entryHref, herePath, OfficeGate, useEntryDesk, useEntryQuery, useEntrySubject, useOfficeRing
 } from '../../forms/entrySubject';
 import { definePart, text, type EditorProps, type PartContext, type RawConfig } from '../part';
-import { progressOf } from '../../steps/steps';
+import { bookingTagClass, bookingTags, progressOf } from '../../steps/steps';
 
 /* -- Woran ein Mensch ist, kurz ----------------------------------------------------- */
 
@@ -44,6 +44,9 @@ function RowTags({ row }: { row: DeskRow }) {
           {progress.done}/{progress.total}{progress.overdue > 0 ? ' · po terminie!' : ''}
         </span>
       )}
+      {bookingTags(row.states).map((tag) => (
+        <span key={tag.key} className={bookingTagClass(tag)} title={tag.title} data-booking-tag={tag.state}>{tag.text}</span>
+      ))}
     </span>
   );
 }

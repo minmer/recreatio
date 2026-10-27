@@ -745,6 +745,53 @@ export function progressOf(states: readonly StepState[]): { done: number; total:
   };
 }
 
+/**
+ * „WYBIERZ TERMIN" IN DER LISTE — je Schritt dieser Art ein Schildchen: der
+ * gewählte Termin (wartend oder schon vorbei), oder dass keiner gewählt ist.
+ * Damit sieht die Kanzlei beim Durchsehen, wer einen Termin hat und wer nicht,
+ * ohne jeden Menschen aufzuklappen.
+ */
+export interface BookingTag {
+  readonly key: string;
+  readonly text: string;
+  readonly title: string;
+  /** `none`: kein Termin · `wait`: wartet auf ein Ja · `next`: steht, kommt noch · `past`: war schon. */
+  readonly state: 'none' | 'wait' | 'next' | 'past';
+}
+
+/** Ein Termin kurz: „12.11, 18:00" — mit Jahr, wenn es nicht dieses ist. */
+export function whenShort(at: Date, now = new Date()): string {
+  return at.toLocaleString('pl-PL', {
+    day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit',
+    ...(at.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {})
+  });
+}
+
+export function bookingTags(states: readonly StepState[], now = new Date()): readonly BookingTag[] {
+  const booked = states.filter((st) => st.booking !== undefined);
+  /* Mehr als ein solcher Schritt: dann steht sein Name davor, sonst nur im Hinweis. */
+  const named = booked.length > 1;
+  return booked.map((st) => {
+    const chosen = st.booking!.chosen;
+    const head = named ? `${st.label}: ` : '';
+    if (chosen === null) {
+      return { key: st.key, state: 'none', text: `${head}bez terminu`, title: `${st.label} — osoba nie wybrała jeszcze terminu` };
+    }
+    const at = new Date(chosen.startsAt);
+    const full = at.toLocaleString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const state = chosen.status === 'pending' ? 'wait' : new Date(chosen.endsAt) < now ? 'past' : 'next';
+    return {
+      key: st.key, state,
+      text: `${head}${state === 'past' ? 'termin był ' : 'termin '}${whenShort(at, now)}${state === 'wait' ? ' · czeka' : ''}`,
+      title: `${st.label} — ${full}${state === 'wait' ? ' (czeka na potwierdzenie)' : state === 'past' ? ' (już był)' : ''}`
+    };
+  });
+}
+
+/** Die Klasse eines solchen Schildchens: ohne Termin warnend, mit festem Termin grün. */
+export const bookingTagClass = (tag: BookingTag): string =>
+  tag.state === 'none' ? 'wk-tag wk-tag-warn' : tag.state === 'wait' ? 'wk-tag' : 'wk-tag wk-tag-open';
+
 /** Eine Frist, lesbar. */
 export const dueText = (dueAt: string): string =>
   new Date(dueAt).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });

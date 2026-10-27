@@ -27,12 +27,20 @@
  * der Kanzlei: neu versiegelt, für das Amt und für den Menschen. Die Spalten
  * der vom Formular genommenen Fragen stehen mit ihren Antworten da — lesen ja,
  * schreiben nein: gefragt wird danach nicht mehr.
+ *
+ * <b>2026-10-27 — und die SCHRITTE.</b> Hinter den Fragen steht je Schritt
+ * eine Spalte zum Lesen: bei „Wybierz termin" der gewählte Termin (sortierbar,
+ * „(czeka)" solange er wartet), sonst wann er erledigt wurde. Ihr Filter fragt
+ * in beide Richtungen — wer einen Termin hat, wer keinen, bei wem er schon war
+ * — wie der Filter der Liste „Zgłoszenia" (`stepMatches`). Mit in der CSV.
  */
 
 import { useMemo, useState } from 'react';
 
 import { consentGiven, consentValue, isYes, shownAnswer, YES, type OpenField } from './form';
+import { entryStates, stepKindsIn, stepMatches, type StepInfo, type StepKind } from './entryDesk';
 import { type Answer, type Submission } from './submissions';
+import type { StepState } from '../steps/steps';
 import { saveBlob } from '../core/platform';
 import { WorkspaceError } from '../core/session';
 
@@ -53,6 +61,9 @@ interface Column {
 
   /** 0093 — schreibt nur der Mensch: die Kanzlei liest die Zelle, schreibt sie nie. */
   readonly locked?: boolean;
+
+  /** 2026-10-27 — eine Spalte eines Schritts: zum Lesen, mit seinem eigenen Filter. */
+  readonly step?: StepKind;
 }
 
 interface Row {
@@ -61,6 +72,31 @@ interface Row {
   readonly hidden: boolean;
   readonly withdrawn: boolean;
   readonly values: ReadonlyMap<string, string>;
+
+  /** Woran der Mensch ist — und was davon in den Spalten der Schritte steht (Spalte → Zelle). */
+  readonly steps: readonly StepState[];
+  readonly stepCells: ReadonlyMap<string, string>;
+}
+
+/** Der Schlüssel der Spalte eines Schritts — keine Frage heisst so. */
+const stepColumn = (key: string): string => `krok|${key}`;
+
+/** Ortszeit, sortierbar: „2026-11-12 18:00" (ohne Uhrzeit nur der Tag). */
+function stamp(iso: string, time: boolean): string {
+  const d = new Date(iso);
+  const two = (n: number) => String(n).padStart(2, '0');
+  const day = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  return time ? `${day} ${two(d.getHours())}:${two(d.getMinutes())}` : day;
+}
+
+/** Was in der Zelle eines Schritts steht. */
+function stepCell(st: StepState): string {
+  const chosen = st.booking?.chosen;
+  if (st.booking !== undefined) return chosen == null ? '' : `${stamp(chosen.startsAt, true)}${chosen.status === 'pending' ? ' (czeka)' : ''}`;
+  if (st.status === 'done') return st.doneAt === null ? 'zrobione' : stamp(st.doneAt, false);
+  if (st.status === 'overdue') return 'po terminie';
+  if (st.task !== undefined && st.task.needed !== null) return `${st.task.done}/${st.task.needed}`;
+  return '';
 }
 
 type Sort = { readonly key: string; readonly dir: 1 | -1 };
@@ -74,8 +110,11 @@ export interface TableChange {
 /** Keine vom Formular genommenen Fragen — eine feste Liste, damit die Rechnungen unten nicht bei jedem Zeichnen neu laufen. */
 const NONE: readonly OpenField[] = [];
 
-export function FormTable({ fields, removed = NONE, submissions, opened, fileName, onSave, canAdd = false }: {
+export function FormTable({ fields, removed = NONE, submissions, opened, stepInfo = null, fileName, onSave, canAdd = false }: {
   fields: readonly OpenField[];
+
+  /** 2026-10-27 — die Schritte des Formulars: je einer eine Spalte. `null`: keine (oder noch nicht geladen). */
+  stepInfo?: StepInfo | null;
 
   /** 0086 — die vom Formular genommenen Fragen: ihre Spalten stehen mit Beschriftung da, zum Lesen. */
   removed?: readonly OpenField[];
@@ -116,15 +155,18 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
 
   const rows: readonly Row[] = useMemo(() => submissions.map((s) => {
     const values = opened.get(s.registrationId) ?? new Map<string, string>();
+    const steps = entryStates(stepInfo, s);
     return {
       id: s.registrationId,
       at: s.submittedAt,
       hidden: s.hidden,
       withdrawn: s.withdrawnAt !== null,
       values: consents.size === 0 ? values
-        : new Map([...values].map(([key, v]) => [key, consents.has(key) ? shownAnswer('consent', v) : v]))
+        : new Map([...values].map(([key, v]) => [key, consents.has(key) ? shownAnswer('consent', v) : v])),
+      steps,
+      stepCells: new Map(steps.map((st) => [stepColumn(st.key), stepCell(st)]))
     };
-  }), [submissions, opened, consents]);
+  }), [submissions, opened, consents, stepInfo]);
 
   /*
    * DIE SPALTEN: die Fragen von heute in ihrer Reihenfolge — und dahinter jede
@@ -159,6 +201,10 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
       })),
       ...[...orphans].map((id) => ({
         key: id, label: `pytanie usunięte (${id.slice(0, 8)})`, numeric: false, choice: false, field: null
+      })),
+      /* 2026-10-27 — die Schritte, zum Lesen: der Termin, oder wann erledigt. */
+      ...stepKindsIn(rows.flatMap((r) => r.steps)).map((step) => ({
+        key: stepColumn(step.key), label: step.label, numeric: false, choice: false, field: null, step
       }))
     ];
   }, [fields, removed, rows]);
@@ -206,11 +252,14 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
   };
 
   const cell = (row: Row, key: string): string =>
-    key === 'at' ? new Date(row.at).toLocaleString('pl-PL') : row.values.get(key) ?? '';
+    key === 'at' ? new Date(row.at).toLocaleString('pl-PL') : row.values.get(key) ?? row.stepCells.get(key) ?? '';
+
+  /* Die Schritte filtern nach ihren eigenen Wahlen (ma termin / bez terminu / zrobione / brakuje …). */
+  const stepColumns = columns.filter((c) => c.step !== undefined);
 
   /* Welche Fragen einen Filter bekommen — und welche Antworten darin stehen. */
   const choices = useMemo(() => columns
-    .filter((c) => c.key !== 'at')
+    .filter((c) => c.key !== 'at' && c.step === undefined)
     .map((c) => {
       const seen = new Set<string>();
       let answered = 0;
@@ -234,6 +283,11 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
 
     const kept = rows.filter((row) => {
       for (const [key, wanted] of filters) {
+        /* Ein Schritt: der Wert IST die Wahl (`done:step:…`), wie im Filter der Liste. */
+        if (key.startsWith('krok|')) {
+          if (!stepMatches(wanted, row.steps)) return false;
+          continue;
+        }
         const v = (row.values.get(key) ?? '').trim();
         if (wanted === EMPTY ? v !== '' : v !== wanted) return false;
       }
@@ -247,8 +301,8 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
     return [...kept].sort((a, b) => {
       if (sort.key === 'at') return sort.dir * a.at.localeCompare(b.at);
 
-      const x = a.values.get(sort.key) ?? '';
-      const y = b.values.get(sort.key) ?? '';
+      const x = a.values.get(sort.key) ?? a.stepCells.get(sort.key) ?? '';
+      const y = b.values.get(sort.key) ?? b.stepCells.get(sort.key) ?? '';
 
       /* Leere Zellen immer ans Ende — gleich, in welche Richtung sortiert wird. */
       if (x === '' || y === '') return x === y ? 0 : x === '' ? 1 : -1;
@@ -289,6 +343,16 @@ export function FormTable({ fields, removed = NONE, submissions, opened, fileNam
               <option value="">wszystkie</option>
               {values.map((v) => <option key={v} value={v}>{v}</option>)}
               {blank && <option value={EMPTY}>— bez odpowiedzi —</option>}
+            </select>
+          </label>
+        ))}
+
+        {stepColumns.map((c) => (
+          <label className="wk-field" key={c.key} data-step-filter={c.step!.key}>
+            <span>{c.label}</span>
+            <select value={filters.get(c.key) ?? ''} onChange={(e) => setFilter(c.key, e.target.value)}>
+              <option value="">wszystkie</option>
+              {c.step!.options.map(([value, short]) => <option key={value} value={value}>{short}</option>)}
             </select>
           </label>
         ))}

@@ -1,0 +1,101 @@
+{
+  "format": "recreatio.cogita.course",
+  "version": 1,
+  "name": "Przykład: budowa atomu — od podstaw do orbitali",
+  "kinds": [
+    {
+      "ref": "@podstawy/pojecie",
+      "name": "Pojęcie",
+      "label": "{nazwa}",
+      "tells": "dziedzina",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line", "says": "Jak się nazywa pojęcie: „Atom”, „Orbital”, „Liczba atomowa”." },
+        { "key": "czym", "label": "Czym jest", "type": "markup", "says": "Jedno–dwa zdania: czym jest to pojęcie — tak, żeby zrozumiał je ktoś, kto zna już to, czego ono wymaga." },
+        { "key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@podstawy/pojecie"], "multi": true, "prerequisite": "up", "inverse": "Na tym budują", "says": "Pojęcia, które trzeba znać WCZEŚNIEJ, żeby zrozumieć to (orbital wymaga powłoki elektronowej; elektron wymaga atomu). Tylko bezpośrednie — dalsze wynikają same. Puste: pojęcie podstawowe. Z tego pola aplikacja liczy poziomy od podstaw: karty pojęcia przychodzą, gdy umiesz to, czego ono wymaga." },
+        { "key": "dziedzina", "label": "Dziedzina", "type": "line", "says": "Np. „Chemia”, „Fizyka” — odróżnia pojęcia o tej samej nazwie." },
+        { "key": "przyklad", "label": "Przykład", "type": "text", "says": "Przykład albo ilustracja (nieobowiązkowo)." }
+      ]
+    }
+  ],
+  "entities": [
+    { "ref": "@atom/atom", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Atom", "dziedzina": "Chemia", "czym": "Najmniejsza część pierwiastka, która zachowuje jego własności chemiczne. Ma w środku jądro, a wokół niego elektrony." } },
+    { "ref": "@atom/jadro", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Jądro atomowe", "dziedzina": "Chemia", "czym": "Środek atomu: maleńki, ale skupia prawie całą jego masę. Składa się z protonów i neutronów.", "wymaga": ["@atom/atom"] } },
+    { "ref": "@atom/elektron", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Elektron", "dziedzina": "Chemia", "czym": "Bardzo lekka cząstka o ładunku ujemnym (−1), która porusza się wokół jądra.", "wymaga": ["@atom/atom"] } },
+    { "ref": "@atom/proton", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Proton", "dziedzina": "Chemia", "czym": "Cząstka w jądrze o ładunku dodatnim (+1).", "wymaga": ["@atom/jadro"] } },
+    { "ref": "@atom/neutron", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Neutron", "dziedzina": "Chemia", "czym": "Cząstka w jądrze bez ładunku, o masie prawie takiej jak proton.", "wymaga": ["@atom/jadro"] } },
+    { "ref": "@atom/powloka", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Powłoka elektronowa", "dziedzina": "Chemia", "czym": "Poziom energii, na którym są elektrony atomu; oznacza się ją liczbą n = 1, 2, 3… i mieści najwyżej 2n² elektronów.", "wymaga": ["@atom/elektron"] } },
+    { "ref": "@atom/liczba-atomowa", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Liczba atomowa (Z)", "dziedzina": "Chemia", "czym": "Liczba protonów w jądrze — to ona mówi, jaki to pierwiastek. W atomie obojętnym tyle samo jest elektronów.", "wymaga": ["@atom/proton", "@atom/elektron"] } },
+    { "ref": "@atom/liczba-masowa", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Liczba masowa (A)", "dziedzina": "Chemia", "czym": "Suma protonów i neutronów w jądrze.", "wymaga": ["@atom/proton", "@atom/neutron"] } },
+    { "ref": "@atom/izotop", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Izotop", "dziedzina": "Chemia", "czym": "Atomy tego samego pierwiastka (ta sama liczba atomowa), które mają różną liczbę neutronów — więc różną liczbę masową.", "wymaga": ["@atom/liczba-atomowa", "@atom/liczba-masowa"], "przyklad": "Węgiel-12 i węgiel-14: oba mają 6 protonów, ale 6 i 8 neutronów." } },
+    { "ref": "@atom/orbital", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Orbital", "dziedzina": "Chemia", "czym": "Obszar wokół jądra, w którym najpewniej znajduje się elektron; na jednym orbitalu mieszczą się najwyżej dwa elektrony.", "wymaga": ["@atom/powloka"] } },
+    { "ref": "@atom/konfiguracja", "kinds": ["@podstawy/pojecie"], "data": { "nazwa": "Konfiguracja elektronowa", "dziedzina": "Chemia", "czym": "Rozmieszczenie elektronów atomu na powłokach i orbitalach, np. węgiel: 1s² 2s² 2p².", "wymaga": ["@atom/orbital", "@atom/liczba-atomowa"] } },
+
+    { "ref": "@atom/q-budowa", "kinds": ["question"], "data": { "form": "one", "prompt": "Z czego składa się atom?", "options": ["z jądra i elektronów", "tylko z elektronów", "tylko z protonów", "z cząsteczek"], "correct": [0], "about": ["@atom/atom"] } },
+    { "ref": "@atom/q-niepodzielny", "kinds": ["question"], "data": { "form": "truefalse", "prompt": "Atom jest niepodzielny — nie ma w nim mniejszych części.", "value": false, "about": ["@atom/atom"], "explain": ["@atom/atom"] } },
+    { "ref": "@atom/q-jadro", "kinds": ["question"], "data": { "form": "many", "prompt": "Co jest w jądrze atomu? Zaznacz wszystko.", "options": ["protony", "neutrony", "elektrony", "fotony"], "correct": [0, 1], "about": ["@atom/jadro"] } },
+    { "ref": "@atom/q-ladunki", "kinds": ["question"], "data": { "form": "match", "prompt": "Połącz cząstkę z jej ładunkiem", "left": ["proton", "neutron", "elektron"], "right": ["+1", "0", "−1"], "leftLabel": "Cząstka", "rightLabel": "Ładunek", "about": ["@atom/proton", "@atom/neutron", "@atom/elektron"] } },
+    { "ref": "@atom/q-thomson", "kinds": ["question"], "data": { "form": "date", "prompt": "W którym roku J. J. Thomson odkrył elektron?", "answers": ["1897"], "precision": "year", "tolerance": 0, "about": ["@atom/elektron"] } },
+    { "ref": "@atom/q-powloka", "kinds": ["question"], "data": { "form": "number", "prompt": "Ile najwięcej elektronów mieści powłoka n = 2?", "answers": ["8"], "about": ["@atom/powloka"] } },
+    { "ref": "@atom/q-z", "kinds": ["question"], "data": { "form": "number", "prompt": "Ile protonów ma atom o liczbie atomowej 8 (tlen)?", "answers": ["8"], "about": ["@atom/liczba-atomowa"] } },
+    { "ref": "@atom/q-pierwiastki", "kinds": ["question"], "data": { "form": "match", "prompt": "Połącz pierwiastek z jego liczbą atomową", "leftLabel": "Pierwiastek", "rightLabel": "Liczba atomowa (Z)", "left": ["wodór", "hel", "lit", "węgiel", "azot", "tlen", "fluor", "neon", "sód", "magnez", "glin", "krzem"], "right": ["1", "2", "3", "6", "7", "8", "9", "10", "11", "12", "13", "14"], "show": 4, "about": ["@atom/liczba-atomowa"] } },
+    { "ref": "@atom/q-neutrony", "kinds": ["question"], "data": { "form": "number", "prompt": "Atom sodu ma liczbę atomową 11 i liczbę masową 23. Ile ma neutronów?", "answers": ["12"], "about": ["@atom/liczba-masowa"] } },
+    { "ref": "@atom/q-izotop", "kinds": ["question"], "data": { "form": "text", "prompt": "Jak nazywają się atomy tego samego pierwiastka, które mają różną liczbę neutronów?", "answers": ["izotopy", "izotop"], "about": ["@atom/izotop"], "explain": ["@atom/izotop"] } },
+    { "ref": "@atom/q-orbital", "kinds": ["question"], "data": { "form": "truefalse", "prompt": "Na jednym orbitalu mogą być najwyżej dwa elektrony.", "value": true, "about": ["@atom/orbital"] } },
+    { "ref": "@atom/q-kolejnosc", "kinds": ["question"], "data": { "form": "order", "prompt": "Ułóż orbitale w kolejności, w jakiej zapełniają się elektronami", "items": ["1s", "2s", "2p", "3s", "3p", "4s", "3d"], "about": ["@atom/konfiguracja"] } },
+    { "ref": "@atom/q-wegiel", "kinds": ["question"], "data": { "form": "gap", "prompt": "Konfiguracja elektronowa węgla (Z = 6) to 1s² 2s² [[2p²]].", "answers": ["2p²", "2p2"], "about": ["@atom/konfiguracja"], "needs": ["@atom/q-kolejnosc"] } }
+  ],
+  "templates": [
+    {
+      "ref": "@podstawy/t-czym",
+      "name": "Czym jest pojęcie? (fiszka)",
+      "kinds": ["@podstawy/pojecie"],
+      "direction": "nazwa→czym",
+      "graph": {
+        "nodes": [
+          { "id": "n1", "type": "entity", "x": 0, "y": 0, "config": {} },
+          { "id": "n2", "type": "pattern", "x": 230, "y": 0, "config": { "text": "Czym jest: {0}?", "inputs": 1 } },
+          { "id": "n3", "type": "prompt", "x": 460, "y": 0, "config": {} },
+          { "id": "n4", "type": "field", "x": 0, "y": 140, "config": { "key": "czym" } },
+          { "id": "n5", "type": "answer.flash", "x": 460, "y": 140, "config": {} },
+          { "id": "n6", "type": "card", "x": 690, "y": 60, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "n1", "out": "entities", "to": "n2", "in": "p0" },
+          { "id": "e2", "from": "n2", "out": "text", "to": "n3", "in": "parts" },
+          { "id": "e3", "from": "n4", "out": "values", "to": "n5", "in": "back" },
+          { "id": "e4", "from": "n3", "out": "prompt", "to": "n6", "in": "prompt" },
+          { "id": "e5", "from": "n5", "out": "answer", "to": "n6", "in": "answer" }
+        ]
+      }
+    }
+  ],
+  "revisions": [
+    {
+      "ref": "@atom/od-podstaw",
+      "name": "Budowa atomu — od podstaw",
+      "graph": {
+        "nodes": [
+          { "id": "s", "type": "source.all", "x": 0, "y": 0, "config": {} },
+          { "id": "g", "type": "gate", "x": 230, "y": 0, "config": { "threshold": 1 } },
+          { "id": "p", "type": "strategy", "x": 460, "y": 0, "config": { "mode": "temporal", "stackSize": 12, "minCorrectness": 1 } }
+        ],
+        "edges": [
+          { "id": "e1", "from": "s", "out": "cards", "to": "g", "in": "cards" },
+          { "id": "e2", "from": "g", "out": "cards", "to": "p", "in": "cards" }
+        ]
+      }
+    }
+  ],
+  "views": [
+    {
+      "ref": "@podstawy/w-od-podstaw",
+      "name": "Od podstaw",
+      "mode": "tree",
+      "steps": [{ "type": "source.kind", "config": { "kind": "@podstawy/pojecie" } }],
+      "group": { "by": "level" },
+      "query": "",
+      "columns": ["nazwa", "czym", "wymaga"],
+      "positions": {}
+    }
+  ]
+}

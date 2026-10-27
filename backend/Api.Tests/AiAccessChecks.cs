@@ -168,6 +168,22 @@ internal static class AiAccessChecks
                 "texts: ranges (the end as a number or a place) and a whole book");
             check(AiAccess.Locate(part, "s. 101", "bible") == (3, 4) && AiAccess.Locate(part, "J 20,1", "bible") is null && AiAccess.Locate(part, "J 2", "bible") is null,
                 "texts: pages; a place that is not there is not guessed (J 2 is not J 21)");
+            /* 2026-10-27 — Seiten in Serien, für jedes Buch: dieselben Zahlen wie in der App (locations.ts readPage, seriesIndex; app-library-check prüft dieselben Werte). */
+            check(AiAccess.PageValue("45") == 45 && AiAccess.PageValue("xii") == -9_988 && AiAccess.PageValue("12*") == 618_500_012 && AiAccess.PageValue("A12") == 1_430_200_012
+                && AiAccess.SeriesIndex("#*") == 6185 && AiAccess.SeriesIndex("A#") == 14302 && AiAccess.PageValue("3’’") == AiAccess.PageValue("3''") && AiAccess.PageValue("abc") is null && AiAccess.PageValue("12a") is null,
+                "texts: a printed page as a number — plain as it is, roman before 1, every other series in the band of its pattern, the same numbers as the app");
+            check(AiAccess.PageWord(618_500_012) == "12*" && AiAccess.PageWord(AiAccess.PageValue("(7)")!.Value) == "(7)" && AiAccess.PageWord(AiAccess.PageValue("[7]")!.Value) == "[7]"
+                && AiAccess.PageWord(AiAccess.PageValue("†3")!.Value) == "†3" && AiAccess.PageWord(AiAccess.PageValue("iv*")!.Value) == "iv*" && AiAccess.PageWord(-9_988) == "xii",
+                "texts: pages of any series written back as printed (12*, (7), [7], †3, iv*, xii)");
+            AiAccess.RememberSeries(["Q#"]);
+            check(AiAccess.PageWord(AiAccess.SeriesIndex("Q#") * 100_000 + 5) == "Q5", "texts: a series named by the snapshot (pageSeries) is written back before any of its pages was read");
+            var missal = new AiAccess.TextPart { Key = "wstep", Label = "Wstęp", Order = 0, Pages = [618_500_012, 618_500_013] };
+            missal.Blocks.Add(new AiAccess.TextBlock { Index = 0, Type = "paragraph", PageFrom = 618_500_012, PageTo = 618_500_012, Text = "a" });
+            missal.Blocks.Add(new AiAccess.TextBlock { Index = 1, Type = "paragraph", PageFrom = 618_500_013, PageTo = 618_500_013, Text = "b" });
+            missal.Blocks.Add(new AiAccess.TextBlock { Index = 2, Type = "paragraph", PageFrom = 13, PageTo = 13, Text = "c" });
+            missal.Blocks.Add(new AiAccess.TextBlock { Index = 3, Type = "paragraph", PageFrom = 1_430_200_013, PageTo = 1_430_200_013, Text = "d" });
+            check(AiAccess.Locate(missal, "s. 13*", "pages") == (1, 1) && AiAccess.Locate(missal, "s. 12*–13*", "pages") == (0, 1) && AiAccess.Locate(missal, "s. 13", "pages") == (2, 2) && AiAccess.Locate(missal, "s. A13", "pages") == (3, 3),
+                "texts: a page of a series is found by its marks; 13* and A13 are not 13");
             check(AiAccess.PlaceMatches("2.0121", "2.01", "decimal") && AiAccess.PlaceMatches("I, q. 2, a. 3, ad 1", "I, q. 2, a. 3", "aquinas") && AiAccess.PlaceMatches("nr 24 § 1", "nr 24", "numbered") && !AiAccess.PlaceMatches("§ 430", "§ 43", "sections"),
                 "texts: units in every scheme — decimal comments, Aquinas articles, paragraphs of a number; § 430 is not § 43");
             var hitsT = AiAccess.SearchTexts(tsnap.Texts, "milujesz mnie");

@@ -49,6 +49,7 @@ import { cogitaPath, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEAR
 import { OfficeProgress, OwnProgress } from './Progress';
 import { Pending } from './Pending';
 import { REVISION_PRESETS } from './presets';
+import { EntityPrerequisites, LearningPath } from './LearningPath';
 import { RevisionEditor } from './RevisionEditor';
 import { RevisionRun } from './RevisionRun';
 import { accountSources, useSources } from './sources';
@@ -130,6 +131,8 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
         where="Rodzajów „Wiedza”, „Komentarz” i „Temat” już nie ma: wypowiedź to wpis własnego rodzaju z polem „Treść w blokach” (gotowy schemat: templates/cogita/komentarz.json), a porządek dają własne rodzaje (np. „Tajemnica”, „Obszar”)." />}
       {/* -- Nauka -- */}
       {tab === 'nauka' && <LearnTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
+      {/* 2026-10-27 — die Reihenfolge des Lernens: Ebenen von den Grundlagen her, was sitzt und was wartet. */}
+      {tab === 'sciezka' && <LearningPath learner={learner} cards={cards ?? null} go={go} />}
       {tab === 'karty' && <TemplateEditor chosenId={trail[1] ?? null} onChoose={(id) => go('karty', ...(id === null ? [] : [id]))} />}
       {tab === 'powtorki' && <RevisionEditor chosenId={trail[1] ?? null} onChoose={(id) => go('powtorki', ...(id === null ? [] : [id]))} onRun={(id) => go('nauka', id)} />}
       {tab === 'przebiegi' && <FlowsTab trail={trail.slice(1)} learner={learner} cards={cards ?? null} go={go} />}
@@ -137,7 +140,13 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'postepy' && (
         <div className="cg">
           <OwnProgress learner={learner} cards={cards ?? null} />
-          {writes && <details className="cg-card"><summary>Postępy uczących się (dla nauczyciela)</summary><OfficeProgress cards={cards ?? null} /></details>}
+          {/* 2026-10-27 — eine Baza, deren Antworten in einen Bereich gehen (ein Kurs): die Uczący się gleich offen. */}
+          {writes && (
+            <details className="cg-card" open={lib.settings().storageAreaId !== undefined || undefined} data-office-fold="">
+              <summary>Postępy uczących się (dla nauczyciela)</summary>
+              <OfficeProgress cards={cards ?? null} />
+            </details>
+          )}
         </div>
       )}
       {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">Liczenie kart…</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}
@@ -213,6 +222,8 @@ function EntitiesTab({ trail, go }: { trail: readonly string[]; go: (...tail: st
         <a className="wk-link" href={'#'} onClick={(e) => { e.preventDefault(); window.history.back(); }}>← wróć</a>
         {/* 2026-10-25 (Wywód) — der Weg von der Wurzel und was unter diesem Eintrag liegt, wenn seine Rodzaje Strukturfelder haben. */}
         <EntityStructure id={trail[0]} onOpen={(id) => go('wpisy', id)} />
+        {/* 2026-10-27 — was vor diesem Eintrag zu können ist und was auf ihm aufbaut (`prerequisites.ts`). */}
+        <EntityPrerequisites id={trail[0]} onOpen={(id) => go('wpisy', id)} />
         {/* 0110 — ein Eintrag aus einer Quelle: hier zu lesen, dort zu ändern. */}
         <ForeignOnly id={trail[0]} tab="wpisy">
           <EntityEditor entityId={trail[0]} onDone={(id) => go('wpisy', ...(id === null ? [] : [id]))} onOpen={(id) => go('wpisy', id)} />

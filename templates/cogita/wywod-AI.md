@@ -548,6 +548,7 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "volume" — Tom / rocznik: Tom (książka, zbiór nut) albo rocznik (czasopismo) (tekst)
   "issue" — Numer: Numer czasopisma (tekst)
   "edition" — Wydanie: Które wydanie (tekst)
+  "genre" — Gatunek: Jaki to utwór albo jaka to książka (powieść, powieść biograficzna, biografia, reportaż, mszał, modlitewnik, podręcznik…) (tekst)
   "publisher" — Wydawca: Wydawnictwo (przy nagraniu i płycie: wytwórnia) (tekst)
   "place" — Miejsce wydania: Miejsce wydania (tekst)
   "year" — Rok: Rok wydania (albo data dokumentu; przy utworze — rok powstania, przy nagraniu — rok nagrania) (tekst)
@@ -566,6 +567,7 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "accessed" — Dostęp: Kiedy strona była czytana (RRRR-MM-DD) (data RRRR-MM-DD)
   "language" — Język: Język (np. "pl", "la"; przy muzyce — język słów) (tekst)
   "scheme" — Układ miejsc: Jak wskazuje się miejsca w tym dziele: "pages" (Strony wydania), "bible" (Pismo Święte), "numbered" (Numery (dokumenty)), "aquinas" (Tomasz z Akwinu), "decimal" (Numeracja dziesiętna), "sections" (Paragrafy dzieła), "outline" (Podział dzieła); puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages) (jedna z wartości)
+  "pageSeries" — Serie stron: Gdy części książki mają własną numerację stron: znaki serii w kolejności książki, oddzielone spacją — "i" rzymskie (xii), "1" zwykłe (45), "*" z gwiazdką (12*), "'" z apostrofem (3'), "''" z dwoma apostrofami (3''), "'''" z trzema apostrofami (3'''), "()" w nawiasie ((7)), "[]" w nawiasie kwadratowym ([7]), "**" z dwiema gwiazdkami (5**); np. "* 1 ' ''" (najpierw strony z gwiazdką, potem zwykłe, potem z apostrofem i z dwoma); puste — i * ** () [] 1 ' '' ''' (tekst)
   "psalms" — Numeracja psalmów: Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata) (jedna z wartości)
   "editionOf" — Wydanie / przekład dzieła: To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie. (odwołanie: kennung albo "@klucz")
 Przykład:
@@ -661,7 +663,7 @@ Wszystko inne jest zwykłym tekstem. Zachowaj dokładne brzmienie, kolejność, 
 
 ## "loc" — miejsce w strukturze dzieła
 Podawaj "loc" przy każdym bloku, który ma własny numer w strukturze dzieła (werset, punkt, artykuł, twierdzenie, paragraf, rozdział). Bloki bez własnego numeru (np. akapit w środku rozdziału) nie mają "loc" — należą do miejsca podanego wcześniej. Strony NIE wpisuje się do "loc": strony to bloki "page" i znaki {{page …}}, bo należą do tego jednego wydania.
-- "pages" — Strony wydania: Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Przykłady: s. 23 · s. 23–25 · s. 23, 27 · s. xii
+- "pages" — Strony wydania: Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Gdy części książki mają własną numerację stron (mszał: 12* we wstępie, 3' w dodatku, (7), [7]), strona niesie znak swojej serii, a dzieło w polu „Serie stron” mówi, w jakiej kolejności serie stoją w książce. Przykłady: s. 23 · s. 23–25 · s. 23, 27 · s. xii · s. 12* · s. 45'–47' · s. 3'' · s. (7)
 - "bible" — Pismo Święte: Księga, rozdział, werset — wspólne dla wszystkich przekładów (numeracja psalmów: hebrajska, grecka w nawiasie). Przykłady: J 21,15-17 · Ps 51(50),3 · Łk 1,26–2,5 · Mt 5,3-12; 6,1
 - "numbered" — Numery (dokumenty): Numerowane punkty dokumentów Kościoła, katechizmu, kodeksów; paragraf w numerze po „§". Przykłady: nr 24 · nn. 24–26 · KKK 1234 · kan. 915 § 1
 - "aquinas" — Tomasz z Akwinu: Część, kwestia, artykuł; zarzut (arg.), sed contra, odpowiedź (co.), odpowiedź na zarzut (ad). Przykłady: I, q. 2, a. 3 · I-II, q. 90, a. 1, ad 2 · II-II q. 23 a. 1 arg. 1 · III q. 75 a. 1 co.

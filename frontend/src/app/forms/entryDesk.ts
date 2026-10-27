@@ -229,7 +229,8 @@ export function deskRows(
  *
  * <code>
  *   q       ein Stück Text: im Namen, in einer Nummer, in irgendeiner Antwort
- *   step    '' alle · open · overdue · done · todo:<schritt> — wie in „Osoby"
+ *   step    '' alle · open · overdue · done · todo:<schritt> · done:<schritt> — wie in „Osoby";
+ *           bei „Wybierz termin" auch wait: (wartet) · next: (kommt noch) · past: (war schon)
  *   hidden  auch die ausgeblendeten
  * </code>
  */
@@ -243,7 +244,7 @@ export const NO_FILTER: EntryFilter = { q: '', step: '', hidden: false };
 
 export const isFiltered = (filter: EntryFilter): boolean => filter.q.trim() !== '' || filter.step !== '' || filter.hidden;
 
-/** Die festen Wahlen des Schrittfilters; dazu je Schritt „brakuje: …" (`stepKindsOf`). */
+/** Die festen Wahlen des Schrittfilters; dazu je Schritt seine eigenen (`stepKindsOf`). */
 export const STEP_CHOICES: readonly (readonly [string, string])[] = [
   ['', 'wszystkie osoby'],
   ['open', 'komuś czegoś brakuje'],
@@ -251,17 +252,63 @@ export const STEP_CHOICES: readonly (readonly [string, string])[] = [
   ['done', 'wszystko zrobione']
 ];
 
-/** Welche Schritte es gibt — Schlüssel und Name, in der Reihenfolge, in der sie zuerst vorkommen. */
-export const stepKindsOf = (rows: readonly DeskRow[]): readonly (readonly [string, string])[] =>
-  [...new Map(rows.flatMap((r) => r.states).map((st) => [st.key, st.label])).entries()];
+/**
+ * EIN SCHRITT IM FILTER — mit seinen Wahlen in beide Richtungen: wer ihn
+ * erledigt hat, und wer nicht. „Wybierz termin" sagt es mit Terminen: wer
+ * einen hat, wer noch auf ein Ja wartet, bei wem er noch kommt oder schon war,
+ * und wer keinen hat.
+ */
+export interface StepKind {
+  readonly key: string;
+  readonly label: string;
+  /** Wert im Filter → kurze Beschriftung (unter dem Namen des Schritts). */
+  readonly options: readonly (readonly [string, string])[];
+}
 
-export function stepMatches(step: string, states: readonly StepState[]): boolean {
-  return step === '' ? true
-    : step === 'open' ? states.some((st) => st.status !== 'done')
-    : step === 'done' ? states.length > 0 && states.every((st) => st.status === 'done')
-    : step === 'overdue' ? states.some((st) => st.status === 'overdue')
-    : step.startsWith('todo:') ? states.some((st) => `todo:${st.key}` === step && st.status !== 'done')
-    : true;
+/** Welche Schritte es gibt, in der Reihenfolge, in der sie zuerst vorkommen — je mit ihren Wahlen. */
+export const stepKindsOf = (rows: readonly DeskRow[]): readonly StepKind[] => stepKindsIn(rows.flatMap((r) => r.states));
+
+/** Dasselbe aus den Schritten selbst (die Tabelle hat keine `DeskRow`). */
+export function stepKindsIn(states: readonly StepState[]): readonly StepKind[] {
+  const first = new Map<string, StepState>();
+  for (const st of states) if (!first.has(st.key)) first.set(st.key, st);
+  return [...first.values()].map((st) => ({
+    key: st.key,
+    label: st.label,
+    options: st.booking !== undefined ? [
+      [`done:${st.key}`, 'ma termin'],
+      [`next:${st.key}`, 'termin dopiero będzie'],
+      [`past:${st.key}`, 'termin już był'],
+      [`wait:${st.key}`, 'termin czeka na potwierdzenie'],
+      [`todo:${st.key}`, 'bez terminu']
+    ] : [
+      [`done:${st.key}`, 'zrobione'],
+      [`todo:${st.key}`, 'brakuje']
+    ]
+  }));
+}
+
+export function stepMatches(step: string, states: readonly StepState[], now = new Date()): boolean {
+  if (step === '') return true;
+  if (step === 'open') return states.some((st) => st.status !== 'done');
+  if (step === 'done') return states.length > 0 && states.every((st) => st.status === 'done');
+  if (step === 'overdue') return states.some((st) => st.status === 'overdue');
+
+  /* `wie:<Schlüssel des Schritts>` — der Schlüssel selbst enthält einen Doppelpunkt (`step:…`). */
+  const cut = step.indexOf(':');
+  if (cut < 0) return true;
+  const how = step.slice(0, cut);
+  const st = states.find((one) => one.key === step.slice(cut + 1));
+  if (st === undefined) return false;
+  const chosen = st.booking?.chosen ?? null;
+  switch (how) {
+    case 'todo': return st.status !== 'done';
+    case 'done': return st.status === 'done';
+    case 'wait': return chosen?.status === 'pending';
+    case 'next': return chosen !== null && new Date(chosen.endsAt) >= now;
+    case 'past': return chosen !== null && new Date(chosen.endsAt) < now;
+    default: return true;
+  }
 }
 
 /** Klein, ohne Zeichen über den Buchstaben — „Łukasz" findet sich unter „lukasz". */
@@ -283,10 +330,11 @@ export const pickRows = (rows: readonly DeskRow[], filter: EntryFilter): readonl
   rows.filter((r) => (filter.hidden || !r.s.hidden) && stepMatches(filter.step, r.states) && textMatches(filter.q, r));
 
 /** Der Filter in Worten — für den Hinweis oben auf der Seite eines Menschen. */
-export function filterWords(filter: EntryFilter, kinds: readonly (readonly [string, string])[]): string {
+export function filterWords(filter: EntryFilter, kinds: readonly StepKind[]): string {
+  const own = kinds.flatMap((k) => k.options.map(([value, short]) => [value, `${k.label}: ${short}`] as const));
   const step = filter.step === '' ? null
     : STEP_CHOICES.find(([key]) => key === filter.step)?.[1]
-      ?? `brakuje: ${kinds.find(([key]) => `todo:${key}` === filter.step)?.[1] ?? filter.step.slice(5)}`;
+      ?? own.find(([value]) => value === filter.step)?.[1] ?? filter.step;
   return [step, filter.q.trim() === '' ? null : `„${filter.q.trim()}"`, filter.hidden ? 'z ukrytymi' : null]
     .filter((one) => one !== null).join(' · ');
 }

@@ -2407,3 +2407,79 @@ from a moment and ask for the title (choose or type). Those two are not built no
 - The Wywód drive still passes 42/42 on the same build.
 
 **Owner:** rebuild and deploy the site; no database or API change.
+
+## F1 — Who has a reservation: dates in the list, both-way step filters, step columns in the table (2026-10-27)
+
+**Asked:** in the confirmation form the candidates reserve meetings; the list should show who had a reservation and who
+did not.
+
+**Built** (no database or API change — the "Wybierz termin" step of 0100 already counts every reservation the
+person's link holds or asked for at the step's resource, also one the office entered for that person)
+- **Zgłoszenia** (`FormPeople.tsx`) and the page module **Lista osób** (`pages/parts/entries.tsx`): every row shows a
+  tag per "Wybierz termin" step — `termin 17.11, 18:00`, `… · czeka` (waiting for a yes), `termin był 20.10, 18:00`
+  (already past), or `bez terminu` (warning colour). `steps.ts` `bookingTags`.
+- **The step filter** (`entryDesk.ts`, both lists and the bar of "Panel osoby") has a group per step, both ways:
+  `zrobione` / `brakuje`; for a booking step `ma termin`, `termin dopiero będzie`, `termin już był`,
+  `termin czeka na potwierdzenie`, `bez terminu` (values `done: next: past: wait: todo:` + step key, carried in
+  `?filtr=`). "Napisz SMS" writes to the filtered people — e.g. a reminder to everyone `bez terminu`.
+- **Tabela** (`FormTable.tsx`): after the questions a read-only column per step — the reserved date
+  (`2026-11-24 18:15 (czeka)`, sortable), otherwise the day it was done, `po terminie`, or a task's `3/5`; each with
+  the same both-way filter; in the CSV.
+
+**Not covered:** a reservation made under the person's own account role (signed in, not through the form link) — the
+service cannot tie a role to a form entry.
+
+**Checks:** `app-platform-check` §13 (filters both ways, booking done/next/past/wait/todo, tags, filter words; also the
+alert order after K2's two new kinds); a DB-free harness in headless Edge (`scratchpad/bookharness`, 13/13: tags,
+list filters, table column, date sort, table filter); `tsc` clean; style counts hold.
+
+**Owner:** rebuild and deploy the site. If the form has no "Wybierz termin" step yet: Kroki → add one with the
+meetings' resource — the reservations already made through the links count at once.
+
+## C1 — Cogita: one question scheme, the learning order, statistics; books and courses (2026-10-27)
+
+**Asked:** a question scheme (one, or one per type of question?) and its JSON; a structure so that general knowledge
+is asked before the specific (the atom before its orbitals) — an entry in the scheme or built into the code; two
+scenarios with the import JSON and a general guide for one's own AI — a novel about a real person (what the book
+tells and what is historically so, the book as the source) and the Missal (numbered prefaces, pages in series
+`12*`, `3'`, `3''`, `(7)`); step 1 the book with its bibliography at once, step 2 a menu to pick two or three ways
+of building the course; statistics of how someone learns (how much, time per question, known / not known; counted by
+the hierarchy, by spacing, with forgetting); the revision on a page given by link; MCP compatible; then the learner
+inside the Kurs area, using only what exists.
+
+**Built**
+- **One kind „Pytanie” with a type** (`questionTypes.ts`): 13 types in four groups, fields shown by type through the
+  generic `when` („Pokaż, gdy”, any own kind can use it); editor `QuestionFields.tsx` with chips, ticked options,
+  pairs (pasted, „Ile par naraz”, headings), a live preview and what is missing; long pair lists make one card per
+  pair (`questionCards`). Schematy → Rodzaje lists Pytanie with its types.
+- **The learning order** is declared, the engine runs it: ref fields `prerequisite: up|down` („Kolejność nauki”), a
+  question's `needs`/`about`; `prerequisites.ts` (graph, levels, basics pulled in), the revision gate on mastery
+  (knowness × last correctness), fresh cards lowest level first, Nauka → **Ścieżka** (`LearningPath.tsx`), an entry's
+  place, the view grouping „Od podstaw”, „karty czekają na podstawy” at the end of a revision.
+- **Statistics** (`measures.ts`, Postępy): per learner and per question, time per answer, now / in a week / how long
+  it holds; known counted as Pamięć (A.1), Z hierarchią (A.3) or Ostatnia odpowiedź; scope base or one revision.
+- **Learning on a page** (`pageLearner.tsx`): as the page's person; a link without an account introduces itself
+  (a link person) and its answers go to the course's intake, where the teacher sees them by name.
+- **Kurs** (`AreaKindPanel.tsx`): the main page is made with the course revision on it („Nauka na stronie” adds it
+  later), the learners' link aims at that page, „Postępy uczących się”.
+- **Library**: page series (`locations.ts` bands, work field „Serie stron”, `pageOrdinal`), „Gatunek” for books; the
+  AI link and MCP read the same page marks (`AiAccess.PageValue`, `AiMcp` instructions on the learning order).
+- **Templates**: `pytania.json` (generated, `scripts/pytania-template.mjs`), `podstawy.json` + `przyklad-atom.json`,
+  `fakty.json`, `jednostki.json`, `wywod.json` („rzeczywistość” in Element stały), and the guide `ksiazka-AI.md`
+  (step 1, the menu A–F, build rules, after the import; appendices from the app by `scripts/ksiazka-guide.mjs`).
+
+**Found by the course drive and fixed:** a link holder could not open a base of a closed area on a page
+(`/workspace/libraries` now answers the link's roles like its entries already did, and the page carries the link
+proofs without a session); after „Przedstaw się” the previous (in-browser) learner was used until the new one
+loaded, so the first answers stayed in the browser (`useLearner` gives only the current holder's learner, „Zacznij”
+waits for it); a tall revision or flow module skipped „Przedstaw się”; the learners' table in Postępy is open for a
+course base.
+
+**Checks:** `tsc` clean; `app-cogita-check` 623; `app-library-check`, `app-json-check`, `app-presentation-check`,
+`app-world-check`, `app-platform-check` pass; `vite build` OK; backend 0 errors, `Api.Tests` 549 (page series in
+MCP); `app-style-check` is one over only through another session's new `preview/previewProbe.ts`. Browser drives on
+LocalDB: questions 29/29; course 22/22 twice (Kurs tab builds base, import, page, role, link; a learner without an
+account introduces themselves and answers; the teacher sees name, counts, time, question by question, three ways).
+
+**Owner:** deploy the API (`-p:PublishProfile=Webio -p:IsGetPasswordEnabled=true`) — the MCP page series and link
+holders reading a course base need it — and the site. No database change.

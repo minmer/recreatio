@@ -25,7 +25,7 @@
  * bleiben. Erfunden wird nichts — was fehlt, bleibt leer.
  */
 
-import { contains, formatPlace, overlap, pagesOverlap, parsePlace, placeSortKey, SCHEMES, schemeOf, TEXT_SCHEMES, workScheme, type PageSpan, type Place, type PlaceOptions, type SchemeId, type Span } from './locations';
+import { contains, formatPlace, overlap, pagesOverlap, parsePlace, placeSortKey, rememberSeries, SCHEMES, schemeOf, seriesKeyOf, TEXT_SCHEMES, workScheme, type PageSpan, type Place, type PlaceOptions, type SchemeId, type Span } from './locations';
 import { ids, type EntryData, type LibEntry, type Lookup } from './libraryKinds';
 
 export const SOURCE_FORMAT = 'recreatio/source-text';
@@ -80,6 +80,8 @@ export interface ManifestPart {
   readonly first?: string;
   readonly last?: string;
   readonly pages?: readonly [number, number];
+  /** 2026-10-27 — die Serien seiner Seiten außer den gewöhnlichen und der römischen Titelei („#*", „A#") — so werden sie wieder geschrieben, wie sie gedruckt sind. */
+  readonly series?: readonly string[];
   readonly blocks: number;
   readonly words: number;
 }
@@ -107,7 +109,8 @@ const s = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'num
 
 export function readManifest(data: EntryData): TextManifest {
   const edition = isObject(data.edition) ? data.edition : {};
-  return {
+  const seriesOf = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && x !== '' && x.length <= 24).slice(0, 40) : []);
+  const manifest: TextManifest = {
     work: s(data.work),
     scheme: (SCHEMES.some((x) => x.id === data.scheme) ? data.scheme : 'pages') as SchemeId,
     edition: {
@@ -120,9 +123,13 @@ export function readManifest(data: EntryData): TextManifest {
       id: s(p.id), key: s(p.key), label: s(p.label) || s(p.key), order: typeof p.order === 'number' ? p.order : 0,
       ...(s(p.first) === '' ? {} : { first: s(p.first) }), ...(s(p.last) === '' ? {} : { last: s(p.last) }),
       ...(Array.isArray(p.pages) && p.pages.length === 2 && p.pages.every((x) => typeof x === 'number') ? { pages: [p.pages[0] as number, p.pages[1] as number] as const } : {}),
+      ...(seriesOf(p.series).length === 0 ? {} : { series: seriesOf(p.series) }),
       blocks: typeof p.blocks === 'number' ? p.blocks : 0, words: typeof p.words === 'number' ? p.words : 0
     })).filter((p) => p.id !== '').sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl'))
   };
+  /* Die Serien der Seiten bekannt — dann schreibt das Verzeichnis „s. 12*–20*", auch bevor ein Teil geladen ist. */
+  rememberSeries(manifest.parts.flatMap((p) => p.series ?? []));
+  return manifest;
 }
 
 export const readPart = (data: EntryData): PartData => ({
@@ -246,14 +253,30 @@ export function findBlocks(blocks: readonly SourceBlock[], place: Place, scheme:
   return [...out].sort((a, b) => a - b);
 }
 
+/** 2026-10-27 — die Serien der gedruckten Seiten eines Teils, ausser den gewöhnlichen und der römischen Titelei. */
+export function pageSeriesIn(blocks: readonly SourceBlock[]): string[] {
+  const out = new Set<string>();
+  const take = (label: string | undefined) => {
+    const key = label === undefined ? null : seriesKeyOf(label);
+    if (key !== null && key !== '#' && key !== 'i') out.add(key);
+  };
+  for (const b of blocks) {
+    if (b.type === 'page') take(b.page);
+    for (const text of blockTexts(b)) for (const p of pieces(text)) if (p.t === 'page') take(p.page);
+  }
+  return [...out];
+}
+
 /** Erste und letzte Stelle, Seiten, Blöcke und Wörter eines Teils — für das Verzeichnis. */
-export function partSummary(blocks: readonly SourceBlock[]): { first?: string; last?: string; pages?: readonly [number, number]; blocks: number; words: number } {
+export function partSummary(blocks: readonly SourceBlock[]): { first?: string; last?: string; pages?: readonly [number, number]; series?: readonly string[]; blocks: number; words: number } {
   const locs = blocks.map((b) => b.loc?.trim() ?? '').filter((l) => l !== '');
   const pages = blockPages(blocks).filter((p): p is { from: number; to: number } => p !== null);
+  const series = pageSeriesIn(blocks);
   const words = blocks.reduce((n, b) => n + blockTexts(b).reduce((m, t) => m + (plainOfText(t).match(/\S+/g)?.length ?? 0), 0), 0);
   return {
     ...(locs.length === 0 ? {} : { first: locs[0], last: locs[locs.length - 1] }),
     ...(pages.length === 0 ? {} : { pages: [Math.min(...pages.map((p) => p.from)), Math.max(...pages.map((p) => p.to))] as const }),
+    ...(series.length === 0 ? {} : { series }),
     blocks: blocks.length,
     words
   };
@@ -622,7 +645,8 @@ Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" 
   {"type": "list", "items": ["…", "…"], "ordered": true, "loc": "…"}
   {"type": "table", "columns": ["…"], "rows": [["…", "…"]], "loc": "…"}
   {"type": "note", "id": "1", "text": "…"}                     przypis (tekst przypisu); w tekście odwołanie {{note 1}}
-  {"type": "page", "page": "46", "pdf": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF
+  {"type": "page", "page": "46", "pdf": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF;
+                                                              strona tak, jak jest wydrukowana — także ze znakami serii: "12*", "3'", "(7)", "A12", "xii"
   "uncertain": true                                           przy dowolnym bloku: odczyt niepewny
 
 ## Znaki w tekście
@@ -776,10 +800,11 @@ export function overlapsWith(manifest: TextManifest | undefined, plan: SourcePla
 
 /** Das neue Verzeichnis nach einem Teil: ersetzt (gleicher Schlüssel) oder dazu, geordnet. */
 export function nextManifest(before: TextManifest | undefined, work: string, plan: SourcePlan, partId: string): EntryData {
-  const { first, last, pages, blocks, words } = plan.summary;
+  const { first, last, pages, series, blocks, words } = plan.summary;
   const part: ManifestPart = {
     id: partId, key: plan.portion.key, label: plan.portion.label, order: plan.portion.order,
-    ...(first === undefined ? {} : { first }), ...(last === undefined ? {} : { last }), ...(pages === undefined ? {} : { pages }), blocks, words
+    ...(first === undefined ? {} : { first }), ...(last === undefined ? {} : { last }), ...(pages === undefined ? {} : { pages }),
+    ...(series === undefined ? {} : { series }), blocks, words
   };
   const parts = [...(before?.parts ?? []).filter((p) => p.key !== plan.portion.key && p.id !== partId), part]
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl'));

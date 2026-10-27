@@ -112,6 +112,18 @@
           "says": "Co to za element. Listę można rozszerzać (np. „Symbol”, „Zwierzę”) — nowa możliwość to nowa pozycja, nie nowy schemat."
         },
         {
+          "key": "rzeczywistosc",
+          "label": "Czy istnieje naprawdę",
+          "type": "choice",
+          "options": [
+            { "value": "rzeczywisty", "label": "rzeczywisty — osoba, miejsce, rzecz istniejąca naprawdę" },
+            { "value": "wzorowany", "label": "wzorowany na rzeczywistym" },
+            { "value": "fikcyjny", "label": "fikcyjny — wymyślony w dziele" },
+            { "value": "nieznane", "label": "nie wiadomo" }
+          ],
+          "says": "Przy dziele, które opowiada o rzeczywistości (powieść biograficzna, film historyczny): czy element istnieje naprawdę. Fakty o rzeczywistym — z ich źródłami i oceną — to wpisy rodzaju „Fakt” (templates/cogita/fakty.json), które wskazują ten element w „Kogo i czego dotyczy”."
+        },
+        {
           "key": "opis",
           "label": "Opis",
           "type": "blocks",

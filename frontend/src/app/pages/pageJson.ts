@@ -393,6 +393,8 @@ export interface PagePlan {
   readonly forms: ReadonlyMap<string, ModuleWish>;
   /** 2026-10-24 — Termine (mit Programm), die der Import in die gewählten Kalender einträgt (`appointmentsJson.ts`). */
   readonly appointments?: AppointmentsPlan;
+  /** 2026-10-27 — Stelle → ihr Eintrag in "modules" des Dokuments (ab 0); die Vorschau für Assistenten nennt Bausteine danach. */
+  readonly from?: ReadonlyMap<string, number>;
   readonly lines: readonly string[];
   readonly warnings: readonly string[];
 }
@@ -471,6 +473,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
   const configs = new Map<string, RawConfig>();
   const names = new Map<string, string>();
   const forms = new Map<string, ModuleWish>();
+  const from = new Map<string, number>();
   const made: { part: DraftPart; place: boolean; size: { colSpan: number; rowSpan: number } }[] = [];
   let updated = 0;
   let added = 0;
@@ -492,6 +495,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     if (match !== undefined) used.add(match.id);
     const id = match?.id ?? newId();
     if (docId !== '') ids.set(docId, id);
+    from.set(id, index);
 
     const moduleId = match !== undefined
       ? (isUuid(docModule) ? docModule : match.moduleId)
@@ -734,7 +738,7 @@ export function planImport(doc: unknown, now: PageNow, options: ImportOptions): 
     if (lost > 0) warnings.push(`Mapa logiki strony wskazuje ${lost} ${lost === 1 ? 'moduł, który' : 'moduły, które'} znikną ze strony.`);
   }
 
-  return { legacy: false, ...plan, parts, configs, names, forms, lines, warnings };
+  return { legacy: false, ...plan, parts, configs, names, forms, from, lines, warnings };
 }
 
 const stripSlide = (layout: Layout): Layout => {

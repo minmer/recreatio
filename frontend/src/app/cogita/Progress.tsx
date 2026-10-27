@@ -5,14 +5,17 @@
  * Bereichs, in dem die Antworten liegen [E10].
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadSeats } from '../seats/seat';
 import type { Card } from './cardBasics';
 import { average, knownessOf, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
-import { adoptLocal, areaProgress, localProgress, marksOf, renamer, type Learner, type LearnerProgress } from './learn';
+import { adoptLocal, areaProgress, localProgress, marksOf, renamer, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
+import { answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
+import { planFor } from './RevisionRun';
+import { entityName } from './ui';
 import { offlineList, dropOffline } from './offline';
 import { Bar, percent, useAsync, useBusy, useCtx } from './ui';
 
@@ -58,6 +61,11 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
           </div>
         ))}
       </div>
+      {/* 2026-10-27 — Pytanie po pytaniu: ile razy, jak dobrze, jak długo, jak trwale — po wybranym sposobie liczenia. */}
+      <details className="cg-card" data-own-questions="">
+        <summary>Moje pytania — co umiem, ile to trwało, jak długo zostanie</summary>
+        <Stats cards={cards} progress={learner.progress} />
+      </details>
       {lib.collections().length > 0 && (
         <div className="cg-grid">
           {lib.collections().map((c) => {
@@ -123,29 +131,157 @@ export function OfficeProgress({ cards }: { cards: readonly Card[] | null }) {
     })();
     return () => { alive = false; };
   }, [me, area, lib.libraryId]);
+  const scope = useScope(cards);
+  const [model, setModel] = useModel();
+  const [open, setOpen] = useState<string | null>(null);
   if (failed !== null) return <p className="wk-hint">{failed}</p>;
   if (rows === null || cards === null) return <p className="wk-hint">Otwieranie postępów…</p>;
   if (rows.length === 0) return <p className="wk-empty">Nikt jeszcze nie odpowiadał w tym obszarze.</p>;
+  const nameOf = (r: LearnerProgress) => names.get(r.holder) ?? (r.seatId !== null ? `osoba ${r.seatId.slice(-4)}` : `osoba ${r.roleId?.slice(-4) ?? ''}`);
+  const now = Date.now();
+  const shown = scope.cards ?? cards;
+  const statsFor = (progress: Answers) => cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), now);
+  return (
+    <div className="cg" data-office-progress={rows.length}>
+      <StatsControls scope={scope} model={model} onModel={setModel} />
+      <div className="cg-table-wrap">
+        <table className="cg-table cg-stats-table">
+          <thead><tr><th>Uczący się</th><th>Umie</th><th>W nauce</th><th>Jeszcze nie</th><th>Odpowiedzi</th><th>Czas nauki</th><th>Na odpowiedź</th><th>Ostatnio</th></tr></thead>
+          <tbody>
+            {rows.map((r) => {
+              const all = statsOf(statsFor(r.progress));
+              const share = all.cards === 0 ? 0 : all.known / all.cards;
+              return (
+                <Fragment key={r.holder}>
+                  <tr data-learner-row={r.holder}>
+                    <td><button type="button" className="cg-ref" aria-expanded={open === r.holder} onClick={() => setOpen(open === r.holder ? null : r.holder)}>{nameOf(r)}</button></td>
+                    <td><Bar value={share} /> {all.known} z {all.cards}</td>
+                    <td>{all.learning}</td>
+                    <td>{all.unseen}</td>
+                    <td>{all.answers}</td>
+                    <td>{all.msTotal === 0 ? '—' : spanText(all.msTotal)}</td>
+                    <td>{all.msPerAnswer === null ? '—' : spanText(all.msPerAnswer)}</td>
+                    <td>{new Date(r.lastAt).toLocaleDateString('pl-PL')}</td>
+                  </tr>
+                  {open === r.holder && (
+                    <tr className="cg-stats-open"><td colSpan={8}><QuestionTable stats={statsFor(r.progress)} /></td></tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* -- 2026-10-27: Statystyki — zakres, sposób liczenia, pytanie po pytaniu ------------------------------------------ */
+
+interface Scope {
+  readonly id: string;
+  readonly set: (id: string) => void;
+  /** Die Karten der gewählten Powtórka — `null`: die ganze Baza. */
+  readonly cards: readonly Card[] | null;
+}
+
+/** Der Zakres: die ganze Baza oder eine Powtórka (das, was man jemandem gegeben hat). */
+function useScope(all: readonly Card[] | null): Scope {
+  const { lib } = useCtx();
+  const [id, setId] = useState('');
+  const planned = useAsync(id === '' || all === null ? null : () => planFor(lib, id, null, 'stats').then((r) => r.plan?.cards ?? []), [lib, lib.revision, id, all === null]);
+  return { id, set: setId, cards: id === '' ? null : planned ?? null };
+}
+
+const MODEL_KEY = 'cg-progress-model';
+
+/** Der Sposób liczenia — gemerkt in diesem Browser (eine Bequemlichkeit, kein Zustand). */
+function useModel(): [Model, (m: Model) => void] {
+  const [model, setModel] = useState<Model>(() => {
+    try { const v = window.localStorage.getItem(MODEL_KEY); return MODELS.some((m) => m.id === v) ? v as Model : 'memory'; } catch { return 'memory'; }
+  });
+  const set = (m: Model) => { setModel(m); try { window.localStorage.setItem(MODEL_KEY, m); } catch { /* bez pamięci */ } };
+  return [model, set];
+}
+
+function StatsControls({ scope, model, onModel }: { scope: Scope; model: Model; onModel: (m: Model) => void }) {
+  const { lib } = useCtx();
+  const revisions = lib.docs('revision');
+  return (
+    <div className="cg cg-stats-controls">
+      <div className="cg-row">
+        <label className="wk-field"><span>Zakres</span>
+          <select value={scope.id} onChange={(e) => scope.set(e.target.value)} data-stats-scope="">
+            <option value="">cała baza wiedzy</option>
+            {revisions.map((r) => <option key={r.id} value={r.id}>powtórka: {String(r.data.name ?? 'Powtórka')}</option>)}
+          </select>
+        </label>
+        <div className="wk-field"><span>Kiedy „umie”</span>
+          <div className="cg-chips" role="radiogroup" aria-label="Sposób liczenia">
+            {MODELS.map((m) => <button key={m.id} type="button" role="radio" aria-checked={m.id === model} className={`cg-chip${m.id === model ? ' is-on' : ''}`} data-model={m.id} onClick={() => onModel(m.id)}>{m.label}</button>)}
+          </div>
+        </div>
+      </div>
+      <span className="cg-muted">{MODELS.find((m) => m.id === model)?.says}</span>
+    </div>
+  );
+}
+
+/** Für sich selbst: dieselben Zahlen, aus den eigenen Antworten. */
+function Stats({ cards, progress }: { cards: readonly Card[]; progress: Answers }) {
+  const { lib } = useCtx();
+  const rename = useMemo(() => renamer(lib.merges()), [lib]);
+  const scope = useScope(cards);
+  const [model, setModel] = useModel();
+  const shown = scope.cards ?? cards;
+  const stats = cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), Date.now());
+  const all = statsOf(stats);
+  return (
+    <div className="cg">
+      <StatsControls scope={scope} model={model} onModel={setModel} />
+      <span className="cg-muted" data-own-summary={all.known}>Umiem {all.known} z {all.cards} · w nauce {all.learning} · jeszcze nie {all.unseen} · czas nauki {all.msTotal === 0 ? '—' : spanText(all.msTotal)}{all.msPerAnswer === null ? '' : ` · średnio ${spanText(all.msPerAnswer)} na odpowiedź`}</span>
+      <QuestionTable stats={stats} />
+    </div>
+  );
+}
+
+/** Was eine Karte fragt, in Worten — für die Liste. */
+function cardText(card: Card, name: (id: string) => string): string {
+  const prompt = card.prompt.map((p) => p.text).join(' ').trim();
+  const base = prompt !== '' ? prompt : card.entity !== undefined ? name(card.entity) : card.question;
+  return card.label === undefined ? base : `${base}: ${card.label}`;
+}
+
+/**
+ * PYTANIE PO PYTANIU: wie oft, wie oft richtig, wie lange je Antwort, wann zuletzt, die Kenntnis jetzt, wie lange sie
+ * hält (Trwałość) und was in einer Woche bleibt — das Schwächste zuerst.
+ */
+function QuestionTable({ stats }: { stats: readonly CardStat[] }) {
+  const { lib } = useCtx();
+  const name = (id: string) => entityName(lib, id);
+  const ordered = [...stats].sort((a, b) => Number(a.known) - Number(b.known) || a.now - b.now);
+  if (ordered.length === 0) return <span className="cg-muted">Brak kart w tym zakresie.</span>;
   return (
     <div className="cg-table-wrap">
-      <table className="cg-table">
-        <thead><tr><th>Uczący się</th><th>Znajomość</th><th>Umie</th><th>W nauce</th><th>Odpowiedzi</th><th>Ostatnio</th></tr></thead>
+      <table className="cg-table cg-stats-table" data-question-stats={ordered.length}>
+        <thead><tr><th>Pytanie</th><th>Odpowiedzi</th><th>Dobrze</th><th>Na odpowiedź</th><th>Ostatnio</th><th>Teraz</th><th>Trwałość</th><th>Za tydzień</th><th>Umie</th></tr></thead>
         <tbody>
-          {rows.map((r) => {
-            const s = summarize(cards, (card) => marksOf(r.progress, card.key, card.fingerprint, rename));
-            return (
-              <tr key={r.holder}>
-                <td>{names.get(r.holder) ?? (r.seatId !== null ? `osoba ${r.seatId.slice(-4)}` : `osoba ${r.roleId?.slice(-4) ?? ''}`)}</td>
-                <td><Bar value={s.knowness} /> {percent(s.knowness)}</td>
-                <td>{s.levels.known}</td>
-                <td>{s.levels.learning}</td>
-                <td>{r.progress.answers.size}</td>
-                <td>{new Date(r.lastAt).toLocaleDateString('pl-PL')}</td>
-              </tr>
-            );
-          })}
+          {ordered.slice(0, 300).map((s) => (
+            <tr key={s.card.key} className={s.known ? 'is-known' : s.seen ? 'is-learning' : 'is-unseen'}>
+              <td className="cg-stats-q">{cardText(s.card, name).slice(0, 140)}</td>
+              <td>{s.answers}</td>
+              <td>{s.answers === 0 ? '—' : `${s.right} (${percent(s.share ?? 0)})`}</td>
+              <td>{s.msAvg === null ? '—' : spanText(s.msAvg)}</td>
+              <td>{s.lastAt === null ? '—' : new Date(s.lastAt).toLocaleDateString('pl-PL')}</td>
+              <td>{s.seen ? percent(shareOf(s.now)) : '—'}</td>
+              <td>{holdsText(s.holdsHours)}</td>
+              <td>{s.seen ? percent(shareOf(s.inWeek)) : '—'}</td>
+              <td>{s.known ? 'tak' : s.seen ? 'jeszcze nie' : '—'}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
+      {ordered.length > 300 && <span className="cg-muted">Pokazano 300 najsłabszych z {ordered.length}.</span>}
     </div>
   );
 }

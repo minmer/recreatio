@@ -28,7 +28,7 @@ import { plural } from '../core/plural';
 import {
   filterWords, isFiltered, loadEntryDesk, neighbours, NO_FILTER, onDeskChange, pickRows, readEntryQuery,
   STEP_CHOICES, stepKindsOf, entryQueryString, withEntryQuery,
-  type DeskRow, type EntryDesk, type EntryFilter, type EntryQuery
+  type DeskRow, type EntryDesk, type EntryFilter, type EntryQuery, type StepKind
 } from './entryDesk';
 import { PickForm } from './FormPick';
 import { PickPage } from '../pages/PickPage';
@@ -154,7 +154,7 @@ export function OfficeGate({ who, ring, retry, desk, failed, what }: {
  */
 export function EntryFilterBar({ filter, kinds, onChange }: {
   filter: EntryFilter;
-  kinds: readonly (readonly [string, string])[];
+  kinds: readonly StepKind[];
   onChange: (next: EntryFilter) => void;
 }) {
   return (
@@ -166,7 +166,7 @@ export function EntryFilterBar({ filter, kinds, onChange }: {
       {kinds.length > 0 && (
         <select value={filter.step} aria-label="Filtr kroków" onChange={(e) => onChange({ ...filter, step: e.target.value })}>
           {STEP_CHOICES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-          {kinds.map(([key, label]) => <option key={key} value={`todo:${key}`}>brakuje: {label}</option>)}
+          <StepOptions kinds={kinds} />
         </select>
       )}
       <label className="wk-inline">
@@ -177,6 +177,19 @@ export function EntryFilterBar({ filter, kinds, onChange }: {
         <button type="button" className="wk-link-btn" onClick={() => onChange(NO_FILTER)}>Wyczyść</button>
       )}
     </div>
+  );
+}
+
+/** Je Schritt eine Gruppe im Filter — zrobione / brakuje, bei „Wybierz termin" nach Terminen. */
+export function StepOptions({ kinds }: { kinds: readonly StepKind[] }) {
+  return (
+    <>
+      {kinds.map((k) => (
+        <optgroup key={k.key} label={k.label}>
+          {k.options.map(([value, short]) => <option key={value} value={value}>{short}</option>)}
+        </optgroup>
+      ))}
+    </>
   );
 }
 

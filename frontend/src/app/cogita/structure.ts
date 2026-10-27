@@ -15,7 +15,7 @@
  */
 
 import { fieldsOf, readNumber, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
-import { formatPlace, parsePlace, placeSortKey, workScheme, workOptions, type Path, type Place, type SchemeId } from '../library/locations';
+import { formatPlace, pageOrdinal, parsePlace, placeSortKey, workScheme, workOptions, type Path, type Place, type PlaceOptions, type SchemeId } from '../library/locations';
 
 /** Was die Rechnung von einer Baza braucht — `CogitaLibrary` und der Kontext einer Auswahl haben es. */
 export interface StructureSource {
@@ -149,19 +149,20 @@ export function schemeFor(work: string, src: Pick<StructureSource, 'entity'>, lo
  * Eine Stelle als Schlüssel zum Ordnen. Seiten (im Układ „strony") nach der ersten Seite und bei
  * gleichem Anfang das Grössere zuerst (das Ganze vor seinen Teilen) — auch wenn ein Kapitel davorsteht.
  */
-function placeKey(place: Place): string {
+function placeKey(place: Place, options: PlaceOptions = {}): string {
   if (place.scheme === 'pages' && place.pages.length > 0) {
-    const pad = (n: number) => String(Math.max(0, n + 20000)).padStart(6, '0');
+    /* 2026-10-27 — Seiten in Serien: in der Reihenfolge der Serien des Werks (die Bibliothek ordnet sie); bei gleichem Anfang die längere Spanne zuerst. */
+    const at = (n: number) => pageOrdinal(n, options) + 20000;
     const first = place.pages[0]!;
-    return `p.${pad(first.from)}.${String(1_000_000 - Math.max(0, first.to + 20000)).padStart(7, '0')}`;
+    return `p.${String(at(first.from)).padStart(12, '0')}.${String(999_999_999_999 - at(first.to)).padStart(12, '0')}`;
   }
-  return placeSortKey(place);
+  return placeSortKey(place, options);
 }
 
 /** Zwei Stellen im selben Werk vergleichen (nach seinem Układ). */
 export function comparePlaces(a: string, b: string, scheme: SchemeId, options: ReturnType<typeof workOptions> = {}): number {
-  const ka = placeKey(parsePlace(a, scheme, options));
-  const kb = placeKey(parsePlace(b, scheme, options));
+  const ka = placeKey(parsePlace(a, scheme, options), options);
+  const kb = placeKey(parsePlace(b, scheme, options), options);
   return ka < kb ? -1 : ka > kb ? 1 : 0;
 }
 
@@ -292,7 +293,7 @@ export function orderByPlace(ids: readonly { id: string; listed?: number }[], sr
       placed: r.place === null ? 1 : 0,
       work: r.place === null ? Number.MAX_SAFE_INTEGER : rank.get(r.place.work) ?? Number.MAX_SAFE_INTEGER,
       whole: r.place !== null && r.place.locator === '' ? 0 : 1,
-      key: r.place === null || r.place.locator === '' || s === undefined ? '' : placeKey(parsePlace(r.place.locator, s.scheme, s.options)),
+      key: r.place === null || r.place.locator === '' || s === undefined ? '' : placeKey(parsePlace(r.place.locator, s.scheme, s.options), s.options),
       tie: fieldValue(r.entity, order.tie),
       listed: r.listed,
       label: r.entity === undefined ? r.id : order.label(r.entity)
@@ -379,7 +380,7 @@ export function textOrder(root: StructNode, src: Pick<StructureSource, 'entity' 
   const schemes = new Map([...byWork].map(([work, locators]) => [work, schemeFor(work, src, locators)]));
   /* Jede Stelle einmal gelesen; dann: das Werk (wie es im Baum zuerst auftaucht), die Stelle, die Reihenfolge des Baumes. */
   const placed = rows.map((r, i) => ({ r, p: places[i] })).filter((x) => x.p !== null && x.p.locator !== '')
-    .map(({ r, p }) => { const s = schemes.get(p!.work)!; return { r, work: rank.get(p!.work)!, key: placeKey(parsePlace(p!.locator, s.scheme, s.options)) }; });
+    .map(({ r, p }) => { const s = schemes.get(p!.work)!; return { r, work: rank.get(p!.work)!, key: placeKey(parsePlace(p!.locator, s.scheme, s.options), s.options) }; });
   const sortedPlaced = placed.sort((a, b) => (a.work !== b.work ? a.work - b.work : a.key !== b.key ? (a.key < b.key ? -1 : 1) : a.r.index - b.r.index)).map((x) => x.r);
   /* Was keine Stelle hat, folgt dem, unter dem es liegt (oder steht am Ende, wenn der auch keine hat). */
   const loose = rows.filter((_, i) => places[i] === null || places[i]!.locator === '');

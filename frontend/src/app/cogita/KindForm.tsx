@@ -137,7 +137,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
       </div>
       {options.hint}
       {pattern && <p className="wk-hint">W etykiecie: {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && '— wzór nie używa jeszcze żadnego pola.'}</p>}
-      {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich przypisy, publikacja i ISBN) — można zmienić ich nazwy i dodać własne.</p>}
+      {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich wbudowane narzędzia: przypisy, karty, sprawdzanie odpowiedzi) — można zmienić ich nazwy i dodać własne.</p>}
       {extra}
 
       {/*
@@ -186,7 +186,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
                   </tr>
                   {open && (
                     <tr className="cg-field-more">
-                      <td colSpan={columns}><FieldMore field={f} targets={allTargets} disabled={!writes || fixed} own={!base && options.roles !== false} onSet={(patch) => setField(i, patch)} /></td>
+                      <td colSpan={columns}><FieldMore field={f} targets={allTargets} choices={draft.fields.filter((x) => x.type === 'choice' && x.key !== f.key)} disabled={!writes || fixed} own={!base && options.roles !== false} onSet={(patch) => setField(i, patch)} /></td>
                     </tr>
                   )}
                 </Fragment>
@@ -227,8 +227,43 @@ function QuantityPick({ field, disabled, onSet }: { field: FieldDef; disabled: b
   );
 }
 
+/**
+ * 2026-10-27 — „POKAŻ, GDY": ein Feld gehört nur zu einigen Werten eines Wahlfeldes desselben Rodzaj
+ * (ein „Rodzaj pytania", ein „Typ") — EIN Schema mit Typen statt eines je Typ. Der Editor eines
+ * Eintrags zeigt es nur dann; ein Wert, der schon dasteht, bleibt, wenn der Typ wechselt.
+ */
+function WhenPick({ field, choices, disabled, onSet }: { field: FieldDef; choices: readonly FieldDef[]; disabled: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
+  const by = field.when === undefined ? undefined : choices.find((c) => c.key === field.when!.field);
+  return (
+    <div className="cg" data-field-when={field.key}>
+      <label className="wk-field"><span>Pokaż to pole tylko, gdy</span>
+        <select value={field.when?.field ?? ''} disabled={disabled} onChange={(e) => {
+          const next = choices.find((c) => c.key === e.target.value);
+          onSet({ when: next === undefined ? undefined : { field: next.key, values: (next.options ?? []).slice(0, 1).map((o) => o.value) } });
+        }}>
+          <option value="">— zawsze —</option>
+          {choices.map((c) => <option key={c.key} value={c.key}>„{c.label}” ma wartość…</option>)}
+        </select>
+      </label>
+      {by !== undefined && field.when !== undefined && (
+        <fieldset className="cg-row"><legend>…jedną z tych</legend>
+          {(by.options ?? []).map((o) => (
+            <label key={o.value} className="pe-check">
+              <input type="checkbox" checked={field.when!.values.includes(o.value)} disabled={disabled} onChange={(e) => {
+                const values = e.target.checked ? [...field.when!.values, o.value] : field.when!.values.filter((v) => v !== o.value);
+                onSet({ when: values.length === 0 ? undefined : { field: by.key, values } });
+              }} />
+              <span>{o.label}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+    </div>
+  );
+}
+
 /** Die Einstellungen eines Feldes — unter seiner Zeile, über die ganze Breite. */
-function FieldMore({ field, targets, disabled, own, onSet }: { field: FieldDef; targets: readonly KindTarget[]; disabled: boolean; own: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
+function FieldMore({ field, targets, choices, disabled, own, onSet }: { field: FieldDef; targets: readonly KindTarget[]; choices: readonly FieldDef[]; disabled: boolean; own: boolean; onSet: (patch: Partial<FieldDef>) => void }) {
   return (
     <div className="cg-field-settings">
       <label className="wk-field"><span>Co znaczy (dla JSON i AI)</span><input value={field.says ?? ''} disabled={disabled && !own} onChange={(e) => onSet({ says: e.target.value || undefined })} /></label>
@@ -263,8 +298,17 @@ function FieldMore({ field, targets, disabled, own, onSet }: { field: FieldDef; 
               <option value="down">↓ wskazuje wpisy niżej (leżą pod tym wpisem)</option>
             </select>
           </label>
+          {/* 2026-10-27 — die Reihenfolge des Lernens (`prerequisites.ts`): was zuerst sitzen muss. Etwas anderes als die Struktur. */}
+          <label className="wk-field"><span>Kolejność nauki</span>
+            <select value={field.prerequisite ?? ''} disabled={disabled} onChange={(e) => onSet({ prerequisite: e.target.value === 'up' || e.target.value === 'down' ? e.target.value : undefined })}>
+              <option value="">— nie zmienia kolejności —</option>
+              <option value="up">↑ najpierw trzeba znać to, na co wskazuje (np. „Wymaga”)</option>
+              <option value="down">↓ to, na co wskazuje, buduje na tym wpisie (np. „Prowadzi do”)</option>
+            </select>
+          </label>
         </>
       )}
+      {choices.length > 0 && <WhenPick field={field} choices={choices} disabled={disabled} onSet={onSet} />}
       {field.type === 'media' && (
         <fieldset className="cg-row"><legend>Jakie pliki</legend>
           {MEDIA_TYPES.map((m) => (

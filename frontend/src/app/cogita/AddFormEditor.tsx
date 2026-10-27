@@ -619,6 +619,10 @@ function EntryPanel({ form, node, readOnly, onGraph, wire, onChoose }: {
         <input value={c.label ?? ''} disabled={readOnly} placeholder={kind?.name ?? ''} onChange={(e) => setConfig({ label: e.target.value.trim() === '' ? undefined : e.target.value })} />
       </label>
       {typedFields(kind, c).length > 0 && <label className="pe-check"><input type="checkbox" checked={c.many} disabled={readOnly} onChange={(e) => setConfig({ many: e.target.checked })} /><span>Kilka w jednym wierszu (np. dwa słowa o tym samym znaczeniu)</span></label>}
+      {/* 2026-10-27 — ein Schritt, der in einen anderen führt, darf leer bleiben (ein Grundbegriff ohne „Wymaga”). */}
+      {form.graph.edges.some((e) => e.from === node.id) && (
+        <label className="pe-check"><input type="checkbox" checked={c.optional === true} disabled={readOnly} onChange={(e) => setConfig({ optional: e.target.checked ? true : undefined })} /><span>Może zostać puste — wpisy, do których prowadzi, powstają i bez niego</span></label>
+      )}
       {kind !== undefined && (
         <fieldset className="cg-af-fields"><legend>Pola</legend>
           {kind.fields.map((f) => (f.type === 'ref'

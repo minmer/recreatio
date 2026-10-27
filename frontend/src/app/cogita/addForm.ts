@@ -137,6 +137,12 @@ export interface EntryConfig {
    * in der man sie tippt. Getippt wird je Rodzaj sein Etikettfeld.
    */
   readonly also?: readonly string[];
+  /**
+   * 2026-10-27 — DARF IN DER ZEILE LEER BLEIBEN: was es füllt, entsteht trotzdem (ein Pojęcie ohne
+   * „Wymaga" — ein Grundbegriff). Sonst verhindert ein fehlender Eintrag der Zeile die Einträge, in
+   * die er führt (eine Übersetzung braucht beide Wörter).
+   */
+  readonly optional?: boolean;
 }
 
 export interface PickConfig {
@@ -197,7 +203,8 @@ export function entryConfig(raw: unknown): EntryConfig {
     fields,
     reuse: c.reuse === 'never' ? 'never' : 'same',
     ...(Array.isArray(c.identity) ? { identity } : {}),
-    ...(strings(c.also).filter((k) => k !== str(c.kind).trim()).length > 0 ? { also: [...new Set(strings(c.also).filter((k) => k !== str(c.kind).trim()))] } : {})
+    ...(strings(c.also).filter((k) => k !== str(c.kind).trim()).length > 0 ? { also: [...new Set(strings(c.also).filter((k) => k !== str(c.kind).trim()))] } : {}),
+    ...(c.optional === true ? { optional: true } : {})
   };
 }
 
@@ -819,7 +826,8 @@ export function planForm(form: AddForm, ctx: PlanCtx, rows: readonly RowInput[],
           das mehrere nimmt: eine Übersetzung aus „Word 1" und „Word 2" braucht
           beide, sonst wäre sie die Übersetzung eines einzigen Wortes.
         */
-        const absent = edges.filter((e) => byId.get(e.from)?.type === 'entry' && (outputs.get(e.from) ?? []).length === 0);
+        /* 2026-10-27 — einer, der leer bleiben darf („optional"), verhindert nichts. */
+        const absent = edges.filter((e) => byId.get(e.from)?.type === 'entry' && entryConfig(byId.get(e.from)!.config).optional !== true && (outputs.get(e.from) ?? []).length === 0);
         if (absent.length > 0) { missing = absent.map((e) => nodeLabel(byId.get(e.from)!, look, form.graph)).join(', '); break; }
         const values = [...new Set(edges.flatMap((e) => outputs.get(e.from) ?? []))];
         if (values.length === 0) continue;

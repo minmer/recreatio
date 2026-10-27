@@ -147,6 +147,16 @@ function BigText({ layer, shift }: { layer: Extract<Layer, { kind: 'bigtext' }>;
 /** Von aussen steuern — der Editor springt zu dem Slajd, den man in der Liste anklickt. */
 export interface DeckControl {
   readonly go: (index: number) => void;
+  /** 2026-10-27 — die Vorschau für Assistenten: die Bahn genau hierhin stellen (px), `null` lässt los. */
+  readonly hold?: (at: number | null) => void;
+  /** 2026-10-27 — und wo die Slajdy liegen: Anfang, Höhe und Weg darin je Slajd, die Höhe des Fensters. */
+  readonly track?: () => DeckTrack;
+}
+
+export interface DeckTrack {
+  readonly position: number;
+  readonly viewport: number;
+  readonly slides: readonly { readonly key: string; readonly label: string; readonly start: number; readonly height: number; readonly travel: number }[];
 }
 
 /** Hell oder dunkel, wie das Gerät gerade eingestellt ist — und es bleibt dabei, wenn es wechselt. */
@@ -216,9 +226,21 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
   /* 0107 — ein gemeinsames Tuch: die Slajdy rollen durchsichtig darüber, ihre eigenen Schichten liegen darin (2026-10-25: im Fenster ihres Slajds). */
   const shared = deck.backdrop.length > 0;
 
+  /* 2026-10-27 — was die Vorschau für Assistenten über die Bahn wissen muss, stets der letzte Stand. */
+  const trackRef = useRef<DeckTrack>({ position: 0, viewport: 0, slides: [] });
+  trackRef.current = {
+    position: scroll.position,
+    viewport: scroll.viewportHeight,
+    slides: slides.map((one, i) => ({
+      key: one.key, label: one.label,
+      start: geometry[i]?.start ?? 0, height: geometry[i]?.height ?? 0, travel: geometry[i]?.travel ?? 0
+    }))
+  };
+  const { hold } = scroll;
+
   useEffect(() => {
-    if (control !== undefined) control.current = { go: scrollToSlide };
-  }, [control, scrollToSlide]);
+    if (control !== undefined) control.current = { go: scrollToSlide, hold, track: () => trackRef.current };
+  }, [control, scrollToSlide, hold]);
 
   /* -- Über dem Fenster: unter der Kopfleiste, und die Seite darunter rollt nicht mit. */
   const [top, setTop] = useState(0);
@@ -430,6 +452,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
                 className={`wk-deck-slide${active === index ? ' is-active' : ''}${shared ? ' is-clear' : ''}`}
                 style={sectionStyle}
                 data-transition={slide.transition ?? 'scroll'}
+                data-slide={slide.key}
                 aria-label={slide.label}
               >
                 {/*
@@ -484,7 +507,7 @@ export function SlideDeck({ slides, actors = [], theme, deck = NO_DECK, title, e
                 pointerEvents: place.opacity < 0.05 ? 'none' : undefined
               } as CSSProperties;
               return (
-                <div key={actor.key} className={`wk-deck-actor${actor.bare ? ' is-bare' : ''}${place.max == null ? '' : ' has-max'}`} style={style}
+                <div key={actor.key} className={`wk-deck-actor${actor.bare ? ' is-bare' : ''}${place.max == null ? '' : ' has-max'}`} style={style} data-part={actor.key}
                   aria-hidden={place.opacity < 0.05 ? true : undefined}>
                   <SlidePhase.Provider value={place.opacity < 0.05 ? 'away' : 'here'}>
                     {actor.content}

@@ -10,7 +10,7 @@
 import { useMemo } from 'react';
 
 import { FieldEditor } from '../cogita/EntityEditor';
-import { readKind, type FieldDef } from '../cogita/schema';
+import { fieldShown, readKind, type FieldDef } from '../cogita/schema';
 import { CogitaContext, type CogitaCtx } from '../cogita/ui';
 import type { Me } from '../core/me';
 import type { Who } from '../core/session';
@@ -60,7 +60,8 @@ export function TypeFields({ lens, me, who, type, data, set, readOnly }: {
   return (
     <CogitaContext.Provider value={ctx}>
       <div className="lib-fields lib-type-fields" data-type-fields="">
-        {fields.map((field) => (
+        {/* 2026-10-27 — ein Feld, das nur zu einigen Werten eines Wahlfeldes gehört („Pokaż, gdy”), nur dann. */}
+        {fields.filter((field) => fieldShown(field, data)).map((field) => (
           <FieldEditor key={field.key} field={field} raw={data[field.key]} writes={!readOnly}
             onChange={(value) => set({ [field.key]: value })}
             onOpen={(id) => { const href = lensHref(lens, id); if (href !== null) window.location.hash = href; }} />

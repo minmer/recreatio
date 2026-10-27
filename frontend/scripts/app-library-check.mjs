@@ -1074,6 +1074,34 @@ try {
     assert.ok(hit('4.1–4.116', 'decimal', '4.11') && !hit('4.1–4.116', 'decimal', '4.2') && hit('2.01', 'decimal', '2.0121'), 'Tractatus: decimal levels, ranges, a proposition holds its comments');
     assert.ok(hit('§§ 1–5', 'sections', '§ 3') && P('cz. II, xi', 'sections').spans.length === 1 && !hit('§ 3', 'sections', 'cz. II, iii'), 'Investigations: §§ of part I, the sections of part II apart');
     assert.ok(hit('t. 2, cz. 1, rozdz. 3', 'outline', 'rozdz. 3') && !hit('t. 2, cz. 1, rozdz. 3', 'outline', 'rozdz. 4'), 'an outline: levels may be missing; what both name must meet');
+    /*
+     * 2026-10-27 — Seiten in Serien, für jedes Buch: die Zeichen sind die der Seite selbst (keine Liste) — ein Missale
+     * (12*, 3', 3''), Einlagen ((7), [7]), Anhänge mit Buchstaben (A12), ein Kreuz (†3), Grad (12°), römisch.
+     */
+    const pg = (t, o) => P(t, 'pages', o).pages;
+    assert.deepEqual([F('s. 12*', 'pages'), F("s. 45'–47'", 'pages'), F('s. 3’’', 'pages'), F('s. (7)', 'pages'), F('s. [7]', 'pages'), F('s. xii', 'pages'), F('12*–15*', 'pages'), F('s. 5**', 'pages'),
+      F('s. A12', 'pages'), F('A1, A3–A5', 'pages'), F('s. †3', 'pages'), F('s. 12°', 'pages'), F('s. (xii)', 'pages'), F('s. iv*', 'pages')],
+      ['s. 12*', "s. 45'–47'", "s. 3''", 's. (7)', 's. [7]', 's. xii', 's. 12*–15*', 's. 5**', 's. A12', 's. A1, A3–A5', 's. †3', 's. 12°', 's. (xii)', 's. iv*'],
+      'pages of a series — any marks before, after or around the number: read and written back as printed (typographic primes become apostrophes)');
+    assert.deepEqual([pg('(s. 7)'), P('(s. 7)', 'pages').rest, pg('s. 23n'), pg('s. 45.')], [[{ from: 7, to: 7 }], ')', [{ from: 23, to: 24 }], [{ from: 45, to: 45 }]],
+      '… a bracket closing the sentence, „n." after the number and a full stop are no marks');
+    assert.ok(!m.loc.pagesOverlap(pg('s. 12*')[0], pg('s. 12')[0]) && !m.loc.pagesOverlap(pg("s. 3'")[0], pg("s. 3''")[0]) && !m.loc.pagesOverlap(pg('s. A12')[0], pg('s. 12')[0]) && m.loc.pagesOverlap(pg('s. 13*')[0], pg('s. 12*–15*')[0]),
+      'the same number in two series is two pages; a page inside a range of its series meets it');
+    /* Die Zahlen werden gespeichert und im Dienst gleich gerechnet (AiAccessChecks: dieselben Werte). */
+    assert.deepEqual([pg('s. 45')[0].from, pg('s. xii')[0].from, pg('s. 12*')[0].from, pg('s. A12')[0].from, m.loc.seriesIndex('#*'), m.loc.seriesIndex('A#')], [45, -9988, 618500012, 1430200012, 6185, 14302],
+      'a page as a number: plain as it is, roman before 1, every other series in the band of its pattern (FNV-1a) — the same numbers as the service');
+    const order = (list, o) => [...list].sort((x, y) => m.loc.placeSortKey(P(x, 'pages', o), o).localeCompare(m.loc.placeSortKey(P(y, 'pages', o), o)));
+    assert.deepEqual(order(['s. 45', "s. 3'", 's. 12*', 's. xii', 's. 2']).slice(0, 3), ['s. xii', 's. 2', 's. 45'], 'without a word from the work: the roman front matter, then the plain pages, then the other series');
+    const missal = m.loc.workOptions({ workType: 'book', pageSeries: "xii 12* 1 3' (1)" });
+    assert.deepEqual([missal.series, order(['s. 12*', 's. 45', "s. 3'", 's. 2', 's. (1)', 's. iv'], missal)], [['i', '#*', '#', "#'", '(#)'], ['s. iv', 's. 12*', 's. 2', 's. 45', "s. 3'", 's. (1)']],
+      'the work says the order of its series by one example page each (here: roman, star, plain, apostrophe, parentheses)');
+    assert.ok(m.loc.workLocatorKey('s. 12*', { pageSeries: '12* 1' }) < m.loc.workLocatorKey('s. 2', { pageSeries: '12* 1' }) && m.loc.workLocatorKey('s. 12*', { pageSeries: '1 12*' }) > m.loc.workLocatorKey('s. 2', { pageSeries: '1 12*' }), '… also when quotes and places are ordered by their work');
+    assert.deepEqual([m.loc.readSeries("* ** 1 ’ ″ ( [ i x"), m.loc.readSeries('A1 C1 †1 1°')], [['#*', '#**', '#', "#'", "#''", '(#)', '[#]', 'i'], ['A#', 'C#', '†#', '#°']],
+      'the field also takes the marks alone (a mark alone stands after the number, „(" and „[" around it)');
+    /* Das Verzeichnis eines Textes nennt die Serien seiner Teile — so schreibt es „s. A1–A9", bevor ein Teil geladen ist. */
+    const withSeries = m.src.partSummary([{ type: 'page', page: 'B1' }, { type: 'paragraph', text: 'x {{page B2}} y' }, { type: 'page', page: '3' }]);
+    assert.deepEqual([withSeries.series, m.src.readManifest({ work: 'w', parts: [{ id: 'p', key: 'k', label: 'K', order: 1, pages: withSeries.pages, series: withSeries.series }] }).parts[0].series], [['B#'], ['B#']],
+      'a part of a source text names the series of its printed pages (not the plain ones)');
     /* 2026-10-25 — mehrere Stücke mit „;": ein Stück, das tiefer beginnt, steht im Rahmen des Stücks davor. */
     assert.deepEqual(['I q. 2 a. 3; a. 4', 'I q. 2 a. 3 arg. 1; ad 1', 'I q. 2 a. 3; q. 3 a. 1', 'I q. 2 a. 3; I-II q. 90 a. 1'].map((t) => F(t, 'aquinas')),
       ['I, q. 2, a. 3; I, q. 2, a. 4', 'I, q. 2, a. 3, arg. 1; I, q. 2, a. 3, ad 1', 'I, q. 2, a. 3; I, q. 3, a. 1', 'I, q. 2, a. 3; I-II, q. 90, a. 1'],

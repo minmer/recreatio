@@ -607,6 +607,8 @@ function checksOf(ctx: Ctx): Check[] {
     key: 'controller', ok: c !== null,
     text: c !== null ? <>Administrator danych: {c.name}</>
       : profile.kind === 'group' ? 'Brak administratora danych — rozmowa grupy nie powstanie.'
+      /* 2026-10-27 — eine öffentliche Seite braucht ihn (0129): ohne ihn keine Seite des Kurses, auf die der Link führt. */
+      : profile.kind === 'course' ? 'Brak administratora danych — strona kursu z powtórką dla uczących się nie powstanie.'
       : 'Brak administratora danych — formularze nic nie przyjmą, a rozmowy nie powstaną.',
     fix: <a className="wk-btn wk-btn-line wk-btn-small" href={settings}>Wskaż go</a>
   });
@@ -1010,6 +1012,7 @@ function OrganisationTools({ ctx }: { ctx: Ctx }) {
 
 function CourseTools({ ctx }: { ctx: Ctx }) {
   const base = ctx.world.bases[0] ?? null;
+  const onPage = base !== null && hasRevisionPart(ctx, base.libraryId);
   return (
     <>
       <Tool id="base" name="Baza wiedzy" ok={base !== null} says="Wpisy i pytania kursu, z codzienną powtórką dla uczących się.">
@@ -1018,10 +1021,30 @@ function CourseTools({ ctx }: { ctx: Ctx }) {
             <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy}
               onClick={() => void ctx.run('Zakładanie bazy…', 'Baza wiedzy jest gotowa.', (held) => makeBase(ctx, held))}>Utwórz bazę</button>
           ) : (
-            <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', base.libraryId, 'wpisy')}>Otwórz</a>
+            <>
+              <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', base.libraryId, 'wpisy')}>Otwórz</a>
+              {/* 2026-10-27 — wie die Uczący się lernen: je Osoba, je Pytanie, mit Zeit und Sposób liczenia (Nauka → Postępy). */}
+              <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', base.libraryId, 'postepy')} data-course-progress="">Postępy uczących się</a>
+            </>
           )}
         </div>
       </Tool>
+      {/* 2026-10-27 — die Powtórka auf der Seite des Kurses: dorthin führt der Link der Uczący się, auch ohne Konto. */}
+      {base !== null && ctx.main !== null && (
+        <Tool id="learnpage" name="Nauka na stronie" ok={onPage}
+          says={onPage ? 'Na stronie głównej jest powtórka kursu — link dla uczących się prowadzi tam; kto nie ma konta, przedstawia się i jego postępy też widzisz.' : 'Powtórka kursu na stronie głównej: tam uczą się osoby z linku, także bez konta.'}>
+          {!onPage && (
+            <div className="wk-actions">
+              <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy} data-course-learnpage=""
+                onClick={() => void ctx.run('Dodawanie powtórki…', 'Powtórka jest na stronie głównej — utwórz teraz link dla uczących się.', async (held) => {
+                  const revision = await courseRevision(ctx, held);
+                  if (revision === null) throw new WorkspaceError('Baza kursu nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki).');
+                  await addToPage(ctx.main!, [revisionPart(revision)]);
+                })}>Dodaj powtórkę na stronę główną</button>
+            </div>
+          )}
+        </Tool>
+      )}
       <RolesTool ctx={ctx} defs={[LEARNERS]} />
       <MainPageTool ctx={ctx} optional />
     </>
@@ -1760,6 +1783,11 @@ function ListsTool({ ctx }: { ctx: Ctx }) {
 async function makeMainPage(ctx: Ctx, held: Held, path: string): Promise<string | void> {
   const parts: NewPart[] = [];
   if (ctx.profile.kind === 'event') parts.push(cardPart(ctx.area.areaId));
+  /* 2026-10-27 — ein Kurs: seine Powtórka gleich auf der Seite — dort lernt, wer den Link bekommt. */
+  if (ctx.profile.kind === 'course') {
+    const revision = await courseRevision(ctx, held);
+    if (revision !== null) parts.push(revisionPart(revision));
+  }
   /* Ein Formular, das noch auf keiner Seite steht, kommt gleich mit. */
   if (ctx.signup !== null && ctx.signup.pages.length === 0) parts.push(formPart(ctx.signup.moduleId));
   held.step('Tworzenie strony…');
@@ -1878,9 +1906,33 @@ async function makeRole(ctx: Ctx, held: Held, def: RoleDef): Promise<string | vo
   return linked ? undefined : 'Rola powstała, ale nie połączono jej z formularzem — zrobisz to w jego ustawieniach.';
 }
 
+/**
+ * 2026-10-27 — DIE POWTÓRKA EINES KURSES auf seiner Seite: die erste Powtórka seiner Baza (die tägliche, die
+ * `createCourseBase` anlegt). Wer den Link der Uczący się öffnet, lernt dort — mit Konto als er selbst, ohne
+ * Konto stellt er sich vor (`cogita/pageLearner.tsx`); seine Antworten gehen in die Przyjęcia des Kurses.
+ */
+async function courseRevision(ctx: Ctx, held: Held): Promise<{ libraryId: string; revisionId: string } | null> {
+  const base = ctx.world.bases[0];
+  if (base === undefined) return null;
+  held.step('Powtórka kursu…');
+  const store = storeOf(held.ring, base);
+  await store.sync();
+  const revision = store.all().find((e) => e.kind === 'revision');
+  return revision === undefined ? null : { libraryId: base.libraryId, revisionId: revision.id };
+}
+
+const revisionPart = (r: { libraryId: string; revisionId: string }): NewPart =>
+  ({ kind: 'cogita-revision', config: { title: '', library: r.libraryId, revision: r.revisionId }, box: { colSpan: 6, rowSpan: 4 } });
+
+/** Steht auf der Hauptseite schon eine Powtórka dieser Baza? */
+const hasRevisionPart = (ctx: Ctx, libraryId: string): boolean =>
+  (ctx.world.page?.parts ?? []).some((part) => part.kind === 'cogita-revision' && readConfig(part.config).library === libraryId);
+
 /** Wohin der Link einer Rolle führt. */
 function aimFor(ctx: Ctx, def: RoleDef): string {
   if (def.key === PARTICIPANTS.key && ctx.main !== null) return ctx.main;
+  /* 2026-10-27 — die Seite des Kurses, wenn es sie gibt (dort lernt man auch ohne Konto); sonst die Nauka (mit Konto). */
+  if (def.key === LEARNERS.key && ctx.main !== null && ctx.world.bases[0] !== undefined && hasRevisionPart(ctx, ctx.world.bases[0].libraryId)) return ctx.main;
   if (def.key === LEARNERS.key && ctx.world.bases[0] !== undefined) return `workspace/learn/${ctx.world.bases[0].libraryId}`;
   return `workspace/areas/${ctx.area.areaId}`;
 }

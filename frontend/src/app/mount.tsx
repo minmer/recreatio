@@ -6,8 +6,8 @@
  * alles Weitere lädt es per `import()`, damit dieser erste Schritt klein bleibt.
  */
 
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import React, { type ReactNode } from 'react';
+import ReactDOM, { type Root } from 'react-dom/client';
 
 import { App } from './App';
 import { keepFromAddress } from './seats/seatKeep';
@@ -61,13 +61,19 @@ function followTheme(): void {
   dark.addEventListener('change', paint);
 }
 
-export function mountApp(node: HTMLElement): void {
+/**
+ * `wrap` — 2026-10-27: die Vorschau für Assistenten (`preview/`) legt ihre
+ * Steuerung um die Anwendung; sonst steht sie, wie sie ist.
+ */
+export function mountApp(node: HTMLElement, wrap: (app: ReactNode) => ReactNode = (app) => app): Root {
   tidyAddress();
   followTheme();
 
-  ReactDOM.createRoot(node).render(
+  const root = ReactDOM.createRoot(node);
+  root.render(
     <React.StrictMode>
-      <App />
+      {wrap(<App />)}
     </React.StrictMode>
   );
+  return root;
 }

@@ -284,8 +284,10 @@ function FullIcon() {
  *
  * Kein Abschneiden: ein halbes Formular ist schlechter als ein Knopf, der
  * sagt, dass hier eines ist.
+ *
+ * 2026-10-27 — auch die Vorschau für Assistenten zeichnet ihn so (`preview/ModuleMatrix.tsx`).
  */
-function Folded({ def, raw, moduleId, size, onOpen }: {
+export function Folded({ def, raw, moduleId, size, onOpen }: {
   def: PartModule;
   raw: RawConfig;
   moduleId: string;

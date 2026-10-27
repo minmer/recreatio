@@ -36,13 +36,25 @@ export interface ShareEntry {
 
 /* -- Hinauf (der Absender) --------------------------------------------------------------------- */
 
+/** 2026-10-27 — der Absender hat das Hinauf angehalten („Przerwij"): kein Fehler, nur nichts geschehen. */
+export class ShareStopped extends Error {
+  constructor() {
+    super('Przerwano wysyłanie.');
+  }
+}
+
 /**
  * Hinauf mit Fortschritt — 25 MB über ein langsames Netz dauern, und ein Balken sagt
  * mehr als „Wysyłanie…". Darum hier `XMLHttpRequest` (fetch meldet beim Hochladen
- * nichts); Keks und Fehlerform wie bei `call`.
+ * nichts); Keks und Fehlerform wie bei `call`. `signal` hält es an: der Dienst legt
+ * nur ab, was ganz ankam.
  */
-function put(path: string, body: Uint8Array, headers: Readonly<Record<string, string>>, onProgress?: (done: number, total: number) => void): Promise<unknown> {
+function put(
+  path: string, body: Uint8Array, headers: Readonly<Record<string, string>>,
+  onProgress?: (done: number, total: number) => void, signal?: AbortSignal
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted === true) { reject(new ShareStopped()); return; }
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', `${API}${path}`);
     xhr.withCredentials = true;
@@ -50,6 +62,9 @@ function put(path: string, body: Uint8Array, headers: Readonly<Record<string, st
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded, e.total); };
+    const stop = () => xhr.abort();
+    signal?.addEventListener('abort', stop, { once: true });
+    xhr.onloadend = () => signal?.removeEventListener('abort', stop);
     xhr.onload = () => {
       let said: unknown = null;
       try { said = JSON.parse(xhr.responseText); } catch { said = null; }
@@ -58,6 +73,7 @@ function put(path: string, body: Uint8Array, headers: Readonly<Record<string, st
       reject(new WorkspaceError(error ?? (xhr.status >= 500 ? 'Usługa nie odpowiada — spróbuj za chwilę.' : 'Nie udało się wysłać pliku.')));
     };
     xhr.onerror = () => reject(new WorkspaceError('Brak połączenia — plik nie został wysłany.'));
+    xhr.onabort = () => reject(new ShareStopped());
     xhr.send(new Blob([body as BlobPart]));
   });
 }
@@ -65,18 +81,34 @@ function put(path: string, body: Uint8Array, headers: Readonly<Record<string, st
 /** EINE DATEI TEILEN: versiegeln, hinauf, den Link zurück. */
 export async function shareFile(
   ctx: PhoneCtx, file: File,
-  options: { readonly days: number; readonly to?: readonly string[]; readonly onProgress?: (done: number, total: number) => void }
+  options: {
+    readonly days: number;
+    readonly to?: readonly string[];
+    readonly onProgress?: (done: number, total: number) => void;
+    /** Anhalten — auch schon beim Lesen und Versiegeln (dann geht gar nichts hinaus). */
+    readonly signal?: AbortSignal;
+  }
 ): Promise<{ id: string; link: string; expiresAt: string }> {
   if (file.size > SHARE_MAX) throw new WorkspaceError('Plik przez link może mieć najwyżej 25 MB.');
-  const { head, bytes } = shareHeadOf(file.name, file.type, new Uint8Array(await file.arrayBuffer()));
+  const halt = () => { if (options.signal?.aborted === true) throw new ShareStopped(); };
+  let raw: Uint8Array;
+  try {
+    raw = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    /* Ein Ordner, eine Datei, die inzwischen fort ist, eine Wolkendatei ohne Netz. */
+    throw new WorkspaceError('Nie udało się odczytać pliku — czy to na pewno plik, a nie folder?');
+  }
+  halt();
+  const { head, bytes } = shareHeadOf(file.name, file.type, raw);
 
   const secret = newSecret();
   const { id, sealed } = await sealShare(secret, head, bytes);
   const label: ShareLabel = { ...head, secret: toBase64Url(secret), to: [...(options.to ?? [])] };
   const sealedLabel = await sealLabel(ctx.newest.key, id, label);
+  halt();
   const said = await put(
     `/workspace/phone/${encodeURIComponent(ctx.areaId)}/share/${id}?epoch=${ctx.newest.epoch}&days=${options.days}`,
-    sealed, { 'X-Share-Label': toBase64Url(sealedLabel) }, options.onProgress
+    sealed, { 'X-Share-Label': toBase64Url(sealedLabel) }, options.onProgress, options.signal
   ) as { expiresAt?: string } | null;
   return { id, link: shareLink(secret), expiresAt: said?.expiresAt ?? '' };
 }

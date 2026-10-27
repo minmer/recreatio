@@ -23,7 +23,10 @@ import { useEffect, useState } from 'react';
 
 import { areaReader, type AreaReader } from '../areas/areaRead';
 import { fromBase64Url } from '../core/crypto';
-import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, type OpenRead } from './library';
+import { carryLinks, whoIsThere } from '../core/session';
+import { heldProofs } from '../links/linkAccess';
+import { heldLinks } from '../links/linkKeep';
+import { libraryWhere, loadEntries, loadLibraries, loadOpen, loadPublicKeyAt, type LibraryRow, type OpenRead } from './library';
 import { fieldRefs, type LibEntry } from './libraryKinds';
 import { refsOf } from './refIndex';
 import { readOnlyStore, type LibraryStore } from './libraryStore';
@@ -82,7 +85,7 @@ async function openOne(libraryId: string): Promise<LibraryStore | null> {
     }, keysOf);
   } else {
     /* Der Weg eines Mitglieds (oder eines Links): die Liste der Bibliotheken nennt den Bereich — 2026-10-22 auch einer Baza wiedzy. */
-    const row = await loadLibraries().then((r) => r.libraries.find((l) => l.libraryId === libraryId), () => undefined);
+    const row = await memberRow(libraryId);
     if (row === undefined) return null;
     store = readOnlyStore(row, (since, ids) => loadEntries(libraryId, since, ids), keysOf);
   }
@@ -97,6 +100,19 @@ async function openOne(libraryId: string): Promise<LibraryStore | null> {
   }
   void reach(store);
   return store;
+}
+
+/**
+ * Die Zeile einer Bibliothek aus der Liste — als Mitglied, sonst (2026-10-27) als Link ohne Konto: dann reisen ab
+ * jetzt seine Beweise mit (wie im Kalender, `linkMe.ts`), und der Dienst nennt die Bibliotheken der Bereiche, die
+ * der Link liest. So lernt, wer den Link eines Kurses bekommen hat, auf dessen Seite ohne Konto.
+ */
+async function memberRow(libraryId: string): Promise<LibraryRow | undefined> {
+  const find = () => loadLibraries().then((r) => r.libraries.find((l) => l.libraryId === libraryId), () => undefined);
+  const found = await find();
+  if (found !== undefined || heldLinks().length === 0 || (await whoIsThere()) !== null) return found;
+  carryLinks(heldProofs);
+  return find();
 }
 
 /** Ziele, die schon gefragt wurden — eine Kennung wird nur einmal gesucht. */

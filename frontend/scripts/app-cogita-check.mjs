@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
@@ -24,7 +24,7 @@ await build({
   logLevel: 'error'
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -1650,7 +1650,8 @@ check('goals and lines follow the one logic', [
 {
   const T = (tail, prefer) => { const r = PARTS.cogitaTrail(tail, prefer); return [r.part, r.tail.join('/')]; };
   check('Wiedza: three activities first, the rest under „Więcej" (2026-10-25: Wejścia z Biblioteki)', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje', 'wejscia']]);
-  check('Nauka: learning only — no entries, no schema', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0])], [['nauka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'ustawienia']]);
+  /* 2026-10-27 — dazu die Ścieżka: die Reihenfolge des Lernens (`LearningPath.tsx`). */
+  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka')], [['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'ustawienia'], 'learn']);
   check('Schematy: three independent categories', PARTS.SCHEMA_PARTS.map((p) => [p.slug, p.label]), [['rodzaje', 'Rodzaje wpisów'], ['dodawanie', 'Sposoby dodawania'], ['wyswietlanie', 'Sposoby wyświetlania']]);
   check('old addresses lead on: schemat, schemat/<kind>, schemat/formularz/<id>, wpisy/dodaj/<id>, wpisy/nowy/<kind>', [
     T(['schemat']), T(['schemat', 'k1']), T(['schemat', 'formularz']), T(['schemat', 'formularz', 'f1']), T(['wpisy', 'dodaj', 'f1']), T(['wpisy', 'nowy', 'k1'])
@@ -2302,6 +2303,306 @@ check('goals and lines follow the one logic', [
     [2, 1, true, ['Rozwiń poziom', 'Zwiń poziom (off)'], true, false, ['Wywód', 'Tezy skrócone', 'Poziom po poziomie']]);
   const textLevels = draw([deepRoot], { chip: '', tie: '', order: 'text' });
   truth('in text order no levels: no group „Poziomy”, every step listed', !textLevels.includes('aria-label="Poziomy"') && (textLevels.match(/class="cg-wy-label"/g) ?? []).length === 4);
+}
+
+/* ══ 2026-10-27 — EIN Schema der Frage (Rodzaje pytań), und die Reihenfolge des Lernens (Voraussetzungen) ══ */
+{
+  const QF = (key) => KD.QUESTION.fields.find((f) => f.key === key);
+  /* -- Das Schema der Frage --------------------------------------------------------------------- */
+  check('one question kind: its type field lists every type of question, in the table’s order',
+    QF('form').options.map((o) => o.value), QTY.QUESTION_TYPES.map((t) => t.form));
+  check('… each field belongs to the types that use it („when”) — the shared ones to all',
+    [QF('left').when, QF('answers').when.values, QF('options').when.values, QF('value').when.values, QF('prompt').when, QF('about').when, QF('needs').when],
+    [{ field: 'form', values: ['match'] }, ['text', 'number', 'date', 'gap'], ['one', 'many'], ['truefalse'], undefined, undefined, undefined]);
+  check('… „Najpierw trzeba znać” is a prerequisite field of the question itself', [QF('needs').prerequisite, QF('needs').multi, QF('needs').type], ['up', true, 'ref']);
+  check('… the kind describes itself without a problem (every „when” names an existing choice and its values)', S.problemsOf(KD.QUESTION, look), []);
+  check('a field is shown only for its types', [S.fieldShown(QF('left'), { form: 'match' }), S.fieldShown(QF('left'), { form: 'one' }), S.fieldShown(QF('left'), {}), S.fieldShown(QF('prompt'), { form: 'one' })], [true, false, false, true]);
+  const whenKind = S.readKind('k-w', { name: 'Wydarzenie', fields: [
+    { key: 'typ', label: 'Typ', type: 'choice', options: ['bitwa', 'traktat'] },
+    { key: 'wojska', label: 'Wojska', type: 'line', when: { field: 'typ', values: ['bitwa', 'bitwa', ''] } },
+    { key: 'strony', label: 'Strony', type: 'line', when: { field: 'strony', values: ['x'] } },
+    { key: 'zle', label: 'Źle', type: 'line', when: { field: 'typ', values: ['oblężenie'] } },
+    { key: 'po', label: 'Po', type: 'ref', prerequisite: 'up' }, { key: 'tekst', label: 'Tekst', type: 'line', prerequisite: 'up' }
+  ] });
+  check('„when” is read for any own kind: values deduplicated; one pointing at itself is dropped; „prerequisite” only on a reference',
+    [whenKind.fields[1].when, whenKind.fields[2].when, whenKind.fields[4].prerequisite, whenKind.fields[5].prerequisite], [{ field: 'typ', values: ['bitwa'] }, undefined, 'up', undefined]);
+  check('… a value the choice does not have is a problem of the kind', S.problemsOf(whenKind, look).some((p) => p.includes('„oblężenie"')), true);
+  check('… and both survive the kind document (JSON)', (({ fields }) => [fields[1].when, fields[4].prerequisite])(KD.kindDoc(whenKind)), [{ field: 'typ', values: ['bitwa'] }, 'up']);
+  check('„prawda” and „fałsz” are yes and no (one row of a true/false form)', [S.readTyped({ key: 'v', type: 'bool' }, 'prawda'), S.readTyped({ key: 'v', type: 'bool' }, 'Fałsz')], [true, false]);
+
+  check('what a question still lacks, in words — per type',
+    [QTY.questionProblems({ form: 'one', prompt: 'Ile?', options: ['a', 'b'], correct: [0, 1] }).length, QTY.questionProblems({ form: 'match', prompt: 'P', left: ['a'], right: ['b'] }), QTY.questionProblems({ form: 'truefalse', prompt: 'Z' }), QTY.questionProblems({ form: 'gap', prompt: 'Litwo! [[Ojczyzno]] moja!' })],
+    [1, ['Dodaj co najmniej dwie pary.'], ['Wybierz, czy zdanie jest prawdziwe.'], []]);
+  check('an empty option in the middle drops out and the right one moves with it', QTY.choicesOf({ options: ['A', '', 'C'], correct: [2] }), { options: ['A', 'C'], correct: [1] });
+  check('no right option chosen yet is none — not the first one (an empty value is no 0)', [QTY.choicesOf({ options: ['A', 'B'] }).correct, QTY.choicesOf({ options: ['A', 'B'], correct: '' }).correct, QTY.questionProblems({ form: 'one', prompt: 'P', options: ['A', 'B'] })], [[], [], ['Zaznacz dobrą możliwość.']]);
+  check('before saving: empty rows go, a half pair stays, a question without a type is „słowami”',
+    (({ form, options, correct, answers, left, right }) => [form, options, correct, answers, left, right])(QTY.tidyQuestion({ options: ['A', ' ', 'C'], correct: [2], answers: ['', 'x'], left: ['1410', '', ''], right: ['Grunwald', 'sam prawy', ''] })),
+    ['text', ['A', 'C'], [1], ['x'], ['1410', ''], ['Grunwald', 'sam prawy']]);
+  check('a pasted list of pairs: tab, „ – ”, „|”; a hyphen inside a word does not split; a line without a separator is left out',
+    QTY.parsePairs('1410 – Bitwa pod Grunwaldem\n1569 | Unia lubelska\nUnia polsko-litewska - 1385\n1791\tKonstytucja 3 maja\nbez pary'),
+    [{ left: '1410', right: 'Bitwa pod Grunwaldem' }, { left: '1569', right: 'Unia lubelska' }, { left: 'Unia polsko-litewska', right: '1385' }, { left: '1791', right: 'Konstytucja 3 maja' }]);
+
+  /* -- Paare: eine lange Liste, je Karte nur ein paar ----------------------------------------------- */
+  const elements = ['wodór', 'hel', 'lit', 'beryl', 'bor', 'węgiel', 'azot', 'tlen', 'fluor', 'neon', 'sód', 'magnez'];
+  const longQ = { id: 'q-z', kinds: ['question'], data: { form: 'match', prompt: 'Połącz pierwiastek z liczbą atomową', left: elements, right: elements.map((_, i) => String(i + 1)), leftLabel: 'Pierwiastek', rightLabel: 'Z', show: 4, about: ['k-z'] } };
+  const per = Cards.questionCards(longQ, 's1');
+  const pairsShown = (c) => c.answer.pairs.map(([l, r]) => `${c.answer.left[l]}=${c.answer.right[r]}`);
+  check('a long list (12 pairs, 4 at once): one card per pair, each showing its own pair and 3 others, all of them right pairs',
+    [per.length, new Set(per.map((c) => c.key)).size, per.every((c, i) => c.answer.left.length === 4 && pairsShown(c).includes(`${elements[i]}=${i + 1}`)), per.every((c) => pairsShown(c).every((p) => { const [l, r] = p.split('='); return String(elements.indexOf(l) + 1) === r; }))],
+    [12, 12, true, true]);
+  check('… keyed by the question and its pair; the headings over the columns; it varies; it tests what the question is about',
+    [per[0].question.startsWith('q-z:p'), per[0].answer.heads, per[0].varies, per[0].about, per[0].entity], [true, ['Pierwiastek', 'Z'], true, ['k-z'], 'q-z']);
+  const again = Cards.questionCards(longQ, 's2');
+  const renamed = Cards.questionCards({ ...longQ, data: { ...longQ.data, right: longQ.data.right.map((r, i) => (i === 11 ? '99' : r)) } }, 's1');
+  check('… another attempt draws other companions but keeps the key and the history (fingerprint of its own pair); a changed pair starts its own card anew',
+    [again.map((c) => c.key).join() === per.map((c) => c.key).join(), again[0].fingerprint === per[0].fingerprint, again.some((c, i) => pairsShown(c).join() !== pairsShown(per[i]).join()), renamed[0].fingerprint === per[0].fingerprint, renamed[11].fingerprint === per[11].fingerprint],
+    [true, true, true, true, false]);
+  const whole = Cards.questionCard(longQ, 's1');
+  check('the question as ONE card (a flow, a page): 4 pairs drawn per attempt, history kept for the whole list', [whole.answer.left.length, whole.varies, whole.key, Cards.questionCard(longQ, 's9').fingerprint === whole.fingerprint], [4, true, 'q-z', true]);
+  const short = Cards.questionCards({ id: 'q-s', kinds: ['question'], data: { form: 'match', prompt: 'P', left: ['a', 'b', 'c'], right: ['1', '2', '3'], show: 6 } }, 's');
+  check('a short list (fewer pairs than „Ile par naraz”): one card with all of them', [short.length, short[0].answer.left, short[0].varies], [1, ['a', 'b', 'c'], false]);
+  const gapCard = Cards.questionCard({ id: 'q-g', kinds: ['question'], data: { form: 'gap', prompt: 'Litwo! [[Ojczyzno]] moja!' } }, '');
+  check('a gap written in the text: „…” is shown, the word is the answer', [gapCard.answer.shown, gapCard.answer.accepted], ['Litwo! … moja!', ['Ojczyzno']]);
+  check('a question as a card carries what it is about', Cards.questionCard({ id: 'q-a', kinds: ['question'], data: { form: 'truefalse', prompt: 'Z', value: true, about: ['e1', { value: 'e2' }, 'q-a'] } }, '').about, ['e1', 'e2']);
+
+  /* -- Die Reihenfolge des Lernens: der Graph ---------------------------------------------------------- */
+  const CON = S.readKind('k-con', { name: 'Pojęcie', label: '{nazwa}', fields: [
+    { key: 'nazwa', label: 'Nazwa', type: 'line' },
+    { key: 'wymaga', label: 'Wymaga', type: 'ref', multi: true, to: ['k-con'], prerequisite: 'up' },
+    { key: 'dalej', label: 'Prowadzi do', type: 'ref', multi: true, to: ['k-con'], prerequisite: 'down' },
+    { key: 'dzial', label: 'Dział', type: 'ref', to: ['k-con'], structure: 'up' }
+  ] });
+  const con = (id, more = {}) => e(id, ['k-con'], { nazwa: id, ...more });
+  const atomic = [con('atom'), con('jadro', { wymaga: ['atom'] }), con('elektron', { wymaga: ['atom'], dalej: ['powloka'] }), con('powloka', { dzial: 'atom' }), con('orbital', { wymaga: ['powloka'] }), con('dzial')];
+  const atomLook = S.lookupOf([CON], atomic);
+  const fieldDeps = PR.fieldDependencies(atomic, atomLook);
+  check('the prerequisite fields give the edges: „Wymaga” (up) and „Prowadzi do” (down); a structure field gives none',
+    fieldDeps.map((d) => `${d.parent}>${d.child}`).sort(), ['atom>elektron', 'atom>jadro', 'elektron>powloka', 'powloka>orbital']);
+  const graph = PR.prerequisiteGraph([...fieldDeps, { parent: 'orbital', child: 'atom', kind: 'prerequisite', impact: 1 }, { parent: 'jadro', child: 'orbital', kind: 'context', impact: 1 }]);
+  check('… levels from the basics: atom 0; jądro, elektron 1; powłoka 2; orbital 3 — the edge closing a circle is out and named; context edges do not order',
+    [['atom', 'jadro', 'elektron', 'powloka', 'orbital'].map((id) => graph.level.get(id)), graph.circles.map((d) => `${d.parent}>${d.child}`), graph.level.has('dzial')],
+    [[0, 1, 1, 2, 3], ['orbital>atom'], false]);
+  check('… all that comes before and after', [[...PR.allNeeds('orbital', graph)].sort(), [...PR.allBuilds('atom', graph)].sort()], [['atom', 'elektron', 'powloka'], ['elektron', 'jadro', 'orbital', 'powloka']]);
+  check('… the name of a level', [PR.levelLabel(0), PR.levelLabel(2)], ['Poziom 1 — podstawy', 'Poziom 3']);
+  const known = (m) => (id) => m[id] ?? 0;
+  check('unmet: what is not known yet; an entry without cards stands for what is before it; a card never waits for what it tests itself',
+    [PR.unmetNeeds(['orbital'], known({ powloka: 0 }), graph, 1, () => true), PR.unmetNeeds(['orbital'], known({ elektron: 0.2 }), graph, 1, (id) => id !== 'powloka'),
+      PR.unmetNeeds(['orbital'], known({ elektron: 3 }), graph, 1, (id) => id !== 'powloka'), PR.unmetNeeds(['orbital', 'powloka'], known({ elektron: 3 }), graph, 1, () => true)],
+    [['powloka'], ['elektron'], [], []]);
+  const card = (key, entity, about) => ({ key, question: key, entity, ...(about === undefined ? {} : { about }), requires: [] });
+  const deck = [card('c-atom', 'atom'), card('c-jadro', 'jadro'), card('q-orb', 'q-orb', ['orbital']), card('c-el', 'elektron'), card('c-pow', 'powloka')];
+  check('„Najpierw podstawy” pulls in the cards of what comes before (a question about orbitals brings powłoka, elektron, atom)',
+    PR.withBasics([deck[2]], deck, graph).map((c) => c.key), ['q-orb', 'c-atom', 'c-el', 'c-pow']);
+  check('a card stands on the level of what it tests', [PR.cardLevel(deck[2], graph), PR.cardLevel(deck[0], graph)], [3, 0]);
+  check('mastery: a wrong last answer is nothing yet, a right one is known — the formula alone gives √10 after both',
+    [K.masteryOf([{ at: 0, correctness: 0 }], 0), K.masteryOf([{ at: 0, correctness: 1 }], 0) >= K.KNOWN, K.knownessOf([{ at: 0, correctness: 0 }], 0) >= K.KNOWN], [0, true, true]);
+
+  /* -- Wie gut es sitzt, auf drei Weisen (Nauka → Postępy) ------------------------------------------------------ */
+  {
+    const DAY = 24 * 3_600_000;
+    const now = 30 * DAY;
+    const mk = (key, entity) => ({ key, question: key, entity, prompt: [{ text: key }], answer: { form: 'truefalse', value: true }, explain: [], fingerprint: '', varies: false, requires: [] });
+    const general = mk('c-atom', 'atom');
+    const special = mk('c-orbital', 'orbital');
+    const ans = (key, days, correctness, ms) => days.map((d, i) => ({ id: `${key}${i}`, key, question: key, direction: '', fingerprint: '', at: now - d * DAY, correctness, ...(ms === undefined ? {} : { ms }) }));
+    const answers = new Map([['c-atom', ans('c-atom', [8], 1, 4000)], ['c-orbital', ans('c-orbital', [9, 2, 0.01], 1, 2000)]]);
+    const deps = [{ parent: 'atom', child: 'orbital', kind: 'prerequisite', impact: 0.5 }];
+    const at = (model) => ME.cardStats([general, special], [general, special], (c) => answers.get(c.key) ?? [], model, deps, now).map((x) => x.known);
+    check('known, three ways: the atom answered right 8 days ago — „ostatnia” yes, „pamięć” no (forgotten since), „z hierarchią” yes (orbitals, built on it, are known now)',
+      [at('last'), at('memory'), at('hierarchy')], [[true, true], [false, true], [true, true]]);
+    const spaced = (gap) => K.stability([{ at: 0, correctness: 1 }, { at: gap * DAY, correctness: 1 }]);
+    check('spacing: right today and again tomorrow holds less long than right today and again in a week', spaced(1) < spaced(7) && spaced(7) / spaced(1) > 5, true);
+    const st = ME.cardStats([special], [special], (c) => answers.get(c.key) ?? [], 'memory', deps, now)[0];
+    check('a question: answers, right ones, time per answer, and what is left in a week (less than now)', [st.answers, st.right, st.msAvg, st.inWeek < st.now, ME.summarize([st]).msTotal], [3, 3, 2000, true, 6000]);
+    check('time in words', [ME.spanText(45_000), ME.spanText(5 * 60_000), ME.spanText(3 * 3_600_000 + 20 * 60_000), ME.holdsText(72)], ['45 s', '5 min', '3 h 20 min', '3 dni']);
+  }
+
+  /* -- Die Vorlagen als Dateien: Pytania, Podstawy, das Beispiel des Atoms --------------------------------- */
+  const PT = await import(pathToFileURL(join(process.cwd(), 'scripts/pytania-template.mjs')).href);
+  const pytaniaText = await readFile('../templates/cogita/pytania.json', 'utf8');
+  check('templates/cogita/pytania.json is the app’s own question scheme (node scripts/pytania-template.mjs)', pytaniaText.replace(/\r\n/g, '\n') === PT.textOf(PT.templateOf({ kindDoc: KD.kindDoc, QUESTION: KD.QUESTION })), true);
+  const qfake = (libraryId, entries) => {
+    const map = new Map(entries.map((x) => [x.id, x]));
+    let n = 0;
+    const store = {
+      libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
+      all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
+      save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-${n += 1}`, libraryId, updatedAt: `2026-10-27T10:${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+      remove: async (id) => { map.delete(id); store.revision += 1; },
+      subscribe: () => () => undefined
+    };
+    return store;
+  };
+  const qlib = new So.CogitaLibrary(qfake('Q', []), true);
+  const pq = Js.planImport(qlib, JSON.parse(pytaniaText));
+  check('pytania.json imports: the built-in Pytanie (changed, not a new kind), four adding methods, one view — no warning',
+    [pq.kinds.map((k) => [k.id, k.isNew]), pq.docs.filter((d) => d.kind === 'addform').length, pq.docs.filter((d) => d.kind === 'view').length, pq.warnings], [[['question', false]], 4, 1, []]);
+  await Js.applyImport(qlib, pq, () => undefined);
+  const formOf = (name) => AF.readAddForm('f', qlib.docs('addform').find((d) => String(d.data.name).startsWith(name)).data);
+  const qctx = { look: qlib.look, pool: (k) => qlib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `nq${++i}`; })() };
+  const tf = AF.planForm(formOf('Prawda czy fałsz'), qctx, [{ q: [{ prompt: 'Atom jest niepodzielny', value: 'fałsz' }] }, { q: [{ prompt: 'Elektron ma ładunek ujemny', value: 'prawda' }] }], { picks: { o: ['k-z'] }, asks: {} });
+  check('… a true/false row: the sentence and „fałsz” — a question of that type', tf.saves.map((x) => [x.data.form, x.data.prompt, x.data.value]), [['truefalse', 'Atom jest niepodzielny', false], ['truefalse', 'Elektron ma ładunek ujemny', true]]);
+  const one = AF.planForm(formOf('Jedna z kilku'), qctx, [{ q: [{ prompt: 'Co jest w jądrze?', options: 'protony i neutrony; elektrony; fotony' }] }], { picks: {}, asks: {} });
+  const oneCard = Cards.questionCard({ id: 'x', kinds: ['question'], data: one.saves[0].data }, 's');
+  check('… „one of several”: the first typed option is the right one (shuffled on the card)', oneCard.answer.options[oneCard.answer.correct], 'protony i neutrony');
+
+  const blib = new So.CogitaLibrary(qfake('P', []), true);
+  const pp = Js.planImport(blib, JSON.parse(await readFile('../templates/cogita/podstawy.json', 'utf8')));
+  check('podstawy.json imports: Pojęcie with „Wymaga” (a prerequisite field), three card templates, one adding method, the view „Od podstaw” — no warning',
+    [pp.kinds.map((k) => k.def.name), pp.kinds[0].def.fields.find((f) => f.key === 'wymaga').prerequisite, pp.docs.filter((d) => d.kind === 'template').length, pp.docs.filter((d) => d.kind === 'addform').length, pp.docs.filter((d) => d.kind === 'view').map((d) => d.data.group), pp.warnings],
+    [['Pojęcie'], 'up', 3, 1, [{ by: 'level' }], []]);
+  await Js.applyImport(blib, pp, () => undefined);
+  const bform = AF.readAddForm('f', blib.docs('addform')[0].data);
+  const bctx = { look: blib.look, pool: (k) => blib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `np${++i}`; })() };
+  const rows = AF.planForm(bform, bctx, [
+    { p: [{ nazwa: 'Atom', czym: 'najmniejsza część pierwiastka' }], w: [] },
+    { p: [{ nazwa: 'Orbital', czym: 'obszar elektronu' }], w: [{ nazwa: 'Powłoka elektronowa' }, { nazwa: 'Atom' }] }
+  ], { picks: {}, asks: {} });
+  const byName = (name) => rows.saves.find((x) => x.data.nazwa === name);
+  check('… a row without „Wymaga” still makes a basic concept („może zostać puste”); a row with two makes the missing one and reuses Atom',
+    [rows.rows.map((r) => r.skipped.length), rows.saves.map((x) => x.data.nazwa).sort(), byName('Orbital').data.wymaga.map((id) => rows.saves.find((x) => x.id === id).data.nazwa)],
+    [[0, 0], ['Atom', 'Orbital', 'Powłoka elektronowa'], ['Powłoka elektronowa', 'Atom']]);
+  for (const x of rows.saves) await blib.saveEntity({ id: x.id, kinds: x.kinds, data: x.data });
+  const bcards = (await blib.cards('s')).cards;
+  const tname = (c) => blib.docs('template').find((d) => d.id === c.template)?.data.name;
+  check('… its card templates: a concept with a description gets a fiszka, „which concept is it?” and pairs; one without a description gets none',
+    [bcards.filter((c) => c.entity === byName('Atom').id).map(tname).sort(), bcards.filter((c) => c.entity === byName('Powłoka elektronowa').id).length, bcards.find((c) => c.entity === byName('Atom').id && c.answer.form === 'match')?.answer.left.length],
+    [['Czym jest pojęcie? (fiszka)', 'Jakie to pojęcie? (wpisz nazwę)', 'Pojęcia i ich znaczenie — połącz w pary'], 0, 2]);
+
+  /* Das Beispiel: Atom → Orbitale, als Kurs. */
+  const alib = new So.CogitaLibrary(qfake('A', []), true);
+  const pa = Js.planImport(alib, JSON.parse(await readFile('../templates/cogita/przyklad-atom.json', 'utf8')));
+  check('przyklad-atom.json imports as a course: 11 concepts, 13 questions, a card template, a revision „od podstaw”, the view — no warning',
+    [pa.entities.filter((x) => x.kinds.includes('question')).length, pa.entities.length, pa.docs.map((d) => d.kind).sort(), pa.warnings], [13, 24, ['revision', 'template', 'view'], []]);
+  await Js.applyImport(alib, pa, () => undefined);
+  const idOf = (ref) => alib.entities().find((x) => alib.entry(x.id)?.data._ref === ref)?.id;
+  const ag = alib.prerequisites();
+  check('… its order: atom first, then jądro and elektron, … konfiguracja and izotop last; a question with „needs” comes after the other',
+    [['atom', 'jadro', 'elektron', 'proton', 'powloka', 'liczba-atomowa', 'orbital', 'izotop', 'konfiguracja'].map((x) => ag.level.get(idOf(`atom/${x}`))), ag.level.get(idOf('atom/q-wegiel')) > ag.level.get(idOf('atom/q-kolejnosc')), ag.circles.length],
+    [[0, 1, 1, 2, 2, 3, 3, 4, 4], true, 0]);
+  check('… the library’s dependencies are the fields (and the settings)', alib.dependencies().length, ag.edges.length);
+  const { cards: acards } = await alib.cards('s');
+  check('… cards: a fiszka per concept, every question, the long list of elements card by card (12)',
+    [acards.filter((c) => c.template !== undefined).length, acards.filter((c) => c.question.startsWith(idOf('atom/q-pierwiastki'))).length, acards.length], [11, 12, 11 + 12 + 12]);
+  const grouped = SEL.groupsOf(alib.selectContext(), alib.ofKind(alib.kinds.find((k) => k.name === 'Pojęcie').id).map((x) => x.id), { by: 'level' });
+  check('… a view grouped by level: the levels in order, from the basics', grouped.map((g) => `${g.label}:${g.ids.length}`), ['Poziom 1 — podstawy:1', 'Poziom 2:2', 'Poziom 3:3', 'Poziom 4:3', 'Poziom 5:2']);
+
+  /* Eine Powtórka „od podstaw": was zuerst gefragt wird, und was wartet. */
+  const rev = alib.docs('revision')[0];
+  const marks = new Map();
+  const levelOfCard = (c) => PR.cardLevel(c, ag);
+  const { plan: aplan } = await R.planOf(G.readGraph(rev.data.graph), alib.revisionContext(acards, (key) => marks.get(key) ?? [], 0));
+  let session = R.start({ plan: aplan, all: acards, deps: alib.dependencies(), now: 0, seed: 'od-podstaw', marks: (key) => marks.get(key) ?? [] });
+  const opening = R.heldBack(session, 0);
+  check('at the start only the basics are asked: the stack holds cards about the atom; the rest waits for it',
+    [session.active.map((k) => levelOfCard(acards.find((c) => c.key === k))).every((l) => l === 0), session.active.length > 0, opening.cards, opening.needs.includes(idOf('atom/atom'))],
+    [true, true, aplan.cards.length - session.active.length, true]);
+  const firstLevels = [];
+  const asked = new Set();
+  for (let step = 0, at = 1000; session.current !== null && step < 400; step += 1, at += 1000) {
+    const current = acards.find((c) => c.key === session.current);
+    if (!asked.has(current.key)) { asked.add(current.key); firstLevels.push(levelOfCard(current)); }
+    session = R.answer(session, 1, at).session;
+  }
+  check('answering right, card by card: every card is asked, and new cards come from the basics to the details (levels never go back)',
+    [asked.size, aplan.cards.length, firstLevels.every((l, i) => i === 0 || l >= firstLevels[i - 1]), firstLevels[0], firstLevels[firstLevels.length - 1]],
+    [aplan.cards.length, acards.length, true, 0, 4]);
+}
+
+/* ══ 2026-10-27 — zwei Bücher: Fakten eines Werks über Wirkliches (fakty.json), eine Księga numerierter Teile (jednostki.json) ══ */
+{
+  const sfake = (libraryId, entries) => {
+    const map = new Map(entries.map((x) => [x.id, x]));
+    let n = 0;
+    const byKey = (key) => [...map.values()].find((x) => (x.key ?? '').toLowerCase() === key.toLowerCase());
+    const store = {
+      libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
+      all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
+      save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-${n += 1}`, libraryId, updatedAt: `2026-10-27T11:00:${String(n % 60).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+      remove: async (id) => { map.delete(id); store.revision += 1; },
+      subscribe: () => () => undefined
+    };
+    return store;
+  };
+  const NOVEL = '01a1c0de-0000-7000-8000-0000000000a1';
+  const MISSAL = '01a1c0de-0000-7000-8000-0000000000a2';
+  const books = sfake('LB', [
+    { id: NOVEL, kind: 'work', key: 'powiesc2005', data: { workType: 'book', genre: 'powieść biograficzna', title: 'Z Wadowic do Rzymu' } },
+    { id: MISSAL, kind: 'work', key: 'mszal1986', data: { workType: 'book', genre: 'mszał', title: 'Mszał rzymski dla diecezji polskich', pageSeries: "* 1 '" } }
+  ]);
+  const sources = async (lib) => lib.setSources((await Src.loadSources(lib, async (ref) => ({ LB: books }[ref.id] ?? null))).loaded);
+  const baseWith = async (id) => {
+    const lib = new So.CogitaLibrary(sfake(id, [{ id: `s${id}`, kind: 'settings', data: { sources: [{ id: 'LB', kind: 'books', name: 'Biblioteka' }] } }]), true);
+    await sources(lib);
+    return lib;
+  };
+
+  /* Der Leitfaden für die KI (templates/cogita/ksiazka-AI.md): seine Anhänge sind die der App und die Dateien der Schemata. */
+  const KG = await import(pathToFileURL(join(process.cwd(), 'scripts/ksiazka-guide.mjs')).href);
+  const kguide = (await readFile('../templates/cogita/ksiazka-AI.md', 'utf8')).replace(/\r\n/g, '\n');
+  check('the book guide for an AI carries the app’s own descriptions and the fields of every template (node scripts/ksiazka-guide.mjs)', (await KG.guideWith(kguide, await KG.appDescriptions())) === kguide, true);
+  check('… a two-step guide with the menu of choices (scope, layers, questions, order, revisions, checking facts)', ['## 1. Krok pierwszy', '## 2. Krok drugi', '**A1**', '**B3**', '**B5**', '**C3**', '**D1**', '**E1**', '**F2**', 'pageSeries'].every((w) => kguide.includes(w)), true);
+
+  /* -- Fakty: was ein Werk über Wirkliches sagt, geprüft ------------------------------------------- */
+  const flib = await baseWith('F');
+  const pf = Js.planImport(flib, JSON.parse(await readFile('../templates/cogita/fakty.json', 'utf8')));
+  check('fakty.json imports: Fakt and Okres, three card templates, one adding method, three views — no warning',
+    [pf.kinds.map((k) => k.def.name), pf.docs.filter((d) => d.kind === 'template').length, pf.docs.filter((d) => d.kind === 'addform').length, pf.docs.filter((d) => d.kind === 'view').length, pf.warnings],
+    [['Fakt', 'Okres'], 3, 1, 3, []]);
+  await Js.applyImport(flib, pf, () => undefined);
+  const FAKT = flib.kinds.find((k) => k.name === 'Fakt');
+  const OKRES = flib.kinds.find((k) => k.name === 'Okres');
+  check('… a fact: a statement (blocks) with its period as structure AND what comes first; the work as its source with a place; other sources; how the work tells it',
+    [FAKT.fields.find((f) => f.key === 'tresc').type, FAKT.fields.find((f) => f.key === 'okres').structure, FAKT.fields.find((f) => f.key === 'okres').prerequisite, FAKT.fields.find((f) => f.key === 'wDziele').locator, FAKT.fields.find((f) => f.key === 'zrodla').locator, FAKT.fields.find((f) => f.key === 'kiedy').uncertain, FAKT.fields.some((f) => f.key === 'jakWDziele')],
+    ['blocks', 'up', 'up', true, true, true, true]);
+  const okres = await flib.saveEntity({ kinds: [OKRES.id], data: { nazwa: 'Dzieciństwo w Wadowicach', nr: 1, opis: 'Rodzina, szkoła, teatr.' } });
+  const ktos = await flib.saveEntity({ kinds: [OKRES.id], data: { nazwa: 'Karol Wojtyła' } });
+  const f1 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Karol Wojtyła urodził się w Wadowicach.' }], kogo: [ktos.id], kiedy: [{ value: '1920-05-18', state: 'known' }], okres: [okres.id], wDziele: [{ value: NOVEL, locator: 's. 12' }], historycznosc: 'potwierdzone' } });
+  const f2 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Mały Karol rozmawiał z ojcem o Mickiewiczu przy kominku.' }], kogo: [ktos.id], okres: [okres.id], wymaga: [f1.id], jakWDziele: 'Scena wymyślona dla oddania atmosfery domu.', historycznosc: 'fikcja' } });
+  const fcards = (await flib.cards('s')).cards;
+  const tname = (lib) => (c) => lib.docs('template').find((d) => d.id === c.template)?.data.name;
+  const prawda = fcards.find((c) => c.entity === f2.id && c.answer.form === 'one');
+  check('… cards: what is known about a person (fiszka), „prawda czy fikcja?” with the six judgements, a period as a fiszka',
+    [fcards.filter((c) => c.entity === f1.id).map(tname(flib)).sort(), prawda?.answer.options[prawda.answer.correct], prawda?.answer.options.length, fcards.some((c) => c.entity === okres.id && c.answer.form === 'flash')],
+    [['Fakt: o kim → co wiadomo (fiszka)', 'Prawda czy fikcja? (wybór)'], 'wymyślone przez autora', 4, true]);
+  const fg = flib.prerequisites();
+  check('… the order: the period first, the fact in it next, the fact that needs that fact last', [fg.level.get(okres.id), fg.level.get(f1.id), fg.level.get(f2.id)], [0, 1, 2]);
+  const fform = AF.readAddForm('f', flib.docs('addform')[0].data);
+  const frows = AF.planForm(fform, { look: flib.look, pool: (k) => flib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `nf${++i}`; })() },
+    [{ fakt: [{ tresc: 'Karol przyjął święcenia w Krakowie.', kiedy: '1946-11-01', '@loc:wDziele': 's. 88', historycznosc: 'potwierdzone' }] }], { picks: { dzielo: [NOVEL] }, asks: {} });
+  check('… adding facts row by row: the work chosen once, the place typed — a fact with its source and its judgement',
+    [frows.rows[0].problems, frows.saves[0]?.data.wDziele, frows.saves[0]?.data.historycznosc, frows.saves[0]?.data.kiedy], [[], [{ value: NOVEL, locator: 's. 88' }], 'potwierdzone', '1946-11-01']);
+
+  /* -- Jednostki: eine Księga numerierter Teile (Prefacje eines Missale) ------------------------------- */
+  const jlib = await baseWith('J');
+  const pj = Js.planImport(jlib, JSON.parse(await readFile('../templates/cogita/jednostki.json', 'utf8')));
+  check('jednostki.json imports: Część księgi and Grupa części, five card templates, one adding method, three views — no warning',
+    [pj.kinds.map((k) => k.def.name), pj.docs.filter((d) => d.kind === 'template').length, pj.docs.filter((d) => d.kind === 'addform').length, pj.docs.filter((d) => d.kind === 'view').length, pj.warnings],
+    [['Część księgi', 'Grupa części'], 5, 1, 3, []]);
+  await Js.applyImport(jlib, pj, () => undefined);
+  const JED = jlib.kinds.find((k) => k.name === 'Część księgi');
+  const GR = jlib.kinds.find((k) => k.name === 'Grupa części');
+  const adwent = await jlib.saveEntity({ kinds: [GR.id], data: { nazwa: 'Prefacje adwentowe', nr: 1, opis: 'Oczekiwanie na przyjście Pana.' } });
+  const unit = (nr, oznaczenie, incipit, thesis) => jlib.saveEntity({ kinds: [JED.id], data: { nr, oznaczenie, incipit, tresc: [{ type: 'paragraph', text: thesis }], grupa: adwent.id, miejsce: { value: MISSAL, locator: `s. ${nr}*` } } });
+  const p1 = await unit(1, 'Prefacja o Adwencie I', 'On to, przyszedłszy po raz pierwszy', 'Dwa przyjścia Chrystusa.');
+  await unit(2, 'Prefacja o Adwencie II', 'Jego zapowiadali wszyscy prorocy', 'Oczekiwanie Maryi i Jana.');
+  await unit(3, 'Prefacja o Adwencie III', 'Ty postanowiłeś dać nam Zbawiciela', 'Chrystus Pan i Sędzia.');
+  const jcards = (await jlib.cards('s')).cards;
+  const which = jcards.find((c) => c.entity === p1.id && c.answer.form === 'one');
+  const match = jcards.find((c) => c.entity === p1.id && c.answer.form === 'match');
+  check('… cards of a unit: what it is about, how it begins, which one begins so (chosen among its group), beginnings ↔ names of its group',
+    [jcards.filter((c) => c.entity === p1.id).length, which?.answer.options[which.answer.correct], which?.answer.options.every((o) => o.startsWith('Prefacja o Adwencie')), match?.answer.left.length, jcards.some((c) => c.entity === adwent.id)],
+    [4, 'Prefacja o Adwencie I', true, 3, true]);
+  const jg = jlib.prerequisites();
+  check('… the group first (what Advent prefaces share), then each preface', [jg.level.get(adwent.id), jg.level.get(p1.id)], [0, 1]);
+  check('… places in the Missal ordered by its series of pages (here: star pages first)', ['s. 2', 's. 3*', "s. 1'"].sort((a, b) => Wy.comparePlaces(a, b, 'pages', { series: ['*', '1', "'"] })), ['s. 3*', 's. 2', "s. 1'"]);
+  const jform = AF.readAddForm('f', jlib.docs('addform')[0].data);
+  const jrows = AF.planForm(jform, { look: jlib.look, pool: (k) => jlib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `nj${++i}`; })() },
+    [{ czesc: [{ nr: '4', oznaczenie: 'Prefacja o Adwencie IV', incipit: 'Czcimy Ciebie', tresc: 'Maryja nową Ewą.', '@loc:miejsce': 's. 4*' }] }], { picks: { grupa: [adwent.id], ksiega: [MISSAL] }, asks: {} });
+  check('… adding units row by row: group and book chosen once; number, name, beginning, theme and page typed',
+    [jrows.rows[0].problems, jrows.saves[0]?.data.grupa, jrows.saves[0]?.data.miejsce, jrows.saves[0]?.data.nr], [[], adwent.id, { value: MISSAL, locator: 's. 4*' }, 4]);
 }
 
 await rm(workspace, { recursive: true, force: true });

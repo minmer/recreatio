@@ -531,3 +531,71 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-review-values p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--wk-text-sm); }
 .cg-review-edit { display: grid; gap: 0.25rem; }
 .cg-review-edit textarea { width: 100%; font: inherit; }
+
+/* -- 2026-10-27: eine Frage schreiben (QuestionFields) ----------------------------------- */
+.cg-question { display: grid; gap: var(--wk-space-3); }
+.cg-qtype { display: grid; gap: var(--wk-space-2); border: 1px solid var(--wk-line); border-radius: var(--wk-radius); padding: var(--wk-space-2) var(--wk-space-3); }
+.cg-qtype legend { font-weight: 600; padding: 0 var(--wk-space-1); }
+.cg-qtype-group { display: grid; grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr); gap: var(--wk-space-2); align-items: center; }
+.cg-qtype-group .cg-chips { margin: 0; }
+.cg-qtype-name { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-qrows { display: grid; gap: var(--wk-space-2); border: 0; padding: 0; margin: 0; min-width: 0; }
+.cg-qrows legend, .cg-qpairs legend, .cg-qtruth legend { font-weight: 600; margin-bottom: var(--wk-space-1); }
+.cg-qrow { display: flex; gap: var(--wk-space-2); align-items: center; }
+.cg-qrow input:not([type="checkbox"]):not([type="radio"]) { flex: 1; min-width: 0; }
+.cg-qnum { min-width: 1.75em; text-align: right; color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.cg-qmore { display: flex; flex-wrap: wrap; gap: var(--wk-space-3); align-items: end; }
+.cg-qmore > * { flex: 1 1 10rem; }
+.cg-qtruth { border: 0; padding: 0; margin: 0; gap: var(--wk-space-4); }
+.cg-qpairs { display: grid; gap: var(--wk-space-2); border: 0; padding: 0; margin: 0; min-width: 0; }
+.cg-qpair { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 1.75rem; gap: var(--wk-space-2); align-items: center; }
+.cg-qpair input { min-width: 0; }
+.cg-qpair-head input { font-weight: 600; background: var(--wk-soft); }
+.cg-qpaste { display: grid; gap: var(--wk-space-2); }
+.cg-qpaste[open] { border: 1px dashed var(--wk-line); border-radius: var(--wk-radius); padding: var(--wk-space-2); }
+.cg-qpaste summary { cursor: pointer; color: var(--wk-accent); }
+.cg-qpaste textarea { width: 100%; box-sizing: border-box; font-family: inherit; }
+.cg-qshow { max-width: 14rem; }
+.cg-qmissing { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.cg-qpreview { display: grid; gap: var(--wk-space-2); }
+.cg-qpreview .cg-face { margin: 0; max-width: none; }
+.cg-qtypes { display: grid; gap: var(--wk-space-2); }
+.cg-qtypes td { vertical-align: top; }
+.cg-match-head { font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+@media (max-width: 40rem) {
+  .cg-qtype-group { grid-template-columns: minmax(0, 1fr); gap: var(--wk-space-1); }
+  .cg-qpair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.75rem; }
+}
+
+/* -- 2026-10-27: die Reihenfolge des Lernens (LearningPath, EntityPrerequisites) ------------ */
+.cg-path { display: grid; gap: var(--wk-space-4); }
+.cg-path-level { display: grid; gap: var(--wk-space-2); }
+.cg-path-level h3 { margin: 0; font-size: var(--wk-text-md); }
+.cg-path-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.cg-path-item {
+  display: flex; flex-wrap: wrap; gap: var(--wk-space-2); align-items: center; justify-content: space-between;
+  border: 1px solid var(--wk-line); border-left-width: 4px; border-radius: var(--wk-radius-sm); padding: var(--wk-space-2) var(--wk-space-3); background: var(--wk-surface);
+}
+.cg-path-item.is-known { border-left-color: var(--wk-ok); }
+.cg-path-item.is-learning { border-left-color: var(--wk-held-line); }
+.cg-path-item.is-fresh { border-left-color: var(--wk-accent); }
+.cg-path-item.is-waiting { border-left-color: var(--wk-line-strong); background: var(--wk-soft); }
+.cg-path-item.is-order { border-left-style: dashed; }
+.cg-path-name { display: grid; gap: 0.125rem; min-width: 0; }
+.cg-path-state { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-path-item.is-known .cg-path-state { color: var(--wk-free-ink); }
+.cg-path-tools { display: inline-flex; gap: var(--wk-space-2); align-items: center; }
+.cg-path-empty ul { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--wk-space-1); }
+.cg-prereq .cg-row { flex-wrap: wrap; }
+
+/* -- 2026-10-27: Postępy — zakres, sposób liczenia, pytanie po pytaniu (Progress.tsx) -------- */
+.cg-stats-controls .cg-row { align-items: flex-end; flex-wrap: wrap; gap: var(--wk-space-3); }
+.cg-stats-controls .cg-chips { margin: 0; }
+.cg-stats-table td, .cg-stats-table th { white-space: nowrap; }
+.cg-stats-table .cg-stats-q { white-space: normal; min-width: 14rem; }
+.cg-stats-table tr.is-known td:last-child { color: var(--wk-free-ink); font-weight: 600; }
+.cg-stats-table tr.is-unseen { color: var(--wk-muted); }
+.cg-stats-open > td { background: var(--wk-soft); padding: var(--wk-space-2); }
+/* Wer auf einer Seite lernt: sich vorstellen (pageLearner.tsx). */
+.cg-learn-intro { display: grid; gap: var(--wk-space-2); max-width: 32rem; }
+.cg-learn-intro .cg-row { flex-wrap: wrap; }
