@@ -18,18 +18,37 @@ import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { device } from '../core/kept';
 import type { Card } from './cardBasics';
 import type { Dependency } from './knowness';
+import type { AnswerRecord } from './learn';
+import { readPlan, type Plan } from './revision';
 
 export interface OfflineRevision {
   readonly libraryId: string;
   readonly revisionId: string;
   readonly name: string;
-  /** Der Plan, wie ihn der Graph ergab — ohne die Karten (die stehen daneben). */
+  /** Der Plan, wie ihn der Graph ergab — ohne die Karten (die stehen daneben); mit `gate` („Najpierw podstawy"). */
   readonly plan: Readonly<Record<string, unknown>>;
   readonly cards: readonly Card[];
   readonly deps: readonly Dependency[];
-  /** Wohin die Antworten gehen, wenn das Netz wieder da ist. */
+  /**
+   * Wohin die Antworten gehen, wenn das Netz wieder da ist. `intake` (2026-10-27): der öffentliche Schlüssel der
+   * Annahme (Base64URL) — ohne ihn versiegelte Antworten liest der Kurs nie; ältere Abschriften haben `null`.
+   */
   readonly target: { readonly areaId: string; readonly intake: string | null } | null;
+  /**
+   * 2026-10-27 — was der Lernende zu diesen Karten schon beantwortet hat: ohne Netz lädt der Dienst nichts, und
+   * ohne die Geschichte hielte „Najpierw podstawy" alles zurück, was schon sitzt. Nur zum Rechnen, nie gesendet.
+   */
+  readonly answers?: readonly AnswerRecord[];
   readonly savedAt: number;
+}
+
+/** 2026-10-27 — eine Karte, deren Frage eine Datei zeigt (Bild, Ton): ohne Netz lässt sie sich nicht öffnen. */
+export const needsFiles = (card: Card): boolean => card.prompt.some((p) => p.media !== undefined);
+
+/** 2026-10-27 — der Lauf aus einer Abschrift: der Plan MIT seiner Sperre „Najpierw podstawy" (vorher fiel sie weg). */
+export function offlineSource(copy: OfflineRevision): { plan: Plan; cards: readonly Card[]; deps: readonly Dependency[]; title: string } {
+  const gate = typeof copy.plan.gate === 'number' ? copy.plan.gate : null;
+  return { plan: readPlan(copy.cards, gate, copy.plan), cards: copy.cards, deps: copy.deps, title: copy.name };
 }
 
 /** Wie viele Wiederholungen der Browser von selbst behält; die App so viele, wie gewählt. */

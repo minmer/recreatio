@@ -14,17 +14,21 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn'];
 await build({
   entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
   bundle: true,
   format: 'esm',
   platform: 'node',
   outdir: workspace,
-  logLevel: 'error'
+  logLevel: 'error',
+  /* 2026-10-27 — `learn` (offline checks) reaches the service module, which reads the API origin. */
+  define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
 });
+/* `learn` reaches the session module: without a BroadcastChannel it opens nothing that keeps node from ending. */
+globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN] = await Promise.all(names.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -2508,6 +2512,25 @@ check('goals and lines follow the one logic', [
   check('answering right, card by card: every card is asked, and new cards come from the basics to the details (levels never go back)',
     [asked.size, aplan.cards.length, firstLevels.every((l, i) => i === 0 || l >= firstLevels[i - 1]), firstLevels[0], firstLevels[firstLevels.length - 1]],
     [aplan.cards.length, acards.length, true, 0, 4]);
+
+  /*
+   * 2026-10-27 — DIESELBE POWTÓRKA OHNE NETZ (offline.ts): die Abschrift so, wie RevisionRun sie ablegt (JSON hin und
+   * zurück). Vorher fiel die Sperre „Najpierw podstawy" weg, und ohne die schon gegebenen Antworten hielte sie alles zurück.
+   */
+  const { cards: _keptCards, ...keptConfig } = aplan;
+  const copy = JSON.parse(JSON.stringify({ libraryId: 'A', revisionId: rev.id, name: 'Od podstaw', plan: keptConfig, cards: aplan.cards.filter((c) => !OFF.needsFiles(c)), deps: alib.dependencies(), target: { areaId: 'K', intake: 'AQID' }, answers: [], savedAt: 0 }));
+  const src = OFF.offlineSource(copy);
+  const offline = R.start({ plan: src.plan, all: src.cards, deps: src.deps, now: 0, seed: 'od-podstaw', marks: () => [] });
+  check('offline: the kept copy keeps the gate „Najpierw podstawy” — the basics are asked first there too',
+    [src.plan.gate, aplan.gate !== null, offline.active.length > 0 && offline.active.every((k) => levelOfCard(acards.find((c) => c.key === k)) === 0)], [aplan.gate, true, true]);
+  const basics = aplan.cards.filter((c) => levelOfCard(c) === 0);
+  const learner = new LRN.Learner('A', { kind: 'local', id: 'offline' }, null);
+  learner.remember(basics.map((c, i) => ({ id: `kept-${i}`, key: c.key, question: c.question, direction: c.direction, fingerprint: c.fingerprint, at: 0, correctness: 1 })));
+  const offKnown = R.start({ plan: src.plan, all: src.cards, deps: src.deps, now: 60_000, seed: 'od-podstaw', marks: (key) => learner.marks(key) });
+  check('… with the answers the copy brought along, what is already known opens the next level instead of starting over',
+    [R.heldBack(offKnown, 60_000).cards < R.heldBack(offline, 0).cards, offKnown.active.some((k) => levelOfCard(acards.find((c) => c.key === k)) === 1)], [true, true]);
+  check('… cards whose question shows a file (picture, sound) are not kept: without the network they cannot open',
+    [OFF.needsFiles({ prompt: [{ text: 'Która to?', media: { file: 'f', type: 'audio' } }] }), OFF.needsFiles({ prompt: [{ text: 'Czym jest atom?' }] })], [true, false]);
 }
 
 /* ══ 2026-10-27 — zwei allgemeine Schemata, je an zwei verschiedenen Fällen: Fakten mit Quellen (fakty.json) und ein Zbiór (zbior.json) ══ */

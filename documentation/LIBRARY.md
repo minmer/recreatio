@@ -221,6 +221,12 @@ places, page order, notes without references and the reverse, size ≤ 3.5 MB pe
 **Portions without duplicates:** a portion with the same `portion.key` replaces itself, the same portion again writes
 nothing ("bez zmian"), another key covering the same places is flagged. The part is saved before the directory, so a
 directory never points at a missing part. Export gives the whole text back as documents.
+- **Chapters that begin mid-page** (2026-10-27): every part starts with a `page` block for the page it begins on —
+  parts are read on their own — so consecutive chapters share that one boundary page. That is not a duplicate: the
+  check flags pages only when two parts share more than the page where one ends and the other begins (or exactly
+  the same pages with the same blocks and words). Before, every chapter of a book warned about its neighbour, and
+  the preview kept only the last part of a document (one temporary id for all), so a part was compared with the one
+  before it only; now with all earlier parts and the text already stored.
 
 **A whole text in one document** (2026-10-24): instead of `portion` + `blocks`, a document may carry
 `"portions": [{ "portion": {…}, "blocks": [ … ] }, …]` — the whole text, or a list of documents. The description

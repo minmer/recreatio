@@ -1102,6 +1102,22 @@ try {
     const withSeries = m.src.partSummary([{ type: 'page', page: 'B1' }, { type: 'paragraph', text: 'x {{page B2}} y' }, { type: 'page', page: '3' }]);
     assert.deepEqual([withSeries.series, m.src.readManifest({ work: 'w', parts: [{ id: 'p', key: 'k', label: 'K', order: 1, pages: withSeries.pages, series: withSeries.series }] }).parts[0].series], [['B#'], ['B#']],
       'a part of a source text names the series of its printed pages (not the plain ones)');
+    /*
+     * 2026-10-27 — Kapitel, die mitten auf einer Seite beginnen: jeder Teil nennt die Seite, auf der er beginnt, und teilt
+     * sie mit dem vorigen — das ist kein doppelter Text (vorher: eine Warnung je Kapitel). Doppelt bleibt, was mehr teilt.
+     */
+    {
+      const W = { id: 'w-book', kind: 'work', key: 'ksiazka', data: { workType: 'book', title: 'Książka' } };
+      const doc = (key, order, blocks) => ({ format: m.src.SOURCE_FORMAT, version: 1, work: '@ksiazka', scheme: 'pages', portion: { key, label: key, order }, blocks });
+      const ch1 = doc('rozdz-1', 1, [{ type: 'page', page: '1' }, { type: 'heading', level: 1, text: '1. Początek' }, { type: 'paragraph', text: 'Pierwszy rozdział {{page 2}} kończy się na drugiej stronie.' }]);
+      const ch2 = doc('rozdz-2', 2, [{ type: 'page', page: '2' }, { type: 'heading', level: 1, text: '2. Dalej' }, { type: 'paragraph', text: 'Drugi zaczyna się w połowie drugiej {{page 3}} strony.' }]);
+      const ch3 = doc('rozdz-3', 3, [{ type: 'page', page: '3' }, { type: 'heading', level: 1, text: '3. Krótki' }, { type: 'paragraph', text: 'Cały na trzeciej.' }]);
+      const whole = doc('calosc', 9, [{ type: 'page', page: '1' }, { type: 'paragraph', text: 'Cały tekst {{page 2}} jeszcze {{page 3}} raz.' }]);
+      const say = (docs) => m.srcImp.previewPortions(W, undefined, docs);
+      assert.deepEqual(say([ch1, ch2, ch3]).warnings, [], 'chapters sharing only the page where one ends and the next begins are no duplicates');
+      assert.ok(say([ch1, ch2, ch3, whole]).warnings.some((w) => w.includes('„rozdz-2”')), 'a whole text over its chapters is still named (it holds the same pages)');
+      assert.ok(say([ch2, { ...ch2, portion: { key: 'kopia', label: 'kopia', order: 5 } }]).warnings.length === 1, 'the same chapter under another key is still named');
+    }
     /* 2026-10-25 — mehrere Stücke mit „;": ein Stück, das tiefer beginnt, steht im Rahmen des Stücks davor. */
     assert.deepEqual(['I q. 2 a. 3; a. 4', 'I q. 2 a. 3 arg. 1; ad 1', 'I q. 2 a. 3; q. 3 a. 1', 'I q. 2 a. 3; I-II q. 90 a. 1'].map((t) => F(t, 'aquinas')),
       ['I, q. 2, a. 3; I, q. 2, a. 4', 'I, q. 2, a. 3, arg. 1; I, q. 2, a. 3, ad 1', 'I, q. 2, a. 3; I, q. 3, a. 1', 'I, q. 2, a. 3; I-II, q. 90, a. 1'],

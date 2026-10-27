@@ -419,6 +419,13 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
   - Authoring stays online.
   - The cached questions are sealed under the device’s own key: the vault of `kept.ts`, which in the app is the Android Keystore. Offline answers are sealed to public keys (the storage area’s intake and the learner’s own key), so answering needs no secret at all.
   - In the strict key-keeping mode (`tab`), nothing is cached.
+  - Since 2026-10-27 the kept copy carries what the learning order needs (`offline.ts`): the revision's gate
+    „Najpierw podstawy” (it used to be dropped, so details came before basics), the learner's earlier answers to
+    its cards (only for computing — without them the gate would hold back what is already known), and the intake's
+    public key (without it, answers sealed offline could never be read by the course). Cards whose question shows a
+    file (picture, sound) are not kept — they cannot open without the network.
+  - Not offline: learning on a page through an access link (a course learner without an account); signed-in
+    learners keep a revision in Nauka when the author marks it „Trzymaj na urządzeniach bez internetu”.
 
 ## 8. Narratives
 

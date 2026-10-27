@@ -26,6 +26,7 @@ import { AreaPick } from '../areas/AreaPick';
 import { useCrumbs } from '../shell/crumbTrail';
 import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { useLibraryStore } from '../library/libraryStore';
+import { fromBase64Url } from '../core/crypto';
 import { useMe, type Me } from '../core/me';
 import { plural } from '../core/plural';
 import { viewPath } from '../routes';
@@ -38,8 +39,7 @@ import { holderOfMe } from './holders';
 import { isDocKind } from './kinds';
 import { Learner, loadDue, targetOf, type DueRow } from './learn';
 import { loadSessions, SESSION_KIND_LABEL, type SessionRow } from './live';
-import { offlineList, openOffline, type OfflineRevision } from './offline';
-import { readPlan } from './revision';
+import { offlineList, offlineSource, openOffline, type OfflineRevision } from './offline';
 import { RevisionRun } from './RevisionRun';
 import './cogita.css';
 import { Loading } from '../ui/Loading';
@@ -320,14 +320,20 @@ function OfflinePart({ me, trail }: { me: Me | null; trail: readonly string[] })
     void openOffline(libraryId, revisionId).then(async (copy) => {
       setOpen(copy);
       if (copy !== null && me !== null) {
-        const target = copy.target === null ? null : await targetOf(copy.target.areaId).catch(() => ({ areaId: copy.target!.areaId, intake: null }));
+        /* 2026-10-27 — ohne Netz der Schlüssel der Annahme aus der Abschrift: sonst liest der Kurs diese Antworten nie. */
+        const kept = copy.target?.intake ?? null;
+        const target = copy.target === null ? null
+          : await targetOf(copy.target.areaId).catch(() => ({ areaId: copy.target!.areaId, intake: kept === null ? null : fromBase64Url(kept) }));
         const made = new Learner(copy.libraryId, holderOfMe(me), target);
         await made.load().catch(() => undefined);
+        /* Was schon beantwortet war — der Dienst ist ohne Netz nicht zu erreichen. */
+        made.remember(copy.answers ?? []);
         setLearner(made);
       }
     });
   }, [chosen, me]);
-  const source = useMemo(() => (open == null ? null : { plan: readPlan(open.cards, null, open.plan), cards: open.cards, deps: open.deps, title: open.name }), [open]);
+  /* 2026-10-27 — mit der Sperre „Najpierw podstawy" der Abschrift (vorher fiel sie ohne Netz weg: Einzelheiten vor den Grundlagen). */
+  const source = useMemo(() => (open == null ? null : offlineSource(open)), [open]);
   if (chosen !== undefined) {
     if (open === undefined) return <p className="wk-hint">Otwieranie…</p>;
     if (open === null || source === null) return <p className="wk-error">Tej powtórki nie ma na tym urządzeniu.</p>;

@@ -14,7 +14,8 @@ import type { Card } from './cardBasics';
 import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
-import { keepOffline } from './offline';
+import { toBase64Url } from '../core/crypto';
+import { keepOffline, needsFiles } from './offline';
 import { answer, heldBack, levelsOf, planOf, progress, start, type Plan, type Session } from './revision';
 import type { CogitaLibrary } from './store';
 import { Bar, CogitaContext, entityName } from './ui';
@@ -86,9 +87,19 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           if (keep && !saved.current && learner !== null) {
             saved.current = true;
             const { cards: _cards, ...config } = plan;
+            /*
+             * 2026-10-27 — für die Zeit ohne Netz: die Karten ohne Dateien (die öffnen sich nur online), der Schlüssel der
+             * Annahme (sonst liest der Kurs die Antworten nie) und was schon beantwortet ist (sonst hielte die Sperre
+             * „Najpierw podstawy" ohne Netz alles zurück).
+             */
+            const cards = plan.cards.filter((c) => !needsFiles(c));
+            const keys = new Set(cards.map((c) => c.key));
             void keepOffline({
               libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? 'Powtórka', plan: config as Record<string, unknown>,
-              cards: plan.cards, deps: lib.dependencies(), target: learner.target === null ? null : { areaId: learner.target.areaId, intake: null }, savedAt: Date.now()
+              cards, deps: lib.dependencies(),
+              target: learner.target === null ? null : { areaId: learner.target.areaId, intake: learner.target.intake === null ? null : toBase64Url(learner.target.intake) },
+              answers: [...learner.progress.answers.values()].filter((a) => keys.has(rename === undefined ? a.key : rename(a.key))),
+              savedAt: Date.now()
             }, true);
           }
         }

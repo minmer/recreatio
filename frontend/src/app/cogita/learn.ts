@@ -380,6 +380,17 @@ export class Learner {
     void this.flush().catch(() => undefined);
   }
 
+  /**
+   * 2026-10-27 — OHNE NETZ: die Antworten, die eine Abschrift für die Zeit ohne Netz mitbrachte (`offline.ts`). Sie
+   * liegen schon beim Dienst — hier nur zum Rechnen (Sperre, Kenntnis), nie noch einmal gesendet; dieselbe Kennung
+   * aus dem Dienst ersetzt sie später.
+   */
+  remember(answers: readonly AnswerRecord[]): void {
+    if (answers.length === 0) return;
+    this.progress = absorb(this.progress, { kind: 'answers', answers, snapshots: [] });
+    this.changed();
+  }
+
   marks(key: string, fingerprint?: string, rename?: (key: string) => string): Mark[] {
     return marksOf(this.progress, key, fingerprint, rename);
   }

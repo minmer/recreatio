@@ -2496,3 +2496,58 @@ account introduces themselves and answers; the teacher sees name, counts, time, 
 
 **Owner:** deploy the API (`-p:PublishProfile=Webio -p:IsGetPasswordEnabled=true`) — the MCP page series and link
 holders reading a course base need it — and the site. No database change.
+
+## L3 — A book whose chapters begin mid-page: no false duplicates, every part compared (2026-10-27)
+
+**Asked:** the import of a full Italian book (Teresio Bosco, *Don Bosco*, 51 chapter parts) into CogitaTempBib reported
+an overlap — "obejmuje te same miejsca — czy to nie ten sam fragment pod innym kluczem?" — for every chapter; find
+the cause, keep the whole text, the chapters and the pages, no hiding and no merging.
+
+**Cause and fix**
+- Every part of a text starts with a `page` block for the page it begins on (parts are read on their own), so two
+  consecutive chapters share the page where one ends and the next begins. The page check counted that as covering
+  the same places. Now only a shared boundary page is allowed; more shared pages, or exactly the same pages with the
+  same blocks and words, still warn (`sourceText.ts` `overlapsWith`).
+- The import preview kept only the last part of a document (every part had the same temporary id), so each part was
+  compared with the one before it only — a real duplicate further back went unseen (`sourceImport.ts`
+  `previewPortions`).
+- The format description for AIs says it: a part starts with its page even when the previous part ends on it; every
+  chapter is its own part, checked against the table of contents.
+- The document itself: chapters 22 and 33 were never split off — their numbers and titles stood as plain blocks
+  inside chapters 21 and 32. A corrected file (`Downloads/Don_Bosco_CogitaTempBib_PELNY_TEKST_IT_53_czesci.json`,
+  53 parts) splits them at those blocks and makes number and title headings; no word of the text changed. The
+  "corrected" file from the AI that merged everything into one part was not used.
+
+**Checks:** a scratch validation with the app's own import code (16: the same 4 712 text blocks in the same order,
+pages in order 1–254, 53 parts, no warning into an empty library, over the first import, twice; a merged leftover
+and a chapter under another key still warn); `app-library-check` (boundary pages allowed, a whole text over its
+chapters and a copy under another key named); a browser drive on LocalDB into a library named „CogitaTempBib” with
+content of its own (14: no warning, 53 parts with pages, the existing work and author kept and not doubled, the same
+file again adds nothing); all checks pass, Api.Tests 551.
+
+**Owner:** rebuild and deploy the site, then import the corrected file. If CogitaTempBib already holds the merged
+„Testo integrale”, the preview names it: remove the text on the work page („Usuń tekst”) and import again.
+
+## C3 — Offline revision with the learning order (2026-10-27)
+
+**Asked:** check the offline mode for the new Cogita parts and prepare it.
+
+**Found and fixed** (`offline.ts`, `RevisionRun.tsx`, `LearnView.tsx`, `learn.ts`)
+- The kept copy stored the gate „Najpierw podstawy”, but the offline run read it back as no gate — offline, details
+  came before the basics. `offlineSource` restores it.
+- Offline the service cannot be reached, so the learner had no history: with the gate, everything already known
+  would be held back again. The copy now keeps the learner's earlier answers to its cards; `Learner.remember` uses
+  them for computing only (never sent again; the same ids from the service replace them later).
+- The copy kept the course target without the intake's public key, so answers sealed offline could never be read
+  by the course (Postępy). It keeps the key now; online the current one is fetched as before.
+- Cards whose question shows a file (the new „Obraz albo dźwięk → która to?”, question media) are not kept: the
+  file cannot open offline.
+
+**Not covered:** learning on a page through an access link (course learners without an account) has no offline
+mode, as before.
+
+**Checks:** `app-cogita-check` 628 (the copy keeps the gate, the kept answers open the next level, file cards are not
+kept); all suites pass, Api.Tests 551.
+
+**Owner:** rebuild and deploy the site. Copies kept before this change still run, without the gate and history —
+they are replaced the next time the revision is done online.

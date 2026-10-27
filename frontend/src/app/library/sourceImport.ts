@@ -51,7 +51,8 @@ export function previewPortions(work: LibEntry, manifest: TextManifest | undefin
     if (plan.setScheme !== undefined) lines.push(`${label}Układ miejsc dzieła: ${schemeOf(plan.setScheme).label} („${plan.setScheme}”).`);
     for (const other of overlapsWith(running, plan)) warnings.push(`${label}część „${other}” obejmuje te same miejsca — czy to nie ten sam fragment pod innym kluczem?`);
     warnings.push(...plan.warnings.map((w) => `${label}${w}`));
-    running = readManifest(nextManifest(running, work.id, plan, 'preview'));
+    /* 2026-10-27 — je Teil eine eigene vorläufige Kennung: mit einer gemeinsamen verdrängte jeder Teil den vorigen, und ein Teil wurde nur mit dem davor verglichen. */
+    running = readManifest(nextManifest(running, work.id, plan, `preview-${i}`));
   }
   if (lines.length === 0) return { error: warnings[0] ?? 'Nic do zaimportowania.' };
   return { lines, warnings };

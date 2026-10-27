@@ -669,6 +669,8 @@ ${schemes.map((x) => `- "${x.id}" — ${x.label}: ${x.says} Przykłady: ${x.exam
 ## Cały tekst
 - Podziel tekst według jego własnego podziału: księgi Biblii (klucz: skrót księgi, np. "J"), rozdziały książki ("rozdz-1", "rozdz-2"), kwestie Sumy ("I-q2"), rozdziały dokumentu; krótki artykuł albo dokument może być jedną częścią.
 - Klucze krótkie i stałe; "order" — kolejność w dziele (1, 2, 3…). Wstęp, przedmowa, spis treści, bibliografia, indeks — osobne części tylko wtedy, gdy są w źródle.
+- Każdy rozdział to osobna część, z numerem i tytułem jako nagłówkami ("heading") — sprawdź na końcu, czy liczba części zgadza się ze spisem treści i czy żaden rozdział nie został w środku poprzedniego.
+- Każda część zaczyna się blokiem "page" ze stroną, na której się zaczyna — także gdy poprzednia część kończy się na tej samej stronie (rozdział od połowy strony). Ta wspólna strona nie dubluje tekstu.
 - Przypisy końcowe (na końcu książki albo rozdziału) wpisz w tej części, do której odsyłają.
 - Gdy tekst nie mieści się w jednej odpowiedzi: przepisz kolejne części w kolejnych dokumentach (z tym samym "work", "scheme" i "edition"), zaczynając dokładnie tam, gdzie skończyłeś. Nigdy nie przerywaj części w połowie — dokończ ją albo zacznij od niej następny dokument (ta sama część drugi raz zastąpi poprzednią).
 Zwróć JEDEN obiekt JSON, bez komentarzy.
@@ -793,7 +795,22 @@ export function overlapsWith(manifest: TextManifest | undefined, plan: SourcePla
       const wider = contains(theirs, mine) ? theirs : contains(mine, theirs) ? mine : null;
       return wider === null || JSON.stringify(mine) === JSON.stringify(theirs);
     }
-    if (mine === null && theirs === null && myPages !== undefined && p.pages !== undefined) return pagesOverlap({ from: myPages[0], to: myPages[1] }, { from: p.pages[0], to: p.pages[1] });
+    if (mine === null && theirs === null && myPages !== undefined && p.pages !== undefined) {
+      /*
+       * 2026-10-27 — Seiten: ein Kapitel endet oft mitten auf der Seite, auf der das nächste beginnt, und jeder Teil nennt
+       * die Seite, auf der er beginnt (er wird für sich gelesen). Teilen sich zwei Teile nur diese eine Grenzseite — das
+       * Ende des einen, der Anfang des anderen —, ist das kein doppelter Text. Doppelt ist, was darüber hinaus dieselben
+       * Seiten trägt, oder genau dieselben Seiten mit genau so vielen Blöcken und Wörtern (derselbe Teil, anderer Schlüssel).
+       */
+      const a = { from: myPages[0], to: myPages[1] };
+      const b = { from: p.pages[0], to: p.pages[1] };
+      if (!pagesOverlap(a, b)) return false;
+      const from = Math.max(a.from, b.from);
+      const to = Math.min(a.to, b.to);
+      const boundary = from === to && ((from === a.to && from === b.from) || (from === b.to && from === a.from));
+      const same = a.from === b.from && a.to === b.to && p.blocks === plan.summary.blocks && p.words === plan.summary.words;
+      return !boundary || same;
+    }
     return false;
   }).map((p) => p.label);
 }
