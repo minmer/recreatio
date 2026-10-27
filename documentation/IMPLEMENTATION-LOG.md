@@ -2436,7 +2436,7 @@ list filters, table column, date sort, table filter); `tsc` clean; style counts 
 **Owner:** rebuild and deploy the site. If the form has no "Wybierz termin" step yet: Kroki → add one with the
 meetings' resource — the reservations already made through the links count at once.
 
-## C1 — Cogita: one question scheme, the learning order, statistics; books and courses (2026-10-27)
+## C2 — Cogita: one question scheme, the learning order, statistics; books and courses (2026-10-27)
 
 **Asked:** a question scheme (one, or one per type of question?) and its JSON; a structure so that general knowledge
 is asked before the specific (the atom before its orbitals) — an entry in the scheme or built into the code; two
@@ -2462,11 +2462,24 @@ inside the Kurs area, using only what exists.
   (a link person) and its answers go to the course's intake, where the teacher sees them by name.
 - **Kurs** (`AreaKindPanel.tsx`): the main page is made with the course revision on it („Nauka na stronie” adds it
   later), the learners' link aims at that page, „Postępy uczących się”.
-- **Library**: page series (`locations.ts` bands, work field „Serie stron”, `pageOrdinal`), „Gatunek” for books; the
-  AI link and MCP read the same page marks (`AiAccess.PageValue`, `AiMcp` instructions on the learning order).
-- **Templates**: `pytania.json` (generated, `scripts/pytania-template.mjs`), `podstawy.json` + `przyklad-atom.json`,
-  `fakty.json`, `jednostki.json`, `wywod.json` („rzeczywistość” in Element stały), and the guide `ksiazka-AI.md`
-  (step 1, the menu A–F, build rules, after the import; appendices from the app by `scripts/ksiazka-guide.mjs`).
+- **Library — pages of separately numbered parts, for any book**: a page is written as printed with any marks
+  (`12*`, `3''`, `(7)`, `A12`, `†3`, `xii`, `iv*`); the series is the pattern of its marks, its number band computed
+  from the pattern (FNV-1a, the same in `AiAccess.PageValue`) — no list of marks (`locations.ts` `readPage`,
+  `seriesIndex`); the work field „Serie stron” orders the series by one example page each (`xii 12* 1 3'`); a text's
+  directory (`ManifestPart.series`) and the AI snapshot (`pageSeries`) name the series so pages are written back as
+  printed; „Gatunek” for books; `AiMcp` instructions on the learning order and on such pages.
+- **Templates — general schemes, one per kind of knowledge, not per book**: `pytania.json` (generated,
+  `scripts/pytania-template.mjs`), `podstawy.json` + `przyklad-atom.json`, `fakty.json` (Fakty i źródła: „Fakt”
+  from any source — novel, textbook, report, recording — with headword, kind, when, where, about whom, period, source
+  and place, how the source tells it, the judgement after checking, other sources; „Okres” `@czas/okres` with a date
+  range), `zbior.json` (Zbiór: „Pozycja” — prefaces, songs, psalms, articles, works, pictures — with number,
+  designation, beginning, theme, marks, picture or sound, group, places in one or more works, easily confused with,
+  difference, use; „Grupa”), `wywod.json` („Czy istnieje naprawdę” in Element stały), and the guide `ksiazka-AI.md`
+  for any book (the layers and their schemes, step 1, the menu A–F, build rules; appendices from the app by
+  `scripts/ksiazka-guide.mjs`). Revised the same day after the owner's review: the first versions were shaped by the
+  two scenarios (a „Część księgi” with Missal kinds, a fixed list of page marks); the scenarios are now examples
+  of the general schemes, each tested in `app-cogita-check` with two different cases (a novel and a recorded debate;
+  a Missal and two hymnals).
 
 **Found by the course drive and fixed:** a link holder could not open a base of a closed area on a page
 (`/workspace/libraries` now answers the link's roles like its entries already did, and the page carries the link
@@ -2475,9 +2488,9 @@ loaded, so the first answers stayed in the browser (`useLearner` gives only the 
 waits for it); a tall revision or flow module skipped „Przedstaw się”; the learners' table in Postępy is open for a
 course base.
 
-**Checks:** `tsc` clean; `app-cogita-check` 623; `app-library-check`, `app-json-check`, `app-presentation-check`,
-`app-world-check`, `app-platform-check` pass; `vite build` OK; backend 0 errors, `Api.Tests` 549 (page series in
-MCP); `app-style-check` is one over only through another session's new `preview/previewProbe.ts`. Browser drives on
+**Checks:** `tsc` clean; `app-cogita-check` 625; `app-library-check`, `app-json-check`, `app-presentation-check`,
+`app-world-check`, `app-platform-check` pass; `vite build` OK; backend 0 errors, `Api.Tests` 551 (page series in
+MCP, the same numbers as the app); `app-style-check` is one over only through another session's new `preview/previewProbe.ts`. Browser drives on
 LocalDB: questions 29/29; course 22/22 twice (Kurs tab builds base, import, page, role, link; a learner without an
 account introduces themselves and answers; the teacher sees name, counts, time, question by question, three ways).
 

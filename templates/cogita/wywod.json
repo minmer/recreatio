@@ -121,7 +121,7 @@
             { "value": "fikcyjny", "label": "fikcyjny — wymyślony w dziele" },
             { "value": "nieznane", "label": "nie wiadomo" }
           ],
-          "says": "Przy dziele, które opowiada o rzeczywistości (powieść biograficzna, film historyczny): czy element istnieje naprawdę. Fakty o rzeczywistym — z ich źródłami i oceną — to wpisy rodzaju „Fakt” (templates/cogita/fakty.json), które wskazują ten element w „Kogo i czego dotyczy”."
+          "says": "Przy dziele, które opowiada o rzeczywistości (powieść o prawdziwej osobie, film historyczny, wspomnienia, reportaż): czy element istnieje naprawdę. Fakty o nim — z ich źródłami i oceną — to wpisy rodzaju „Fakt” (templates/cogita/fakty.json), które wskazują ten element w „O kim, o czym”."
         },
         {
           "key": "opis",

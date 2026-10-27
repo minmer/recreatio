@@ -1,7 +1,7 @@
 {
   "format": "recreatio.cogita.schema",
   "version": 1,
-  "name": "Fakty w dziele — co jest prawdą, skąd to wiadomo i jak to opowiada dzieło",
+  "name": "Fakty i źródła — co źródło mówi o świecie, kiedy i gdzie, i czy to się zgadza",
   "kinds": [
     {
       "ref": "@fakty/fakt",
@@ -13,72 +13,110 @@
           "key": "tresc",
           "label": "Treść",
           "type": "blocks",
-          "says": "Pierwsze zdanie to sam fakt — krótko, własnymi słowami, jak twierdzenie o rzeczywistości (najwyżej 200 znaków): „Karol Wojtyła przyjął święcenia kapłańskie 1 listopada 1946 roku.”. Dalej szczegóły. Fakt jest jeden: dwa twierdzenia to dwa fakty."
+          "says": "Pierwsze zdanie to sam fakt — jedno twierdzenie o świecie, krótko, własnymi słowami (najwyżej 200 znaków): „Bitwa pod Grunwaldem odbyła się 15 lipca 1410 roku.”, „Karol Wojtyła przyjął święcenia kapłańskie 1 listopada 1946 roku.”, „Woda wrze w 100 °C pod ciśnieniem 1013 hPa.”. Dalej szczegóły. Dwa twierdzenia to dwa fakty."
+        },
+        {
+          "key": "haslo",
+          "label": "Hasło",
+          "type": "line",
+          "says": "Krótka nazwa bez daty i bez odpowiedzi — do kart „Kiedy?” i „Co wiadomo?”: „Bitwa pod Grunwaldem”, „Święcenia kapłańskie Karola Wojtyły”, „Chrzest Polski”."
+        },
+        {
+          "key": "rodzaj",
+          "label": "Rodzaj faktu",
+          "type": "choice",
+          "options": [
+            {
+              "value": "zdarzenie",
+              "label": "zdarzenie — coś się stało"
+            },
+            {
+              "value": "stan",
+              "label": "stan rzeczy — coś jest albo było"
+            },
+            {
+              "value": "liczba",
+              "label": "liczba, dane, wielkość"
+            },
+            {
+              "value": "wypowiedz",
+              "label": "wypowiedź — ktoś coś powiedział albo napisał"
+            },
+            {
+              "value": "przyczyna",
+              "label": "przyczyna albo skutek"
+            },
+            {
+              "value": "opinia",
+              "label": "ocena albo interpretacja"
+            }
+          ],
+          "says": "Jaki to fakt — od tego zależy, jak go sprawdzić i o co pytać (zdarzenie: kiedy i gdzie; wypowiedź: kto i do kogo; liczba: ile). Opinii nie potwierdza się źródłem — opisuje się, kto tak ocenia."
         },
         {
           "key": "kogo",
-          "label": "Kogo i czego dotyczy",
+          "label": "O kim, o czym",
           "type": "ref",
           "multi": true,
           "inverse": "Fakty",
-          "says": "Osoby, miejsca, rzeczy, których fakt dotyczy — wpisy tej bazy (np. Element stały: postać, miejsce) albo osoby z biblioteki."
+          "says": "Osoby, miejsca, rzeczy, pojęcia, których fakt dotyczy — wpisy tej bazy (np. Element stały, Pojęcie) albo osoby i dzieła z biblioteki."
         },
         {
           "key": "kiedy",
           "label": "Kiedy",
           "type": "date",
           "uncertain": true,
-          "says": "Data z dokładnością, jaką znamy: rok, miesiąc albo dzień; niepewna — ze stanem (przybliżona, sporna…), źródłem i notatką."
+          "says": "Data z dokładnością, jaką znamy — rok, miesiąc albo dzień; przybliżona albo sporna — ze stanem, źródłem i notatką. Fakt bez daty — puste."
         },
         {
           "key": "gdzie",
           "label": "Gdzie",
           "type": "ref",
           "multi": true,
-          "says": "Miejsce zdarzenia — wpis tej bazy (np. Element stały: miejsce)."
+          "says": "Miejsce — wpis tej bazy (np. Element stały: miejsce)."
         },
         {
           "key": "okres",
           "label": "Okres",
           "type": "ref",
           "to": [
-            "@fakty/okres"
+            "@czas/okres"
           ],
           "multi": true,
           "structure": "up",
           "prerequisite": "up",
           "inverse": "Fakty z tego okresu",
-          "says": "Okres albo etap życia, do którego fakt należy (np. „Dzieciństwo w Wadowicach”). Okres jest ogólniejszy — jego karty przychodzą przed kartami faktów."
+          "says": "Okres, epoka albo etap, do którego fakt należy („Okupacja”, „Średniowiecze”, „Dzieciństwo”). Okres jest ogólniejszy — jego karty przychodzą przed kartami faktów."
         },
         {
-          "key": "wDziele",
-          "label": "W dziele",
+          "key": "zrodlo",
+          "label": "Źródło",
           "type": "ref",
           "to": [
             "work"
           ],
           "multi": true,
           "locator": true,
-          "says": "Gdzie to mówi omawiane dzieło (powieść, film, wspomnienia): dzieło z biblioteki i miejsce, np. „s. 45–47”. Dzieło jest ŹRÓDŁEM tej informacji — nawet gdy ją upiększa."
+          "says": "Skąd ten fakt: dzieło z biblioteki, które go podaje — książka, artykuł, nagranie, film, dokument, strona — z miejscem w nim (strona, rozdział, werset, minuta). Jak czytać to miejsce, wie Biblioteka (układ miejsc dzieła). Gdy uczysz się z jednego dzieła, to jest ono — także wtedy, gdy coś upiększa albo zmyśla."
         },
         {
-          "key": "jakWDziele",
-          "label": "Jak przedstawia to dzieło",
+          "key": "jak",
+          "label": "Jak podaje to źródło",
           "type": "text",
-          "says": "Jak dzieło to opowiada: wiernie, w skrócie, z wymyślonym dialogiem, z inną datą, z postacią złożoną z kilku osób… Bez oceny — opis."
+          "says": "Jak źródło to przedstawia: dosłownie, w skrócie, z dopowiedzeniami, w scenie z wymyślonym dialogiem, z inną datą, bez kontekstu, z postacią złożoną z kilku osób… Opis, bez oceny."
         },
         {
-          "key": "historycznosc",
-          "label": "Zgodność z historią",
+          "key": "ocena",
+          "label": "Czy się zgadza",
           "type": "choice",
           "options": [
             {
               "value": "potwierdzone",
-              "label": "potwierdzone w innych źródłach"
+              "label": "potwierdzone — inne źródła mówią to samo"
             },
             {
               "value": "prawdopodobne",
-              "label": "prawdopodobne"
+              "label": "prawdopodobne — nic temu nie przeczy, ale brak potwierdzenia"
             },
             {
               "value": "sporne",
@@ -86,21 +124,25 @@
             },
             {
               "value": "uproszczone",
-              "label": "prawdziwe, ale uproszczone albo udramatyzowane"
+              "label": "uproszczone — prawdziwe, ale skrócone, przesadzone albo udramatyzowane"
+            },
+            {
+              "value": "nieprawdziwe",
+              "label": "nieprawdziwe — inne źródła mówią co innego"
             },
             {
               "value": "fikcja",
-              "label": "wymyślone przez autora"
+              "label": "fikcja — wymyślone (powieść, film, legenda)"
             },
             {
               "value": "nieznane",
-              "label": "nie wiadomo — brak innych źródeł"
+              "label": "nie do sprawdzenia — brak innych źródeł"
             }
           ],
-          "says": "Ocena po sprawdzeniu innych źródeł: potwierdzone (inne źródła mówią to samo), prawdopodobne, sporne (źródła się różnią), uproszczone (prawda, ale uproszczona albo udramatyzowana), fikcja (wymyślone przez autora), nieznane (nie znaleziono innego źródła). Bez sprawdzenia — puste."
+          "says": "Ocena po sprawdzeniu w innych źródłach. Bez sprawdzenia — puste."
         },
         {
-          "key": "zrodla",
+          "key": "potwierdzenia",
           "label": "Inne źródła",
           "type": "ref",
           "to": [
@@ -108,19 +150,19 @@
           ],
           "multi": true,
           "locator": true,
-          "says": "Źródła z biblioteki, które potwierdzają albo przeczą (biografie, dokumenty, encyklopedie) — z miejscem."
+          "says": "Dzieła z biblioteki, które to potwierdzają albo mu przeczą — z miejscem, jak przy „Źródle”."
         },
         {
-          "key": "zrodlaPoza",
+          "key": "poza",
           "label": "Źródła spoza biblioteki",
           "type": "list",
-          "says": "Źródła, których nie ma w bibliotece: „Encyklopedia PWN, hasło …”, adres strony, archiwum — każde w osobnej linii. Lepiej dodać źródło do biblioteki i wskazać je w „Inne źródła”."
+          "says": "Gdy źródła nie ma w bibliotece — każde w osobnej linii: hasło encyklopedii, archiwum, adres strony. Lepiej dodać je do biblioteki i wskazać w „Inne źródła”."
         },
         {
-          "key": "ocena",
-          "label": "Uzasadnienie oceny",
+          "key": "uzasadnienie",
+          "label": "Uzasadnienie",
           "type": "text",
-          "says": "Dlaczego taka ocena: co mówią inne źródła, czym się różnią od dzieła, czego nie da się sprawdzić."
+          "says": "Dlaczego taka ocena: co mówią inne źródła, czym różnią się od źródła faktu, czego nie da się sprawdzić."
         },
         {
           "key": "wymaga",
@@ -129,41 +171,34 @@
           "multi": true,
           "prerequisite": "up",
           "inverse": "Na tym budują",
-          "says": "Fakty albo wpisy, które trzeba znać wcześniej, żeby ten zrozumieć (wybór na papieża wymaga faktu, że był kardynałem). Tylko bezpośrednie."
+          "says": "Fakty albo pojęcia, które trzeba znać wcześniej, żeby ten zrozumieć (wybór na papieża wymaga faktu, że ktoś był kardynałem). Tylko bezpośrednie."
         }
       ]
     },
     {
-      "ref": "@fakty/okres",
+      "ref": "@czas/okres",
       "name": "Okres",
       "label": "{nazwa}",
-      "tells": "od",
+      "tells": "czas",
       "fields": [
         {
           "key": "nazwa",
           "label": "Nazwa",
           "type": "line",
-          "says": "Okres albo etap: „Dzieciństwo w Wadowicach”, „Okupacja”, „Pontyfikat”."
+          "says": "Okres, epoka albo etap: „Okupacja”, „Średniowiecze”, „Dzieciństwo w Wadowicach”, „Pontyfikat”, „Adwent”."
         },
         {
-          "key": "od",
-          "label": "Od",
-          "type": "date",
-          "uncertain": true,
-          "says": "Początek okresu (rok, miesiąc albo dzień)."
-        },
-        {
-          "key": "do",
-          "label": "Do",
-          "type": "date",
-          "uncertain": true,
-          "says": "Koniec okresu."
+          "key": "czas",
+          "label": "Kiedy",
+          "type": "range",
+          "rangeOf": "date",
+          "says": "Od–do, z dokładnością, jaką znamy: „1939–1945”, „ok. 960–992”, „1978–2005”, „1990–” (bez końca). Okres bez dat — puste."
         },
         {
           "key": "nr",
           "label": "Kolejność",
           "type": "number",
-          "says": "Numer okresu w kolejności (1 — najwcześniejszy) — według niego układają się okresy w widokach."
+          "says": "Numer w kolejności (1 — najwcześniejszy) — według niego układają się okresy w widokach, także gdy dat brak albo okresy nachodzą na siebie."
         },
         {
           "key": "opis",
@@ -176,37 +211,39 @@
           "label": "Należy do",
           "type": "ref",
           "to": [
-            "@fakty/okres"
+            "@czas/okres"
           ],
           "structure": "up",
           "prerequisite": "up",
           "inverse": "Okresy w środku",
-          "says": "Szerszy okres, w którym ten leży (np. „Młodość” w „Życie przed kapłaństwem”)."
+          "says": "Szerszy okres, w którym ten leży („Młodość” w „Życie przed kapłaństwem”, „Wczesne średniowiecze” w „Średniowiecze”)."
         }
       ]
     }
   ],
   "templates": [
     {
-      "ref": "@fakty/t-teza",
-      "name": "Fakt: o kim → co wiadomo (fiszka)",
+      "ref": "@fakty/t-haslo",
+      "name": "Hasło → co wiadomo (fiszka)",
       "kinds": [
         "@fakty/fakt"
       ],
-      "direction": "o czym→teza",
+      "direction": "hasło→teza",
       "graph": {
         "nodes": [
           {
             "id": "n1",
-            "type": "statement.subjects",
+            "type": "field",
             "x": 0,
             "y": 0,
-            "config": {}
+            "config": {
+              "key": "haslo"
+            }
           },
           {
             "id": "n2",
             "type": "when",
-            "x": 230,
+            "x": 115,
             "y": 0,
             "config": {
               "test": "filled"
@@ -215,18 +252,17 @@
           {
             "id": "n3",
             "type": "pattern",
-            "x": 460,
+            "x": 230,
             "y": 0,
             "config": {
-              "text": "Co wiadomo o: {0}?",
-              "inputs": 1,
-              "joiner": "; "
+              "text": "Co wiadomo: {0}?",
+              "inputs": 1
             }
           },
           {
             "id": "n4",
             "type": "prompt",
-            "x": 690,
+            "x": 460,
             "y": 0,
             "config": {}
           },
@@ -240,21 +276,21 @@
           {
             "id": "n6",
             "type": "answer.flash",
-            "x": 690,
+            "x": 460,
             "y": 160,
             "config": {}
           },
           {
             "id": "n7",
             "type": "entity",
-            "x": 460,
+            "x": 230,
             "y": 280,
             "config": {}
           },
           {
             "id": "n8",
             "type": "card",
-            "x": 920,
+            "x": 690,
             "y": 80,
             "config": {}
           }
@@ -263,7 +299,7 @@
           {
             "id": "e9",
             "from": "n1",
-            "out": "entities",
+            "out": "values",
             "to": "n2",
             "in": "items"
           },
@@ -313,12 +349,159 @@
       }
     },
     {
-      "ref": "@fakty/t-prawda",
-      "name": "Prawda czy fikcja? (wybór)",
+      "ref": "@fakty/t-kiedy",
+      "name": "Hasło → kiedy (rok)",
       "kinds": [
         "@fakty/fakt"
       ],
-      "direction": "teza→historyczność",
+      "direction": "hasło→kiedy",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "haslo"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Kiedy: {0}?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n4",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n5",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "kiedy"
+            }
+          },
+          {
+            "id": "n6",
+            "type": "when",
+            "x": 115,
+            "y": 160,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n7",
+            "type": "answer.date",
+            "x": 460,
+            "y": 160,
+            "config": {
+              "precision": "year",
+              "tolerance": 0
+            }
+          },
+          {
+            "id": "n8",
+            "type": "entity",
+            "x": 230,
+            "y": 280,
+            "config": {}
+          },
+          {
+            "id": "n9",
+            "type": "card",
+            "x": 690,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e10",
+            "from": "n1",
+            "out": "values",
+            "to": "n2",
+            "in": "items"
+          },
+          {
+            "id": "e11",
+            "from": "n2",
+            "out": "items",
+            "to": "n3",
+            "in": "p0"
+          },
+          {
+            "id": "e12",
+            "from": "n3",
+            "out": "text",
+            "to": "n4",
+            "in": "parts"
+          },
+          {
+            "id": "e13",
+            "from": "n5",
+            "out": "values",
+            "to": "n6",
+            "in": "items"
+          },
+          {
+            "id": "e14",
+            "from": "n6",
+            "out": "items",
+            "to": "n7",
+            "in": "expected"
+          },
+          {
+            "id": "e15",
+            "from": "n4",
+            "out": "prompt",
+            "to": "n9",
+            "in": "prompt"
+          },
+          {
+            "id": "e16",
+            "from": "n7",
+            "out": "answer",
+            "to": "n9",
+            "in": "answer"
+          },
+          {
+            "id": "e17",
+            "from": "n8",
+            "out": "entities",
+            "to": "n9",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@fakty/t-ocena",
+      "name": "Czy to się zgadza? (wybór oceny)",
+      "kinds": [
+        "@fakty/fakt"
+      ],
+      "direction": "teza→ocena",
       "graph": {
         "nodes": [
           {
@@ -334,7 +517,7 @@
             "x": 230,
             "y": 0,
             "config": {
-              "text": "Jak to jest naprawdę: „{0}”?",
+              "text": "Czy to się zgadza: „{0}”?",
               "inputs": 1
             }
           },
@@ -351,11 +534,20 @@
             "x": 0,
             "y": 160,
             "config": {
-              "key": "historycznosc"
+              "key": "ocena"
             }
           },
           {
             "id": "n5",
+            "type": "when",
+            "x": 115,
+            "y": 160,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n6",
             "type": "distractors",
             "x": 230,
             "y": 240,
@@ -363,13 +555,148 @@
               "from": [
                 "list"
               ],
-              "list": "potwierdzone w innych źródłach\nprawdopodobne\nsporne — źródła się różnią\nprawdziwe, ale uproszczone albo udramatyzowane\nwymyślone przez autora\nnie wiadomo — brak innych źródeł",
+              "list": "potwierdzone — inne źródła mówią to samo\nprawdopodobne — nic temu nie przeczy, ale brak potwierdzenia\nsporne — źródła się różnią\nuproszczone — prawdziwe, ale skrócone, przesadzone albo udramatyzowane\nnieprawdziwe — inne źródła mówią co innego\nfikcja — wymyślone (powieść, film, legenda)\nnie do sprawdzenia — brak innych źródeł",
               "count": 3
             }
           },
           {
-            "id": "n6",
+            "id": "n7",
             "type": "answer.one",
+            "x": 460,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "card",
+            "x": 690,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e9",
+            "from": "n1",
+            "out": "entities",
+            "to": "n2",
+            "in": "p0"
+          },
+          {
+            "id": "e10",
+            "from": "n2",
+            "out": "text",
+            "to": "n3",
+            "in": "parts"
+          },
+          {
+            "id": "e11",
+            "from": "n4",
+            "out": "values",
+            "to": "n5",
+            "in": "items"
+          },
+          {
+            "id": "e12",
+            "from": "n5",
+            "out": "items",
+            "to": "n7",
+            "in": "expected"
+          },
+          {
+            "id": "e13",
+            "from": "n5",
+            "out": "items",
+            "to": "n6",
+            "in": "expected"
+          },
+          {
+            "id": "e14",
+            "from": "n6",
+            "out": "distractors",
+            "to": "n7",
+            "in": "distractors"
+          },
+          {
+            "id": "e15",
+            "from": "n3",
+            "out": "prompt",
+            "to": "n8",
+            "in": "prompt"
+          },
+          {
+            "id": "e16",
+            "from": "n7",
+            "out": "answer",
+            "to": "n8",
+            "in": "answer"
+          },
+          {
+            "id": "e17",
+            "from": "n1",
+            "out": "entities",
+            "to": "n8",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@czas/t-okres",
+      "name": "Okres → co wtedy było (fiszka)",
+      "kinds": [
+        "@czas/okres"
+      ],
+      "direction": "okres→opis",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "nazwa"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Co było w okresie: {0}?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n4",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n5",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "opis"
+            }
+          },
+          {
+            "id": "n6",
+            "type": "answer.flash",
             "x": 460,
             "y": 160,
             "config": {}
@@ -386,155 +713,43 @@
           {
             "id": "e8",
             "from": "n1",
-            "out": "entities",
+            "out": "values",
             "to": "n2",
-            "in": "p0"
+            "in": "items"
           },
           {
             "id": "e9",
             "from": "n2",
-            "out": "text",
+            "out": "items",
             "to": "n3",
-            "in": "parts"
+            "in": "p0"
           },
           {
             "id": "e10",
-            "from": "n4",
-            "out": "values",
-            "to": "n6",
-            "in": "expected"
-          },
-          {
-            "id": "e11",
-            "from": "n4",
-            "out": "values",
-            "to": "n5",
-            "in": "expected"
-          },
-          {
-            "id": "e12",
-            "from": "n5",
-            "out": "distractors",
-            "to": "n6",
-            "in": "distractors"
-          },
-          {
-            "id": "e13",
             "from": "n3",
-            "out": "prompt",
-            "to": "n7",
-            "in": "prompt"
-          },
-          {
-            "id": "e14",
-            "from": "n6",
-            "out": "answer",
-            "to": "n7",
-            "in": "answer"
-          },
-          {
-            "id": "e15",
-            "from": "n1",
-            "out": "entities",
-            "to": "n7",
-            "in": "explain"
-          }
-        ]
-      }
-    },
-    {
-      "ref": "@fakty/t-okres",
-      "name": "Okres: co się wtedy działo (fiszka)",
-      "kinds": [
-        "@fakty/okres"
-      ],
-      "direction": "okres→opis",
-      "graph": {
-        "nodes": [
-          {
-            "id": "n1",
-            "type": "field",
-            "x": 0,
-            "y": 0,
-            "config": {
-              "key": "nazwa"
-            }
-          },
-          {
-            "id": "n2",
-            "type": "pattern",
-            "x": 230,
-            "y": 0,
-            "config": {
-              "text": "Co działo się w okresie: {0}?",
-              "inputs": 1
-            }
-          },
-          {
-            "id": "n3",
-            "type": "prompt",
-            "x": 460,
-            "y": 0,
-            "config": {}
-          },
-          {
-            "id": "n4",
-            "type": "field",
-            "x": 0,
-            "y": 160,
-            "config": {
-              "key": "opis"
-            }
-          },
-          {
-            "id": "n5",
-            "type": "answer.flash",
-            "x": 460,
-            "y": 160,
-            "config": {}
-          },
-          {
-            "id": "n6",
-            "type": "card",
-            "x": 690,
-            "y": 80,
-            "config": {}
-          }
-        ],
-        "edges": [
-          {
-            "id": "e7",
-            "from": "n1",
-            "out": "values",
-            "to": "n2",
-            "in": "p0"
-          },
-          {
-            "id": "e8",
-            "from": "n2",
             "out": "text",
-            "to": "n3",
+            "to": "n4",
             "in": "parts"
           },
           {
-            "id": "e9",
-            "from": "n4",
+            "id": "e11",
+            "from": "n5",
             "out": "values",
-            "to": "n5",
+            "to": "n6",
             "in": "back"
           },
           {
-            "id": "e10",
-            "from": "n3",
+            "id": "e12",
+            "from": "n4",
             "out": "prompt",
-            "to": "n6",
+            "to": "n7",
             "in": "prompt"
           },
           {
-            "id": "e11",
-            "from": "n5",
+            "id": "e13",
+            "from": "n6",
             "out": "answer",
-            "to": "n6",
+            "to": "n7",
             "in": "answer"
           }
         ]
@@ -544,17 +759,17 @@
   "forms": [
     {
       "ref": "@fakty/f-fakty",
-      "name": "Fakty z dzieła — wiersz po wierszu",
-      "says": "Na początek dzieło (z biblioteki). W każdym wierszu fakt (pierwsze zdanie), kiedy, miejsce w dziele i zgodność z historią, np. „Karol Wojtyła urodził się w Wadowicach. | 1920-05-18 | s. 12 | potwierdzone”.",
+      "name": "Fakty ze źródła — wiersz po wierszu",
+      "says": "Na początek źródło (dzieło z biblioteki). W każdym wierszu fakt (pierwsze zdanie), hasło, kiedy, miejsce w źródle i ocena, np. „Bitwa pod Grunwaldem odbyła się 15 lipca 1410 roku. | Bitwa pod Grunwaldem | 1410-07-15 | s. 45 | potwierdzone”.",
       "graph": {
         "nodes": [
           {
-            "id": "dzielo",
+            "id": "zrodlo",
             "type": "pick",
             "x": 0,
             "y": 0,
             "config": {
-              "label": "Dzieło",
+              "label": "Źródło",
               "kinds": [
                 "work"
               ],
@@ -577,13 +792,16 @@
                 "tresc": {
                   "from": "type"
                 },
+                "haslo": {
+                  "from": "type"
+                },
                 "kiedy": {
                   "from": "type"
                 },
-                "wDziele": {
+                "zrodlo": {
                   "from": "type"
                 },
-                "historycznosc": {
+                "ocena": {
                   "from": "type"
                 }
               }
@@ -593,12 +811,61 @@
         "edges": [
           {
             "id": "e1",
-            "from": "dzielo",
+            "from": "zrodlo",
             "out": "out",
             "to": "fakt",
-            "in": "wDziele"
+            "in": "zrodlo"
           }
         ]
+      },
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    },
+    {
+      "ref": "@czas/f-okresy",
+      "name": "Okresy — wiersz po wierszu",
+      "says": "W każdym wierszu kolejność, nazwa, kiedy i opis, np. „2 | Okupacja | 1939–1945 | Praca w kamieniołomie, tajne seminarium.”.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "okres",
+            "type": "entry",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "kind": "@czas/okres",
+              "label": "Okres",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "nazwa"
+              ],
+              "fields": {
+                "nr": {
+                  "from": "type"
+                },
+                "nazwa": {
+                  "from": "type"
+                },
+                "czas": {
+                  "from": "type"
+                },
+                "opis": {
+                  "from": "type"
+                }
+              }
+            }
+          }
+        ],
+        "edges": []
       },
       "keys": {
         "enter": "next",
@@ -627,7 +894,7 @@
       ],
       "group": {
         "by": "axis",
-        "kind": "@fakty/okres",
+        "kind": "@czas/okres",
         "via": [
           "okres"
         ],
@@ -639,7 +906,7 @@
       "columns": [
         "tresc",
         "kiedy",
-        "historycznosc"
+        "ocena"
       ],
       "sort": {
         "key": "kiedy",
@@ -648,8 +915,33 @@
       "positions": {}
     },
     {
-      "ref": "@fakty/w-prawda",
-      "name": "Prawda i fikcja",
+      "ref": "@fakty/w-czas",
+      "name": "Oś czasu",
+      "mode": "table",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@fakty/fakt"
+          }
+        }
+      ],
+      "query": "",
+      "columns": [
+        "kiedy",
+        "haslo",
+        "tresc",
+        "ocena"
+      ],
+      "sort": {
+        "key": "kiedy",
+        "dir": 1
+      },
+      "positions": {}
+    },
+    {
+      "ref": "@fakty/w-ocena",
+      "name": "Fakty według oceny",
       "mode": "tree",
       "steps": [
         {
@@ -661,12 +953,36 @@
       ],
       "group": {
         "by": "field",
-        "field": "historycznosc"
+        "field": "ocena"
       },
       "query": "",
       "columns": [
         "tresc",
-        "jakWDziele",
+        "jak",
+        "uzasadnienie"
+      ],
+      "positions": {}
+    },
+    {
+      "ref": "@fakty/w-rodzaj",
+      "name": "Fakty według rodzaju",
+      "mode": "tree",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@fakty/fakt"
+          }
+        }
+      ],
+      "group": {
+        "by": "field",
+        "field": "rodzaj"
+      },
+      "query": "",
+      "columns": [
+        "tresc",
+        "kiedy",
         "ocena"
       ],
       "positions": {}
@@ -679,7 +995,7 @@
         {
           "type": "source.kind",
           "config": {
-            "kind": "@fakty/okres"
+            "kind": "@czas/okres"
           }
         },
         {

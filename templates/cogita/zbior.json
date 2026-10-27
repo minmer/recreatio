@@ -1,0 +1,1435 @@
+{
+  "format": "recreatio.cogita.schema",
+  "version": 1,
+  "name": "Zbiór — pozycje do rozpoznania i rozróżnienia (modlitwy, prefacje, pieśni, psalmy, artykuły, utwory, obrazy…)",
+  "kinds": [
+    {
+      "ref": "@zbior/pozycja",
+      "name": "Pozycja",
+      "label": "{oznaczenie}",
+      "tells": "nr",
+      "fields": [
+        {
+          "key": "nr",
+          "label": "Numer",
+          "type": "number",
+          "says": "Kolejność w zbiorze albo w grupie (1, 2, 3…) — według niej układają się widoki. Oznaczenie, pod którym pozycja stoi w źródle („P 12”, „Ps 23”, „KV 618”, „art. 12”), idzie do „Oznaczenia”."
+        },
+        {
+          "key": "oznaczenie",
+          "label": "Oznaczenie",
+          "type": "line",
+          "says": "Jak pozycję nazywa zbiór — tytuł, numer, sygnatura: „Prefacja o Adwencie I”, „Pieśń 112: Czarna Madonna”, „Psalm 23”, „Art. 12 Konstytucji”, „Sonata c-moll op. 13 (Patetyczna)”."
+        },
+        {
+          "key": "poczatek",
+          "label": "Początek",
+          "type": "text",
+          "says": "Pierwsze słowa (wers, fraza, zdanie), po których się ją rozpoznaje — dokładnie jak w źródle. Gdy wszystkie pozycje zaczynają się tą samą formułą (prefacje: „Zaprawdę, godne to i sprawiedliwe…”), wpisz słowa PO niej."
+        },
+        {
+          "key": "tresc",
+          "label": "O czym jest",
+          "type": "blocks",
+          "says": "Pierwsze zdanie: o czym jest — myśl przewodnia, własnymi słowami (najwyżej 200 znaków). Dalej najważniejsze myśli, po kolei."
+        },
+        {
+          "key": "znaki",
+          "label": "Znaki rozpoznawcze",
+          "type": "list",
+          "says": "Słowa, obrazy, motywy, cechy, po których ją poznać — każdy w osobnej linii („czuwanie”, „podwójne przyjście”; „tonacja d-moll”; „czerwony płaszcz”)."
+        },
+        {
+          "key": "obraz",
+          "label": "Obraz albo dźwięk",
+          "type": "media",
+          "media": [
+            "image",
+            "audio"
+          ],
+          "says": "Gdy rozpoznaje się ją także po obrazie albo dźwięku — zdjęcie, ilustracja, fragment melodii. Plik dodaje się w aplikacji."
+        },
+        {
+          "key": "grupa",
+          "label": "Grupa",
+          "type": "ref",
+          "to": [
+            "@zbior/grupa"
+          ],
+          "structure": "up",
+          "prerequisite": "up",
+          "inverse": "Pozycje",
+          "says": "Grupa, dział albo rodzaj, do którego należy („Prefacje adwentowe”, „Pieśni maryjne”, „Rozdział II. Wolności i prawa”). Grupa jest ogólniejsza: najpierw poznaje się grupę, potem jej pozycje."
+        },
+        {
+          "key": "miejsce",
+          "label": "Gdzie jest",
+          "type": "ref",
+          "to": [
+            "work"
+          ],
+          "multi": true,
+          "locator": true,
+          "says": "Dzieło z biblioteki i miejsce w nim — strona, numer, werset, minuta nagrania; ta sama pozycja może stać w kilku dziełach (pieśń w dwóch śpiewnikach). Jak czytać to miejsce, wie Biblioteka (układ miejsc dzieła, także strony w osobno liczonych częściach książki)."
+        },
+        {
+          "key": "podobne",
+          "label": "Łatwo pomylić z",
+          "type": "ref",
+          "to": [
+            "@zbior/pozycja"
+          ],
+          "multi": true,
+          "symmetric": true,
+          "says": "Pozycje podobne do tej — te, które łatwo pomylić (z tej samej grupy, o tym samym temacie, o podobnym początku)."
+        },
+        {
+          "key": "roznica",
+          "label": "Czym się różni",
+          "type": "text",
+          "says": "Czym różni się od tych, z którymi łatwo ją pomylić: inna myśl, inny obraz, inne słowo kluczowe."
+        },
+        {
+          "key": "uzycie",
+          "label": "Kiedy i do czego",
+          "type": "text",
+          "says": "Kiedy, przy jakiej okazji i do czego się jej używa („w Adwencie do 16 grudnia”, „na pogrzebach”, „gdy umowa jest nieważna”)."
+        },
+        {
+          "key": "wymaga",
+          "label": "Najpierw trzeba znać",
+          "type": "ref",
+          "multi": true,
+          "prerequisite": "up",
+          "inverse": "Na tym budują",
+          "says": "Co trzeba znać wcześniej — pojęcie, inną pozycję. Tylko bezpośrednie."
+        }
+      ]
+    },
+    {
+      "ref": "@zbior/grupa",
+      "name": "Grupa",
+      "label": "{nazwa}",
+      "tells": "nr",
+      "fields": [
+        {
+          "key": "nazwa",
+          "label": "Nazwa",
+          "type": "line",
+          "says": "Nazwa grupy, działu albo rodzaju: „Prefacje”, „Prefacje adwentowe”, „Pieśni wielkanocne”, „Rozdział II Konstytucji”."
+        },
+        {
+          "key": "nr",
+          "label": "Kolejność",
+          "type": "number",
+          "says": "Numer grupy w kolejności zbioru — według niego układają się grupy w widokach."
+        },
+        {
+          "key": "opis",
+          "label": "Czym się wyróżnia",
+          "type": "markup",
+          "says": "Co łączy pozycje tej grupy i czym różni się ona od innych — dwa–trzy zdania, ogólnie."
+        },
+        {
+          "key": "nalezy",
+          "label": "Należy do",
+          "type": "ref",
+          "to": [
+            "@zbior/grupa"
+          ],
+          "structure": "up",
+          "prerequisite": "up",
+          "inverse": "Grupy w środku",
+          "says": "Szerszy dział („Prefacje” → „Prefacje adwentowe”)."
+        },
+        {
+          "key": "miejsce",
+          "label": "Gdzie jest",
+          "type": "ref",
+          "to": [
+            "work"
+          ],
+          "multi": true,
+          "locator": true,
+          "says": "Dzieło z biblioteki i zakres grupy w nim („s. 400–412”, „nr 1–20”)."
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "ref": "@zbior/t-o-czym",
+      "name": "Oznaczenie → o czym jest (fiszka)",
+      "kinds": [
+        "@zbior/pozycja"
+      ],
+      "direction": "oznaczenie→treść",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "O czym jest: {0}?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n4",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n5",
+            "type": "statement.thesis",
+            "x": 0,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n6",
+            "type": "answer.flash",
+            "x": 460,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "entity",
+            "x": 230,
+            "y": 280,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "card",
+            "x": 690,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e9",
+            "from": "n1",
+            "out": "values",
+            "to": "n2",
+            "in": "items"
+          },
+          {
+            "id": "e10",
+            "from": "n2",
+            "out": "items",
+            "to": "n3",
+            "in": "p0"
+          },
+          {
+            "id": "e11",
+            "from": "n3",
+            "out": "text",
+            "to": "n4",
+            "in": "parts"
+          },
+          {
+            "id": "e12",
+            "from": "n5",
+            "out": "text",
+            "to": "n6",
+            "in": "back"
+          },
+          {
+            "id": "e13",
+            "from": "n4",
+            "out": "prompt",
+            "to": "n8",
+            "in": "prompt"
+          },
+          {
+            "id": "e14",
+            "from": "n6",
+            "out": "answer",
+            "to": "n8",
+            "in": "answer"
+          },
+          {
+            "id": "e15",
+            "from": "n7",
+            "out": "entities",
+            "to": "n8",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@zbior/t-ktora",
+      "name": "Początek → która to? (wybór z tej samej grupy)",
+      "kinds": [
+        "@zbior/pozycja"
+      ],
+      "direction": "początek→oznaczenie",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n9",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "poczatek"
+            }
+          },
+          {
+            "id": "n10",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n11",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Która to: „{0}…”?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n12",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 200,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "field",
+            "x": 0,
+            "y": 340,
+            "config": {
+              "key": "grupa"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "entries",
+            "x": 230,
+            "y": 340,
+            "config": {
+              "kind": "@zbior/pozycja",
+              "key": "grupa",
+              "self": true,
+              "count": 8
+            }
+          },
+          {
+            "id": "n4",
+            "type": "field",
+            "x": 460,
+            "y": 340,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n5",
+            "type": "distractors",
+            "x": 690,
+            "y": 340,
+            "config": {
+              "from": [
+                "list"
+              ],
+              "count": 3
+            }
+          },
+          {
+            "id": "n6",
+            "type": "answer.one",
+            "x": 690,
+            "y": 200,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "entity",
+            "x": 460,
+            "y": 480,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "card",
+            "x": 920,
+            "y": 100,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e13",
+            "from": "n9",
+            "out": "values",
+            "to": "n10",
+            "in": "items"
+          },
+          {
+            "id": "e14",
+            "from": "n10",
+            "out": "items",
+            "to": "n11",
+            "in": "p0"
+          },
+          {
+            "id": "e15",
+            "from": "n11",
+            "out": "text",
+            "to": "n12",
+            "in": "parts"
+          },
+          {
+            "id": "e16",
+            "from": "n2",
+            "out": "values",
+            "to": "n3",
+            "in": "like"
+          },
+          {
+            "id": "e17",
+            "from": "n3",
+            "out": "entities",
+            "to": "n4",
+            "in": "of"
+          },
+          {
+            "id": "e18",
+            "from": "n4",
+            "out": "values",
+            "to": "n5",
+            "in": "list"
+          },
+          {
+            "id": "e19",
+            "from": "n1",
+            "out": "values",
+            "to": "n5",
+            "in": "expected"
+          },
+          {
+            "id": "e20",
+            "from": "n1",
+            "out": "values",
+            "to": "n6",
+            "in": "expected"
+          },
+          {
+            "id": "e21",
+            "from": "n5",
+            "out": "distractors",
+            "to": "n6",
+            "in": "distractors"
+          },
+          {
+            "id": "e22",
+            "from": "n12",
+            "out": "prompt",
+            "to": "n8",
+            "in": "prompt"
+          },
+          {
+            "id": "e23",
+            "from": "n6",
+            "out": "answer",
+            "to": "n8",
+            "in": "answer"
+          },
+          {
+            "id": "e24",
+            "from": "n7",
+            "out": "entities",
+            "to": "n8",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@zbior/t-pary",
+      "name": "Początki i oznaczenia z tej samej grupy — połącz w pary",
+      "kinds": [
+        "@zbior/pozycja"
+      ],
+      "direction": "początek↔oznaczenie",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "entity",
+            "x": 0,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n2",
+            "type": "field",
+            "x": 0,
+            "y": 140,
+            "config": {
+              "key": "grupa"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "entries",
+            "x": 230,
+            "y": 140,
+            "config": {
+              "kind": "@zbior/pozycja",
+              "key": "grupa",
+              "self": true,
+              "count": 10
+            }
+          },
+          {
+            "id": "n4",
+            "type": "pairs.fields",
+            "x": 460,
+            "y": 60,
+            "config": {
+              "left": "poczatek",
+              "right": "oznaczenie",
+              "count": 4
+            }
+          },
+          {
+            "id": "n5",
+            "type": "pattern",
+            "x": 460,
+            "y": 240,
+            "config": {
+              "text": "Połącz początki z oznaczeniami",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n6",
+            "type": "prompt",
+            "x": 690,
+            "y": 240,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "answer.match",
+            "x": 690,
+            "y": 60,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "card",
+            "x": 920,
+            "y": 120,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e9",
+            "from": "n1",
+            "out": "entities",
+            "to": "n4",
+            "in": "items"
+          },
+          {
+            "id": "e10",
+            "from": "n2",
+            "out": "values",
+            "to": "n3",
+            "in": "like"
+          },
+          {
+            "id": "e11",
+            "from": "n3",
+            "out": "entities",
+            "to": "n4",
+            "in": "items"
+          },
+          {
+            "id": "e12",
+            "from": "n5",
+            "out": "text",
+            "to": "n6",
+            "in": "parts"
+          },
+          {
+            "id": "e13",
+            "from": "n4",
+            "out": "left",
+            "to": "n7",
+            "in": "left"
+          },
+          {
+            "id": "e14",
+            "from": "n4",
+            "out": "right",
+            "to": "n7",
+            "in": "right"
+          },
+          {
+            "id": "e15",
+            "from": "n6",
+            "out": "prompt",
+            "to": "n8",
+            "in": "prompt"
+          },
+          {
+            "id": "e16",
+            "from": "n7",
+            "out": "answer",
+            "to": "n8",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@zbior/t-poczatek",
+      "name": "Oznaczenie → jak się zaczyna (fiszka)",
+      "kinds": [
+        "@zbior/pozycja"
+      ],
+      "direction": "oznaczenie→początek",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Jak zaczyna się: {0}?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n4",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n5",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "poczatek"
+            }
+          },
+          {
+            "id": "n6",
+            "type": "answer.flash",
+            "x": 460,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "card",
+            "x": 690,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e8",
+            "from": "n1",
+            "out": "values",
+            "to": "n2",
+            "in": "items"
+          },
+          {
+            "id": "e9",
+            "from": "n2",
+            "out": "items",
+            "to": "n3",
+            "in": "p0"
+          },
+          {
+            "id": "e10",
+            "from": "n3",
+            "out": "text",
+            "to": "n4",
+            "in": "parts"
+          },
+          {
+            "id": "e11",
+            "from": "n5",
+            "out": "values",
+            "to": "n6",
+            "in": "back"
+          },
+          {
+            "id": "e12",
+            "from": "n4",
+            "out": "prompt",
+            "to": "n7",
+            "in": "prompt"
+          },
+          {
+            "id": "e13",
+            "from": "n6",
+            "out": "answer",
+            "to": "n7",
+            "in": "answer"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@zbior/t-roznica",
+      "name": "Czym się różni od podobnych? (fiszka)",
+      "kinds": [
+        "@zbior/pozycja"
+      ],
+      "direction": "podobne→różnica",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "field",
+            "x": 0,
+            "y": 100,
+            "config": {
+              "key": "podobne"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "when",
+            "x": 115,
+            "y": 100,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n4",
+            "type": "pattern",
+            "x": 230,
+            "y": 40,
+            "config": {
+              "text": "Czym „{0}” różni się od: {1}?",
+              "inputs": 2
+            }
+          },
+          {
+            "id": "n5",
+            "type": "prompt",
+            "x": 460,
+            "y": 40,
+            "config": {}
+          },
+          {
+            "id": "n6",
+            "type": "field",
+            "x": 0,
+            "y": 220,
+            "config": {
+              "key": "roznica"
+            }
+          },
+          {
+            "id": "n7",
+            "type": "when",
+            "x": 115,
+            "y": 220,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n8",
+            "type": "answer.flash",
+            "x": 460,
+            "y": 220,
+            "config": {}
+          },
+          {
+            "id": "n9",
+            "type": "entity",
+            "x": 230,
+            "y": 320,
+            "config": {}
+          },
+          {
+            "id": "n10",
+            "type": "card",
+            "x": 690,
+            "y": 120,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e11",
+            "from": "n1",
+            "out": "values",
+            "to": "n4",
+            "in": "p0"
+          },
+          {
+            "id": "e12",
+            "from": "n2",
+            "out": "values",
+            "to": "n3",
+            "in": "items"
+          },
+          {
+            "id": "e13",
+            "from": "n3",
+            "out": "items",
+            "to": "n4",
+            "in": "p1"
+          },
+          {
+            "id": "e14",
+            "from": "n4",
+            "out": "text",
+            "to": "n5",
+            "in": "parts"
+          },
+          {
+            "id": "e15",
+            "from": "n6",
+            "out": "values",
+            "to": "n7",
+            "in": "items"
+          },
+          {
+            "id": "e16",
+            "from": "n7",
+            "out": "items",
+            "to": "n8",
+            "in": "back"
+          },
+          {
+            "id": "e17",
+            "from": "n5",
+            "out": "prompt",
+            "to": "n10",
+            "in": "prompt"
+          },
+          {
+            "id": "e18",
+            "from": "n8",
+            "out": "answer",
+            "to": "n10",
+            "in": "answer"
+          },
+          {
+            "id": "e19",
+            "from": "n9",
+            "out": "entities",
+            "to": "n10",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@zbior/t-obraz",
+      "name": "Obraz albo dźwięk → która to? (wybór z tej samej grupy)",
+      "kinds": [
+        "@zbior/pozycja"
+      ],
+      "direction": "obraz→oznaczenie",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n9",
+            "type": "media",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "obraz"
+            }
+          },
+          {
+            "id": "n10",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n11",
+            "type": "pattern",
+            "x": 230,
+            "y": 80,
+            "config": {
+              "text": "Która to?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n12",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 200,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "field",
+            "x": 0,
+            "y": 340,
+            "config": {
+              "key": "grupa"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "entries",
+            "x": 230,
+            "y": 340,
+            "config": {
+              "kind": "@zbior/pozycja",
+              "key": "grupa",
+              "self": true,
+              "count": 8
+            }
+          },
+          {
+            "id": "n4",
+            "type": "field",
+            "x": 460,
+            "y": 340,
+            "config": {
+              "key": "oznaczenie"
+            }
+          },
+          {
+            "id": "n5",
+            "type": "distractors",
+            "x": 690,
+            "y": 340,
+            "config": {
+              "from": [
+                "list"
+              ],
+              "count": 3
+            }
+          },
+          {
+            "id": "n6",
+            "type": "answer.one",
+            "x": 690,
+            "y": 200,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "entity",
+            "x": 460,
+            "y": 480,
+            "config": {}
+          },
+          {
+            "id": "n8",
+            "type": "card",
+            "x": 920,
+            "y": 100,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e13",
+            "from": "n9",
+            "out": "values",
+            "to": "n10",
+            "in": "items"
+          },
+          {
+            "id": "e14",
+            "from": "n10",
+            "out": "items",
+            "to": "n12",
+            "in": "parts"
+          },
+          {
+            "id": "e15",
+            "from": "n11",
+            "out": "text",
+            "to": "n12",
+            "in": "parts"
+          },
+          {
+            "id": "e16",
+            "from": "n2",
+            "out": "values",
+            "to": "n3",
+            "in": "like"
+          },
+          {
+            "id": "e17",
+            "from": "n3",
+            "out": "entities",
+            "to": "n4",
+            "in": "of"
+          },
+          {
+            "id": "e18",
+            "from": "n4",
+            "out": "values",
+            "to": "n5",
+            "in": "list"
+          },
+          {
+            "id": "e19",
+            "from": "n1",
+            "out": "values",
+            "to": "n5",
+            "in": "expected"
+          },
+          {
+            "id": "e20",
+            "from": "n1",
+            "out": "values",
+            "to": "n6",
+            "in": "expected"
+          },
+          {
+            "id": "e21",
+            "from": "n5",
+            "out": "distractors",
+            "to": "n6",
+            "in": "distractors"
+          },
+          {
+            "id": "e22",
+            "from": "n12",
+            "out": "prompt",
+            "to": "n8",
+            "in": "prompt"
+          },
+          {
+            "id": "e23",
+            "from": "n6",
+            "out": "answer",
+            "to": "n8",
+            "in": "answer"
+          },
+          {
+            "id": "e24",
+            "from": "n7",
+            "out": "entities",
+            "to": "n8",
+            "in": "explain"
+          }
+        ]
+      }
+    },
+    {
+      "ref": "@zbior/t-grupa",
+      "name": "Grupa → czym się wyróżnia (fiszka)",
+      "kinds": [
+        "@zbior/grupa"
+      ],
+      "direction": "grupa→opis",
+      "graph": {
+        "nodes": [
+          {
+            "id": "n1",
+            "type": "field",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "key": "nazwa"
+            }
+          },
+          {
+            "id": "n2",
+            "type": "when",
+            "x": 115,
+            "y": 0,
+            "config": {
+              "test": "filled"
+            }
+          },
+          {
+            "id": "n3",
+            "type": "pattern",
+            "x": 230,
+            "y": 0,
+            "config": {
+              "text": "Czym wyróżnia się grupa: {0}?",
+              "inputs": 1
+            }
+          },
+          {
+            "id": "n4",
+            "type": "prompt",
+            "x": 460,
+            "y": 0,
+            "config": {}
+          },
+          {
+            "id": "n5",
+            "type": "field",
+            "x": 0,
+            "y": 160,
+            "config": {
+              "key": "opis"
+            }
+          },
+          {
+            "id": "n6",
+            "type": "answer.flash",
+            "x": 460,
+            "y": 160,
+            "config": {}
+          },
+          {
+            "id": "n7",
+            "type": "card",
+            "x": 690,
+            "y": 80,
+            "config": {}
+          }
+        ],
+        "edges": [
+          {
+            "id": "e8",
+            "from": "n1",
+            "out": "values",
+            "to": "n2",
+            "in": "items"
+          },
+          {
+            "id": "e9",
+            "from": "n2",
+            "out": "items",
+            "to": "n3",
+            "in": "p0"
+          },
+          {
+            "id": "e10",
+            "from": "n3",
+            "out": "text",
+            "to": "n4",
+            "in": "parts"
+          },
+          {
+            "id": "e11",
+            "from": "n5",
+            "out": "values",
+            "to": "n6",
+            "in": "back"
+          },
+          {
+            "id": "e12",
+            "from": "n4",
+            "out": "prompt",
+            "to": "n7",
+            "in": "prompt"
+          },
+          {
+            "id": "e13",
+            "from": "n6",
+            "out": "answer",
+            "to": "n7",
+            "in": "answer"
+          }
+        ]
+      }
+    }
+  ],
+  "forms": [
+    {
+      "ref": "@zbior/f-pozycje",
+      "name": "Pozycje zbioru — wiersz po wierszu",
+      "says": "Na początek grupa i — gdy jest w bibliotece — dzieło. W każdym wierszu numer, oznaczenie, początek, o czym jest i miejsce, np. „1 | Prefacja o Adwencie I | On to, przyszedłszy po raz pierwszy | Dwa przyjścia Chrystusa. | s. 412”.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "grupa",
+            "type": "pick",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "label": "Grupa",
+              "kinds": [
+                "@zbior/grupa"
+              ],
+              "many": false,
+              "optional": false,
+              "value": []
+            }
+          },
+          {
+            "id": "dzielo",
+            "type": "pick",
+            "x": 0,
+            "y": 140,
+            "config": {
+              "label": "Dzieło",
+              "kinds": [
+                "work"
+              ],
+              "many": false,
+              "optional": true,
+              "value": []
+            }
+          },
+          {
+            "id": "pozycja",
+            "type": "entry",
+            "x": 320,
+            "y": 60,
+            "config": {
+              "kind": "@zbior/pozycja",
+              "label": "Pozycja",
+              "many": false,
+              "reuse": "same",
+              "identity": [
+                "oznaczenie"
+              ],
+              "fields": {
+                "nr": {
+                  "from": "type"
+                },
+                "oznaczenie": {
+                  "from": "type"
+                },
+                "poczatek": {
+                  "from": "type"
+                },
+                "tresc": {
+                  "from": "type"
+                },
+                "miejsce": {
+                  "from": "type"
+                }
+              }
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "grupa",
+            "out": "out",
+            "to": "pozycja",
+            "in": "grupa"
+          },
+          {
+            "id": "e2",
+            "from": "dzielo",
+            "out": "out",
+            "to": "pozycja",
+            "in": "miejsce"
+          }
+        ]
+      },
+      "keys": {
+        "enter": "next",
+        "ctrlEnter": "more",
+        "shiftEnter": "save"
+      },
+      "paste": {
+        "columns": "|",
+        "values": ";",
+        "header": false
+      }
+    }
+  ],
+  "views": [
+    {
+      "ref": "@zbior/w-numer",
+      "name": "Według numeru",
+      "mode": "table",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@zbior/pozycja"
+          }
+        }
+      ],
+      "query": "",
+      "columns": [
+        "nr",
+        "oznaczenie",
+        "poczatek",
+        "grupa"
+      ],
+      "sort": {
+        "key": "nr",
+        "dir": 1
+      },
+      "positions": {}
+    },
+    {
+      "ref": "@zbior/w-grupy",
+      "name": "Według grup",
+      "mode": "tree",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@zbior/pozycja"
+          }
+        }
+      ],
+      "group": {
+        "by": "axis",
+        "kind": "@zbior/grupa",
+        "via": [
+          "grupa"
+        ],
+        "sort": {
+          "field": "nr"
+        }
+      },
+      "query": "",
+      "columns": [
+        "nr",
+        "oznaczenie",
+        "poczatek"
+      ],
+      "sort": {
+        "key": "nr",
+        "dir": 1
+      },
+      "positions": {}
+    },
+    {
+      "ref": "@zbior/w-roznice",
+      "name": "Podobne i różnice",
+      "mode": "table",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@zbior/pozycja"
+          }
+        }
+      ],
+      "query": "",
+      "columns": [
+        "oznaczenie",
+        "podobne",
+        "roznica",
+        "znaki"
+      ],
+      "sort": {
+        "key": "oznaczenie",
+        "dir": 1
+      },
+      "positions": {}
+    },
+    {
+      "ref": "@zbior/w-podstawy",
+      "name": "Od podstaw",
+      "mode": "tree",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@zbior/grupa"
+          }
+        },
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@zbior/pozycja"
+          }
+        }
+      ],
+      "group": {
+        "by": "level"
+      },
+      "query": "",
+      "columns": [],
+      "positions": {}
+    }
+  ]
+}

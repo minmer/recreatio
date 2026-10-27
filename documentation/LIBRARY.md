@@ -183,12 +183,18 @@ by the **scheme** of its work (the work field "Układ miejsc", else from its kin
   place cited in one edition may open the text of another (shown as such); a page never.
 - Quotes are ordered by the scheme of their work (`workLocatorKey`): pages as numbers, the Scripture by the canon,
   Aquinas by part, question, article.
-- **Page series** (2026-10-27): a book whose parts are paged separately (a Missal: `s. 12*`, `s. 45`, `s. 3'`,
-  `s. 3''`, `s. (7)`, `s. [7]`, roman `s. xii`). Each series is a band of its own — the same number in two series stays
-  two pages — and a range stays in its series (`s. 45'–47'`). The work field „Serie stron” (`pageSeries`, e.g.
-  `* 1 ' ''`) gives their order in the book, else `i * ** () [] 1 ' '' '''`; it orders quotes, places and Cogita
-  structures (`pageOrdinal`, never stored). The AI link and MCP read the same marks (`AiAccess.PageValue`). A book has
-  „Gatunek” too (powieść biograficzna, mszał …), which the guide `templates/cogita/ksiazka-AI.md` uses.
+- **Page series** (2026-10-27): a book whose parts are paged separately — front matter, appendices, inserts — writes
+  each page as printed, with any marks before, after or around the number: `s. xii`, `s. 12*`, `s. 3'`, `s. 3''`,
+  `s. (7)`, `s. [7]`, `s. A12`, `s. †3`, `s. iv*`. There is no list of marks: the SERIES is the pattern of the marks
+  (`#*`, `(#)`, `A#`, `i*`; `#` the plain pages, `i` roman front matter; `locations.ts` `readPage`). Not marks:
+  separators, quotation marks, letters after the number (`23n` is "and next", `12a` a column) and a lone bracket
+  (`(s. 7)`). Each series is a band of its own, computed from its pattern (FNV-1a; the same in the service,
+  `AiAccess.PageValue`) — the same number in two series stays two pages, a range stays in its series (`s. 45'–47'`),
+  and the numbers stored in a text's directory stay valid. The work field „Serie stron” (`pageSeries`) gives the
+  order of the series by one example page each (`xii 12* 1 3'`; the marks alone still work: `* 1 '`); without it:
+  roman, plain, then the others. A text's directory names the series of each part (`ManifestPart.series`) and the AI
+  snapshot names those of a text (`pageSeries`), so pages are written back as printed. A book has „Gatunek” too
+  (powieść biograficzna, podręcznik, mszał …).
 
 **A source text** is stored like everything else, sealed under its area's key, in **any library one may write** —
 not necessarily the work's. So the work can stand in a public library and its text in a private one; whoever reads

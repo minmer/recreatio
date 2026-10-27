@@ -228,8 +228,10 @@ if (httpPort === null) {
   const host = option('host', '127.0.0.1');
   const http = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://local');
-    if (url.pathname !== '/mcp') { res.writeHead(404); res.end(); return; }
-    if (req.headers.authorization !== `Bearer ${token}`) {
+    /* Der Schlüssel im Kopf — oder im Pfad (`/mcp/<token>`): ChatGPT mit „No authentication" schickt keinen Kopf. */
+    const inPath = url.pathname === `/mcp/${token}`;
+    if (url.pathname !== '/mcp' && !inPath) { res.writeHead(404); res.end(); return; }
+    if (!inPath && req.headers.authorization !== `Bearer ${token}`) {
       res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': 'Bearer' });
       res.end(JSON.stringify({ error: 'unauthorized' }));
       return;
@@ -247,6 +249,6 @@ if (httpPort === null) {
     await transport.handleRequest(req, res, body);
   });
   http.listen(Number(httpPort), host, () => {
-    log(`ready on http://${host}:${httpPort}/mcp — send "Authorization: Bearer ${token}" (renderer ${settings.renderer}, api ${settings.api ?? 'off'})`);
+    log(`ready on http://${host}:${httpPort}/mcp — send "Authorization: Bearer ${token}", or use the path /mcp/${token} (ChatGPT: https://<your tunnel>/mcp/${token}, No authentication) (renderer ${settings.renderer}, api ${settings.api ?? 'off'})`);
   });
 }

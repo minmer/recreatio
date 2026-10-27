@@ -2510,7 +2510,7 @@ check('goals and lines follow the one logic', [
     [aplan.cards.length, acards.length, true, 0, 4]);
 }
 
-/* ══ 2026-10-27 — zwei Bücher: Fakten eines Werks über Wirkliches (fakty.json), eine Księga numerierter Teile (jednostki.json) ══ */
+/* ══ 2026-10-27 — zwei allgemeine Schemata, je an zwei verschiedenen Fällen: Fakten mit Quellen (fakty.json) und ein Zbiór (zbior.json) ══ */
 {
   const sfake = (libraryId, entries) => {
     const map = new Map(entries.map((x) => [x.id, x]));
@@ -2528,9 +2528,15 @@ check('goals and lines follow the one logic', [
   };
   const NOVEL = '01a1c0de-0000-7000-8000-0000000000a1';
   const MISSAL = '01a1c0de-0000-7000-8000-0000000000a2';
+  const SPEECH = '01a1c0de-0000-7000-8000-0000000000a3';
+  const HYMNAL = '01a1c0de-0000-7000-8000-0000000000a4';
+  const HYMNAL2 = '01a1c0de-0000-7000-8000-0000000000a5';
   const books = sfake('LB', [
     { id: NOVEL, kind: 'work', key: 'powiesc2005', data: { workType: 'book', genre: 'powieść biograficzna', title: 'Z Wadowic do Rzymu' } },
-    { id: MISSAL, kind: 'work', key: 'mszal1986', data: { workType: 'book', genre: 'mszał', title: 'Mszał rzymski dla diecezji polskich', pageSeries: "* 1 '" } }
+    { id: MISSAL, kind: 'work', key: 'mszal1986', data: { workType: 'book', genre: 'mszał', title: 'Mszał rzymski dla diecezji polskich', pageSeries: "xii 12* 1 3'" } },
+    { id: SPEECH, kind: 'work', key: 'debata2023', data: { workType: 'recording', title: 'Debata wyborcza (nagranie)' } },
+    { id: HYMNAL, kind: 'work', key: 'spiewnik1990', data: { workType: 'book', genre: 'śpiewnik', title: 'Śpiewnik kościelny' } },
+    { id: HYMNAL2, kind: 'work', key: 'spiewnik2010', data: { workType: 'book', genre: 'śpiewnik', title: 'Exsultate' } }
   ]);
   const sources = async (lib) => lib.setSources((await Src.loadSources(lib, async (ref) => ({ LB: books }[ref.id] ?? null))).loaded);
   const baseWith = async (id) => {
@@ -2538,71 +2544,103 @@ check('goals and lines follow the one logic', [
     await sources(lib);
     return lib;
   };
+  const tname = (lib) => (c) => lib.docs('template').find((d) => d.id === c.template)?.data.name;
+  const rowsOf = (lib, form, rows, picks) => AF.planForm(AF.readAddForm('f', form.data), { look: lib.look, pool: (k) => lib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `n${form.id}${++i}`; })() }, rows, { picks, asks: {} });
 
-  /* Der Leitfaden für die KI (templates/cogita/ksiazka-AI.md): seine Anhänge sind die der App und die Dateien der Schemata. */
+  /* Der Leitfaden für die KI (templates/cogita/ksiazka-AI.md): allgemein, seine Anhänge sind die der App und die Dateien der Schemata. */
   const KG = await import(pathToFileURL(join(process.cwd(), 'scripts/ksiazka-guide.mjs')).href);
   const kguide = (await readFile('../templates/cogita/ksiazka-AI.md', 'utf8')).replace(/\r\n/g, '\n');
   check('the book guide for an AI carries the app’s own descriptions and the fields of every template (node scripts/ksiazka-guide.mjs)', (await KG.guideWith(kguide, await KG.appDescriptions())) === kguide, true);
-  check('… a two-step guide with the menu of choices (scope, layers, questions, order, revisions, checking facts)', ['## 1. Krok pierwszy', '## 2. Krok drugi', '**A1**', '**B3**', '**B5**', '**C3**', '**D1**', '**E1**', '**F2**', 'pageSeries'].every((w) => kguide.includes(w)), true);
+  check('… a two-step guide for any book: the layers and their general schemes, the menu of choices, pages as printed in the Library',
+    [['## 1. Krok pierwszy', '## 2. Krok drugi', '**A1**', '**B3**', '**B5**', '**C3**', '**D1**', '**E1**', '**F2**', 'pageSeries', '`wywod.json`', '`fakty.json`', '`zbior.json`', '`podstawy.json`', '`pytania.json`'].every((w) => kguide.includes(w)), kguide.includes('jednostki.json')],
+    [true, false]);
 
-  /* -- Fakty: was ein Werk über Wirkliches sagt, geprüft ------------------------------------------- */
+  /* -- fakty.json: was eine Quelle über die Welt sagt, geprüft — eine Powieść über eine wirkliche Person UND eine aufgezeichnete Debatte -- */
   const flib = await baseWith('F');
   const pf = Js.planImport(flib, JSON.parse(await readFile('../templates/cogita/fakty.json', 'utf8')));
-  check('fakty.json imports: Fakt and Okres, three card templates, one adding method, three views — no warning',
+  check('fakty.json imports: Fakt and Okres, four card templates, two adding methods, five views — no warning',
     [pf.kinds.map((k) => k.def.name), pf.docs.filter((d) => d.kind === 'template').length, pf.docs.filter((d) => d.kind === 'addform').length, pf.docs.filter((d) => d.kind === 'view').length, pf.warnings],
-    [['Fakt', 'Okres'], 3, 1, 3, []]);
+    [['Fakt', 'Okres'], 4, 2, 5, []]);
   await Js.applyImport(flib, pf, () => undefined);
   const FAKT = flib.kinds.find((k) => k.name === 'Fakt');
   const OKRES = flib.kinds.find((k) => k.name === 'Okres');
-  check('… a fact: a statement (blocks) with its period as structure AND what comes first; the work as its source with a place; other sources; how the work tells it',
-    [FAKT.fields.find((f) => f.key === 'tresc').type, FAKT.fields.find((f) => f.key === 'okres').structure, FAKT.fields.find((f) => f.key === 'okres').prerequisite, FAKT.fields.find((f) => f.key === 'wDziele').locator, FAKT.fields.find((f) => f.key === 'zrodla').locator, FAKT.fields.find((f) => f.key === 'kiedy').uncertain, FAKT.fields.some((f) => f.key === 'jakWDziele')],
-    ['blocks', 'up', 'up', true, true, true, true]);
-  const okres = await flib.saveEntity({ kinds: [OKRES.id], data: { nazwa: 'Dzieciństwo w Wadowicach', nr: 1, opis: 'Rodzina, szkoła, teatr.' } });
+  const fieldOf = (kind, key) => kind.fields.find((f) => f.key === key);
+  check('… general: the source is any work with a place (the Library reads the place), the judgement is not about history only, the period has a time span',
+    [fieldOf(FAKT, 'tresc').type, fieldOf(FAKT, 'okres').structure, fieldOf(FAKT, 'okres').prerequisite, fieldOf(FAKT, 'zrodlo').to, fieldOf(FAKT, 'zrodlo').locator, fieldOf(FAKT, 'kiedy').uncertain,
+      fieldOf(FAKT, 'ocena').options.map((o) => o.value), fieldOf(OKRES, 'czas').type, fieldOf(OKRES, 'czas').rangeOf],
+    ['blocks', 'up', 'up', ['work'], true, true, ['potwierdzone', 'prawdopodobne', 'sporne', 'uproszczone', 'nieprawdziwe', 'fikcja', 'nieznane'], 'range', 'date']);
+  /* (1) eine Powieść über eine wirkliche Person */
+  const okres = await flib.saveEntity({ kinds: [OKRES.id], data: { nazwa: 'Dzieciństwo w Wadowicach', nr: 1, czas: { segments: [{ from: '1920', to: '1938' }] }, opis: 'Rodzina, szkoła, teatr.' } });
   const ktos = await flib.saveEntity({ kinds: [OKRES.id], data: { nazwa: 'Karol Wojtyła' } });
-  const f1 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Karol Wojtyła urodził się w Wadowicach.' }], kogo: [ktos.id], kiedy: [{ value: '1920-05-18', state: 'known' }], okres: [okres.id], wDziele: [{ value: NOVEL, locator: 's. 12' }], historycznosc: 'potwierdzone' } });
-  const f2 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Mały Karol rozmawiał z ojcem o Mickiewiczu przy kominku.' }], kogo: [ktos.id], okres: [okres.id], wymaga: [f1.id], jakWDziele: 'Scena wymyślona dla oddania atmosfery domu.', historycznosc: 'fikcja' } });
+  const f1 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Karol Wojtyła urodził się w Wadowicach 18 maja 1920 roku.' }], haslo: 'Narodziny Karola Wojtyły', rodzaj: 'zdarzenie', kogo: [ktos.id], kiedy: [{ value: '1920-05-18', state: 'known' }], okres: [okres.id], zrodlo: [{ value: NOVEL, locator: 's. 12' }], ocena: 'potwierdzone' } });
+  const f2 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Mały Karol rozmawiał z ojcem o Mickiewiczu przy kominku.' }], kogo: [ktos.id], okres: [okres.id], wymaga: [f1.id], jak: 'Scena wymyślona dla oddania atmosfery domu.', ocena: 'fikcja' } });
+  /* (2) dieselbe Art für eine aufgezeichnete Debatte: die Quelle ist ein Nagranie mit seiner Minute, eine Zahl wird geprüft */
+  const f3 = await flib.saveEntity({ kinds: [FAKT.id], data: { tresc: [{ type: 'paragraph', text: 'Bezrobocie spadło w ostatnim roku do 3 procent.' }], haslo: 'Bezrobocie w ostatnim roku', rodzaj: 'liczba', zrodlo: [{ value: SPEECH, locator: '12:30' }], ocena: 'nieprawdziwe', uzasadnienie: 'GUS podaje 5,1%.' } });
   const fcards = (await flib.cards('s')).cards;
-  const tname = (lib) => (c) => lib.docs('template').find((d) => d.id === c.template)?.data.name;
-  const prawda = fcards.find((c) => c.entity === f2.id && c.answer.form === 'one');
-  check('… cards: what is known about a person (fiszka), „prawda czy fikcja?” with the six judgements, a period as a fiszka',
-    [fcards.filter((c) => c.entity === f1.id).map(tname(flib)).sort(), prawda?.answer.options[prawda.answer.correct], prawda?.answer.options.length, fcards.some((c) => c.entity === okres.id && c.answer.form === 'flash')],
-    [['Fakt: o kim → co wiadomo (fiszka)', 'Prawda czy fikcja? (wybór)'], 'wymyślone przez autora', 4, true]);
+  const judged = fcards.find((c) => c.entity === f2.id && c.answer.form === 'one');
+  const when1920 = fcards.find((c) => c.entity === f1.id && c.answer.form === 'date');
+  check('… cards: from the headword what is known and when (a year), „czy to się zgadza?” among the judgements; a fact without a headword or date asks only what can be asked',
+    [fcards.filter((c) => c.entity === f1.id).map(tname(flib)).sort(), when1920?.prompt.map((p) => p.text).join(''), judged?.answer.options[judged.answer.correct], judged?.answer.options.length,
+      fcards.filter((c) => c.entity === f2.id).map(tname(flib)), fcards.filter((c) => c.entity === f3.id).map(tname(flib)).sort(), fcards.some((c) => c.entity === okres.id && c.answer.form === 'flash')],
+    [['Czy to się zgadza? (wybór oceny)', 'Hasło → co wiadomo (fiszka)', 'Hasło → kiedy (rok)'], 'Kiedy: Narodziny Karola Wojtyły?', 'fikcja — wymyślone (powieść, film, legenda)', 4,
+      ['Czy to się zgadza? (wybór oceny)'], ['Czy to się zgadza? (wybór oceny)', 'Hasło → co wiadomo (fiszka)'], true]);
   const fg = flib.prerequisites();
   check('… the order: the period first, the fact in it next, the fact that needs that fact last', [fg.level.get(okres.id), fg.level.get(f1.id), fg.level.get(f2.id)], [0, 1, 2]);
-  const fform = AF.readAddForm('f', flib.docs('addform')[0].data);
-  const frows = AF.planForm(fform, { look: flib.look, pool: (k) => flib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `nf${++i}`; })() },
-    [{ fakt: [{ tresc: 'Karol przyjął święcenia w Krakowie.', kiedy: '1946-11-01', '@loc:wDziele': 's. 88', historycznosc: 'potwierdzone' }] }], { picks: { dzielo: [NOVEL] }, asks: {} });
-  check('… adding facts row by row: the work chosen once, the place typed — a fact with its source and its judgement',
-    [frows.rows[0].problems, frows.saves[0]?.data.wDziele, frows.saves[0]?.data.historycznosc, frows.saves[0]?.data.kiedy], [[], [{ value: NOVEL, locator: 's. 88' }], 'potwierdzone', '1946-11-01']);
+  const fforms = flib.docs('addform');
+  const factForm = fforms.find((d) => d.data.name === 'Fakty ze źródła — wiersz po wierszu');
+  const periodForm = fforms.find((d) => d.data.name === 'Okresy — wiersz po wierszu');
+  const frows = rowsOf(flib, factForm, [{ fakt: [{ tresc: 'Karol przyjął święcenia w Krakowie.', haslo: 'Święcenia kapłańskie', kiedy: '1946-11-01', '@loc:zrodlo': 's. 88', ocena: 'potwierdzone' }] }], { zrodlo: [NOVEL] });
+  const srows = rowsOf(flib, factForm, [{ fakt: [{ tresc: 'Inflacja wynosi 2 procent.', '@loc:zrodlo': '41:05', ocena: 'nieprawdziwe' }] }], { zrodlo: [SPEECH] });
+  const prows = rowsOf(flib, periodForm, [{ okres: [{ nr: '2', nazwa: 'Okupacja', czas: '1939–1945', opis: 'Praca w kamieniołomie.' }] }], {});
+  check('… adding row by row: the source chosen once and its place typed — a page of a book, a minute of a recording; periods with their span',
+    [frows.rows[0].problems, frows.saves[0]?.data.zrodlo, frows.saves[0]?.data.ocena, srows.saves[0]?.data.zrodlo, prows.rows[0].problems, prows.saves[0]?.data.czas?.segments?.[0]?.from, prows.saves[0]?.data.czas?.segments?.[0]?.to],
+    [[], [{ value: NOVEL, locator: 's. 88' }], 'potwierdzone', [{ value: SPEECH, locator: '41:05' }], [], '1939', '1945']);
 
-  /* -- Jednostki: eine Księga numerierter Teile (Prefacje eines Missale) ------------------------------- */
-  const jlib = await baseWith('J');
-  const pj = Js.planImport(jlib, JSON.parse(await readFile('../templates/cogita/jednostki.json', 'utf8')));
-  check('jednostki.json imports: Część księgi and Grupa części, five card templates, one adding method, three views — no warning',
-    [pj.kinds.map((k) => k.def.name), pj.docs.filter((d) => d.kind === 'template').length, pj.docs.filter((d) => d.kind === 'addform').length, pj.docs.filter((d) => d.kind === 'view').length, pj.warnings],
-    [['Część księgi', 'Grupa części'], 5, 1, 3, []]);
-  await Js.applyImport(jlib, pj, () => undefined);
-  const JED = jlib.kinds.find((k) => k.name === 'Część księgi');
-  const GR = jlib.kinds.find((k) => k.name === 'Grupa części');
-  const adwent = await jlib.saveEntity({ kinds: [GR.id], data: { nazwa: 'Prefacje adwentowe', nr: 1, opis: 'Oczekiwanie na przyjście Pana.' } });
-  const unit = (nr, oznaczenie, incipit, thesis) => jlib.saveEntity({ kinds: [JED.id], data: { nr, oznaczenie, incipit, tresc: [{ type: 'paragraph', text: thesis }], grupa: adwent.id, miejsce: { value: MISSAL, locator: `s. ${nr}*` } } });
-  const p1 = await unit(1, 'Prefacja o Adwencie I', 'On to, przyszedłszy po raz pierwszy', 'Dwa przyjścia Chrystusa.');
-  await unit(2, 'Prefacja o Adwencie II', 'Jego zapowiadali wszyscy prorocy', 'Oczekiwanie Maryi i Jana.');
-  await unit(3, 'Prefacja o Adwencie III', 'Ty postanowiłeś dać nam Zbawiciela', 'Chrystus Pan i Sędzia.');
-  const jcards = (await jlib.cards('s')).cards;
-  const which = jcards.find((c) => c.entity === p1.id && c.answer.form === 'one');
-  const match = jcards.find((c) => c.entity === p1.id && c.answer.form === 'match');
-  check('… cards of a unit: what it is about, how it begins, which one begins so (chosen among its group), beginnings ↔ names of its group',
-    [jcards.filter((c) => c.entity === p1.id).length, which?.answer.options[which.answer.correct], which?.answer.options.every((o) => o.startsWith('Prefacja o Adwencie')), match?.answer.left.length, jcards.some((c) => c.entity === adwent.id)],
-    [4, 'Prefacja o Adwencie I', true, 3, true]);
-  const jg = jlib.prerequisites();
-  check('… the group first (what Advent prefaces share), then each preface', [jg.level.get(adwent.id), jg.level.get(p1.id)], [0, 1]);
-  check('… places in the Missal ordered by its series of pages (here: star pages first)', ['s. 2', 's. 3*', "s. 1'"].sort((a, b) => Wy.comparePlaces(a, b, 'pages', { series: ['*', '1', "'"] })), ['s. 3*', 's. 2', "s. 1'"]);
-  const jform = AF.readAddForm('f', jlib.docs('addform')[0].data);
-  const jrows = AF.planForm(jform, { look: jlib.look, pool: (k) => jlib.ofKind(k), isOwn: () => true, newId: (() => { let i = 0; return () => `nj${++i}`; })() },
-    [{ czesc: [{ nr: '4', oznaczenie: 'Prefacja o Adwencie IV', incipit: 'Czcimy Ciebie', tresc: 'Maryja nową Ewą.', '@loc:miejsce': 's. 4*' }] }], { picks: { grupa: [adwent.id], ksiega: [MISSAL] }, asks: {} });
-  check('… adding units row by row: group and book chosen once; number, name, beginning, theme and page typed',
-    [jrows.rows[0].problems, jrows.saves[0]?.data.grupa, jrows.saves[0]?.data.miejsce, jrows.saves[0]?.data.nr], [[], adwent.id, { value: MISSAL, locator: 's. 4*' }, 4]);
+  /* -- zbior.json: Positionen zum Erkennen — die Prefacje eines Missale UND die Lieder zweier Śpiewniki -- */
+  const zlib = await baseWith('Z');
+  const pz = Js.planImport(zlib, JSON.parse(await readFile('../templates/cogita/zbior.json', 'utf8')));
+  check('zbior.json imports: Pozycja and Grupa, seven card templates, one adding method, four views — no warning, no list of liturgical kinds',
+    [pz.kinds.map((k) => k.def.name), pz.docs.filter((d) => d.kind === 'template').length, pz.docs.filter((d) => d.kind === 'addform').length, pz.docs.filter((d) => d.kind === 'view').length, pz.warnings,
+      JSON.stringify(pz.kinds.map((k) => k.def)).includes('kolekta')],
+    [['Pozycja', 'Grupa'], 7, 1, 4, [], false]);
+  await Js.applyImport(zlib, pz, () => undefined);
+  const POZ = zlib.kinds.find((k) => k.name === 'Pozycja');
+  const GR = zlib.kinds.find((k) => k.name === 'Grupa');
+  check('… general: a place in one or more works (the Library reads it — pages of a series too), a picture or sound to recognise, what it is easily confused with',
+    [fieldOf(POZ, 'miejsce').multi, fieldOf(POZ, 'miejsce').locator, fieldOf(POZ, 'obraz').type, fieldOf(POZ, 'podobne').symmetric, fieldOf(POZ, 'grupa').prerequisite],
+    [true, true, 'media', true, 'up']);
+  /* (1) die Prefacje eines Missale, Seiten mit Stern */
+  const adwent = await zlib.saveEntity({ kinds: [GR.id], data: { nazwa: 'Prefacje adwentowe', nr: 1, opis: 'Oczekiwanie na przyjście Pana.' } });
+  const pre = (nr, oznaczenie, poczatek, thesis, more = {}) => zlib.saveEntity({ kinds: [POZ.id], data: { nr, oznaczenie, poczatek, tresc: [{ type: 'paragraph', text: thesis }], grupa: adwent.id, miejsce: [{ value: MISSAL, locator: `s. ${nr}*` }], ...more } });
+  const p1 = await pre(1, 'Prefacja o Adwencie I', 'On to, przyszedłszy po raz pierwszy', 'Dwa przyjścia Chrystusa.');
+  const p2 = await pre(2, 'Prefacja o Adwencie II', 'Jego zapowiadali wszyscy prorocy', 'Oczekiwanie Maryi i Jana.', { podobne: [p1.id], roznica: 'Nie o dwóch przyjściach, lecz o tych, którzy na Niego czekali.' });
+  await pre(3, 'Prefacja o Adwencie III', 'Ty postanowiłeś dać nam Zbawiciela', 'Chrystus Pan i Sędzia.');
+  /* (2) dieselbe Art für die Lieder zweier Śpiewniki — mit Melodie */
+  const maryjne = await zlib.saveEntity({ kinds: [GR.id], data: { nazwa: 'Pieśni maryjne', nr: 2, opis: 'Pieśni do Matki Bożej.' } });
+  const song = await zlib.saveEntity({ kinds: [POZ.id], data: { nr: 112, oznaczenie: 'Czarna Madonna', poczatek: 'Jest zakątek na tej ziemi', tresc: [{ type: 'paragraph', text: 'Jasna Góra jako miejsce ucieczki.' }], grupa: maryjne.id,
+    miejsce: [{ value: HYMNAL, locator: 's. 112' }, { value: HYMNAL2, locator: 's. 431' }], obraz: { file: 'f-melodia', type: 'audio', name: 'melodia.mp3' } } });
+  await zlib.saveEntity({ kinds: [POZ.id], data: { nr: 113, oznaczenie: 'Gwiazdo śliczna', poczatek: 'Gwiazdo śliczna wspaniała', tresc: [{ type: 'paragraph', text: 'Maryja gwiazdą morza.' }], grupa: maryjne.id } });
+  await zlib.saveEntity({ kinds: [POZ.id], data: { nr: 114, oznaczenie: 'Matko Najświętsza', poczatek: 'Matko Najświętsza, do Serca Twego', tresc: [{ type: 'paragraph', text: 'Zawierzenie Matce.' }], grupa: maryjne.id } });
+  const zcards = (await zlib.cards('s')).cards;
+  const which = zcards.find((c) => c.entity === p1.id && c.answer.form === 'one');
+  const match = zcards.find((c) => c.entity === p1.id && c.answer.form === 'match');
+  const heard = zcards.find((c) => c.entity === song.id && c.prompt.some((p) => p.media !== undefined));
+  check('… cards of a preface: what it is about, how it begins, which one begins so (among its group), beginnings ↔ designations of its group; the difference only where it is written',
+    [zcards.filter((c) => c.entity === p1.id).length, which?.answer.options[which.answer.correct], which?.answer.options.every((o) => o.startsWith('Prefacja o Adwencie')), match?.answer.left.length,
+      zcards.filter((c) => c.entity === p2.id).map(tname(zlib)).includes('Czym się różni od podobnych? (fiszka)'), zcards.some((c) => c.entity === adwent.id)],
+    [4, 'Prefacja o Adwencie I', true, 3, true, true]);
+  check('… and of a song from two hymnals: the melody as the question, its title among the songs of its group',
+    [heard?.prompt.find((p) => p.media)?.media.type, heard?.answer.options[heard.answer.correct], heard?.answer.options.every((o) => ['Czarna Madonna', 'Gwiazdo śliczna', 'Matko Najświętsza'].includes(o)), zcards.filter((c) => c.entity === song.id).length],
+    ['audio', 'Czarna Madonna', true, 5]);
+  const zg = zlib.prerequisites();
+  check('… the group first (what Advent prefaces share), then each preface', [zg.level.get(adwent.id), zg.level.get(p1.id)], [0, 1]);
+  check('… places in the Missal ordered by the series its work names (the Library: roman, star, plain, apostrophe)', ['s. 2', 's. 3*', "s. 1'", 's. iv'].sort((a, b) => Wy.comparePlaces(a, b, 'pages', { series: ['i', '#*', '#', "#'"] })), ['s. iv', 's. 3*', 's. 2', "s. 1'"]);
+  const zform = zlib.docs('addform')[0];
+  const zrows = rowsOf(zlib, zform, [{ pozycja: [{ nr: '4', oznaczenie: 'Prefacja o Adwencie IV', poczatek: 'Czcimy Ciebie', tresc: 'Maryja nową Ewą.', '@loc:miejsce': 's. 4*' }] }], { grupa: [adwent.id], dzielo: [MISSAL] });
+  const hrows = rowsOf(zlib, zform, [{ pozycja: [{ nr: '115', oznaczenie: 'Serdeczna Matko', poczatek: 'Serdeczna Matko, opiekunko ludzi', '@loc:miejsce': 's. 115' }] }], { grupa: [maryjne.id], dzielo: [HYMNAL] });
+  check('… adding row by row: group and work chosen once; number, designation, beginning, theme and place typed — a preface, a song',
+    [zrows.rows[0].problems, zrows.saves[0]?.data.grupa, zrows.saves[0]?.data.miejsce, zrows.saves[0]?.data.nr, hrows.rows[0].problems, hrows.saves[0]?.data.miejsce],
+    [[], adwent.id, [{ value: MISSAL, locator: 's. 4*' }], 4, [], [{ value: HYMNAL, locator: 's. 115' }]]);
 }
 
 await rm(workspace, { recursive: true, force: true });

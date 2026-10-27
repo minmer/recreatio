@@ -15,7 +15,7 @@ It is a local MCP server (`frontend/mcp/`). The read-only server for ChatGPT at 
 | Claude Code (in this repository) | `.mcp.json` at the root already names it — approve "recreatio-preview" once |
 | Codex CLI | `~/.codex/config.toml`: `[mcp_servers.recreatio-preview]` `command = "node"` `args = ["C:/…/recreatio/frontend/mcp/server.mjs"]` |
 | Claude Desktop, Cursor, others | a stdio server: `node <repo>/frontend/mcp/server.mjs` |
-| remote (ChatGPT through a tunnel) | `npm --prefix frontend run preview:mcp -- --http 8790` → `http://127.0.0.1:8790/mcp`, `Authorization: Bearer <token>` (printed at start, or `--token`); in this mode files can be read only inside the repository |
+| remote (ChatGPT through a tunnel) | `npm --prefix frontend run preview:mcp -- --http 8790 --token <secret>`, then `cloudflared tunnel --url http://127.0.0.1:8790`; in ChatGPT (Developer mode) add a custom MCP server with URL `https://<tunnel>/mcp/<secret>` and "No authentication" (other clients may send `Authorization: Bearer <secret>` to `/mcp`); in this mode files can be read only inside the repository |
 
 Needs `npm install` in `frontend/` (adds `@modelcontextprotocol/sdk`, `zod`) and Edge or Chrome on the machine
 (`RECREATIO_PREVIEW_BROWSER` names another one). Options, also as environment variables:

@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const GUIDE = '../templates/cogita/ksiazka-AI.md';
-export const TEMPLATE_FILES = ['wywod.json', 'fakty.json', 'jednostki.json', 'podstawy.json', 'pytania.json'];
+export const TEMPLATE_FILES = ['wywod.json', 'fakty.json', 'zbior.json', 'podstawy.json', 'pytania.json'];
 
 const mark = (name) => [`<!-- app:${name}:start -->`, `<!-- app:${name}:end -->`];
 

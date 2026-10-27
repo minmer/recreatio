@@ -136,12 +136,21 @@ Formula, code and duration are not field types.
 - **`podstawy.json`** with **`przyklad-atom.json`**: „Pojęcie” with „Wymaga” as its learning order, a card template, a
   gated revision and the view „Od podstaw”; the example is the atom (atom → nucleus and electron → shell → orbital →
   configuration) with questions of several types.
-- **`fakty.json`**: „Fakt” — what a work says, with the place, what kind of statement it is (event, person, opinion,
-  invention of the author), how sure it is and why, other sources. For a novel about a real person: what the book
-  tells and what is historically so, each with the book as its source.
-- **`jednostki.json`**: „Jednostka” — a numbered part of a work (a preface of a Missal: number, title, beginning, what
-  it is about, how it differs from its neighbours), learnt by number, beginning and theme.
-- **`ksiazka-AI.md`** — the guide for one's own AI to turn a book into all this (§14).
+- **Schemes describe a kind of knowledge, not a kind of book** (2026-10-27, after review): every scheme serves many
+  works, and a place in a work is always a reference to a Library work with a place — pages (also pages of a part
+  numbered on its own), verses, numbers, minutes are read by the Library, never by Cogita.
+- **`fakty.json`** — Fakty i źródła: „Fakt” (one claim about the world: headword, kind of claim, when, where, about
+  whom, period, the source with its place, how the source tells it, the judgement after checking — confirmed,
+  probable, disputed, simplified, false, fiction, not checkable — other sources) and „Okres” (`@czas/okres`: an era
+  or stage with its span as a date range). For a novel about a real person, a history textbook, a report, memoirs,
+  a recorded debate; cards „Kiedy?”, „Co wiadomo?”, „Czy to się zgadza?”.
+- **`zbior.json`** — Zbiór: „Pozycja” (an item of a set to recognise and tell apart: number, designation, beginning,
+  what it is about, marks, a picture or sound, group, where it stands in one or more works, what it is easily
+  confused with and how it differs, when it is used) and „Grupa”. For the prefaces of a Missal, songs of a hymnal,
+  psalms, articles of a code, works of a catalogue; cards „Która to?” by beginning or by picture/sound, beginnings ↔
+  designations, „Czym się różni?”.
+- **`ksiazka-AI.md`** — the guide for one's own AI to turn any book into all this (§14): the layers and their schemes,
+  then a menu.
 - `app-cogita-check` imports all three and checks that the templates in `komentarz.json` are the presets.
 - **Importing a file again** (2026-10-25, [WYWOD.md](WYWOD.md) §4): its kinds, card templates and forms carry lasting names (`@komentarz/rodzaj`, `@komentarz/t-teza`, `@psalterz/f-nieszpory` …) and are changed in place — a kind the owner renamed is found again instead of a second, empty one being made. A template or form imported before the files had names is recognised by its name and kinds, only when exactly one such exists, and only after every document has taken what it names (two passes). Kinds that exist are completed: the document's fields in its order, the others kept behind their old neighbours; name, label, `tells` and `system` kept unless named, and the review says what changes. An import never removes a field.
 - **The import review** (2026-10-25, `importReview.ts`, `ImportReviewPanel.tsx`): under the plan of every import (Wiedza → JSON, Schematy), each change to an existing entry, document or kind is listed field by field (before, after) and saved only when accepted; its proposed value can be edited first. New entries are ticked and can be unticked. An import completes an existing entry: fields it does not name stay, `null` removes one, its kinds stay and the document's are added.
@@ -601,7 +610,7 @@ Phones stay awake.
 | Search | Library and knowledge-base content in Ctrl K | P12 |
 | Wiedza and Nauka | Two workspace views of Cogita on the same bases (2026-10-24, §14.1): Wiedza for the knowledge (`#/workspace/knowledge/<id>`), Nauka for learning (`#/workspace/learn/<id>`): due now, sessions, offline practice. The library itself has no Cogita tab. | A1 |
 | Course (Kurs) | An area of kind Kurs (2026-10-27, `AreaKindPanel.tsx`, nothing built beside the existing pieces): „Utwórz bazę” (a base with the daily gated revision, answers to the area's intake), the main page made with that revision on it („Nauka na stronie” adds it to an existing one), the role Uczący się and its link to that page — whoever opens it introduces themselves and learns without an account — and „Postępy uczących się” (Nauka → Postępy). | A2 |
-| JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review. A whole book: `templates/cogita/ksiazka-AI.md` — step 1 the work with its text and bibliography at once, step 2 after reading a menu (chronology, chosen parts, overview, deep dive, question types, numbered units, history vs. the book) from which the owner picks two or three; general, not per book; its appendices come from the app (`scripts/ksiazka-guide.mjs`, checked by `app-cogita-check`) | P13 |
+| JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review. A whole book: `templates/cogita/ksiazka-AI.md` — step 1 the work with its text and bibliography at once, step 2 after reading a menu (scope; layers — the work's course and elements, facts and sources, chronology, a set of items, concepts; questions; learning order; revisions; fact checking) from which the owner picks; general, not per book: each layer is one general scheme; its appendices come from the app (`scripts/ksiazka-guide.mjs`, checked by `app-cogita-check`) | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
 
 ### 14.1 Wiedza and Nauka (2026-10-24)

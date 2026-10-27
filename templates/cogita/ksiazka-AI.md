@@ -1,57 +1,62 @@
 # Książka → Biblioteka i Cogita: przewodnik dla KI
 
-Ten przewodnik dostaje Twoja KI (Claude, ChatGPT…) razem z książką: PDF-em, skanem albo plikiem. Prowadzi ją w dwóch krokach: najpierw książka trafia do **Biblioteki** Recreatio — opis bibliograficzny i cały tekst — a potem, po przeczytaniu całości i po Twoim wyborze z menu, powstaje część **Cogita**: wiedza z książki w porządku od ogółu do szczegółu, pytania i powtórki. Aplikacja nie woła żadnej KI — KI odpowiada dokumentami JSON, które wklejasz w aplikacji (każdy import pokazuje najpierw, co zmieni).
+Ten przewodnik dostaje Twoja KI (Claude, ChatGPT…) razem z dziełem: książką w PDF-ie, skanem albo plikiem. Prowadzi ją w dwóch krokach: najpierw dzieło trafia do **Biblioteki** Recreatio — opis bibliograficzny i cały tekst — a potem, po przeczytaniu całości i po Twoim wyborze z menu, powstaje część **Cogita**: wiedza z dzieła w porządku od ogółu do szczegółu, pytania i powtórki. Aplikacja nie woła żadnej KI — KI odpowiada dokumentami JSON, które wklejasz w aplikacji (każdy import pokazuje najpierw, co zmieni).
 
-Przewodnik nie jest napisany pod jedną książkę. Opisuje dwa rodzaje sytuacji, które się powtarzają:
+**Przewodnik nie zakłada rodzaju książki.** Każde dzieło opisują te same warstwy wiedzy, a każda warstwa ma jeden ogólny schemat (plik w `templates/cogita/`, importowany raz do bazy wiedzy):
 
-- **dzieło, które opowiada o rzeczywistości** — powieść o prawdziwej osobie, powieść historyczna, wspomnienia, film, reportaż: jest w nim to, co dzieło opowiada, i to, co jest (albo nie jest) prawdą o świecie;
-- **księga z numerowanymi częściami** — mszał (prefacje, kolekty), modlitewnik, śpiewnik, kodeks, katechizm: części nie idą po kolei jak fabuła, każda ma swoje oznaczenie, a strony bywają numerowane w kilku seriach (12* we wstępie, 45 w części głównej, 3′ w dodatku).
+| warstwa | schemat | przydaje się przy |
+|---|---|---|
+| przebieg dzieła i jego stałe elementy — części, wątki, wydarzenia, argumenty, osoby, miejsca, motywy | `wywod.json` | powieści, filmie, wywodzie, kazaniu, dokumencie |
+| fakty i źródła — co dzieło mówi o prawdziwym świecie, kiedy i gdzie, i czy to się zgadza; okresy | `fakty.json` | powieści o prawdziwej osobie, podręczniku historii, reportażu, wspomnieniach, wywiadzie |
+| zbiór pozycji do rozpoznania i rozróżnienia | `zbior.json` | mszale (prefacje, kolekty), modlitewniku, śpiewniku, psałterzu, kodeksie, katalogu dzieł |
+| pojęcia i to, czego każde wymaga | `podstawy.json` | podręczniku, dokumencie, wykładzie |
+| pytania każdego rodzaju | `pytania.json` | zawsze |
 
-Książka może łączyć oba. Wszystko, czego tu nie ma, jest w dodatkach — wygenerowanych z aplikacji, więc zawsze zgodnych z tym, co aplikacja przyjmuje.
+Dzieło zwykle łączy kilka warstw: powieść o prawdziwej osobie — przebieg, elementy i fakty; podręcznik historii — fakty, okresy i pojęcia; mszał albo śpiewnik — zbiór i pojęcia; kodeks — zbiór pozycji (artykuły) i pojęcia. Wszystko, czego tu nie ma, jest w dodatkach — wygenerowanych z aplikacji, więc zawsze zgodnych z tym, co aplikacja przyjmuje.
 
 ## 0. Zasady dla KI
 
-1. **Nic nie zmyślaj.** Tekst przepisujesz wiernie. Fakty bierzesz z książki i ze źródeł, które naprawdę sprawdziłaś(-eś); czego nie da się sprawdzić — oznaczasz. Lepiej puste pole niż zgadywanie.
+1. **Nic nie zmyślaj.** Tekst przepisujesz wiernie. Fakty bierzesz z dzieła i ze źródeł, które naprawdę sprawdziłaś(-eś); czego nie da się sprawdzić — oznaczasz. Lepiej puste pole niż zgadywanie.
 2. **Dwa kroki, nie jeden.** Po kroku 1 zatrzymaj się, pokaż menu (krok 2) i czekaj na wybór.
 3. **Odpowiadaj dokumentami JSON** w formatach z dodatków. Poza JSON-em — tylko krótki raport i pytania.
-4. **Trwałe nazwy.** Każdy wpis, który tworzysz w Cogicie, dostaje `"ref"` z ukośnikiem: `"@<klucz dzieła>/<co>/<nazwa>"`, np. `"@kowalski2005/fakt/swiecenia"`. Ten sam dokument zaimportowany drugi raz zmienia te same wpisy, a nie tworzy nowe — możesz więc poprawiać i doklejać.
-5. **Duże książki w kawałkach.** Najwyżej ok. 150 wpisów albo kilka rozdziałów tekstu na jedną odpowiedź; następne odpowiedzi odwołują się do tych samych trwałych nazw.
-6. **Język** treści — język książki; opisy, pytania i oceny — po polsku, chyba że użytkownik chce inaczej.
+4. **Trwałe nazwy.** Każdy wpis, który tworzysz w Cogicie, dostaje `"ref"` z ukośnikiem: `"@<klucz dzieła>/<co>/<nazwa>"`, np. `"@kowalski2005/fakt/swiecenia"`, `"@mszal1986/pozycja/prefacja-adwent-1"`. Ten sam dokument zaimportowany drugi raz zmienia te same wpisy, a nie tworzy nowe — możesz więc poprawiać i doklejać.
+5. **Duże dzieła w kawałkach.** Najwyżej ok. 150 wpisów albo kilka rozdziałów tekstu na jedną odpowiedź; następne odpowiedzi odwołują się do tych samych trwałych nazw.
+6. **Język** treści — język dzieła; opisy, pytania i oceny — po polsku, chyba że użytkownik chce inaczej.
 
-## 1. Krok pierwszy: książka do Biblioteki — opis i cały tekst
+## 1. Krok pierwszy: dzieło do Biblioteki — opis i cały tekst
 
-Przeczytaj książkę i zrób **jeden dokument „Dzieło z tekstem”** (dodatek A): opis dzieła ze strony tytułowej i metryczki (tytuł, podtytuł, autorzy, wydawca, miejsce, rok, wydanie, ISBN, język, liczba stron, **gatunek** — np. „powieść biograficzna”, „mszał”) oraz cały tekst w częściach.
+Przeczytaj dzieło i zrób **jeden dokument „Dzieło z tekstem”** (dodatek A): opis dzieła ze strony tytułowej i metryczki (tytuł, podtytuł, autorzy, wydawca, miejsce, rok, wydanie, ISBN, język, liczba stron, **gatunek** — np. „powieść biograficzna”, „podręcznik”, „mszał”, „śpiewnik”) oraz cały tekst w częściach.
 
-**Jak wskazuje się miejsca** (`"scheme"` dokumentu i dzieła):
+**Jak wskazuje się miejsca** (`"scheme"` dokumentu i dzieła) — to sprawa Biblioteki; w Cogicie miejsce to zawsze dzieło i miejsce w nim, zapisane tak jak w książce:
 
-- książka z fabułą, wspomnienia, biografia — `"pages"`; rozdział można dopisać w miejscu bloku: „rozdz. 3, s. 45”;
-- książka z własną numeracją treści — `"numbered"` (dokumenty, kodeksy: nr 24, kan. 915), `"bible"`, `"aquinas"`, `"outline"` (tom, część, rozdział);
-- **kilka numeracji stron** (mszał, modlitewnik): `"pages"`, a każdy blok `"page"` niesie stronę dokładnie tak, jak jest wydrukowana — „12*”, „45”, „3'”, „3''”, „(7)”, „[7]”, „xii”. W polu dzieła **„Serie stron”** (`"pageSeries"`) podaj znaki serii w kolejności książki, np. `"* 1 '"` (najpierw strony z gwiazdką, potem zwykłe, potem z apostrofem). Strona „13*” i strona „13” to dwie różne strony;
-- **numer części** (prefacja I, II…; P 12) nie jest miejscem w Bibliotece — trafi do Cogity jako „Numer” i „Oznaczenie”. Miejscem zostaje strona.
+- dzieło czytane stronami (powieść, wspomnienia, podręcznik) — `"pages"`; rozdział można dopisać w miejscu bloku: „rozdz. 3, s. 45”;
+- dzieło z własną numeracją treści — `"numbered"` (dokumenty, kodeksy: nr 24, kan. 915), `"bible"`, `"aquinas"`, `"outline"` (tom, część, rozdział);
+- **strony liczone osobno w częściach książki** (wstęp, dodatki, wkładki — np. w mszale, modlitewniku, podręczniku z aneksem): `"pages"`, a każdy blok `"page"` niesie stronę dokładnie tak, jak jest wydrukowana, z jej znakami — „xii”, „12*”, „3'”, „3''”, „(7)”, „A12”. Znaki mogą być dowolne; strona „12*” i strona „12” to dwie różne strony. W polu dzieła **„Serie stron”** (`"pageSeries"`) podaj po jednej przykładowej stronie z każdej serii, w kolejności książki, np. `"xii 12* 1 3'"`;
+- **numer pozycji** (prefacja I, pieśń 112, art. 12) to nie strona — trafi do Cogity jako „Numer” i „Oznaczenie” pozycji (`zbior.json`). Miejscem zostaje strona albo numer w układzie dzieła.
 
-**Części tekstu** (`"portions"`): po jednej na rozdział, dział albo grupę (np. „Prefacje adwentowe”), w kolejności książki. Strony zaznaczaj tam, gdzie wypadają — także w środku akapitu. Co nieczytelne — oznacz jako niepewne.
+**Części tekstu** (`"portions"`): po jednej na rozdział, dział albo grupę (np. „Rozdział 3”, „Prefacje adwentowe”), w kolejności książki. Strony zaznaczaj tam, gdzie wypadają — także w środku akapitu. Co nieczytelne — oznacz jako niepewne.
 
 **Na koniec kroku 1** napisz krótki raport: tytuł i klucz dzieła, ile części i stron, jakie serie stron, co było niepewne. Potem pokaż menu z kroku 2 i czekaj.
 
 ## 2. Krok drugi: menu — jak zbudować część Cogita
 
-Po przeczytaniu całości pokaż użytkownikowi tę listę (możesz krótko dopisać, co według Ciebie pasuje do tej książki). Użytkownik wybiera po jednej opcji z A, C, D i dowolnie z B, E, F — np. „A2, B1, B3, B4, C3, D1, E1, F2”. Dopiero potem generujesz.
+Po przeczytaniu całości pokaż użytkownikowi tę listę (możesz krótko dopisać, co według Ciebie pasuje do tego dzieła). Użytkownik wybiera po jednej opcji z A, C, D i dowolnie z B, E, F — np. „A2, B1, B3, B4, C3, D1, E1, F2”. Dopiero potem generujesz.
 
 **A. Zakres — co opisać** (jedna):
 
-- **A1** Całość, ogólnie — najważniejsze części, wątki, osoby; po kilka zdań. Szybki przegląd.
-- **A2** Całość, dokładnie — każdy rozdział (każda część księgi), wszystkie ważne wydarzenia, osoby, myśli.
+- **A1** Całość, ogólnie — najważniejsze części, wątki, osoby, pozycje; po kilka zdań. Szybki przegląd.
+- **A2** Całość, dokładnie — każdy rozdział (każda pozycja zbioru), wszystkie ważne wydarzenia, osoby, myśli.
 - **A3** Tylko wybrane części — użytkownik podaje rozdziały, strony albo działy.
-- **A4** Głęboko jeden temat — jedna osoba, jeden okres, jedna grupa prefacji; wszystko, co książka o nim mówi.
+- **A4** Głęboko jeden temat — jedna osoba, jeden okres, jedna grupa pozycji; wszystko, co dzieło o nim mówi.
 
 **B. Warstwy — co zbudować** (dowolnie):
 
-- **B1** Przebieg dzieła — jego budowa: części, wątki, wydarzenia w kolejności dzieła (`wywod.json`: „Krok wywodu”, „Element stały”).
-- **B2** Chronologia — wydarzenia w kolejności czasu (okresy i daty: `fakty.json` „Okres” i „Kiedy”; przy samym przebiegu — „Czas opowieści” w `wywod.json`).
-- **B3** Fakty i ich prawdziwość — przy dziele o rzeczywistości: każde twierdzenie o prawdziwym świecie jako „Fakt” — z oceną zgodności z historią, innymi źródłami i opisem, jak przedstawia to dzieło (`fakty.json`). Wymaga sprawdzania (opcje F).
-- **B4** Osoby, miejsca, pojęcia — „Elementy stałe” z opisem i z tym, czy istnieją naprawdę (`wywod.json`).
-- **B5** Części numerowane — każda część księgi z numerem, oznaczeniem, początkiem, tematem, podobnymi i różnicą od nich; grupy z tym, co je łączy (`jednostki.json`).
-- **B6** Pojęcia z kolejnością nauki — słownik pojęć książki z tym, czego każde wymaga (`podstawy.json`).
+- **B1** Przebieg dzieła — części, wątki, wydarzenia, argumenty w kolejności dzieła (`wywod.json`: „Krok wywodu”).
+- **B2** Elementy — osoby, miejsca, przedmioty, motywy, pojęcia dzieła, z tym, czy istnieją naprawdę (`wywod.json`: „Element stały”).
+- **B3** Fakty i źródła — każde twierdzenie dzieła o prawdziwym świecie jako „Fakt”: kiedy, gdzie, o kim, jak je podaje dzieło, ocena po sprawdzeniu i inne źródła (`fakty.json`). Wymaga sprawdzania (opcje F).
+- **B4** Chronologia — okresy z czasem trwania i fakty w czasie (`fakty.json`: „Okres”, „Kiedy”; przy samym przebiegu — „Czas opowieści” w `wywod.json`).
+- **B5** Zbiór pozycji — gdy dzieło składa się z wielu podobnych części do rozpoznania (modlitwy, prefacje, pieśni, psalmy, artykuły, utwory): każda z numerem, oznaczeniem, początkiem, tym, o czym jest, znakami rozpoznawczymi, pozycjami łatwymi do pomylenia i różnicą; grupy z tym, co je łączy (`zbior.json`).
+- **B6** Pojęcia z kolejnością nauki — pojęcia dzieła z tym, czego każde wymaga (`podstawy.json`).
 
 **C. Pytania** (jedna, plus liczba):
 
@@ -75,47 +80,50 @@ Po przeczytaniu całości pokaż użytkownikowi tę listę (możesz krótko dopi
 
 **F. Sprawdzanie faktów** (przy B3, jedna):
 
-- **F1** Tylko to, co wiesz na pewno; reszta — „nie wiadomo”, z tym, czego brakuje.
+- **F1** Tylko to, co wiesz na pewno; reszta — „nie do sprawdzenia”, z tym, czego brakuje.
 - **F2** Każde twierdzenie sprawdzone w innych źródłach (wymienionych), sporne opisane po obu stronach.
 
 ## 3. Jak budować — zasady do wybranych opcji
 
 ### 3.1 Rodzaje biorą się z gotowych schematów
 
-Rodzajów nie wymyślasz. Każda warstwa ma gotowy schemat w repozytorium (dodatek C opisuje każde pole): `wywod.json` (B1, B2, B4), `fakty.json` (B2, B3), `jednostki.json` (B5), `podstawy.json` (B6), `pytania.json` (pytania — jeden rodzaj „Pytanie” z rodzajami pytań). Użytkownik importuje potrzebne pliki w **Wiedza → Schematy → Rodzaje wpisów → „Schemat jako JSON”**. W swoim dokumencie wskazujesz rodzaje ich trwałymi nazwami: `"kinds": ["@fakty/fakt"]`, `"@jednostki/jednostka"`, `"@wywod/element"`, `"question"`. Jeśli nie wiesz, czy schemat jest już zaimportowany, dołącz jego rodzaje w `"kinds"` — drugi import tylko je uzupełnia.
+Rodzajów nie wymyślasz. Każda warstwa ma gotowy, ogólny schemat w repozytorium (dodatek C opisuje każde pole): `wywod.json` (B1, B2, B4), `fakty.json` (B3, B4), `zbior.json` (B5), `podstawy.json` (B6), `pytania.json` (pytania — jeden rodzaj „Pytanie” z rodzajami pytań). Użytkownik importuje potrzebne pliki w **Wiedza → Schematy → Rodzaje wpisów → „Schemat jako JSON”**. W swoim dokumencie wskazujesz rodzaje ich trwałymi nazwami: `"kinds": ["@fakty/fakt"]`, `"@czas/okres"`, `"@zbior/pozycja"`, `"@zbior/grupa"`, `"@wywod/element"`, `"question"`. Jeśli nie wiesz, czy schemat jest już zaimportowany, dołącz jego rodzaje w `"kinds"` — drugi import tylko je uzupełnia. Gdy dzieło potrzebuje czegoś, czego żaden schemat nie ma, nie twórz nowego rodzaju — napisz to w raporcie.
 
 Dokument z wiedzą to **kurs** (`"format": "recreatio.cogita.course"`, dodatek B): `"entities"` (wpisy i pytania), `"revisions"` (powtórki); opcjonalnie `"kinds"`.
 
-### 3.2 Dzieło o rzeczywistości (B1–B4, F)
+### 3.2 Fakty i źródła (B3, B4, F)
 
-- **Co jest w dziele** — B1: „Kroki wywodu” (część utworu, wątek, wydarzenie) z miejscem w dziele; „Element stały” dla osób, miejsc, przedmiotów — z polem „Czy istnieje naprawdę” (`"rzeczywistosc"`: rzeczywisty, wzorowany, fikcyjny).
-- **Co jest prawdą** — B3: każde twierdzenie o prawdziwym świecie to jeden „Fakt”:
-  - pierwsze zdanie „Treści” to sam fakt (twierdzenie, krótko);
-  - „Kogo i czego dotyczy” — Element stały osoby, miejsca;
+- **Co jest w dziele** — B1 i B2: „Kroki wywodu” (część utworu, wątek, wydarzenie) z miejscem w dziele; „Element stały” dla osób, miejsc, przedmiotów — z polem „Czy istnieje naprawdę” (`"rzeczywistosc"`: rzeczywisty, wzorowany, fikcyjny).
+- **Co dzieło mówi o świecie** — B3: każde twierdzenie to jeden „Fakt”:
+  - pierwsze zdanie „Treści” to sam fakt (jedno twierdzenie, krótko); dwa twierdzenia — dwa fakty;
+  - „Hasło” — krótka nazwa bez daty i bez odpowiedzi („Bitwa pod Grunwaldem”, „Święcenia kapłańskie”): z niej powstają karty „Kiedy?” i „Co wiadomo?”;
+  - „Rodzaj faktu” — zdarzenie, stan rzeczy, liczba, wypowiedź, przyczyna, opinia;
+  - „O kim, o czym” — Element stały, Pojęcie, osoba z biblioteki; „Gdzie” — miejsce; „Okres”;
   - „Kiedy” — data z dokładnością, jaką znasz; niepewna — ze stanem (`approximate`, `disputed`) i notatką;
-  - „W dziele” — dzieło z kroku 1 i strona: tu książka jest **źródłem** informacji, nawet gdy ją upiększa;
-  - „Jak przedstawia to dzieło” — wiernie, w skrócie, z wymyślonym dialogiem, z przesuniętą datą, z postacią złożoną z kilku osób;
-  - „Zgodność z historią” — dopiero po sprawdzeniu: `potwierdzone`, `prawdopodobne`, `sporne`, `uproszczone`, `fikcja`, `nieznane`;
+  - „Źródło” — dzieło z kroku 1 i miejsce w nim: tu dzieło jest **źródłem** informacji, nawet gdy ją upiększa;
+  - „Jak podaje to źródło” — dosłownie, w skrócie, z wymyślonym dialogiem, z przesuniętą datą, z postacią złożoną z kilku osób;
+  - „Czy się zgadza” — dopiero po sprawdzeniu: `potwierdzone`, `prawdopodobne`, `sporne`, `uproszczone`, `nieprawdziwe`, `fikcja`, `nieznane`;
   - „Inne źródła” — dzieła z biblioteki użytkownika (`"@klucz"`, z miejscem); „Źródła spoza biblioteki” — lista (hasło encyklopedii, archiwum, adres); nigdy nie podawaj źródła, którego nie widziałaś(-eś);
-  - „Uzasadnienie oceny” — co mówią inne źródła i czym różnią się od dzieła.
-- Co dzieje się tylko w książce (wymyślona rozmowa, myśli bohatera) nie jest faktem — chyba że dzieło przedstawia to jako prawdę: wtedy „Fakt” z oceną `fikcja`.
-- **Okresy** (B2): główne etapy („Dzieciństwo”, „Okupacja”, „Kapłaństwo”) z kolejnością (`"nr"`), datami i opisem w 2–3 zdaniach; fakt wskazuje swój okres.
+  - „Uzasadnienie” — co mówią inne źródła i czym różnią się od dzieła.
+- Co dzieje się tylko w dziele (wymyślona rozmowa, myśli bohatera) nie jest faktem — chyba że dzieło przedstawia to jako prawdę: wtedy „Fakt” z oceną `fikcja`. W podręczniku albo dokumencie fakty są zwykle `potwierdzone`; bez sprawdzania (F1) „Czy się zgadza” zostaje puste.
+- **Okresy** (B4): główne etapy albo epoki („Dzieciństwo”, „Okupacja”, „Średniowiecze”) z kolejnością (`"nr"`), czasem trwania (`"czas": {"segments": [{"from": "1939", "to": "1945"}]}`; przybliżony — `"fromState": "approximate"`) i opisem w 2–3 zdaniach; fakt wskazuje swój okres, okres — szerszy okres w „Należy do”.
 
-### 3.3 Księga z numerowanymi częściami (B5)
+### 3.3 Zbiór pozycji (B5)
 
-- „Grupa części” dla każdego działu (np. „Prefacje adwentowe”): kolejność, co łączy jej części (to pytanie przychodzi przed szczegółami).
-- „Część księgi” dla każdej części: numer w kolejności, oznaczenie jak w księdze, rodzaj części, **początek** — pierwsze słowa, po których się ją rozpoznaje (gdy wszystkie zaczynają się tą samą formułą, np. prefacje „Zaprawdę, godne to i sprawiedliwe…”, wpisz słowa PO formule, dokładnie jak w księdze), „O czym jest” (pierwsze zdanie — myśl przewodnia), motywy, grupa, **miejsce** — dzieło i strona ze znakiem serii („s. 412”, „s. 12*”), części podobne i czym się od nich różni, kiedy się jej używa.
-- Różnice są najważniejsze: przy częściach łatwych do pomylenia wypełnij „Podobne” i „Czym się różni”.
+- „Grupa” dla każdego działu albo rodzaju (np. „Prefacje adwentowe”, „Pieśni maryjne”, „Rozdział II”): kolejność i to, co łączy jej pozycje (ta karta przychodzi przed szczegółami); szerszy dział w „Należy do”.
+- „Pozycja” dla każdej części zbioru: numer w kolejności, oznaczenie jak w źródle, **początek** — pierwsze słowa, po których się ją rozpoznaje (gdy wszystkie zaczynają się tą samą formułą, np. prefacje „Zaprawdę, godne to i sprawiedliwe…”, wpisz słowa PO formule, dokładnie jak w źródle), „O czym jest” (pierwsze zdanie — myśl przewodnia), znaki rozpoznawcze, grupa, **gdzie jest** — dzieło i miejsce w nim („s. 412”, „s. 12*”, „nr 24”), pozycje łatwe do pomylenia i czym się od nich różni, kiedy i do czego się jej używa.
+- Różnice są najważniejsze: przy pozycjach łatwych do pomylenia wypełnij „Łatwo pomylić z” i „Czym się różni”.
+- Obraz albo dźwięk (ilustracja, melodia) dodaje użytkownik w aplikacji — nie wymyślaj plików.
 
 ### 3.4 Pytania (C2–C4)
 
 - Jeden rodzaj `"question"`; `"form"` mówi, jak się pyta (dodatek B wymienia rodzaje i ich pola).
-- Każde pytanie coś sprawdza: `"about"` wskazuje wpisy, których dotyczy (fakt, część, pojęcie) — wtedy liczy się do ich znajomości i czeka, aż opanowane będzie to, co trzeba znać przed nimi.
+- Każde pytanie coś sprawdza: `"about"` wskazuje wpisy, których dotyczy (fakt, pozycja, pojęcie) — wtedy liczy się do ich znajomości i czeka, aż opanowane będzie to, co trzeba znać przed nimi.
 - Dobieraj rodzaj do treści:
   - twierdzenie do oceny, także „czy tak było naprawdę” — `"truefalse"`;
-  - wybór z podobnych (inne prefacje tej samej grupy, inne osoby tej samej rodziny) — `"one"` albo `"many"` z wiarygodnymi dystraktorami z tej samej książki;
+  - wybór z podobnych (inne pozycje tej samej grupy, inne osoby tej samej rodziny) — `"one"` albo `"many"` z wiarygodnymi dystraktorami z tego samego dzieła;
   - długie listy: rok ↔ wydarzenie, numer ↔ temat, początek ↔ oznaczenie — `"match"` z `"show"` (po 3–5 par naraz; każda para ma swoją kartę);
-  - kolejność (chronologia, kolejność części mszy) — `"order"`;
+  - kolejność (chronologia, kolejność części) — `"order"`;
   - zdania kluczowe i początki — `"gap"` (luka `[[słowo]]`);
   - daty i liczby — `"date"`, `"number"`;
   - definicje i ogólne pytania — `"text"` albo `"flash"`.
@@ -123,7 +131,7 @@ Dokument z wiedzą to **kurs** (`"format": "recreatio.cogita.course"`, dodatek B
 
 ### 3.5 Kolejność nauki (D1)
 
-- Ogólne przed szczegółowym: fakt wskazuje swój okres, część — swoją grupę (te pola są już oznaczone jako „kolejność nauki”); pojęcie — w „Wymaga” — pojęcia, bez których go nie zrozumieć; pytanie — w `"needs"` — pytanie ogólniejsze, które powinno paść wcześniej.
+- Ogólne przed szczegółowym: fakt wskazuje swój okres, pozycja — swoją grupę (te pola są już oznaczone jako „kolejność nauki”); pojęcie — w „Wymaga” — pojęcia, bez których go nie zrozumieć; fakt i pozycja — w „Najpierw trzeba znać”; pytanie — w `"needs"` — pytanie ogólniejsze, które powinno paść wcześniej.
 - Tylko bezpośrednie zależności — dalsze aplikacja wylicza sama (poziomy od podstaw). Bez kół: A nie może wymagać B, jeśli B wymaga A.
 
 ### 3.6 Powtórki (E)
@@ -137,15 +145,15 @@ Dokument z wiedzą to **kurs** (`"format": "recreatio.cogita.course"`, dodatek B
 
 1. Krok 1: dokument „Dzieło z tekstem” (może w kilku odpowiedziach).
 2. Menu, wybór użytkownika.
-3. Kurs: najpierw ogólne (okresy, grupy, elementy stałe), potem szczegóły, potem pytania i powtórki; każda odpowiedź to osobny, poprawny dokument.
+3. Kurs: najpierw ogólne (okresy, grupy, elementy stałe, pojęcia), potem szczegóły, potem pytania i powtórki; każda odpowiedź to osobny, poprawny dokument.
 
 ## 4. Po imporcie — dla użytkownika
 
-- **Biblioteka**: dzieło z tekstem; czytnik pokazuje strony z ich znakami serii.
-- **Wiedza**: wpisy, widoki („Fakty według okresów”, „Prawda i fikcja”, „Według grup”, „Od podstaw”); przy każdym wpisie — co trzeba znać wcześniej i co na nim buduje.
+- **Biblioteka**: dzieło z tekstem; czytnik pokazuje strony tak, jak są wydrukowane (także „12*”, „A12”).
+- **Wiedza**: wpisy, widoki („Fakty według okresów”, „Oś czasu”, „Fakty według oceny”, „Według grup”, „Podobne i różnice”, „Od podstaw”); przy każdym wpisie — co trzeba znać wcześniej i co na nim buduje.
 - **Nauka**: „Ścieżka” (poziomy od podstaw: co umiesz, co czeka), powtórki, „Postępy” — pytanie po pytaniu, z czasem nauki i trzema sposobami liczenia („Pamięć: odstępy i zapominanie”, „Z hierarchią”, „Ostatnia odpowiedź”).
 - **Kurs dla innych**: obszar rodzaju „Kurs” (z administratorem danych — bez niego strona kursu nie powstanie), w jego zakładce po kolei: „Utwórz bazę”, w tej bazie Import i eksport (JSON) z tym kursem, „Utwórz stronę” (powtórka kursu staje na niej sama), rola „Uczący się” i „Link dla uczących się”. Kto otworzy link, uczy się na stronie (bez konta przedstawia się imieniem i nazwiskiem); Ty widzisz jego postępy w Nauce → Postępy.
-- **Dalej z KI**: „Dostęp dla AI” (połączenie MCP, tylko do odczytu) pozwala KI czytać zaimportowaną książkę (także strony serii: „s. 12*”) i bazę wiedzy, żeby dopisać kolejne części.
+- **Dalej z KI**: „Dostęp dla AI” (połączenie MCP, tylko do odczytu) pozwala KI czytać zaimportowane dzieło (także strony „s. 12*”, „s. A12”) i bazę wiedzy, żeby dopisać kolejne części.
 
 ## Dodatek A — Dzieło z pełnym tekstem (z aplikacji)
 
@@ -202,7 +210,7 @@ Dzieło, z którego się korzysta: książka, rozdział, artykuł, dokument Koś
   "accessed" — Dostęp: Kiedy strona była czytana (RRRR-MM-DD) (data RRRR-MM-DD)
   "language" — Język: Język (np. "pl", "la"; przy muzyce — język słów) (tekst)
   "scheme" — Układ miejsc: Jak wskazuje się miejsca w tym dziele: "pages" (Strony wydania), "bible" (Pismo Święte), "numbered" (Numery (dokumenty)), "aquinas" (Tomasz z Akwinu), "decimal" (Numeracja dziesiętna), "sections" (Paragrafy dzieła), "outline" (Podział dzieła); puste — z rodzaju (Pismo Święte: bible, dokument: numbered, nagranie: time — minuty i sekundy, inne: pages) (jedna z wartości)
-  "pageSeries" — Serie stron: Gdy części książki mają własną numerację stron: znaki serii w kolejności książki, oddzielone spacją — "i" rzymskie (xii), "1" zwykłe (45), "*" z gwiazdką (12*), "'" z apostrofem (3'), "''" z dwoma apostrofami (3''), "'''" z trzema apostrofami (3'''), "()" w nawiasie ((7)), "[]" w nawiasie kwadratowym ([7]), "**" z dwiema gwiazdkami (5**); np. "* 1 ' ''" (najpierw strony z gwiazdką, potem zwykłe, potem z apostrofem i z dwoma); puste — i * ** () [] 1 ' '' ''' (tekst)
+  "pageSeries" — Serie stron: Gdy książka numeruje swoje części osobno (wstęp, dodatki, wkładki): po jednej przykładowej stronie z każdej serii, tak jak jest wydrukowana, w kolejności książki, oddzielone spacją — np. "xii 12* 1 3' (1) A1" (rzymskie, z gwiazdką, zwykłe, z apostrofem, w nawiasie, z literą; znaki mogą być dowolne). Strona "12*" i strona "12" to dwie różne strony. Puste — rzymskie, potem zwykłe, potem pozostałe (tekst)
   "psalms" — Numeracja psalmów: Dla Pisma Świętego: "hebrew" (hebrajska — Biblia Tysiąclecia, większość przekładów) albo "greek" (grecka — Septuaginta, Wulgata) (jedna z wartości)
   "editionOf" — Wydanie / przekład dzieła: To jest inne wydanie albo przekład tego dzieła — odwołanie do źródła. Miejsca w strukturze (werset, numer, paragraf) są wspólne dla wszystkich wydań; strony nie. (odwołanie: kennung albo "@klucz")
 Przykład:
@@ -286,7 +294,8 @@ Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" 
   {"type": "list", "items": ["…", "…"], "ordered": true, "loc": "…"}
   {"type": "table", "columns": ["…"], "rows": [["…", "…"]], "loc": "…"}
   {"type": "note", "id": "1", "text": "…"}                     przypis (tekst przypisu); w tekście odwołanie {{note 1}}
-  {"type": "page", "page": "46", "pdf": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF
+  {"type": "page", "page": "46", "pdf": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF;
+                                                              strona tak, jak jest wydrukowana — także ze znakami serii: "12*", "3'", "(7)", "A12", "xii"
   "uncertain": true                                           przy dowolnym bloku: odczyt niepewny
 
 ## Znaki w tekście
@@ -298,7 +307,7 @@ Wszystko inne jest zwykłym tekstem. Zachowaj dokładne brzmienie, kolejność, 
 
 ## "loc" — miejsce w strukturze dzieła
 Podawaj "loc" przy każdym bloku, który ma własny numer w strukturze dzieła (werset, punkt, artykuł, twierdzenie, paragraf, rozdział). Bloki bez własnego numeru (np. akapit w środku rozdziału) nie mają "loc" — należą do miejsca podanego wcześniej. Strony NIE wpisuje się do "loc": strony to bloki "page" i znaki {{page …}}, bo należą do tego jednego wydania.
-- "pages" — Strony wydania: Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Gdy części książki mają własną numerację stron (mszał: 12* we wstępie, 3' w dodatku, (7), [7]), strona niesie znak swojej serii, a dzieło w polu „Serie stron” mówi, w jakiej kolejności serie stoją w książce. Przykłady: s. 23 · s. 23–25 · s. 23, 27 · s. xii · s. 12* · s. 45'–47' · s. 3'' · s. (7)
+- "pages" — Strony wydania: Tylko strony tej konkretnej edycji (książki, artykuły bez własnej numeracji). Gdy książka numeruje swoje części osobno (wstęp „xii” albo „12*”, dodatek „3'”, wkładki „(7)”, „A12”), strona niesie znaki swojej serii tak, jak są wydrukowane — dowolne — a dzieło w polu „Serie stron” mówi, w jakiej kolejności serie stoją w książce. Przykłady: s. 23 · s. 23–25 · s. 23, 27 · s. xii · s. 12* · s. 45'–47' · s. (7) · s. A12
 - "bible" — Pismo Święte: Księga, rozdział, werset — wspólne dla wszystkich przekładów (numeracja psalmów: hebrajska, grecka w nawiasie). Przykłady: J 21,15-17 · Ps 51(50),3 · Łk 1,26–2,5 · Mt 5,3-12; 6,1
 - "numbered" — Numery (dokumenty): Numerowane punkty dokumentów Kościoła, katechizmu, kodeksów; paragraf w numerze po „§". Przykłady: nr 24 · nn. 24–26 · KKK 1234 · kan. 915 § 1
 - "aquinas" — Tomasz z Akwinu: Część, kwestia, artykuł; zarzut (arg.), sed contra, odpowiedź (co.), odpowiedź na zarzut (ad). Przykłady: I, q. 2, a. 3 · I-II, q. 90, a. 1, ad 2 · II-II q. 23 a. 1 arg. 1 · III q. 75 a. 1 co.
@@ -764,9 +773,9 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
     templates/cogita/komentarz-biblijny.json (Komentarz z argumentami za i zarzutami, Komentarz biblijny do fragmentu Pisma),
     templates/cogita/pytania.json (jeden schemat pytań: wbudowany rodzaj „Pytanie” z jego rodzajami pytań i polami, sposoby dodawania wielu pytań naraz — prawda/fałsz, odpowiedź słowami, fiszki — i widok „Pytania według rodzaju”),
     templates/cogita/podstawy.json (kolejność nauki: „Pojęcie” z polem „Wymaga” — "prerequisite": "up" —, karty „czym jest”, widok „Od podstaw” i sposób dodawania pojęć z tym, czego wymagają; przykład z atomem do zaimportowania jako kurs: templates/cogita/przyklad-atom.json),
-    templates/cogita/fakty.json (dzieło o rzeczywistości: „Fakt” — twierdzenie o prawdziwym świecie z datą, okresem, miejscem w dziele, tym, jak przedstawia to dzieło, oceną zgodności z historią i innymi źródłami; „Okres”; karty „Prawda czy fikcja?”; widoki według okresów, prawdy i fikcji, od podstaw),
-    templates/cogita/jednostki.json (księga z numerowanymi częściami — prefacje, modlitwy, pieśni, artykuły: „Część księgi” z numerem, oznaczeniem, początkiem, tematem, grupą, stroną, podobnymi i różnicą; „Grupa części”; karty „Która to?”, początki ↔ nazwy, tematy),
-    templates/cogita/ksiazka-AI.md (jak przygotować książkę z KI w dwóch krokach: Biblioteka z całym tekstem, potem menu wyboru — zakres, warstwy, pytania, kolejność nauki, powtórki — i kurs Cogita),
+    templates/cogita/fakty.json (fakty i źródła — z dowolnego źródła: powieści o prawdziwej osobie, podręcznika, reportażu, wspomnień, nagrania: „Fakt” — jedno twierdzenie o świecie z hasłem, rodzajem, kiedy, gdzie, o kim, okresem, źródłem z miejscem, tym, jak je podaje źródło, oceną po sprawdzeniu (potwierdzone, sporne, uproszczone, nieprawdziwe, fikcja…) i innymi źródłami; „Okres” — epoka albo etap z czasem trwania; karty „Kiedy?”, „Co wiadomo?”, „Czy to się zgadza?”; widoki według okresów, oś czasu, według oceny i rodzaju, od podstaw),
+    templates/cogita/zbior.json (zbiór pozycji do rozpoznania i rozróżnienia — prefacje i modlitwy, pieśni, psalmy, artykuły ustawy, utwory, obrazy: „Pozycja” z numerem, oznaczeniem, początkiem, tym, o czym jest, znakami rozpoznawczymi, obrazem albo dźwiękiem, grupą, miejscem w dziełach, pozycjami łatwymi do pomylenia i różnicą, użyciem; „Grupa” — dział z tym, co go wyróżnia; karty „Która to?” po początku albo obrazie, początki ↔ oznaczenia, „Czym się różni?”; widoki według numeru, grup, podobnych i różnic),
+    templates/cogita/ksiazka-AI.md (jak przygotować dowolną książkę z KI w dwóch krokach: Biblioteka z całym tekstem, potem menu wyboru — zakres, warstwy, pytania, kolejność nauki, powtórki — i kurs Cogita),
     templates/cogita/wywod.json (opis dzieła: „Krok wywodu” — rola (pytanie, teza, argument, zarzut… albo wątek, część utworu, wydarzenie, etap, opis), miejsce w dziele, treść, ważny fragment, „Należy do” — połączenie w strukturze, także w kilku strukturach naraz, czas opowieści; „Element stały” — pojęcie, postać, miejsce, motyw… w dziele albo ponad dziełami („Ogólnie”); Komentarz — własna uwaga; widoki „Wywód” (drzewo, kolejność tekstu, czas opowieści), „Elementy stałe”; karty ze ścisłym sprawdzaniem: fragmenty ↔ tezy, teza do fragmentu, dzieło tezy, znaczenie elementu; jak przygotować tekst i strukturę dzieła dla KI w dwóch krokach: templates/cogita/wywod-AI.md)
   typy pól: "line" (Wiersz tekstu), "text" (Dłuższy tekst), "markup" (Tekst z przypisami), "blocks" (Treść w blokach (akapity, listy, tabele)), "number" (Liczba z jednostką), "date" (Data (rok, miesiąc albo dzień)), "bool" (Tak / nie / nie wiadomo), "choice" (Wybór z listy), "ref" (Odwołanie), "media" (Obraz, dźwięk, film, dokument), "url" (Adres strony), "list" (Lista w kolejności), "geo" (Miejsce na mapie), "range" (Zakres z kilku odcinków)
   wartość niepewna: {"value": …, "state": "known|approximate|disputed|unknown|na|pending", "source": {"work": "@dzielo", "locator": "s. 23"}, "note": "…"}
@@ -865,7 +874,7 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
 ### "@wywod/element" — Element stały, etykieta {nazwa}
 - "nazwa" — Nazwa (line): Jak element nazywa się w dziele: słowo („wolność”), imię postaci, nazwa miejsca. Bez dzieła (pojęcie ponad dziełami): jego zwykła nazwa („Wolność”).
 - "czym" — Czym jest (choice; do wyboru: "pojecie", "postac", "miejsce", "przedmiot", "grupa", "motyw", "pytanie"): Co to za element. Listę można rozszerzać (np. „Symbol”, „Zwierzę”) — nowa możliwość to nowa pozycja, nie nowy schemat.
-- "rzeczywistosc" — Czy istnieje naprawdę (choice; do wyboru: "rzeczywisty", "wzorowany", "fikcyjny", "nieznane"): Przy dziele, które opowiada o rzeczywistości (powieść biograficzna, film historyczny): czy element istnieje naprawdę. Fakty o rzeczywistym — z ich źródłami i oceną — to wpisy rodzaju „Fakt” (templates/cogita/fakty.json), które wskazują ten element w „Kogo i czego dotyczy”.
+- "rzeczywistosc" — Czy istnieje naprawdę (choice; do wyboru: "rzeczywisty", "wzorowany", "fikcyjny", "nieznane"): Przy dziele, które opowiada o rzeczywistości (powieść o prawdziwej osobie, film historyczny, wspomnienia, reportaż): czy element istnieje naprawdę. Fakty o nim — z ich źródłami i oceną — to wpisy rodzaju „Fakt” (templates/cogita/fakty.json), które wskazują ten element w „O kim, o czym”.
 - "opis" — Opis (blocks): Pierwsze zdanie: jak TO dzieło rozumie albo przedstawia element (najwyżej 200 znaków, własnymi słowami). Dalej szczegóły: cechy, zmiany, relacje. Bez dzieła: co znaczy ogólnie.
 - "miejsce" — Miejsce w dziele (ref; kilka; z miejscem; → work): Gdzie dzieło wprowadza albo opisuje element (dzieło z Biblioteki i miejsce; kilka miejsc — kilka wartości). Pusty: element ponad dziełami (np. „Wolność” w ogóle), na który wskazują elementy z dzieł.
 - "fragment" — Ważny fragment (text): Zdanie (najwyżej trzy), w którym dzieło najlepiej pokazuje element — dokładnie jak w tekście.
@@ -878,53 +887,55 @@ Szablony kart: „Fragmenty i tezy jednego dzieła — połącz w pary”, „Do
 Sposoby dodawania: „Pytania dzieła — wiersz po wierszu”, „Kroki pod krokiem — wiersz po wierszu”, „Elementy stałe dzieła — wiersz po wierszu”.
 Widoki: „Wywód”, „Wywód — kolejność tekstu”, „Wywód — w czasie opowieści”, „Pytania wiodące i inne początki”, „Elementy stałe”, „Elementy stałe — tabela”.
 
-## templates/cogita/fakty.json — Fakty w dziele — co jest prawdą, skąd to wiadomo i jak to opowiada dzieło
+## templates/cogita/fakty.json — Fakty i źródła — co źródło mówi o świecie, kiedy i gdzie, i czy to się zgadza
 ### "@fakty/fakt" — Fakt, etykieta {tresc}
-- "tresc" — Treść (blocks): Pierwsze zdanie to sam fakt — krótko, własnymi słowami, jak twierdzenie o rzeczywistości (najwyżej 200 znaków): „Karol Wojtyła przyjął święcenia kapłańskie 1 listopada 1946 roku.”. Dalej szczegóły. Fakt jest jeden: dwa twierdzenia to dwa fakty.
-- "kogo" — Kogo i czego dotyczy (ref; kilka): Osoby, miejsca, rzeczy, których fakt dotyczy — wpisy tej bazy (np. Element stały: postać, miejsce) albo osoby z biblioteki.
-- "kiedy" — Kiedy (date; niepewne): Data z dokładnością, jaką znamy: rok, miesiąc albo dzień; niepewna — ze stanem (przybliżona, sporna…), źródłem i notatką.
-- "gdzie" — Gdzie (ref; kilka): Miejsce zdarzenia — wpis tej bazy (np. Element stały: miejsce).
-- "okres" — Okres (ref; kilka; → @fakty/okres; struktura up; kolejność nauki up): Okres albo etap życia, do którego fakt należy (np. „Dzieciństwo w Wadowicach”). Okres jest ogólniejszy — jego karty przychodzą przed kartami faktów.
-- "wDziele" — W dziele (ref; kilka; z miejscem; → work): Gdzie to mówi omawiane dzieło (powieść, film, wspomnienia): dzieło z biblioteki i miejsce, np. „s. 45–47”. Dzieło jest ŹRÓDŁEM tej informacji — nawet gdy ją upiększa.
-- "jakWDziele" — Jak przedstawia to dzieło (text): Jak dzieło to opowiada: wiernie, w skrócie, z wymyślonym dialogiem, z inną datą, z postacią złożoną z kilku osób… Bez oceny — opis.
-- "historycznosc" — Zgodność z historią (choice; do wyboru: "potwierdzone", "prawdopodobne", "sporne", "uproszczone", "fikcja", "nieznane"): Ocena po sprawdzeniu innych źródeł: potwierdzone (inne źródła mówią to samo), prawdopodobne, sporne (źródła się różnią), uproszczone (prawda, ale uproszczona albo udramatyzowana), fikcja (wymyślone przez autora), nieznane (nie znaleziono innego źródła). Bez sprawdzenia — puste.
-- "zrodla" — Inne źródła (ref; kilka; z miejscem; → work): Źródła z biblioteki, które potwierdzają albo przeczą (biografie, dokumenty, encyklopedie) — z miejscem.
-- "zrodlaPoza" — Źródła spoza biblioteki (list): Źródła, których nie ma w bibliotece: „Encyklopedia PWN, hasło …”, adres strony, archiwum — każde w osobnej linii. Lepiej dodać źródło do biblioteki i wskazać je w „Inne źródła”.
-- "ocena" — Uzasadnienie oceny (text): Dlaczego taka ocena: co mówią inne źródła, czym się różnią od dzieła, czego nie da się sprawdzić.
-- "wymaga" — Najpierw trzeba znać (ref; kilka; kolejność nauki up): Fakty albo wpisy, które trzeba znać wcześniej, żeby ten zrozumieć (wybór na papieża wymaga faktu, że był kardynałem). Tylko bezpośrednie.
-### "@fakty/okres" — Okres, etykieta {nazwa}
-- "nazwa" — Nazwa (line): Okres albo etap: „Dzieciństwo w Wadowicach”, „Okupacja”, „Pontyfikat”.
-- "od" — Od (date; niepewne): Początek okresu (rok, miesiąc albo dzień).
-- "do" — Do (date; niepewne): Koniec okresu.
-- "nr" — Kolejność (number): Numer okresu w kolejności (1 — najwcześniejszy) — według niego układają się okresy w widokach.
+- "tresc" — Treść (blocks): Pierwsze zdanie to sam fakt — jedno twierdzenie o świecie, krótko, własnymi słowami (najwyżej 200 znaków): „Bitwa pod Grunwaldem odbyła się 15 lipca 1410 roku.”, „Karol Wojtyła przyjął święcenia kapłańskie 1 listopada 1946 roku.”, „Woda wrze w 100 °C pod ciśnieniem 1013 hPa.”. Dalej szczegóły. Dwa twierdzenia to dwa fakty.
+- "haslo" — Hasło (line): Krótka nazwa bez daty i bez odpowiedzi — do kart „Kiedy?” i „Co wiadomo?”: „Bitwa pod Grunwaldem”, „Święcenia kapłańskie Karola Wojtyły”, „Chrzest Polski”.
+- "rodzaj" — Rodzaj faktu (choice; do wyboru: "zdarzenie", "stan", "liczba", "wypowiedz", "przyczyna", "opinia"): Jaki to fakt — od tego zależy, jak go sprawdzić i o co pytać (zdarzenie: kiedy i gdzie; wypowiedź: kto i do kogo; liczba: ile). Opinii nie potwierdza się źródłem — opisuje się, kto tak ocenia.
+- "kogo" — O kim, o czym (ref; kilka): Osoby, miejsca, rzeczy, pojęcia, których fakt dotyczy — wpisy tej bazy (np. Element stały, Pojęcie) albo osoby i dzieła z biblioteki.
+- "kiedy" — Kiedy (date; niepewne): Data z dokładnością, jaką znamy — rok, miesiąc albo dzień; przybliżona albo sporna — ze stanem, źródłem i notatką. Fakt bez daty — puste.
+- "gdzie" — Gdzie (ref; kilka): Miejsce — wpis tej bazy (np. Element stały: miejsce).
+- "okres" — Okres (ref; kilka; → @czas/okres; struktura up; kolejność nauki up): Okres, epoka albo etap, do którego fakt należy („Okupacja”, „Średniowiecze”, „Dzieciństwo”). Okres jest ogólniejszy — jego karty przychodzą przed kartami faktów.
+- "zrodlo" — Źródło (ref; kilka; z miejscem; → work): Skąd ten fakt: dzieło z biblioteki, które go podaje — książka, artykuł, nagranie, film, dokument, strona — z miejscem w nim (strona, rozdział, werset, minuta). Jak czytać to miejsce, wie Biblioteka (układ miejsc dzieła). Gdy uczysz się z jednego dzieła, to jest ono — także wtedy, gdy coś upiększa albo zmyśla.
+- "jak" — Jak podaje to źródło (text): Jak źródło to przedstawia: dosłownie, w skrócie, z dopowiedzeniami, w scenie z wymyślonym dialogiem, z inną datą, bez kontekstu, z postacią złożoną z kilku osób… Opis, bez oceny.
+- "ocena" — Czy się zgadza (choice; do wyboru: "potwierdzone", "prawdopodobne", "sporne", "uproszczone", "nieprawdziwe", "fikcja", "nieznane"): Ocena po sprawdzeniu w innych źródłach. Bez sprawdzenia — puste.
+- "potwierdzenia" — Inne źródła (ref; kilka; z miejscem; → work): Dzieła z biblioteki, które to potwierdzają albo mu przeczą — z miejscem, jak przy „Źródle”.
+- "poza" — Źródła spoza biblioteki (list): Gdy źródła nie ma w bibliotece — każde w osobnej linii: hasło encyklopedii, archiwum, adres strony. Lepiej dodać je do biblioteki i wskazać w „Inne źródła”.
+- "uzasadnienie" — Uzasadnienie (text): Dlaczego taka ocena: co mówią inne źródła, czym różnią się od źródła faktu, czego nie da się sprawdzić.
+- "wymaga" — Najpierw trzeba znać (ref; kilka; kolejność nauki up): Fakty albo pojęcia, które trzeba znać wcześniej, żeby ten zrozumieć (wybór na papieża wymaga faktu, że ktoś był kardynałem). Tylko bezpośrednie.
+### "@czas/okres" — Okres, etykieta {nazwa}
+- "nazwa" — Nazwa (line): Okres, epoka albo etap: „Okupacja”, „Średniowiecze”, „Dzieciństwo w Wadowicach”, „Pontyfikat”, „Adwent”.
+- "czas" — Kiedy (range): Od–do, z dokładnością, jaką znamy: „1939–1945”, „ok. 960–992”, „1978–2005”, „1990–” (bez końca). Okres bez dat — puste.
+- "nr" — Kolejność (number): Numer w kolejności (1 — najwcześniejszy) — według niego układają się okresy w widokach, także gdy dat brak albo okresy nachodzą na siebie.
 - "opis" — Opis (markup): Najważniejsze o tym okresie w dwóch–trzech zdaniach — to, co trzeba wiedzieć, zanim przyjdą szczegóły.
-- "nalezy" — Należy do (ref; → @fakty/okres; struktura up; kolejność nauki up): Szerszy okres, w którym ten leży (np. „Młodość” w „Życie przed kapłaństwem”).
-Szablony kart: „Fakt: o kim → co wiadomo (fiszka)”, „Prawda czy fikcja? (wybór)”, „Okres: co się wtedy działo (fiszka)”.
-Sposoby dodawania: „Fakty z dzieła — wiersz po wierszu”.
-Widoki: „Fakty według okresów”, „Prawda i fikcja”, „Fakty od podstaw”.
+- "nalezy" — Należy do (ref; → @czas/okres; struktura up; kolejność nauki up): Szerszy okres, w którym ten leży („Młodość” w „Życie przed kapłaństwem”, „Wczesne średniowiecze” w „Średniowiecze”).
+Szablony kart: „Hasło → co wiadomo (fiszka)”, „Hasło → kiedy (rok)”, „Czy to się zgadza? (wybór oceny)”, „Okres → co wtedy było (fiszka)”.
+Sposoby dodawania: „Fakty ze źródła — wiersz po wierszu”, „Okresy — wiersz po wierszu”.
+Widoki: „Fakty według okresów”, „Oś czasu”, „Fakty według oceny”, „Fakty według rodzaju”, „Fakty od podstaw”.
 
-## templates/cogita/jednostki.json — Księga z numerowanymi częściami — prefacje, modlitwy, pieśni, artykuły
-### "@jednostki/jednostka" — Część księgi, etykieta {oznaczenie}
-- "nr" — Numer (number): Kolejny numer części w księdze albo w jej grupie (1, 2, 3…) — według niego układają się widoki. Numer z księgi („P 12”, „I”) idzie do „Oznaczenia”.
-- "oznaczenie" — Oznaczenie (line): Jak część nazywa księga: „Prefacja o Adwencie I”, „Prefacja o Najświętszej Eucharystii II”, „Kolekta z I niedzieli Adwentu”.
-- "rodzaj" — Rodzaj części (choice; do wyboru: "prefacja", "kolekta", "nad-darami", "po-komunii", "modlitwa-eucharystyczna", "antyfona", "hymn", "psalm", "artykul", "inne"): Jaka to część. Listę można rozszerzać — nowa możliwość to nowa pozycja, nie nowy schemat.
-- "incipit" — Początek (text): Początek tej części — słowa, po których się ją rozpoznaje. Gdy wszystkie części zaczynają się tą samą formułą (prefacje: „Zaprawdę, godne to i sprawiedliwe…”), wpisz pierwsze słowa PO tej formule, dokładnie jak w księdze.
-- "tresc" — O czym jest (blocks): Pierwsze zdanie: o czym jest ta część — jej myśl przewodnia, własnymi słowami (najwyżej 200 znaków). Dalej najważniejsze myśli, po kolei.
-- "motywy" — Motywy (list): Słowa i obrazy, po których ją poznać (każdy w osobnej linii): „czuwanie”, „podwójne przyjście”.
-- "grupa" — Grupa (ref; → @jednostki/grupa; struktura up; kolejność nauki up): Grupa albo dział księgi, w którym jest część (np. „Prefacje adwentowe”). Grupa jest ogólniejsza: najpierw poznaje się, czym się wyróżnia, potem jej części.
-- "miejsce" — W księdze (ref; z miejscem; → work): Księga z biblioteki i miejsce części — strona tak, jak stoi w księdze: „s. 12*”, „s. 456”, „s. 3''” (znak serii stron, gdy księga ma kilka numeracji).
-- "podobne" — Podobne (ref; kilka; → @jednostki/jednostka): Części podobne do tej — te, które łatwo pomylić (tej samej grupy albo o tym samym temacie).
-- "roznica" — Czym się różni (text): Czym ta część różni się od podobnych: inna myśl, inny obraz, inne słowo kluczowe.
-- "uzycie" — Kiedy się jej używa (text): Kiedy i do czego się jej używa (np. „od I niedzieli Adwentu do 16 grudnia”).
-### "@jednostki/grupa" — Grupa części, etykieta {nazwa}
-- "nazwa" — Nazwa (line): Nazwa grupy albo działu: „Prefacje adwentowe”, „Obrzędy wstępne”, „Okres zwykły”.
-- "nr" — Kolejność (number): Numer grupy w kolejności księgi — według niego układają się grupy w widokach.
-- "opis" — Czym się wyróżnia (markup): Co łączy części tej grupy i czym różni się ona od innych — dwa–trzy zdania, ogólnie.
-- "nalezy" — Należy do (ref; → @jednostki/grupa; struktura up; kolejność nauki up): Szerszy dział (np. „Prefacje” → „Prefacje adwentowe”).
-- "miejsce" — W księdze (ref; z miejscem; → work): Księga i zakres stron grupy, np. „s. 400–412”, „s. 1*–20*”.
-Szablony kart: „Nazwa → o czym jest (fiszka)”, „Początek → która to (wybór z tej samej grupy)”, „Początki i nazwy z tej samej grupy — połącz w pary”, „Nazwa → jak się zaczyna (fiszka)”, „Grupa: czym się wyróżnia (fiszka)”.
-Sposoby dodawania: „Części księgi — wiersz po wierszu”.
-Widoki: „Według numeru”, „Według grup”, „Od podstaw”.
+## templates/cogita/zbior.json — Zbiór — pozycje do rozpoznania i rozróżnienia (modlitwy, prefacje, pieśni, psalmy, artykuły, utwory, obrazy…)
+### "@zbior/pozycja" — Pozycja, etykieta {oznaczenie}
+- "nr" — Numer (number): Kolejność w zbiorze albo w grupie (1, 2, 3…) — według niej układają się widoki. Oznaczenie, pod którym pozycja stoi w źródle („P 12”, „Ps 23”, „KV 618”, „art. 12”), idzie do „Oznaczenia”.
+- "oznaczenie" — Oznaczenie (line): Jak pozycję nazywa zbiór — tytuł, numer, sygnatura: „Prefacja o Adwencie I”, „Pieśń 112: Czarna Madonna”, „Psalm 23”, „Art. 12 Konstytucji”, „Sonata c-moll op. 13 (Patetyczna)”.
+- "poczatek" — Początek (text): Pierwsze słowa (wers, fraza, zdanie), po których się ją rozpoznaje — dokładnie jak w źródle. Gdy wszystkie pozycje zaczynają się tą samą formułą (prefacje: „Zaprawdę, godne to i sprawiedliwe…”), wpisz słowa PO niej.
+- "tresc" — O czym jest (blocks): Pierwsze zdanie: o czym jest — myśl przewodnia, własnymi słowami (najwyżej 200 znaków). Dalej najważniejsze myśli, po kolei.
+- "znaki" — Znaki rozpoznawcze (list): Słowa, obrazy, motywy, cechy, po których ją poznać — każdy w osobnej linii („czuwanie”, „podwójne przyjście”; „tonacja d-moll”; „czerwony płaszcz”).
+- "obraz" — Obraz albo dźwięk (media): Gdy rozpoznaje się ją także po obrazie albo dźwięku — zdjęcie, ilustracja, fragment melodii. Plik dodaje się w aplikacji.
+- "grupa" — Grupa (ref; → @zbior/grupa; struktura up; kolejność nauki up): Grupa, dział albo rodzaj, do którego należy („Prefacje adwentowe”, „Pieśni maryjne”, „Rozdział II. Wolności i prawa”). Grupa jest ogólniejsza: najpierw poznaje się grupę, potem jej pozycje.
+- "miejsce" — Gdzie jest (ref; kilka; z miejscem; → work): Dzieło z biblioteki i miejsce w nim — strona, numer, werset, minuta nagrania; ta sama pozycja może stać w kilku dziełach (pieśń w dwóch śpiewnikach). Jak czytać to miejsce, wie Biblioteka (układ miejsc dzieła, także strony w osobno liczonych częściach książki).
+- "podobne" — Łatwo pomylić z (ref; kilka; → @zbior/pozycja): Pozycje podobne do tej — te, które łatwo pomylić (z tej samej grupy, o tym samym temacie, o podobnym początku).
+- "roznica" — Czym się różni (text): Czym różni się od tych, z którymi łatwo ją pomylić: inna myśl, inny obraz, inne słowo kluczowe.
+- "uzycie" — Kiedy i do czego (text): Kiedy, przy jakiej okazji i do czego się jej używa („w Adwencie do 16 grudnia”, „na pogrzebach”, „gdy umowa jest nieważna”).
+- "wymaga" — Najpierw trzeba znać (ref; kilka; kolejność nauki up): Co trzeba znać wcześniej — pojęcie, inną pozycję. Tylko bezpośrednie.
+### "@zbior/grupa" — Grupa, etykieta {nazwa}
+- "nazwa" — Nazwa (line): Nazwa grupy, działu albo rodzaju: „Prefacje”, „Prefacje adwentowe”, „Pieśni wielkanocne”, „Rozdział II Konstytucji”.
+- "nr" — Kolejność (number): Numer grupy w kolejności zbioru — według niego układają się grupy w widokach.
+- "opis" — Czym się wyróżnia (markup): Co łączy pozycje tej grupy i czym różni się ona od innych — dwa–trzy zdania, ogólnie.
+- "nalezy" — Należy do (ref; → @zbior/grupa; struktura up; kolejność nauki up): Szerszy dział („Prefacje” → „Prefacje adwentowe”).
+- "miejsce" — Gdzie jest (ref; kilka; z miejscem; → work): Dzieło z biblioteki i zakres grupy w nim („s. 400–412”, „nr 1–20”).
+Szablony kart: „Oznaczenie → o czym jest (fiszka)”, „Początek → która to? (wybór z tej samej grupy)”, „Początki i oznaczenia z tej samej grupy — połącz w pary”, „Oznaczenie → jak się zaczyna (fiszka)”, „Czym się różni od podobnych? (fiszka)”, „Obraz albo dźwięk → która to? (wybór z tej samej grupy)”, „Grupa → czym się wyróżnia (fiszka)”.
+Sposoby dodawania: „Pozycje zbioru — wiersz po wierszu”.
+Widoki: „Według numeru”, „Według grup”, „Podobne i różnice”, „Od podstaw”.
 
 ## templates/cogita/podstawy.json — Pojęcia z kolejnością nauki — od podstaw do szczegółów
 ### "@podstawy/pojecie" — Pojęcie, etykieta {nazwa}
