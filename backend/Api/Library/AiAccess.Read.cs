@@ -64,6 +64,9 @@ public static partial class AiAccess
         app.MapMethods("/ai/{token}/entry/{entry}", read, EntryAsync);
         app.MapMethods("/ai/{token}/kinds", read, KindsAsync);
         app.MapMethods("/ai/{token}/openapi.json", read, OpenApiAsync);
+        /* 2026-10-28 — die Formate der JSON-Importe (ImportFormats.cs): was ein Assistent für den Import vorbereiten kann. */
+        app.MapMethods("/ai/{token}/formats", read, FormatsAsync);
+        app.MapMethods("/ai/{token}/formats/{format}", read, FormatAsync);
     }
 
     /* -- Die Abschrift, wie der Dienst sie liest --------------------------------------------- */
@@ -780,6 +783,48 @@ public static partial class AiAccess
     private static Task Gone(HttpContext ctx) =>
         Say(ctx, StatusCodes.Status404NotFound, new { error = "Ten link dostępu dla AI nie działa — nie ma go, wygasł albo został wyłączony." });
 
+    /* -- 2026-10-28: die Formate der JSON-Importe (ImportFormats.cs) -------------------------------------- */
+
+    /// <summary>Wo die Formate unter diesem Link liegen (wie <c>Opened.Base</c>, ohne etwas zu öffnen).</summary>
+    private static string FormatsBase(HttpContext ctx, string token) => $"{PublicRoot(ctx.Request)}/ai/{TokenOf(token) ?? token}/formats";
+
+    /// <summary>DIE FORMATE — welche es gibt, wofür, wo in der App. Ein gültiger Link genügt; kein Behälter wird geöffnet.</summary>
+    private static async Task FormatsAsync(HttpContext ctx, Db db, string token)
+    {
+        if (!await LinkWorksAsync(db, token, ctx.RequestAborted)) { await Gone(ctx); return; }
+        var all = ImportFormats.All;
+        var root = FormatsBase(ctx, token);
+        await Say(ctx, StatusCodes.Status200OK, new
+        {
+            about = all.About,
+            formats = all.Formats.Select(f => new { id = f.Id, group = f.Group, title = f.Title, what = f.What, where = f.Where, size = f.Size, parts = f.Parts.Count, read = $"{root}/{f.Id}" }),
+            contextual = all.Contextual
+        });
+    }
+
+    /// <summary>EIN FORMAT, Teil für Teil (<c>?part=n</c>); der erste Teil trägt das Inhaltsverzeichnis.</summary>
+    private static async Task FormatAsync(HttpContext ctx, Db db, string token, string format, int? part)
+    {
+        if (!await LinkWorksAsync(db, token, ctx.RequestAborted)) { await Gone(ctx); return; }
+        var found = ImportFormats.Find(format);
+        if (found is null) { await Say(ctx, StatusCodes.Status404NotFound, new { error = $"Nie ma formatu „{format}”.", formats = FormatsBase(ctx, token) }); return; }
+        var n = part ?? 1;
+        if (n < 1 || n > found.Parts.Count) { await Say(ctx, StatusCodes.Status404NotFound, new { error = $"Format „{found.Id}” ma części 1–{found.Parts.Count}." }); return; }
+        var root = FormatsBase(ctx, token);
+        await Say(ctx, StatusCodes.Status200OK, new
+        {
+            id = found.Id,
+            title = found.Title,
+            what = found.What,
+            where = found.Where,
+            part = n,
+            parts = found.Parts.Count,
+            next = n < found.Parts.Count ? $"{root}/{found.Id}?part={n + 1}" : null,
+            contents = n == 1 && found.Contents.Count > 0 ? found.Contents : null,
+            text = found.Parts[n - 1]
+        });
+    }
+
     /// <summary>Entpacken — mit einer Obergrenze, damit eine Abschrift den Dienst nicht füllt.</summary>
     public static byte[] Gunzip(byte[] data, long max = MaxOpened)
     {
@@ -1028,7 +1073,8 @@ public static partial class AiAccess
                 $"Przeglądaj wszystko po kolei: GET {o.Base}/search (bez q) — dalej według pola \"next\".",
                 $"Czytaj wpis: GET {o.Base}/entry/<id albo klucz> — wszystkie pola (\"data\"), co wskazuje (\"refs\") i co wskazuje na niego (\"usedBy\").",
                 $"Znaczenie pól każdego rodzaju: GET {o.Base}/kinds",
-                $"Opis OpenAPI (np. dla akcji w ChatGPT): {o.Base}/openapi.json"
+                $"Opis OpenAPI (np. dla akcji w ChatGPT): {o.Base}/openapi.json",
+                $"Gdy przygotowujesz dane do zaimportowania przez użytkownika (wpisy, dzieło z pełnym tekstem, bazę wiedzy z pytaniami, stronę…): najpierw format — GET {o.Base}/formats, potem /formats/<id>?part=1 i kolejne części. Importuje użytkownik w aplikacji, po przejrzeniu zmian."
             },
             rules = new[]
             {
@@ -1046,6 +1092,7 @@ public static partial class AiAccess
                 parts = o.Parts.Select(p => $"{o.Base}/search?part={Ids.ToText(p.LibraryId)}&limit={MaxLimit}"),
                 kindsOfEntries = o.Parts.SelectMany(p => p.Items.Select(i => i.KindName)).Distinct().Select(k => $"{o.Base}/search?kind={Uri.EscapeDataString(k)}&limit={MaxLimit}"),
                 openapi = $"{o.Base}/openapi.json",
+                formats = $"{o.Base}/formats",
                 asJson = $"{o.Base}?format=json"
             }
         });
@@ -1208,7 +1255,22 @@ public static partial class AiAccess
                         responses = Ok("Wpis")
                     }
                 },
-                ["/kinds"] = new { get = new { operationId = "getKinds", summary = "Rodzaje wpisów i znaczenie ich pól", responses = Ok("Rodzaje") } }
+                ["/kinds"] = new { get = new { operationId = "getKinds", summary = "Rodzaje wpisów i znaczenie ich pól", responses = Ok("Rodzaje") } },
+                ["/formats"] = new { get = new { operationId = "listImportFormats", summary = "Formaty JSON importów (do przygotowania danych, które użytkownik zaimportuje w aplikacji)", responses = Ok("Formaty") } },
+                ["/formats/{format}"] = new
+                {
+                    get = new
+                    {
+                        operationId = "getImportFormat",
+                        summary = "Jeden format, część po części (pierwsza ze spisem treści)",
+                        parameters = new object[]
+                        {
+                            new { name = "format", @in = "path", required = true, schema = Text("id formatu z listImportFormats, np. library, work-with-text, knowledge-base, page") },
+                            new { name = "part", @in = "query", required = false, schema = new { type = "integer", minimum = 1 } }
+                        },
+                        responses = Ok("Część formatu")
+                    }
+                }
             }
         });
     }

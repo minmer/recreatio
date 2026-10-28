@@ -84,12 +84,27 @@ export function partsOf(text) {
     current.push(line);
   }
   if (current.length > 0) sections.push(current.join(NL));
-  /* Ein Abschnitt, der allein zu gross ist, an Leerzeilen. */
+  /*
+   * Ein Abschnitt, der allein zu gross ist, an Leerzeilen — und ein Block ohne Leerzeile (die Animacja: über
+   * 100 000 Zeichen Schlüssel) an Zeilen; jedes Stück danach sagt, wessen Fortsetzung es ist.
+   */
+  const byLines = (block, heading) => {
+    const out = [];
+    let chunk = '';
+    for (const line of block.split(NL)) {
+      const next = chunk === '' ? line : chunk + NL + line;
+      if (next.length > PART_LIMIT && chunk !== '') { out.push(chunk); chunk = (heading === '' ? '' : `(ciąg dalszy: ${heading})${NL}`) + line; } else chunk = next;
+    }
+    if (chunk !== '') out.push(chunk);
+    return out;
+  };
   const pieces = [];
   for (const section of sections) {
     if (section.length <= PART_LIMIT) { pieces.push(section); continue; }
+    const first = section.split(NL, 1)[0];
+    const heading = /^#{1,4} /.test(first) ? first.replace(/^#+ /, '') : '';
     let chunk = '';
-    for (const block of section.split(NL + NL)) {
+    for (const block of section.split(NL + NL).flatMap((one) => (one.length > PART_LIMIT ? byLines(one, heading) : [one]))) {
       const next = chunk === '' ? block : chunk + NL + NL + block;
       if (next.length > PART_LIMIT && chunk !== '') { pieces.push(chunk); chunk = block; } else chunk = next;
     }
@@ -145,7 +160,9 @@ export async function formats() {
       title: `${id.startsWith('example') ? 'Przykład kursu' : 'Schemat'}: ${s.name}`,
       what: id.startsWith('example') ? 'Mała, kompletna baza wiedzy (rodzaje, wpisy, pytania, powtórka) — wzór dokumentu w formacie „knowledge-base”.' : 'Gotowy schemat (rodzaje wpisów, szablony kart, sposoby dodawania, widoki) do zaimportowania w bazie wiedzy, zanim doda się wpisy.',
       where: `Plik templates/cogita/${name}; import w Wiedza → baza wiedzy → „Więcej” → „Import i eksport (JSON)”.`,
-      text: s.text
+      text: s.text,
+      /* Ein Dokument zum Importieren bleibt ganz — in Teilen liesse es sich nicht einfügen. */
+      whole: true
     });
   }
   const contextual = [
@@ -154,7 +171,7 @@ export async function formats() {
     { title: 'Plan tekstu i wygłoszenie (Skryptorium)', where: 'Skryptorium → tekst → „Plan z treści — przez AI we własnym czacie”; wygłoszenie → „Z nagrania albo zapisu — przez AI we własnym czacie”.', why: 'Polecenie zawiera treść tego tekstu.' },
     { title: 'Moduł strony', where: 'Strony → strona → moduł → „JSON tego modułu”; Moduły → „JSON modułu”.', why: 'Format każdego rodzaju modułu jest częścią „page”.' }
   ];
-  const formats = list.map(({ text, ...rest }) => ({ ...rest, size: text.length, ...partsOf(text) }));
+  const formats = list.map(({ text, whole, ...rest }) => ({ ...rest, size: text.length, ...(whole === true ? { parts: [text.trimEnd()], contents: [] } : partsOf(text)) }));
   return { about: `Formaty JSON importów Recreatio, wygenerowane z aplikacji (frontend/scripts/import-formats.mjs). ${IMPORT_NOTE}`, formats, contextual };
 }
 

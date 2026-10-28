@@ -418,6 +418,17 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
   - The Android app keeps a larger amount when the learner chooses one.
   - Authoring stays online.
   - The cached questions are sealed under the device’s own key: the vault of `kept.ts`, which in the app is the Android Keystore. Offline answers are sealed to public keys (the storage area’s intake and the learner’s own key), so answering needs no secret at all.
+  - Since 2026-10-28 the copies belong to one **account** and are sealed under the device key AND the account's
+    key for copies (HKDF of its master key, `core/away.ts`) — neither alone opens them. Without the network the
+    app does not fall back to the sign-in form: it opens the shell without network (`shell/AloneShell.tsx`, in the
+    SMS edition next to the SMS), where one **signs in on the device**: the app (only the app, and only in the mode
+    `kept` while it keeps copies) holds the account's salt and the envelope of its master key, sealed under the
+    device key; Argon2id of the password opens the envelope or does not. When the network is back, the same
+    password key signs in to the service (no second password), and the outbox goes out by itself. Who was signed
+    in and loses the network stays signed in (the bar says „Bez internetu” and leads to the copies). The copy holds
+    the learning person (id and public key) and takes in what is answered online at the end of a run and what is
+    answered offline. Signing out, „Tylko w pamięci” or dropping the last copy takes the login without network off
+    the device. The price: whoever has the phone and its key store can try passwords offline (Argon2id, 64 MiB each).
   - In the strict key-keeping mode (`tab`), nothing is cached.
   - Since 2026-10-27 the kept copy carries what the learning order needs (`offline.ts`): the revision's gate
     „Najpierw podstawy” (it used to be dropped, so details came before basics), the learner's earlier answers to

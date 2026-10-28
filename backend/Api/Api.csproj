@@ -54,6 +54,10 @@
       an als auf dem Entwicklungsrechner.
     -->
     <EmbeddedResource Include="Sql\*.sql" />
+    <!-- 2026-10-28 — die Formate der JSON-Importe für Assistenten (ImportFormats.cs), aus der App erzeugt: frontend/scripts/import-formats.mjs. -->
+    <EmbeddedResource Include="Library\ImportFormats.json" LogicalName="Api.ImportFormats.json" />
+    <!-- Nur eingebettet: das Web-SDK nähme jede .json sonst auch als Datei in die Veröffentlichung. -->
+    <Content Remove="Library\ImportFormats.json" />
   </ItemGroup>
 
 </Project>

@@ -41,7 +41,8 @@ public static class AiMcp
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
         "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
-        "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish.";
+        "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish. " +
+        "To prepare data the user will import (entries, a work with its full text, a knowledge base with questions, a page…), first read the format: list_import_formats, then get_import_format part by part — the specification is generated from the app itself. Nothing is written from here: the user imports the JSON in the app and reviews the changes.";
 
     public static void AddServices(IServiceCollection services)
     {
@@ -109,7 +110,8 @@ public static class AiMcp
 }
 
 /// <summary>
-/// Die Werkzeuge — nur lesend. Jedes öffnet die freigegebenen Links für die Dauer des Aufrufs.
+/// Die Werkzeuge — nur lesend. Jedes, das Inhalte liest, öffnet die freigegebenen Links für die Dauer des
+/// Aufrufs; die Formate der Importe (2026-10-28, <c>list_import_formats</c>, <c>get_import_format</c>) brauchen keinen Behälter.
 /// Fehler sagen, was los ist: <c>not_found</c> (kein solcher Eintrag in diesem Zugang),
 /// <c>unauthorized</c> (kein Link gilt mehr), <c>rate_limited</c>, <c>not_ready</c> (ein Behälter
 /// hat noch keine Abschrift).
@@ -518,5 +520,42 @@ public sealed class AiMcpTools
         if (block.At is not null) metadata["place"] = block.At;
         if (block.PageFrom is not null) metadata["pages"] = PagesText(block.PageFrom, block.PageTo);
         return new Document(id, $"{o.WorkTitle(t)}{(block.At is null ? "" : ", " + block.At)}", AiAccess.RenderBlocks(shown), ReaderUrl(config, t, block.At), metadata);
+    }
+
+    /* -- 2026-10-28: die Formate der JSON-Importe (ImportFormats.cs) ----------------------------------
+     *
+     * Was ein Assistent für den Import VORBEREITEN kann — dieselben Beschreibungen, die in der App neben jedem
+     * Import stehen. Nichts geht von hier hinein: importiert wird in der App, vom Menschen, nach der Vorschau.
+     * Kein Behälter wird dafür geöffnet; die Tür (ein gültiger Link) gilt wie für alles unter /mcp.
+     */
+
+    public sealed record ImportFormatLine(string Id, string Group, string Title, string What, string Where, int Size, int Parts);
+    public sealed record ImportFormatsResult(string About, IReadOnlyList<ImportFormatLine> Formats, IReadOnlyList<ImportFormats.Contextual> Contextual, string Next);
+    public sealed record ImportFormatPart(string Id, string Title, string What, string Where, int Part, int Parts, int? NextPart, IReadOnlyList<ImportFormats.ContentsLine> Contents, string Text);
+
+    [McpServerTool(Name = "list_import_formats", Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("The JSON formats the user can import into Recreatio — read this before preparing data for an import (entries of a Library, a work with its full text, a knowledge base with questions and revisions, Scriptorium texts, a page, an area, calendar schemes, a registry), plus ready knowledge-base schemes and guides for AI. For each: id, what it is for, where in the app it is imported, size and number of parts. Read one with get_import_format. Nothing is written from here: the user pastes the JSON in the app, sees the list of changes with warnings and confirms.")]
+    public static ImportFormatsResult ListImportFormats()
+    {
+        var all = ImportFormats.All;
+        return new ImportFormatsResult(
+            all.About,
+            all.Formats.Select(f => new ImportFormatLine(f.Id, f.Group, f.Title, f.What, f.Where, f.Size, f.Parts.Count)).ToList(),
+            all.Contextual,
+            "Read a format with get_import_format (format = id). Long ones come in parts: part 1 carries the contents (which part describes what), continue with nextPart.");
+    }
+
+    [McpServerTool(Name = "get_import_format", Title = "Format importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("One import format exactly as the app describes it next to its import: the document's keys, what each means, what the import does with it, rules and examples — or a ready scheme / a guide for AI (ids from list_import_formats). Long formats come in parts: part 1 also returns the contents (headings with the part they are in, e.g. every module kind of a page); continue with nextPart until it is null.")]
+    public static ImportFormatPart GetImportFormat(
+        [Description("Format id from list_import_formats, e.g. library, work-with-text, source-text, knowledge-base, scriptorium, page, guide-book, scheme-fakty.")] string format,
+        [Description("Part to read, from 1 (default 1).")] int part = 1)
+    {
+        var found = ImportFormats.Find(format)
+            ?? throw new McpException($"not_found: nie ma formatu „{format}” — wszystkie podaje list_import_formats.");
+        if (part < 1 || part > found.Parts.Count)
+            throw new McpException($"not_found: format „{found.Id}” ma części 1–{found.Parts.Count}.");
+        return new ImportFormatPart(found.Id, found.Title, found.What, found.Where, part, found.Parts.Count,
+            part < found.Parts.Count ? part + 1 : null, part == 1 ? found.Contents : [], found.Parts[part - 1]);
     }
 }

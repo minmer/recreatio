@@ -6,6 +6,6 @@
   "code: window.confirm()": 1,
   "code: loading text outside <Loading>": 12,
   "code: DisplaySwitch / useDisplay": 0,
-  "code: wk-hint": 565,
-  "code: inline style={{…}}": 96
+  "code: wk-hint": 550,
+  "code: inline style={{…}}": 90
 }

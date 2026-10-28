@@ -45,6 +45,17 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
 | `search_text` | `query`, `text?`, `collection?`, `limit`, `offset` | blocks of full texts with all words (Polish letters do not matter, phrases first): text, work, part, place, pages, snippet, reader url |
 | `search` | `query` | standard ChatGPT search: `{results: [{id, title, url}]}` — entries first, then passages of full texts (`text:<text>:<part>:<block>`) |
 | `fetch` | `id` | standard ChatGPT fetch: `{id, title, text, url, metadata}`; for a passage, the whole unit of its place with work and place |
+| `list_import_formats` | — | (2026-10-28) the JSON formats the user can import: id, group, title, what it is for, where in the app it is imported, size and number of parts; plus the formats that exist only in place (a form's list, one work's text, a text's plan) |
+| `get_import_format` | `format` (id), `part` (from 1) | one format exactly as the app describes it next to its import, or a ready scheme / AI guide; long ones in parts of ≤ 24 000 characters — part 1 carries the contents (each heading, e.g. every module kind of a page, with its part), then `nextPart` |
+
+- **Import formats** (2026-10-28): an assistant that reads Recreatio often writes what is imported next — Library
+  entries, a work with its full text, a knowledge base with questions, Scriptorium texts, a page, an area, calendar
+  schemes, a registry. `frontend/scripts/import-formats.mjs` writes `backend/Api/Library/ImportFormats.json` from the
+  app's own descriptions (the same text that stands next to each JSON import), the AI guides
+  (`templates/cogita/ksiazka-AI.md`, `wywod-AI.md`) and the ready schemes (`templates/cogita/*.json`, kept whole);
+  `app-json-check` fails when the file lags behind the app. The file is embedded in the program (`ImportFormats.cs`).
+  Nothing is imported from here: the user pastes the JSON in the app and confirms after the list of changes. Over
+  the link: `GET /ai/<link>/formats` and `/ai/<link>/formats/<id>?part=n` (also in the guide and in `openapi.json`).
 
 - **Search**: all words must occur (title, key, kind, content); case and Polish letters do not matter; words of one
   or two characters count only as whole words, and entries where the words stand together come first — `J 21`

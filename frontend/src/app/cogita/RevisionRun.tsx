@@ -15,7 +15,8 @@ import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
 import { toBase64Url } from '../core/crypto';
-import { answersFor, keepOffline, needsFiles } from './offline';
+import { answersFor, keepOffline, needsFiles, type OfflineRevision } from './offline';
+import type { Who } from '../core/session';
 import { answer, heldBack, levelsOf, planOf, progress, start, type Plan, type Session } from './revision';
 import type { CogitaLibrary } from './store';
 import { Bar, CogitaContext, entityName } from './ui';
@@ -65,9 +66,27 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   const [pending, setPending] = useState<Session | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const saved = useRef(false);
+  /*
+   * 2026-10-28 — die Abschrift für die Zeit ohne Netz, wie sie abgelegt wurde: am Ende des Laufs (und beim
+   * Verlassen) kommt auch hinein, was JETZT beantwortet wurde — sonst finge die erste Runde ohne Netz bei dem an,
+   * was vor diesem Lauf galt.
+   */
+  const keptCopy = useRef<{ copy: OfflineRevision; who: Who } | null>(null);
+  const learnerNow = useRef(learner);
+  learnerNow.current = learner;
+  const renameNow = useRef<((key: string) => string) | undefined>(undefined);
+  const refreshKept = () => {
+    const had = keptCopy.current;
+    const who = learnerNow.current;
+    if (had === null || who === null) return;
+    void keepOffline({ ...had.copy, answers: answersFor(had.copy.cards, who.progress.answers.values(), renameNow.current), savedAt: Date.now() }, had.who).catch(() => false);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- liest nur Refs
+  useEffect(() => () => refreshKept(), []);
   /* Wie oft jede Karte kam und wie oft falsch — am Ende ohne Namen an die Autoren [Q8]. */
   const tally = useRef(new Map<string, { asked: number; wrong: number }>());
   const rename = useMemo(() => (lib === null ? undefined : renamer(lib.merges())), [lib]);
+  renameNow.current = rename;
 
   useEffect(() => {
     let alive = true;
@@ -95,14 +114,16 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
              * Schlüssel): ohne Netz und ohne offenen Schlüsselbund wird für sie versiegelt.
              */
             const cards = plan.cards.filter((c) => !needsFiles(c));
-            void keepOffline({
+            const copy: OfflineRevision = {
               libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? 'Powtórka', plan: config as Record<string, unknown>,
               cards, deps: lib.dependencies(),
               target: learner.target === null ? null : { areaId: learner.target.areaId, intake: learner.target.intake === null ? null : toBase64Url(learner.target.intake) },
               holder: { roleId: learner.holder.roleId, wrapPublicKey: toBase64Url(learner.holder.wrapPublicKey) },
               answers: answersFor(cards, learner.progress.answers.values(), rename),
               savedAt: Date.now()
-            }, keeper).catch(() => false);
+            };
+            keptCopy.current = { copy, who: keeper };
+            void keepOffline(copy, keeper).catch(() => false);
           }
         }
         if (plan === null) { if (alive) setFailed('Nie ma czego powtarzać.'); return; }
@@ -126,6 +147,7 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
     if (!finished || learner === null || state === null) return;
     void (async () => {
       await learner.flush().catch(() => undefined);
+      refreshKept();
       setDue(await learner.reportDue(state.all, rename).catch(() => null));
     })();
   }, [finished, learner, state, rename]);

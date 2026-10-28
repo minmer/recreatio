@@ -142,6 +142,26 @@ internal static class AiAccessChecks
         check(Aad.FieldName(Field.AiOAuthCode) == "ai_oauth_code" && AiOAuth.CodeAad(id).Text == "ai:oauth:01a16af6-5a94-718f-b8b5-abdb3ab6918b:ai_oauth_code:1"
             && Crypto.InfoAiOAuthCode(id) == "recreatio:v1:ai-oauth-code:01a16af6-5a94-718f-b8b5-abdb3ab6918b", "OAuth: the code's seal is bound to its grant");
 
+        {
+            /* 2026-10-28 — die Formate der JSON-Importe für Assistenten (ImportFormats.json, aus der App erzeugt). */
+            var importFormats = ImportFormats.All;
+            string[] formatIds = ["library", "work-with-text", "source-text", "knowledge-base", "knowledge-forms", "scriptorium", "page", "area", "calendar-scheme", "calendar-plan", "registry", "guide-book", "guide-argument", "scheme-fakty", "scheme-zbior", "example-atom"];
+            check(formatIds.All(x => ImportFormats.Find(x) is not null) && ImportFormats.Find(" PAGE ")?.Id == "page" && ImportFormats.Find("nic") is null && ImportFormats.Find(null) is null,
+                "import formats: embedded in the program — the Library, Cogita, Scriptorium, pages, areas, calendar, registry, the AI guides and ready schemes");
+            check(importFormats.Formats.All(f => f.Parts.Count > 0 && f.Parts.All(p => p.Length > 0) && (f.Parts.Count == 1 || f.Parts.All(p => p.Length <= 24_000)) && f.Where.Length > 0 && f.What.Length > 0),
+                "import formats: each says what it is for and where it is imported, long ones in parts of at most 24 000 characters");
+            var formatList = AiMcpTools.ListImportFormats();
+            var formatPage = AiMcpTools.GetImportFormat("page");
+            var formatLast = AiMcpTools.GetImportFormat("page", formatPage.Parts);
+            check(formatList.Formats.Count == importFormats.Formats.Count && formatPage.Part == 1 && formatPage.Parts > 1 && formatPage.NextPart == 2 && formatPage.Contents.Any(c => c.Title.StartsWith("\"text\"")) && formatPage.Text.Contains("\"modules\"")
+                && formatLast.NextPart is null && formatLast.Contents.Count == 0,
+                "MCP get_import_format: the page format part by part — the first with the contents (each module kind and its part), the last without a next part");
+            static string Fails(Action run) { try { run(); return "ran"; } catch (ModelContextProtocol.McpException e) { return e.Message.Split(':')[0]; } }
+            check(Fails(() => AiMcpTools.GetImportFormat("nie-ma")) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 0)) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 2)) == "not_found",
+                "MCP get_import_format: an unknown format or part says not_found");
+            check(AiMcp.Instructions.Contains("list_import_formats") && AiMcp.Instructions.Contains("get_import_format"), "MCP instructions: read the format before preparing an import");
+        }
+
         /* 2026-10-24 — vollständige Texte in der Abschrift: lesen, eine Stelle finden, suchen. */
         var textSnap = """
             { "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab6918c", "name": "Pismo", "entries": [],
