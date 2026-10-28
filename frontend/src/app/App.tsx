@@ -23,7 +23,8 @@ import {
 import { forget as forgetState } from './core/prefs';
 import { keepFromAddress } from './seats/seatKeep';
 import { heldLinks, keepLinkFromAddress } from './links/linkKeep';
-import { keepsKey, signOut, whoIsThere, type Who } from './core/session';
+import { keepsKey, sessionNow, signOut, type Who } from './core/session';
+import { awayNow, onAway, refreshAway, resumeAway } from './core/away';
 import { PublicPage } from './pages/PublicPage';
 import { forgetLoadedPageKeys } from './pages/page';
 import { phoneHere } from './phone/here';
@@ -46,12 +47,14 @@ const Verify = lazy(() => import('./seats/Verify').then((m) => ({ default: m.Ver
 const AiConnect = lazy(() => import('./aiAccess/AiConnect').then((m) => ({ default: m.AiConnect })));
 const SharedFile = lazy(() => import('./phone/SharedFile').then((m) => ({ default: m.SharedFile })));
 const ReportPage = lazy(() => import('./reports/ReportPage').then((m) => ({ default: m.ReportPage })));
-const SmsAlone = lazy(() => import('./phone/SmsAlone'));
+const AloneShell = lazy(() => import('./shell/AloneShell'));
 
 /** Wie lange die Frage nach dem Konto dauern darf, bevor die SMS ohne es aufgehen. */
 const SMS_WAIT = 2500;
 /** Kommt das Konto später als das nach einem Schritt, wechselt die Ansicht erst beim nächsten. */
 const SMS_STEP = 1500;
+/** 2026-10-28 — ohne Netz: so oft wird von selbst nachgesehen, ob es zurück ist (dazu beim Ereignis `online`). */
+const RETRY = 15000;
 
 export function App() {
   const [address, setAddress] = useState<Address>(() => parsePath(window.location.hash));
@@ -101,20 +104,35 @@ export function App() {
   const [signInWanted, setSignInWanted] = useState(false);
 
   /*
+   * 2026-10-28 — DER DIENST IST NICHT ZU ERREICHEN (`sessionNow`): kein Netz ist kein Abmelden. Wer schon da war,
+   * bleibt angemeldet (`who` bleibt); wer die App ohne Netz öffnet, kommt in die Fassung ohne Netz statt vor das
+   * Anmeldeformular, das ohne Netz nie gelingt. Nachgesehen wird von selbst (`RETRY`, `online`).
+   */
+  const [cut, setCut] = useState(false);
+
+  /* 2026-10-28 — jemand hat sich OHNE NETZ angemeldet (`core/away.ts`): die Fassung ohne Netz bleibt, bis das Konto zurück ist. */
+  const [awayOn, setAwayOn] = useState(() => awayNow() !== null);
+  useEffect(() => onAway(() => setAwayOn(awayNow() !== null)), []);
+
+  /*
    * 2026-10-26 — SMS OHNE KONTO. In der Ausgabe „sms" liegen die SMS auf dem Telefon:
-   * ohne Netz oder ohne Anmeldung gehen sie trotzdem (`SmsAlone`) — statt des
+   * ohne Netz oder ohne Anmeldung gehen sie trotzdem (`AloneShell`) — statt des
    * Anmeldeformulars, mit „Zaloguj się" oben. Hängt die Frage nach dem Konto (schlechtes
    * Netz), stehen sie nach `SMS_WAIT` schon da. Kommt das Konto, während sie offen sind,
    * und nicht gleich nach einem Schritt, wartet es (`later`, „Pełna wersja") — beim
    * nächsten Schritt gilt es; mitten im Tippen wechselt nichts von selbst.
+   * 2026-10-28 — dieselbe Fassung ohne Netz für jede Ausgabe, mit der Nauka: was das Gerät
+   * für die Zeit ohne Netz hält, nach der Anmeldung ohne Netz.
    */
   const spotHere = address.route === 'workspace' ? spotOf(address) : null;
-  const smsHere = spotHere !== null && spotHere.kind === 'view' && spotHere.view === 'sms' && !signInWanted && phoneHere();
+  const viewHere = spotHere !== null && spotHere.kind === 'view' ? spotHere : null;
+  const smsHere = viewHere !== null && viewHere.view === 'sms' && !signInWanted && phoneHere();
   const [late, setLate] = useState(false);
   const [later, setLater] = useState<Who | null>(null);
   const laterRef = useRef<Who | null>(null);
   const aloneOpen = useRef(false);
-  const showAlone = smsHere && (who === null || (who === undefined && late));
+  const showAlone = address.route === 'workspace' && !signInWanted
+    && ((smsHere && (who === null || (who === undefined && late))) || (who === null && (cut || awayOn)));
 
   useEffect(() => {
     if (who !== undefined || !smsHere) return undefined;
@@ -131,13 +149,22 @@ export function App() {
     if (had !== null) setWho(had);
   }, []);
 
-  const look = useCallback(async () => {
+  /** `step`: ein Schritt des Menschen (die Adresse) — nur dann gilt ein Konto, das gewartet hat. */
+  const check = useCallback(async (step: boolean) => {
     if (!needsIdentity(address)) { setWho(null); return; }
     /* Ein Schritt weiter: ein Konto, das gewartet hat, gilt jetzt. */
-    takeLater();
+    if (step) takeLater();
     const asked = Date.now();
-    const found = await whoIsThere();
-    if (found !== null && aloneOpen.current && Date.now() - asked > SMS_STEP) {
+    const now = await sessionNow();
+    if (!now.reached) {
+      setCut(true);
+      setWho((had) => (had === undefined ? null : had));
+      return;
+    }
+    setCut(false);
+    /* Zurück im Netz ohne Sitzung, aber ohne Netz angemeldet: derselbe Schlüssel meldet an — niemand fragt zweimal. */
+    const found = now.who ?? await resumeAway();
+    if (found !== null && aloneOpen.current && (!step || Date.now() - asked > SMS_STEP)) {
       laterRef.current = found;
       setLater(found);
       return;
@@ -145,7 +172,34 @@ export function App() {
     setWho(found);
   }, [address, takeLater]);
 
-  useEffect(() => { void look(); }, [look]);
+  useEffect(() => { void check(true); }, [check]);
+
+  /* Ohne Netz: von selbst nachsehen, ob es zurück ist — mitten im Tippen wechselt dabei nichts (`later`). */
+  useEffect(() => {
+    if (!cut) return undefined;
+    const again = () => { void check(false); };
+    const timer = window.setInterval(again, RETRY);
+    window.addEventListener('online', again);
+    return () => { window.clearInterval(timer); window.removeEventListener('online', again); };
+  }, [cut, check]);
+
+  /*
+   * 2026-10-28 — nach jeder Anmeldung: das Anmelden ohne Netz folgt dem Konto (`refreshAway`), und was ohne Netz
+   * beantwortet wurde und noch in der Ablage wartet, geht hinaus — auch wenn keine Bibliothek offen ist.
+   */
+  const whoId = who?.accountId ?? null;
+  useEffect(() => {
+    if (who == null) return;
+    void refreshAway(who).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [whoId, who?.masterKeySealed, who?.keyKeeping]);
+  useEffect(() => {
+    if (whoId === null || cut) return;
+    void import('./core/idb').then(async ({ idbKeys }) => {
+      if ((await idbKeys('outbox', 'r:')).length === 0) return;
+      await (await import('./cogita/learn')).flushWaiting();
+    }).catch(() => undefined);
+  }, [whoId, cut]);
 
   /*
    * 0109 — ABSCHRIFTEN DER BIBLIOTHEKEN nur, wo auch der Schlüssel bleiben darf
@@ -234,14 +288,20 @@ export function App() {
     return <PublicFrame><PublicPage path={address.page} /></PublicFrame>;
   }
 
-  if (showAlone && spotHere !== null && spotHere.kind === 'view') {
+  if (showAlone) {
+    const tab = smsHere ? 'sms' : 'learn';
+    const trail = viewHere === null ? []
+      : tab === 'sms' ? viewHere.trail
+      : viewHere.view === 'learn' && viewHere.trail[0] === 'bez-sieci' ? viewHere.trail.slice(1) : [];
     return (
       <Suspense fallback={<PlainFrame><Loading /></PlainFrame>}>
-        <SmsAlone
-          trail={spotHere.trail}
-          state={later !== null ? 'back' : who === undefined ? 'checking' : 'none'}
+        <AloneShell
+          tab={tab}
+          trail={trail}
+          state={later !== null ? 'back' : who === undefined ? 'checking' : cut ? 'cut' : 'none'}
           onSignIn={() => setSignInWanted(true)}
           onFull={takeLater}
+          onRetry={() => { void check(false); }}
         />
       </Suspense>
     );
@@ -311,11 +371,18 @@ export function App() {
     );
   }
 
-  /* Abmelden: Meldungen des Geräts vergessen, dann die Sitzung, dann was im Speicher liegt. */
+  /*
+   * Abmelden: Meldungen des Geräts vergessen, dann die Sitzung, dann was im Speicher liegt. 2026-10-28 — und was
+   * dieses Konto für die Zeit ohne Netz hält (die Abschriften, das Anmelden ohne Netz); die Ablage der Antworten
+   * bleibt — versiegelt, sie geht mit der nächsten Anmeldung hinaus.
+   */
   const signOutNow = () => {
+    const leaving = who.accountId;
     void (async () => {
-      const [notify, chat, libraries] = await Promise.all([import('./notify/notify'), import('./chat/chat'), import('./library/libraryStore')]);
+      const [notify, chat, libraries, away] = await Promise.all([import('./notify/notify'), import('./chat/chat'), import('./library/libraryStore'), import('./core/away')]);
       await notify.forgetNotifications().catch(() => undefined);
+      await away.forgetAway(leaving).catch(() => undefined);
+      away.endAway();
       await signOut();
       forgetState(); chat.forgetAreaKeys(); libraries.forgetLibraries(); forgetLoadedPageKeys(); setWho(null);
     })();
@@ -354,7 +421,7 @@ export function App() {
 
   return (
     <Suspense fallback={<div className="wk-root wk-plain"><main className="wk-main"><Loading /></main></div>}>
-      <WorkspaceShell who={who} spot={spot} onSignOut={signOutNow} />
+      <WorkspaceShell who={who} spot={spot} onSignOut={signOutNow} cut={cut} />
     </Suspense>
   );
 }

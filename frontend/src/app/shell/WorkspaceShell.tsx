@@ -10,9 +10,9 @@ import type { Who } from '../core/session';
 import { Workspace } from '../workspace/Workspace';
 import { WorkspaceFrame } from './WorkspaceFrame';
 
-export default function WorkspaceShell({ who, spot, onSignOut }: { who: Who; spot: Spot; onSignOut?: () => void }) {
+export default function WorkspaceShell({ who, spot, onSignOut, cut = false }: { who: Who; spot: Spot; onSignOut?: () => void; cut?: boolean }) {
   return (
-    <WorkspaceFrame who={who} spot={spot} onSignOut={onSignOut}>
+    <WorkspaceFrame who={who} spot={spot} onSignOut={onSignOut} cut={cut}>
       <Workspace spot={spot} who={who} />
     </WorkspaceFrame>
   );

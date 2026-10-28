@@ -222,10 +222,12 @@ function AccountMenu({ who, onSignOut }: { who: Who; onSignOut?: () => void }) {
 
 /* -- Der Arbeitsplatz ------------------------------------------------------------------------ */
 
-export function WorkspaceFrame({ who, spot, onSignOut, children }: {
+export function WorkspaceFrame({ who, spot, onSignOut, cut = false, children }: {
   who: Who;
   spot: Spot;
   onSignOut?: () => void;
+  /** 2026-10-28 — der Dienst antwortet gerade nicht: angemeldet bleibt man, und oben steht, was ohne Netz geht. */
+  cut?: boolean;
   children: ReactNode;
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
@@ -250,6 +252,7 @@ export function WorkspaceFrame({ who, spot, onSignOut, children }: {
           <span className="wk-bar-fill" />
           <div className="wk-top-menu" ref={setSlot} />
           <NowPlayingBar />
+          {cut && <a className="wk-bar-cut" role="status" href={viewPath('learn', 'bez-sieci')} title="Usługa nie odpowiada. Bez internetu działa nauka z tego urządzenia.">Bez internetu</a>}
           <button type="button" className="wk-bar-btn is-phone" aria-label="Szukaj" onClick={openSearch}><Icon name="search" /></button>
           <NotifyBell who={who} />
         </header>

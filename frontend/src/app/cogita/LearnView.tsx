@@ -9,7 +9,8 @@
  *                             die Bazy wiedzy — und eine neue anlegen
  *   learn/<baza>/<reiter>/…   eine Baza wiedzy (CogitaHome)
  *   learn/bez-sieci/…         was das Gerät für die Zeit ohne Netz hält — dort
- *                             lässt es sich auch ohne Netz üben
+ *                             lässt es sich auch ohne Netz üben (AwayLearn.tsx;
+ *                             ohne Netz und ohne Sitzung: shell/AloneShell.tsx)
  * </code>
  *
  * <b>0110 — eine Baza wiedzy ist keine Bibliothek.</b> Die Bibliothek ist eine
@@ -18,7 +19,7 @@
  * anderen Bereichen. Beide liegen im selben versiegelten Speicher.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ensurePrivateArea } from '../calendar/agenda';
 import { loadAreas, type AreaRow } from '../areas/area';
@@ -26,7 +27,6 @@ import { AreaPick } from '../areas/AreaPick';
 import { useCrumbs } from '../shell/crumbTrail';
 import { createLibrary, isUuid, libraryKindOf, loadLibraries, openLibraries, type OpenLibrary } from '../library/library';
 import { useLibraryStore } from '../library/libraryStore';
-import { fromBase64Url } from '../core/crypto';
 import { useMe, type Me } from '../core/me';
 import { plural } from '../core/plural';
 import { viewPath } from '../routes';
@@ -35,12 +35,10 @@ import { CogitaHome } from './CogitaHome';
 import { cogitaTrail, type CogitaPart } from './parts';
 import { WHOLE_BASE } from './visibility';
 import { BASES_CHANGED } from './sources';
-import { holderOfMe } from './holders';
 import { isDocKind } from './kinds';
-import { Learner, loadDue, targetOf, type DueRow } from './learn';
+import { loadDue, type DueRow } from './learn';
 import { loadSessions, SESSION_KIND_LABEL, type SessionRow } from './live';
-import { offlineList, offlineSource, openOffline, type OfflineRevision } from './offline';
-import { RevisionRun } from './RevisionRun';
+import { AwayLearn } from './AwayLearn';
 import './cogita.css';
 import { Loading } from '../ui/Loading';
 import { Icon } from '../ui/icons';
@@ -51,18 +49,9 @@ import { Modal } from '../ui/Modal';
 export function LearnView({ who, trail, part = 'learn' }: { who: Who; trail: readonly string[]; part?: CogitaPart }) {
   const me = useMe(who);
   if (me === undefined) return <Loading label="Wczytywanie…" />;
-  if (me === null) return <OfflineOnly trail={trail[0] === 'bez-sieci' ? trail.slice(1) : []} />;
+  /* Ohne offenen Schlüsselbund (kein Netz, kein Passwort in dieser Karte): nur, was das Gerät hält — nach der Anmeldung ohne Netz. */
+  if (me === null) return <AwayLearn who={who} me={null} trail={trail[0] === 'bez-sieci' ? trail.slice(1) : []} />;
   return <LearnHome me={me} who={who} trail={trail} part={part} />;
-}
-
-/** Ohne offenen Schlüsselbund (kein Netz, kein Passwort in dieser Karte): nur, was das Gerät hält. */
-function OfflineOnly({ trail }: { trail: readonly string[] }) {
-  return (
-    <div className="cg">
-      <p className="wk-note">Klucze nie są otwarte w tej karcie. Bez nich można powtarzać tylko to, co urządzenie trzyma bez internetu.</p>
-      <OfflinePart me={null} trail={trail} />
-    </div>
-  );
 }
 
 function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly string[]; part: CogitaPart }) {
@@ -108,8 +97,16 @@ function LearnHome({ me, who, trail, part }: { me: Me; who: Who; trail: readonly
   useEffect(() => { if (moved !== null) window.location.replace(moved); }, [moved]);
 
   if (moved !== null) return <Loading label="Przekierowanie…" />;
-  if (trail[0] === 'bez-sieci' && part === 'learn') return <OfflinePart me={me} trail={trail.slice(1)} />;
-  if (failed !== null) return <p className="wk-error">{failed}</p>;
+  if (trail[0] === 'bez-sieci' && part === 'learn') return <AwayLearn who={who} me={me} trail={trail.slice(1)} />;
+  /* 2026-10-28 — ohne Netz: der Weg zu dem, was das Gerät hält, statt nur der Meldung. */
+  if (failed !== null) {
+    return (
+      <div className="cg">
+        <p className="wk-error">{failed}</p>
+        {part === 'learn' && <p className="wk-note">Bez internetu działa <a className="wk-link" href={viewPath('learn', 'bez-sieci')}>nauka z tego urządzenia</a>.</p>}
+      </div>
+    );
+  }
   if (chosen !== null) {
     if (bases === null) return <Loading label="Wczytywanie…" />;
     if (current === null) return <p className="wk-empty">Tej bazy wiedzy nie ma albo nie masz do niej klucza. <a href={viewPath(part)}>Wszystkie bazy wiedzy</a></p>;
@@ -304,47 +301,5 @@ function NewBase({ me, areas, onCreated }: { me: Me; areas: readonly AreaRow[]; 
         <button type="submit" className="wk-btn" disabled={busy}>{busy ? 'Zakładanie…' : 'Załóż'}</button>
       </div>
     </form>
-  );
-}
-
-/** Was das Gerät hält — und ein Lauf daraus, ohne Netz. */
-function OfflinePart({ me, trail }: { me: Me | null; trail: readonly string[] }) {
-  const [list, setList] = useState<readonly { libraryId: string; revisionId: string; savedAt: number }[] | null>(null);
-  const [open, setOpen] = useState<OfflineRevision | null | undefined>(undefined);
-  const [learner, setLearner] = useState<Learner | null>(null);
-  useEffect(() => { void offlineList().then(setList); }, []);
-  const chosen = trail[0];
-  useEffect(() => {
-    if (chosen === undefined) { setOpen(undefined); return; }
-    const [libraryId, revisionId] = chosen.split(':');
-    void openOffline(libraryId, revisionId).then(async (copy) => {
-      setOpen(copy);
-      if (copy !== null && me !== null) {
-        /* 2026-10-27 — ohne Netz der Schlüssel der Annahme aus der Abschrift: sonst liest der Kurs diese Antworten nie. */
-        const kept = copy.target?.intake ?? null;
-        const target = copy.target === null ? null
-          : await targetOf(copy.target.areaId).catch(() => ({ areaId: copy.target!.areaId, intake: kept === null ? null : fromBase64Url(kept) }));
-        const made = new Learner(copy.libraryId, holderOfMe(me), target);
-        await made.load().catch(() => undefined);
-        /* Was schon beantwortet war — der Dienst ist ohne Netz nicht zu erreichen. */
-        made.remember(copy.answers ?? []);
-        setLearner(made);
-      }
-    });
-  }, [chosen, me]);
-  /* 2026-10-27 — mit der Sperre „Najpierw podstawy" der Abschrift (vorher fiel sie ohne Netz weg: Einzelheiten vor den Grundlagen). */
-  const source = useMemo(() => (open == null ? null : offlineSource(open)), [open]);
-  if (chosen !== undefined) {
-    if (open === undefined) return <p className="wk-hint">Otwieranie…</p>;
-    if (open === null || source === null) return <p className="wk-error">Tej powtórki nie ma na tym urządzeniu.</p>;
-    return <RevisionRun lib={null} learner={learner} source={source} onClose={() => { window.location.hash = viewPath('learn', 'bez-sieci'); }} />;
-  }
-  return (
-    <section className="cg-card">
-      <h3>Na tym urządzeniu bez internetu</h3>
-      {list === null ? <span className="wk-hint">Sprawdzanie…</span> : list.length === 0 ? <span className="wk-hint">Nic. Autor może oznaczyć powtórkę „Trzymaj na urządzeniach bez internetu" — wtedy po pierwszym przejściu zostanie tutaj (tylko gdy klucz jest zapamiętany na tym urządzeniu).</span> : (
-        <ul>{list.map((o) => <li key={`${o.libraryId}:${o.revisionId}`}><a href={viewPath('learn', 'bez-sieci', `${o.libraryId}:${o.revisionId}`)}>Powtórka z {new Date(o.savedAt).toLocaleDateString('pl-PL')}</a></li>)}</ul>
-      )}
-    </section>
   );
 }

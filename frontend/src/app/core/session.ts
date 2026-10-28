@@ -151,6 +151,17 @@ const UNREACHABLE = import.meta.env.DEV
   ? 'Usługa nie odpowiada. Uruchom ją: dotnet run --project backend/Api'
   : 'Nie udało się połączyć z usługą.';
 
+/**
+ * 2026-10-28 — DER DIENST ANTWORTET NICHT (kein Netz, kein Dienst) — nicht dasselbe wie ein Nein des
+ * Dienstes. Wer den Unterschied nicht braucht, fängt weiter `WorkspaceError`; der Rahmen der App braucht
+ * ihn: ohne Netz ist niemand abgemeldet (`sessionNow`, `away.ts`).
+ */
+export class Unreachable extends WorkspaceError {
+  constructor() {
+    super(UNREACHABLE);
+  }
+}
+
 /*
  * -- Ohne Konto: die Links mit Zugang handeln (`Caller` im Dienst) ------------
  *
@@ -201,7 +212,7 @@ export async function call<T>(path: string, init: RequestInit = {}, extra: Reado
       ...init
     });
   } catch {
-    throw new WorkspaceError(UNREACHABLE);
+    throw new Unreachable();
   }
 
   if (!response.ok) {
@@ -214,7 +225,8 @@ export async function call<T>(path: string, init: RequestInit = {}, extra: Reado
 
     // Keine Antwort des Dienstes, sondern des Weiterleiters: der Dienst läuft
     // nicht. Ein nacktes „Nie udało się." liesse raten, woran es liegt.
-    throw new WorkspaceError(response.status >= 500 ? UNREACHABLE : 'Nie udało się.');
+    if (response.status >= 500) throw new Unreachable();
+    throw new WorkspaceError('Nie udało się.');
   }
 
   return (await response.json()) as T;
@@ -235,6 +247,26 @@ export async function whoIsThere(): Promise<Who | null> {
   }
 }
 
+/** Wie lange der Rahmen der App auf die Frage nach der Sitzung wartet, bevor er „ohne Netz" annimmt. */
+const SESSION_PATIENCE = 8000;
+
+/**
+ * 2026-10-28 — ANGEMELDET, NIEMAND, ODER KEIN NETZ?
+ *
+ * `whoIsThere` wirft „kein Netz" und „niemand" zusammen — richtig für jede Stelle, an der beides dasselbe
+ * heisst. Für den Rahmen der App heisst es das NICHT: wer ohne Netz die App öffnet oder weiterklickt, ist nicht
+ * abgemeldet, und das Anmeldeformular (das ohne Netz nie gelingt) ist dort die falsche Antwort. Eine Frage,
+ * die länger als `SESSION_PATIENCE` hängt (schlechtes Netz), zählt als „kein Netz"; die nächste fragt neu.
+ */
+export async function sessionNow(): Promise<{ readonly reached: true; readonly who: Who | null } | { readonly reached: false }> {
+  const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(SESSION_PATIENCE) : undefined;
+  try {
+    return { reached: true, who: await call<Who>('/session', signal === undefined ? {} : { signal }) };
+  } catch (e) {
+    return e instanceof Unreachable ? { reached: false } : { reached: true, who: null };
+  }
+}
+
 /**
  * Anmelden.
  *
@@ -243,8 +275,15 @@ export async function whoIsThere(): Promise<Who | null> {
  * ist das, was zwei gleiche Passwörter verschieden rechnen lässt.
  */
 export async function signIn(loginId: string, password: string): Promise<Who> {
-  const key = await keyFor(loginId, password);
+  return signInWithKey(loginId, await keyFor(loginId, password));
+}
 
+/**
+ * Mit einem schon gerechneten PasswordKey anmelden — nach dem Passwort (`signIn`) oder, 2026-10-28, mit dem
+ * Schlüssel, den die Anmeldung OHNE NETZ in diesem Tab gerechnet hat (`away.ts`): kommt das Netz zurück und
+ * die Sitzung ist abgelaufen, fragt niemand ein zweites Mal nach dem Passwort.
+ */
+export async function signInWithKey(loginId: string, key: Uint8Array): Promise<Who> {
   const who = await call<Who>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ loginId, passwordKeyBase64Url: toBase64Url(key) })
@@ -261,6 +300,30 @@ export async function signIn(loginId: string, password: string): Promise<Who> {
   try { await keepIfWanted(who, key); } catch { /* dann eben beim nächsten Mal */ }
 
   return who;
+}
+
+/**
+ * 2026-10-28 — ANMELDEN OHNE NETZ (`away.ts`): dieselbe Rechnung wie beim Anmelden — Argon2id aus Passwort und
+ * Salz —, nur dass das Salz und der Beweis (die Hülle des Hauptschlüssels) vom Gerät kommen statt vom Dienst.
+ * Öffnet sich die Hülle, stimmt das Passwort; dann hält dieser Tab den PasswordKey wie nach jeder Anmeldung,
+ * und `signInWithKey` meldet ihn beim Dienst an, sobald es Netz gibt. Wirft, wenn das Passwort nicht stimmt.
+ */
+export async function unlockAway(loginId: string, password: string, salt: Uint8Array, open: (key: Uint8Array) => Promise<Uint8Array>): Promise<Uint8Array> {
+  const key = await derivePasswordKey(password, salt);
+  const master = await open(key);
+  remember(loginId, key);
+  return master;
+}
+
+/** Der PasswordKey, den dieser Tab für genau dieses Konto hält — ohne zu fragen, ohne Dienst. */
+export const heldKeyOf = (loginId: string): Uint8Array | null => (held !== null && held.loginId === loginId ? held.key : null);
+
+/** Das Salz eines Kontos — offen, wie beim Anmelden (`/auth/salt`). */
+export async function passwordSalt(loginId: string): Promise<Uint8Array> {
+  const { passwordSaltBase64Url } = await call<{ passwordSaltBase64Url: string }>(
+    `/auth/salt?loginId=${encodeURIComponent(loginId)}`
+  );
+  return fromBase64Url(passwordSaltBase64Url);
 }
 
 /* -- Der PasswordKey bleibt im Speicher ------------------------------------
@@ -392,11 +455,7 @@ export async function passwordKeyFor(who: Who): Promise<Uint8Array | null> {
 
 /** Das Salz holen und rechnen — der teure Teil, an einer Stelle. */
 async function keyFor(loginId: string, password: string): Promise<Uint8Array> {
-  const { passwordSaltBase64Url } = await call<{ passwordSaltBase64Url: string }>(
-    `/auth/salt?loginId=${encodeURIComponent(loginId)}`
-  );
-
-  return derivePasswordKey(password, fromBase64Url(passwordSaltBase64Url));
+  return derivePasswordKey(password, await passwordSalt(loginId));
 }
 
 /**

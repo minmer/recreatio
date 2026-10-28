@@ -766,6 +766,18 @@ try {
     ok(`scheme and plan JSON (0132): templates round-trip without a word, oddities dropped with one, foreign scheme references dropped; the tree (scheme ${keysOf(m.SCHEME_JSON).length}, plan ${keysOf(m.PLAN_JSON).length} sections) names every field type, node, condition, date rule and placeholder; ${schemeSamples.length + planSamples.length} samples read cleanly`);
   }
 
+  /* 2026-10-28 — DIE FORMATE FÜR DEN MCP-SERVER (get_import_format, AiMcp.cs) folgen der App: dieselben Beschreibungen wie neben den Importen. */
+  {
+    const formats = await import('./import-formats.mjs');
+    const doc = await formats.formats();
+    const had = (await readFile(new URL('../../backend/Api/Library/ImportFormats.json', import.meta.url), 'utf8')).split('\r\n').join('\n');
+    assert.equal(formats.render(doc) === had, true, 'backend/Api/Library/ImportFormats.json follows the app — run: node scripts/import-formats.mjs');
+    assert.ok(doc.formats.every((f) => f.parts.length > 0 && f.parts.every((part) => part.length > 0 && (part.length <= formats.PART_LIMIT || f.parts.length === 1))),
+      'every format comes in parts of at most PART_LIMIT characters (a JSON template stays whole)');
+    assert.ok(doc.formats.find((f) => f.id === 'page').contents.some((c) => c.title.startsWith('"text"')), 'the contents of the page format name the module kinds');
+    ok(`import formats for MCP: ${doc.formats.length} formats in ${doc.formats.reduce((n, f) => n + f.parts.length, 0)} parts follow the app`);
+  }
+
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(workspace, { recursive: true, force: true });

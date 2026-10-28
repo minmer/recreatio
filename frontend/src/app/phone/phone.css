@@ -279,31 +279,10 @@
   .ph-in-room .wk-phone-bar { display: none; }
 }
 
-/* SMS bez konta (SmsAlone, 2026-10-26): der Kopf klebt oben wie die Kopfleiste des Arbeitsplatzes, mit ihrer
-   Linie — die Leiste der Liste klebt darunter, das Gespräch hängt ohne eigene Linie oben an ihm. */
-.ph-alone .wk-plain-top {
-  position: sticky;
-  top: 0;
-  z-index: var(--wk-z-header);
-  /* Abstand als Rand, nicht als gap — das fehlt älteren WebViews (Chrome 83 auf Android 11: Text und Knopf stiessen aneinander). */
-  gap: 0;
-  border-bottom: 1px solid var(--wk-line);
-  background: var(--wk-ground);
-}
-.ph-alone-state {
-  min-width: 0;
-  margin-left: auto;
-  padding-left: var(--wk-space-3);
-  overflow: hidden;
-  color: var(--wk-muted);
-  font-size: var(--wk-text-sm);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.ph-alone .wk-plain-top .wk-btn { flex: none; margin-left: var(--wk-space-3); }
-.ph-in-room .ph-alone .wk-main { padding: 0 var(--wk-space-1); }
+/* Ohne Netz oder ohne Konto (shell/AloneShell.tsx, Kopf in ui/frames.css): das Gespräch füllt die Breite. */
+.ph-in-room .wk-alone .wk-main { padding: 0 var(--wk-space-1); }
 @media (max-width: 40rem) {
-  .ph-in-room .ph-alone .wk-main { padding: 0; }
+  .ph-in-room .wk-alone .wk-main { padding: 0; }
 }
 
 /* Im Kopf neben dem Namen: die eigene Karte (wählbar), das Archiv, die Nummer. Abstand als Rand, nicht

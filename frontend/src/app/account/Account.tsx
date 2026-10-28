@@ -45,6 +45,7 @@ import {
   type DeletionPreview, type KeyKeeping, type Who
 } from '../core/session';
 import { Loading } from '../ui/Loading';
+import { forgetAway } from '../core/away';
 
 /** `#/workspace/account/widok` (und `…/powiadomienia`): Powiadomienia; `…/bezpieczenstwo`: Bezpieczeństwo i klucze; `…/przeniesienie`: Przeniesienie danych; sonst das Konto. */
 export function Account({ who, trail = [] }: { who: Who; trail?: readonly string[] }) {
@@ -103,6 +104,8 @@ function useKeeping(who: Who) {
       const done = await setKeyKeeping(wanted);
 
       if (wanted === 'tab') {
+        /* 2026-10-28 — „Tylko w pamięci": auch die Powtórki ohne Netz und das Anmelden ohne Netz gehen von diesem Gerät. */
+        await forgetAway(who.accountId).catch(() => undefined);
         toast(done.forgotten === 0
           ? 'Od teraz klucz żyje tylko w pamięci.'
           : `Usunięto zachowane klucze (${done.forgotten}). Po restarcie zapytamy o hasło.`, { kind: 'ok' });

@@ -65,6 +65,12 @@ export const Field = {
   AccountKeptKey: 'kept_key',
 
   /*
+   * 2026-10-28 — ANMELDEN OHNE NETZ (`away.ts`): was die App auf dem Telefon dafür behält (Salz und
+   * die Hülle des Hauptschlüssels — der Beweis des Passworts), unter dem GERÄTESCHLÜSSEL versiegelt.
+   */
+  AwayAccount: 'away_account',
+
+  /*
    * Der Epochenschlüssel eines Bereichs. Er entsteht im Browser, wird der Rolle
    * verpackt und von dort wieder ausgepackt (`area.ts`) — beide Seiten müssen
    * dasselbe Etikett nennen, sonst passt das Label nicht zur AAD.

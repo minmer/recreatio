@@ -15,8 +15,10 @@ import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
 const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn'];
+/* 2026-10-28 — dazu aus `core`: das Anmelden ohne Netz (away), die Rechnung des Anmeldens (session), die Siegel (crypto). */
+const cores = ['away', 'session', 'crypto'];
 await build({
-  entryPoints: names.map((n) => `src/app/cogita/${n}.ts`),
+  entryPoints: Object.fromEntries([...names.map((n) => [n, `src/app/cogita/${n}.ts`]), ...cores.map((n) => [n, `src/app/core/${n}.ts`])]),
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -29,6 +31,7 @@ await build({
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
 const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN] = await Promise.all(names.map(load));
+const [AW, SE, CR] = await Promise.all(cores.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -2664,6 +2667,57 @@ check('goals and lines follow the one logic', [
   check('… adding row by row: group and work chosen once; number, designation, beginning, theme and place typed — a preface, a song',
     [zrows.rows[0].problems, zrows.saves[0]?.data.grupa, zrows.saves[0]?.data.miejsce, zrows.saves[0]?.data.nr, hrows.rows[0].problems, hrows.saves[0]?.data.miejsce],
     [[], adwent.id, [{ value: MISSAL, locator: 's. 4*' }], 4, [], [{ value: HYMNAL, locator: 's. 115' }]]);
+}
+
+/* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */
+{
+  const rnd = (n) => globalThis.crypto.getRandomValues(new Uint8Array(n));
+  const hex = (b) => Buffer.from(b).toString('hex');
+  const refused = (promise) => promise.then(() => 'opened', () => 'refused');
+  const deviceKey = rnd(32);
+  const accountId = '01a16af6-5a94-718f-b8b5-abdb3ab69100';
+  const salt = rnd(16);
+  /* Der PasswordKey zu „tajne hasło" mit diesem Salz — dieselbe Rechnung (Argon2id, 64 MiB) wie beim Anmelden. */
+  const pk = await SE.unlockAway('probe-away', 'tajne hasło', salt, async (k) => k);
+  const master = rnd(32);
+  const masterKeySealed = CR.toBase64Url(await CR.seal(pk, CR.aad('kernel', 'account', accountId, CR.Field.AccountMasterKey, 1), master));
+  const account = { accountId, loginId: 'probe-away', salt: CR.toBase64Url(salt), masterKeySealed, savedAt: 1 };
+  const sealedAccount = await AW.sealAway(deviceKey, account);
+  const opened = await AW.openAway(deviceKey, accountId, sealedAccount);
+  check('away: what the device keeps for the login without network opens only with this device key and only as this account',
+    [opened.loginId, opened.masterKeySealed === masterKeySealed, await refused(AW.openAway(rnd(32), accountId, sealedAccount)), await refused(AW.openAway(deviceKey, '01a16af6-0000-7000-8000-000000000000', sealedAccount))],
+    ['probe-away', true, 'refused', 'refused']);
+  const proved = await AW.proveAway(opened, 'tajne hasło');
+  check('… the password is checked without the service: Argon2id with the kept salt opens the master key — a wrong one does not',
+    [hex(proved) === hex(master), await refused(AW.proveAway(opened, 'złe hasło'))], [true, 'refused']);
+  check('… the name is written as the service writes it (trimmed, lower case)', AW.loginName('  Probe-Away '), 'probe-away');
+  const k1 = await AW.awayKeyFrom(master, accountId);
+  const k2 = await AW.awayKeyFrom(master, accountId);
+  const k3 = await AW.awayKeyFrom(master, '01a16af6-0000-7000-8000-000000000000');
+  check('… the key of the copies follows from the master key: the same each time, another for another account, never the master key itself',
+    [hex(k1) === hex(k2), hex(k1) === hex(k3), hex(k1) === hex(master)], [true, false, false]);
+  const by = { accountId, key: k1 };
+  const copyDoc = { libraryId: 'L', revisionId: 'R', name: 'Od podstaw', plan: {}, cards: [], deps: [], target: null, holder: { roleId: 'p1', wrapPublicKey: 'AQID' }, answers: [], savedAt: 5 };
+  const sealedCopy = await OFF.sealCopy(deviceKey, by, copyDoc);
+  const back = await OFF.openCopy(deviceKey, by, 'L', 'R', sealedCopy);
+  check('… a copy for the time without network needs this device AND the account (its password): neither alone opens it, nor under another revision',
+    [back.name, await refused(OFF.openCopy(deviceKey, { accountId, key: rnd(32) }, 'L', 'R', sealedCopy)), await refused(OFF.openCopy(rnd(32), by, 'L', 'R', sealedCopy)), await refused(OFF.openCopy(deviceKey, by, 'L', 'R2', sealedCopy))],
+    ['Od podstaw', 'refused', 'refused', 'refused']);
+  const holder = OFF.holderOfCopy(back);
+  check('… who learns without network: the person from the copy — her public key seals, her private key is not on the device',
+    [holder.kind, holder.roleId, Array.from(holder.wrapPublicKey), await refused(holder.wrapPrivate())], ['role', 'p1', [1, 2, 3], 'refused']);
+  check('… what was answered without network goes into the copy only for its own cards',
+    OFF.answersFor([{ key: 'q1' }], [{ id: 'a', key: 'q1' }, { id: 'b', key: 'q2' }]).map((a) => a.id), ['a']);
+  const person = await CR.newWrapPair();
+  const intake = await CR.newWrapPair();
+  const offlineHolder = OFF.holderOfCopy({ ...back, holder: { roleId: 'p1', wrapPublicKey: CR.toBase64Url(person.publicKey) } });
+  const batch = await LRN.sealBatch('L', offlineHolder, { areaId: 'A', intake: intake.publicKey },
+    { v: 1, kind: 'answers', answers: [{ id: 'a1', key: 'q1', question: 'q1', direction: '', fingerprint: '', at: 1, correctness: 1 }], snapshots: [] });
+  const stored = { batchId: batch.batchId, libraryId: 'L', areaId: 'A', holderRoleId: 'p1', holderSeatId: null, kind: 'answers', sealed: batch.sealed, createdAt: '' };
+  const forCourse = await LRN.openForArea(intake.privateKey, { ...stored, key: batch.keyForArea });
+  const forPerson = await LRN.openOwn({ ...offlineHolder, wrapPrivate: async () => person.privateKey }, { ...stored, key: batch.keyForHolder });
+  check('… an answer given without network is sealed with public keys only — the course opens it with its intake key, the person with hers',
+    [forCourse?.answers?.[0]?.id, forPerson?.answers?.[0]?.id], ['a1', 'a1']);
 }
 
 await rm(workspace, { recursive: true, force: true });

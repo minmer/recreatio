@@ -22,7 +22,7 @@
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
-import { call, WorkspaceError } from '../core/session';
+import { call, Unreachable, WorkspaceError } from '../core/session';
 import type { Card } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot } from './knowness';
 
@@ -182,8 +182,9 @@ const intakes = new Map<string, Promise<Uint8Array | null>>();
 export function intakeOf(areaId: string): Promise<Uint8Array | null> {
   let found = intakes.get(areaId);
   if (found === undefined) {
+    /* 2026-10-28 — ohne Netz nicht gemerkt: sonst bliebe es für diesen Tab bei „keine Annahme", auch wenn das Netz zurückkommt. */
     found = call<{ publicKey: string }>(`/intake/${encodeURIComponent(areaId)}`)
-      .then((r) => fromBase64Url(r.publicKey), () => null);
+      .then((r) => fromBase64Url(r.publicKey), (e: unknown) => { if (e instanceof Unreachable) intakes.delete(areaId); return null; });
     intakes.set(areaId, found);
   }
   return found;
@@ -318,6 +319,24 @@ export async function flushOutbox(holder: Exclude<Holder, { kind: 'local' }>): P
     const done = await postBatches(holder, chunk);
     for (const id of done.stored) await idbDelete('outbox', outboxKey(holder, id));
     sent += done.stored.length;
+  }
+  return sent;
+}
+
+/**
+ * 2026-10-28 — NACH DER ZEIT OHNE NETZ: was für Personen in der Ablage wartet, hinaus — gleich, ob dafür noch eine
+ * Bibliothek offen ist. Der Dienst nimmt nur, was einer Person dieses Kontos gehört (sonst 403, und es wartet weiter).
+ */
+export async function flushWaiting(): Promise<number> {
+  const roles = new Set<string>();
+  for (const key of await idbKeys('outbox', 'r:')) {
+    const roleId = key.split(':')[1];
+    if (roleId !== undefined && roleId !== '') roles.add(roleId);
+  }
+  let sent = 0;
+  for (const roleId of roles) {
+    const holder: Holder = { kind: 'role', roleId, wrapPublicKey: new Uint8Array(0), wrapPrivate: () => Promise.reject(new Error('Nie jest potrzebny do wysłania.')) };
+    try { sent += await flushOutbox(holder); } catch { /* später */ }
   }
   return sent;
 }

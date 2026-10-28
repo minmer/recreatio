@@ -866,16 +866,18 @@ export const loadedStores = (): LibraryStore[] => [...stores.values()].filter((s
 
 /**
  * 0109 — BEI DER ABMELDUNG bleibt nichts aus den Bibliotheken: nicht im Tab
- * (die offenen Einträge, die Namen), nicht auf dem Gerät (die Abschriften und
- * die Powtórki für die Zeit ohne Netz). Was ohne Konto gelernt wurde
- * (`progress`) gehört dem Gerät, und die Ablage (`outbox`) ist versiegelt und
- * geht mit der nächsten Anmeldung desselben Halters hinaus — beide bleiben.
+ * (die offenen Einträge, die Namen), nicht auf dem Gerät (die Abschriften).
+ * Die Powtórki für die Zeit ohne Netz gehören je einem Konto und gehen mit
+ * seinem Abmelden (`core/away.ts`, `forgetAway` — 2026-10-28; die anderer
+ * Konten dieses Geräts bleiben, unter deren Schlüsseln). Was ohne Konto gelernt
+ * wurde (`progress`) gehört dem Gerät, und die Ablage (`outbox`) ist versiegelt
+ * und geht mit der nächsten Anmeldung desselben Halters hinaus — beide bleiben.
  */
 export function forgetLibraries(): void {
   cacheOn = false;
   stores.clear();
   forgetLibraryNames();
-  void idbForget('library', 'offline').catch(() => undefined);
+  void idbForget('library').catch(() => undefined);
 }
 
 /**

@@ -32,11 +32,13 @@ export function summarize(cards: readonly Card[], marks: (card: Card) => ReturnT
 }
 
 export function OwnProgress({ learner, cards }: { learner: Learner | null; cards: readonly Card[] | null }) {
-  const { lib } = useCtx();
+  const { lib, who } = useCtx();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const [tick, setTick] = useState(0);
   const local = useAsync(() => localProgress(lib.libraryId), [lib.libraryId, tick]);
-  const offline = useAsync(() => offlineList(), [tick]);
+  /* 2026-10-28 — die Abschriften gehören einem Konto (`offline.ts`): nur die eigenen. */
+  const account = who?.accountId ?? null;
+  const offline = useAsync(() => (account === null ? Promise.resolve([]) : offlineList(account)), [account, tick]);
   const { busy, failed, run } = useBusy();
   if (cards === null) return <p className="wk-hint">Liczenie kart…</p>;
   if (learner === null) return <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce — zaloguj się, żeby je zachować.</p>;
@@ -94,7 +96,7 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
       {offline !== undefined && offline !== null && offline.length > 0 && (
         <details className="cg-card">
           <summary>Na tym urządzeniu bez internetu ({offline.length})</summary>
-          <ul>{offline.map((o) => <li key={`${o.libraryId}:${o.revisionId}`} className="cg-row">{new Date(o.savedAt).toLocaleString('pl-PL')}<button type="button" className="wk-link-btn" onClick={() => void dropOffline(o.libraryId, o.revisionId).then(() => setTick((n) => n + 1))}>usuń</button></li>)}</ul>
+          <ul>{offline.map((o) => <li key={`${o.libraryId}:${o.revisionId}`} className="cg-row">{new Date(o.savedAt).toLocaleString('pl-PL')}<button type="button" className="wk-link-btn" onClick={() => { if (account !== null) void dropOffline(account, o.libraryId, o.revisionId).then(() => setTick((n) => n + 1)); }}>usuń</button></li>)}</ul>
         </details>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}

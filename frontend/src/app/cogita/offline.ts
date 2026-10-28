@@ -1,24 +1,28 @@
 /**
  * COGITA — LERNEN OHNE NETZ (COGITA.md §7, [E9, F21]).
  *
- * <b>Was das Gerät behält</b>: Abschriften der Fragen einer Wiederholung
- * (die Karten, wie sie gerechnet wurden, mit dem Plan) — versiegelt unter dem
- * Schlüssel DIESES Geräts (`kept.ts`: im Browser die Ablage, in der App der
- * Android Keystore). Antworten ohne Netz brauchen dagegen kein Geheimnis: sie
- * werden für öffentliche Schlüssel versiegelt (`learn.ts`) und warten in der
- * Ablage, bis sie hinaus können.
+ * <b>Was das Gerät behält</b>: Abschriften der Fragen einer Wiederholung (die Karten, wie sie gerechnet wurden,
+ * mit dem Plan), dazu, wer lernt (die Person: ihre Kennung und ihr öffentlicher Schlüssel) und wohin die Antworten
+ * gehen. Je KONTO (2026-10-28), versiegelt unter dem Schlüssel dieses Geräts UND dem Schlüssel der Abschriften des
+ * Kontos (`core/away.ts`, aus dem Hauptschlüssel): ohne Passwort öffnet sie niemand, auch nicht, wer das Telefon in
+ * der Hand hat — ohne Netz nach der Anmeldung auf dem Gerät, mit Netz mit dem Schlüssel dieses Tabs.
  *
- * <b>Der Browser behält von selbst ein paar</b> (die zuletzt geübten), die App
- * so viele, wie man ihr sagt. Im strengen Betrieb (`tab`) behält das Gerät
- * nichts — dort lebt nicht einmal der Schlüssel länger als der Tab.
+ * Antworten ohne Netz brauchen dagegen kein Geheimnis: sie werden für öffentliche Schlüssel versiegelt (`learn.ts`)
+ * und warten in der Ablage, bis sie hinaus können. Was ohne Netz beantwortet wurde, kommt zusätzlich in die
+ * Abschrift (`keepAnswers`) — sonst finge die nächste Runde ohne Netz wieder bei null an.
+ *
+ * <b>Der Browser behält von selbst ein paar</b> (die zuletzt geübten), die App so viele, wie man ihr sagt. Im
+ * strengen Betrieb (`tab`) behält das Gerät nichts — dort lebt nicht einmal der Schlüssel länger als der Tab.
  */
 
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
+import { awayKeyOf, copyPrefix, copySlot, dropAwayIfEmpty, keepAway } from '../core/away';
+import { aad, derive, Field, fromBase64Url, KEY_SIZE, openText, sealText, toBase64Url } from '../core/crypto';
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { device } from '../core/kept';
+import { keepsKey, type Who } from '../core/session';
 import type { Card } from './cardBasics';
 import type { Dependency } from './knowness';
-import type { AnswerRecord } from './learn';
+import type { AnswerRecord, Holder } from './learn';
 import { readPlan, type Plan } from './revision';
 
 export interface OfflineRevision {
@@ -31,15 +35,23 @@ export interface OfflineRevision {
   readonly deps: readonly Dependency[];
   /**
    * Wohin die Antworten gehen, wenn das Netz wieder da ist. `intake` (2026-10-27): der öffentliche Schlüssel der
-   * Annahme (Base64URL) — ohne ihn versiegelte Antworten liest der Kurs nie; ältere Abschriften haben `null`.
+   * Annahme (Base64URL) — ohne ihn versiegelte Antworten liest der Kurs nie.
    */
   readonly target: { readonly areaId: string; readonly intake: string | null } | null;
+  /** 2026-10-28 — wer lernt: die Person (Kennung, öffentlicher Schlüssel, Base64URL) — ohne Netz wird für sie versiegelt. */
+  readonly holder: { readonly roleId: string; readonly wrapPublicKey: string } | null;
   /**
    * 2026-10-27 — was der Lernende zu diesen Karten schon beantwortet hat: ohne Netz lädt der Dienst nichts, und
    * ohne die Geschichte hielte „Najpierw podstawy" alles zurück, was schon sitzt. Nur zum Rechnen, nie gesendet.
    */
   readonly answers?: readonly AnswerRecord[];
   readonly savedAt: number;
+}
+
+/** Womit sich die Abschriften eines Kontos öffnen: das Konto und der Schlüssel seiner Abschriften (`core/away.ts`). */
+export interface CopyKey {
+  readonly accountId: string;
+  readonly key: Uint8Array;
 }
 
 /** 2026-10-27 — eine Karte, deren Frage eine Datei zeigt (Bild, Ton): ohne Netz lässt sie sich nicht öffnen. */
@@ -51,27 +63,82 @@ export function offlineSource(copy: OfflineRevision): { plan: Plan; cards: reado
   return { plan: readPlan(copy.cards, gate, copy.plan), cards: copy.cards, deps: copy.deps, title: copy.name };
 }
 
+/**
+ * 2026-10-28 — DER LERNENDE OHNE NETZ: die Person aus der Abschrift. Versiegelt wird mit ihrem öffentlichen
+ * Schlüssel; der private bleibt zu (er liegt nicht auf dem Gerät) — was in der Ablage wartet, öffnet erst der Dienst.
+ */
+export function holderOfCopy(copy: OfflineRevision): Holder | null {
+  if (copy.holder === null) return null;
+  return {
+    kind: 'role', roleId: copy.holder.roleId, wrapPublicKey: fromBase64Url(copy.holder.wrapPublicKey),
+    wrapPrivate: () => Promise.reject(new Error('Bez internetu klucz prywatny osoby jest zamknięty.'))
+  };
+}
+
+/** Die Antworten, die zu den Karten der Abschrift gehören (`rename`: zusammengeführte Einträge). */
+export function answersFor(cards: readonly Card[], answers: Iterable<AnswerRecord>, rename?: (key: string) => string): AnswerRecord[] {
+  const keys = new Set(cards.map((c) => c.key));
+  return [...answers].filter((a) => keys.has(rename === undefined ? a.key : rename(a.key)));
+}
+
 /** Wie viele Wiederholungen der Browser von selbst behält; die App so viele, wie gewählt. */
 export const BROWSER_KEEPS = 3;
 
-const slot = (libraryId: string, revisionId: string) => `${libraryId}:${revisionId}`;
-const offlineAad = (libraryId: string, revisionId: string) => aad('cogita', 'offline', slot(libraryId, revisionId), Field.CogitaOffline, 1);
+const copyAad = (accountId: string, libraryId: string, revisionId: string) =>
+  aad('cogita', 'offline', `${accountId}.${libraryId}.${revisionId}`, Field.CogitaOffline, 2);
 
-/** Eine Wiederholung für die Zeit ohne Netz ablegen. `keep`: das Konto behält seinen Schlüssel (`kept`). */
-export async function keepOffline(revision: OfflineRevision, keep: boolean, limit = BROWSER_KEEPS): Promise<boolean> {
-  if (!keep) return false;
-  const on = await device().catch(() => null);
-  if (on === null) return false;
-  const sealed = toBase64Url(await sealText(on.key, offlineAad(revision.libraryId, revision.revisionId), JSON.stringify(revision)));
-  const ok = await idbPut('offline', slot(revision.libraryId, revision.revisionId), { sealed, savedAt: revision.savedAt, libraryId: revision.libraryId, revisionId: revision.revisionId });
-  if (ok) await trim(limit);
-  return ok;
+/** Gerät UND Konto: der Schlüssel einer Abschrift folgt aus beiden — keiner allein öffnet sie. */
+async function sealingKey(deviceKey: Uint8Array, awayKey: Uint8Array): Promise<Uint8Array> {
+  const both = new Uint8Array(deviceKey.length + awayKey.length);
+  both.set(deviceKey, 0);
+  both.set(awayKey, deviceKey.length);
+  return derive(both, 'recreatio:v1:cogita-offline', KEY_SIZE);
 }
 
-/** Die ältesten fallen weg, wenn es mehr sind als erlaubt. */
-async function trim(limit: number): Promise<void> {
-  const rows: { key: string; savedAt: number }[] = [];
+/** Versiegeln und öffnen — eigens, damit die Prüfung es ohne Ablage nachrechnet. */
+export async function sealCopy(deviceKey: Uint8Array, by: CopyKey, copy: OfflineRevision): Promise<string> {
+  return toBase64Url(await sealText(await sealingKey(deviceKey, by.key), copyAad(by.accountId, copy.libraryId, copy.revisionId), JSON.stringify(copy)));
+}
+
+export async function openCopy(deviceKey: Uint8Array, by: CopyKey, libraryId: string, revisionId: string, sealed: string): Promise<OfflineRevision> {
+  return JSON.parse(await openText(await sealingKey(deviceKey, by.key), copyAad(by.accountId, libraryId, revisionId), fromBase64Url(sealed))) as OfflineRevision;
+}
+
+async function put(by: CopyKey, copy: OfflineRevision): Promise<boolean> {
+  const on = await device().catch(() => null);
+  if (on === null) return false;
+  return idbPut('offline', copySlot(by.accountId, copy.libraryId, copy.revisionId),
+    { sealed: await sealCopy(on.key, by, copy), savedAt: copy.savedAt, libraryId: copy.libraryId, revisionId: copy.revisionId, accountId: by.accountId });
+}
+
+/**
+ * Eine Wiederholung für die Zeit ohne Netz ablegen — nur, wo das Konto seinen Schlüssel behält (`kept`) und dieser
+ * Tab ihn hat. Legt (in der App) auch das Anmelden ohne Netz bereit (`keepAway`): ohne das bliebe die Abschrift
+ * dort unerreichbar, wo sie gebraucht wird.
+ */
+export async function keepOffline(revision: OfflineRevision, who: Who, limit = BROWSER_KEEPS): Promise<boolean> {
+  if (!keepsKey(who)) return false;
+  const key = await awayKeyOf(who);
+  if (key === null) return false;
+  const ok = await put({ accountId: who.accountId, key }, revision);
+  if (!ok) return false;
+  await keepAway(who).catch(() => undefined);
+  await trim(who.accountId, limit);
+  return true;
+}
+
+/** 2026-10-28 — was ohne Netz beantwortet wurde, in die Abschrift: die nächste Runde ohne Netz rechnet damit. */
+export async function keepAnswers(by: CopyKey, copy: OfflineRevision, answers: readonly AnswerRecord[]): Promise<boolean> {
+  return put(by, { ...copy, answers: answersFor(copy.cards, answers) });
+}
+
+/** Die ältesten fallen weg, wenn es mehr sind als erlaubt — je Konto. Abschriften der alten Form (ohne Konto) ebenso. */
+async function trim(accountId: string, limit: number): Promise<void> {
   for (const key of await idbKeys('offline')) {
+    if (!key.startsWith('copy:') && !key.startsWith('account:')) await idbDelete('offline', key);
+  }
+  const rows: { key: string; savedAt: number }[] = [];
+  for (const key of await idbKeys('offline', copyPrefix(accountId))) {
     const one = await idbGet<{ savedAt: number }>('offline', key);
     if (one !== null) rows.push({ key, savedAt: one.savedAt });
   }
@@ -79,30 +146,34 @@ async function trim(limit: number): Promise<void> {
   for (const old of rows.slice(Math.max(1, limit))) await idbDelete('offline', old.key);
 }
 
-/** Eine abgelegte Wiederholung öffnen — `null`: keine, oder nicht von diesem Gerät. */
-export async function openOffline(libraryId: string, revisionId: string): Promise<OfflineRevision | null> {
-  const stored = await idbGet<{ sealed: string }>('offline', slot(libraryId, revisionId));
+/** Eine abgelegte Wiederholung öffnen — `null`: keine, oder nicht von diesem Gerät und Konto. */
+export async function openOffline(by: CopyKey, libraryId: string, revisionId: string): Promise<OfflineRevision | null> {
+  const stored = await idbGet<{ sealed: string }>('offline', copySlot(by.accountId, libraryId, revisionId));
   if (stored === null) return null;
   const on = await device().catch(() => null);
   if (on === null) return null;
   try {
-    return JSON.parse(await openText(on.key, offlineAad(libraryId, revisionId), fromBase64Url(stored.sealed))) as OfflineRevision;
+    return await openCopy(on.key, by, libraryId, revisionId, stored.sealed);
   } catch {
     return null;
   }
 }
 
-/** Was abgelegt ist — für die Liste „bez internetu". */
-export async function offlineList(): Promise<{ libraryId: string; revisionId: string; savedAt: number }[]> {
+/** Was für ein Konto abgelegt ist — für die Liste „bez internetu" (ohne zu öffnen). */
+export async function offlineList(accountId: string): Promise<{ libraryId: string; revisionId: string; savedAt: number }[]> {
   const out: { libraryId: string; revisionId: string; savedAt: number }[] = [];
-  for (const key of await idbKeys('offline')) {
+  for (const key of await idbKeys('offline', copyPrefix(accountId))) {
     const one = await idbGet<{ libraryId: string; revisionId: string; savedAt: number }>('offline', key);
     if (one !== null) out.push({ libraryId: one.libraryId, revisionId: one.revisionId, savedAt: one.savedAt });
   }
   return out.sort((a, b) => b.savedAt - a.savedAt);
 }
 
-export const dropOffline = (libraryId: string, revisionId: string): Promise<void> => idbDelete('offline', slot(libraryId, revisionId));
+/** Eine Abschrift löschen — war es die letzte des Kontos, geht auch das Anmelden ohne Netz. */
+export async function dropOffline(accountId: string, libraryId: string, revisionId: string): Promise<void> {
+  await idbDelete('offline', copySlot(accountId, libraryId, revisionId));
+  await dropAwayIfEmpty(accountId);
+}
 
 /** Gibt es gerade Netz? Der Browser weiss es nur ungefähr — ein Fehlschlag beim Laden sagt es genauer. */
 export const online = (): boolean => typeof navigator === 'undefined' || navigator.onLine !== false;

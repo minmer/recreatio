@@ -212,6 +212,21 @@ a.wk-nav-item { color: var(--wk-ink-2); }
 .wk-bar-btn svg { width: 1.25rem; height: 1.25rem; }
 @media (min-width: 64rem) { .wk-bar-btn.is-phone { display: none; } }
 
+/* 2026-10-28 — der Dienst antwortet nicht: angemeldet bleibt man; der Hinweis führt zu dem, was ohne Netz geht. */
+.wk-bar-cut {
+  flex: none;
+  margin-inline: var(--wk-space-1);
+  padding: var(--wk-space-1) var(--wk-space-2);
+  border-radius: var(--wk-radius-sm);
+  background: var(--wk-warn-soft);
+  color: var(--wk-warn);
+  font-size: var(--wk-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.wk-bar-cut:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--wk-ring); }
+
 /* -- Der Inhalt ------------------------------------------------------------ */
 
 .wk-app .wk-main {
@@ -414,6 +429,41 @@ a.wk-crumb-link:hover { color: var(--wk-ink); text-decoration: underline; }
 }
 .wk-plain.is-wide .wk-main { width: min(100%, var(--wk-content)); }
 .wk-plain-top .wk-bell { margin-left: auto; }
+
+/*
+ * Ohne Netz oder ohne Konto (shell/AloneShell.tsx — SMS und Nauka): der Kopf klebt oben wie die Kopfleiste des
+ * Arbeitsplatzes, mit ihrer Linie — die Leiste der SMS-Liste klebt darunter. Abstand als Rand, nicht als gap: das
+ * fehlt älteren WebViews (Chrome 83 auf Android 11: Text und Knopf stiessen aneinander).
+ */
+.wk-alone .wk-plain-top {
+  position: sticky;
+  top: 0;
+  z-index: var(--wk-z-header);
+  gap: 0;
+  border-bottom: 1px solid var(--wk-line);
+  background: var(--wk-ground);
+}
+.wk-alone-tabs { display: flex; flex: none; margin-left: var(--wk-space-3); }
+.wk-alone-tabs a {
+  padding: var(--wk-space-1) var(--wk-space-2);
+  border-radius: var(--wk-radius-sm);
+  color: var(--wk-muted);
+  font-size: var(--wk-text-sm);
+  text-decoration: none;
+}
+.wk-alone-tabs a + a { margin-left: var(--wk-space-1); }
+.wk-alone-tabs a[aria-current="page"] { background: var(--wk-sunk); color: var(--wk-ink); font-weight: 600; }
+.wk-alone-state {
+  min-width: 0;
+  margin-left: auto;
+  padding-left: var(--wk-space-3);
+  overflow: hidden;
+  color: var(--wk-muted);
+  font-size: var(--wk-text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wk-alone .wk-plain-top .wk-btn { flex: none; margin-left: var(--wk-space-3); }
 
 /* -- Die öffentliche Seite: ihr eigener Kopf, kein Arbeitsplatz darüber ------ */
 

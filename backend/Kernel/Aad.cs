@@ -481,7 +481,14 @@ public enum Field
     /// 0133 — die Wizytówka eines Bereichs mit einer Art (Titel, Vorspann), versiegelt unter
     /// dem Schlüssel des Bereichs, in dem sie veröffentlicht ist.
     /// </summary>
-    AreaProfileCard
+    AreaProfileCard,
+
+    /// <summary>
+    /// 2026-10-28 — Anmelden ohne Netz (<c>core/away.ts</c> im Browser): Salz und die Hülle des
+    /// Hauptschlüssels, auf dem Telefon unter dem Geräteschlüssel versiegelt. Nur der Browser
+    /// benutzt es, wie <see cref="AccountKeptKey"/>; der Eintrag steht hier, weil 3.13 ihn verlangt.
+    /// </summary>
+    AwayAccount
 }
 
 /// <summary>
@@ -692,6 +699,7 @@ public readonly record struct Aad
         Field.CalendarValue           => "calendar_value",
         Field.RecordValue             => "record_value",
         Field.AreaProfileCard         => "area_profile_card",
+        Field.AwayAccount             => "away_account",
         _ => throw new ArgumentOutOfRangeException(nameof(f))
     };
 }
