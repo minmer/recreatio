@@ -22,8 +22,9 @@ globalThis.BroadcastChannel = undefined;
 
 const out = await mkdtemp(join(tmpdir(), 'app-json-chat-'));
 await build({
-  entryPoints: { chatJson: 'src/app/chat/chatJson.ts', tree: 'src/app/core/jsonTree.ts', chat: 'src/app/chat/chat.ts' },
-  bundle: true, format: 'esm', platform: 'node', outdir: out, logLevel: 'error',
+  entryPoints: { chatJson: 'src/app/chat/chatJson.ts', tree: 'src/app/core/jsonTree.ts', chat: 'src/app/chat/chat.ts', dialog: 'src/app/chat/ChatJsonDialog.tsx' },
+  bundle: true, format: 'esm', platform: 'node', outdir: out, logLevel: 'error', jsx: 'automatic',
+  loader: { '.css': 'empty' },
   define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
 });
 
@@ -212,6 +213,8 @@ try {
   assert.ok(many.posts.length === m.MAX_POSTS && many.warnings.some((w) => w.includes('pominięto 5')), 'at most MAX_POSTS');
   const long = only([{ text: 'ą'.repeat(m.MAX_TEXT_BYTES) }]);
   assert.ok(long.posts.length === 0 && long.warnings[0].includes('za długa'), 'too long (bytes, not letters)');
+  const tall = only([{ text: `a${'\n'.repeat(9000)}b` }]);
+  assert.ok(tall.posts.length === 0 && tall.warnings[0].includes('za długa'), 'measured as it stands in the sealed envelope (a line break is two bytes there)');
   const past = only([{ text: 'a', sendAt: '2026-10-29T10:06:00Z' }, { text: 'b', sendAt: 'jutro rano' }, { text: 'c', sendAt: '2028-01-01T00:00:00Z' }]);
   assert.equal(past.posts.length, 0, 'sendAt too close, unreadable, or too far: skipped');
   assert.equal(past.warnings.length, 3);
@@ -286,6 +289,47 @@ try {
   const exportedMark = m.messageOut({ message: (await sealedAs(marked)), opened: openedMarked }, { author: () => 'Jan Kowalski', mine: () => true }, [], new Map());
   assert.equal(exportedMark.imported, true, 'and the export says it');
   ok('the mark „Z importu" is sealed in the envelope, survives an edit, is absent on messages by hand, and is exported');
+
+  /* -- 12. Laden für Export und Import: Seiten von hinten, gegen einen nachgebauten Dienst ------------------------ */
+  const dialog = await import(pathToFileURL(join(out, 'dialog.js')).href);
+  const base = Date.parse('2026-01-01T00:00:00.000Z');
+  const serve = (total) => Array.from({ length: total }, (_, i) => ({
+    messageId: `m-${String(i).padStart(5, '0')}`, authorRoleId: 'r', authorSeatId: null, epoch: 1, bodySealed: null,
+    createdAt: new Date(base + i * 60_000).toISOString(), deletedAt: null
+  }));
+  let all = serve(450);
+  let calls = 0;
+  const realFetch = globalThis.fetch;
+  /* Wie der Dienst (`ReadMessagesAsync`): die neuesten `limit` vor `before`/`beforeId`, die älteste zuerst. */
+  globalThis.fetch = async (url) => {
+    calls += 1;
+    const asked = new URL(String(url), 'http://dienst');
+    const limit = Number(asked.searchParams.get('limit') ?? 60);
+    const before = asked.searchParams.get('before');
+    const beforeId = asked.searchParams.get('beforeId');
+    const list = before === null ? all : all.filter((x) => x.createdAt < before || (x.createdAt === before && x.messageId < beforeId));
+    return new Response(JSON.stringify({ messages: list.slice(Math.max(0, list.length - limit)) }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    const whole = await dialog.loadBack('c', new Map(), null);
+    assert.deepEqual([whole.items.length, calls, whole.complete, whole.limited, whole.from], [450, 3, true, false, all[0].createdAt], 'to the beginning in pages of 200');
+    assert.ok(whole.items.every((x, i) => x.message.messageId === all[i].messageId), 'oldest first, nothing twice, nothing missing');
+    calls = 0;
+    const until = Date.parse(all[300].createdAt);
+    const recent = await dialog.loadBack('c', new Map(), until);
+    assert.deepEqual([recent.items.length, calls, recent.complete, recent.limited], [200, 1, false, false], 'only as far back as asked');
+    assert.equal(dialog.covers(recent, until), true);
+    assert.equal(dialog.covers(recent, Date.parse(all[100].createdAt)), false, 'older needs a new load');
+    assert.equal(dialog.covers(recent, null), true);
+    all = serve(m.MAX_EXPORT + 300);
+    calls = 0;
+    const huge = await dialog.loadBack('c', new Map(), null);
+    assert.deepEqual([huge.items.length, huge.complete, huge.limited, huge.items[huge.items.length - 1].message.messageId], [m.MAX_EXPORT, false, true, all[all.length - 1].messageId], 'at most MAX_EXPORT, the newest, and the limit said');
+    assert.equal(dialog.covers(huge, base), true, 'beyond the limit there is nothing more to load');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  ok(`loading: pages of 200 from the newest back, as far as asked, at most ${m.MAX_EXPORT} (and then said) — against a service that answers like ReadMessagesAsync`);
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(out, { recursive: true, force: true });

@@ -2599,3 +2599,31 @@ format before preparing an import); over the link `/ai/<link>/formats[/<id>?part
 **Checks:** Api.Tests 556; `app-json-check` passes.
 
 **Owner:** deploy the API.
+
+## A3 — JSON for every part of Recreatio, and all of it over MCP (2026-10-29)
+
+**Asked:** organise all JSON import rules and make them available to an assistant over MCP; then implement the JSON
+for every part of Recreatio.
+
+**Built** (overview: JSON.md) — one pure `<part>Json.ts` per part (format as a `jsonTree` node with samples, export,
+plan with lines and warnings), a panel where the part's tools live, saving only through the part's existing
+functions (sealed in the browser), and a check script per part:
+- `calendar` — a calendar's appointments: series (timetables), program points, scheme values, days of a series.
+- `masses` — masses and services with their intentions per day (the intentions book), conflicts previewed.
+- `tasks`, `bookings` (resources, rules, slots; claims export-only, collisions warned), `chat` (export of a
+  conversation; import never in someone else's name: topics, own messages marked „Z importu”, moves, pins),
+  `contacts` (beside vCard), `roles` (new roles under grantable holders, renames, holdings; never removes),
+  `persons` (one's own data), `workspace-view` („Czeka na Ciebie”), `addresses` (aliases, domains; DNS listed),
+  `learn-progress` (one's own answers as a new sealed batch), `lamps`.
+- MCP (`list_import_formats`, `get_import_format`): 35 formats in 67 parts, also the place-dependent ones with a
+  worked example (`form`, `form-entries`, `quotes`, `text-plan`); tool texts and instructions name every part.
+- `app-json-parts-check` (in `app:check`) runs every `app-json-<part>-check.mjs`.
+
+**Without import, on purpose:** Sprawy, keys, access and AI links, seats, the data controller. **Not yet:** SMS.
+
+**Checks:** 12 part checks pass; `app-json-check` (35 formats follow the app); all suites, build; Api.Tests 556.
+Browser drive on LocalDB (`argdesign/json-api.mjs` → `json-parts-browser.mjs`): every panel opened as a person does,
+export, unchanged export (no change), a sample imported, export again, that export re-imported (no change) — 74/74
+with a fresh account (role keys made, masses and intentions, calendar series, bookings, chat in Notatki, lamps …).
+
+**Owner:** deploy the API (the embedded `ImportFormats.json`) and the site.

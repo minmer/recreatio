@@ -261,7 +261,8 @@ try {
     assert.ok(foreign.warnings.some((w) => w.includes('należy do urządzenia, nie do timera')), foreign.warnings.join(' | '));
 
     /* Ohne "id" nie über den Namen zugeordnet — aber ein Zwilling wird gesagt (derselbe Text zweimal, ein Modell ohne Export). */
-    const twice = plan({ lamps: [{ name: 'Lampa w sypialni', number: '1' }], timers: [{ name: 'Rano', time: '07:00', days: ['pn', 'wt', 'śr', 'cz', 'pt'], enabled: false, actions: [{ lamp: 'nr 1', signal: 'Włącz' }] }] });
+    /* (Die Aktion über die Kennung: „nr 1" passte jetzt auf zwei Geräte — das alte und seinen Zwilling.) */
+    const twice = plan({ lamps: [{ name: 'Lampa w sypialni', number: '1' }], timers: [{ name: 'Rano', time: '07:00', days: ['pn', 'wt', 'śr', 'cz', 'pt'], enabled: false, actions: [{ lamp: id(1), signal: 'Włącz' }] }] });
     assert.equal(twice.lamps[0].existing, null, 'no id, no matching by name: a new lamp');
     assert.equal(twice.timers[0].existing, null, 'and a new timer');
     assert.ok(twice.warnings.some((w) => w.includes('powstanie drugie urządzenie „Lampa w sypialni · nr 1” obok istniejącego')), twice.warnings.join(' | '));

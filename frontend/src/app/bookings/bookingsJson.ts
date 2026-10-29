@@ -290,7 +290,7 @@ function repeatWords(f: SlotFields): string {
   const how = f.repeat === 'daily' ? (n === 1 ? 'codziennie' : `co ${n} dni`)
     : f.repeat === 'weekly' ? `${n === 1 ? 'co tydzień' : `co ${n} ${plural(n, 'tydzień', 'tygodnie', 'tygodni')}`} (${weekdayWords(f.weekdays).join(', ')})`
     : f.repeat === 'monthly' ? (n === 1 ? 'co miesiąc' : `co ${n} ${plural(n, 'miesiąc', 'miesiące', 'miesięcy')}`)
-    : (n === 1 ? 'co rok' : `co ${n} lata`);
+    : (n === 1 ? 'co rok' : `co ${n} ${plural(n, 'rok', 'lata', 'lat')}`);
   const until = f.until !== null ? ` do ${f.until}` : '';
   const count = f.count !== null ? ` (${f.count} ${plural(f.count, 'raz', 'razy', 'razy')})` : '';
   return `${how}${until}${count}`;

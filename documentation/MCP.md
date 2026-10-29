@@ -56,6 +56,10 @@ All tools are read-only (`readOnlyHint: true`, `destructiveHint: false`, `idempo
   `app-json-check` fails when the file lags behind the app. The file is embedded in the program (`ImportFormats.cs`).
   Nothing is imported from here: the user pastes the JSON in the app and confirms after the list of changes. Over
   the link: `GET /ai/<link>/formats` and `/ai/<link>/formats/<id>?part=n` (also in the guide and in `openapi.json`).
+  Since 2026-10-29 every part of the app has its format ([JSON.md](JSON.md) lists them with where they are imported):
+  besides the above also a calendar's appointments, masses and intentions, tasks, bookings, a conversation, contacts,
+  roles, one's own data, „Czeka na Ciebie”, addresses and domains, one's own progress, lamps — and, with a worked
+  example, the formats that depend on their place (a form, its list of entries, a book's quotes, a text's plan).
 
 - **Search**: all words must occur (title, key, kind, content); case and Polish letters do not matter; words of one
   or two characters count only as whole words, and entries where the words stand together come first — `J 21`

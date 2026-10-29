@@ -37,7 +37,7 @@
 import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
 import { plural } from '../core/plural';
 import type { Duty, RepeatKind } from '../calendar/calendar';
-import { dutyOf, peopleWord } from '../calendar/eventWords';
+import { dutyOf } from '../calendar/eventWords';
 import { CONFESSION, DEVOTION, INTENTION_STATUS_LABEL, KIND_LABEL, MASS, SERVICE_LABEL, type IntentionKind } from './mass';
 
 export const MASSES_FORMAT = 'recreatio/masses';
@@ -262,8 +262,8 @@ export interface MassesState {
 /* -- Die Beschreibung ---------------------------------------------------------------------------- */
 
 export const MASSES_TOP_KEYS: Readonly<Record<string, string>> = {
-  format: `"${MASSES_FORMAT}"`,
-  version: `${MASSES_VERSION}`,
+  format: `zawsze "${MASSES_FORMAT}"`,
+  version: `${MASSES_VERSION} (wersja formatu)`,
   calendar: 'kalendarz (terminarz grupy): "id" z eksportu albo nazwa grupy lub kalendarza; brak — kalendarz wybrany u góry w „Msze i nabożeństwa”',
   calendarName: 'nazwa kalendarza — tylko informacja (eksport ją wpisuje, import pomija)',
   from: 'pierwszy dzień okresu "RRRR-MM-DD" — eksport go wpisuje; import czyta msze od tego dnia (brak: od najwcześniejszej daty w dokumencie)',
@@ -285,7 +285,7 @@ export const MASS_KEYS: Readonly<Record<string, string>> = {
   every: 'co ile dni, tygodni albo miesięcy (1–99, domyślnie 1)',
   weekdays: `przy "weekly": dni tygodnia ${JSON.stringify([...WEEKDAY_WORDS])}; brak — dzień pierwszego terminu`,
   until: 'ostatni dzień serii "RRRR-MM-DD"; null (albo brak w nowej serii) — bez końca; wcześniejsze "until" kończy serię',
-  place: `miejsce, np. "kaplica cmentarna" — szyfrowane kluczem grupy kalendarza; "" usuwa; do ${PLACE_MAX} znaków`,
+  place: `miejsce, np. "kaplica cmentarna" — szyfrowane jak miejsce każdego terminu (nie ma go w gablocie); "" usuwa; do ${PLACE_MAX} znaków`,
   celebrants: `kto odprawia mszę, prowadzi nabożeństwo, spowiada — w całej serii: osoby grupy kalendarza, imię i nazwisko jak w grupie (np. "ks. Jan Kowalski") albo id osoby; [] — nikt; najwyżej ${MAX_PEOPLE}`,
   changeFrom: 'tylko przy serii z "id": zmiana obowiązuje od tego dnia "RRRR-MM-DD" (ta i następne) — stara seria kończy się dzień wcześniej, nowa przejmuje intencje i osoby; bez "changeFrom" zmienia się cała seria, także minione msze'
 };
@@ -383,7 +383,7 @@ Co robi import (Msze i nabożeństwa → „Więcej” → „Import i eksport (
 - Intencja bez "id" dochodzi do swojej mszy, chyba że ta msza ma już tę samą treść — wtedy niczego nie dubluje.
 - Msza, która w kalendarzu ma już INNĄ intencję niż w dokumencie, to konflikt: domyślnie nowe intencje do niej nie dochodzą (ostrzeżenie mówi które); w podglądzie można wybrać „dopisz obok”.
 - Niczego nie usuwa. Intencję wycofuje "status": "cancelled", serię kończy "until", mszę w jednym dniu odwołuje "cancelled": true.
-- Ofiarodawca, ofiara i miejsce są szyfrowane w tej przeglądarce kluczem grupy kalendarza. Treść intencji i nazwa mszy są jawne: czyta się je na mszy i wiszą w gablocie.
+- Ofiarodawca i ofiara są szyfrowane w tej przeglądarce kluczem grupy kalendarza, miejsce — kluczem grupy, która widzi msze (jak przy każdym terminie). Treść intencji i nazwa mszy są jawne: czyta się je na mszy i wiszą w gablocie.
 Zwróć JEDEN obiekt JSON, bez komentarzy: najwyżej ${MAX_MASSES} wpisów w "masses", ${MAX_OCCURRENCES} pozycji w "occurrences", ${MAX_INTENTIONS} intencji przy jednej mszy, okres do ${MAX_DAYS} dni.
 
 Dokument:
@@ -905,6 +905,10 @@ const defOf = (s: SeriesNow): SeriesDef => ({
 
 const serviceName = (kind: string, title: string): string => title || SERVICE_LABEL[kind] || 'Wpis';
 
+/** Wie der Plan der Kanzlei sagt, wer da ist (`MassPlan.PeopleLine`): „odprawia", „prowadzi", „spowiada". */
+const dutyWord = (kind: string): string =>
+  kind === MASS ? 'odprawia' : kind === DEVOTION ? 'prowadzi' : kind === CONFESSION ? 'spowiada' : 'obecni';
+
 function patternText(def: SeriesDef): string {
   const time = clockShort(def.time);
   const every = Math.max(1, def.every);
@@ -1188,7 +1192,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         const ids = resolvePeople(m.celebrants, s.calendarId, new Set(s.people.map((p) => p.roleId)), where);
         if (ids !== null) {
           const next = withDuty(s.people, ids, duty);
-          if (!samePeople(next, s.people)) { people = next; said.push(`${peopleWord(s.kind).toLowerCase()}: ${namesOf(next.filter((p) => p.duty === duty), s.calendarId)}`); }
+          if (!samePeople(next, s.people)) { people = next; said.push(`${dutyWord(s.kind)}: ${namesOf(next.filter((p) => p.duty === duty), s.calendarId)}`); }
         }
       }
       const next: SeriesDef = { ...defOf(s), ...change };
@@ -1266,7 +1270,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     const label = `${serviceName(kind, def.title)} — ${patternText(def)}`;
     creates.push({ fresh, calendarId: calendar.calendarId, def, people, handover: null, label });
     nameKey(m.key, { fresh }, where);
-    massLines.push(`Nowy: ${label}${spanText(def)}${def.place === '' ? '' : `, ${def.place}`}${calendar.calendarId === homeCalendar.calendarId ? '' : ` — ${calendarName(calendar)}`}${people === null ? '' : `; ${peopleWord(kind).toLowerCase()}: ${namesOf(people, calendar.calendarId)}`}.`);
+    massLines.push(`Nowy: ${label}${spanText(def)}${def.place === '' ? '' : `, ${def.place}`}${calendar.calendarId === homeCalendar.calendarId ? '' : ` — ${calendarName(calendar)}`}${people === null ? '' : `; ${dutyWord(kind)}: ${namesOf(people, calendar.calendarId)}`}.`);
   }
 
   /* -- 2. Die Messen an ihren Tagen ---------------------------------------------------------- */
@@ -1278,7 +1282,14 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     return reshaped.get(o.itemId)?.time ?? o.time;
   };
   const refKey = (ref: MassRef): string => ('existing' in ref ? `e:${ref.existing}` : `f:${ref.fresh}`);
-  const onDay = (itemId: string, date: string): OccurrenceNow | null => (occurrencesOf.get(itemId) ?? []).find((o) => o.date === date) ?? null;
+  /* Zwei Vorkommen einer Reihe an einem Tag gibt es nur, wenn eines dorthin verlegt ist — dann entscheidet die Stunde. */
+  const onDay = (itemId: string, date: string, time: string | undefined): OccurrenceNow | null => {
+    const found = (occurrencesOf.get(itemId) ?? []).filter((o) => o.date === date);
+    return found.find((o) => o.time === time) ?? found[0] ?? null;
+  };
+  /* Dieselbe Messe, wie auch immer genannt: das Vorkommen, das es gibt — sonst Messe und Tag. */
+  const slotKey = (ref: MassRef, date: string, existing: OccurrenceNow | null): string =>
+    existing !== null ? `o:${existing.itemId}|${existing.occurrenceAt}` : `${refKey(ref)}|${date}`;
 
   const slots = new Map<string, Slot>();
   let skippedSlots = 0;
@@ -1299,10 +1310,10 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         const create = creates[ref.fresh];
         if (!seriesHas(create.def, o.date)) { warnings.push(`${where}: nowy wpis ${quote(create.label)} nie wypada w tym dniu — pominięta.`); return null; }
         if (o.time !== undefined && o.time !== create.def.time) warnings.push(`${where}: ten wpis jest o ${clockShort(create.def.time)} — liczy się "mass".`);
-        return { key: `${refKey(ref)}|${o.date}`, mass: ref, calendarId: create.calendarId, date: o.date, time: create.def.time, kind: create.def.kind, existing: null, label: whenLabel(o.date, create.def.time) };
+        return { key: slotKey(ref, o.date, null), mass: ref, calendarId: create.calendarId, date: o.date, time: create.def.time, kind: create.def.kind, existing: null, label: whenLabel(o.date, create.def.time) };
       }
       const itemId = ref.existing;
-      const existing = onDay(itemId, o.date);
+      const existing = onDay(itemId, o.date, o.time);
       const s = state.series.get(itemId);
       const calendarId = s?.calendarId ?? existing?.calendarId ?? homeCalendar.calendarId;
       const kind = s?.kind ?? existing?.kind ?? MASS;
@@ -1324,8 +1335,9 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         if (existing === null) { warnings.push(`${where}: tej mszy nie ma w planie w tym dniu — pominięta.`); return null; }
         time = existing.time;
       }
-      if (o.time !== undefined && o.time !== time) warnings.push(`${where}: ta msza jest o ${clockShort(time)} — liczy się "mass", nie godzina.`);
-      return { key: `${refKey(mass)}|${o.date}`, mass, calendarId, date: o.date, time, kind, existing, label: whenLabel(o.date, time) };
+      /* Die Stunde von jetzt (vor der Änderung der Reihe) ist kein Widerspruch — so steht sie im Export. */
+      if (o.time !== undefined && o.time !== time && o.time !== existing?.time) warnings.push(`${where}: ta msza jest o ${clockShort(time)} — liczy się "mass", nie godzina.`);
+      return { key: slotKey(mass, o.date, existing), mass, calendarId, date: o.date, time, kind, existing, label: whenLabel(o.date, time) };
     }
 
     const calendar = calendarOf(o.calendar, where);
@@ -1347,7 +1359,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     }
     if (found.length === 1) {
       const f = found[0];
-      return { key: `${refKey(f.ref)}|${o.date}`, mass: f.ref, calendarId: calendar.calendarId, date: o.date, time: o.time, kind: f.kind, existing: f.existing, label: whenLabel(o.date, o.time) };
+      return { key: slotKey(f.ref, o.date, f.existing), mass: f.ref, calendarId: calendar.calendarId, date: o.date, time: o.time, kind: f.kind, existing: f.existing, label: whenLabel(o.date, o.time) };
     }
     if (found.length > 1) { warnings.push(`${where}: o tej godzinie jest kilka mszy — dodaj "mass" (id z eksportu); pominięta.`); return null; }
     if (others.length > 0) { warnings.push(`${where}: o tej godzinie jest ${others[0].toLowerCase()}, nie msza — pominięta.`); return null; }
@@ -1388,19 +1400,18 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
   const plans: OccurrencePlan[] = [];
   const count = { added: 0, changed: 0, moved: 0, free: 0, unchanged: 0, conflicts: 0, cancels: 0, restores: 0, people: 0 };
 
+  /* Eine Intention des Dokuments an ihrer Messe: eine, die es gibt (vielleicht hierher verlegt) — oder eine neue. */
+  type Have = { readonly type: 'have'; readonly intention: IntentionNow; readonly change: ChangeFields; readonly from: OccurrenceNow | null; readonly text: string };
+  type Add = { readonly type: 'add'; readonly add: { -readonly [K in keyof IntentionAdd]: IntentionAdd[K] } };
+  type Entry = Have | Add;
+
   for (const slot of slots.values()) {
     const current = slot.existing === null ? [] : [...slot.existing.intentions].sort((a, b) => a.ordinal - b.ordinal || a.id.localeCompare(b.id));
     const isMassSlot = slot.kind === MASS;
-    const said: string[] = [];
     if (!isMassSlot && slot.intentions.length > 0) {
       warnings.push(`${slot.label}: ${(SERVICE_LABEL[slot.kind] ?? 'ten wpis').toLowerCase()} nie ma intencji — pominięte.`);
       slot.intentions.length = 0;
     }
-
-    const claimed = new Set<string>();
-    const changes: IntentionChange[] = [];
-    let adds: IntentionAdd[] = [];
-    const order: ({ id: string; here: boolean } | { add: IntentionAdd })[] = [];
     const celebrantOf = (ref: string | null | undefined, where: string): string | null | undefined => {
       if (ref === undefined) return undefined;
       if (ref === null) return null;
@@ -1409,11 +1420,14 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
       return found.roleId;
     };
 
+    /* Jede Intention des Dokuments: an ihrem "id", sonst an derselben Treść an dieser Messe — sonst neu. */
+    const claimed = new Set<string>();
+    let entries: Entry[] = [];
     for (const d of slot.intentions) {
       const where = quote(cut(d.text, 40));
       let match: IntentionNow | null = null;
       let byIdMatch = false;
-      let moved: OccurrenceNow | null = null;
+      let from: OccurrenceNow | null = null;
       if (d.id !== null) {
         const known = byId.get(d.id);
         if (known === undefined) warnings.push(`${slot.label}: nie znam intencji o "id" ${short(d.id)} — będzie nowa.`);
@@ -1421,7 +1435,7 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         else {
           match = known.intention;
           byIdMatch = true;
-          if (!sameOcc(slot.existing, known.occ)) moved = known.occ;
+          if (!sameOcc(slot.existing, known.occ)) from = known.occ;
         }
       }
       if (match === null) {
@@ -1429,48 +1443,36 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
         match = current.find((i) => !claimed.has(i.id) && !target.has(i.id) && textKey(i.text) === wanted) ?? null;
       }
       const kind = d.kind ?? (slot.collective ? 'collective' : undefined);
-      if (match !== null) {
-        claimed.add(match.id);
-        const c: ChangeFields = {};
-        const bits: string[] = [];
-        if (byIdMatch && d.text !== match.text) { c.text = d.text; bits.push(`treść ${quote(cut(match.text, 40))} → ${quote(cut(d.text, 40))}`); }
-        if (kind !== undefined && kind !== match.kind) { c.kind = kind; bits.push(KIND_LABEL[kind]); }
-        if (d.status !== undefined && d.status !== match.status) { c.status = d.status; bits.push(INTENTION_STATUS_LABEL[d.status]); }
-        if (d.giver !== undefined && d.giver !== match.giver) { c.giver = d.giver; bits.push(d.giver === '' ? 'bez ofiarodawcy' : 'ofiarodawca'); }
-        if (d.offering !== undefined && d.offering !== match.offering) { c.offering = d.offering; bits.push(d.offering === '' ? 'bez ofiary' : 'ofiara'); }
-        const celebrant = celebrantOf(d.celebrant, where);
-        if (celebrant !== undefined && (celebrant ?? null) !== match.celebrant) { c.celebrant = celebrant ?? ''; bits.push(celebrant === null ? 'bez odprawiającego' : `odprawia ${nameOf(celebrant, slot.calendarId)}`); }
-        if (moved !== null) { c.move = true; bits.unshift(`przeniesiona tu (z ${whenLabel(moved.date, moved.time)})`); }
-        if (Object.keys(c).length > 0) {
-          changes.push({ id: match.id, ...c });
-          said.push(`${quote(cut(d.text, 60))}: ${bits.join(', ')}`);
-          if (moved !== null) count.moved++; else count.changed++;
-        } else count.unchanged++;
-        order.push({ id: match.id, here: moved === null });
+      const celebrant = celebrantOf(d.celebrant, where);
+      if (match === null) {
+        entries.push({ type: 'add', add: { text: d.text, kind: kind ?? 'single', status: d.status ?? 'accepted', giver: d.giver ?? '', offering: d.offering ?? '', celebrant: celebrant ?? null, ordinal: null } });
         continue;
       }
-      const celebrant = celebrantOf(d.celebrant, where);
-      const add: IntentionAdd = {
-        text: d.text, kind: kind ?? 'single', status: d.status ?? 'accepted',
-        giver: d.giver ?? '', offering: d.offering ?? '', celebrant: celebrant ?? null, ordinal: null
-      };
-      adds.push(add);
-      order.push({ add });
+      claimed.add(match.id);
+      const change: ChangeFields = {};
+      /* Die Treść nur, wo das "id" sie meint: „za sp. jana" an derselben Messe ist dieselbe — und die bessere Schreibung bleibt. */
+      if (byIdMatch && d.text !== match.text) change.text = d.text;
+      if (kind !== undefined && kind !== match.kind) change.kind = kind;
+      if (d.status !== undefined && d.status !== match.status) change.status = d.status;
+      if (d.giver !== undefined && d.giver !== match.giver) change.giver = d.giver;
+      if (d.offering !== undefined && d.offering !== match.offering) change.offering = d.offering;
+      if (celebrant !== undefined && celebrant !== match.celebrant) change.celebrant = celebrant ?? '';
+      if (from !== null) change.move = true;
+      entries.push({ type: 'have', intention: match, change, from, text: d.text });
     }
+    const addsNow = (): Add[] => entries.filter((e): e is Add => e.type === 'add');
 
     /* Was an der Messe hängt und im Dokument nicht vorkommt — und nicht anderswohin geht. */
     const movedAway = (i: IntentionNow) => target.has(i.id) && target.get(i.id) !== slot.key;
     const unaccounted = current.filter((i) => isLive(i) && !claimed.has(i.id) && !movedAway(i));
     const listed = unaccounted.map((i) => quote(cut(i.text, 50))).join(', ');
-    if (adds.length > 0 && unaccounted.length > 0) {
-      const single = adds.some((a) => a.kind === 'single') || unaccounted.some((i) => i.kind === 'single');
+    if (addsNow().length > 0 && unaccounted.length > 0) {
+      const single = addsNow().some((e) => e.add.kind === 'single') || unaccounted.some((i) => i.kind === 'single');
       if (single) {
         count.conflicts++;
         if (options.conflicts === 'skip') {
-          warnings.push(`${slot.label}: ma już intencję ${listed}; w dokumencie inna: ${adds.map((a) => quote(cut(a.text, 50))).join(', ')} — nie dopisuję (zaznacz niżej „dopisz obok”, jeśli to dodatkowa intencja).`);
-          const dropped = new Set(adds);
-          for (let i = order.length - 1; i >= 0; i--) { const one = order[i]; if ('add' in one && dropped.has(one.add)) order.splice(i, 1); }
-          adds = [];
+          warnings.push(`${slot.label}: ma już intencję ${listed}; w dokumencie inna: ${addsNow().map((e) => quote(cut(e.add.text, 50))).join(', ')} — nie dopisuję (zaznacz niżej „dopisz obok”, jeśli to dodatkowa intencja).`);
+          entries = entries.filter((e) => e.type !== 'add');
         } else warnings.push(`${slot.label}: ma już intencję ${listed} — nowe dopisane obok (dwie pojedyncze to dwóch kapłanów).`);
       } else warnings.push(`${slot.label}: w kalendarzu są też ${listed}, których nie ma w dokumencie — zostają; nowe zbiorowe dochodzą.`);
     } else if (unaccounted.length > 0 && (slot.free || slot.intentions.length > 0)) {
@@ -1480,48 +1482,105 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     }
     if (slot.free && slot.intentions.length === 0) count.free++;
 
-    /* Abgesagt — oder zurückgeholt. */
+    /* Abgesagt — oder zurückgeholt. Eine abgesagte Messe nimmt nichts an (der Dienst weist es ab): hier gesagt, nicht erst beim Speichern. */
     const offNow = slot.existing?.status === 'cancelled';
     let restore = false;
     if (slot.cancelled === false && offNow) {
-      if (slot.existing!.skipped) { restore = true; said.unshift('przywrócona'); count.restores++; } else warnings.push(`${slot.label}: odwołana jest cała msza (nie tylko ten dzień) — przywróć ją w kalendarzu.`);
+      if (slot.existing!.skipped) restore = true;
+      else warnings.push(`${slot.label}: odwołana jest cała msza (nie tylko ten dzień) — przywróć ją w kalendarzu.`);
     }
-    /* Eine abgesagte Messe nimmt nichts an (der Dienst weist es ab) — hier gesagt statt beim Speichern. */
-    if (offNow && !restore) {
-      const comingIn = changes.filter((c) => c.move === true);
-      if (adds.length > 0 || comingIn.length > 0) {
-        warnings.push(`${slot.label}: msza jest odwołana — intencje do niej pominięte (przywróć ją: "cancelled": false).`);
-        for (const c of comingIn) changes.splice(changes.indexOf(c), 1);
-        for (let i = order.length - 1; i >= 0; i--) { const one = order[i]; if ('add' in one || !one.here) order.splice(i, 1); }
-        count.moved -= comingIn.length;
-        adds = [];
-      }
+    if (offNow && !restore && entries.some((e) => e.type === 'add' || e.from !== null)) {
+      warnings.push(`${slot.label}: msza jest odwołana — intencje do niej pominięte (przywróć ją: "cancelled": false).`);
+      entries = entries.filter((e): e is Have => e.type === 'have' && e.from === null);
     }
-    const movesIn = changes.filter((c) => c.move === true);
+    const finalOf = (e: Have) => ({
+      kind: e.change.kind ?? e.intention.kind,
+      status: e.change.status ?? e.intention.status,
+      celebrant: e.change.celebrant === undefined ? e.intention.celebrant : e.change.celebrant === '' ? null : e.change.celebrant
+    });
     let cancel = false;
     if (slot.cancelled === true && !offNow) {
-      const stays = current.filter((i) => isLive(i) && !movedAway(i) && changes.find((c) => c.id === i.id)?.status !== 'cancelled').length
-        + adds.filter((a) => a.status !== 'cancelled').length + movesIn.length;
+      const stays = unaccounted.length + entries.filter((e) => (e.type === 'add' ? e.add.status : finalOf(e).status) !== 'cancelled').length;
       if (stays > 0) warnings.push(`${slot.label}: nie odwołuję — msza ma przyjęte intencje; przenieś je najpierw na inną mszę.`);
-      else { cancel = true; said.push('odwołana (tylko ten dzień)'); count.cancels++; }
+      else cancel = true;
+    }
+
+    /* Ein Priester liest an einer Messe EINE pojedyncza (der Dienst weist die zweite ab): die spätere verliert ihn — mit einem Wort. */
+    if (isMassSlot) {
+      const taken = new Set<string>();
+      for (const i of unaccounted) if (i.kind === 'single' && i.celebrant !== null) taken.add(i.celebrant);
+      for (const e of entries) {
+        if (e.type === 'add') {
+          if (e.add.kind !== 'single' || e.add.status === 'cancelled' || e.add.celebrant === null) continue;
+          if (!taken.has(e.add.celebrant)) { taken.add(e.add.celebrant); continue; }
+          warnings.push(`${slot.label}: ${nameOf(e.add.celebrant, slot.calendarId)} ma już pojedynczą intencję przy tej mszy — ${quote(cut(e.add.text, 40))} bez odprawiającego.`);
+          e.add.celebrant = null;
+          continue;
+        }
+        const f = finalOf(e);
+        if (f.kind !== 'single' || f.status === 'cancelled' || f.celebrant === null) continue;
+        if (!taken.has(f.celebrant)) { taken.add(f.celebrant); continue; }
+        if (e.change.celebrant !== undefined) {
+          warnings.push(`${slot.label}: ${nameOf(f.celebrant, slot.calendarId)} ma już pojedynczą intencję przy tej mszy — ${quote(cut(e.text, 40))} bez zmiany odprawiającego.`);
+          delete e.change.celebrant;
+        }
+      }
     }
 
     /* Die Reihenfolge des Vorlesens: nur, wenn das Dokument die Messe ganz nennt und sie anders ordnet. */
+    let reordered = false;
     const whole = current.length > 0 && current.every((i) => claimed.has(i.id));
-    const docOrder = order.flatMap((one) => ('id' in one && one.here ? [one.id] : []));
-    const addsBefore = order.some((one, i) => 'add' in one && order.slice(i + 1).some((later) => 'id' in later));
-    if (whole && (docOrder.join(',') !== current.map((i) => i.id).join(',') || addsBefore || movesIn.length > 0)) {
-      const byOrdinal = new Map(current.map((i) => [i.id, i.ordinal]));
-      let reordered = false;
-      order.forEach((one, k) => {
-        if ('add' in one) { const at = adds.indexOf(one.add); if (at >= 0) adds[at] = { ...one.add, ordinal: k }; return; }
-        if (byOrdinal.get(one.id) === k && one.here) return;
-        const at = changes.findIndex((c) => c.id === one.id);
-        if (at >= 0) changes[at] = { ...changes[at], ordinal: k }; else changes.push({ id: one.id, ordinal: k });
-        if (one.here) reordered = true;
-      });
-      if (reordered) said.push('nowa kolejność czytania');
+    const docOrder = entries.flatMap((e) => (e.type === 'have' && e.from === null ? [e.intention.id] : []));
+    const addsBefore = entries.some((e, i) => e.type === 'add' && entries.slice(i + 1).some((later) => later.type === 'have'));
+    const comingIn = entries.some((e) => e.type === 'have' && e.from !== null);
+    if (whole && (docOrder.join(',') !== current.map((i) => i.id).join(',') || addsBefore || comingIn)) {
+      for (let k = 0; k < entries.length; k++) {
+        const e = entries[k];
+        if (e.type === 'add') { e.add.ordinal = k; continue; }
+        if (e.from === null && e.intention.ordinal === k) continue;
+        e.change.ordinal = k;
+        if (e.from === null) reordered = true;
+      }
     }
+
+    /* Was der Import an dieser Messe tut — in der Reihenfolge des Vorlesens. */
+    const said: string[] = restore ? ['przywrócona'] : [];
+    const adds: IntentionAdd[] = [];
+    const changes: IntentionChange[] = [];
+    for (const e of entries) {
+      if (e.type === 'add') {
+        const a = e.add;
+        adds.push({ ...a });
+        const details = [
+          a.kind === 'collective' ? KIND_LABEL.collective : '',
+          a.status === 'accepted' ? '' : INTENTION_STATUS_LABEL[a.status],
+          a.giver === '' ? '' : 'ofiarodawca',
+          a.offering === '' ? '' : 'ofiara',
+          a.celebrant === null ? '' : `odprawia ${nameOf(a.celebrant, slot.calendarId)}`
+        ].filter((s) => s !== '');
+        said.push(`nowa ${quote(a.text)}${details.length === 0 ? '' : ` (${details.join(', ')})`}`);
+        continue;
+      }
+      const c = e.change;
+      if (Object.keys(c).length > 0) changes.push({ id: e.intention.id, ...c });
+      const bits = [
+        c.move === true && e.from !== null ? `przeniesiona tu (z ${whenLabel(e.from.date, e.from.time)})` : '',
+        c.text === undefined ? '' : `treść ${quote(cut(e.intention.text, 40))} → ${quote(cut(c.text, 40))}`,
+        c.kind === undefined ? '' : KIND_LABEL[c.kind],
+        c.status === undefined ? '' : INTENTION_STATUS_LABEL[c.status],
+        c.giver === undefined ? '' : c.giver === '' ? 'bez ofiarodawcy' : 'ofiarodawca',
+        c.offering === undefined ? '' : c.offering === '' ? 'bez ofiary' : 'ofiara',
+        c.celebrant === undefined ? '' : c.celebrant === '' ? 'bez odprawiającego' : `odprawia ${nameOf(c.celebrant, slot.calendarId)}`
+      ].filter((s) => s !== '');
+      if (bits.length === 0) { count.unchanged++; continue; }
+      said.push(`${quote(cut(e.text, 60))}: ${bits.join(', ')}`);
+      if (c.move === true) count.moved++; else count.changed++;
+    }
+    if (reordered) said.push('nowa kolejność czytania');
+    if (cancel) said.push('odwołana (tylko ten dzień)');
+    count.added += adds.length;
+    if (restore) count.restores++;
+    if (cancel) count.cancels++;
 
     /* Wer feiert: die Liste der Messe — und jeder, der eine Intention liest, steht dort (wie in der Kanzlei). */
     const duty = dutyOf(slot.kind);
@@ -1544,30 +1603,17 @@ export function planMasses(doc: MassesDoc, state: MassesState, options: MassesOp
     let people: PinnedNow[] | null = null;
     if (!samePeople(next, peopleNow)) {
       if (next.length > MAX_PEOPLE) warnings.push(`${slot.label}: najwyżej ${MAX_PEOPLE} osób przy jednym terminie — osoby bez zmian.`);
-      else { people = next; said.push(`${peopleWord(slot.kind).toLowerCase()}: ${namesOf(next.filter((p) => p.duty === duty || readers.has(p.roleId)), slot.calendarId)}`); count.people++; }
+      else { people = next; said.push(`${dutyWord(slot.kind)}: ${namesOf(next.filter((p) => p.duty === duty || readers.has(p.roleId)), slot.calendarId)}`); count.people++; }
     }
 
-    /* Zwei pojedyncze — zwei Priester: gesagt, wo der Import daran etwas ändert. */
+    /* Zwei pojedyncze — zwei Priester: gesagt, wo der Import an der Messe etwas ändert. */
     if (isMassSlot && (adds.length > 0 || changes.length > 0)) {
-      const kindAfter = (i: IntentionNow) => changes.find((c) => c.id === i.id)?.kind ?? i.kind;
-      const statusAfter = (i: IntentionNow) => changes.find((c) => c.id === i.id)?.status ?? i.status;
-      const singles = current.filter((i) => !movedAway(i) && statusAfter(i) !== 'cancelled' && kindAfter(i) === 'single').length
-        + adds.filter((a) => a.kind === 'single' && a.status !== 'cancelled').length
-        + movesIn.filter((c) => c.kind === undefined ? byId.get(c.id)?.intention.kind === 'single' : c.kind === 'single').length;
+      const singles = unaccounted.filter((i) => i.kind === 'single').length
+        + entries.filter((e) => (e.type === 'add'
+          ? e.add.kind === 'single' && e.add.status !== 'cancelled'
+          : finalOf(e).kind === 'single' && finalOf(e).status !== 'cancelled')).length;
       if (singles > 1) warnings.push(`${slot.label}: ${singles} intencje pojedyncze — potrzeba ${singles} kapłanów (koncelebra).`);
     }
-
-    for (const a of adds) {
-      const details = [
-        a.kind === 'collective' ? KIND_LABEL.collective : '',
-        a.status === 'accepted' ? '' : INTENTION_STATUS_LABEL[a.status],
-        a.giver === '' ? '' : 'ofiarodawca',
-        a.offering === '' ? '' : 'ofiara',
-        a.celebrant === null ? '' : `odprawia ${nameOf(a.celebrant, slot.calendarId)}`
-      ].filter((s) => s !== '');
-      said.push(`nowa ${quote(a.text)}${details.length === 0 ? '' : ` (${details.join(', ')})`}`);
-    }
-    count.added += adds.length;
 
     if (adds.length === 0 && changes.length === 0 && !restore && !cancel && people === null) continue;
     const calendar = state.calendars.find((c) => c.calendarId === slot.calendarId);

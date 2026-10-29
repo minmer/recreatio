@@ -30,7 +30,7 @@ import { WorkspaceError } from '../core/session';
 import { addIntention, loadOffice, type OfficeIntention, type OfficeMass, updateIntention } from './mass';
 import {
   addDays, dateOf, dayOfDate, type CalendarNow, type IntentionNow, type IntentionStatus, type MassesPlan, type MassesState,
-  type OccurrenceNow, type Person, type PinnedNow, type SeriesDef, type SeriesNow, timeOfDate, untilOf
+  type OccurrenceNow, type OccurrencePlan, type Person, type PinnedNow, type SeriesDef, type SeriesNow, timeOfDate, untilOf
 } from './massesJson';
 
 const SERVICES = ['mass', 'confession', 'devotion'];
@@ -224,9 +224,10 @@ function freshDraft(def: SeriesDef, calendar: CalendarRow, ownerRoleId: string):
 }
 
 /** Geber und Gabe versiegeln — unter dem Bereich des Kalenders, mit dem Etikett der Messintention. */
-async function sealGift(me: Me, areaId: string, intentionId: string, gift: { giver?: string; offering?: string }): Promise<SealedField[]> {
+async function sealGift(me: Me, areaId: string | null, intentionId: string, gift: { giver?: string; offering?: string }): Promise<SealedField[]> {
   const given = (['giver', 'offering'] as const).filter((f) => gift[f] !== undefined);
   if (given.length === 0) return [];
+  if (areaId === null) throw new WorkspaceError('nie wiadomo, kluczem której grupy zapieczętować ofiarodawcę i ofiarę');
   const newest = newestKey(await areaKeys(me.ring, areaId, true));
   if (newest === null) throw new WorkspaceError('Nie masz klucza tej grupy — ofiarodawcy i ofiary nie da się zapisać.');
   const out: SealedField[] = [];
@@ -328,38 +329,49 @@ export async function runMassesImport(input: {
       }
     }
   }
-  const occurrenceOf = (itemId: string, date: string, was: string | null): { occurrenceAt: string; areaId: string | null } | null => {
-    const found = byDay.get(`${itemId}|${date}`);
+  /* Eine Reihe, die der Import nicht angefasst hat, behält ihre Adressen genau; neue und geänderte werden am Tag gefunden. */
+  const reshaped = new Set([...plan.updates.map((u) => u.itemId), ...plan.creates.flatMap((c) => (c.handover === null ? [] : [c.handover.itemId]))]);
+  const occurrenceOf = (s: OccurrencePlan, itemId: string): { occurrenceAt: string; areaId: string | null } | null => {
+    const found = byDay.get(`${itemId}|${s.date}`);
+    /* Die alte Adresse gilt nur für eine Messe, die es schon gab — bei „ta i następne" gehört sie der alten Reihe. */
+    const was = 'existing' in s.mass ? s.occurrenceAt : null;
+    if (was !== null && !reshaped.has(itemId)) return { occurrenceAt: was, areaId: found?.areaId ?? null };
     if (found !== undefined) return { occurrenceAt: found.occurrenceAt, areaId: found.areaId ?? null };
-    if (was === null || byDay.size > 0) return null;
-    return { occurrenceAt: was, areaId: null };
+    return was !== null && byDay.size === 0 ? { occurrenceAt: was, areaId: null } : null;
   };
   const areaOfCalendar = (calendarId: string): string | null => calendarOf(calendarId)?.areaId ?? null;
 
-  /* -- 5. Intentionen, wer feiert, absagen und zurückholen --------------------------------- */
+  /* -- 5. Die Tage, in Schritten über alle: zurückholen, verlegen und ändern, neu, wer feiert, zuletzt absagen —
+         so hat eine verlegte Intention ihren alten Tag schon verlassen, wenn er abgesagt wird. ------------------- */
+  interface Ready { readonly s: OccurrencePlan; readonly itemId: string; readonly occurrenceAt: string; readonly areaId: string | null }
+  const ready: Ready[] = [];
   for (const s of plan.occurrences) {
     const itemId = 'existing' in s.mass ? s.mass.existing : freshIds.get(s.mass.fresh);
     if (itemId === undefined) { warnings.push(`${s.label}: msza nie powstała — pominięte.`); continue; }
-    const at = occurrenceOf(itemId, s.date, s.occurrenceAt);
+    const at = occurrenceOf(s, itemId);
     if (at === null) { warnings.push(`${s.label}: tej mszy nie ma w planie po zmianach — pominięte.`); continue; }
-    const areaId = at.areaId ?? areaOfCalendar(s.calendarId);
-    stage(`${s.label}…`);
-    const step = async (what: string, todo: () => Promise<unknown>): Promise<boolean> => {
-      try {
-        await todo();
-        return true;
-      } catch (e) {
-        warnings.push(`${s.label}: ${what} — ${messageOf(e)}.`);
-        return false;
-      }
-    };
+    ready.push({ s, itemId, occurrenceAt: at.occurrenceAt, areaId: at.areaId ?? areaOfCalendar(s.calendarId) });
+  }
+  const step = async (r: Ready, what: string, todo: () => Promise<unknown>): Promise<boolean> => {
+    try {
+      await todo();
+      return true;
+    } catch (e) {
+      warnings.push(`${r.s.label}: ${what} — ${messageOf(e)}.`);
+      return false;
+    }
+  };
 
-    if (s.restore && await step('nie przywrócono', () => restoreOne(itemId, at.occurrenceAt))) done.days++;
+  for (const r of ready) {
+    if (r.s.restore && await step(r, 'nie przywrócono', () => restoreOne(r.itemId, r.occurrenceAt))) done.days++;
+  }
 
-    for (const c of s.changes) {
-      const ok = await step(`intencja nie zmieniona`, async () => {
+  for (const r of ready) {
+    if (r.s.changes.length > 0) stage(`${r.s.label}: zmiany intencji…`);
+    for (const c of r.s.changes) {
+      const ok = await step(r, 'intencja nie zmieniona', async () => {
         const fields = c.giver === undefined && c.offering === undefined ? undefined
-          : await sealGift(me, areaId ?? '', c.id, { ...(c.giver === undefined ? {} : { giver: c.giver }), ...(c.offering === undefined ? {} : { offering: c.offering }) });
+          : await sealGift(me, r.areaId, c.id, { ...(c.giver === undefined ? {} : { giver: c.giver }), ...(c.offering === undefined ? {} : { offering: c.offering }) });
         await updateIntention(c.id, {
           ...(c.text === undefined ? {} : { text: c.text }),
           ...(c.kind === undefined ? {} : { kind: c.kind }),
@@ -367,26 +379,29 @@ export async function runMassesImport(input: {
           ...(c.ordinal === undefined ? {} : { ordinal: c.ordinal }),
           ...(c.celebrant === undefined ? {} : { celebrantRoleId: c.celebrant }),
           ...(fields === undefined ? {} : { fields }),
-          ...(c.move === true ? { itemId, occurrenceAt: at.occurrenceAt } : {})
+          ...(c.move === true ? { itemId: r.itemId, occurrenceAt: r.occurrenceAt } : {})
         });
       });
       if (ok) done.changes++;
     }
+  }
 
-    for (const a of s.adds) {
+  for (const r of ready) {
+    if (r.s.adds.length > 0) stage(`${r.s.label}: nowe intencje…`);
+    for (const a of r.s.adds) {
       let id: string;
       try {
-        id = (await addIntention(itemId, at.occurrenceAt, { text: a.text, kind: a.kind, ...(a.ordinal === null ? {} : { ordinal: a.ordinal }) })).intentionId;
+        id = (await addIntention(r.itemId, r.occurrenceAt, { text: a.text, kind: a.kind, ...(a.ordinal === null ? {} : { ordinal: a.ordinal }) })).intentionId;
       } catch (e) {
-        warnings.push(`${s.label}: intencja „${a.text.slice(0, 40)}” nie dodana — ${messageOf(e)}.`);
+        warnings.push(`${r.s.label}: intencja „${a.text.slice(0, 40)}” nie dodana — ${messageOf(e)}.`);
         continue;
       }
       done.intentions++;
       /* Was `addIntention` nicht trägt: Stand, wer sie liest, Geber und Gabe (versiegelt mit IHRER Kennung). */
       const gift = { ...(a.giver === '' ? {} : { giver: a.giver }), ...(a.offering === '' ? {} : { offering: a.offering }) };
       if (a.status !== 'accepted' || a.celebrant !== null || Object.keys(gift).length > 0) {
-        await step(`intencja „${a.text.slice(0, 40)}” dodana, ale bez reszty`, async () => {
-          const fields = await sealGift(me, areaId ?? '', id, gift);
+        await step(r, `intencja „${a.text.slice(0, 40)}” dodana, ale bez stanu, odprawiającego albo ofiary`, async () => {
+          const fields = await sealGift(me, r.areaId, id, gift);
           await updateIntention(id, {
             ...(a.status === 'accepted' ? {} : { status: a.status }),
             ...(a.celebrant === null ? {} : { celebrantRoleId: a.celebrant }),
@@ -395,9 +410,14 @@ export async function runMassesImport(input: {
         });
       }
     }
+  }
 
-    if (s.people !== null && await step('osoby nie zapisane', () => setPeople(itemId, s.people!, at.occurrenceAt))) done.days++;
-    if (s.cancel && await step('nie odwołano', () => setOccurrence(itemId, at.occurrenceAt, { cancelled: true }))) done.days++;
+  for (const r of ready) {
+    const people = r.s.people;
+    if (people !== null && await step(r, 'osoby nie zapisane', () => setPeople(r.itemId, people, r.occurrenceAt))) done.days++;
+  }
+  for (const r of ready) {
+    if (r.s.cancel && await step(r, 'nie odwołano', () => setOccurrence(r.itemId, r.occurrenceAt, { cancelled: true }))) done.days++;
   }
 
   return {

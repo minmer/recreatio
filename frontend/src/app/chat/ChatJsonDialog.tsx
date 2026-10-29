@@ -56,7 +56,7 @@ const fileSlug = (text: string): string => text.toLowerCase().replace(/ł/g, 'l'
 
 /* -- Laden ------------------------------------------------------------------------------------------- */
 
-interface Loaded {
+export interface Loaded {
   /** Die älteste zuerst. */
   readonly items: readonly ExportItem[];
   /** Die älteste geladene — und wie weit zurück gefragt war (`null`: bis zum Anfang). */
@@ -68,8 +68,11 @@ interface Loaded {
   readonly limited: boolean;
 }
 
-/** Von der neuesten zurück, bis `until` (`null`: bis zum Anfang) — höchstens `MAX_EXPORT`, geöffnet mit `keys`. */
-async function loadBack(chatId: string, keys: ReadonlyMap<number, Uint8Array>, until: number | null): Promise<Loaded> {
+/**
+ * Von der neuesten zurück, bis `until` (`null`: bis zum Anfang) — höchstens `MAX_EXPORT`, geöffnet mit `keys`.
+ * Hinaus für die Prüfung (`app-json-chat-check.mjs`, gegen einen nachgebauten Dienst).
+ */
+export async function loadBack(chatId: string, keys: ReadonlyMap<number, Uint8Array>, until: number | null): Promise<Loaded> {
   const pages: ExportItem[][] = [];
   let count = 0;
   let oldest: SealedMessage | null = null;
@@ -91,7 +94,7 @@ async function loadBack(chatId: string, keys: ReadonlyMap<number, Uint8Array>, u
 }
 
 /** Reicht das Geladene bis `need` zurück — oder weiter geht es nicht? */
-const covers = (loaded: Loaded, need: number | null): boolean =>
+export const covers = (loaded: Loaded, need: number | null): boolean =>
   need === null || loaded.complete || (loaded.from !== null && Date.parse(loaded.from) <= need)
   || (loaded.limited && (loaded.until === null || loaded.until <= need));
 

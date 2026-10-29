@@ -1,7 +1,7 @@
 # Architecture
 
 How REcreatio is built today (2026-10-23). The domain documents — [LIBRARY.md](LIBRARY.md), [SCRIPTORIUM.md](SCRIPTORIUM.md),
-[COGITA.md](COGITA.md), [CHAT.md](CHAT.md), [INTERACTIVE.md](INTERACTIVE.md), [MCP.md](MCP.md), [PREVIEW-MCP.md](PREVIEW-MCP.md) — go deeper into their parts; [TRANSFER.md](TRANSFER.md) records how the old data forms were removed and what is left.
+[COGITA.md](COGITA.md), [CHAT.md](CHAT.md), [INTERACTIVE.md](INTERACTIVE.md), [MCP.md](MCP.md), [PREVIEW-MCP.md](PREVIEW-MCP.md) — go deeper into their parts; [JSON.md](JSON.md) lists the JSON export/import of every part (2026-10-29), the formats an assistant reads over MCP; [TRANSFER.md](TRANSFER.md) records how the old data forms were removed and what is left.
 
 ## The idea in one paragraph
 
@@ -47,7 +47,7 @@ Entry: `src/main.tsx` keeps an access link out of the address, starts the Androi
 
 | Folder | Responsibility |
 |---|---|
-| `core/` | crypto (`crypto.ts`, `canonical.ts`), the key ring (`keys.ts`, `ringOf.ts`, `keyring.ts`), session and kept keys (`session.ts` tells „no network” from „nobody”: `sessionNow`), signing in without the network (`away.ts`, 2026-10-28: in the app, while it keeps copies for the time without network, the salt and the master key's envelope sealed under the device key; Argon2id of the password opens it; back online the same key signs in), names sealing, prefs, small utilities (`plural.ts`, `dayMath.ts`, `masonry.ts`); quantities and units (`quantities.ts`, a QUDT subset with factors to SI — step 13); the JSON formats as a tree (`jsonTree.ts`: every importable format is a node that says only its own keys and names the formats inside it; the description beside an import, its outline and its insertable samples are assembled from the tree, each node once) |
+| `core/` | crypto (`crypto.ts`, `canonical.ts`), the key ring (`keys.ts`, `ringOf.ts`, `keyring.ts`), session and kept keys (`session.ts` tells „no network” from „nobody”: `sessionNow`), signing in without the network (`away.ts`, 2026-10-28: in the app, while it keeps copies for the time without network, the salt and the master key's envelope sealed under the device key; Argon2id of the password opens it; back online the same key signs in), names sealing, prefs, small utilities (`plural.ts`, `dayMath.ts`, `masonry.ts`); quantities and units (`quantities.ts`, a QUDT subset with factors to SI — step 13); the JSON formats as a tree (`jsonTree.ts`: every importable format is a node that says only its own keys and names the formats inside it; the description beside an import, its outline and its insertable samples are assembled from the tree, each node once; since 2026-10-29 every part has one — calendar, masses, tasks, bookings, chat, contacts, roles, persons, addresses, lamps … — each as a pure `<part>Json.ts` beside its panel, listed in [JSON.md](JSON.md)) |
 | `ui/` | the design system: tokens and components (`ui.css` → `tokens.css`, `components.css`, `frames.css`, `kit.css`), `Icon`, `Menu`, `Modal`, `PageHeader`, `Loading`, `ask`/`toast` (`dialogs.tsx`), `later` (lazy parts) |
 | `styles/` | the screen styles, imported in order by `app.css` (the order is part of the cascade) |
 | `shell/` | frames (workspace, plain, public), sign-in, unlock, crumbs, search palette, phone bar; the shell without network or account (`AloneShell.tsx`, chosen in `App.tsx`: SMS in the SMS edition, Nauka bez internetu everywhere) |

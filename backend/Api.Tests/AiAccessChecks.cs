@@ -145,7 +145,9 @@ internal static class AiAccessChecks
         {
             /* 2026-10-28 — die Formate der JSON-Importe für Assistenten (ImportFormats.json, aus der App erzeugt). */
             var importFormats = ImportFormats.All;
-            string[] formatIds = ["library", "work-with-text", "source-text", "knowledge-base", "knowledge-forms", "scriptorium", "page", "area", "calendar-scheme", "calendar-plan", "registry", "guide-book", "guide-argument", "scheme-fakty", "scheme-zbior", "example-atom"];
+            string[] formatIds = ["library", "work-with-text", "source-text", "knowledge-base", "knowledge-forms", "scriptorium", "page", "area", "calendar-scheme", "calendar-plan", "registry", "guide-book", "guide-argument", "scheme-fakty", "scheme-zbior", "example-atom",
+                /* 2026-10-29 — JSON für jeden Teil */
+                "calendar", "masses", "tasks", "bookings", "chat", "contacts", "roles", "lamps", "persons", "workspace-view", "addresses", "learn-progress", "form", "form-entries", "quotes", "text-plan"];
             check(formatIds.All(x => ImportFormats.Find(x) is not null) && ImportFormats.Find(" PAGE ")?.Id == "page" && ImportFormats.Find("nic") is null && ImportFormats.Find(null) is null,
                 "import formats: embedded in the program — the Library, Cogita, Scriptorium, pages, areas, calendar, registry, the AI guides and ready schemes");
             check(importFormats.Formats.All(f => f.Parts.Count > 0 && f.Parts.All(p => p.Length > 0) && (f.Parts.Count == 1 || f.Parts.All(p => p.Length <= 24_000)) && f.Where.Length > 0 && f.What.Length > 0),

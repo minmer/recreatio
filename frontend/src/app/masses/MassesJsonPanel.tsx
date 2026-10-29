@@ -21,6 +21,7 @@ import { useRef, useState } from 'react';
 import type { AreaRow } from '../areas/area';
 import type { CalendarRow } from '../calendar/calendar';
 import type { Me } from '../core/me';
+import { plural } from '../core/plural';
 import { WorkspaceError } from '../core/session';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { loadMassesState, runMassesImport, type LoadedMasses } from './massesImport';
@@ -82,7 +83,7 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
 
   /* -- Der Plan zu einem Dokument (einmal je Zeichnen, für Vorschau, Einstellungen und Import) ---- */
   const cache = useRef<{ value: unknown; deps: readonly unknown[]; result: Analysis | { error: string } } | null>(null);
-  const deps: readonly unknown[] = [loaded, failed, conflicts, chosen, me];
+  const deps: readonly unknown[] = [loaded, failed, conflicts, chosen, me, calendars];
   const analyse = (value: unknown): Analysis | { error: string } => {
     const known = cache.current;
     if (known !== null && known.value === value && known.deps.every((d, i) => d === deps[i])) return known.result;
@@ -144,7 +145,7 @@ export function MassesJsonPanel({ me, calendars, areas, chosen, day, onChanged }
     setLoaded(got);
     setNote(me === null
       ? 'Bez kluczy w tej karcie eksport nie ma ofiarodawców, ofiar, miejsc ani imion osób.'
-      : got.unreadable > 0 ? `${got.unreadable} pól (ofiarodawca, ofiara) nie da się tu odczytać — w eksporcie ich nie ma.` : null);
+      : got.unreadable > 0 ? `${got.unreadable} ${plural(got.unreadable, 'pola', 'pól', 'pól')} (ofiarodawca, ofiara) nie da się tu odczytać — w eksporcie ich nie ma.` : null);
     return exportMasses(got.state, chosen, from, to);
   };
 

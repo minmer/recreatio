@@ -132,7 +132,7 @@ const MESSAGE_KEYS: Readonly<Record<string, string>> = {
 };
 
 const NEW_MESSAGE_KEYS: Readonly<Record<string, string>> = {
-  text: `treść (wymagana; najwyżej ${MAX_TEXT_BYTES} bajtów UTF-8 — kilka tysięcy znaków)`,
+  text: `treść (wymagana; najwyżej ${MAX_TEXT_BYTES} bajtów UTF-8, licząc podwójnie znaki nowej linii i cudzysłowy — kilka tysięcy znaków)`,
   topic: 'temat: "@klucz" z "topics" (także nowego tematu z tego dokumentu) albo "id" istniejącego; brak albo null — bez tematu',
   replyTo: '"id" wiadomości z tej rozmowy, na którą to odpowiedź — cytat import bierze z tej wiadomości, nigdy z dokumentu',
   sendAt: `zaplanuj wysłanie (ISO 8601 ze strefą, np. "2026-12-01T09:00:00+01:00"; od ${SEND_AT_MIN_MINUTES} minut do roku naprzód) — czeka w „Zaplanowanych”, gdzie można ją wysłać od razu albo odwołać; bez "sendAt" wychodzi od razu`,
@@ -769,7 +769,8 @@ export function planChatImport(doc: unknown, ctx: ChatImportContext): ChatImport
 
     const text = typeof raw.text === 'string' ? raw.text.trim() : '';
     if (text === '') { warnings.push(`${label}: bez treści ("text") — pominięta.`); return; }
-    const size = bytes(text);
+    /* Gemessen, wie der Text in der Hülle steht (JSON: Zeilenumbrüche und Anführungszeichen zählen doppelt). */
+    const size = bytes(JSON.stringify(text)) - 2;
     if (size > MAX_TEXT_BYTES) { warnings.push(`${label}: za długa (${size} bajtów, najwyżej ${MAX_TEXT_BYTES}) — podziel ją na kilka; pominięta.`); return; }
 
     let sendAt: string | null = null;

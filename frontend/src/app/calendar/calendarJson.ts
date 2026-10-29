@@ -383,7 +383,9 @@ export function exportCalendar(state: CalendarState): CalendarExport {
     }
     if (item.bookable !== null) out.bookable = item.bookable;
     if (item.capacity !== null) out.capacity = item.capacity;
+    /* Hat der Kalender Schemata, sagt das Dokument auch „das universelle" (null) — eine Kopie bekäme sonst das Schema ihrer Art. */
     if (item.schemeId !== null) out.scheme = schemeRef(item.schemeId);
+    else if (state.schemes.length > 0) out.scheme = null;
 
     const itemValues = textsOf(def, def === null ? [] : shownFields(def, item.kind, 'item'), item.values);
     if (Object.keys(itemValues).length > 0) out.values = itemValues;
@@ -692,7 +694,8 @@ function whenWords(save: ItemSave): string {
   if (save.repeat === 'none') return at;
   const weekdays = save.repeat === 'weekly' ? ` (${WEEKDAY_WORDS.filter((_, i) => (save.weekdays & (1 << i)) !== 0).join(', ')})` : '';
   const every = save.every > 1 ? `, co ${save.every}` : '';
-  const end = save.count !== null ? `, ${save.count} razy` : save.until !== null && daysBetween(day, readDay(save.until) ?? day) < ENDLESS_DAYS ? ` do ${save.until}` : '';
+  const end = save.count !== null ? `, ${save.count} razy`
+    : save.until !== null && daysBetween(day, readDay(save.until) ?? day) < ENDLESS_DAYS ? ` do ${save.until}` : ', bez końca';
   return `${at}, ${REPEAT_LABEL[save.repeat]}${weekdays}${every}${end}`;
 }
 
@@ -713,7 +716,7 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
   if (value.calendar !== undefined && !isRecord(value.calendar)) warnings.push('"calendar" to obiekt {"id","title","kind"} — pominięty.');
   const foreign = foreignTitle(value, calendar.calendarId);
   if (foreign !== null) {
-    warnings.push(`Dokument z innego kalendarza${foreign === '' ? '' : ` („${foreign}”)`} — jego terminy zostaną dodane tutaj jako nowe; "remove" i "parent" z kennungą pominięte.`);
+    warnings.push(`Dokument z innego kalendarza${foreign === '' ? '' : ` („${foreign}”)`} — jego terminy zostaną dodane tutaj jako nowe; "remove" i "parent" z identyfikatorem pominięte.`);
   }
 
   /* 1 — die Termine flach, Punkte mit ihrem Ganzen. */
@@ -754,7 +757,7 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
     if (row.id !== undefined && row.id !== null && foreign === null) {
       const id = typeof row.id === 'string' ? row.id.trim().toLowerCase() : '';
       if (id === '') {
-        warnings.push(`${who(raw)}: "id" to kennung z eksportu — pominięty.`);
+        warnings.push(`${who(raw)}: "id" to identyfikator z eksportu — pominięty.`);
         skipped.add(raw.ref);
       } else if (seenIds.has(id)) {
         warnings.push(`${who(raw)}: to samo "id" drugi raz — pominięty.`);
@@ -857,6 +860,8 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
   };
   const covered = (day: string): boolean => state.spans.some((s) => s.from <= day && day <= s.to);
   const now = Date.now();
+  /* Was fällt, nimmt seine Punkte mit (so löscht der Dienst) — auch die, die nicht darunter stehen. */
+  const removedIds = new Set([...removing].map((ref) => itemOf[ref]!.itemId.toLowerCase()));
 
   interface Planned {
     ref: number;
@@ -883,7 +888,9 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
     const wish = parentOf[ref];
 
     if (skipped.has(ref) || removing.has(ref)) continue;
-    if (wish.kind === 'ref' && (removing.has(wish.ref))) {
+    const under = itemOf[ref]?.parentItemId?.toLowerCase() ?? null;
+    if ((wish.kind === 'ref' && removing.has(wish.ref)) || (wish.kind === 'id' && removedIds.has(wish.itemId.toLowerCase()))
+      || (wish.kind === 'keep' && under !== null && removedIds.has(under))) {
       warn('stoi pod usuwanym terminem — zniknie razem z nim; pominięty.');
       skipped.add(ref);
       continue;
@@ -931,7 +938,8 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
       if (!sameId(schemeId, s.schemeId) && kindWanted === undefined && def !== null && def !== UNIVERSAL) kind = def.kind ?? 'appointment';
     } else if (schemeId === undefined) {
       kind = kindWanted ?? calendar.itemKind;
-      schemeId = schemeForKind(kind);
+      /* Ein neuer Punkt eines Programms bekommt das universelle — wie „+ punkt" im Editor. */
+      schemeId = wish.kind === 'ref' || wish.kind === 'id' ? null : schemeForKind(kind);
     } else {
       const def = defOf(schemeId);
       kind = kindWanted ?? (def !== null && def !== UNIVERSAL ? def.kind ?? 'appointment' : calendar.itemKind);
@@ -1067,20 +1075,21 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
         if (bits > 0) weekdays = bits;
       }
     }
+    let untilSaid = false;
     if (row.until !== undefined) {
       if (row.until === null) { until = null; count = null; endless = true; }
       else {
         const last = readDay(row.until);
         if (last === null) warn('"until" to ostatni dzień "RRRR-MM-DD" (null — bez końca) — bez zmian.');
         else if (last < start.day) warn('"until" przed "start" — bez zmian.');
-        else { until = dayOf(last); count = null; endless = false; }
+        else { until = dayOf(last); count = null; endless = false; untilSaid = true; }
       }
     }
     if (row.count !== undefined) {
-      if (row.until !== undefined && row.until !== null && row.count !== null) warn('"until" albo "count" — liczy się "until".');
-      else if (row.count === null) { count = null; if (until === null) endless = true; }
-      else if (typeof row.count === 'number' && Number.isInteger(row.count) && row.count >= 1 && row.count <= MAX_COUNT) { count = row.count; until = null; endless = false; }
-      else warn(`"count" to liczba 1–${MAX_COUNT} — bez zmian.`);
+      if (row.count === null) { count = null; if (until === null) endless = true; }
+      else if (typeof row.count !== 'number' || !Number.isInteger(row.count) || row.count < 1 || row.count > MAX_COUNT) warn(`"count" to liczba 1–${MAX_COUNT} — bez zmian.`);
+      else if (untilSaid) warn('"until" albo "count" — liczy się "until".');
+      else { count = row.count; until = null; endless = false; }
     }
     if (repeat === 'none') {
       every = 1; weekdays = 0; until = null; count = null; endless = false;
@@ -1278,7 +1287,7 @@ export function planCalendar(value: unknown, state: CalendarState): CalendarPlan
         }
       }
       if (old !== null && !old.valuesComplete) {
-        if (dayTouched) warn(`${at}: nie wszystkie wartości tego dnia da się odczytać — bez zmian.`);
+        if (dayTouched) warn(`${at}: ${old.cancelled ? 'wartości odwołanego dnia zostają, jak są (przywróć go najpierw)' : 'nie wszystkie wartości tego dnia da się odczytać'} — "values" bez zmian.`);
       } else if ((dayTouched && !sameTexts(dayTexts, baseDay)) || (retimed && Object.keys(dayTexts).length > 0)) {
         /* Nach einer neuen Zeit der Reihe neu versiegelt — das Etikett eines Wertes nennt den Beginn des Tages. */
         op.values = draftValues(dayFields, dayTexts);
@@ -1401,7 +1410,7 @@ export const DOC_KEYS: Readonly<Record<string, string>> = {
 };
 
 export const CALENDAR_KEYS: Readonly<Record<string, string>> = {
-  id: 'kennung kalendarza',
+  id: 'identyfikator kalendarza',
   title: 'nazwa kalendarza',
   kind: `rodzaj jego terminów: ${KINDS.map((k) => `"${k}"`).join(', ')}`
 };
@@ -1412,7 +1421,7 @@ export const RANGE_KEYS: Readonly<Record<string, string>> = {
 };
 
 export const SCHEMES_KEYS: Readonly<Record<string, string>> = {
-  id: 'kennung schematu — do "scheme" terminu',
+  id: 'identyfikator schematu — do "scheme" terminu',
   name: 'nazwa schematu — do "scheme" terminu (gdy jednoznaczna)',
   kind: 'rodzaj terminów tego schematu',
   kinds: 'rodzaje do wyboru przy terminie tego schematu',
@@ -1420,7 +1429,7 @@ export const SCHEMES_KEYS: Readonly<Record<string, string>> = {
 };
 
 export const APPOINTMENT_KEYS: Readonly<Record<string, string>> = {
-  id: 'kennung terminu z eksportu — termin zostanie zmieniony; bez "id" — nowy termin',
+  id: 'identyfikator terminu z eksportu — termin zostanie zmieniony; bez "id" — nowy termin',
   key: 'krótka nazwa (litery, cyfry, - i _) do odwołań "@key" w tym dokumencie ("parent")',
   remove: 'true — usuń ten termin (całą serię, razem z jego punktami programu); tylko z "id"; termin z przyjętymi intencjami, wpisami albo rezerwacjami zostaje (import to powie)',
   kind: `rodzaj: ${KINDS.map((k) => `"${k}" (${ITEM_LABEL[k as ItemKind]})`).join(', ')}; brak przy nowym: rodzaj schematu albo kalendarza`,
@@ -1439,7 +1448,7 @@ export const APPOINTMENT_KEYS: Readonly<Record<string, string>> = {
   count: `zamiast "until": ile razy (1–${MAX_COUNT})`,
   bookable: 'true / false — czy ten termin można rezerwować (tylko w kalendarzu z rezerwacjami); null — jak kalendarz',
   capacity: `miejsc na ten termin (1–${MAX_CAPACITY}); null — jak kalendarz`,
-  scheme: 'schemat terminu: "name" albo "id" ze "schemes"; null — uniwersalny; brak przy nowym: schemat jego rodzaju, jeśli kalendarz ma dokładnie jeden, inaczej uniwersalny',
+  scheme: 'schemat terminu: "name" albo "id" ze "schemes"; null — uniwersalny (eksport kalendarza ze schematami pisze null przy terminach bez schematu); brak przy nowym terminie: schemat jego rodzaju, jeśli kalendarz ma dokładnie jeden, inaczej uniwersalny; nowy punkt programu — uniwersalny',
   values: 'wartości pól schematu całego terminu: {"klucz pola": "tekst"}; "" albo null czyści pole; brak — bez zmian',
   occurrences: 'wybrane dni serii (niżej): odwołany, przeniesiony, z wartościami pól dnia',
   points: 'punkty programu: terminy pod tym terminem, w tej kolejności — z tymi samymi kluczami',
@@ -1535,11 +1544,11 @@ const sampleMasses = () => ({
 const UPDATE_EXAMPLE = {
   format: CALENDAR_FORMAT,
   version: CALENDAR_VERSION,
-  calendar: { id: '…kennung kalendarza z eksportu…' },
+  calendar: { id: '…identyfikator kalendarza z eksportu…' },
   appointments: [
-    { id: '…kennung terminu A…', location: 'Duża sala' },
-    { id: '…kennung terminu B…', remove: true },
-    { id: '…kennung serii C…', occurrences: [{ date: '2026-12-24', cancelled: true }] },
+    { id: '…identyfikator terminu A…', location: 'Duża sala' },
+    { id: '…identyfikator terminu B…', remove: true },
+    { id: '…identyfikator serii C…', occurrences: [{ date: '2026-12-24', cancelled: true }] },
     { title: 'Spotkanie opłatkowe', start: '2026-12-20T16:00', end: '18:00' }
   ]
 };
@@ -1568,7 +1577,7 @@ export const APPOINTMENT_JSON: JsonNode = {
   text: () => `Termin ma te same klucze co terminy strony i obszaru ("title", "start", "end", "location", "points", "repeat" …) — oraz "id", "kind", "scheme", "values" i "occurrences". Przy zmienianym terminie klucz, którego nie ma, zostaje bez zmian.
 ${keyLines(APPOINTMENT_KEYS)}
 Zmiana czasu serii ("start", "end", "repeat", "every", "weekdays", "until", "count") zmienia wszystkie jej dni — także te, które już były. Odwołane i przeniesione dni, których nie ma w "occurrences", wracają wtedy do serii; te z "occurrences" import zapisze ponownie. Intencje i wpisy idą za dniem; gdy dnia już nie ma, termin zostaje bez zmian (import to powie). „Od tego dnia inaczej” („ten i następne”) robi się w edytorze terminu.
-Wartości ("values"): "choice" i "colour" — wartość albo nazwa z listy pola; "number" — liczba; "bool" — "tak" albo "nie" (także true / false); "date" — "RRRR-MM-DD"; "time" — "GG:MM"; "link" — https://… albo #/…; "person" — kennung roli. Jawne pola do ${PUBLIC_VALUE} znaków. Pole wymagane ("required") musi mieć wartość — inaczej nowy termin zostaje pominięty, a zmiany istniejącego nie są zapisane.`,
+Wartości ("values"): "choice" i "colour" — wartość albo nazwa z listy pola; "number" — liczba; "bool" — "tak" albo "nie" (także true / false); "date" — "RRRR-MM-DD"; "time" — "GG:MM"; "link" — https://… albo #/…; "person" — identyfikator roli. Jawne pola do ${PUBLIC_VALUE} znaków. Pole wymagane ("required") musi mieć wartość — inaczej nowy termin zostaje pominięty, a zmiany istniejącego nie są zapisane.`,
   inside: () => [OCCURRENCE_JSON]
 };
 
@@ -1578,7 +1587,7 @@ export const CALENDAR_JSON: JsonNode = {
   title: `Terminy kalendarza ("${CALENDAR_FORMAT}")`,
   short: 'Terminy kalendarza',
   text: () => `Terminy JEDNEGO kalendarza: pojedyncze i powtarzające się (serie — np. tygodniowy plan lekcji albo msze w dni powszednie), całodniowe, z miejscem, notatką i linkiem, z programem (punkty pod terminem), ze schematem kalendarza i jego wartościami oraz z wybranymi dniami serii (odwołany, przeniesiony, z własnymi wartościami). Msze, spowiedzi i nabożeństwa są tu terminami jak inne ("kind").
-Eksport (ustawienia kalendarza → „Terminy jako JSON”): terminy z wybranego zakresu (domyślnie od dziś na rok) i serie, które w niego sięgają — każdy z "id".
+Eksport (ustawienia kalendarza → „Terminy jako JSON”; kto kalendarz tylko widzi: „Kalendarze” → „Eksport JSON”): terminy z wybranego zakresu (domyślnie od dziś na rok) i serie, które w niego sięgają — każdy z "id".
 Import zmienia NA MIEJSCU: termin z "id" (z eksportu tego kalendarza) zostaje zmieniony, termin bez "id" zostaje dodany. Klucz, którego nie ma, zostaje bez zmian — wystarczy "id" i to, co się zmienia; "" albo null czyści tekst. Nic nie znika, chyba że termin ma "remove": true. Przed importem widać listę zmian i ostrzeżenia; ten sam dokument zaimportowany drugi raz niczego już nie zmienia.
 Tytuły, miejsca, notatki, linki i niejawne wartości są szyfrowane w przeglądarce kluczem obszaru, który widzi kalendarz — tak jak w edytorze terminu. Plik eksportu zawiera je jawnie: to Twoja kopia.
 Import nie zmienia: intencji mszy (osobny format mszy i intencji), wpisów list (zapisy), rezerwacji, osób przy terminie ani tego, kto widzi termin (to mówi kalendarz).

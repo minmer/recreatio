@@ -70,7 +70,13 @@ async function appTexts() {
       `export { addressesDescription } from '${app}pages/addressesJson';`,
       `export { workspaceViewDescription } from '${app}workspace/viewJson';`,
       `export { personsDescription } from '${app}account/personsJson';`,
-      `export { learnProgressDescription } from '${app}cogita/progressJson';`
+      `export { learnProgressDescription } from '${app}cogita/progressJson';`,
+      `export { TASKS_JSON } from '${app}calendar/tasksJson';`,
+      `export { BOOKINGS_JSON } from '${app}bookings/bookingsJson';`,
+      `export { CHAT_JSON } from '${app}chat/chatJson';`,
+      `export { LAMPS_JSON } from '${app}lamps/lampsJson';`,
+      `export { CALENDAR_JSON } from '${app}calendar/calendarJson';`,
+      `export { MASSES_JSON } from '${app}masses/massesJson';`
     ].join('\n'));
     await build({
       entryPoints: [entry], bundle: true, format: 'esm', platform: 'node', outdir: out, logLevel: 'error', jsx: 'automatic',
@@ -99,7 +105,13 @@ async function appTexts() {
       addresses: m.addressesDescription(),
       workspaceView: m.workspaceViewDescription(),
       persons: m.personsDescription(),
-      learnProgress: m.learnProgressDescription()
+      learnProgress: m.learnProgressDescription(),
+      tasks: m.describe(m.TASKS_JSON),
+      bookings: m.describe(m.BOOKINGS_JSON),
+      chat: m.describe(m.CHAT_JSON),
+      lamps: m.describe(m.LAMPS_JSON),
+      calendar: m.describe(m.CALENDAR_JSON),
+      masses: m.describe(m.MASSES_JSON)
     };
   } finally {
     await rm(out, { recursive: true, force: true });
@@ -187,8 +199,12 @@ export async function formats() {
     { id: 'scriptorium', group: 'Skryptorium', title: 'Skryptorium — własne teksty, wygłoszenia, projekty', what: 'Teksty (np. kazania z planem), ich wygłoszenia, projekty i rodzaje tekstów.', where: 'Skryptorium → skryptorium → zakładka „Import / eksport” → „JSON skryptorium — eksport i import” (#/workspace/scriptorium/<id>/json); także przy każdym wpisie.', text: t.scriptorium },
     { id: 'page', group: 'Strony', title: 'Strona (JSON strony)', what: 'Strona publiczna albo z dostępem: moduły w siatce, slajdy albo prezentacja, menu, wygląd, logika.', where: 'Strony → strona → „Edytuj” → „JSON strony — eksport i import” (#/workspace/pages/<ścieżka>).', text: t.page },
     { id: 'area', group: 'Obszary', title: 'Obszar z rodzajem (wydarzenie, grupa, parafia, kurs, szkoła, klasa)', what: 'Wizytówka i narzędzia obszaru danego rodzaju, razem ze stronami.', where: 'Obszary → obszar → zakładka jego rodzaju („Wydarzenie”, „Grupa”, „Parafia / organizacja”, „Kurs”, „Szkoła”, „Klasa”) → „Import i eksport (JSON dla AI)” (#/workspace/areas/<id>/profil).', text: t.area },
+    { id: 'calendar', group: 'Kalendarz', title: 'Terminy jednego kalendarza (pojedyncze, powtarzane, program, wartości schematu, dni serii)', what: 'Terminy kalendarza w wybranym okresie: tytuł, czas, powtarzanie (np. tygodniowy plan lekcji), miejsce, notatki, program (punkty), schemat i jego wartości, dni serii (odwołane, przesunięte, wartości dnia). Z "id" zmienia w miejscu, bez "id" dodaje; usuwa tylko z "remove": true. Intencje mszy — w formacie „masses”.', where: 'Kalendarz → „Kalendarze” → „Ustawienia” kalendarza → „Terminy jako JSON” → „JSON terminów — eksport i import” (czytający: „Kalendarze” → „Eksport JSON”).', text: t.calendar },
     { id: 'calendar-scheme', group: 'Kalendarz', title: 'Schemat terminów kalendarza', what: 'Pola, które mają terminy danego rodzaju (np. msza: intencja, celebrans), z regułami.', where: 'Kalendarz → „Kalendarze” → „Ustawienia” kalendarza → „Schematy terminów” → schemat → „JSON schematu — eksport i import”.', text: t.scheme },
     { id: 'calendar-plan', group: 'Kalendarz', title: 'Plan kalendarza', what: 'Plan, który rozkłada terminy (np. tygodniowy porządek mszy) z przepływem reguł.', where: 'Kalendarz → „Kalendarze” → „Ustawienia” kalendarza → „Plany” → plan → „JSON planu — eksport i import”.', text: t.plan },
+    { id: 'tasks', group: 'Kalendarz', title: 'Zadania (okno czasu, odstęp po wykonaniu, okres; przypomnienia)', what: 'Zadania „Tylko ja” i grup: rodzaj, czas, powtarzanie, przypomnienia, notatka. Z "id" zmienia w miejscu, bez "id" dodaje, "remove": true archiwizuje; wykonań nie rusza.', where: 'Kalendarz → zakładka „Zadania” → „⋯” (Więcej: Zadania) → „Import i eksport (JSON)” (#/workspace/tasks).', text: t.tasks },
+    { id: 'masses', group: 'Parafia', title: 'Msze, nabożeństwa i intencje (księga intencji)', what: 'Msze (pojedyncze i serie) z odprawiającymi i ich intencje na każdy dzień — np. przepisana księga intencji na miesiąc. Podgląd mówi, która msza dostaje którą intencję, i ostrzega o konfliktach; niczego nie usuwa (wycofanie to "status": "cancelled").', where: 'Msze i nabożeństwa → „Więcej” → „Import i eksport (JSON)” (#/workspace/masses).', text: t.masses },
+    { id: 'bookings', group: 'Parafia', title: 'Rezerwacje — zasoby, ich zasady i terminy do wzięcia', what: 'Zasoby (osoba, pomieszczenie, dom, miejsce) z zasadami i terminami w ich kalendarzu. Rezerwacje ludzi są w eksporcie tylko do wglądu i nigdy nie są importowane; podgląd ostrzega o kolizjach z nimi.', where: 'Rezerwacje → „Więcej” → „Import i eksport (JSON)” (#/workspace/bookings); przy zasobie — tylko ten zasób.', text: t.bookings },
     { id: 'registry', group: 'Parafia', title: 'Kartoteka (adresy, domy, kolęda)', what: 'Adresy i miejsca kartoteki obszaru (dane domów są zapieczętowane w przeglądarce).', where: 'Kartoteka i kolęda → „Kartoteka obszaru” → zakładka „Import i JSON” → „Kartoteka jako JSON”.', text: t.registry },
     /* 2026-10-29 — was in der App an einem bestimmten Formular, Buch oder Text hängt: hier mit einem Beispiel davon. */
     { id: 'form', group: 'Formularze', title: 'Formularz (moduł „form”) — pytania, potrzeby, rozszerzenia, role', what: 'Jeden formularz: pytania i ich rodzaje, zgody, potrzeby, logika, rozszerzenia (np. obecność), grupy, role osób. Ten sam format stoi w „page” jako moduł; tu osobno.', where: 'Moduły → formularz → „JSON modułu — eksport i import”; na stronie: Strony → strona → moduł → „JSON tego modułu”; nowe formularze także w „page” i „area”.', text: t.form },
@@ -196,6 +212,8 @@ export async function formats() {
     { id: 'quotes', group: 'Biblioteka', title: 'Cytaty jednej książki — na przykładzie', what: 'Cytaty z książki (np. przepisane ze zdjęć stron): tekst, strona, co sprawdzić. W aplikacji opis podaje tytuł i klucz wybranej książki; tu przykład.', where: 'Biblioteka → książka (dzieło) → „Cytaty z tej książki” → „Import cytatów z JSON…”.', text: t.quotes },
     { id: 'contacts', group: 'Kontakty i konto', title: 'Kontakty (książka adresowa)', what: 'Kontakty: podpis, imię i nazwisko, firma, numery, adresy e-mail, grupy, data urodzenia, notatka. Z "id" zmienia w miejscu, bez "id" uzupełnia pasujący kontakt albo dodaje; nic nie usuwa.', where: 'Kontakty → „Więcej” → „Import i eksport (JSON)” (#/workspace/contacts); vCard zostaje dla telefonów i Google.', text: t.contacts },
     { id: 'roles', group: 'Kontakty i konto', title: 'Role konta (osoby, role, grupy, kto kogo trzyma)', what: 'Struktura ról konta: nowe role i grupy pod wskazanymi posiadaczami, zmiany nazw i rodzaju, nowe przynależności, które konto może nadać. Nigdy nie usuwa, nie tworzy osób ani kont.', where: 'Role → „Więcej” → „Import i eksport (JSON)” (#/workspace/roles).', text: t.roles },
+    { id: 'chat', group: 'Rozmowy', title: 'Rozmowa (wiadomości, wątki)', what: 'Eksport rozmowy: wiadomości z autorami, wątki, odpowiedzi, załączniki (tylko nazwy). Import nigdy nie pisze w czyimś imieniu ani wstecz: nowe wątki, nowe wiadomości od importującego (oznaczone „Z importu”), przeniesienia do wątków, przypięcia.', where: 'Rozmowy → rozmowa → „⋮” (Więcej opcji rozmowy) → „Rozmowa jako JSON” (#/workspace/chat/<id>).', text: t.chat },
+    { id: 'lamps', group: 'Lampy', title: 'Lampy BLE — urządzenia, sygnały, timery', what: 'Urządzenia Bluetooth LE z sygnałami, timery i tempo przycisków — kopia, przeniesienie na inne konto, timery przygotowane przez AI. Usuwa tylko z "remove": true.', where: 'Lampy → „⋯” (Więcej: lampy) → „Import i eksport (JSON)” (#/workspace/lamps).', text: t.lamps },
     { id: 'persons', group: 'Kontakty i konto', title: 'Moje dane (osoby konta)', what: 'Dane własnych osób konta: imię, nazwisko, telefon, data urodzenia, adres, e-mail, pseudonim. Zmienia tylko osoby tego konta, po "id"; pustą wartością nic nie usuwa (usunięcie cofa też udostępnienia).', where: 'Konto → „Moje dane” → „Moje dane jako JSON” (#/workspace/account).', text: t.persons },
     { id: 'workspace-view', group: 'Kontakty i konto', title: 'Powiadomienia: „Czeka na Ciebie” (kolejność i włączone rodzaje)', what: 'Które rodzaje spraw stoją w „Czeka na Ciebie” i w jakiej kolejności. Układ Teraz i obszarów jest stały — tego format nie zmienia.', where: 'Konto → „Powiadomienia” (#/workspace/account/widok) → „Powiadomienia jako JSON”.', text: t.workspaceView },
     { id: 'addresses', group: 'Strony', title: 'Adresy i domeny (aliasy, własne domeny)', what: 'Aliasy pod adresami, które konto prowadzi, i własne domeny przypięte do stron. DNS, hosting i lista źródeł usługi są poza aplikacją — podgląd mówi, co jeszcze zrobić.', where: 'Ustawienia → „Adresy i domeny” → „Import i eksport (JSON)” (#/workspace/addresses).', text: t.addresses },

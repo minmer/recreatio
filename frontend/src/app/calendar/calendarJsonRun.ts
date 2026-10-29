@@ -135,7 +135,8 @@ async function openItem(ring: Ring, raw: RawItem, cancelled: readonly OfficeMass
   for (const one of cancelled) {
     if (!sameId(one.itemId, first.itemId) || raw.occurrences.has(Date.parse(one.occurrenceAt))) continue;
     if (occurrences.some((o) => Date.parse(o.at) === Date.parse(one.occurrenceAt))) continue;
-    occurrences.push({ at: one.occurrenceAt, startsAt: one.startsAt, cancelled: true, moved: false, values: new Map(), valuesComplete: true });
+    /* Die Werte eines abgesagten Tages kommen nicht mit (die Agenda lässt ihn aus) — also nicht neu schreiben. */
+    occurrences.push({ at: one.occurrenceAt, startsAt: one.startsAt, cancelled: true, moved: false, values: new Map(), valuesComplete: false });
   }
   occurrences.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 

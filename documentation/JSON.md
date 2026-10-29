@@ -13,8 +13,9 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
   deleted unless the format names a previewed way to remove. References inside a document use `"@key"`.
 - **Sealing does not change**: an import saves through the same functions as the part's own editor — names, titles,
   notes are sealed in the browser. The exported file is plaintext; it is the user's own download.
-- **Checks**: `app-json-check` (pages, modules, areas, forms, calendar schemes and plans, the MCP file) and one
-  `app-json-<part>-check.mjs` per part below.
+- **Checks**: `app-json-check` (pages, modules, areas, forms, calendar schemes and plans, the MCP file) and
+  `app-json-parts-check` (in `npm run app:check`), which runs every `app-json-<part>-check.mjs` — a new part's check is
+  picked up by its name.
 
 ## The formats
 
@@ -32,13 +33,56 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
 | Moduły — a form | `form` | Moduły → formularz → „JSON modułu”; on a page „JSON tego modułu” | `pages/pageJsonText.ts`, `forms/formFormat.ts` |
 | Formularze — the list of entries | `form-entries` | Formularze → formularz → „Zgłoszenia” → „JSON listy” | `forms/entriesJson.ts` |
 | Obszary — an area with a kind | `area` | Obszary → obszar → its kind tab → „Import i eksport (JSON dla AI)” | `areas/areaJsonText.ts` |
+| Kalendarz — appointments of one calendar | `calendar` | Kalendarz → „Kalendarze” → „Ustawienia” → „Terminy jako JSON” (readers: „Eksport JSON”) | `calendar/calendarJson.ts`, `calendarJsonRun.ts`, `CalendarJsonSection.tsx` |
 | Kalendarz — schemes and plans | `calendar-scheme`, `calendar-plan` | Kalendarz → „Kalendarze” → „Ustawienia” → schemat / plan | `calendar/schemeJson.ts` |
+| Msze i nabożeństwa — masses and intentions | `masses` | Msze i nabożeństwa → „Więcej” → „Import i eksport (JSON)” | `masses/massesJson.ts`, `massesImport.ts`, `MassesJsonPanel.tsx` |
+| Zadania | `tasks` | Kalendarz → „Zadania” → „⋯” → „Import i eksport (JSON)” | `calendar/tasksJson.ts`, `TasksJsonPanel.tsx` |
+| Rezerwacje | `bookings` | Rezerwacje → „Więcej” → „Import i eksport (JSON)”; on a resource: that resource | `bookings/bookingsJson.ts`, `bookingsImport.ts`, `BookingsJsonDialog.tsx` |
 | Kartoteka i kolęda | `registry` | Kartoteka → „Import i JSON” | `registry/postalJson.ts` |
+| Rozmowy — one conversation | `chat` | rozmowa → „⋮” → „Rozmowa jako JSON” | `chat/chatJson.ts`, `ChatJsonDialog.tsx` |
 | Kontakty | `contacts` | Kontakty → „Więcej” → „Import i eksport (JSON)” (vCard stays for phones) | `phone/contactsJson.ts` |
 | Role | `roles` | Role → „Więcej” → „Import i eksport (JSON)” | `roles/rolesJson.ts`, `roles/RolesJsonPanel.tsx` |
+| Konto — my data | `persons` | Konto → „Moje dane” → „Moje dane jako JSON” | `account/personsJson.ts`, `PersonsJsonPanel.tsx` |
+| Powiadomienia — „Czeka na Ciebie” | `workspace-view` | Konto → „Powiadomienia” → „Powiadomienia jako JSON” | `workspace/viewJson.ts`, `ViewJsonPanel.tsx` |
+| Adresy i domeny | `addresses` | Ustawienia → „Adresy i domeny” → „Import i eksport (JSON)” | `pages/addressesJson.ts` |
+| Nauka — my progress | `learn-progress` | Nauka → baza → „Postępy” → „Moje postępy jako JSON” | `cogita/progressJson.ts`, `ProgressJsonPanel.tsx` |
+| Lampy | `lamps` | Lampy → „⋯” → „Import i eksport (JSON)” | `lamps/lampsJson.ts`, `LampsJsonDialog.tsx` |
+
+What each import may do, in short (the descriptions say it in full):
+
+- **calendar** — appointments, series (a weekly timetable), program points, the scheme and its values, days of a series
+  (cancel, restore, move, day values); deletes only with `"remove": true`; never intentions, entries, reservations.
+- **masses** — masses and services (single or series, celebrants, „ta i następne” with `changeFrom`) and their
+  intentions per day — the intentions book of a month; the preview says which mass gets which intention and warns
+  about conflicts (by default a conflicting intention is not added); nothing is deleted (`"status": "cancelled"`).
+  Scheme values (Obchód, Kolor szat) belong to `calendar`.
+- **tasks** — „Tylko ja” and group tasks; `"remove": true` archives; completions are never touched.
+- **bookings** — resources with their rules and offered slots; people's claims are exported for viewing only, and the
+  preview warns about every collision with them.
+- **chat** — the export is the whole conversation; the import never writes in someone else's name or backdates: new
+  topics, new messages from the importing person (marked „Z importu”), moving to topics, pins.
+- **roles** — new roles and groups under holders the account may grant, renames, kind changes, new holdings; never
+  removes, never creates persons or accounts; each new role makes its keys (a few seconds each).
+- **persons** — only the account's own persons, by id, field by field; an empty value never deletes (that would
+  withdraw the field's releases too).
+- **learn-progress** — only into one's own progress, as a new sealed batch; answers already there are skipped.
+- **lamps** — lamps, signals, timers and the button pace; deletes only with `"remove": true`.
+- **addresses** — aliases and domains the app can set; the preview lists what remains outside (DNS, hosting, the
+  service's origins).
+
+## Checked in a browser
+
+`scratchpad/…/argdesign/json-parts-browser.mjs` (LocalDB only, after `json-api.mjs`) opens every panel the way a
+person does and walks it: export, the unchanged export back (no change), a sample imported, export again, and that
+export — now with real content — back once more (still no change).
 
 ## Without import, on purpose
 
 - **Sprawy** (reports): a report is a sealed letter in a signed chain (REPORTS.md); nothing is made from a file.
 - **Konto keys, access links, AI links, seats**: they are secrets or made from secrets in the browser.
 - **Administrator danych**: signed by a role with its certificate (DATA-CONTROLLER.md) — typed and signed in place.
+
+## Not yet
+
+- **SMS** (the SMS edition): the messages live on the phone and in the sealed archive; a conversation export like
+  `chat` fits there, after the current work on the SMS screens.
