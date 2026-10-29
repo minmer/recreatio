@@ -292,6 +292,8 @@
 .ph-head-numbers { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ph-line-chip { flex: none; gap: 0.2rem; padding: 0 var(--wk-space-2); font-size: var(--wk-text-xs); line-height: 1.6; }
 .ph-line-chip .ch-i { width: 0.75rem; height: 0.75rem; }
+/* 2026-10-29 — das Zeichen, warum diese Nummer sendet (lines.ts whyIcon): im Kopf des Menüs und über der Auswahl im Blatt. */
+.ph-why-head .ch-i, .ph-why .ch-i { display: inline-block; width: 0.875rem; height: 0.875rem; margin-right: var(--wk-space-1); vertical-align: -0.125em; color: var(--wk-accent); }
 .ph-arch { display: inline-flex; flex: none; align-items: center; gap: 0.2rem; color: var(--wk-muted); font-size: var(--wk-text-xs); }
 .ph-arch .ch-i { width: 0.75rem; height: 0.75rem; }
 .ph-arch.is-on { color: var(--wk-accent); }

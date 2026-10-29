@@ -3,4 +3,7 @@
     <!-- Der Grund der Seite (app.css: wk-ground): hinter Statusleiste und Startbild dieselbe Farbe wie darunter. -->
     <color name="ground">#F7F5F1</color>
     <color name="accent">#7A5A2E</color>
+    <!-- Die Farbe der Meldungen der App (2026-10-29), wie iconColor der Meldungen aus der Seite (capacitor.config.ts).
+         Nur hier, nicht in values-night: Android passt den Kontrast der Meldung selbst an. -->
+    <color name="notice_app">#8A5A1C</color>
 </resources>

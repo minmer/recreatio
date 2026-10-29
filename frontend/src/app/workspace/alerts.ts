@@ -276,8 +276,11 @@ export function alertCount(digest: Digest | null, settings: AlertSettings): numb
 
 export const alertLabel = (kind: AlertKind): string => ALERT_KINDS.find((one) => one.kind === kind)?.label ?? kind;
 
+/** Unter diesem Namen merkt das Konto die Liste (`prefs.ts`) — 2026-10-29 eine Stelle auch für den JSON-Import (`viewJson.ts`). */
+export const ALERTS_PREF = 'alerts';
+
 /** Die Einstellung dieses Kontos — und wie man sie ändert (gemerkt versiegelt, `prefs.ts`). */
 export function useAlertSettings(): [AlertSettings, (next: AlertSettings) => void] {
-  const [text, setText] = useRemembered('alerts', '');
+  const [text, setText] = useRemembered(ALERTS_PREF, '');
   return [readAlerts(text), (next) => setText(alertsJson(next))];
 }

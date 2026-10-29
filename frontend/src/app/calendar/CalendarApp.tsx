@@ -75,6 +75,8 @@ const EventDialog = lazy(() => import('./EventDialog').then((m) => ({ default: m
 const TaskDialog = lazy(() => import('./TaskDialog').then((m) => ({ default: m.TaskDialog })));
 /* 0132 — einen Plan anwenden (aus der Glocke: „Plany do przedłużenia" → `#/workspace/calendar/zaplanuj/<kalendarz>`). */
 const PlanApply = lazy(() => import('./PlanApply'));
+/* 2026-10-29 — die Termine eines Kalenders, in dem ich nur lese, als JSON (nur Export; wer schreibt, hat es in den Ustawienia). */
+const CalendarJsonSection = lazy(() => import('./CalendarJsonSection'));
 import { loadTasks, markSkipped, openTasks, type OpenTask } from './tasks';
 import { groupName } from '../areas/WhoSees';
 import { Loading } from '../ui/Loading';
@@ -195,6 +197,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
   const mineOnly = mineText === 'on';
   const [settings, setSettings] = useState<CalendarRow | 'new' | null>(null);
   const [calendarsOpen, setCalendarsOpen] = useState(false);
+  const [jsonOf, setJsonOf] = useState<CalendarRow | null>(null);
 
   const [anchor, setAnchor] = useState(() => startOfDay(at ?? new Date()));
   /* 2026-10-17 — der Tag, von dem aus ins Monatsblatt gewechselt wurde: dort umrandet. */
@@ -441,7 +444,7 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
    * ← → blättern; Esc hebt Auswahl und Schoss auf; Strg+X / Strg+C legen die Auswahl in den
    * Schoss, Strg+V fügt in der Tagesansicht auf diesen Tag ein; Entf löscht die Auswahl.
    */
-  const quiet = dialog === null && taskDialog === null && taskDay === null && settings === null && !calendarsOpen && reservation === null && !waitingOpen;
+  const quiet = dialog === null && taskDialog === null && taskDay === null && settings === null && !calendarsOpen && reservation === null && !waitingOpen && jsonOf === null;
   const pasteHere = () => {
     if (view === 'day') paste({ day: anchor });
     else toast('Kliknij dzień albo godzinę, gdzie mają trafić.');
@@ -622,7 +625,16 @@ export function Calendar({ me, scope, startNew, at, planFor }: {
       {calendarsOpen && (
         <CalendarsList areas={areas} calendars={calendars} onClose={() => setCalendarsOpen(false)}
           onNew={() => { setCalendarsOpen(false); setSettings('new'); }}
-          onEdit={(row) => { setCalendarsOpen(false); setSettings(row); }} />
+          onEdit={(row) => { setCalendarsOpen(false); setSettings(row); }}
+          onJson={(row) => { setCalendarsOpen(false); setJsonOf(row); }} />
+      )}
+
+      {jsonOf !== null && (
+        <Modal title={`Terminy jako JSON — ${calendarLabel(areas, jsonOf)}`} onClose={() => setJsonOf(null)} wide>
+          <Suspense fallback={<Loading label="Wczytywanie…" />}>
+            <CalendarJsonSection me={me} areas={areas} calendar={jsonOf} writer={false} onChanged={reload} open />
+          </Suspense>
+        </Modal>
       )}
 
       {settings !== null && (
@@ -1289,12 +1301,14 @@ export function ListView({ from, events, marks, now, areas, onOpen, onDay, picke
  * dem, wie seine Termine funktionieren. Wer einen führt, stellt hier seine
  * Regeln; ein neuer bekommt sie, bevor der erste Termin darin steht.
  */
-function CalendarsList({ areas, calendars, onClose, onNew, onEdit }: {
+function CalendarsList({ areas, calendars, onClose, onNew, onEdit, onJson }: {
   areas: readonly AreaRow[];
   calendars: readonly CalendarRow[];
   onClose: () => void;
   onNew: () => void;
   onEdit: (row: CalendarRow) => void;
+  /** 2026-10-29 — ein Kalender, in dem ich nur lese: seine Termine als JSON (Export). */
+  onJson: (row: CalendarRow) => void;
 }) {
   const personal = areas.find((a) => a.personal === true);
   const live = calendars.filter((c) => c.archived !== true);
@@ -1319,8 +1333,10 @@ function CalendarsList({ areas, calendars, onClose, onNew, onEdit }: {
         </span>
         {c.description && <span className="wk-callist-desc">{c.description}</span>}
       </span>
-      {c.mayWrite === true && (
+      {c.mayWrite === true ? (
         <button type="button" className="wk-link-btn" onClick={() => onEdit(c)}>Ustawienia</button>
+      ) : (
+        <button type="button" className="wk-link-btn" onClick={() => onJson(c)}>Eksport JSON</button>
       )}
     </li>
   );

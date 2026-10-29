@@ -34,7 +34,7 @@ import { useBarHeight } from '../ui/useBarHeight';
 import { ARCHIVE_PREF, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
 import { Composer } from './Composer';
 import { contactMatches, type Contact } from './contactStore';
-import { chooseLine, contactsOf, lineKeyOf, lineName, lineText, useContactIndex, useLineRules, usePhoneLines } from './lines';
+import { chooseLine, contactsOf, lineKeyOf, lineName, lineText, useContactIndex, useLineRules, usePhoneLines, whyIcon, whyText, type LineChoice } from './lines';
 import { LinesView } from './LinesView';
 import { Phone, phoneHere, pluginSource, type Line, type NativeMessage, type NativePart, type NativeThread, type PhoneStatus, type ScheduledEntry, type ThreadPage } from './native';
 import { phoneKey, phoneShown } from './numbers';
@@ -299,14 +299,14 @@ function Threads({ who }: { who: Who | null }) {
   useEffect(() => { void load(); }, [load]);
   useChanged(() => { void load(); refreshMutes(); refreshUnsent(); });
 
-  /* Welche Karte jedes Gespräch nimmt — nur, was nicht die des Telefons ist, steht in der Zeile. */
+  /* Welche Karte jedes Gespräch nimmt — nur, was nicht die des Telefons ist, steht in der Zeile (mit dem Zeichen, warum). */
   const lineOf = useMemo(() => {
-    const out = new Map<string, { name: string; subId: number }>();
+    const out = new Map<string, { name: string; subId: number; choice: LineChoice }>();
     if (lines.length < 2) return out;
     for (const t of threads ?? []) {
       const choice = chooseLine({ peers: t.addresses, lines, contacts, groupRules, threadRules, defaultSub: status?.defaultSubId ?? null });
       if (choice.line !== null && (choice.why === 'thread' || choice.why === 'group')) {
-        out.set(t.threadId, { name: lineName(choice.line), subId: choice.line.subId });
+        out.set(t.threadId, { name: lineName(choice.line), subId: choice.line.subId, choice });
       }
     }
     return out;
@@ -395,7 +395,11 @@ function Threads({ who }: { who: Who | null }) {
             </span>
             <span className="ch-item-bottom">
               <span className="ch-item-sub">{t.error ? '⚠ ' : ''}{t.attachment && t.snippet === '' ? '📷 Zdjęcie' : t.snippet}</span>
-              {line !== undefined && <span className="ph-item-line" title={`Z numeru: ${line.name}`}><Icon name="phone" />{line.name}</span>}
+              {line !== undefined && (
+                <span className="ph-item-line" title={`Z numeru: ${line.name} — ${whyText(line.choice)}`} data-why={line.choice.why}>
+                  <Icon name={whyIcon(line.choice.why)} />{line.name}
+                </span>
+              )}
               {muted[t.threadId] !== undefined && <span className="ch-item-muted"><Icon name="bell-off" label="wyciszona" /></span>}
               {t.unread > 0 && <span className="ch-badge" aria-label={`${t.unread} nieprzeczytanych`}>{t.unread}</span>}
             </span>

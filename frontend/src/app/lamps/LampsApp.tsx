@@ -17,9 +17,12 @@
  * den neuen Plan der Timer (`timers.ts`). Ein kurzer Druck sendet den ganzen Sygnał,
  * ein gehaltener so lange, wie er gedrückt ist (`SendKey`); der Regler darunter
  * (`pace.ts`, die Pause) gilt nur für die Knöpfe — jeder Timer hat seine eigenen.
+ *
+ * 2026-10-29 — „⋯" im Kopf: „Import i eksport (JSON)" (`LampsJsonDialog`, `lampsJson.ts`) — Geräte, Timer und
+ * das Tempo der Knöpfe als ein Dokument; was der Import speichert, kommt wie eine Änderung von Hand an (`change`).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { plural } from '../core/plural';
 import { useRemembered } from '../core/prefs';
@@ -29,6 +32,7 @@ import { viewPath } from '../routes';
 import { toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
+import { MenuButton } from '../ui/Menu';
 import { PageHeader } from '../ui/PageHeader';
 import { openPhone, type PhoneCtx } from '../phone/phoneContext';
 import { LampEdit } from './LampEdit';
@@ -38,6 +42,7 @@ import {
   lampOrder, lampSaveProblem, lampTitle, loadLamps, NEW_LAMP, NEW_TIMER, PILOT, pilotPath, saveTimer, TIMER, timerOrder,
   type Lamp, type LampSignal, type LampTimer
 } from './lampStore';
+import type { LampsApplied } from './lampsJson';
 import { LampRadio, lampHere, type LampSupport, type TimerStatus } from './native';
 import { PaceControl } from './PaceControl';
 import { buttonPace, PACE_PREF, paceText, readPace, type Pace } from './pace';
@@ -47,6 +52,9 @@ import { TimerList } from './TimerList';
 import { syncTimers } from './timers';
 import { setPace, transmit, type Hold } from './transmit';
 import './lamps.css';
+
+/* Erst beim Öffnen geladen — `JsonPanel` bringt den Leser der Seiten mit. */
+const LampsJsonDialog = lazy(() => import('./LampsJsonDialog'));
 
 interface Home {
   readonly lamps: readonly Lamp[];
@@ -115,6 +123,15 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
   const timerSaved = useCallback((timer: LampTimer) =>
     change((h) => ({ ...h, timers: upsert(h.timers, timer).sort(timerOrder) }), { firstTimer: true }), [change]);
   const timerRemoved = useCallback((id: string) => change((h) => ({ ...h, timers: h.timers.filter((t) => t.id !== id) })), [change]);
+  /* Ein Import auf einmal: ein neuer Stand, ein Plan für das Telefon — wie nach einem gespeicherten Timer (`firstTimer`). */
+  const imported = useCallback((done: LampsApplied) => {
+    if (done.lamps.length + done.timers.length + done.removed.length === 0) return;
+    const gone = new Set(done.removed);
+    change((h) => ({
+      lamps: done.lamps.reduce<Lamp[]>((list, one) => upsert(list, one), h.lamps.filter((l) => !gone.has(l.id))).sort(lampOrder),
+      timers: done.timers.reduce<LampTimer[]>((list, one) => upsert(list, one), h.timers.filter((t) => !gone.has(t.id))).sort(timerOrder)
+    }), { firstTimer: done.timers.length > 0 });
+  }, [change]);
 
   const step = trail[0];
   if (failed !== null) return <p className="wk-error">{failed}</p>;
@@ -155,6 +172,7 @@ export function LampsApp({ who, trail }: { who: Who; trail: readonly string[] })
       timerStatus={timerStatus} planProblems={planProblems}
       pace={pace} onPace={(next) => { setPace(buttonPace(next)); storePace(paceText(buttonPace(next))); }}
       onTimerSaved={timerSaved}
+      onImported={imported}
       onPhone={(on) => change((h) => h, { enable: on })} />
   );
 }
@@ -163,7 +181,7 @@ export default LampsApp;
 
 /* -- Die Lampen mit ihren Knöpfen -------------------------------------------------------------- */
 
-function LampList({ ctx, home, native, support, refresh, timerStatus, planProblems, pace, onPace, onTimerSaved, onPhone }: {
+function LampList({ ctx, home, native, support, refresh, timerStatus, planProblems, pace, onPace, onTimerSaved, onImported, onPhone }: {
   ctx: PhoneCtx;
   home: Home;
   native: boolean;
@@ -174,10 +192,12 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
   pace: Pace;
   onPace: (next: Pace) => void;
   onTimerSaved: (timer: LampTimer) => void;
+  onImported: (done: LampsApplied) => void;
   onPhone: (on: boolean) => void;
 }) {
   useCrumbs([]);
   const [busy, setBusy] = useState(false);
+  const [json, setJson] = useState(false);
   const { lamps, timers } = home;
 
   /* Auch während gesendet wird: der Druck kommt in die Warteschlange und geht nach dem vorigen hinaus. */
@@ -200,7 +220,13 @@ function LampList({ ctx, home, native, support, refresh, timerStatus, planProble
 
   return (
     <>
-      <PageHeader title="Lampy" meta={`${lamps.length} ${plural(lamps.length, 'urządzenie', 'urządzenia', 'urządzeń')}`} />
+      <PageHeader title="Lampy" meta={`${lamps.length} ${plural(lamps.length, 'urządzenie', 'urządzenia', 'urządzeń')}`}
+        actions={<MenuButton label="Więcej: lampy" items={[{ label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJson(true) }]} />} />
+      {json && (
+        <Suspense fallback={null}>
+          <LampsJsonDialog ctx={ctx} now={{ lamps, timers, buttons: pace }} onPace={onPace} onImported={onImported} onClose={() => setJson(false)} />
+        </Suspense>
+      )}
 
       <SupportPanel native={native} support={support} refresh={refresh} quiet />
       <LampQueueBar native={native} />

@@ -11,13 +11,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { Icon } from '../chat/ChatKit';
 import { whoIsThere } from '../core/session';
 import { viewPath } from '../routes';
 import { toast } from '../ui/dialogs';
 import { Modal } from '../ui/Modal';
 import { Composer } from './Composer';
 import { nameIndex, type Contact } from './contactStore';
-import { chooseLine, contactsOf, lastSubOf, lineText, useLineRules, usePhoneLines, whyText } from './lines';
+import { chooseLine, contactsOf, lastSubOf, lineText, useLineRules, usePhoneLines, whyIcon, whyText } from './lines';
 import { Phone, type PhoneStatus } from './native';
 import { phoneShown } from './numbers';
 import './phone.css';
@@ -78,7 +79,9 @@ function SmsSheet({ to, text, onDone }: { to: string; text: string; onDone: (sen
       )}
       {twoLines && (
         <label className="wk-field">
-          <span>Z numeru{picked === null ? ` — ${whyText(choice)}` : ' — tylko ta wiadomość'}</span>
+          <span className="ph-why" data-why={picked === null ? choice.why : 'thread'}>
+            <Icon name={picked === null ? whyIcon(choice.why) : 'pin'} />Z numeru{picked === null ? ` — ${whyText(choice)}` : ' — tylko ta wiadomość'}
+          </span>
           <select value={sub === null ? '' : String(sub)} onChange={(e) => setPicked(Number(e.target.value))}>
             {lines.map((l) => <option key={l.subId} value={l.subId}>{lineText(l)}</option>)}
           </select>

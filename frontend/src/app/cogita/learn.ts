@@ -410,6 +410,18 @@ export class Learner {
     this.changed();
   }
 
+  /**
+   * 2026-10-29 — ANTWORTEN AUS DEM EIGENEN JSON (`progressJson.ts`): ein Stapel wie jeder andere — versiegelt
+   * für diesen Halter (und die Annahme des Kurses), über die Ablage, wenn das Netz fehlt. Nur in den eigenen
+   * Fortschritt: der Lernende ist der, der importiert; was schon da war, hat der Plan vorher ausgelassen.
+   */
+  async adopt(answers: readonly AnswerRecord[]): Promise<void> {
+    if (answers.length === 0) return;
+    this.progress = absorb(this.progress, { kind: 'answers', answers, snapshots: [] });
+    this.changed();
+    await this.send({ v: 1, kind: 'answers', answers, snapshots: [] });
+  }
+
   marks(key: string, fingerprint?: string, rename?: (key: string) => string): Mark[] {
     return marksOf(this.progress, key, fingerprint, rename);
   }

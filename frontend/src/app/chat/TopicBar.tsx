@@ -12,9 +12,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { areaKeys } from './chat';
-import { closeTopic, loadLinked, type LinkedItem, type Topic } from './chatTopics';
-import { aad, Field, fromBase64Url, openText } from '../core/crypto';
+import { closeTopic, loadLinked, openLinked, type LinkedItem, type Topic } from './chatTopics';
 import type { Ring } from '../core/keys';
 import { Modal } from '../ui/Modal';
 import { viewPath } from '../routes';
@@ -170,7 +168,15 @@ export function CollectToTopic({ count, topics, canCreate, onCollect, onClose }:
   );
 }
 
-const itemTitleAad = (itemId: string) => aad('calendar', 'item', itemId, Field.CalendarEventTitle, 1);
+/**
+ * Wie es um eine Aufgabe aus der Rozmowa steht — in Worten.
+ * 2026-10-29 — auch im Export der Rozmowa (`ChatJsonDialog`), dieselben Worte.
+ */
+export function taskState(t: OpenTask, now: Date): string {
+  const next = t.occurrences.find((o) => windowState(o, now) !== 'done' && windowState(o, now) !== 'skipped');
+  return t.kind === 'after' ? (t.dueAt !== null && new Date(t.dueAt) < now ? 'zaległe' : 'co pewien czas')
+    : next === undefined ? 'zrobione' : windowState(next, now) === 'open' ? 'teraz' : windowState(next, now) === 'missed' ? 'przegapione' : 'zaplanowane';
+}
 
 /**
  * „ZADANIA I TERMINY" — was aus dieser Rozmowa entstanden ist, nach Thema.
@@ -190,17 +196,7 @@ export function LinkedDialog({ ring, chatId, topics, onClose }: {
       .then((opened) => { if (alive) setTasks(opened); })
       .catch(() => { if (alive) setTasks([]); });
     void loadLinked(chatId)
-      .then(async ({ items: rows }) => Promise.all(rows.map(async (row) => {
-        let title = row.titlePublic ?? 'Termin';
-        const sealed = row.fields.find((f) => f.field === 'title');
-        if (sealed !== undefined) {
-          try {
-            const key = (await areaKeys(ring, sealed.areaId)).get(sealed.epoch);
-            if (key !== undefined) title = await openText(key, itemTitleAad(row.itemId), fromBase64Url(sealed.sealed));
-          } catch { /* offener Titel */ }
-        }
-        return { ...row, title };
-      })))
+      .then(({ items: rows }) => openLinked(ring, rows))
       .then((opened) => { if (alive) setItems(opened); })
       .catch(() => { if (alive) setItems([]); });
     return () => { alive = false; };
@@ -227,16 +223,11 @@ export function LinkedDialog({ ring, chatId, topics, onClose }: {
                 <section key={g.topicId ?? 'none'} className="ch-linked-group">
                   <h3 className="wk-h3">{g.title}</h3>
                   <ul>
-                    {ts.map((t) => {
-                      const next = t.occurrences.find((o) => windowState(o, now) !== 'done' && windowState(o, now) !== 'skipped');
-                      const state = t.kind === 'after' ? (t.dueAt !== null && new Date(t.dueAt) < now ? 'zaległe' : 'co pewien czas')
-                        : next === undefined ? 'zrobione' : windowState(next, now) === 'open' ? 'teraz' : windowState(next, now) === 'missed' ? 'przegapione' : 'zaplanowane';
-                      return (
-                        <li key={t.taskId}>
-                          <a href={viewPath('tasks')}>Zadanie: {t.title}</a> <span className="wk-tag">{state}</span>
-                        </li>
-                      );
-                    })}
+                    {ts.map((t) => (
+                      <li key={t.taskId}>
+                        <a href={viewPath('tasks')}>Zadanie: {t.title}</a> <span className="wk-tag">{taskState(t, now)}</span>
+                      </li>
+                    ))}
                     {is.map((i) => (
                       <li key={i.itemId}>
                         <a href={viewPath('calendar')}>Termin: {i.title}</a>{' '}

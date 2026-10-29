@@ -4,10 +4,12 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 
@@ -51,9 +53,18 @@ import java.util.UUID;
  */
 final class Notices {
 
-    static final String CHANNEL_CHAT = "chat";
-    static final String CHANNEL_NEWS = "news";
-    static final String CHANNEL_TASKS = "tasks";
+    /*
+     * 2026-10-29 — DIE KANÄLE MIT DEM KLANG DER APP ({@code res/raw/app_tone}, gerechnet von
+     * {@code scripts/android-sounds.mjs}): anders als die SMS ({@code sms_tone}) und als das Telefon.
+     * Android behält den Klang eines Kanals für immer; darum neue Kennungen, und die alten
+     * (mit dem Klang des Telefons) gehen beim ersten Start fort. Dieselben Kennungen und
+     * denselben Klang legt auch die Seite an ({@code platform.ts}) — wer zuerst kommt, gilt.
+     */
+    static final String CHANNEL_CHAT = "chat_tone";
+    static final String CHANNEL_NEWS = "news_tone";
+    static final String CHANNEL_TASKS = "tasks_tone";
+    private static final String[] OLD_CHANNELS = { "chat", "news", "tasks" };
+    private static final String TONE = "app_tone";
     static final String GROUP_CHATS = "pl.recreatio.app.CHATS";
     static final String KEY_REPLY = "reply";
 
@@ -92,25 +103,36 @@ final class Notices {
 
     /* -- Kanäle und Erlaubnis --------------------------------------------------- */
 
+    /** Der Klang der App nach Namen, nicht nach Nummer: die Nummer einer Ressource wechselt mit dem Bau, der Kanal behält die Adresse. */
+    static Uri tone(Context context) {
+        return Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + context.getPackageName() + "/raw/" + TONE);
+    }
+
+    /** Beim Start der App (RecreatioApp): die Kanäle stehen, bevor die Seite oder ein Wecker etwas meldet. */
     static void ensureChannels(Context context) {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         if (manager == null) return;
-        if (manager.getNotificationChannel(CHANNEL_CHAT) == null) {
-            NotificationChannel chat = new NotificationChannel(CHANNEL_CHAT, "Rozmowy", NotificationManager.IMPORTANCE_HIGH);
-            chat.setDescription("Nowe wiadomości w rozmowach");
-            manager.createNotificationChannel(chat);
+        for (String old : OLD_CHANNELS) {
+            if (manager.getNotificationChannel(old) != null) manager.deleteNotificationChannel(old);
         }
-        if (manager.getNotificationChannel(CHANNEL_NEWS) == null) {
-            NotificationChannel news = new NotificationChannel(CHANNEL_NEWS, "Nowości", NotificationManager.IMPORTANCE_DEFAULT);
-            news.setDescription("Nowe zgłoszenia z formularzy i dołączenia przez linki");
-            manager.createNotificationChannel(news);
-        }
-        if (manager.getNotificationChannel(CHANNEL_TASKS) == null) {
-            NotificationChannel tasks = new NotificationChannel(CHANNEL_TASKS, "Zadania", NotificationManager.IMPORTANCE_HIGH);
-            tasks.setDescription("Przypomnienia o zadaniach: na początku, w połowie, pod koniec");
-            manager.createNotificationChannel(tasks);
-        }
+        channel(context, CHANNEL_CHAT, "Rozmowy", "Nowe wiadomości w rozmowach", NotificationManager.IMPORTANCE_HIGH);
+        channel(context, CHANNEL_NEWS, "Nowości", "Nowe zgłoszenia z formularzy i dołączenia przez linki", NotificationManager.IMPORTANCE_DEFAULT);
+        channel(context, CHANNEL_TASKS, "Zadania", "Przypomnienia o zadaniach: na początku, w połowie, pod koniec", NotificationManager.IMPORTANCE_HIGH);
+    }
+
+    /** Ein Kanal der App mit ihrem Klang — wenn es ihn noch nicht gibt (auch für die Timery lamp). */
+    static void channel(Context context, String id, String name, String description, int importance) {
+        if (Build.VERSION.SDK_INT < 26) return;
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null || manager.getNotificationChannel(id) != null) return;
+        NotificationChannel channel = new NotificationChannel(id, name, importance);
+        channel.setDescription(description);
+        channel.setSound(tone(context), new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+        manager.createNotificationChannel(channel);
     }
 
     static boolean allowed(Context context) {
@@ -132,6 +154,20 @@ final class Notices {
 
     static void cancel(Context context, int id) {
         NotificationManagerCompat.from(context).cancel(id);
+    }
+
+    /**
+     * 2026-10-29 — EINE MELDUNG DER APP: das Zeichen „RE" in der Farbe der App, ihr Klang. Die SMS
+     * (Ausgabe „sms") kommen mit Sprechblase, eigener Farbe und eigenem Klang ({@code SmsNotices}),
+     * damit man schon in der Statusleiste — und am Klang — erkennt, ob es eine SMS ist oder etwas
+     * aus recreatio. Vor Android 8 gibt es keine Kanäle: dort trägt die Meldung den Klang selbst.
+     */
+    static NotificationCompat.Builder builder(Context context, String channel) {
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channel)
+                .setSmallIcon(R.drawable.ic_stat_recreatio)
+                .setColor(ContextCompat.getColor(context, R.color.notice_app));
+        if (Build.VERSION.SDK_INT < 26) builder.setSound(tone(context));
+        return builder;
     }
 
     /* -- Wohin ein Tippen führt ------------------------------------------------- */
@@ -299,8 +335,7 @@ final class Notices {
         }
 
         int unread = state.optInt("unread");
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_CHAT)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        NotificationCompat.Builder builder = builder(context, CHANNEL_CHAT)
                 .setStyle(style)
                 .setContentTitle(title)
                 .setContentText(last)
@@ -341,8 +376,7 @@ final class Notices {
     }
 
     private static NotificationCompat.Builder publicBuilder(Context context, String channel, String text) {
-        return new NotificationCompat.Builder(context, channel)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        return builder(context, channel)
                 .setContentTitle("REcreatio")
                 .setContentText(text);
     }
@@ -369,8 +403,7 @@ final class Notices {
         NotificationCompat.InboxStyle inbox = new NotificationCompat.InboxStyle();
         for (String title : shown) inbox.addLine(title);
         String text = "Nowe wiadomości: " + total;
-        post(context, id, new NotificationCompat.Builder(context, CHANNEL_CHAT)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        post(context, id, builder(context, CHANNEL_CHAT)
                 .setContentTitle(text)
                 .setStyle(inbox.setSummaryText(shown.size() + " rozmowy"))
                 .setGroup(GROUP_CHATS)
@@ -419,8 +452,7 @@ final class Notices {
 
                 String name = f.optString("name", "Formularz");
                 String title = count == 1 ? "Nowe zgłoszenie: " + name : "Nowe zgłoszenia (" + count + "): " + name;
-                post(context, numberOf("form:" + id), new NotificationCompat.Builder(context, CHANNEL_NEWS)
-                        .setSmallIcon(R.drawable.ic_stat_recreatio)
+                post(context, numberOf("form:" + id), builder(context, CHANNEL_NEWS)
                         .setContentTitle(title)
                         .setContentText(first == null ? "Ktoś wypełnił formularz." : first)
                         .setStyle(inbox.setBigContentTitle(title))
@@ -481,8 +513,7 @@ final class Notices {
         save(context, "links", new JSONObject().put("count", count).put("keys", keys));
 
         String title = count == 1 ? "Ktoś dołączył przez link" : "Dołączenia przez linki: " + count;
-        post(context, id, new NotificationCompat.Builder(context, CHANNEL_NEWS)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        post(context, id, builder(context, CHANNEL_NEWS)
                 .setContentTitle(title)
                 .setContentText(first == null ? "Zobacz linki dostępu w Obszarach." : first)
                 .setStyle(inbox.setBigContentTitle(title))

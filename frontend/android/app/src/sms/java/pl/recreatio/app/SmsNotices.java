@@ -8,6 +8,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
+import android.media.AudioAttributes;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -16,6 +17,7 @@ import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
 import androidx.core.app.RemoteInput;
+import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,7 +34,15 @@ import java.util.List;
  */
 final class SmsNotices {
 
-    static final String CHANNEL = "sms";
+    /**
+     * 2026-10-29 — EIN EIGENER KLANG ({@code res/raw/sms_tone}, gerechnet von
+     * {@code scripts/android-sounds.mjs}). Android behält den Klang eines Kanals für immer;
+     * darum heisst der Kanal neu, und der alte („sms", mit dem Klang des Telefons) geht fort.
+     * Wer in den Einstellungen des Telefons einen anderen Klang wählt, behält ihn.
+     */
+    static final String CHANNEL = "sms_tone";
+    private static final String OLD_CHANNEL = "sms";
+    private static final String TONE = "sms_tone";
     static final String ACTION_REPLY = "pl.recreatio.app.SMS_REPLY";
     static final String ACTION_READ = "pl.recreatio.app.SMS_READ";
     private static final String KEY_REPLY = "sms_reply";
@@ -41,13 +51,37 @@ final class SmsNotices {
     private SmsNotices() {
     }
 
+    /** Der Klang nach Namen, nicht nach Nummer: die Nummer einer Ressource wechselt mit dem Bau, der Kanal behält die Adresse. */
+    static Uri tone(Context context) {
+        return Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + context.getPackageName() + "/raw/" + TONE);
+    }
+
     static void ensureChannel(Context context) {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
-        if (manager == null || manager.getNotificationChannel(CHANNEL) != null) return;
+        if (manager == null) return;
+        if (manager.getNotificationChannel(OLD_CHANNEL) != null) manager.deleteNotificationChannel(OLD_CHANNEL);
+        if (manager.getNotificationChannel(CHANNEL) != null) return;
         NotificationChannel sms = new NotificationChannel(CHANNEL, "SMS", NotificationManager.IMPORTANCE_HIGH);
-        sms.setDescription("Przychodzące SMS i MMS");
+        sms.setDescription("Przychodzące SMS i MMS — z własnym dźwiękiem, innym niż powiadomienia recreatio");
+        sms.setSound(tone(context), new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+        sms.enableVibration(true);
         manager.createNotificationChannel(sms);
+    }
+
+    /**
+     * EINE MELDUNG DER SMS — die Sprechblase in Blau statt „RE" in Braun (die App, {@link Notices#builder}).
+     * Vor Android 8 gibt es keine Kanäle: dort trägt die Meldung den Klang selbst.
+     */
+    static NotificationCompat.Builder builder(Context context) {
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL)
+                .setSmallIcon(R.drawable.ic_stat_sms)
+                .setColor(ContextCompat.getColor(context, R.color.notice_sms));
+        if (Build.VERSION.SDK_INT < 26) builder.setSound(tone(context)).setDefaults(NotificationCompat.DEFAULT_VIBRATE | NotificationCompat.DEFAULT_LIGHTS);
+        return builder;
     }
 
     static int idOf(long thread) {
@@ -158,23 +192,21 @@ final class SmsNotices {
         }
 
         RemoteInput input = new RemoteInput.Builder(KEY_REPLY).setLabel("Odpowiedz").build();
-        NotificationCompat.Action reply = new NotificationCompat.Action.Builder(R.drawable.ic_stat_recreatio, "Odpowiedz", action(context, ACTION_REPLY, thread, true))
+        NotificationCompat.Action reply = new NotificationCompat.Action.Builder(R.drawable.ic_stat_sms, "Odpowiedz", action(context, ACTION_REPLY, thread, true))
                 .addRemoteInput(input)
                 .setAllowGeneratedReplies(true)
                 .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
                 .setShowsUserInterface(false)
                 .build();
-        NotificationCompat.Action read = new NotificationCompat.Action.Builder(R.drawable.ic_stat_recreatio, "Przeczytane", action(context, ACTION_READ, thread, false))
+        NotificationCompat.Action read = new NotificationCompat.Action.Builder(R.drawable.ic_stat_sms, "Przeczytane", action(context, ACTION_READ, thread, false))
                 .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
                 .setShowsUserInterface(false)
                 .build();
 
-        NotificationCompat.Builder hidden = new NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        NotificationCompat.Builder hidden = builder(context)
                 .setContentTitle("Nowa wiadomość SMS");
 
-        Notices.post(context, idOf(thread), new NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        Notices.post(context, idOf(thread), builder(context)
                 .setStyle(style)
                 .setContentIntent(Notices.openIntent(context, "#/workspace/sms/" + thread, idOf(thread)))
                 .setAutoCancel(true)
@@ -195,8 +227,7 @@ final class SmsNotices {
     private static void problem(Context context, long thread, String text) {
         ensureChannel(context);
         int id = Notices.numberOf("sms-problem:" + thread);
-        Notices.post(context, id, new NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        Notices.post(context, id, builder(context)
                 .setContentTitle(title(context, thread))
                 .setContentText(text)
                 .setAutoCancel(true)

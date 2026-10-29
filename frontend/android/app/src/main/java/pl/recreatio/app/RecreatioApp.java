@@ -13,5 +13,7 @@ public class RecreatioApp extends Application {
     public void onCreate() {
         super.onCreate();
         PushSetup.ready(this);
+        /* 2026-10-29 — die Kanäle mit dem Klang der App stehen, bevor die Seite oder ein Wecker etwas meldet. */
+        Notices.ensureChannels(this);
     }
 }

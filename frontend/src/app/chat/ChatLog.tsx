@@ -734,7 +734,7 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
   const gone = message.deletedAt !== null;
   const text = opened?.text ?? '';
   const files = opened?.attachments ?? [];
-  const big = !gone && opened !== null && files.length === 0 && opened.replyTo === undefined && opened.forwarded !== true && bigEmoji(text);
+  const big = !gone && opened !== null && files.length === 0 && opened.replyTo === undefined && opened.forwarded !== true && opened.imported !== true && bigEmoji(text);
   const pinned = marks.some((m) => m.kind === 'pin');
   const starred = marks.some((m) => m.mine && m.kind === 'star');
 
@@ -849,6 +849,8 @@ function MessageRow({ endpoint, item, mine, start, end, author, note, group, rec
         ) : (
           <>
             {opened.forwarded === true && <div className="ch-fwd"><Icon name="forward" /> Przekazana</div>}
+            {/* 2026-10-29 — aus einem JSON-Import (`chatJson.ts`): für jeden Leser sichtbar, wie „Przekazana". */}
+            {opened.imported === true && <div className="ch-fwd" data-message-imported=""><Icon name="braces" /> Z importu</div>}
             {opened.replyTo !== undefined && (
               <button type="button" className="ch-quote" onClick={() => onJump(opened.replyTo!)}
                 style={{ '--ch-h': hueOf(replyAuthor ?? 'x') } as CSSProperties}>

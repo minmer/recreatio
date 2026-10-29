@@ -8,9 +8,10 @@
  * „Zadania i terminy".
  */
 
-import { newestKey } from './chat';
+import { areaKeys, newestKey } from './chat';
 import { aad, Field, fromBase64Url, openText, sealText, toBase64Url } from '../core/crypto';
 import { newId } from '../core/ids';
+import type { Ring } from '../core/keys';
 import type { SealedField } from '../calendar/calendar';
 import { call, WorkspaceError } from '../core/session';
 
@@ -74,6 +75,21 @@ export const closeTopic = (topicId: string, closed: boolean): Promise<{ updated:
   call(`/workspace/chat/topic/${encodeURIComponent(topicId)}`, { method: 'POST', body: JSON.stringify({ closed }) });
 
 /**
+ * 2026-10-29 — EIN THEMA UMBENENNEN (der Import einer Rozmowa, `chatJson.ts`): der neue Titel versiegelt wie
+ * beim Anlegen, unter dem jüngsten Chatschlüssel. Darf, wer es angelegt hat oder moderiert — der Dienst prüft.
+ */
+export async function renameTopic(keys: ReadonlyMap<number, Uint8Array>, topicId: string, title: string): Promise<void> {
+  const newest = newestKey(keys);
+  if (newest === null) throw new WorkspaceError('Nie masz klucza tej rozmowy.');
+  const name = title.trim();
+  if (name === '') throw new WorkspaceError('Nazwij temat.');
+  await call(`/workspace/chat/topic/${encodeURIComponent(topicId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ epoch: newest.epoch, titleSealed: toBase64Url(await sealText(newest.key, topicAad(topicId), name.slice(0, 200))) })
+  });
+}
+
+/**
  * 0101 — ZUSAMMENTRAGEN: mehrere Nachrichten in EIN Thema (`null`: ohne Thema).
  * `moved`: die eingeordneten; `notYours`: fremde in einer Gruppe — die
  * ordnet, wer moderiert.
@@ -101,6 +117,26 @@ export interface LinkedItem {
 
 export const loadLinked = (chatId: string): Promise<{ items: readonly LinkedItem[] }> =>
   call(`/workspace/chat/${encodeURIComponent(chatId)}/linked`);
+
+const itemTitleAad = (itemId: string) => aad('calendar', 'item', itemId, Field.CalendarEventTitle, 1);
+
+/**
+ * Die Titel dieser Termine — versiegelt unter dem Schlüssel IHRES Bereichs; offen bleibt der öffentliche.
+ * 2026-10-29 — eine Stelle für „Zadania i terminy" und den Export der Rozmowa (`ChatJsonDialog`).
+ */
+export async function openLinked(ring: Ring, rows: readonly LinkedItem[]): Promise<(LinkedItem & { readonly title: string })[]> {
+  return Promise.all(rows.map(async (row) => {
+    let title = row.titlePublic ?? 'Termin';
+    const sealed = row.fields.find((f) => f.field === 'title');
+    if (sealed !== undefined) {
+      try {
+        const key = (await areaKeys(ring, sealed.areaId)).get(sealed.epoch);
+        if (key !== undefined) title = await openText(key, itemTitleAad(row.itemId), fromBase64Url(sealed.sealed));
+      } catch { /* offener Titel */ }
+    }
+    return { ...row, title };
+  }));
+}
 
 /** Der erste Satz einer Nachricht — als Vorschlag für den Titel einer Aufgabe oder eines Termins. */
 export function titleFrom(text: string): string {

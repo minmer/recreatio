@@ -149,13 +149,18 @@ export function App() {
     if (had !== null) setWho(had);
   }, []);
 
+  /* Die jüngste Frage gilt: eine ältere, die (bei schlechtem Netz) später ankommt, ändert nichts mehr. */
+  const asking = useRef(0);
+
   /** `step`: ein Schritt des Menschen (die Adresse) — nur dann gilt ein Konto, das gewartet hat. */
   const check = useCallback(async (step: boolean) => {
+    const mine = ++asking.current;
     if (!needsIdentity(address)) { setWho(null); return; }
     /* Ein Schritt weiter: ein Konto, das gewartet hat, gilt jetzt. */
     if (step) takeLater();
     const asked = Date.now();
     const now = await sessionNow();
+    if (mine !== asking.current) return;
     if (!now.reached) {
       setCut(true);
       setWho((had) => (had === undefined ? null : had));
@@ -164,6 +169,7 @@ export function App() {
     setCut(false);
     /* Zurück im Netz ohne Sitzung, aber ohne Netz angemeldet: derselbe Schlüssel meldet an — niemand fragt zweimal. */
     const found = now.who ?? await resumeAway();
+    if (mine !== asking.current) return;
     if (found !== null && aloneOpen.current && (!step || Date.now() - asked > SMS_STEP)) {
       laterRef.current = found;
       setLater(found);

@@ -17,6 +17,7 @@ import { answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf
 import { planFor } from './RevisionRun';
 import { entityName } from './ui';
 import { offlineList, dropOffline } from './offline';
+import { ProgressJsonPanel } from './ProgressJsonPanel';
 import { Bar, percent, useAsync, useBusy, useCtx } from './ui';
 
 /** Was sitzt, je Gruppe von Karten — aus den Antworten, gerechnet im Browser [E2, E7]. */
@@ -99,6 +100,8 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
           <ul>{offline.map((o) => <li key={`${o.libraryId}:${o.revisionId}`} className="cg-row">{new Date(o.savedAt).toLocaleString('pl-PL')}<button type="button" className="wk-link-btn" onClick={() => { if (account !== null) void dropOffline(account, o.libraryId, o.revisionId).then(() => setTick((n) => n + 1)); }}>usuń</button></li>)}</ul>
         </details>
       )}
+      {/* 2026-10-29 — die eigenen Antworten als JSON („recreatio/learn-progress"). */}
+      <ProgressJsonPanel learner={learner} cards={cards} />
       {failed !== null && <p className="wk-error">{failed}</p>}
     </div>
   );

@@ -103,11 +103,20 @@ export interface Notice {
   readonly open?: string;
 }
 
-const CHANNEL = 'chat';
+/*
+ * 2026-10-29 — DIE KANÄLE HABEN DEN KLANG DER APP (`res/raw/app_tone`), anders als die SMS und das
+ * Telefon. Android behält den Klang eines Kanals für immer: darum neue Kennungen (die alten ohne
+ * Klang räumt `Notices.ensureChannels` beim Start fort). Dieselben Kennungen, Namen und denselben
+ * Klang legt die App selbst an (`Notices.java`, schon beim Start) — wer zuerst kommt, gilt.
+ */
+const CHANNEL = 'chat_tone';
 
 /** 0067 — eigene Kanäle: was neu ist (Anmeldungen, Links), und Erinnerungen an Aufgaben. */
-const CHANNEL_NEWS = 'news';
-const CHANNEL_TASKS = 'tasks';
+const CHANNEL_NEWS = 'news_tone';
+const CHANNEL_TASKS = 'tasks_tone';
+
+/** Der Klang der App — im Kanal (Android 8+) und, vor Android 8, an jeder Meldung. */
+const TONE = 'app_tone.wav';
 
 /** Was geplant liegt — damit Veraltetes zurückgenommen werden kann (Android vergisst nichts von selbst). */
 const PLANNED_SLOT = 'recreatio:notify:planned';
@@ -123,13 +132,13 @@ const prepared: Promise<void> | null = native
   ? (async () => {
     try {
       await LocalNotifications.createChannel({
-        id: CHANNEL, name: 'Rozmowy', description: 'Nowe wiadomości w rozmowach', importance: 4, visibility: 0
+        id: CHANNEL, name: 'Rozmowy', description: 'Nowe wiadomości w rozmowach', importance: 4, visibility: 0, sound: TONE
       });
       await LocalNotifications.createChannel({
-        id: CHANNEL_NEWS, name: 'Nowości', description: 'Nowe zgłoszenia z formularzy i dołączenia przez linki', importance: 3, visibility: 0
+        id: CHANNEL_NEWS, name: 'Nowości', description: 'Nowe zgłoszenia z formularzy i dołączenia przez linki', importance: 3, visibility: 0, sound: TONE
       });
       await LocalNotifications.createChannel({
-        id: CHANNEL_TASKS, name: 'Zadania', description: 'Przypomnienia o zadaniach: na początku, w połowie, pod koniec', importance: 4, visibility: 0
+        id: CHANNEL_TASKS, name: 'Zadania', description: 'Przypomnienia o zadaniach: na początku, w połowie, pod koniec', importance: 4, visibility: 0, sound: TONE
       });
       granted = (await LocalNotifications.checkPermissions()).display === 'granted';
       await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
@@ -244,6 +253,7 @@ export const notices = {
           body: notice.body,
           channelId: channel === 'news' ? CHANNEL_NEWS : channel === 'tasks' ? CHANNEL_TASKS : CHANNEL,
           smallIcon: 'ic_stat_recreatio',
+          sound: TONE,
           /*
            * Sofort, nicht geplant. Ohne das hielte das Plugin sie für einen
            * genauen Wecker und schickte den Menschen in die Einstellungen

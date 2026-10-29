@@ -3,7 +3,6 @@ package pl.recreatio.app;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlarmManager;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -55,7 +54,9 @@ final class LampTimers {
 
     static final String ACTION = "pl.recreatio.app.LAMP_TIMER";
     private static final String PREFS = "recreatio.lamps";
-    private static final String CHANNEL = "lamp_timers";
+    /** 2026-10-29 — mit dem Klang der App ({@link Notices#channel}); der alte Kanal (Klang des Telefons) geht fort. */
+    private static final String CHANNEL = "lamps_tone";
+    private static final String OLD_CHANNEL = "lamp_timers";
     private static final int REQUEST = 0x1a4b;
     private static final int NOTICE = 0x1a4c;
     private static final int LOG_MAX = 20;
@@ -267,11 +268,8 @@ final class LampTimers {
         try {
             if (Build.VERSION.SDK_INT >= 26) {
                 NotificationManager manager = context.getSystemService(NotificationManager.class);
-                if (manager != null && manager.getNotificationChannel(CHANNEL) == null) {
-                    NotificationChannel channel = new NotificationChannel(CHANNEL, "Timery lamp", NotificationManager.IMPORTANCE_DEFAULT);
-                    channel.setDescription("Gdy timer nie mógł nadać sygnału");
-                    manager.createNotificationChannel(channel);
-                }
+                if (manager != null && manager.getNotificationChannel(OLD_CHANNEL) != null) manager.deleteNotificationChannel(OLD_CHANNEL);
+                Notices.channel(context, CHANNEL, "Timery lamp", "Gdy timer nie mógł nadać sygnału", NotificationManager.IMPORTANCE_DEFAULT);
             }
             JSONObject first = failed.getJSONObject(0);
             String why = "bluetooth-off".equals(first.optString("code")) ? "Bluetooth jest wyłączony"
@@ -279,8 +277,7 @@ final class LampTimers {
                 : first.optString("code");
             Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
             PendingIntent tap = open == null ? null : PendingIntent.getActivity(context, NOTICE, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            NotificationCompat.Builder notice = new NotificationCompat.Builder(context, CHANNEL)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+            NotificationCompat.Builder notice = Notices.builder(context, CHANNEL)
                 .setContentTitle("Timer „" + name + "\" nie nadał " + failed.length() + (failed.length() == 1 ? " sygnału" : " sygnałów"))
                 .setContentText(first.optString("label") + ": " + why)
                 .setAutoCancel(true)

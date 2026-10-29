@@ -12,6 +12,7 @@
  *
  * Einlesen: aus dem Telefon (alle Kontakte, ein zweites Mal ergänzt es nur)
  * und aus einer vCard (Google, ein anderes Telefon); hinaus als vCard.
+ * 2026-10-29 — und als JSON wie jeder Teil der App (`contactsJson.ts`): mit Vorschau, für Hand und Assistent.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
@@ -23,12 +24,15 @@ import { WorkspaceError, type Who } from '../core/session';
 import { ask, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
+import { JsonPanel } from '../ui/JsonPanel';
 import { MenuButton } from '../ui/Menu';
+import { Modal } from '../ui/Modal';
 import { PageHeader } from '../ui/PageHeader';
 import {
   contactMatches, emptyContact, fromCard, fromPhoneBook, importContacts, loadContacts, PHONE_LABELS, phoneKeysOf, removeContact,
-  saveContact, saveProblem, type Contact, type ContactData
+  saveContact, saveContactsMany, saveProblem, type Contact, type ContactData
 } from './contactStore';
+import { CONTACTS_JSON, exportContactsJson, planContactsJson } from './contactsJson';
 import { Phone, phoneHere, pluginSource, type PhoneStatus } from './native';
 import { phoneShown } from './numbers';
 import { findLine, forgetContacts, lineKeyOf, lineText, useLineRules, usePhoneLines } from './lines';
@@ -45,6 +49,7 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [status, setStatus] = useState<PhoneStatus | null>(null);
+  const [json, setJson] = useState(false);
 
   const reload = useCallback(async (opened: PhoneCtx) => {
     forgetContacts();
@@ -159,7 +164,9 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
   };
 
   return (
+    <>
     <ContactList contacts={contacts} native={native} status={status} busy={busy}
+      onJson={() => setJson(true)}
       onImportPhone={() => void importPhone()}
       onMovePhone={() => void movePhone()}
       onSyncPhone={() => void syncPhone()}
@@ -172,6 +179,33 @@ export function ContactsApp({ who, trail }: { who: Who; trail: readonly string[]
         return `Z pliku: nowych ${result.added}, uzupełnionych ${result.updated}, bez zmian ${result.unchanged}.`;
       })}
     />
+    {json && (
+      <Modal title="Kontakty — import i eksport (JSON)" wide onClose={() => setJson(false)}>
+        <JsonPanel
+          summary="Kontakty jako JSON"
+          lead={<>Ten sam spis co w vCard, do poprawek ręcznych i przez AI: kontakt z „id” jest zmieniany w miejscu, bez „id” — uzupełniany albo dodawany. Niczego nie usuwa.</>}
+          fileName={`kontakty-${new Date().toISOString().slice(0, 10)}.json`}
+          exportDoc={() => exportContactsJson(contacts)}
+          format={CONTACTS_JSON}
+          open
+          preview={(doc) => {
+            const plan = planContactsJson(doc, contacts);
+            return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
+          }}
+          importLabel="Importuj do kontaktów"
+          onImport={async (doc, stage) => {
+            const plan = planContactsJson(doc, contacts);
+            if ('error' in plan) throw new WorkspaceError(plan.error);
+            stage('Zapisywanie kontaktów…');
+            const { failed } = await saveContactsMany(ctx, plan.work, (done) => stage(`Zapisywanie kontaktów… ${done}/${plan.work.length}`));
+            await reload(ctx);
+            toPhoneSoon(ctx);
+            return { lines: plan.lines, warnings: failed > 0 ? [...plan.warnings, `Nie udało się zapisać ${failed}.`] : plan.warnings };
+          }}
+        />
+      </Modal>
+    )}
+    </>
   );
 }
 
@@ -179,11 +213,12 @@ export default ContactsApp;
 
 /* -- Die Liste ------------------------------------------------------------------------------- */
 
-function ContactList({ contacts, native, status, busy, onImportPhone, onMovePhone, onSyncPhone, onImportCards }: {
+function ContactList({ contacts, native, status, busy, onJson, onImportPhone, onMovePhone, onSyncPhone, onImportCards }: {
   contacts: readonly Contact[];
   native: boolean;
   status: PhoneStatus | null;
   busy: string | null;
+  onJson: () => void;
   onImportPhone: () => void;
   onMovePhone: () => void;
   onSyncPhone: () => void;
@@ -223,7 +258,8 @@ function ContactList({ contacts, native, status, busy, onImportPhone, onMovePhon
             native && { label: 'Przenieś z telefonu do recreatio…', icon: 'upload', onSelect: onMovePhone },
             native && { label: 'Zapisz w telefonie teraz', icon: 'phone', onSelect: onSyncPhone },
             { label: 'Wczytaj vCard (.vcf)', icon: 'upload', onSelect: () => file.current?.click() },
-            { label: shown.length === contacts.length ? 'Zapisz wszystkie jako vCard' : `Zapisz widoczne (${shown.length}) jako vCard`, icon: 'download', onSelect: exportCards }
+            { label: shown.length === contacts.length ? 'Zapisz wszystkie jako vCard' : `Zapisz widoczne (${shown.length}) jako vCard`, icon: 'download', onSelect: exportCards },
+            { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: onJson }
           ]} />
         </>
       )} />

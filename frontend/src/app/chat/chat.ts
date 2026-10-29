@@ -197,9 +197,11 @@ export const loadChat = async (chatId: string): Promise<ChatDetail> =>
   openChatNames(await call<ChatDetail>(`/workspace/chat/${encodeURIComponent(chatId)}`));
 
 export const loadMessages = (
-  chatId: string, page: { before?: string; after?: string; changed?: string; beforeId?: string; afterId?: string } = {}
+  chatId: string, page: { before?: string; after?: string; changed?: string; beforeId?: string; afterId?: string; limit?: number } = {}
 ): Promise<{ messages: readonly SealedMessage[]; asOf?: string }> => {
   const q = new URLSearchParams();
+  /* 2026-10-29 — der Export einer Rozmowa (`ChatJsonDialog`) holt grössere Seiten (der Dienst nimmt bis 200). */
+  if (page.limit !== undefined) q.set('limit', String(page.limit));
   if (page.beforeId !== undefined) q.set('beforeId', page.beforeId);
   if (page.afterId !== undefined) q.set('afterId', page.afterId);
   if (page.before !== undefined) q.set('before', page.before);
@@ -311,6 +313,12 @@ export interface MessageExtras {
    * lesen: sie sehen „Anna Nowak (Rada)".
    */
   via?: string | null;
+  /**
+   * 2026-10-29 — AUS EINEM JSON-IMPORT (`chatJson.ts`): in der Hülle, damit
+   * JEDER Leser sieht, dass die Worte nicht von Hand in diesem Augenblick
+   * getippt wurden — der Verlauf zeigt „Z importu".
+   */
+  imported?: boolean;
 }
 export interface SendOptions extends MessageExtras {
   sendAt?: string;
@@ -333,7 +341,9 @@ export interface Opened extends MessageExtras {
 
 const encodeBody = (text: string, name: string | null, extras: MessageExtras = {}) => JSON.stringify({
   text, name, via: extras.via ?? undefined,
-  forwarded: extras.forwarded, attachments: extras.attachments, replyTo: extras.replyTo, replyText: extras.replyText
+  forwarded: extras.forwarded, attachments: extras.attachments, replyTo: extras.replyTo, replyText: extras.replyText,
+  /* 2026-10-29 — nur wenn wahr: jede andere Hülle bleibt Byte für Byte, wie sie war. */
+  imported: extras.imported === true ? true : undefined
 });
 
 function decodeBody(plain: string): Opened {
@@ -347,7 +357,8 @@ function decodeBody(plain: string): Opened {
       ).slice(0, 8) : [];
       return { attachments, forwarded: found.forwarded === true, replyTo: typeof found.replyTo === 'string' ? found.replyTo : undefined,
         replyText: typeof found.replyText === 'string' ? found.replyText.slice(0, 500) : undefined, text: found.text, name: typeof found.name === 'string' && found.name.trim() !== '' ? found.name : null,
-        via: typeof found.via === 'string' && found.via.trim() !== '' ? found.via.trim().slice(0, 200) : null };
+        via: typeof found.via === 'string' && found.via.trim() !== '' ? found.via.trim().slice(0, 200) : null,
+        ...(found.imported === true ? { imported: true } : {}) };
     }
   } catch {
     // Kein Umschlag — dann ist es der Text selbst.

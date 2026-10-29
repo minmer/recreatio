@@ -16,7 +16,7 @@ import { DayChip, flashRow, SEEK_PAGES } from '../chat/DayJump';
 import { useRemembered } from '../core/prefs';
 import { Modal } from '../ui/Modal';
 import type { Line } from './native';
-import { lineName, lineText, whyText, type LineChoice } from './lines';
+import { lineName, lineText, whyIcon, whyText, type LineChoice } from './lines';
 import { copyReadable, MessageReader, usePress, type Readable } from './reading';
 import { Linked } from './smsShared';
 
@@ -124,13 +124,13 @@ export function LineChip({ lines, choice, onChoose }: {
   return (
     <>
       <button type="button" className="ch-chip ph-line-chip" aria-haspopup="menu" aria-expanded={menu.open !== null}
-        title={`Wysyłasz z numeru: ${lineText(current)} — ${whyText(choice)}`}
+        title={`Wysyłasz z numeru: ${lineText(current)} — ${whyText(choice)}`} data-why={choice.why}
         onClick={(e) => { e.stopPropagation(); menu.toggle(e.currentTarget); }}>
-        <Icon name="phone" />{lineName(current)}<Icon name="down" />
+        <Icon name={whyIcon(choice.why)} />{lineName(current)}<Icon name="down" />
       </button>
       {menu.open !== null && (
         <PopMenu anchor={{ rect: menu.open.rect }} from={menu.open.from} label="Z którego numeru" items={items} onClose={menu.close}>
-          <p className="ch-pop-head">Wysyłaj z numeru · {whyText(choice)}</p>
+          <p className="ch-pop-head ph-why-head"><Icon name={whyIcon(choice.why)} />Wysyłaj z numeru · {whyText(choice)}</p>
         </PopMenu>
       )}
     </>

@@ -121,8 +121,7 @@ final class Reminders {
     private static NotificationCompat.Builder builder(Context context, JSONObject one, String text, boolean withDone) {
         String tag = one.optString("tag");
         String title = one.optString("title", "Zadanie");
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, Notices.CHANNEL_TASKS)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        NotificationCompat.Builder builder = Notices.builder(context, Notices.CHANNEL_TASKS)
                 .setContentTitle(title)
                 .setContentText(text)
                 .setContentIntent(Notices.openIntent(context, one.optString("open"), Notices.numberOf("open:" + tag)))
@@ -130,8 +129,7 @@ final class Reminders {
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-                .setPublicVersion(new NotificationCompat.Builder(context, Notices.CHANNEL_TASKS)
-                        .setSmallIcon(R.drawable.ic_stat_recreatio)
+                .setPublicVersion(Notices.builder(context, Notices.CHANNEL_TASKS)
                         .setContentTitle("REcreatio")
                         .setContentText("Przypomnienie o zadaniu")
                         .build());

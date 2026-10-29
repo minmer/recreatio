@@ -21,20 +21,14 @@ import { bindDomain, declareAlias, takers, type Desk } from '../workspace/desk';
 import { roleLabel, useRoleNames } from '../roles/roleNames';
 import { PATH_SHAPE, pagePath } from '../routes';
 import { WorkspaceError, type Who } from '../core/session';
-
-/**
- * Wohin eine eigene Domain zeigen muss.
- *
- * Abgelesen von recreatio.pl selbst, nicht aus dem Gedächtnis zitiert: es sind
- * die Adressen von GitHub Pages, und dort liegt diese Oberfläche. Ändert sich
- * das Hosting, ändern sich diese Zeilen — sie stehen deshalb an EINER Stelle.
+import { JsonPanel } from '../ui/JsonPanel';
+/*
+ * Wohin eine eigene Domain zeigen muss (die Adressen von GitHub Pages) und wie ein Name aussieht — seit
+ * 2026-10-29 in `addressesJson.ts`, damit Ansicht, Plan des Imports und Beschreibung dieselben Zeilen sagen.
  */
-const PAGES_A = ['185.199.108.153', '185.199.109.153', '185.199.110.153', '185.199.111.153'];
-const PAGES_AAAA = ['2606:50c0:8000::153', '2606:50c0:8001::153', '2606:50c0:8002::153', '2606:50c0:8003::153'];
-const PAGES_CNAME = 'minmer.github.io';
-
-/** Klein, mit Punkt, ohne Schema und ohne Pfad — wie `Slug.IsHostName` im Dienst. */
-const HOST_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*(?:\.[a-z0-9]+(?:-[a-z0-9]+)*)+$/;
+import {
+  ADDRESSES_JSON, applyAddresses, exportAddresses, HOST_SHAPE, PAGES_A, PAGES_AAAA, PAGES_CNAME, planAddresses, type AddressState
+} from './addressesJson';
 
 export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onChanged: () => void }) {
   const names = useRoleNames(who);
@@ -98,7 +92,48 @@ export function Addresses({ desk, who, onChanged }: { desk: Desk; who: Who; onCh
       <DomainForm roots={roots} onDone={onChanged} />
 
       <OutsideThePlatform />
+
+      <AddressesJson desk={desk} names={names} onDone={onChanged} />
     </>
+  );
+}
+
+/* -- 2026-10-29: alles als JSON — zur Kopie und für einen Assistenten -------- */
+
+/**
+ * Dieselben zwei Handgriffe wie die Formulare oben (`declareAlias`,
+ * `bindDomain`), nur viele auf einmal — mit dem Plan vor dem Knopf. Was
+ * ausserhalb der Plattform bleibt, sagt der Plan je neuer Domain mit.
+ */
+function AddressesJson({ desk, names, onDone }: { desk: Desk; names: ReadonlyMap<string, string>; onDone: () => void }) {
+  const state: AddressState = {
+    pages: desk.pages,
+    roles: takers(desk.roles).map((role) => ({ id: role.id, name: roleLabel(role, names) }))
+  };
+
+  return (
+    <section aria-labelledby="addresses-json-h">
+      <h2 className="wk-h2" id="addresses-json-h">Import i eksport (JSON)</h2>
+      <JsonPanel
+        summary="Adresy i domeny jako JSON"
+        lead={<>Aliasy i własne domeny — do kopii albo do przygotowania przez AI. Import zakłada nowe aliasy oraz podpina, zamienia albo (przy <code>&quot;host&quot;: null</code>) odpina domeny; istniejących aliasów nie zmienia ani nie usuwa. Plan mówi też, co zostaje do zrobienia poza platformą.</>}
+        fileName="adresy-i-domeny.json"
+        exportDoc={() => exportAddresses(state)}
+        format={ADDRESSES_JSON}
+        preview={(doc) => {
+          const plan = planAddresses(doc, state);
+          return 'error' in plan ? plan : { lines: plan.lines, warnings: plan.warnings };
+        }}
+        importLabel="Importuj adresy i domeny"
+        onImport={async (doc, stage) => {
+          const plan = planAddresses(doc, state);
+          if ('error' in plan) throw new WorkspaceError(plan.error);
+          const done = await applyAddresses(plan, { declareAlias, bindDomain }, stage);
+          onDone();
+          return { lines: done.lines, warnings: [...plan.warnings, ...done.warnings] };
+        }}
+      />
+    </section>
   );
 }
 

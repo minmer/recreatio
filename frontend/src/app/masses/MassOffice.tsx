@@ -43,9 +43,12 @@
  * <b>Gespeichert wird sofort, nicht „am Schluss".</b> Ein Formular, das zwanzig
  * Intentionen sammelt und zusammen schickt, verliert alle, wenn bei der
  * achtzehnten die Verbindung abreisst.
+ *
+ * <b>2026-10-29 — „Więcej" → „Import i eksport (JSON)"</b> (`MassesJsonPanel`):
+ * ein Monat der Księga intencji auf einmal, mit Plan vor dem Speichern.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 import { loadAgenda, openAgenda, restoreOne } from '../calendar/agenda';
 import { loadCalendars, type CalendarRow } from '../calendar/calendar';
@@ -62,6 +65,8 @@ import { WorkspaceError, type Who } from '../core/session';
 import { useRecent } from '../core/prefs';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
+import { MenuButton } from '../ui/Menu';
+import { Modal } from '../ui/Modal';
 import { WINDOW_DAYS, keyOf, todayKey } from './officeDays';
 import { NewCalendar, ServiceForm } from './ServiceForm';
 import { MassEntry } from './IntentionEntry';
@@ -75,6 +80,9 @@ type OfficeTab = 'intentions' | 'plan' | 'new' | 'terms' | 'print';
 
 /* Welcher Reiter zuletzt offen war — solange die Seite lebt. */
 let lastTab: OfficeTab = 'intentions';
+
+/* 2026-10-29 — das JSON erst, wenn jemand es öffnet: die Kanzlei lädt sonst Beschreibung und Planer bei jedem Besuch mit. */
+const MassesJsonPanel = lazy(() => import('./MassesJsonPanel'));
 
 /**
  * @param trail 0079 — `#/workspace/masses/<kalendarz>/<dzień>/<msza>`: gleich
@@ -110,6 +118,8 @@ export function MassOffice({ who, trail = [], heading = false }: {
 
   /* Der Termin-Dialog des Kalenders, wenn eine Messe geändert wird. */
   const [editing, setEditing] = useState<CalEvent | null>(null);
+  /* 2026-10-29 — „Import i eksport (JSON)" offen. */
+  const [json, setJson] = useState(false);
   const [allCalendars, setAllCalendars] = useState<readonly CalendarRow[]>([]);
 
   /* Einmal zur Messe aus der Adresse gesprungen — danach bewegt man sich selbst. */
@@ -330,6 +340,10 @@ export function MassOffice({ who, trail = [], heading = false }: {
         )}
 
         <a className="wk-link-btn" href={viewPath('calendar', shownDay)}>Ten dzień w kalendarzu</a>
+
+        <MenuButton label="Więcej: msze i intencje" text="Więcej" items={[
+          { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJson(true) }
+        ]} />
       </div>
 
       <div className="wk-tabs" role="tablist">
@@ -409,6 +423,17 @@ export function MassOffice({ who, trail = [], heading = false }: {
           onClose={() => setEditing(null)}
           onSaved={() => { setDone('Zapisano zmiany.'); void load(); }}
         />
+      )}
+
+      {json && (
+        <Modal title="Msze i intencje — import i eksport (JSON)" wide onClose={() => setJson(false)}>
+          <Suspense fallback={<Loading />}>
+            <MassesJsonPanel
+              me={me ?? null} calendars={calendars} areas={areas} chosen={chosen} day={shownDay}
+              onChanged={() => void load()}
+            />
+          </Suspense>
+        </Modal>
       )}
     </>
   );

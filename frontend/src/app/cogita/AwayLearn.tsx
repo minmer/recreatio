@@ -13,7 +13,7 @@
  * Ablage. Was ohne Netz beantwortet wird, kommt auch in die Abschrift, damit die nächste Runde damit rechnet.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { awayAccounts, awayKeyOf, awayNow, endAway, onAway, signInAway, type AwayAccount } from '../core/away';
 import { fromBase64Url } from '../core/crypto';
@@ -227,7 +227,18 @@ function AwayCopies({ by, who }: { by: CopyKey; who: Who | null }) {
 function AwayRun({ by, me, chosen }: { by: CopyKey; me: Me | null; chosen: string }) {
   /* Abschrift UND Lernender zusammen: begänne der Lauf vor dem Lernenden, rechnete er ohne die Geschichte (die Sperre hielte alles zurück). */
   const [ready, setReady] = useState<{ copy: OfflineRevision | null; learner: Learner | null } | undefined>(undefined);
+  /*
+   * Der Lauf hängt am Konto, an der Person und an der Abschrift — nicht an den Objekten: kommt das Netz zurück, prüft
+   * die App die Sitzung neu, und `me`/`by` sind neue Objekte derselben Sache. Mitten im Lauf finge er sonst neu an.
+   */
+  const byNow = useRef(by);
+  byNow.current = by;
+  const meNow = useRef(me);
+  meNow.current = me;
+  const person = me?.person.id ?? '';
   useEffect(() => {
+    const by = byNow.current;
+    const me = meNow.current;
     let alive = true;
     let made: Learner | null = null;
     let off = () => undefined as void;
@@ -276,7 +287,8 @@ function AwayRun({ by, me, chosen }: { by: CopyKey; me: Me | null; chosen: strin
         void openOffline(by, libraryId ?? '', revisionId ?? '').then((copy) => (copy === null ? false : keepAnswers(by, copy, [...was.progress.answers.values()]))).catch(() => undefined);
       }
     };
-  }, [by, me, chosen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- das Konto, die Person, die Abschrift (oben)
+  }, [by.accountId, person, chosen]);
   /* Mit der Sperre „Najpierw podstawy" der Abschrift (vorher fiel sie ohne Netz weg). */
   const copy = ready?.copy ?? null;
   const source = useMemo(() => (copy === null ? null : offlineSource(copy)), [copy]);

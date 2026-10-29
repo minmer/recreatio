@@ -41,6 +41,12 @@ import {
 import { DUE } from '../core/urgency';
 import { groupName } from '../areas/WhoSees';
 import { Loading } from '../ui/Loading';
+import { later } from '../ui/later';
+import { MenuButton } from '../ui/Menu';
+import { Modal } from '../ui/Modal';
+
+/* 2026-10-29 — das JSON der Zadania (Fach, Plan, Beschreibung) lädt erst, wenn es geöffnet wird. */
+const TasksJson = later(() => import('./TasksJsonPanel').then((m) => m.TasksJson));
 
 export function TasksView({ who }: { who: Who }) {
   const me = useMe(who);
@@ -78,6 +84,7 @@ function Tasks({ me }: { me: Me }) {
   const [dialog, setDialog] = useState<{ task: OpenTask | null } | null>(null);
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
+  const [json, setJson] = useState(false);
 
   const today = startOfDay(now).getTime();
 
@@ -195,6 +202,10 @@ function Tasks({ me }: { me: Me }) {
     <div className="wk-tasks">
       <div className="wk-actions">
         <button type="button" className="wk-btn" onClick={() => setDialog({ task: null })}>+ Nowe zadanie</button>
+        {/* 2026-10-29 — was selten gebraucht wird, steht hinter „⋯": die Zadania als JSON (Export, Import, Beschreibung). */}
+        <MenuButton label="Więcej: Zadania" items={[
+          { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJson(true) }
+        ]} />
       </div>
 
       {failed !== null && <p className="wk-error">{failed}</p>}
@@ -267,6 +278,12 @@ function Tasks({ me }: { me: Me }) {
 
       {dialog !== null && (
         <TaskDialog me={me} areas={areas} task={dialog.task} onClose={() => setDialog(null)} onSaved={reload} />
+      )}
+
+      {json && (
+        <Modal title="Zadania — import i eksport (JSON)" onClose={() => setJson(false)} wide>
+          <TasksJson me={me} areas={areas} tasks={tasks} onChanged={reload} />
+        </Modal>
       )}
     </div>
   );

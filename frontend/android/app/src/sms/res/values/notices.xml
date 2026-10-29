@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Die Farbe der SMS-Meldungen (2026-10-29): Blau neben dem Braun der App (notice_app) — auf einen Blick zu unterscheiden.
+         Eine Farbe für hell und dunkel: Android passt den Kontrast selbst an. -->
+    <color name="notice_sms">#2E6DA4</color>
+</resources>

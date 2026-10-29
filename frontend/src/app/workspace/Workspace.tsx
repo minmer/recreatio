@@ -159,7 +159,7 @@ export function Workspace({ spot, who }: { spot: Spot; who: Who }) {
 }
 
 /** Ansichten, die ihren Titel selbst tragen. */
-const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'scriptorium', 'knowledge', 'learn', 'forms', 'areas', 'sms', 'contacts', 'lamps']);
+const OWN_TITLE: ReadonlySet<View> = new Set<View>(['chat', 'widok', 'library', 'scriptorium', 'knowledge', 'learn', 'forms', 'areas', 'sms', 'contacts', 'lamps', 'roles', 'bookings']);
 
 /** Unter welchem Namen eine Ansicht steht — Zadania unter Kalendarz. */
 const TITLE_OF: Partial<Record<View, View>> = { tasks: 'calendar' };

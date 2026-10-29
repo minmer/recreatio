@@ -26,6 +26,7 @@ import { knownDevice } from '../core/kept';
 import type { Ring, SealedRole } from '../core/keys';
 import { Modal } from '../ui/Modal';
 import { PersonCard } from './PersonCard';
+import { PersonsJsonPanel } from './PersonsJsonPanel';
 import { TRANSFER, TransferPage } from './TransferPage';
 import { forget as forgetState } from '../core/prefs';
 import { keysFor } from '../core/ringOf';
@@ -176,12 +177,18 @@ function AccountPage({ who }: { who: Who }) {
 
   const { mode, devices } = keeping;
 
+  /* 2026-10-29 — nach einem JSON-Import liest „Moje dane" neu (eigener Stand in `PersonCard`). */
+  const [imported, setImported] = useState(0);
+
   return (
     <div className="wk-narrow ui-page wk-account">
       {ring === null && <Loading lines={3} />}
 
       {ring !== null && person !== null && (
-        <PersonCard roleId={person.id} ring={ring} />
+        <>
+          <PersonCard key={imported} roleId={person.id} ring={ring} />
+          <PersonsJsonPanel who={who} onImported={() => setImported((n) => n + 1)} />
+        </>
       )}
 
       {ring !== null && person === null && (

@@ -31,6 +31,12 @@ import { WorkspaceError } from '../core/session';
 import { AreaPick } from '../areas/AreaPick';
 import { useTouched } from '../workspace/Recent';
 import { Loading } from '../ui/Loading';
+import { later } from '../ui/later';
+import { MenuButton } from '../ui/Menu';
+import { PageHeader } from '../ui/PageHeader';
+
+/* 2026-10-29 — das JSON-Fach kommt erst, wenn man es öffnet (Beschreibung und Plan sind nicht klein). */
+const BookingsJsonDialog = later(() => import('./BookingsJsonDialog').then((m) => m.BookingsJsonDialog));
 
 const NEW = 'new';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -53,6 +59,7 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
   const [calendars, setCalendars] = useState<readonly CalendarRow[]>([]);
   const [failed, setFailed] = useState<string | null>(null);
+  const [jsonOpen, setJsonOpen] = useState(false);
 
   const view = viewOf(trail);
 
@@ -87,7 +94,16 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
 
   useCrumbs(crumbs);
 
-  if (rows === null) return <Loading label="Wczytywanie…" />;
+  /* 2026-10-29 — die Liste trägt ihren Kopf selbst: rechts „Więcej" mit dem JSON aller Dinge. */
+  const listHead = (
+    <PageHeader title="Rezerwacje" actions={rows === null ? undefined : (
+      <MenuButton label="Więcej: Rezerwacje" items={[
+        { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJsonOpen(true) }
+      ]} />
+    )} />
+  );
+
+  if (rows === null) return <>{view.at === 'list' && listHead}<Loading label="Wczytywanie…" /></>;
 
   const head = failed !== null ? <p className="wk-error">{failed}</p> : null;
 
@@ -134,6 +150,7 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
 
   return (
     <>
+      {listHead}
       {head}
 
       <ul className="wk-tree">
@@ -168,6 +185,8 @@ export function Reservations({ trail }: { trail: readonly string[] }) {
           Zasób to coś, co ktoś może zająć na czas — czas księdza, salę, dom.
         </p>
       )}
+
+      {jsonOpen && <BookingsJsonDialog only={null} onClose={() => setJsonOpen(false)} onImported={() => void look()} />}
     </>
   );
 }
@@ -184,6 +203,7 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
   const [claims, setClaims] = useState<readonly OfficeClaim[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [jsonOpen, setJsonOpen] = useState(false);
 
   const look = useCallback(async () => {
     try { setClaims((await loadClaims(row.resourceId)).claims); }
@@ -212,7 +232,12 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
 
   return (
     <>
-      <h1 className="wk-h1">{row.name}</h1>
+      {/* 2026-10-29 — rechts „Więcej": dieses Ding als JSON, mit seinen Terminen und Reservierungen. */}
+      <PageHeader title={row.name} actions={(
+        <MenuButton label={`Więcej: ${row.name}`} items={[
+          { label: 'Import i eksport (JSON)', icon: 'braces', onSelect: () => setJsonOpen(true) }
+        ]} />
+      )} />
 
       <dl className="wk-facts">
         <div className="wk-fact"><dt>Rodzaj</dt><dd>{KIND_LABEL[row.kind]}</dd></div>
@@ -299,6 +324,8 @@ function ResourcePage({ row, all, areas, calendars, onChanged }: {
         <summary>Zasady</summary>
         <Editor was={row} all={all} areas={areas} calendars={calendars} onSaved={onChanged} />
       </details>
+
+      {jsonOpen && <BookingsJsonDialog only={row} onClose={() => setJsonOpen(false)} onImported={() => { void look(); onChanged(); }} />}
     </>
   );
 }

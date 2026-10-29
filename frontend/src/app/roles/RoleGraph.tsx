@@ -25,10 +25,18 @@ import type { Ring, SealedRole } from '../core/keys';
 import { addHolder, EDGE_KINDS, type EdgeKind, type RoleEdge, type RoleGraphData } from './roles';
 import { forgetKeys, keysFor } from '../core/ringOf';
 import { WorkspaceError, type Who } from '../core/session';
+import { VIEWS } from '../routes';
 import { Unlock } from '../shell/Unlock';
+import { later } from '../ui/later';
 import { Loading } from '../ui/Loading';
+import { MenuButton } from '../ui/Menu';
+import { Modal } from '../ui/Modal';
+import { PageHeader } from '../ui/PageHeader';
 import { DOTS, NODE_TYPES, type NodeData } from './RoleNode';
 import { AccountPanel, Panel } from './RolePanels';
+
+/* 2026-10-29 — die Rollen als JSON (`rolesJson.ts`): erst geladen, wenn der Dialog aufgeht. */
+const RolesJsonPanel = later(() => import('./RolesJsonPanel').then((m) => m.RolesJsonPanel));
 
 /**
  * Wohin jemand die Knoten geschoben hat — je Konto, in DIESEM Browser.
@@ -128,6 +136,8 @@ export function RoleGraph({ who }: { who: Who }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  /* 2026-10-29 — „Więcej → Import i eksport (JSON)": der Dialog mit dem JSON-Fach der Rollen. */
+  const [json, setJson] = useState(false);
 
   const look = useCallback(async () => {
     try {
@@ -258,11 +268,28 @@ export function RoleGraph({ who }: { who: Who }) {
   const onDropped = useCallback(
     () => keepSpots(who.accountId, nodes), [who.accountId, nodes]);
 
-  if (data === undefined) return <Loading label="Wczytywanie…" />;
+  /*
+   * 2026-10-29 — DER KOPF STEHT HIER, nicht im Arbeitsplatz (`OWN_TITLE` in `Workspace.tsx`): rechts das „⋯"
+   * mit dem JSON der Rollen. Ohne Bund (kein Passwort in diesem Tab) bleibt der Eintrag grau — die Namen
+   * gingen nicht auf, und ein Export ohne Namen wäre keiner.
+   */
+  const head = (
+    <PageHeader
+      title={VIEWS.roles}
+      actions={(
+        <MenuButton label="Więcej: Role" items={[
+          { label: 'Import i eksport (JSON)', icon: 'braces', disabled: ring === null || data == null, onSelect: () => setJson(true) }
+        ]} />
+      )}
+    />
+  );
+
+  if (data === undefined) return <>{head}<Loading label="Wczytywanie…" /></>;
 
   if (data === null) {
     return (
       <>
+        {head}
         <p className="wk-error">{failed}</p>
         <p><button type="button" className="wk-btn" onClick={() => void look()}>Spróbuj ponownie</button></p>
       </>
@@ -312,6 +339,7 @@ export function RoleGraph({ who }: { who: Who }) {
 
   return (
     <>
+      {head}
       <p className="wk-lede">
         Na górze jest konto — trzyma tylko osoby. Pod osobami wiszą role:
         to, na co można przepisać odpowiedzialność. Człowiek odchodzi, urząd
@@ -409,6 +437,18 @@ export function RoleGraph({ who }: { who: Who }) {
           )}
         </aside>
       </div>
+
+      {json && ring !== null && (
+        <Modal title="Role — import i eksport (JSON)" wide onClose={() => setJson(false)}>
+          <RolesJsonPanel
+            ring={ring}
+            graph={data}
+            names={names}
+            /* Wie nach jeder Änderung hier (`act`): der zwischengespeicherte Bund kennt neue Rollen sonst nicht. */
+            onImported={async () => { forgetKeys(); await look(); }}
+          />
+        </Modal>
+      )}
     </>
   );
 }

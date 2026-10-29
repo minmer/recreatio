@@ -65,8 +65,7 @@ public class NotifyWorker extends Worker {
 
         boolean chat = loud > seenLoud;
         Notices.ensureChannels(context);
-        Notices.post(context, Notices.COUNTS_ID, new NotificationCompat.Builder(context, chat ? Notices.CHANNEL_CHAT : Notices.CHANNEL_NEWS)
-                .setSmallIcon(R.drawable.ic_stat_recreatio)
+        Notices.post(context, Notices.COUNTS_ID, Notices.builder(context, chat ? Notices.CHANNEL_CHAT : Notices.CHANNEL_NEWS)
                 .setContentTitle("recreatio")
                 .setContentText(String.join(" · ", lines))
                 .setAutoCancel(true)

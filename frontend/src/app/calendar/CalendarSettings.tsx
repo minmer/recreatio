@@ -29,6 +29,8 @@ import { PRIVATE, writableGroups } from '../areas/WhoSees';
 import { askText } from '../ui/dialogs';
 /* 0132 — erst, wenn die Einstellungen eines bestehenden Kalenders offen sind: die Vorlagen sind gross. */
 const CalendarDocsSection = lazy(() => import('./CalendarDocsSection'));
+/* 2026-10-29 — die Termine als JSON, neben Schematen und Plänen; ebenso erst, wenn sie gebraucht werden. */
+const CalendarJsonSection = lazy(() => import('./CalendarJsonSection'));
 
 const KINDS: readonly CalendarKind[] = ['appointment', 'mass', 'confession', 'devotion', 'visit'];
 const DURATIONS: readonly number[] = [15, 20, 30, 40, 45, 60, 90, 120, 180, 240];
@@ -235,6 +237,11 @@ export function CalendarSettings({ me, areas, calendar, calendars = [], onClose,
       {/* 0132 — was die Termine dieses Kalenders sind (Schematy) und wie sie für Wochen entstehen (Plany). */}
       {calendar !== null && calendar.mayWrite === true && (
         <Suspense fallback={null}><CalendarDocsSection me={me} areas={areas} calendar={calendar} calendars={calendars.length > 0 ? calendars : [calendar]}
+          onChanged={() => onSaved(calendar.calendarId)} /></Suspense>
+      )}
+      {/* 2026-10-29 — die Termine dieses Kalenders als JSON: Export eines Zeitraums, Import an Ort und Stelle. */}
+      {calendar !== null && calendar.mayWrite === true && (
+        <Suspense fallback={null}><CalendarJsonSection me={me} areas={areas} calendar={calendar} writer
           onChanged={() => onSaved(calendar.calendarId)} /></Suspense>
       )}
     </Modal>

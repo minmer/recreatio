@@ -13,6 +13,7 @@ import { useRemembered } from '../core/prefs';
 import { WorkspaceError } from '../core/session';
 import { nameOf } from '../roles/RolePicker';
 import { viewPath } from '../routes';
+import { later } from '../ui/later';
 import { Modal } from '../ui/Modal';
 import { CHATS_CHANGED, type ChatDetail, type Opened, type SealedMessage, type SealedVersion, type SendOptions, areaKeys, authorOf, chatKeysOf, deleteMessage, deliverSeatKeys, editMessage, fixedPolicy, keyHolderOf, loadChat, loadMessages, loadVersions, markRead, openMessage, openNames, openVersion, removeChat, restoreMessage, sendMessage, setMemberName } from './chat';
 import { authorText, chooseSpeaker, isMine, messageAuthor, speakerKey, speakerText, speakersOf, throughRole } from './chatAuthor';
@@ -28,6 +29,9 @@ import { Composer, type ComposerHandle, type ReplyTarget } from './Composer';
 import { HistoryDialog } from './MessageBits';
 import { SpeakerPick } from './SpeakerPick';
 import { CollectToTopic, LinkedDialog, TopicBar } from './TopicBar';
+
+/* 2026-10-29 — „Rozmowa jako JSON" erst, wenn jemand es öffnet: das Fach zieht den Leser der Seiten nach sich. */
+const ChatJsonDialog = later(() => import('./ChatJsonDialog').then((m) => m.ChatJsonDialog), null);
 
 /* -- Eine Rozmowa -------------------------------------------------------------------- */
 
@@ -73,6 +77,8 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const [linked, setLinked] = useState(false);
   /* 0105 — „Usuń rozmowę": erst fragen. */
   const [removing, setRemoving] = useState(false);
+  /* 2026-10-29 — „Rozmowa jako JSON". */
+  const [json, setJson] = useState(false);
   const [taskFrom, setTaskFrom] = useState<{ message: SealedMessage; opened: Opened } | null>(null);
   const [eventFrom, setEventFrom] = useState<{ message: SealedMessage; opened: Opened; calendars: readonly CalendarRow[] } | null>(null);
   /* 0101 — was gerade in ein Thema zusammengetragen wird (eine Nachricht oder die markierten), und was danach gesagt wird. */
@@ -227,6 +233,8 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const as = speaker?.roleId ?? '';
   /* Schreiben dürfte eine Rolle, aber keine eigene Person hält sie — dann fehlt die Person. */
   const noPerson = chat != null && speakers.length === 0 && chat.writers.some((id) => me.ring.maySign(id));
+  /* 2026-10-29 — eine eigene Person schreibt hier (ein Kanał kann es trotzdem verbieten) — für den Import als JSON. */
+  const writes = speaker !== null && extras.features?.canWrite !== false;
 
   if (chat === undefined) return <p className="ch-empty">Wczytywanie…</p>;
   if (chat === null) {
@@ -263,11 +271,12 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
    * sonst wie die Kanzlei ihn am Platz führt. Die eigenen: „Ty" — mit Namen,
    * wenn ich hier als mehr als eine Rolle schreibe.
    */
+  const authorOfMessage = (message: SealedMessage, opened: Opened | null) => messageAuthor(message, opened, {
+    name: (id) => names.get(id) ?? me.names.get(id) ?? (message.authorPersonId == null && id === message.authorRoleId && opened?.name == null ? nameOf(id, kindOf(id), names, me.names) : null),
+    seat: (seatId) => chat.seats.find((one) => one.seatId === seatId)
+  });
   const authorName = (message: SealedMessage, opened: Opened | null) => {
-    const author = messageAuthor(message, opened, {
-      name: (id) => names.get(id) ?? me.names.get(id) ?? (message.authorPersonId == null && id === message.authorRoleId && opened?.name == null ? nameOf(id, kindOf(id), names, me.names) : null),
-      seat: (seatId) => chat.seats.find((one) => one.seatId === seatId)
-    });
+    const author = authorOfMessage(message, opened);
     /*
      * Die eigenen: „Ty" — mit der Rolle, wenn durch sie geschrieben; mit dem
      * Namen, wenn hier mehr als eine eigene Person spricht (die eines Kindes).
@@ -361,6 +370,8 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
   const menu: MenuItem[] = [
     ...chrome.items,
     { label: 'Zadania i terminy z rozmowy', icon: 'check' as const, onSelect: () => setLinked(true) },
+    /* 2026-10-29 — die Rozmowa als JSON: Export für jeden Leser; Import (`chatJson.ts`) für wer schreibt oder moderiert. */
+    { label: 'Rozmowa jako JSON', icon: 'braces' as const, onSelect: () => setJson(true) },
     ...(self ? [] : [{ label: `Uczestnicy i ustawienia`, icon: 'users' as const, onSelect: () => setSettings(true) }]),
     { label: self ? 'Mój prywatny obszar' : 'Obszar tej rozmowy', icon: 'area', onSelect: () => { window.location.hash = viewPath('areas', chat.areaId); } },
     /* 0105 — wer den Bereich führt (zu zweit: jeder der beiden) löscht die Rozmowa für alle. */
@@ -447,6 +458,38 @@ export function ChatRoom({ me, chatId }: { me: Me; chatId: string }) {
       {forward !== null && <ForwardDialog endpoint={endpoint} opened={forward} ring={me.ring} onClose={() => setForward(null)} />}
 
       {linked && <LinkedDialog ring={me.ring} chatId={chat.chatId} topics={topics} onClose={() => setLinked(false)} />}
+      {json && (
+        <ChatJsonDialog
+          chat={chat}
+          title={title}
+          ring={me.ring}
+          talk={talk}
+          topics={topics}
+          features={extras.features}
+          scheduled={chrome.scheduled.list}
+          speaker={speaker}
+          speakerName={speaker === null ? null : speakerText(speaker, known)}
+          personName={speaker === null ? null : known(speaker.personId)}
+          via={speaker !== null && throughRole(speaker) ? known(speaker.roleId) : null}
+          writes={writes}
+          moderates={moderates}
+          author={(message, opened) => authorText(authorOfMessage(message, opened))}
+          mine={mine}
+          mayFile={(message) => moderates || mine(message) || ((chat.kind === 'direct' || self) && writes)}
+          topicBy={(t) => (t.createdByRoleId !== null ? known(t.createdByRoleId)
+            : t.createdBySeatId !== null ? chat.seats.find((one) => one.seatId === t.createdBySeatId)?.name ?? 'osoba z linkiem' : null)}
+          topicMayChange={(t) => moderates || (t.createdByRoleId !== null ? me.ring.has(t.createdByRoleId) : writes)}
+          onImported={(moved) => {
+            if (moved.size > 0) {
+              setShown((was) => (was ?? []).map((w) => (moved.has(w.message.messageId) ? { ...w, message: { ...w.message, topicId: moved.get(w.message.messageId) ?? null } } : w)));
+            }
+            void lookTopics();
+            void extras.refresh().catch(() => undefined);
+            chrome.scheduled.refresh();
+          }}
+          onClose={() => setJson(false)}
+        />
+      )}
       {removing && <RemoveChat chatId={chat.chatId} title={title} kind={chat.kind} seats={chat.seats.length} onClose={() => setRemoving(false)} />}
       {collecting !== null && (
         <CollectToTopic count={collecting.messages.length} topics={topics} canCreate={speakers.length > 0 && !self}

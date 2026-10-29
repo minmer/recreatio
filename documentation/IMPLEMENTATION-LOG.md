@@ -2551,3 +2551,51 @@ kept); all suites pass, Api.Tests 551.
 
 **Owner:** rebuild and deploy the site. Copies kept before this change still run, without the gate and history —
 they are replaced the next time the revision is done online.
+
+## C4 — Sign in without the network; the shell without network with Nauka (2026-10-28)
+
+**Asked:** offline mode must not need an internet login — a login on the device is enough; the app must not sign
+out when offline; add it to the SMS-offline mode.
+
+**Was:** every session check that failed (no network) counted as „nobody signed in”: a cold start offline, or the
+next click after the network went, showed the sign-in form, which cannot work offline — the copies were unreachable.
+
+**Built**
+- `session.ts`: `Unreachable` and `sessionNow` tell „no network / no service” (or 8 s without an answer) from „no
+  session”. `App.tsx`: offline nobody is signed out (a known account stays; the bar shows „Bez internetu” leading
+  to the copies); a cold start offline opens `shell/AloneShell.tsx` (it replaces `phone/SmsAlone.tsx`): SMS in the
+  SMS edition, Nauka bez internetu everywhere; it checks again every 15 s and on `online` („Ponów” too).
+- `core/away.ts` — signing in on the device: in the app (and the dev server, for tests), in the mode `kept`, while it
+  keeps copies, the device holds the account's salt and the envelope of its master key, sealed under the device key
+  (`Field.AwayAccount`). Argon2id of the password opens the envelope or not; the password key stays in the tab, and
+  when the network is back with no session `resumeAway` signs in with it — no second password. Signing out,
+  „Tylko w pamięci” and dropping the last copy remove it.
+- `offline.ts` — copies per account, sealed under HKDF(device key ‖ the account's copy key from its master key):
+  neither the device nor the password alone opens them. A copy carries the learning person (id, public key); it
+  takes in the answers of the online run (at the end / on leaving) and those given offline. `AwayLearn.tsx` —
+  the login, the copies, a run; also Nauka's „bez internetu” with an open or closed key ring.
+- `learn.ts`: an intake that could not be fetched offline is not remembered as missing; `flushWaiting` sends what
+  waits in the outbox as soon as an account is back (`App.tsx`), whether or not a base is open.
+
+**Checks:** `app-cogita-check` 636 (sealing and opening, the password check with Argon2id, the copy key, an offline
+answer readable by the course and the person); browser drive on LocalDB `away-browser.mjs` 20/20 (online copy, cold
+start without the service, wrong and right password, offline answers in the outbox and the copy, back online without
+a password, outbox sent, progress from both rounds, network lost while signed in, sign-out clears the device); all
+suites pass.
+
+**Owner:** the app gets it with the next APK; in the browser only an open tab benefits (no service worker).
+
+## A2 — The JSON import formats over MCP and the AI link (2026-10-28)
+
+**Asked:** include the specification of the JSON imports in the MCP.
+
+**Built:** `frontend/scripts/import-formats.mjs` writes `backend/Api/Library/ImportFormats.json` from the app's own
+descriptions (library, work with text, source text, knowledge base, forms for adding, Scriptorium, page, area,
+calendar scheme and plan, registry), the AI guides and the ready schemes (19 formats; long ones in parts of ≤ 24 000
+characters with contents, JSON templates whole); `app-json-check` fails when it lags behind the app. Embedded in the
+program (`ImportFormats.cs`); MCP tools `list_import_formats`, `get_import_format` (instructions say to read the
+format before preparing an import); over the link `/ai/<link>/formats[/<id>?part=n]`, in the guide and the OpenAPI.
+
+**Checks:** Api.Tests 556; `app-json-check` passes.
+
+**Owner:** deploy the API.

@@ -346,6 +346,10 @@ export interface ResourceRow extends Omit<Rules, 'resourceId'> {
 
   /** Was auf ein Ja der Kanzlei wartet. */
   readonly pending: number;
+
+  /* 0058 — wer reservieren darf (`null`: jeder) und ob jedes Treffen des Kalenders ein Angebot ist; ältere Dienste nennen beides nicht. */
+  readonly reserveAreaId?: string | null;
+  readonly bookableDefault?: boolean;
 }
 
 export const loadResources = (): Promise<{ resources: readonly ResourceRow[] }> =>
@@ -368,6 +372,9 @@ export type ResourceChange = Partial<{
   leadDays: number;
   perPerson: number;
   minPersons: number;
+  /* 2026-10-29 — was der Dienst seit 0058 annimmt (der JSON-Import setzt es): "" heisst „jeder". */
+  reserveAreaId: string;
+  bookableDefault: boolean;
 }>;
 
 export const createResource = (resourceId: string, areaId: string, change: ResourceChange) =>
@@ -424,14 +431,21 @@ export interface ClosedTerm {
   readonly closedBy: 'office' | 'host';
 }
 
-/** Wer was hält — 0097: die Namen kommen versiegelt und werden hier geöffnet. */
-export async function loadClaims(resourceId: string): Promise<{
+/**
+ * Wer was hält — 0097: die Namen kommen versiegelt und werden hier geöffnet. 2026-10-29 — `from`/`to`:
+ * ein anderer Zeitraum als die 120 Tage des Dienstes (der JSON-Export reicht so weit wie die Angebote).
+ */
+export async function loadClaims(resourceId: string, from?: Date, to?: Date): Promise<{
   resource: ResourceRow;
   claims: readonly OfficeClaim[];
   closed?: readonly ClosedTerm[];
 }> {
+  const q = new URLSearchParams();
+  if (from !== undefined) q.set('from', from.toISOString());
+  if (to !== undefined) q.set('to', to.toISOString());
+  const query = q.toString();
   const got = await call<{ resource: ResourceRow; claims: readonly OfficeClaim[]; closed?: readonly ClosedTerm[] }>(
-    `/workspace/resource/${encodeURIComponent(resourceId)}/claims`);
+    `/workspace/resource/${encodeURIComponent(resourceId)}/claims${query === '' ? '' : `?${query}`}`);
   return { ...got, claims: await openHolderNames(got.claims, () => got.resource.areaId) };
 }
 

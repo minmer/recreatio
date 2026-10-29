@@ -111,11 +111,19 @@ export function ruledNumber(o: {
 }
 
 /** Warum diese Karte — für den Kopf des Gesprächs. */
-export const whyText = (c: LineChoice): string =>
+export const whyText = (c: Pick<LineChoice, 'why' | 'group'>): string =>
   c.why === 'thread' ? 'wybrany dla tej rozmowy'
     : c.why === 'group' ? `grupa „${c.group ?? ''}”`
     : c.why === 'last' ? 'stąd przyszła ostatnia wiadomość'
     : 'domyślny numer SMS';
+
+/**
+ * 2026-10-29 — DAS ZEICHEN DAVOR sagt auf einen Blick, warum diese Nummer sendet: selbst
+ * gewählt (Nadel), die Nummer der Gruppe (Menschen), wo zuletzt etwas kam (Uhr mit Pfeil),
+ * die des Telefons (Hörer). Im Kopf des Gesprächs, in der Liste, im Browser, im Blatt.
+ */
+export const whyIcon = (why: LineWhy): 'pin' | 'users' | 'history' | 'phone' =>
+  why === 'thread' ? 'pin' : why === 'group' ? 'users' : why === 'last' ? 'history' : 'phone';
 
 /* -- Woher die Teile kommen ------------------------------------------------------------------------ */
 

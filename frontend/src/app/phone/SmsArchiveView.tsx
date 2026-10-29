@@ -37,7 +37,7 @@ import { PageHeader } from '../ui/PageHeader';
 import { useBarHeight } from '../ui/useBarHeight';
 import { ARCHIVE_PREF, archiveArea, readSettings, saveSettings, type ArchiveSettings } from './archiveSettings';
 import { nameIndex } from './contactStore';
-import { contactsOf, ruledNumber, useContactIndex, useLineRules } from './lines';
+import { contactsOf, ruledNumber, useContactIndex, useLineRules, whyIcon, whyText, type LineWhy } from './lines';
 import { OwnLines } from './LinesView';
 import { Phone, phoneHere, pluginSource, type NativeThread, type PhoneStatus } from './native';
 import { phoneKey, phoneShown, smsParts } from './numbers';
@@ -682,6 +682,9 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
 
   const from = messages !== null && messages.length > 0 ? messages[0].at : conversation.first;
   const ruleText = rule === null ? '' : rule.why === 'thread' ? ' — wybrany dla tej rozmowy' : ` — grupa „${rule.group ?? ''}”`;
+  /* 2026-10-29 — warum diese Nummer: dasselbe Zeichen wie auf dem Telefon (gewählt, Gruppe, zuletzt, sonst die erste bekannte). */
+  const why: LineWhy = rule !== null ? rule.why : conversation.lastLine !== null && conversation.lastLine !== '' && line === conversation.lastLine ? 'last' : 'default';
+  const whyHere = why === 'last' ? 'ostatni numer tej rozmowy' : why === 'default' ? 'domyślny numer' : whyText({ why, group: rule?.group ?? null });
   const lineItems: MenuItem[] = [
     ...options.map((l) => ({
       label: `${phoneShown(l)}${l === rule?.number ? ruleText : l === conversation.lastLine ? ' — ta rozmowa' : ''}`,
@@ -695,12 +698,15 @@ function ArchiveConversation({ who, ctx, conversation, title, names, back, nativ
       {replying && (
         <>
           <button type="button" className="ch-chip ph-line-chip" aria-haspopup="menu" aria-expanded={lineMenu.open !== null}
-            title="Z którego numeru telefon wyśle odpowiedź" onClick={(e) => lineMenu.toggle(e.currentTarget)}>
-            <Icon name="phone" />{line === '' ? 'wybierz numer' : phoneShown(line)}<Icon name="down" />
+            title={`Z którego numeru telefon wyśle odpowiedź${line === '' ? '' : ` — ${whyHere}`}`} data-why={line === '' ? undefined : why}
+            onClick={(e) => lineMenu.toggle(e.currentTarget)}>
+            <Icon name={line === '' ? 'phone' : whyIcon(why)} />{line === '' ? 'wybierz numer' : phoneShown(line)}<Icon name="down" />
           </button>
           {lineMenu.open !== null && (
             <PopMenu anchor={{ rect: lineMenu.open.rect }} from={lineMenu.open.from} label="Z którego numeru" items={lineItems} onClose={lineMenu.close}>
-              <p className="ch-pop-head">Telefon z tym numerem wyśle odpowiedź — wybór zostaje dla tej rozmowy, także na telefonie</p>
+              <p className="ch-pop-head ph-why-head">
+                {line !== '' && <><Icon name={whyIcon(why)} />{whyHere}. </>}Telefon z tym numerem wyśle odpowiedź — wybór zostaje dla tej rozmowy, także na telefonie
+              </p>
             </PopMenu>
           )}
         </>

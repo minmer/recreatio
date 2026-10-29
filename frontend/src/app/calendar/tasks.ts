@@ -100,6 +100,12 @@ export interface TaskRow {
 export interface OpenTask extends TaskRow {
   readonly title: string;
   readonly notes: string | null;
+  /**
+   * 2026-10-29 — Titel und Notiz liessen sich nicht öffnen (kein Schlüssel dieser
+   * Epoche): „Zadanie" ist dann nur ein Platzhalter. Ein Import (`tasksJson.ts`)
+   * darf ihn nicht als Titel zurückschreiben.
+   */
+  readonly locked?: boolean;
 }
 
 export const loadTasks = (from: Date, to: Date, chatId?: string): Promise<{ now: string; tasks: readonly TaskRow[] }> =>
@@ -114,16 +120,20 @@ export async function openTasks(ring: Ring, rows: readonly TaskRow[]): Promise<O
   for (const row of rows) {
     let title = 'Zadanie';
     let notes: string | null = null;
+    let locked = false;
     try {
       const key = (await areaKeys(ring, row.areaId)).get(row.epoch);
       if (key !== undefined) {
         title = await openText(key, titleAad(row.taskId), fromBase64Url(row.titleSealed));
         if (row.notesSealed !== null) notes = await openText(key, notesAad(row.taskId), fromBase64Url(row.notesSealed));
+      } else {
+        locked = true;
       }
     } catch {
       // Nicht lesbar — dann steht nur „Zadanie" da, aber die Zeit stimmt.
+      locked = true;
     }
-    out.push({ ...row, title, notes });
+    out.push({ ...row, title, notes, ...(locked ? { locked: true } : {}) });
   }
   return out;
 }
@@ -156,8 +166,15 @@ export interface TaskOrigin {
   readonly messageId: string | null;
 }
 
-/** Anlegen (ohne `taskId`) oder ändern — versiegelt unter dem jüngsten Schlüssel des gewählten Bereichs. */
-export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string): Promise<string> {
+/** 0067 — die Erinnerungen neu planen (`NotifyBell`). */
+export const tasksChanged = (): void => { window.dispatchEvent(new Event('recreatio:tasks-changed')); };
+
+/**
+ * Anlegen (ohne `taskId`) oder ändern — versiegelt unter dem jüngsten Schlüssel des gewählten Bereichs.
+ * 2026-10-29 — `quiet`: ein Import vieler Aufgaben (`TasksJsonPanel.tsx`) plant die Erinnerungen einmal am
+ * Ende neu (`tasksChanged`), nicht nach jeder — sonst lüde jede Aufgabe alle anderen noch einmal.
+ */
+export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string, options?: { readonly quiet?: boolean }): Promise<string> {
   const id = taskId ?? newId();
   const newest = newestKey(await areaKeys(ring, draft.areaId, true));
   if (newest === null) throw new WorkspaceError('Nie masz klucza tego obszaru — nie da się tu zapisać.');
@@ -190,8 +207,7 @@ export async function saveTask(ring: Ring, draft: TaskDraft, taskId?: string): P
     method: 'POST', body: JSON.stringify(body)
   });
 
-  /* 0067 — die Erinnerungen neu planen (`NotifyBell`). */
-  window.dispatchEvent(new Event('recreatio:tasks-changed'));
+  if (options?.quiet !== true) tasksChanged();
   return id;
 }
 

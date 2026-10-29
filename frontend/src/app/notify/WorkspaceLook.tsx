@@ -12,6 +12,7 @@
 import { useSyncExternalStore } from 'react';
 
 import { AlertSettingsEditor } from '../workspace/AlertList';
+import { ViewJsonPanel } from '../workspace/ViewJsonPanel';
 import { NotifySettingsPanel } from './NotifyBell';
 import { current, subscribe } from './notify';
 import type { Who } from '../core/session';
@@ -30,6 +31,8 @@ export function WorkspaceLook({ who }: { who: Who }) {
           Co pokazuje dzwonek i strona Teraz — w tej kolejności. Wyłączone nie liczą się do liczby przy dzwonku.
         </p>
         <AlertSettingsEditor />
+        {/* 2026-10-29 — dieselbe Liste als JSON („recreatio/workspace-view", `workspace/viewJson.ts`). */}
+        <ViewJsonPanel />
       </section>
 
       <section aria-labelledby="look-device">
