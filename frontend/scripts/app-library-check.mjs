@@ -79,7 +79,7 @@ export { palette, PARTS } from '${app}pages/parts/registry';
 export { textToLatex, planToLatex } from '${app}scriptorium/latex';
 export { archiveRow, browseLocal, choose, facetKey, facetsOf, fieldFacet, PROJECTS } from '${app}scriptorium/archive';
 export { layoutOf } from '${app}scriptorium/archiveLayout';
-export { snapshotDoc, refsOf as snapshotRefs, gzip, SNAPSHOT_VERSION } from '${app}aiAccess/aiSnapshot';
+export { snapshotDoc, snapshotSetup, refsOf as snapshotRefs, gzip, SNAPSHOT_VERSION } from '${app}aiAccess/aiSnapshot';
 export * as loc from '${app}library/locations';
 export * as src from '${app}library/sourceText';
 export * as srcImp from '${app}library/sourceImport';
@@ -1019,14 +1019,14 @@ try {
     const quote = { id: U(3), kind: 'quote', key: 'niespokojne', data: { text: 'Niespokojne jest serce nasze.', work: U(2), locator: 'I,1' } };
     const oldTopic = { id: U(4), kind: 'topic', data: { name: 'Stary temat' } };
     const pojecie = { id: U(10), kind: 'kind', data: { name: 'Pojęcie', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'zrodlo', label: 'Źródło', type: 'ref', to: ['work'], says: 'Skąd to wiemy' }] } };
-    const laska = { id: U(11), kind: 'entity', data: { _kinds: [U(10)], nazwa: 'Łaska', zrodlo: U(2) } };
+    const laska = { id: U(11), kind: 'entity', data: { _kinds: [U(10)], nazwa: 'Łaska', zrodlo: U(2), _ref: 'pojecia/laska' } };
     const view = { id: U(12), kind: 'view', data: { name: 'Widok' } };
     const type = { id: U(20), kind: 'texttype', key: 'kazanie', data: { name: 'Kazanie', fields: [{ key: 'pojecie', label: 'Pojęcie', type: 'ref', to: [U(10)] }] } };
     const sermon = { id: U(21), kind: 'text', key: 'chleb', data: { title: 'O chlebie', textType: U(20), body: `Serce [@${U(3)}, s. 3], obok [@${U(99)}] i [[słowa|@${U(11)}]].`, pojecie: U(11), _aliases: ['stary'] } };
     const parts = [
       { store: store('L', [person, work, quote, oldTopic]), kind: 'books', name: 'Źródła' },
       { store: store('S', [type, sermon]), kind: 'writing', name: 'Kazania' },
-      { store: store('K', [pojecie, laska, view]), kind: 'knowledge', name: 'Pojęcia' }
+      { store: store('K', [pojecie, laska, view]), kind: 'knowledge', name: 'Pojęcia', readers: 'members' }
     ];
     const lib = m.snapshotDoc(parts, 'L', '2026-10-24T12:00:00Z');
     assert.deepEqual([lib.v, lib.library, lib.part, lib.name, lib.madeAt], [m.SNAPSHOT_VERSION, 'L', 'books', 'Źródła', '2026-10-24T12:00:00Z']);
@@ -1047,6 +1047,12 @@ try {
     assert.deepEqual(base.entries.map((e) => [e.title, e.kindName, e.refs]), [['Łaska', 'Pojęcie', [U(2)]]], 'a base: its own entries (no views or other tools), labels from Nauka, references resolved');
     assert.deepEqual(base.kinds.map((k) => [k.name, k.fields.map((f) => f.key)]), [['Pojęcie', ['nazwa', 'zrodlo']]], 'its kinds with their fields');
     assert.equal(base.kinds[0].fields[1].says, 'Skąd to wiemy');
+    /* 2026-10-30 — get_knowledge_setup: was das Lernen steuert, als Kurs ohne Einträge; der bleibende Name eines Eintrags. */
+    const setup = await m.snapshotSetup(parts, 'K');
+    const withSetup = m.snapshotDoc(parts, 'K', 'now', true, setup);
+    assert.deepEqual([base.entries[0].ref, 'setup' in base, withSetup.setup.course.format, 'entities' in withSetup.setup.course, withSetup.setup.course.views.map((v) => v.name), withSetup.setup.readers, withSetup.setup.cards.total],
+      ['pojecia/laska', false, 'recreatio.cogita.course', false, ['Widok'], 'members', 0], 'a base: its lasting names; with a setup the course without entries (views …), who reads, the cards');
+    assert.deepEqual([await m.snapshotSetup(parts, 'L'), 'setup' in m.snapshotDoc(parts, 'L', 'now', true, setup)], [undefined, false], 'only a knowledge base has a setup');
 
     /* The same Scriptorium in a link without the library and the base: nothing of them shows. */
     const alone = m.snapshotDoc([parts[1]], 'S', 'now').entries.find((e) => e.id === U(21));

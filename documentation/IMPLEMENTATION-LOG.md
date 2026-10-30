@@ -2674,3 +2674,24 @@ fixture end to end — view and revision —, gate and flow migration, old offli
 
 **Owner:** deploy the site and the API (the embedded `ImportFormats.json`). Re-import `fakty.json` into bases that use
 it to get „Miejsce”, the weights and the presets.
+
+## A4 — MCP: what steers learning in a knowledge base (2026-10-30)
+
+Owner spec (German, pasted): the read-only MCP should give for a knowledge base not only entries and schema but
+everything that steers learning — templates (name, kinds, direction, graph, tests), revisions (whole graph), views
+(mode, steps, group/matrix, columns, sort, outline), flows, collections, anchors, forms, settings (libraries used,
+dependencies, who reads), and per template how many cards it really makes — in the format of the export
+`recreatio.cogita.course` with `@…` names, as a new tool, in parts for large bases; no learner progress or answers.
+
+- Browser: `cogita/json.ts` `exportSetup(lib, name)` = `exportCourse` without entities (the same `docJson`, so the
+  same shape and names) + `cards` (per template: `ref`, `name`, `kinds`, `source?`, `cards`, `entries`, `problems?`;
+  `questions`, `total`) from `lib.cards()`. `aiAccess/aiSnapshot.ts` `snapshotSetup(parts, id)` adds `readers`
+  (`members` / `everyone` / `members-until-opened`, from the library row as „Kto czyta” computes it) and
+  `snapshotDoc(…, setup)` puts it as `setup` into a knowledge base's snapshot; entries of a base carry `ref` (their
+  `_ref`). Cards are counted with the sources inside the link only.
+- Service: `AiAccess.Snapshot.Setup`, `Item.Ref`; `Opened.Get` also takes `@id` and `@lasting/name`.
+  `AiMcpTools.GetKnowledgeSetup` → `SetupOf(snapshot, section, offset)`: everything if ≤ 60 000 chars, else an
+  overview (sections with counts and sizes, settings, cards) and per section (English keys or the app's Polish names)
+  in pieces with `nextOffset`. An old snapshot → `not_ready` (rebuilt after the next write or when the panel opens).
+- Checks: Api.Tests 563 (7 new), app-cogita-check 682 (setup of the Bosko fixture equals the export's templates/views,
+  card counts equal the app's cards, nothing of progress), app-library-check (snapshot with setup, `ref`, only bases).

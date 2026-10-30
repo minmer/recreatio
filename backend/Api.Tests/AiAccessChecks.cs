@@ -204,10 +204,12 @@ internal static class AiAccessChecks
             var bigSnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", bigDoc.RootElement)!;
             var bigOverview = AiMcpTools.SetupOf(bigSnap, null, 0);
             var bigFirst = AiMcpTools.SetupOf(bigSnap, "views", 0);
-            var bigRest = AiMcpTools.SetupOf(bigSnap, "views", bigFirst.NextOffset ?? 0);
+            var pages = new List<AiMcpTools.KnowledgeSetupResult> { bigFirst };
+            while (pages[^1].NextOffset is int next && pages.Count < 10) pages.Add(AiMcpTools.SetupOf(bigSnap, "views", next));
             check(!bigOverview.Complete && bigOverview.Document["views"] is null && bigOverview.Document["settings"] is not null && bigOverview.Note.Contains("per section")
                 && (bigFirst.NextOffset ?? 0) > 0 && (bigFirst.NextOffset ?? 99) < 40 && bigFirst.Document.ToJsonString().Length <= AiMcpTools.SetupBudget + 4000
-                && bigRest.NextOffset is null && bigFirst.Document["views"]!.AsArray().Count + bigRest.Document["views"]!.AsArray().Count == 40,
+                && pages.Count is > 1 and < 10 && pages.All(x => x.Document.ToJsonString().Length <= AiMcpTools.SetupBudget + 4000)
+                && pages.Sum(x => x.Document["views"]!.AsArray().Count) == 40 && pages.SelectMany(x => x.Document["views"]!.AsArray()).Select(v => v!["ref"]!.GetValue<string>()).Distinct().Count() == 40,
                 "MCP get_knowledge_setup: a large base — an overview, then a section in pieces with nextOffset");
             check(AiMcp.Instructions.Contains("get_knowledge_setup"), "MCP instructions: name get_knowledge_setup");
         }

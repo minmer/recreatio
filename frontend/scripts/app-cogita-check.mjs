@@ -2907,6 +2907,25 @@ check('goals and lines follow the one logic', [
   check('a flow step „Najpierw podstawy” reads as a „Warunek” on knowness (from its threshold), exits yes / no — and it still proposes the dependency',
     [oldFlow.graph.nodes[0].type, oldFlow.graph.nodes[0].config.condition, oldFlow.graph.edges.map((e) => e.out), Fl.proposedDependencies(oldFlow)],
     ['condition', { type: 'knowness', of: 'atom', op: 'ge', than: 0.8 }, ['yes', 'no'], [{ parent: 'atom', child: 'orbital' }]]);
+
+  /* 2026-10-30 — WAS DAS LERNEN STEUERT, für MCP (`get_knowledge_setup`): der Kurs ohne Einträge, in der Gestalt des Exports, mit Karten je Vorlage. */
+  const setup = await Js.exportSetup(lib, 'Bosko');
+  const full = Js.exportCourse(lib, 'Bosko');
+  const tKiedy = setup.course.templates.find((t) => t.name === 'Hasło → kiedy (rok)');
+  const pOgolne = setup.course.revisions.find((r) => r.name === 'Od ogólnego do szczegółu');
+  const wOgolne = setup.course.views.find((v) => v.name === 'Od ogólnego do szczegółu');
+  check('setup for MCP: the course without entries — templates (direction, graph, tests), revisions (source.view, strategy order/pick), views (filter.when), settings — exactly as the export',
+    [setup.course.format, 'entities' in setup.course, JSON.stringify(setup.course.templates) === JSON.stringify(full.templates), JSON.stringify(setup.course.views) === JSON.stringify(full.views),
+      tKiedy.ref, tKiedy.tests, typeof tKiedy.direction, tKiedy.graph.nodes.length > 0,
+      pOgolne.graph.nodes.find((n) => n.type === 'source.view')?.config.view, pOgolne.graph.nodes.find((n) => n.type === 'strategy')?.config.order,
+      wOgolne.ref, wOgolne.steps.some((st) => st.type === 'filter.when'), Array.isArray(setup.course.settings)],
+    ['recreatio.cogita.course', false, true, true, '@fakty/t-kiedy', [{ of: 'this', weight: 1 }, { of: 'okres', weight: 0.5 }], 'string', true, '@fakty/w-ogolne', 'general', '@fakty/w-ogolne', true, true]);
+  const counted = new Map(setup.cards.templates.map((t) => [t.ref, t]));
+  check('… how many cards each template makes (and from how many entries) — the same cards the app makes; question cards apart',
+    [setup.cards.total, setup.cards.templates.reduce((s, t) => s + t.cards, 0) + setup.cards.questions, counted.get('@fakty/t-kiedy').cards, counted.get('@fakty/t-kiedy').kinds,
+      setup.cards.templates.every((t) => t.entries <= t.cards)],
+    [cards.length, cards.length, cards.filter((c) => c.template === lib.templates().find((t) => t.name === 'Hasło → kiedy (rok)')?.id).length, ['Fakt'], true]);
+  check('… no learner’s answer or progress inside', [/"(marks|answers|correctness|progress)"/.test(JSON.stringify(setup))], [false]);
 }
 
 /* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */
