@@ -162,6 +162,54 @@ internal static class AiAccessChecks
             check(Fails(() => AiMcpTools.GetImportFormat("nie-ma")) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 0)) == "not_found" && Fails(() => AiMcpTools.GetImportFormat("library", 2)) == "not_found",
                 "MCP get_import_format: an unknown format or part says not_found");
             check(AiMcp.Instructions.Contains("list_import_formats") && AiMcp.Instructions.Contains("get_import_format"), "MCP instructions: read the format before preparing an import");
+
+            /* 2026-10-30 — get_knowledge_setup: was das Lernen einer Baza wiedzy steuert, als Kurs ohne Einträge. */
+            using var setupDoc = JsonDocument.Parse("""
+                { "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Bosko",
+                  "entries": [ { "id": "01a16af6-5a94-718f-b8b5-abdb3ab69201", "kind": "k1", "kindName": "Okres", "title": "Turyn", "ref": "bosko/turyn", "data": {} } ],
+                  "setup": {
+                    "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Bosko",
+                      "kinds": [ { "ref": "@czas/okres", "name": "Okres" } ],
+                      "templates": [ { "ref": "@fakty/t-okres", "name": "Okres → lata", "kinds": ["@czas/okres"], "tests": [ { "of": "this", "weight": 1 } ], "graph": { "nodes": [], "edges": [] } } ],
+                      "revisions": [ { "ref": "@fakty/p-ogolne", "name": "Od ogólnego do szczegółu", "graph": { "nodes": [ { "id": "p", "type": "strategy", "config": { "mode": "temporal", "order": "general", "pick": "weighted" } } ], "edges": [] } } ],
+                      "views": [ { "ref": "@fakty/w-ogolne", "name": "Od ogólnego do szczegółu", "steps": [ { "type": "filter.when", "config": { "when": [ { "field": "#knowness", "rel": "before" } ] } } ] } ],
+                      "settings": [ { "ref": "@ustawienia", "sources": [], "dependencies": [ { "parent": "@bosko/zycie", "child": "@bosko/turyn", "kind": "prerequisite", "impact": 0.5 } ] } ] },
+                    "cards": { "total": 7, "questions": 1, "templates": [ { "ref": "@fakty/t-okres", "name": "Okres → lata", "kinds": ["Okres"], "cards": 6, "entries": 6 } ] },
+                    "readers": "members" } }
+                """);
+            var setupSnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", setupDoc.RootElement)!;
+            setupSnap.AreaName = "Parafia";
+            var whole = AiMcpTools.SetupOf(setupSnap, null, 0);
+            check(whole.Complete && whole.Document["format"]?.GetValue<string>() == "recreatio.cogita.course" && whole.Document["entities"] is null
+                && whole.Document["revisions"]?[0]?["graph"]?["nodes"]?[0]?["config"]?["order"]?.GetValue<string>() == "general"
+                && whole.Cards?["templates"]?[0]?["cards"]?.GetValue<int>() == 6 && whole.Readers == "Czytają ją członkowie obszaru „Parafia” (i ci, którym dali link albo miejsce)."
+                && whole.Sections.Any(x => x.Name == "views" && x.Items == 1) && whole.Note.Contains("No learner progress"),
+                "MCP get_knowledge_setup: the course without entries (templates, revisions with all settings, views, settings), cards per template, who reads");
+            var onlyViews = AiMcpTools.SetupOf(setupSnap, "Widoki", 0);
+            check(onlyViews.Section == "views" && onlyViews.Document["views"]?.AsArray().Count == 1 && onlyViews.Document["templates"] is null && onlyViews.Cards is null && onlyViews.NextOffset is null,
+                "MCP get_knowledge_setup: one section by its Polish name");
+            var later = AiMcpTools.SetupOf(setupSnap, "views", 1);
+            check(later.Document["views"]?.AsArray().Count == 0 && !later.Complete && Fails(() => AiMcpTools.SetupOf(setupSnap, "postępy", 0)) == "not_found",
+                "MCP get_knowledge_setup: paging past the end is empty; there is no section for progress");
+            check(setupSnap.Items[0].Ref == "bosko/turyn" && setupSnap.Items[0].Id == "01a16af6-5a94-718f-b8b5-abdb3ab69201",
+                "a knowledge entry keeps its lasting name from an import (ref)");
+            using var oldBase = JsonDocument.Parse("""{ "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Stara", "entries": [] }""");
+            check(Fails(() => AiMcpTools.SetupOf(AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", oldBase.RootElement)!, null, 0)) == "not_ready"
+                && AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "books", setupDoc.RootElement)!.Setup.ValueKind == JsonValueKind.Undefined,
+                "MCP get_knowledge_setup: a snapshot from before says not_ready; only a knowledge base carries a setup");
+            var big = new System.Text.StringBuilder("""{ "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Duża", "entries": [], "setup": { "course": { "format": "recreatio.cogita.course", "version": 1, "name": "Duża", "settings": [ {} ], "views": [""");
+            for (var i = 0; i < 40; i++) big.Append(i == 0 ? "" : ",").Append($$"""{ "ref": "@w{{i}}", "name": "{{new string('x', 3000)}}" }""");
+            big.Append("] } } }");
+            using var bigDoc = JsonDocument.Parse(big.ToString());
+            var bigSnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", bigDoc.RootElement)!;
+            var bigOverview = AiMcpTools.SetupOf(bigSnap, null, 0);
+            var bigFirst = AiMcpTools.SetupOf(bigSnap, "views", 0);
+            var bigRest = AiMcpTools.SetupOf(bigSnap, "views", bigFirst.NextOffset ?? 0);
+            check(!bigOverview.Complete && bigOverview.Document["views"] is null && bigOverview.Document["settings"] is not null && bigOverview.Note.Contains("per section")
+                && (bigFirst.NextOffset ?? 0) > 0 && (bigFirst.NextOffset ?? 99) < 40 && bigFirst.Document.ToJsonString().Length <= AiMcpTools.SetupBudget + 4000
+                && bigRest.NextOffset is null && bigFirst.Document["views"]!.AsArray().Count + bigRest.Document["views"]!.AsArray().Count == 40,
+                "MCP get_knowledge_setup: a large base — an overview, then a section in pieces with nextOffset");
+            check(AiMcp.Instructions.Contains("get_knowledge_setup"), "MCP instructions: name get_knowledge_setup");
         }
 
         /* 2026-10-24 — vollständige Texte in der Abschrift: lesen, eine Stelle finden, suchen. */

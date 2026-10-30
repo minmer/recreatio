@@ -81,6 +81,8 @@ public static partial class AiAccess
         public string? MadeAt { get; init; }
         public string? Notes { get; init; }
         public JsonElement Kinds { get; init; }
+        /// <summary>2026-10-30 — nur eine Baza wiedzy: was ihr Lernen steuert (Kurs ohne Einträge, Karten je Vorlage, wer liest) — <c>get_knowledge_setup</c>.</summary>
+        public JsonElement Setup { get; init; }
         public List<Item> Items { get; } = [];
         /// <summary>2026-10-24 — die vollständigen Texte der Werke, die in diesem Behälter liegen (AiAccess.Texts.cs).</summary>
         public List<TextDoc> Texts { get; } = [];
@@ -115,6 +117,8 @@ public static partial class AiAccess
         public string Title { get; init; } = "";
         public string? Tell { get; init; }
         public string? Key { get; init; }
+        /// <summary>2026-10-30 — der bleibende Name eines Eintrags einer Baza wiedzy aus einem Import (<c>_ref</c>, ohne „@") — so heisst er in <c>get_knowledge_setup</c>.</summary>
+        public string? Ref { get; init; }
         public string? UpdatedAt { get; init; }
         public string[] Refs { get; init; } = [];
         public JsonElement Data { get; init; }
@@ -167,7 +171,8 @@ public static partial class AiAccess
             Name = Str(root, "name") ?? PartLabel(part),
             MadeAt = Str(root, "madeAt"),
             Notes = Str(root, "notes"),
-            Kinds = root.TryGetProperty("kinds", out var kinds) && kinds.ValueKind == JsonValueKind.Array ? kinds : default
+            Kinds = root.TryGetProperty("kinds", out var kinds) && kinds.ValueKind == JsonValueKind.Array ? kinds : default,
+            Setup = part == "knowledge" && root.TryGetProperty("setup", out var setup) && setup.ValueKind == JsonValueKind.Object ? setup : default
         };
 
         if (root.TryGetProperty("entries", out var entries) && entries.ValueKind == JsonValueKind.Array)
@@ -188,6 +193,7 @@ public static partial class AiAccess
                     Title = Str(e, "title") ?? kind,
                     Tell = Str(e, "tell"),
                     Key = Str(e, "key"),
+                    Ref = Str(e, "ref"),
                     UpdatedAt = Str(e, "updatedAt"),
                     Refs = Strs(e, "refs").Select(r => r.ToLowerInvariant()).ToArray(),
                     Data = e.TryGetProperty("data", out var data) ? data : default
@@ -440,7 +446,10 @@ public static partial class AiAccess
             var wanted = idOrKey.Trim();
             if (byId.TryGetValue(wanted.ToLowerInvariant(), out var found)) return found;
             var key = wanted.TrimStart('@');
-            return Items.FirstOrDefault(i => i.Key is not null && string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase));
+            /* 2026-10-30 — auch `@<kennung>` und der bleibende Name (`@bosko/turyn`), wie get_knowledge_setup sie schreibt. */
+            if (byId.TryGetValue(key.ToLowerInvariant(), out found)) return found;
+            return Items.FirstOrDefault(i => i.Key is not null && string.Equals(i.Key, key, StringComparison.OrdinalIgnoreCase))
+                ?? Items.FirstOrDefault(i => i.Ref is not null && string.Equals(i.Ref, key, StringComparison.Ordinal));
         }
 
         public string Url(Item item) => UrlOf?.Invoke(item) ?? $"{Base}/entry/{item.Id}";

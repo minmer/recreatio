@@ -40,6 +40,7 @@ public static class AiMcp
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
         "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
+        "What steers learning in a knowledge base — card templates with their weights (tests), revisions, views, flows, collections, anchors, forms, settings, how many cards each template makes and who reads it — comes from get_knowledge_setup, in the shape of the export \"recreatio.cogita.course\" (without entries, without learner progress). " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish. " +
         "To prepare data the user will import into any part (Library entries, a work with its full text, a knowledge base with questions, a page, a calendar, masses and intentions, tasks, contacts…), first read the format: list_import_formats, then get_import_format part by part — the specification is generated from the app itself. Nothing is written from here: the user imports the JSON in the app and reviews the changes.";
@@ -533,7 +534,113 @@ public sealed class AiMcpTools
     public sealed record ImportFormatsResult(string About, IReadOnlyList<ImportFormatLine> Formats, IReadOnlyList<ImportFormats.Contextual> Contextual, string Next);
     public sealed record ImportFormatPart(string Id, string Title, string What, string Where, int Part, int Parts, int? NextPart, IReadOnlyList<ImportFormats.ContentsLine> Contents, string Text);
 
-    [McpServerTool(Name = "list_import_formats", Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    /* -- 2026-10-30: was das Lernen einer Baza wiedzy steuert ------------------------------------------ */
+
+    public sealed record SetupSection(string Name, int Items, int Chars);
+    public sealed record KnowledgeSetupResult(
+        string CollectionId, string Collection, string Area, string? SnapshotMadeAt, string? Readers,
+        IReadOnlyList<SetupSection> Sections, string? Section, int Offset, int? NextOffset, bool Complete,
+        JsonObject Document, JsonObject? Cards, string Note);
+
+    /// <summary>Wie viele Zeichen ein Ergebnis höchstens trägt — darüber kommt es abschnitts- und stückweise.</summary>
+    public const int SetupBudget = 60_000;
+
+    /// <summary>Die Abschnitte des Kurses (Schlüssel wie im Export) und ihre polnischen Namen aus der App.</summary>
+    private static readonly (string Key, string Alias)[] SetupKeys =
+    [
+        ("settings", "ustawienia"), ("kinds", "rodzaje"), ("templates", "szablony"), ("revisions", "powtórki"), ("views", "widoki"),
+        ("flows", "przebiegi"), ("collections", "zbiory"), ("anchors", "wejścia"), ("forms", "formularze"),
+        ("looks", "wygląd"), ("rules", "zasady"), ("values", "wartości")
+    ];
+
+    internal static string? ReadersText(string? readers, string area) => readers switch
+    {
+        "members" => $"Czytają ją członkowie obszaru „{area}” (i ci, którym dali link albo miejsce).",
+        "everyone" => $"Obszar „{area}” jest jawny: każdy czyta całą bazę.",
+        "members-until-opened" => $"Obszar „{area}” jest jawny, ale ta baza nie jest jeszcze otwarta — czytają ją tylko członkowie obszaru.",
+        _ => null
+    };
+
+    [McpServerTool(Name = "get_knowledge_setup", Title = "Ustawienia nauki bazy wiedzy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Everything that steers learning in a knowledge base (Cogita), in exactly the shape of its export \"recreatio.cogita.course\" with lasting names (\"@…\") — directly comparable with the import format (get_import_format knowledge-base): card templates (name, kinds, direction, full graph, tests with weights), revisions (full graph: source, learning, filter.when, strategy with all settings), views (mode, steps, group/matrix, columns, sort, outline), flows, collections, anchors, forms, the schema (kinds), looks, rules, values and settings (sources = libraries used, dependencies, offline, motivation). Plus: how many cards each template actually makes (cards) and who reads the base (readers). Entries are not included (search_entries / get_entry; an \"@name\" is accepted as id). No learner progress and no answers. Large bases come in sections: without section it returns everything if it fits, otherwise an overview with the sections; then ask per section and page with nextOffset.")]
+    public static async Task<KnowledgeSetupResult> GetKnowledgeSetup(
+        IHttpContextAccessor http, Db db, IConfiguration config,
+        [Description("Knowledge base id or name; may be empty when only one knowledge base is authorized.")] string? collection = null,
+        [Description("Only one section: templates, revisions, views, flows, collections, anchors, forms, settings, kinds, looks, rules, values (Polish names work too). Empty: everything when it fits, otherwise an overview.")] string? section = null,
+        [Description("With a section: how many of its items to skip (from nextOffset).")] int offset = 0,
+        CancellationToken cancellationToken = default)
+    {
+        using var o = await OpenAsync(http, db, config, cancellationToken);
+        var bases = o.Parts.Where(p => p.Part == "knowledge").ToList();
+        AiAccess.Snapshot p;
+        if (string.IsNullOrWhiteSpace(collection))
+        {
+            if (bases.Count == 1) p = bases[0];
+            else if (bases.Count == 0)
+                throw new McpException(o.Missing.Any(m => m.Part == "knowledge")
+                    ? "not_ready: odpis bazy wiedzy nie jest jeszcze zbudowany (powstaje, gdy ktoś, kto pisze w obszarze, otworzy Recreatio)."
+                    : "not_found: wśród udostępnionych zbiorów nie ma bazy wiedzy. Zobacz list_collections.");
+            else throw new McpException($"ambiguous: udostępniono kilka baz wiedzy — podaj collection: {string.Join(", ", bases.Select(b => $"„{b.Name}” ({Ids.ToText(b.LibraryId)})"))}.");
+        }
+        else
+        {
+            var wanted = collection.Trim();
+            var any = o.Parts.FirstOrDefault(x => string.Equals(Ids.ToText(x.LibraryId), wanted, StringComparison.OrdinalIgnoreCase) || AiAccess.Fold(x.Name) == AiAccess.Fold(wanted))
+                ?? throw new McpException($"not_found: nie ma udostępnionego zbioru „{collection}”. Zobacz list_collections.");
+            if (any.Part != "knowledge") throw new McpException($"not_found: „{any.Name}” to {AiAccess.PartLabel(any.Part)}, nie baza wiedzy — get_knowledge_setup czyta tylko bazy wiedzy.");
+            p = any;
+        }
+        return SetupOf(p, section, offset);
+    }
+
+    /// <summary>Der Kern von <c>get_knowledge_setup</c> — ohne Link und Netz prüfbar (<c>Api.Tests/AiAccessChecks.cs</c>).</summary>
+    public static KnowledgeSetupResult SetupOf(AiAccess.Snapshot p, string? section, int offset)
+    {
+        if (p.Setup.ValueKind != JsonValueKind.Object || !p.Setup.TryGetProperty("course", out var courseEl) || courseEl.ValueKind != JsonValueKind.Object)
+            throw new McpException($"not_ready: odpis bazy „{p.Name}” powstał przed 2026-10-30 i nie niesie jeszcze ustawień nauki. Odświeży się po następnej zmianie w bazie albo po otwarciu panelu „Dostęp dla AI” przez kogoś, kto w niej pisze.");
+
+        var course = JsonNode.Parse(courseEl.GetRawText())!.AsObject();
+        var cards = p.Setup.TryGetProperty("cards", out var cardsEl) && cardsEl.ValueKind == JsonValueKind.Object ? ObjectOf(cardsEl) : null;
+        var readers = ReadersText(p.Setup.TryGetProperty("readers", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null, p.AreaName);
+
+        var sections = course.Where(kv => kv.Value is JsonArray).Select(kv => new SetupSection(kv.Key, ((JsonArray)kv.Value!).Count, kv.Value!.ToJsonString(Json).Length)).ToList();
+        JsonObject Header() => new() { ["format"] = course["format"]?.DeepClone(), ["version"] = course["version"]?.DeepClone(), ["name"] = course["name"]?.DeepClone() };
+        const string about = "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. No learner progress or answers are included.";
+
+        if (string.IsNullOrWhiteSpace(section))
+        {
+            var whole = course.ToJsonString(Json).Length;
+            if (whole <= SetupBudget)
+                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about);
+            var overview = Header();
+            if (course["settings"] is JsonArray settings && settings.ToJsonString(Json).Length <= SetupBudget / 2) overview["settings"] = settings.DeepClone();
+            return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, false, overview, cards,
+                $"The whole setup has {whole} characters — too much for one answer. Ask per section (section = one of Sections) and continue with nextOffset. {about}");
+        }
+
+        var asked = AiAccess.Fold(section);
+        var key = SetupKeys.FirstOrDefault(k => AiAccess.Fold(k.Key) == asked || AiAccess.Fold(k.Alias) == asked).Key
+            ?? throw new McpException($"not_found: nie ma części „{section}”. Części: {string.Join(", ", SetupKeys.Select(k => k.Key))}.");
+        var items = course[key] as JsonArray ?? [];
+        if (offset < 0) offset = 0;
+        var picked = new JsonArray();
+        var used = 0;
+        var at = offset;
+        for (; at < items.Count; at++)
+        {
+            var size = items[at]?.ToJsonString(Json).Length ?? 4;
+            if (picked.Count > 0 && used + size > SetupBudget) break;
+            picked.Add(items[at]?.DeepClone());
+            used += size;
+        }
+        var doc = Header();
+        doc[key] = picked;
+        int? next = at < items.Count ? at : null;
+        return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, key, offset, next, offset == 0 && next is null, doc,
+            key == "templates" ? cards : null, about);
+    }
+
+    [McpServerTool(Name = "list_import_formats",Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("The JSON formats the user can import into Recreatio — read this before preparing data for an import (every part of the app: Library entries, a work with its full text, quotes, a knowledge base with questions and revisions, Scriptorium texts and plans, a page with its modules, a form and its list of entries, an area, a calendar's appointments, schemes and plans, masses and their intentions, tasks, bookings, a conversation, contacts, roles, the registry, lamps, one's own data and progress, addresses and domains), plus ready knowledge-base schemes and guides for AI. For each: id, what it is for, where in the app it is imported, size and number of parts. Read one with get_import_format. Nothing is written from here: the user pastes the JSON in the app, sees the list of changes with warnings and confirms.")]
     public static ImportFormatsResult ListImportFormats()
     {

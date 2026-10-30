@@ -181,6 +181,50 @@ export function exportCourse(lib: CogitaLibrary, name: string, only?: { entities
   };
 }
 
+/** 2026-10-30 — wie viele Karten eine Vorlage tatsächlich gibt (für MCP: `get_knowledge_setup`). */
+export interface TemplateCards {
+  readonly ref: string;
+  readonly name: string;
+  readonly kinds: readonly string[];
+  /** Die Vorlage gehört einer Quelle (einer anderen Baza wiedzy), nicht dieser. */
+  readonly source?: true;
+  readonly cards: number;
+  /** Aus wie vielen Einträgen. */
+  readonly entries: number;
+  /** Die ersten Gründe, warum für einen Eintrag keine Karte entstand. */
+  readonly problems?: readonly string[];
+}
+
+export interface KnowledgeSetup {
+  /** Ein `recreatio.cogita.course` ohne Einträge: Schema, Vorlagen, Powtórki, Widoki, Przebiegi, Zbiory, Wejścia, Formularze, Einstellungen. */
+  readonly course: Record<string, unknown>;
+  readonly cards: { readonly total: number; readonly questions: number; readonly templates: readonly TemplateCards[] };
+}
+
+/**
+ * 2026-10-30 — WAS DAS LERNEN STEUERT, ohne Einträge und ohne eine einzige Antwort: die Baza wiedzy als Kurs ohne
+ * `entities` (dieselbe Gestalt und dieselben `@namen` wie der Export) und je Vorlage, wie viele Karten aus ihr
+ * entstehen. Für die Abschrift des Links (`aiAccess/aiSnapshot.ts`) — ein Assistent vergleicht es mit dem Importformat.
+ */
+export async function exportSetup(lib: CogitaLibrary, name: string): Promise<KnowledgeSetup> {
+  const course = exportCourse(lib, name, { entities: new Set() });
+  const { entities: _none, ...rest } = course;
+  const made = await lib.cards();
+  const named = nameIn(lib);
+  const kindName = (k: string): string => (isBaseKind(k) ? k : lib.kind(k)?.name ?? k);
+  const templates = lib.templates().map((t): TemplateCards => {
+    const cards = made.cards.filter((c) => c.template === t.id);
+    const problems = made.problems.get(t.id) ?? [];
+    return {
+      ref: `@${named(t.id)}`, name: t.name, kinds: t.kinds.map(kindName),
+      ...(lib.isOwn(t.id) ? {} : { source: true as const }),
+      cards: cards.length, entries: new Set(cards.map((c) => c.entity ?? c.key)).size,
+      ...(problems.length === 0 ? {} : { problems: [...new Set(problems)].slice(0, 5) })
+    };
+  });
+  return { course: rest, cards: { total: made.cards.length, questions: made.cards.filter((c) => c.template === undefined).length, templates } };
+}
+
 /** Das Schema mit seinen Vorlagen — eine unabhängige Kopie für eine andere Bibliothek [B12]. */
 export function exportSchema(lib: CogitaLibrary, name: string, kinds: readonly KindDef[]): Record<string, unknown> {
   const ids = new Set(kinds.map((k) => k.id));

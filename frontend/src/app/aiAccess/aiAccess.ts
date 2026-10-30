@@ -30,7 +30,7 @@ import { plural } from '../core/plural';
 import { API, call, WorkspaceError } from '../core/session';
 import { libraryKindOf, loadLibraries, openLibraries, type LibraryKind } from '../library/library';
 import { storeOf, type LibraryStore } from '../library/libraryStore';
-import type { ScopePart } from './aiSnapshot';
+import type { Readers, ScopePart } from './aiSnapshot';
 import { readManifest, TEXT_KIND } from '../library/sourceText';
 
 export interface AiPart {
@@ -242,11 +242,15 @@ async function syncedAfter(store: LibraryStore): Promise<void> {
   await store.sync();
 }
 
+/** Wer liest — aus `areaPublic` und `areaRuleAt` der Zeile, genau wie `BaseVisibility` („Kto czyta"). */
+const readersOf = (row: { readonly areaPublic?: boolean; readonly areaRuleAt?: string | null }): Readers =>
+  row.areaPublic !== true ? 'members' : row.areaRuleAt != null ? 'everyone' : 'members-until-opened';
+
 /** Die Behälter eines Links, offen und abgeglichen — nur die dieses Bereichs. */
 async function openScope(ring: Ring, areaId: string, libraryIds: readonly string[]): Promise<ScopePart[]> {
   const rows = (await loadLibraries()).libraries.filter((r) => r.areaId === areaId && libraryIds.includes(r.libraryId));
   const opened = await openLibraries(ring, rows);
-  const parts = opened.map((row) => ({ store: storeOf(ring, row), kind: libraryKindOf(row), name: row.name }));
+  const parts = opened.map((row) => ({ store: storeOf(ring, row), kind: libraryKindOf(row), name: row.name, readers: readersOf(row) }));
   for (const part of parts) await syncedAfter(part.store);
   return parts;
 }
@@ -293,7 +297,7 @@ export async function refreshAiAccess(
   const total = jobs.reduce((sum, job) => sum + job.parts.length, 0);
   if (total === 0) return { refreshed: 0, failed: 0 };
 
-  const { gzip, snapshotDoc } = await import('./aiSnapshot');
+  const { gzip, snapshotDoc, snapshotSetup } = await import('./aiSnapshot');
   const scopes = new Map<string, ScopePart[]>();
   let refreshed = 0;
   let failed = 0;
@@ -311,10 +315,12 @@ export async function refreshAiAccess(
         /* 2026-10-24 — mit den vollständigen Texten, die in diesem Behälter liegen; zu gross: ohne sie (die Einträge zuerst). */
         const scope = await withTexts(parts, part.libraryId);
         const madeAt = new Date().toISOString();
-        let doc = snapshotDoc(scope, part.libraryId, madeAt);
+        /* 2026-10-30 — eine Baza wiedzy: dazu, was ihr Lernen steuert (`get_knowledge_setup`). */
+        const setup = await snapshotSetup(scope, part.libraryId);
+        let doc = snapshotDoc(scope, part.libraryId, madeAt, true, setup);
         let packed = await gzip(JSON.stringify(doc));
         if (packed.length > MAX_PACKED && doc.texts !== undefined) {
-          doc = snapshotDoc(scope, part.libraryId, madeAt, false);
+          doc = snapshotDoc(scope, part.libraryId, madeAt, false, setup);
           packed = await gzip(JSON.stringify(doc));
         }
         const sealed = await seal(key, snapshotAad(part.libraryId), packed);

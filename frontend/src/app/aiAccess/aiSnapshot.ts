@@ -18,7 +18,8 @@
  * <code>
  *   { v: 1, library, part: books|writing|knowledge, name, madeAt, notes,
  *     kinds:   [{ id, name, says?, label?, fields: [{ key, label, type, says?, … }] }],
- *     entries: [{ id, kind, kinds?, kindName, typeName?, title, tell?, key?, updatedAt?, refs?, data }],
+ *     entries: [{ id, kind, kinds?, kindName, typeName?, title, tell?, key?, ref?, updatedAt?, refs?, data }],
+ *     setup?:  { course, cards: { total, questions, templates: [{ ref, name, kinds, source?, cards, entries, problems? }] }, readers? }
  *     texts?:  [{ id, work, workTitle?, workKey?, scheme, edition, pageSeries?, parts: [{ key, label, order, first?, last?, pages?,
  *                 blocks: [{ type, level?, loc?, at?, pages?, text }] }] }] }
  * </code>
@@ -32,6 +33,7 @@
  * gemacht ([s. 46] für einen Seitenwechsel, [^3] für einen Przypis, [?] für Unsicheres).
  */
 
+import { exportSetup, type KnowledgeSetup } from '../cogita/json';
 import { CogitaLibrary } from '../cogita/store';
 import { fieldData, textTypeKind } from '../cogita/kinds';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, labelOf, tellOf, VALUE_STATE_LABEL, VALUE_STATES, type KindDef } from '../cogita/schema';
@@ -54,6 +56,18 @@ export interface ScopePart {
   readonly kind: LibraryKind;
   readonly name: string;
   readonly texts?: readonly ScopeText[];
+  /** 2026-10-30 — wer den Behälter liest (aus der Zeile der Bibliothek, wie „Kto czyta"): die Mitglieder, jeder, oder die Mitglieder, bis er geöffnet ist. */
+  readonly readers?: Readers;
+}
+
+export type Readers = 'members' | 'everyone' | 'members-until-opened';
+
+/**
+ * 2026-10-30 — WAS DAS LERNEN EINER BAZA WIEDZY STEUERT (`get_knowledge_setup`): ein Kurs ohne Einträge in der Gestalt des
+ * Exports (`exportSetup`), wie viele Karten jede Vorlage gibt, und wer liest. Keine Antworten, kein Fortschritt.
+ */
+export interface SnapshotSetup extends KnowledgeSetup {
+  readonly readers?: Readers;
 }
 
 /** Ein Text eines Werks: sein Verzeichnis und seine Teile (die schweren Einträge, vorher geholt — `aiAccess.ts`). */
@@ -92,6 +106,8 @@ export interface SnapshotEntry {
   readonly title: string;
   readonly tell?: string;
   readonly key?: string;
+  /** 2026-10-30 — Baza wiedzy: der bleibende Name aus einem Import (`_ref`, ohne „@"). */
+  readonly ref?: string;
   readonly updatedAt?: string;
   /** Worauf er zeigt — nur Kennungen von Einträgen dieses Links. */
   readonly refs?: readonly string[];
@@ -116,6 +132,8 @@ export interface SnapshotDoc {
   readonly kinds: readonly SnapshotKind[];
   readonly entries: readonly SnapshotEntry[];
   readonly texts?: readonly SnapshotText[];
+  /** 2026-10-30 — nur eine Baza wiedzy: was ihr Lernen steuert. */
+  readonly setup?: SnapshotSetup;
   /** Die Texte waren zu gross für eine Abschrift und fehlen (die Einträge sind da). */
   readonly textsOmitted?: true;
 }
@@ -267,9 +285,12 @@ function baseEntries(part: ScopePart, lib: CogitaLibrary, look: Lookup): Snapsho
     const first = entity.kinds[0] ?? 'entity';
     const tell = tellOf(entity, lib.look);
     const refs = refsOf(entity, look);
+    const lasting = entry?.data._ref;
     out.push({
       id: entity.id,
       kind: first,
+      /* 2026-10-30 — der bleibende Name aus einem Import: so nennen ihn Widoki, Powtórki … in `get_knowledge_setup`. */
+      ...(typeof lasting === 'string' && lasting !== '' ? { ref: lasting } : {}),
       kinds: entity.kinds,
       kindName: lib.kind(first)?.name ?? first,
       title: labelOf(entity, lib.look),
@@ -367,18 +388,10 @@ function kindsFor(part: ScopePart, lib: CogitaLibrary | undefined, entries: read
  * (`scripts/app-library-check.mjs`). Holen, packen und versiegeln:
  * `aiAccess.ts`.
  */
-export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string, withTexts = true): SnapshotDoc {
+export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, madeAt: string, withTexts = true, setup?: SnapshotSetup): SnapshotDoc {
   const part = parts.find((p) => p.store.libraryId === libraryId);
   if (part === undefined) throw new Error('Ten zbiór nie należy do tego dostępu.');
-
-  /* Jede Baza wiedzy mit den anderen Behältern des Links als Quellen — nur mit ihnen. */
-  const bases = new Map<string, CogitaLibrary>();
-  for (const one of parts) {
-    if (one.kind !== 'knowledge') continue;
-    const lib = new CogitaLibrary(one.store, false);
-    lib.setSources(parts.filter((o) => o !== one).map((o) => ({ store: o.store, kind: o.kind, name: o.name })));
-    bases.set(one.store.libraryId, lib);
-  }
+  const bases = basesOf(parts);
   const look = scopeLookup(parts, bases);
   const lib = bases.get(libraryId);
   const entries = part.kind === 'knowledge' && lib !== undefined ? baseEntries(part, lib, look) : sourceEntries(part, look);
@@ -391,8 +404,34 @@ export function snapshotDoc(parts: readonly ScopePart[], libraryId: string, made
     notes: NOTES[part.kind](),
     kinds: kindsFor(part, lib, entries),
     entries,
+    ...(setup === undefined || part.kind !== 'knowledge' ? {} : { setup }),
     ...(part.texts === undefined || part.texts.length === 0 ? {} : withTexts ? { texts: snapshotTexts(part.texts, look) } : { textsOmitted: true as const })
   };
+}
+
+/** Jede Baza wiedzy des Links mit den anderen Behältern des Links als Quellen — nur mit ihnen. */
+function basesOf(parts: readonly ScopePart[]): Map<string, CogitaLibrary> {
+  const bases = new Map<string, CogitaLibrary>();
+  for (const one of parts) {
+    if (one.kind !== 'knowledge') continue;
+    const lib = new CogitaLibrary(one.store, false);
+    lib.setSources(parts.filter((o) => o !== one).map((o) => ({ store: o.store, kind: o.kind, name: o.name })));
+    bases.set(one.store.libraryId, lib);
+  }
+  return bases;
+}
+
+/**
+ * 2026-10-30 — WAS DAS LERNEN EINER BAZA WIEDZY STEUERT, für ihre Abschrift: Vorlagen, Powtórki, Widoki, Przebiegi,
+ * Zbiory, Wejścia, Formularze, Einstellungen als Kurs ohne Einträge, und wie viele Karten jede Vorlage gibt — mit den
+ * Quellen dieses Links (eine Quelle ausserhalb des Links zählt nicht mit). Kein Fortschritt, keine Antwort.
+ */
+export async function snapshotSetup(parts: readonly ScopePart[], libraryId: string): Promise<SnapshotSetup | undefined> {
+  const part = parts.find((p) => p.store.libraryId === libraryId);
+  const lib = basesOf(parts).get(libraryId);
+  if (part === undefined || lib === undefined) return undefined;
+  const setup = await exportSetup(lib, part.name);
+  return { ...setup, ...(part.readers === undefined ? {} : { readers: part.readers }) };
 }
 
 /** gzip (CompressionStream, im Browser wie in Node) — der Dienst entpackt mit einer Obergrenze. */
