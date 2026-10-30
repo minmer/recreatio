@@ -79,10 +79,14 @@ try {
     const last = key.split(/[.[\]]+/).filter(Boolean).pop();
     assert.ok(text.includes(`"${last}" — `), `the description explains "${key}"`);
   }
-  const example = JSON.parse(text.slice(text.indexOf('Przykład:') + 'Przykład:'.length).trim());
+  /* Das Beispiel schliesst den ersten Abschnitt — danach kommt „Jak aplikacja używa tych danych" (2026-10-30). */
+  const exampleAt = text.indexOf('Przykład:') + 'Przykład:'.length;
+  const exampleEnd = text.indexOf('\n\n#', exampleAt);
+  const example = JSON.parse(text.slice(exampleAt, exampleEnd < 0 ? text.length : exampleEnd).trim());
   assert.deepEqual(example, samples[0].doc(), 'the example in the text is the sample');
   for (const ip of [...m.PAGES_A, ...m.PAGES_AAAA, m.PAGES_CNAME, 'Api:Origins']) assert.ok(text.includes(ip), `the description names what stays outside: ${ip}`);
-  ok(`description: callable without context, every key of the sample described (${Object.keys(m.ADDRESSES_KEYS).length}), DNS/hosting/origins named`);
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
+  ok(`description: callable without context, every key of the sample described (${Object.keys(m.ADDRESSES_KEYS).length}), DNS/hosting/origins named, how the app uses them`);
 
   /* -- 2: Export → Import ändert nichts ----------------------------------------------------------------- */
   const R1 = '0190a0a0-0000-7000-8000-000000000001';

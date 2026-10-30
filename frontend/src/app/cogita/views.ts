@@ -30,6 +30,9 @@
  */
 
 import { readGraph, type Graph } from './graph';
+import { itemDue, itemKnowness, type Gauge } from './knowing';
+import { KNOWN, shareOf } from './knowness';
+import { levelLabel } from './prerequisites';
 import { fieldsOf, fieldText, labelOf, valuesOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import {
   axisMembers, groupsOf, readGrouping, readRule, readSteps, runSteps, isSource, wasTopicGrouping, RETIRED_STEP, RETIRED_TOPIC,
@@ -194,9 +197,59 @@ export interface ViewLib {
   readonly look: Lookup;
 }
 
+/**
+ * 2026-10-30 — EIN WIDOK MIT DER KENNTNIS DES BETRACHTERS (`knowing.ts`): seine Auswahl, seine Spalten und seine
+ * Reihenfolge sehen dann, wie gut jeder Eintrag sitzt — der Lernende, ohne einen der, der schaut.
+ */
+export function withKnowing(lib: ViewLib, knowing: Gauge | null): ViewLib {
+  if (knowing === null) return lib;
+  return {
+    selectContext: () => ({ ...lib.selectContext(), knowing }),
+    search: (q) => lib.search(q), label: (e) => lib.label(e),
+    get materialKinds() { return lib.materialKinds; },
+    material: (k) => lib.material(k),
+    get look() { return lib.look; }
+  };
+}
+
+/** 2026-10-30 — Spalten und Reihenfolgen aus der Kenntnis: wie gut, wann wieder dran, auf welcher Ebene des Lernens. */
+export const KNOWING_COLUMNS: readonly { readonly key: string; readonly label: string }[] = [
+  { key: '#knowness', label: 'Znajomość' },
+  { key: '#due', label: 'Kiedy powtórzyć' },
+  { key: '#level', label: 'Poziom nauki' }
+];
+
+/** Braucht dieser Widok die Kenntnis (ein Filtr znajomości, eine Spalte oder Reihenfolge daraus)? */
+export const needsKnowing = (view: ViewDoc): boolean =>
+  view.steps.some((s) => s.type === 'filter.when') || view.columns.some((c) => c.startsWith('#') && !c.startsWith(AXIS_COLUMN))
+  || (view.sort !== null && view.sort.key.startsWith('#') && !view.sort.key.startsWith(AXIS_COLUMN));
+
+/** Der Wert einer Spalte der Kenntnis — als Zahl (zum Sortieren) und in Worten. */
+function knowingValue(lib: ViewLib, e: Entity, key: string): { n: number; text: string } | null {
+  const ctx = lib.selectContext();
+  if (key === '#level') {
+    const at = ctx.prerequisites?.().level.get(e.id);
+    return at === undefined ? { n: Number.MAX_SAFE_INTEGER, text: '' } : { n: at, text: levelLabel(at) };
+  }
+  const g = ctx.knowing;
+  if (key === '#knowness') {
+    if (g === undefined) return { n: 0, text: '' };
+    const k = itemKnowness(g, e.id);
+    const asked = (g.testing.get(e.id) ?? []).some((t) => g.states.has(t.key));
+    return { n: k, text: !asked && k === 0 ? (g.testing.has(e.id) ? 'jeszcze nie' : '') : `${Math.round(shareOf(k) * 100)} %${k >= KNOWN ? ' · umiem' : ''}` };
+  }
+  if (key === '#due') {
+    const due = g === undefined ? null : itemDue(g, e.id);
+    return due === null ? { n: Number.MAX_SAFE_INTEGER, text: '' } : { n: due, text: new Date(due).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' }) };
+  }
+  return null;
+}
+
 /** Ein Wert zum Sortieren: das Etikett, eine Zahl, ein Text. */
 function sortValue(lib: ViewLib, e: Entity, key: string): string | number {
   if (key === '_label') return lib.label(e);
+  const known = key.startsWith(AXIS_COLUMN) ? null : key.startsWith('#') ? knowingValue(lib, e, key) : null;
+  if (known !== null) return known.n;
   const f = fieldsOf(e, lib.look).find((x) => x.key === key);
   if (f === undefined) return '';
   const v = valuesOf(e, f)[0]?.value;
@@ -245,6 +298,7 @@ export const AXIS_COLUMN = '#axis:';
 /** Was in einer Zelle steht: ein Feld in Worten — oder die Werte einer Achse (eines Rodzaj), auf die der Eintrag zeigt. */
 export function cellText(lib: ViewLib, e: Entity, key: string): string {
   if (key === '_label') return lib.label(e);
+  if (key.startsWith('#') && !key.startsWith(AXIS_COLUMN)) return knowingValue(lib, e, key)?.text ?? '';
   if (key.startsWith(AXIS_COLUMN)) {
     const ctx = lib.selectContext();
     const kind = key.slice(AXIS_COLUMN.length);
@@ -261,6 +315,8 @@ export function viewColumns(lib: ViewLib, view: ViewDoc, list: readonly Entity[]
   for (const e of list.slice(0, 200)) for (const f of fieldsOf(e, lib.look)) if (!fields.has(f.key)) fields.set(f.key, f);
   if (view.columns.length > 0) {
     return view.columns.flatMap((key): ViewColumn[] => {
+      const knowing = KNOWING_COLUMNS.find((c) => c.key === key);
+      if (knowing !== undefined) return [{ key, label: knowing.label }];
       if (key.startsWith(AXIS_COLUMN)) {
         const kind = lib.materialKinds.find((k) => k.id === key.slice(AXIS_COLUMN.length));
         return kind === undefined ? [] : [{ key, label: kind.name }];
@@ -351,7 +407,7 @@ export function stepsOfRevision(raw: unknown): Step[] {
     for (const id of nodes) {
       seen.add(id);
       const node = graph.nodes.find((n) => n.id === id);
-      if (node !== undefined && (node.type === 'follow' || node.type === 'structure' || node.type === 'filter.rule')) chain.push({ type: node.type, config: node.config });
+      if (node !== undefined && (node.type === 'follow' || node.type === 'structure' || node.type === 'filter.rule' || node.type === 'filter.when' || node.type === 'learning')) chain.push({ type: node.type, config: node.config });
     }
     frontier = nodes;
   }

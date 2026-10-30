@@ -415,6 +415,22 @@ const SERIES_TEXT = (): string => `Nowe msze i nabożeństwa razem z intencjami 
 ${pretty(seriesSample())}
 Zmiana godzin od wybranego dnia (np. msza wieczorna od 1 grudnia o 17:00): wpis z "id" z eksportu, "time": "17:00", "changeFrom": "2026-12-01".`;
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT MESSEN UND INTENTIONEN TUT: Termine wie jeder andere (`CalendarApp.tsx`: „N int.",
+ * „Przypisane do mnie" aus `Agenda.cs` `mine`); die Kanzlei (`MassOffice.tsx`, `officeDays.ts`: zwei Wochen); der
+ * offene Plan ohne Konto (`Mass.Show.cs` — nur offengelegte Bereiche, ohne Geber, Gabe, Ort, Priester und
+ * Zurückgezogenes; `MassParts.tsx`, `Widget.tsx`) und der Bogen daraus (`PrintSheet.tsx`, `sheet.ts`); „odprawiona" nur
+ * von Hand (`IntentionEntry.tsx`); das Mitwandern nach dem Tag (`Mass.Carry.cs`); keine Erinnerung, kein Push (`Push.cs`).
+ */
+const USAGE_TEXT = (): string => `- Msze, nabożeństwa i spowiedź to terminy kalendarza: stoją w Kalendarzu (przy mszy liczba intencji, np. „2 int.”) i w „Teraz” u każdego, kto ma klucz obszaru, który widzi kalendarz. Osoby z "celebrants" i "celebrant" mają je pod „Przypisane do mnie”.
+- Kancelaria pracuje na nich w „Msze i nabożeństwa”: Intencje, Plan i zmiany (dwa tygodnie), Wydruk.
+- Jawny plan — moduł strony „Msze i nabożeństwa” (także jako widżet na innej witrynie) — pokazuje bez konta godzinę, nazwę, odwołanie, jawne pola schematu i treści intencji (zbiorowe zwinięte, z liczbą). Bierze msze tylko z kalendarzy, które widzi obszar jawny („każdy czyta”).
+- Wydruk do gabloty (Wydruk → „Drukuj intencje (A4)”) to tydzień mszy z tego samego jawnego planu.
+- Do planu i na wydruk nie trafiają nigdy: ofiarodawca, ofiara, miejsce ani celebrans; intencje wycofane ("cancelled") też nie — zostają w kancelarii.
+- „Odprawiona” nie ustawia się sama: zaznacza ją kancelaria po mszy („Oznacz jako odprawione”) albo import ("status": "celebrated").
+- Gdy msza dostaje inną godzinę, jej intencje zostają przy tym samym dniu; gdyby zniknął dzień z przyjętymi intencjami, zmiana nie zostanie zapisana.
+- O mszach aplikacja nie przypomina, a import nikogo nie powiadamia — jego intencje mają od razu swój "status" i nie czekają w „Wpisy do przyjęcia”.`;
+
 /** 2026-10-29 — DIE MESSEN ALS JSON: der Baum, aus dem die Beschreibung neben dem Import (und für MCP) entsteht. */
 export const MASSES_JSON: JsonNode = {
   key: 'masses',
@@ -422,6 +438,7 @@ export const MASSES_JSON: JsonNode = {
   short: 'Msze i intencje',
   text: INTRO,
   inside: () => [
+    textNode('masses.usage', 'Jak aplikacja używa tych danych', USAGE_TEXT),
     textNode('masses.mass', 'Msza, nabożeństwo, spowiedź ("masses")', MASS_TEXT),
     textNode('masses.occurrence', 'Msza w danym dniu ("occurrences")', OCCURRENCE_TEXT),
     textNode('masses.intention', 'Intencja ("intentions")', INTENTION_TEXT),

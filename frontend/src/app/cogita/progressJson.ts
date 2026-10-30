@@ -12,7 +12,7 @@
  * Geändert und gelöscht wird nichts: eine Antwort ist geschehen, sie wird nicht nachträglich anders.
  */
 
-import { describe, keyLines, pretty, type JsonNode } from '../core/jsonTree';
+import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
 import { newId } from '../core/ids';
 import { plural } from '../core/plural';
 import type { AnswerRecord } from './learn';
@@ -82,6 +82,17 @@ const SAMPLE = {
   ]
 };
 
+/**
+ * 2026-10-30 — WOZU DIE ANTWORTEN DIENEN, im ganzen System (neben jedem Import: wie die Daten gebraucht werden).
+ * Nachgeprüft: `knowness.ts` (der Zustand je Karte), `knowing.ts` (Eintrag aus Karten), `revision.ts`, `learn.ts` (`reportDue`).
+ */
+const PROGRESS_USAGE_JSON: JsonNode = textNode('learn-progress.usage', 'Jak aplikacja używa tych danych', () => `Z odpowiedzi aplikacja liczy, jak dobrze umiesz — w przeglądarce, tak samo wszędzie:
+- każda karta: kiedy ostatnio, ile czasu naprawdę minęło przed odpowiedzią, odstęp do następnego razu (dobrze: ten czas × 3; częściowo: jedna trzecia, co najmniej dzień, jeśli minęły dni; źle: 5 minut; dobrze zaraz po błędzie: 0,4 × najlepszy odstęp sprzed błędu) i jej znajomość, która z czasem spada;
+- każdy wpis: średnia znajomości jego kart z odpowiedzią, ważona tym, jak mocno każda go sprawdza (szablon w schemacie), plus to, co na nim buduje;
+- z tego: które karty powtórka da teraz i dlaczego (przy każdej karcie widać powód), co pokazują widoki i powtórki z „Filtrem znajomości” (np. szczegóły okresu dopiero, gdy okres jest znany), „Ścieżka”, „Postępy” i przypomnienie o następnej powtórce — serwis widzi tylko, kiedy ona i ile kart czeka;
+- odpowiedzi zostają wszystkie: gdy zmieni się sposób liczenia, wszystko da się policzyć od nowa; karta, której poprawna odpowiedź się zmieniła, liczy tylko odpowiedzi od tej zmiany.
+Import dopisuje odpowiedzi tylko do Twoich postępów; prowadzący kursu widzi je tak jak odpowiedzi z nauki.`);
+
 export const PROGRESS_JSON: JsonNode = {
   key: 'learn-progress',
   title: `Moje postępy jako JSON ("${PROGRESS_FORMAT}", wersja ${PROGRESS_VERSION})`,
@@ -107,6 +118,7 @@ ${keyLines(ANSWER_KEYS)}
 
 Przykład:
 ${pretty(SAMPLE)}`,
+  inside: () => [PROGRESS_USAGE_JSON],
   samples: () => [{ label: 'Dwie odpowiedzi', doc: () => SAMPLE }]
 };
 

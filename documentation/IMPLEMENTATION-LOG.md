@@ -2627,3 +2627,50 @@ export, unchanged export (no change), a sample imported, export again, that expo
 with a fresh account (role keys made, masses and intentions, calendar series, bookings, chat in Notatki, lamps …).
 
 **Owner:** deploy the API (the embedded `ImportFormats.json`) and the site.
+
+## C5 — Cogita revision as a storyboard: knowness per item, knowness in views, presets instead of modes (2026-10-30)
+
+**Asked** („Claude Code prompt: Cogita revision as storyboard”): information plus a view that decides what comes next;
+knowness belongs to the item (cards are evidence, weighted in the schema); a simple incremental formula with named
+rules; views and revisions filter and order with knowness through the existing condition logic; a revision can take a
+saved view as source; a fixed set of order/pick options, each explainable; presets instead of hardcoded modes
+(„Najpierw podstawy”, and „Od ogólnego do szczegółu” in `fakty.json`); remove the special code; the Don Bosco case
+from schema + JSON import + a view alone, tested on a fixture. **Plus:** beside every JSON import, how the imported
+data is used in the whole system.
+
+**Found before building:** the knowness formula (A.1) used the last three answers; „Najpierw podstawy” was a revision
+node (`gate`) with its own eligibility code (`closedBy`, `unmetNeeds`, `withBasics`, `heldBack`, a level filter in the
+session), and the session ordered by level even without it; flows had a second form of the same rule (`prerequisite`);
+the condition logic (`logic.ts`) already had „Znajomość”, but only of a fixed id; views filtered only field values.
+
+**Built:**
+- `knowness.ts` — one step per answer (`CardState`, `step`, `stateOf`): right × 3 of the time that passed (never
+  shorter than before), partly a third (≥ 1 day if days passed), wrong 5 min, right after a mistake 0.4 × the best
+  interval before it; knowness = last correctness × 10^(0.5·(1 − t/interval)); snapshots v2 carry the state.
+- `knowing.ts` — item knowness = weighted mean of its answered cards (`Template.tests`, `Card.tests`) + inference
+  (A.3); relations for conditions (`self`, `cards`, `before`, `up`, a field), `CardGate` for revisions.
+- `logic.ts` — `rel` and `each` on „Znajomość”; `ConditionEditor` offers them in views and revisions.
+- `selection.ts` / `views.ts` — steps `filter.when` and `learning`, `keep` on `follow`/`structure`/`learning`, columns
+  and sorts `#knowness`, `#due`, `#level`; the viewer's own knowness in Wpisy (`CogitaCtx.learner`) and in the page
+  module „Widok” (the page's person).
+- `revision.ts` — conditions travel with the cards and are checked during the run; `source.view`; `order`
+  (general/text/date/random/given/due) and `pick` (next/weighted); `Why` + `whyText`; `waiting`; `migrateRevision`
+  turns an old `gate` into the general steps (planning, editor, JSON import/export, old offline copies).
+- Presets: „Najpierw podstawy”, the daily revision and „Od ogólnego do szczegółu” from general steps (`presets.ts`);
+  `fakty.json` gains „Miejsce” (coordinates), weights on its card templates, the view and revision „Od ogólnego do
+  szczegółu”; `przyklad-atom.json` and the AI book guide (E1, E4) use the general steps.
+- Flows: `prerequisite` is read as a „Warunek” on knowness (`migratePrerequisites`).
+- UI: why line and waiting summary in the run, „Co sprawdza ta karta” (weights) in card templates, order/pick in the
+  strategy, „Powtórka z tego widoku”, „Moje wpisy” in Postępy, a migration note in the revision editor.
+- Docs beside imports: the course format describes knowness, weights, knowness filters, views as sources, order/pick,
+  presets in schemes and how the app uses the data; every other format got „Jak aplikacja używa tych danych”
+  (four agents, each claim checked in the code); ImportFormats.json regenerated (35 formats, 68 parts).
+
+**Removed:** the `gate` node and `Plan.gate`, `closedBy`, `heldBack`, `unmetNeeds`, `withBasics`, `entityMastery`,
+`masteryOf`, the A.1 formula, `blockedBy`/`gateOpen`, the flow step `prerequisite` (read as a condition).
+
+**Checks:** `app-cogita-check` 679 (new: the rules as ranges, weighted items, relative conditions, the Don Bosco
+fixture end to end — view and revision —, gate and flow migration, old offline copies); all JSON checks; tsc.
+
+**Owner:** deploy the site and the API (the embedded `ImportFormats.json`). Re-import `fakty.json` into bases that use
+it to get „Miejsce”, the weights and the presets.

@@ -994,6 +994,20 @@ Wiadomość na później, bez dźwięku: {"text": "Przypomnienie: …", "sendAt"
 const LINKED_TEXT = (): string => `Wpis w "linked" — zadanie albo termin, które ktoś utworzył z wiadomości tej rozmowy (menu wiadomości: „Utwórz zadanie”, „Dodaj do kalendarza”). Tylko do odczytu: import go pomija.
 ${keyLines(LINKED_KEYS)}`;
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEM IMPORTIERTEN TUT: Zugang = Bereich (`Chat.cs`), Unterschrift der Rolle
+ * (`sendMessage`), der Name aus „Moje dane" (`myRoleNames`), Wecken ohne Inhalt (`Push.cs`, still bei `silent`),
+ * geplant nur mit Recht zur Zeit des Sendens (`ChatDelivery.cs`), Themen (`TopicBar.tsx`).
+ */
+const USAGE_TEXT = (): string => `- Rozmowa należy do obszaru, a dostęp do rozmowy to dostęp do obszaru: kto może go czytać, czyta rozmowę; kto może w nim pisać, pisze. Tematy i wiadomości z importu widzą więc wszyscy, którzy widzą rozmowę — tak samo jak pisane ręcznie.
+- Usługa nie czyta wiadomości: leżą zapieczętowane kluczem obszaru, a każdą podpisuje rola, przez którą piszesz; usługa sprawdza tylko podpis. Imię i nazwisko pod wiadomością pochodzi z „Moje dane”.
+- Nowa wiadomość jest dla innych nieprzeczytana (dzwonek, „Czeka na Ciebie”; krok „Przeczytaj wiadomości” traci haczyk, dopóki jej nie przeczytają) i budzi ich telefony — przez Firebase idzie tylko sygnał „sprawdź”, treść otwiera dopiero telefon. Z "silent": true tego sygnału nie ma; nieprzeczytana jest i tak.
+- Wiadomość z "sendAt" czeka zapieczętowana w usłudze; o tej porze wychodzi tylko wtedy, gdy nadal możesz pisać w tej rozmowie — i dopiero wtedy budzi innych.
+- Temat to filtr i miejsce: kto go wybierze, widzi jego wiadomości, a to, co napisze, trafia do niego.
+- Zadania i terminy powstają z wiadomości w aplikacji („Utwórz zadanie”, „Dodaj do kalendarza”) i pamiętają rozmowę, temat i wiadomość; okno „Zadania i terminy z tej rozmowy” zbiera je według tematów.
+- Import nie zmienia, kto ma dostęp do rozmowy — to ustawia się w obszarze.`;
+
+export const CHAT_USAGE_JSON: JsonNode = { key: 'chat.usage', title: 'Jak aplikacja używa tych danych', text: USAGE_TEXT };
 export const CHAT_TOPIC_JSON: JsonNode = { key: 'chat.topic', title: 'Temat ("topics[]")', text: TOPIC_TEXT };
 export const CHAT_MESSAGE_JSON: JsonNode = { key: 'chat.message', title: 'Wiadomość z eksportu ("messages[]" z "id")', short: 'Wiadomość z eksportu', text: MESSAGE_TEXT };
 export const CHAT_NEW_MESSAGE_JSON: JsonNode = { key: 'chat.new', title: 'Nowa wiadomość ("messages[]" bez "id")', short: 'Nowa wiadomość', text: NEW_MESSAGE_TEXT };
@@ -1006,7 +1020,7 @@ export const CHAT_JSON: JsonNode = {
   title: `Rozmowa jako JSON ("${CHAT_FORMAT}", wersja ${CHAT_VERSION})`,
   short: 'Rozmowa',
   text: INTRO,
-  inside: () => [CHAT_TOPIC_JSON, CHAT_MESSAGE_JSON, CHAT_NEW_MESSAGE_JSON, CHAT_LINKED_JSON, CHAT_EXAMPLE_JSON],
+  inside: () => [CHAT_USAGE_JSON, CHAT_TOPIC_JSON, CHAT_MESSAGE_JSON, CHAT_NEW_MESSAGE_JSON, CHAT_LINKED_JSON, CHAT_EXAMPLE_JSON],
   samples: () => [
     { label: 'dwa nowe tematy i wiadomość w każdym', doc: chatTopicsSample },
     { label: 'przypomnienie na jutro rano, bez dźwięku', doc: () => chatReminderSample() }

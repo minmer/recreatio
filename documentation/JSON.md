@@ -13,6 +13,9 @@ backup, or prepared by an assistant. The rules are the same everywhere (2026-10-
   deleted unless the format names a previewed way to remove. References inside a document use `"@key"`.
 - **Sealing does not change**: an import saves through the same functions as the part's own editor — names, titles,
   notes are sealed in the browser. The exported file is plaintext; it is the user's own download.
+- **How the data is used** (2026-10-30): every description has a section „Jak aplikacja używa tych danych” — where
+  the imported data appears, what else reads it (other parts, pages, MCP), who can see it and what the import does not
+  do. Each sentence was checked in the code; a new reader of a part's data belongs in that section.
 - **Checks**: `app-json-check` (pages, modules, areas, forms, calendar schemes and plans, the MCP file) and
   `app-json-parts-check` (in `npm run app:check`), which runs every `app-json-<part>-check.mjs` — a new part's check is
   picked up by its name.

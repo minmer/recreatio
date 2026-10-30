@@ -311,6 +311,39 @@ ${keyLines({
   inside: () => [SCHEME_FIELD_JSON, RULE_FLOW_JSON]
 };
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT EINEM SCHEMA TUT: Editor und Details eines Termins (`EventEditor.tsx`,
+ * `EventDetails.tsx`); offene Werte gehen nur in den offenen Plan und den Bogen (`Calendar.ValuesAsync` publicOnly,
+ * `MassParts.tsx`, `sheet.ts`), die anderen liegen unter dem Bereich, der den Termin sieht (`schemeValues.ts`);
+ * Listen mit Regel im Browser (`records.ts`, `RecordsPanel.tsx`), wer welche Einträge sieht (`Calendar.Records.cs`),
+ * Wartendes an die Kanzlei (`Notify.cs`, `alerts.ts`); die Liste `intencje` (`Mass.cs`); Pläne (`PlanApply.tsx`).
+ */
+export const SCHEME_USAGE_JSON: JsonNode = {
+  key: 'scheme.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Schemat zapisany w ustawieniach kalendarza („Schematy terminów”) działa przy terminach, które go mają: edytor terminu pokazuje jego pola (pola "level": "day" — przy wybranym dniu serii), a szczegóły terminu w Kalendarzu — wartości i listy.
+- Jawne pola mszy ("public": true) idą do jawnego planu (moduł strony „Msze i nabożeństwa”, np. obchód i kolor szat) i na wydruk do gabloty — gdy obszar, który widzi kalendarz, jest jawny. Pozostałe wartości otwiera tylko klucz tego obszaru.
+- Listy wpisów stoją przy każdym dniu terminu. Prowadzący kalendarz dodają wpisy; przy "outside": true także ci, którzy go tylko czytają („Zgłoś”) — taki wpis czeka, a prowadzący widzą go w „Wpisy do przyjęcia” (dzwonek, „Czeka na Ciebie”). Prowadzący widzą wszystkie wpisy, czytający — przyjęte, odprawione i własne.
+- Reguły list sprawdza tylko przeglądarka — serwer ich nie zna, bo schemat jest zaszyfrowany.
+- Lista "intencje" to intencje mszy: pracuje na niej kancelaria („Msze i nabożeństwa”), a jej przyjęte i odprawione treści idą do jawnego planu i na wydruk. Wpisy innych list do jawnego planu nie trafiają.
+- Plan kalendarza tworzy terminy z wybranym schematem i od razu wypełnia jego pola oraz stałe wpisy list.`
+};
+
+/*
+ * 2026-10-30 — WAS EIN PLAN BEWIRKT: nichts, bis „Zastosuj…" (`PlanApply.tsx`: einzelne Termine aus diesem Browser —
+ * Art, Schema, Titel, Werte, feste Einträge „z reguły", `planOrigin`); „już jest" und „Plany do przedłużenia"
+ * (`Notify.cs`, `alerts.ts`); versiegelt unter dem eigenen Bereich des Kalenders (`scheme.docAreaOf`).
+ */
+export const PLAN_USAGE_JSON: JsonNode = {
+  key: 'plan.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Zapisany plan sam niczego nie tworzy. Dopiero „Zastosuj…” (ustawienia kalendarza → „Plany”) liczy w przeglądarce dni wybranego okresu i tworzy pojedyncze terminy w tym kalendarzu.
+- Każdy dostaje: rodzaj z planu (bez niego — ze schematu, a bez obu — "mass"), schemat planu, tytuł z przebiegu, wartości pól (także pól dnia) i jawny tytuł, jeśli tak mówi schemat; stałe wpisy z węzłów "record" (np. intencja „Za parafian”) są od razu przyjęte.
+- Utworzone terminy widzi każdy, kto ma klucz obszaru, który widzi kalendarz: w Kalendarzu, w „Teraz”, w „Msze i nabożeństwa” i w modułach stron; gdy ten obszar jest jawny — także w jawnym planie mszy i na wydruku do gabloty.
+- Termin pamięta plan, godzinę ("key" z "slots") i dzień: dzięki temu podgląd poznaje msze już zaplanowane, a prowadzący kalendarz dostają w „Czeka na Ciebie” „Plany do przedłużenia”, gdy ostatni termin z planu wypada w ciągu dwóch tygodni.
+- Plan jest szyfrowany kluczem obszaru, który prowadzi kalendarz (schemat — kluczem obszaru, który widzi terminy).`
+};
+
 /** Das Schema — die Wurzel neben seinem Import. */
 export const SCHEME_JSON: JsonNode = {
   key: 'scheme',
@@ -329,7 +362,7 @@ ${keyLines({
   })}
 Przykład (szablon „Spotkanie z zapisami”):
 ${pretty(exportScheme(SCHEME_TEMPLATES.find((t) => t.id === 'spotkanie-zapisy')?.def ?? SCHEME_TEMPLATES[0].def))}`,
-  inside: () => [SCHEME_FIELD_JSON, RECORD_LIST_JSON],
+  inside: () => [SCHEME_USAGE_JSON, SCHEME_FIELD_JSON, RECORD_LIST_JSON],
   samples: () => SCHEME_TEMPLATES.map((t) => ({ label: `szablon „${t.def.name}”`, doc: () => exportScheme(t.def) }))
 };
 
@@ -348,6 +381,6 @@ ${keyLines({
     flow: 'przebieg planu (niżej)',
     says: 'objaśnienie planu'
   })}`,
-  inside: () => [PLAN_FLOW_JSON],
+  inside: () => [PLAN_USAGE_JSON, PLAN_FLOW_JSON],
   samples: () => PLAN_TEMPLATES.map((t) => ({ label: `szablon „${t.def.name}”`, doc: () => exportPlan(t.def) }))
 };

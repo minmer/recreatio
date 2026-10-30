@@ -321,7 +321,7 @@ export function planEntries(doc: unknown, ctx: EntriesContext, now: Date = new D
   });
 
   if (matchedByName > 0) warnings.push(`${count(matchedByName, 'osoba bez "id" została dopasowana', 'osoby bez "id" zostały dopasowane', 'osób bez "id" zostało dopasowanych')} po imieniu i nazwisku do osób już wpisanych.`);
-  if (skippedSeat > 0) warnings.push(`${count(skippedSeat, 'osoba ma', 'osoby mają', 'osób ma')} własny link — ich odpowiedzi import nie zmienia (popraw je w zakładce „Osoby”).`);
+  if (skippedSeat > 0) warnings.push(`${count(skippedSeat, 'osoba ma', 'osoby mają', 'osób ma')} własny link — ich odpowiedzi import nie zmienia (popraw je w zakładce „Zgłoszenia”).`);
 
   const lines: string[] = [];
   if (add.length > 0) lines.push(`Nowe osoby: ${add.length}.`);
@@ -374,6 +374,20 @@ const exampleValue = (f: OpenField, sample: number): string | boolean =>
     : f.identityRole === 'address' ? ['ul. Długa 5/3, 34-600 Limanowa', 'ul. Krótka 12, 34-600 Limanowa'][sample % 2]
     : '…');
 
+/*
+   2026-10-30 — WAS DIE APP MIT DEN EINGETRAGENEN TUT: Einträge der Kanzlei (`by_office`, `Form.Entries.cs`)
+   stehen in denselben Listen (`FormPeople.tsx`, `FormTable.tsx`, `steps/TaskSheet.tsx`, `parts/entries.tsx`,
+   `ExtensionSheet.tsx`), öffnen nur die Koordinatoren (`Form.Office.cs`, `entrySubject.tsx`), bekommen keinen
+   Platz, keine Rolle (`Form.Members.cs`), kein Gespräch zu zweit (`OfficeSeatChats.tsx`), aber Obszary osób
+   (`Form.Virtual.cs`); die Glocke schweigt (`Notify.cs`: `by_office = 0`), ein geschlossenes Formular nimmt sie an.
+*/
+const ENTRIES_USAGE = `## Jak aplikacja używa tych danych
+- Osoby z importu stoją na liście formularza jak inne: w zakładce „Zgłoszenia” (z oznaczeniem „bez linku”), w „Tabeli”, na „Liście obecności” zadań z terminami i w modułach strony „Lista osób” i „Panel osoby”.
+- Wpisy z "records" stoją w arkuszu rozszerzenia, okres po okresie — z historią, podsumowaniem, „Drukuj listę” i „Pobierz CSV”.
+- Odpowiedzi otwierają tylko koordynatorzy formularza; kto prowadzi stronę, ale nie czyta obszaru odpowiedzi, widzi tylko, że wpisy są. CSV z „Tabeli” i eksport tego JSON mają odpowiedzi odszyfrowane — takiego pliku nic już nie chroni.
+- Dopisana osoba nie widzi swojego zgłoszenia, nie wypełnia podformularzy, nie dostaje ról uczestników ("memberRoles") ani rozmowy jeden na jeden; jej kroki, zadania i obecność zaznacza kancelaria, a obszar osoby z "virtualAreas" (jeśli formularz go ma) służy tylko kancelarii.
+- Import nie dzwoni: dzwonek i powiadomienia liczą tylko zgłoszenia wysłane przez same osoby. Działa też przy zamkniętym formularzu.`;
+
 /**
  * Die Beschreibung NEBEN dem Import — mit den Fragen und Erweiterungen dieses
  * Formulars: wer sie einem Sprachmodell gibt, bekommt ein Dokument zurück, das
@@ -418,6 +432,8 @@ ${office.length === 0 ? '  (ten formularz nie ma rozszerzeń wypełnianych przez
     const extKeys = answerKeys(ext.fields);
     return `  "${ext.name}" — ${ROUND_WORDS[ext.repeat]}${ext.repeat === 'once' ? '' : ` (${REPEAT_LABEL[ext.repeat]}; okresu z przyszłości import nie przyjmie)`}\n${ext.fields.filter((f) => f.label !== null).map((f) => `      "${extKeys.get(f.fieldId) ?? f.fieldId}" — ${kindWords(f)}`).join('\n')}`;
   }).join('\n')}
+
+${ENTRIES_USAGE}
 
 Przykład:
 ${JSON.stringify(example, null, 2)}

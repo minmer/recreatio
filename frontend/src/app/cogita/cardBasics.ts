@@ -127,6 +127,18 @@ export interface Card {
   readonly about?: readonly string[];
   /** 2026-10-27 — was diese Karte fragt, kurz, für Listen (die Karte eines Paars: „1410 — Grunwald”). */
   readonly label?: string;
+  /**
+   * 2026-10-30 — WOFÜR DIE KARTE ZEUGNIS GIBT, und wie stark: die Einträge, deren Kenntnis sie mitbestimmt, mit dem
+   * Gewicht, das ihre Vorlage im Schema erklärt („Co sprawdza ta karta", `Template.tests`). Fehlt es: ihr Eintrag
+   * und, bei einem Pytanie, was es prüft („O czym") — je mit 1 (`knowing.ts`, `cardTests`).
+   */
+  readonly tests?: readonly CardTest[];
+}
+
+/** Ein Eintrag, den eine Karte prüft, und wie stark (eine genaue Frage zählt mehr als eine allgemeine). */
+export interface CardTest {
+  readonly id: string;
+  readonly weight: number;
 }
 
 export const cardKey = (question: string, direction: string): string => (direction === '' ? question : `${question}|${direction}`);

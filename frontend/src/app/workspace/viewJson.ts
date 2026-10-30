@@ -57,6 +57,21 @@ const SAMPLE = {
   ]
 };
 
+/*
+ * 2026-10-30 — WER DIE EINSTELLUNG LIEST: nur die Glocke (`NotifyBell.tsx`: Liste und Zahl, ohne „dziś") und
+ * „Czeka na Ciebie" (`ViewParts.tsx` auf Teraz und im Überblick eines Bereichs, dort nur seine Bereiche);
+ * die Zahlen aus einer Frage (`notify.ts`); was das Gerät meldet, stellt jedes Gerät selbst ein (`NotifySettings`).
+ */
+export const VIEW_USAGE_JSON: JsonNode = {
+  key: 'workspace-view.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Czytają to dwa miejsca: dzwonek (lista i liczba) i lista „Czeka na Ciebie” — na stronie Teraz i w przeglądzie każdego obszaru. Oba pokazują rodzaje w tej kolejności i pomijają wyłączone.
+- Liczba przy dzwonku sumuje tylko włączone rodzaje, które się w niej liczą („Liczy się przy dzwonku”).
+- Przegląd obszaru bierze z listy tylko to, co należy do tego obszaru i obszarów w nim; zadania, dołączenia przez link i powtórki stoją tylko na stronie Teraz i w dzwonku, a „Terminy dziś” — tylko na stronach (dzwonek ich nie wczytuje).
+- Same liczby przychodzą z jednego zapytania o nowości — z tego, do czego masz dostęp. Ustawienie ich nie zmienia, niczego nie oznacza jako przejrzane i nie dotyczy innych osób.
+- Powiadomienia systemowe każde urządzenie ustawia osobno („Na tym urządzeniu”) — rodzaj wyłączony tutaj może się tam nadal zgłaszać.`
+};
+
 export const VIEW_JSON: JsonNode = {
   key: 'workspace-view',
   title: `Widok — powiadomienia jako JSON ("${VIEW_FORMAT}", wersja ${VIEW_VERSION})`,
@@ -80,6 +95,7 @@ ${keyLines(Object.fromEntries(ALERT_KINDS.map((one) => [one.kind, `${one.label}:
 
 Przykład (kancelaria: zgłoszenia i rezerwacje na górze, powtórki wyłączone):
 ${pretty(SAMPLE)}`,
+  inside: () => [VIEW_USAGE_JSON],
   samples: () => [{ label: 'Kancelaria: zgłoszenia i rezerwacje na górze', doc: () => SAMPLE }]
 };
 

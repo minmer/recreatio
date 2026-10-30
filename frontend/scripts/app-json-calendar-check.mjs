@@ -113,6 +113,8 @@ try {
   /* -- 1: die Beschreibung --------------------------------------------------------------------------- */
   const text = tree.describe(m.CALENDAR_JSON);
   assert.ok(text.startsWith('# Terminy kalendarza ("recreatio/calendar")'), 'the description names the format');
+  /* 2026-10-30 — gleich nach dem ersten Abschnitt: „Jak aplikacja używa tych danych". */
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
   for (const node of ['## Termin ("appointments[]", "points[]")', '### Dzień serii ("occurrences[]")', '## Pole ("fields[]")']) {
     assert.ok(text.includes(node), `the tree carries ${node}`);
   }

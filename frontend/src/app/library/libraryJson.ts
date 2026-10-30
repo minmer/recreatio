@@ -487,6 +487,10 @@ export function kindsDoc(kinds: readonly LibKind[]): string {
   }).join('\n\n');
 }
 
+/**
+ * 2026-10-30 — am Ende „Jak aplikacja używa tych danych": wo die Einträge danach stehen und wer sie liest
+ * (Skryptorium, Bazy wiedzy, Seiten, Czytnik, Dostęp dla AI) — nur, was der Code tut.
+ */
 export function libraryDescription(): string {
   const kinds = kindsDoc(LIBRARY_KINDS);
 
@@ -518,5 +522,15 @@ ${kinds}
 ## Miejsce w źródle
 ${BIBLE_DOC}
 Inne miejsca: "s. 23", "nr 24", "rozdz. 4"; w nagraniu — czas: "1:23", "1:23–1:45", "1:02:03".
+
+## Jak aplikacja używa tych danych
+- W Bibliotece wpisy stoją w zakładkach „Źródła”, „Muzyka”, „Cytaty” i „Osoby”; każdy ma swoją stronę, a „Mapa” rysuje połączenia (cytat → dzieło → autorzy). Skaner kodów otwiera książkę po "isbn" albo po "libraryNumber".
+- [@klucz, miejsce] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem (za pierwszym razem pełny opis, potem skrót); pod tekstem Skryptorium i w druku (LaTeX) stoi lista „Źródła”. ![@klucz-cytatu] wstawia cytat jako blok z podpisem, skąd pochodzi.
+- Teksty zapisują kennungę wpisu, nie jego opis: poprawione dane dzieła albo osoby widać od razu w każdym przypisie, a zmiana klucza niczego nie psuje.
+- Moduł strony „Zbiór cytatów” pokazuje cytaty tej biblioteki (albo jednego dzieła): „myśl dnia” albo zbiór z wyszukiwaniem.
+- Baza wiedzy, która ma tę bibliotekę wśród źródeł, wskazuje jej wpisy, a szablony kart i powtórki mogą z nich korzystać (np. z cytatów); niczego nie kopiuje. W Skryptorium rodzaj tekstu może mieć pole, które wskazuje dzieło z miejscem (np. "@bt" i "Łk 1,26-38").
+- „Powiązania” przy wpisie pokazują, co na niego wskazuje — w bibliotekach, skryptoriach i bazach wiedzy, które czytający może otworzyć.
+- Pełny tekst dzieła dochodzi osobnym importem („Tekst źródła”, „Dzieło z tekstem”); wtedy zacytowane miejsca prowadzą do akapitu („pokaż w tekście”).
+- Wpisy są zapieczętowane w przeglądarce kluczem obszaru. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje tę bibliotekę, daje asystentowi jej odpis do czytania — asystent wyszukuje i czyta wpisy, niczego nie zmienia.
 `;
 }

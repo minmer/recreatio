@@ -517,6 +517,20 @@ export function houseSample(): Record<string, unknown> {
   };
 }
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEN DINGEN UND TERMINEN TUT: der Baustein „Rezerwacja" (`live.tsx`, `SlotCard.tsx`,
+ * `OfferList.tsx`, `MyTerm.tsx`); frei und belegt für jeden, ohne Namen (`Bookings.Offers.cs`), „für wen"
+ * (`Bookings.Take.cs`); Wartendes an die, die schreiben (`Reservations.tsx`, „Do potwierdzenia", `Notify.cs`,
+ * `alerts.ts`); Angebote im Kalender (`calendarModel.ts`), eigene Reservierungen (`Agenda.cs`); der Schritt `booking`
+ * (`Form.Extension.cs`); kein Push (`Push.cs`) — die Antwort steht in der Karte (`SlotCard.tsx`).
+ */
+const USAGE_TEXT = (): string => `- Zasób "offered": jego terminy to spotkania w kalendarzu zasobu. Na stronie pokazuje je moduł „Rezerwacja” (pole „Co można zarezerwować”) z przyciskiem „Wybierz ten termin”. Zasób "open": ten sam moduł pokazuje, co zajęte, i pyta o własny czas.
+- Zająć termin może osoba z własnym linkiem albo zalogowana (za kogo — wybiera u góry strony). Co wolne, a co zajęte, widzi każdy, kto widzi moduł — nigdy, kto zajął. "reserveArea" zamyka terminy dla osób spoza tej grupy (i grup pod nią).
+- Prośby czekające na kancelarię ("approval": "office") widzą ci, którzy piszą w obszarze zasobu: w Rezerwacjach („Czeka na odpowiedź”), w Kalendarzu („Do potwierdzenia”), w dzwonku i w „Czeka na Ciebie” („Rezerwacje do potwierdzenia”). Prośby o dołączenie ("inviteHours") widzi gospodarz w module „Rezerwacja”.
+- W Kalendarzu terminy do wyboru są zwykłymi terminami z liczbą zajętych miejsc („2/3”); bez tytułu noszą nazwę zasobu. Zalogowana osoba ma swoją rezerwację w swoim Kalendarzu („To Twoja rezerwacja”).
+- Krok formularza zaliczany „sam — gdy osoba wybierze termin” jest zrobiony, gdy osoba ma prośbę albo rezerwację na ten zasób.
+- Powiadomień push o rezerwacjach nie ma: odpowiedź — także odwołanie terminu — osoba widzi przy swoim terminie w module „Rezerwacja”.`;
+
 export const BOOKINGS_RESOURCE_JSON: JsonNode = { key: 'bookings.resource', title: 'Zasób ("resources[]")', short: 'Zasób', text: RESOURCE_TEXT };
 export const BOOKINGS_SLOT_JSON: JsonNode = { key: 'bookings.slot', title: 'Termin do wyboru ("slots[]")', short: 'Termin', text: SLOT_TEXT };
 export const BOOKINGS_CLAIM_JSON: JsonNode = { key: 'bookings.claim', title: 'Rezerwacja ("claims[]", tylko eksport)', short: 'Rezerwacja', text: CLAIM_TEXT };
@@ -528,6 +542,7 @@ export const BOOKINGS_JSON: JsonNode = {
   short: 'Rezerwacje',
   text: INTRO,
   inside: () => [
+    textNode('bookings.usage', 'Jak aplikacja używa tych danych', USAGE_TEXT),
     BOOKINGS_RESOURCE_JSON, BOOKINGS_SLOT_JSON, BOOKINGS_CLAIM_JSON,
     textNode('bookings.example', 'Przykład: spotkania z księdzem', () => pretty(priestSample())),
     textNode('bookings.house', 'Przykład: dom na noce i kaplica w nim', () => pretty(houseSample()))

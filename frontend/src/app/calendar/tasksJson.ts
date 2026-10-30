@@ -936,6 +936,24 @@ export const TASK_GROUPS_JSON: JsonNode = {
   text: GROUPS_TEXT
 };
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEN AUFGABEN TUT: Zadania und das Raster des Kalenders (`TasksView.tsx`,
+ * `CalendarApp.tsx` — nicht im Baustein einer Seite), Teraz und „Czeka na Ciebie" (`ViewParts.tsx`, `alerts.ts`);
+ * wer sieht (`Agenda.HeldAreasAsync`), wer abhakt (`Tasks.Done.cs`: wer schreibt; ein Häkchen je Vorkommen,
+ * `pk_task_done`); Erinnerungen plant das Gerät (`notifyRich.remindersFor`, `platform.ts`, `Reminders.java`), der
+ * Dienst schickt keine (`Push.cs`); Aufgaben aus Rozmowy (`TopicBar.tsx`) und die anderen der Schritte (`Form.Tasks.cs`).
+ */
+export const TASKS_USAGE_JSON: JsonNode = {
+  key: 'tasks.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Zadania stoją w Kalendarzu: zakładka „Zadania” (Teraz, Przegapione, Dziś później, W najbliższych dniach, Co pewien czas, Zrobione dziś, Pominięte dziś) i siatka kalendarza (pasek i wiersz „zadania” przy każdym dniu). Moduł „Kalendarz” na stronach ich nie pokazuje.
+- „Teraz”: część „Zadania” — co jest otwarte teraz i co zalega, z „Zrobione”; w „Czeka na Ciebie” — ile zadań jest do zrobienia teraz.
+- Widzi je, kto ma klucz obszaru z "who": „Tylko ja” — tylko Ty, grupa — jej osoby. Odhaczyć albo pominąć może każdy, kto w grupie pisze; jedno odhaczenie wystarcza za całą grupę.
+- Przypomnienia ("remind") planuje każde urządzenie, które widzi zadanie — serwer ich nie wysyła. Telefon z aplikacją — budzikiem systemu, także gdy aplikacja jest zamknięta (bywa kilka minut później; w powiadomieniu jest „Zrobione”); przeglądarka — tylko przy otwartej stronie. Wyłącza się je na urządzeniu: dzwonek → „Ustawienia” → „przypomnieniach o zadaniach”.
+- Zadanie utworzone z wiadomości widać też w rozmowie („Zadania i terminy z tej rozmowy”).
+- Zadania z kroków formularzy (moduł strony „Zadania osoby”) to coś innego — ten format ich nie obejmuje.`
+};
+
 export const TASKS_EXAMPLE_JSON: JsonNode = {
   key: 'tasks.example',
   title: 'Przykład',
@@ -948,7 +966,7 @@ export const TASKS_JSON: JsonNode = {
   title: `Zadania jako JSON ("${TASKS_FORMAT}", wersja ${TASKS_VERSION})`,
   short: 'Zadania',
   text: INTRO,
-  inside: () => [TASK_JSON, TASK_KINDS_JSON, TASK_GROUPS_JSON, TASKS_EXAMPLE_JSON],
+  inside: () => [TASKS_USAGE_JSON, TASK_JSON, TASK_KINDS_JSON, TASK_GROUPS_JSON, TASKS_EXAMPLE_JSON],
   samples: (): readonly JsonSample[] => [
     { label: 'własne: modlitwa codziennie, kwiaty co 3 dni, piątkowy rachunek sumienia', doc: () => ownTasksSample() },
     { label: 'grupa: sprzątanie co 2 tygodnie, nuty od czwartku do soboty', doc: () => groupTasksSample() }

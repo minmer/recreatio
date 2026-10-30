@@ -76,6 +76,21 @@ const SAMPLE = {
   }]
 };
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEN ANGABEN TUT: versiegelt an der Rolle der Person (`person.ts`); der Name aus
+ * Vor- und Nachname, sonst dem Rufnamen (`calledFrom`) — in den eigenen Rollen und unter neuen Nachrichten; ein
+ * Bereich liest nur seine Abschrift (`namesInArea`); ein Bogen schreibt die genormten Fragen ab (`useFormCard`).
+ */
+export const PERSONS_USAGE_JSON: JsonNode = {
+  key: 'persons.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Dane leżą przy roli osoby, każde pole osobno, zapieczętowane jej kluczem: otwiera je tylko ten, kto ma klucz tej osoby (zwykle tylko Ty). Usługa wie tylko, które pola są wypełnione.
+- Imię i nazwisko (a gdy ich brak — przezwisko) to nazwa osoby w aplikacji: tak nazywają ją Twoje role i listy, i tak podpisane są wiadomości, które wysyłasz w rozmowach.
+- Obszar dostaje pole tylko wtedy, gdy mu je udostępnisz („Moje dane”): kopia jest zapieczętowana kluczem obszaru i czyta ją każdy, kto ma do niego dostęp — np. lista osób obszaru bierze z niej imię i nazwisko.
+- Formularz wypełniany za tę osobę sam wpisuje odpowiedzi na pytania o imię, nazwisko, telefon, datę urodzenia, adres, e-mail i przezwisko. Zgłoszeń już wysłanych import nie zmienia.
+- Udostępnienie cofa się w „Moje dane” („Kto to dostał”): obszar traci kopię, ale tego, co ktoś już przeczytał, nie da się cofnąć.`
+};
+
 export const PERSONS_JSON: JsonNode = {
   key: 'persons',
   title: `Moje dane jako JSON ("${PERSONS_FORMAT}", wersja ${PERSONS_VERSION})`,
@@ -97,6 +112,7 @@ ${keyLines(PERSON_KEYS)}
 
 Przykład:
 ${pretty(SAMPLE)}`,
+  inside: () => [PERSONS_USAGE_JSON],
   samples: () => [{ label: 'Moje dane (jedna osoba)', doc: () => SAMPLE }]
 };
 

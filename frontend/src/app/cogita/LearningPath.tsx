@@ -11,8 +11,9 @@
  *   czeka na …        vor ihm sitzt etwas noch nicht — die Powtórka hält seine Karten zurück
  *   tylko porządkuje  keine Karte prüft ihn: er sperrt nichts, an seiner Stelle zählt, was davor kommt
  * </code>
- * „Ucz się od podstaw" fragt die ganze Baza mit der Sperre; „Ucz się" an einem Eintrag fragt ihn —
- * und holt die Karten dessen dazu, was vor ihm kommt.
+ * „Ucz się od podstaw" fragt die ganze Baza, „Ucz się" an einem Eintrag fragt ihn — beide als die Powtórka
+ * „Najpierw podstawy" aus allgemeinen Schritten (2026-10-30, `presets.ts` `basicsRevision`): die Karten dessen,
+ * was vor ihm kommt, dazu, und jede Karte erst, wenn das Vorherige sitzt.
  *
  * Daneben (`EntityPrerequisites`) die Reihenfolge an einem Eintrag in der Wiedza: was vor ihm kommt,
  * was auf ihm aufbaut, ein Kreis.
@@ -21,12 +22,15 @@
 import { useMemo, useState } from 'react';
 
 import type { Card } from './cardBasics';
+import { readGraph } from './graph';
+import { gaugeFromMarks, itemKnowness, ownKnowness } from './knowing';
 import { KNOWN } from './knowness';
 import { renamer, type Learner } from './learn';
-import { cardsAbout, levelLabel, unmetNeeds, withBasics } from './prerequisites';
-import { gauge, readPlan } from './revision';
+import { basicsRevision } from './presets';
+import { cardsAbout, levelLabel, nearestNeeds } from './prerequisites';
+import { planOf } from './revision';
 import { RevisionRun } from './RevisionRun';
-import { entityName, originPath, useCtx } from './ui';
+import { entityName, originPath, useAsync, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
 
 type State = 'known' | 'learning' | 'fresh' | 'waiting' | 'order';
@@ -45,15 +49,19 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const [run, setRun] = useState<{ title: string; ids: readonly string[] | null } | null>(null);
 
-  const source = useMemo(() => {
-    if (run === null || cards === null) return null;
-    const chosen = run.ids === null ? [...cards] : [...new Map(run.ids.flatMap((id) => cardsAbout(cards, id)).map((c) => [c.key, c])).values()];
-    const plan = readPlan(withBasics(chosen, cards, graph), KNOWN, { mode: 'temporal', stackSize: 20, minCorrectness: 1 });
-    return { plan, cards, deps: lib.dependencies(), title: run.title };
-  }, [run, cards, graph, lib]);
+  /* 2026-10-30 — die Powtórka „Najpierw podstawy" aus allgemeinen Schritten, über die genannten Einträge (oder alles). */
+  const source = useAsync(run === null || cards === null ? null : async () => {
+    const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
+    /* Ein Eintrag mit den Pytania über ihn („O czym") — sie prüfen ihn mit. */
+    const ids = run.ids === null ? null : [...new Set(run.ids.flatMap((id) => [id, ...cardsAbout(cards, id).map((c) => c.entity ?? c.question)]))];
+    const doc = basicsRevision(ids, run.title);
+    const made = await planOf(readGraph(doc.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now()));
+    return made.plan === null ? null : { plan: made.plan, cards, deps: lib.dependencies(), title: run.title };
+  }, [run, cards, lib, learner]);
 
   if (cards === null) return <Loading label="Liczenie kart…" />;
-  if (source !== null) return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setRun(null)} />;
+  if (run !== null && source === undefined) return <Loading label="Przygotowywanie kart…" />;
+  if (run !== null && source !== null && source !== undefined) return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setRun(null)} />;
 
   if (graph.edges.length === 0) {
     return (
@@ -71,12 +79,12 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
 
   const now = Date.now();
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const g = gauge(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now);
+  const g = gaugeFromMarks(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now);
   const stateOf = (id: string): { state: State; waits: string[] } => {
     if (!g.askable.has(id)) return { state: 'order', waits: [] };
-    const own = g.own.get(id) ?? 0;
-    if (own >= KNOWN) return { state: 'known', waits: [] };
-    const waits = unmetNeeds([id], (x) => g.totals.get(x) ?? 0, graph, KNOWN, (x) => g.askable.has(x));
+    if (ownKnowness(g, id) >= KNOWN) return { state: 'known', waits: [] };
+    /* Dieselbe Bedingung wie „Filtr znajomości" mit „to, co trzeba znać wcześniej" (die Powtórka „Najpierw podstawy"). */
+    const waits = nearestNeeds([id], graph, (x) => g.askable.has(x)).filter((x) => itemKnowness(g, x) < KNOWN);
     if (waits.length > 0) return { state: 'waiting', waits };
     const asked = cardsAbout(cards, id).some((c) => (learner?.marks(c.key, c.fingerprint, rename).length ?? 0) > 0);
     return { state: asked ? 'learning' : 'fresh', waits: [] };

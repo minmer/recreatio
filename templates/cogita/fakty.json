@@ -73,7 +73,10 @@
           "label": "Gdzie",
           "type": "ref",
           "multi": true,
-          "says": "Miejsce — wpis tej bazy (np. Element stały: miejsce)."
+          "says": "Miejsce — wpis rodzaju „Miejsce” (ze współrzędnymi): gdzie to się stało, gdzie ktoś był.",
+          "to": [
+            "@miejsce/miejsce"
+          ]
         },
         {
           "key": "okres",
@@ -207,6 +210,16 @@
           "says": "Najważniejsze o tym okresie w dwóch–trzech zdaniach — to, co trzeba wiedzieć, zanim przyjdą szczegóły."
         },
         {
+          "key": "gdzie",
+          "label": "Gdzie",
+          "type": "ref",
+          "to": [
+            "@miejsce/miejsce"
+          ],
+          "multi": true,
+          "says": "Gdzie toczył się ten okres albo etap („Becchi”, „Chieri”, „Turyn”) — może zostać puste."
+        },
+        {
           "key": "nalezy",
           "label": "Należy do",
           "type": "ref",
@@ -217,6 +230,41 @@
           "prerequisite": "up",
           "inverse": "Okresy w środku",
           "says": "Szerszy okres, w którym ten leży („Młodość” w „Życie przed kapłaństwem”, „Wczesne średniowiecze” w „Średniowiecze”)."
+        }
+      ]
+    },
+    {
+      "ref": "@miejsce/miejsce",
+      "name": "Miejsce",
+      "label": "{nazwa}",
+      "fields": [
+        {
+          "key": "nazwa",
+          "label": "Nazwa",
+          "type": "line",
+          "says": "Nazwa miejsca: „Becchi”, „Chieri”, „Turyn”, „Valdocco”, „Wadowice”."
+        },
+        {
+          "key": "polozenie",
+          "label": "Położenie",
+          "type": "geo",
+          "says": "Współrzędne: {\"lat\": 45.0703, \"lon\": 7.6869} — szerokość i długość geograficzna (punkt na mapie)."
+        },
+        {
+          "key": "opis",
+          "label": "Opis",
+          "type": "markup",
+          "says": "Czym jest to miejsce i dlaczego jest ważne — jedno–dwa zdania."
+        },
+        {
+          "key": "w",
+          "label": "Leży w",
+          "type": "ref",
+          "to": [
+            "@miejsce/miejsce"
+          ],
+          "inverse": "Miejsca w środku",
+          "says": "Większe miejsce, w którym leży (Valdocco w Turynie, Becchi koło Castelnuovo) — może zostać puste."
         }
       ]
     }
@@ -346,7 +394,21 @@
             "in": "explain"
           }
         ]
-      }
+      },
+      "tests": [
+        {
+          "of": "this",
+          "weight": 0.5
+        },
+        {
+          "of": "okres",
+          "weight": 0.25
+        },
+        {
+          "of": "gdzie",
+          "weight": 0.25
+        }
+      ]
     },
     {
       "ref": "@fakty/t-kiedy",
@@ -493,7 +555,17 @@
             "in": "explain"
           }
         ]
-      }
+      },
+      "tests": [
+        {
+          "of": "this",
+          "weight": 1
+        },
+        {
+          "of": "okres",
+          "weight": 0.5
+        }
+      ]
     },
     {
       "ref": "@fakty/t-ocena",
@@ -639,7 +711,13 @@
             "in": "explain"
           }
         ]
-      }
+      },
+      "tests": [
+        {
+          "of": "this",
+          "weight": 0.5
+        }
+      ]
     },
     {
       "ref": "@czas/t-okres",
@@ -753,7 +831,17 @@
             "in": "answer"
           }
         ]
-      }
+      },
+      "tests": [
+        {
+          "of": "this",
+          "weight": 1
+        },
+        {
+          "of": "nalezy",
+          "weight": 0.25
+        }
+      ]
     }
   ],
   "forms": [
@@ -1011,6 +1099,87 @@
       "query": "",
       "columns": [],
       "positions": {}
+    },
+    {
+      "ref": "@fakty/w-ogolne",
+      "name": "Od ogólnego do szczegółu",
+      "mode": "tree",
+      "steps": [
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@czas/okres"
+          }
+        },
+        {
+          "type": "source.kind",
+          "config": {
+            "kind": "@fakty/fakt"
+          }
+        },
+        {
+          "type": "filter.when",
+          "config": {
+            "when": {
+              "type": "knowness",
+              "rel": "before",
+              "op": "ge",
+              "than": 1
+            }
+          }
+        }
+      ],
+      "group": {
+        "by": "level"
+      },
+      "query": "",
+      "columns": [
+        "#knowness",
+        "#due"
+      ],
+      "positions": {}
+    }
+  ],
+  "revisions": [
+    {
+      "ref": "@fakty/p-ogolne",
+      "name": "Od ogólnego do szczegółu",
+      "summary": "Najpierw całość, potem etapy, lata i szczegóły — każde dopiero wtedy, gdy to, co ogólniejsze, jest już znane.",
+      "graph": {
+        "nodes": [
+          {
+            "id": "widok",
+            "type": "source.view",
+            "x": 0,
+            "y": 0,
+            "config": {
+              "view": "@fakty/w-ogolne"
+            }
+          },
+          {
+            "id": "plan",
+            "type": "strategy",
+            "x": 260,
+            "y": 0,
+            "config": {
+              "mode": "temporal",
+              "stackSize": 20,
+              "minCorrectness": 1,
+              "order": "general",
+              "pick": "weighted"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "from": "widok",
+            "out": "cards",
+            "to": "plan",
+            "in": "cards"
+          }
+        ]
+      }
     }
   ]
 }

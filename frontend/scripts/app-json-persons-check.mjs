@@ -77,9 +77,13 @@ try {
   for (const key of Object.keys(m.PERSONS_KEYS)) assert.ok(text.includes(`"${key.split(/[.[\]]+/).filter(Boolean).pop()}" — `), `the description explains "${key}"`);
   assert.deepEqual([...m.PERSON_FIELDS].sort(), ['address', 'born', 'email', 'given_name', 'nickname', 'phone', 'surname'], 'the seven fields of the service');
   for (const field of m.PERSON_FIELDS) assert.ok(text.includes(`"${field}" — `), `the description names ${field}`);
-  const example = JSON.parse(text.slice(text.indexOf('Przykład:') + 'Przykład:'.length).trim());
+  /* Das Beispiel schliesst den ersten Abschnitt — danach kommt „Jak aplikacja używa tych danych" (2026-10-30). */
+  const exampleAt = text.indexOf('Przykład:') + 'Przykład:'.length;
+  const exampleEnd = text.indexOf('\n\n#', exampleAt);
+  const example = JSON.parse(text.slice(exampleAt, exampleEnd < 0 ? text.length : exampleEnd).trim());
   assert.deepEqual(example, samples[0].doc(), 'the example in the text is the sample');
-  ok('description: callable without context, every key of the sample described, the seven fields named');
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
+  ok('description: callable without context, every key of the sample described, the seven fields named, how the app uses them');
 
   /* -- 2 ---------------------------------------------------------------------------------------- */
   const ME = '0190a0a0-0000-7000-8000-0000000000b1';

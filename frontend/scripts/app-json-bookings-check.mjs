@@ -126,6 +126,8 @@ try {
   }
   assert.equal(m.BOOKINGS_FORMAT, 'recreatio/bookings');
   assert.ok(tree.samplesOf(m.BOOKINGS_JSON).length >= 2, 'at least two samples to insert');
+  /* 2026-10-30 — gleich nach dem ersten Abschnitt: „Jak aplikacja używa tych danych". */
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
   ok(`the description stands without context and explains every key (${Object.values(KEYS).reduce((n, k) => n + Object.keys(k).length, 0)} keys)`);
 
   /* -- 2. Jeder Schlüssel der Beispiele und des Exports ist beschrieben. ------------------------------- */

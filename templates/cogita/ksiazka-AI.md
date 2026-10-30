@@ -136,10 +136,11 @@ Dokument z wiedzą to **kurs** (`"format": "recreatio.cogita.course"`, dodatek B
 
 ### 3.6 Powtórki (E)
 
-- **E1** „Od podstaw” — wszystkie karty, „Najpierw podstawy” (`"gate"`), potem stos według tego, co umiesz:
-  `{"ref": "@<klucz>/powtorka/od-podstaw", "name": "… — od podstaw", "graph": {"nodes": [{"id": "s", "type": "source.all", "x": 0, "y": 0, "config": {}}, {"id": "g", "type": "gate", "x": 230, "y": 0, "config": {"threshold": 1}}, {"id": "p", "type": "strategy", "x": 460, "y": 0, "config": {"mode": "temporal", "stackSize": 20, "minCorrectness": 1}}], "edges": [{"id": "e1", "from": "s", "out": "cards", "to": "g", "in": "cards"}, {"id": "e2", "from": "g", "out": "cards", "to": "p", "in": "cards"}]}}`
+- **E1** „Od podstaw” — wszystkie karty, „Najpierw podstawy” ze zwykłych kroków: „Idź po kolejności nauki” (`"learning"`, brakujące podstawy dochodzą), „Filtr znajomości” (`"filter.when"`: karta wchodzi, gdy to, co trzeba znać wcześniej, jest znane) i kolejność „najpierw ogólne”, potem stos według tego, co umiesz:
+  `{"ref": "@<klucz>/powtorka/od-podstaw", "name": "… — od podstaw", "graph": {"nodes": [{"id": "s", "type": "source.all", "x": 0, "y": 0, "config": {}}, {"id": "l", "type": "learning", "x": 230, "y": 0, "config": {"dir": "before", "keep": true}}, {"id": "w", "type": "filter.when", "x": 460, "y": 0, "config": {"when": {"type": "knowness", "rel": "before", "op": "ge", "than": 1}}}, {"id": "p", "type": "strategy", "x": 690, "y": 0, "config": {"mode": "temporal", "stackSize": 20, "minCorrectness": 1, "order": "general"}}], "edges": [{"id": "e1", "from": "s", "out": "cards", "to": "l", "in": "cards"}, {"id": "e2", "from": "l", "out": "cards", "to": "w", "in": "cards"}, {"id": "e3", "from": "w", "out": "cards", "to": "p", "in": "cards"}]}}`
 - **E2** dla części — źródło `"source.list"` z trwałymi nazwami wpisów i pytań tej części: `{"id": "s", "type": "source.list", "config": {"ids": ["@<klucz>/fakt/…", "@<klucz>/pytanie/…"]}}` (dalej jak w E1; brakujące podstawy z innych części dochodzą same).
 - **E3** sprawdzian — `"source.all"` → `{"type": "strategy", "config": {"mode": "once", "order": "random"}}`.
+- **E4** „Od ogólnego do szczegółu” z widoku — schemat `fakty.json` niesie gotowy widok `"@fakty/w-ogolne"` (okresy i fakty z „Filtrem znajomości”) i powtórkę z niego (`"source.view"`); nowy uczący się widzi tylko to, co najogólniejsze, a etapy i lata — gdy zna to, co nad nimi.
 
 ### 3.7 Kolejność odpowiedzi
 
@@ -713,6 +714,19 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
     }
   ]
 }
+
+## Jak aplikacja używa tych danych
+- Dzieło i wpisy z "entries" trafiają do biblioteki, w której importuje się dokument; tekst — do biblioteki wybranej przy imporcie. Po zapisie otwiera się strona dzieła.
+- Dzieło, autorzy i czasopismo to zwykłe wpisy Biblioteki (widzi je, kto widzi jej obszar): mają swoje strony i cytuje się je kluczem — [@kowalski2020, s. 47] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem.
+- Na stronie dzieła ramka „Tekst źródła” pokazuje, jakie teksty są (części, słowa, w której bibliotece), i otwiera czytnik („Czytaj”).
+- Czytnik (#/workspace/library/<biblioteka>/<dzieło>/tekst/<miejsce>): spis części, miejsca na marginesie, granice stron, przypisy; „Przejdź” do miejsca, szukanie w całym tekście, „Obok” — inne wydanie albo przekład tego dzieła, wyrównane według miejsc w strukturze.
+- Zaznaczony fragment można dodać jako cytat (z dziełem i miejscem) albo skopiować z miejscem.
+- Każde miejsce, które już gdzieś zacytowano (przypis, cytat, odwołanie we wpisie bazy wiedzy, pole z miejscem), dostaje „pokaż w tekście”, jeśli jest w tym tekście: fragment otwiera się na miejscu, także na stronie. Nic się przy tym nie zapisuje — połączenie powstaje przy czytaniu.
+- Miejsce w strukturze (werset, numer, artykuł) prowadzi też do tekstu innego wydania tego dzieła ("editionOf"); strona — tylko do tekstu tego wydania.
+- „W Wiedzy” przy dziele i w czytniku: wejścia z baz wiedzy, które czytający może otworzyć, wskazujące to dzieło albo jego miejsca.
+- Tekst jest zapieczętowany kluczem obszaru biblioteki, w której go zapisano — może to być inna (np. prywatna) biblioteka niż ta z dziełem. Kto jej nie czyta, nie widzi tekstu: ani w czytniku, ani w szukaniu, ani na stronie.
+- „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje bibliotekę z tekstem, daje go asystentowi do czytania: list_texts, read_text (według miejsca), search_text.
+- Tekstu nie ma w JSON biblioteki ("recreatio/library"); oddaje go eksport w ramce „Tekst źródła” — w tym formacie.
 ```
 <!-- app:work-with-text:end -->
 
@@ -725,6 +739,8 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 Formaty:
   "recreatio.cogita.course" — cały kurs: rodzaje, wpisy, szablony kart, powtórki, przebiegi, zbiory, wygląd, zasady, wartości
   "recreatio.cogita.schema" — rodzaje z ich szablonami kart i formularzami dodawania (niezależna kopia do innej bazy wiedzy); eksport schematu nie zawiera widoków, ale import przyjmuje je w każdym formacie, tak jak "anchors"
+    schemat może nieść GOTOWE widoki i powtórki ("views", "revisions") — import tworzy je jak każde inne, użytkownik kopiuje je i zmienia; z trwałą nazwą ("@fakty/…") kolejny import schematu je uaktualnia;
+    np. templates/cogita/fakty.json niesie widok i powtórkę „Od ogólnego do szczegółu”: {"views": [{"ref": "@fakty/w-ogolne", "name": "Od ogólnego do szczegółu", "steps": [{"type": "source.kind", "config": {"kind": "@czas/okres"}}, {"type": "source.kind", "config": {"kind": "@fakty/fakt"}}, {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "op": "ge", "than": 1}}}]}], "revisions": [{"ref": "@fakty/p-ogolne", "name": "Od ogólnego do szczegółu", "graph": …}]}
   "recreatio.cogita.entities" — same wpisy (także wypowiedzi i pytania)
   "recreatio.cogita.flow" — przebieg razem z tym, co pokazuje
 
@@ -752,7 +768,7 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   "structure" (odwołanie) — połączenie w STRUKTURZE (np. wywód artykułu): "up" — ten wpis leży POD tym, na co wskazuje (krok → krok wyżej: „Należy do"); "down" — wskazane wpisy leżą pod nim („Argumenty za");
     widok „Struktura" z krokiem "structure" rysuje z tego drzewo w kolejności miejsc w dziele; takie pole nie czyni wypowiedzi „interpretacją"
   "prerequisite" (odwołanie) — KOLEJNOŚĆ NAUKI: "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga": orbital wymaga elektronu i atomu); "down" — to, na co wskazuje, buduje na tym wpisie („Prowadzi do");
-    z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (powtórka z „Najpierw podstawy”, Nauka → Ścieżka), nowe karty idą od ogólnych do szczegółowych;
+    z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (widok albo powtórka z „Filtrem znajomości” "rel": "before" — np. gotowa „Najpierw podstawy”; Nauka → Ścieżka), z kolejnością "general" nowe karty idą od ogólnych do szczegółowych;
     to coś innego niż "structure" (co pod czym leży); koło (A wymaga B, B wymaga A) nie działa i stoi w „Do zrobienia"
     np. {"key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@pojecie"], "multi": true, "prerequisite": "up", "inverse": "Na tym budują"}
   "when" — pole tylko dla niektórych wartości pola-wyboru tego samego rodzaju: {"field": "typ", "values": ["bitwa", "traktat"]} — JEDEN rodzaj z polem „typ” zamiast osobnego rodzaju dla każdego typu; edytor pokazuje pole tylko przy tych wartościach
@@ -819,11 +835,33 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
 
-"templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}}
+"templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}, "tests"}
   szablon może dotyczyć rodzaju z biblioteki ("quote", "work", "person") albo ze skryptorium ("text", "delivery", "project"), z których korzysta ta baza: wtedy karty powstają z ich wpisów, np. {"name": "Miejsce cytatu", "kinds": ["quote"], "direction": "locator", "graph": …}
-"revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
-  także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę; {"type": "structure", "config": {"dir": "down|up", "one": true}} — karty wpisów, które leżą w strukturze pod tymi wpisami (albo nad nimi)
+  "tests" — co sprawdzają karty szablonu i jak mocno: [{"of": "this" (ten wpis) | "klucz pola-odwołania" (wpisy, na które wskazuje), "weight": 0–10}]; bez "tests": ten wpis z wagą 1.
+    Znajomość należy do wpisu, a karta jest jego dowodem: dokładne pytanie waży więcej niż ogólne, jedna karta może liczyć się dla kilku wpisów;
+    np. karta „Co się wtedy stało?” faktu: "tests": [{"of": "this", "weight": 1}, {"of": "okres", "weight": 0.3}, {"of": "gdzie", "weight": 0.3}]
+
+Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w JSON):
+  każda odpowiedź zostaje zapisana; karta pamięta tylko kilka wartości: kiedy ostatnio odpowiedziano, ile czasu naprawdę minęło przed tą odpowiedzią, odstęp do następnego razu i najlepszy odstęp przed ostatnim błędem;
+  dobrze (od 90%): odstęp = czas, który naprawdę minął × 3 (odpowiedź przed terminem go nie skraca); częściowo: jedna trzecia tego czasu, co najmniej dzień, jeśli minęły dni; źle (poniżej 25%): 5 minut; dobrze zaraz po błędzie: 0,4 × najlepszy odstęp sprzed błędu
+    — np. źle po 5 dniach: wraca po 5 minutach; dobrze zaraz potem: za 2 dni; znów dobrze po 2 dniach: za 6 dni;
+  znajomość karty: poprawność ostatniej odpowiedzi × 10^(0,5·(1 − czas od odpowiedzi ÷ odstęp)) — zaraz po dobrej 3,16, w dniu powtórki 1 („umiem” od 1), potem spada; po złej 0;
+  znajomość wpisu: średnia znajomości jego kart Z ODPOWIEDZIĄ, ważona "weight" z "tests" (karta jeszcze nie pytana nie jest dowodem), plus to, co na nim buduje (pola z "prerequisite" — połowa znajomości tego, co od wpisu zależy — i zależności z Ustawień, z ich wagą)
+
+"revisions" — powtórki: {"name", "graph"} (źródła → kroki → … → jeden „Sposób pytania")
+  także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę; {"type": "structure", "config": {"dir": "down|up", "one": true}} — karty wpisów, które leżą w strukturze pod tymi wpisami (albo nad nimi); "follow" i "structure" z "keep": true zostawiają też karty, od których wyszły
   źródło „rodzaj z biblioteki": {"type": "source.kind", "config": {"kind": "quote", "from": "<identyfikator biblioteki>"}} — "from" puste: z tej bazy i ze wszystkich źródeł
+  źródło „widok”: {"type": "source.view", "config": {"view": "@widok"}} — karty wpisów, które pokazuje zapisany widok: widok decyduje, co wchodzi w grę, powtórka z tego wybiera; zmiana widoku zmienia powtórkę, a jego „Filtry znajomości” na końcu działają w trakcie powtórki
+    np. {"name": "Od ogólnego do szczegółu", "graph": {"nodes": [{"id": "w", "type": "source.view", "config": {"view": "@fakty/w-ogolne"}}, {"id": "p", "type": "strategy", "config": {"mode": "temporal", "order": "general"}}], "edges": [{"id": "e1", "from": "w", "out": "cards", "to": "p", "in": "cards"}]}}
+  „Filtr znajomości”: {"type": "filter.when", "config": {"when": warunek}} — zostają karty, dla których warunek jest spełniony, sprawdzany W TRAKCIE powtórki przy każdej karcie: co czekało, wchodzi, gdy warunek zacznie obowiązywać; karta już w stosie zostaje
+    warunek to ta sama logika co w przebiegach: {"type": "knowness", "rel": "before", "op": "ge", "than": 1} — znajomość tego, co trzeba znać wcześniej, co najmniej 1;
+    "rel": "self" (ten wpis) | "cards" (jego karty; w powtórce: ta karta) | "before" (to, co trzeba znać wcześniej — najbliższe wpisy z kartami w kolejności nauki) | "up" (to, pod czym leży w strukturze) | klucz pola-odwołania (to, na co wskazuje, np. "okres");
+    "each": "all" (domyślnie — każdy) | "any" (choć jeden); gdy nic takiego nie ma, "all" jest spełnione; "of": "@wpis" zamiast "rel" — znajomość jednego wpisu; warunki łączą "and" / "or" / "not": {"type": "and", "items": [ … ]}
+  „Idź po kolejności nauki”: {"type": "learning", "config": {"dir": "before" | "after", "one": true, "keep": true}} — karty tego, co trzeba znać wcześniej (albo, "after", co na tym buduje), aż do podstaw albo ("one") o krok; "keep": true dokłada je do kart wyjściowych
+  „Sposób pytania” ("strategy"): {"mode": "temporal" (według tego, co umiem) | "levels" | "once" | "random", "order", "pick", "stackSize", "count", "levels", "minCorrectness", "rule"}
+    "order" — kolejność: "general" (najpierw ogólne — według poziomów kolejności nauki) | "text" (jak w tekście źródła — miejsce w dziele) | "date" (według najwcześniejszej daty wpisu) | "random" | "given" (jak przychodzą) | "due" (najpierw zaległe); bez "order": w stosie "general", w stałej kolejce "random"
+    "pick" — wybór ze stosu: "next" (ściśle następna według kolejności) | "weighted" (losowo, częściej to, co słabiej znane i dłużej czeka; domyślnie); przy każdej karcie uczący się widzi, dlaczego przyszła
+  „Najpierw podstawy” to zwykłe kroki: {"type": "learning", "config": {"dir": "before", "keep": true}} → {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "op": "ge", "than": 1}}} → „Sposób pytania” z "order": "general"; dawny krok "gate" import i eksport zamieniają na nie
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines", "narrators"}
   "narrators" — kto opowiada, według wartości: [{"character": "@piotr", "condition": {"type": "value", "value": "przewodnik", "op": "eq", "than": 1}}, {"character": "@maria"}] — opowiada pierwszy, którego warunek jest spełniony (bez warunku: zawsze); jego portret i imię stoją nad krokiem i zapowiadają jego tytuł
   krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …
@@ -833,6 +871,9 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text" ze skryptorium, "from"} | "source.collection" {"collection": "@zbiór"} | "source.list" {"ids": ["@wpis"]};
   także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, wypowiedzi, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"}, "structure" {"dir": "down|up", "one": true} (po polach struktury — bez "one": do samego końca; "one": true — jeden poziom) i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
+  także "filter.when" {"when": warunek} i "learning" {"dir", "one", "keep"} — te same co w powtórce; w widoku liczy się znajomość tego, kto patrzy (uczącego się na tym koncie; na stronie — osoby strony albo tej przeglądarki),
+    np. fakty okresu dopiero, gdy okres jest znany: {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "okres", "op": "ge", "than": 1}}}; tylko wpisy, których podstawy są znane: "rel": "before";
+  kolumny i "sort" ze znajomości: "#knowness" (znajomość wpisu), "#due" (kiedy powtórzyć), "#level" (poziom w kolejności nauki), np. "sort": {"key": "#knowness", "dir": 1} — najpierw najsłabsze;
   "mode": "outline" (Struktura) rysuje źródła jako korzenie, a pod nimi to, do czego prowadzą kroki; "outline": {"chip": "klucz pola nad każdym krokiem (np. rola)", "order": "tree|text" (bez "order": ostatni wybór czytelnika, a na początek kolejność tekstu u Tomasza i drzewo w innych dziełach), "by": "klucz pola, według którego najpierw układają się kroki jednego poziomu (np. czas — czas opowieści; bez "by": według miejsca w dziele)", "tie": "klucz pola przy tym samym miejscu (np. nr)"};
     widok otwarty od wpisu (wejście z Biblioteki) zastępuje tym wpisem wszystko przed pierwszym „Idź po…”; np. {"name": "Wywód", "mode": "outline", "steps": [{"type": "source.kind", "config": {"kind": "@krok"}}, {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field": "nalezy", "cmp": "empty"}]}}}, {"type": "structure", "config": {"dir": "down"}}], "outline": {"chip": "rola", "order": "tree", "tie": "nr"}}
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "axis", "kind": "@rodzaj", "via", "through", "sort", "group"} — OŚ: jej wartości to wpisy rodzaju
@@ -856,6 +897,14 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   "order": ["id węzła entry"] — kolejność pól w wierszu (Enter, kolumny wklejanej listy); bez niej jak na płótnie
   "keys": {"enter", "ctrlEnter", "shiftEnter"}: "next", "more", "save", "newline", "none"
   "paste": {"columns": "auto", "tab", ";", "=", " - ", "|", ",", "values": ",", ";", "/", "|", "header": true|false}
+## Jak aplikacja używa tych danych
+  Wiedza: wpisy stoją w „Wpisy” (tabela, drzewo, struktura, macierz, płótno — według widoków), każdy ze swoją stroną (pola, odwołania, kolejność nauki); rodzaje, szablony, widoki i sposoby dodawania — w „Schematach”; wejścia ("anchors") dają przy dziele w Bibliotece i w czytniku przycisk „W Wiedzy”.
+  Nauka: szablony robią z wpisów karty (z kluczem „szablon:wpis”); powtórki wybierają z kart i pytają; „Ścieżka” pokazuje kolejność nauki; widoki i powtórki z „Filtrem znajomości” pokazują to, co uczący się już może.
+  Odpowiedzi: każda zapisuje się zaszyfrowana w przeglądarce — dla uczącego się i dla obszaru przyjęć kursu (Ustawienia), gdzie nauczyciel widzi „Postępy”; z nich liczy się znajomość kart i wpisów. Serwis nie czyta odpowiedzi; widzi tylko, kiedy następna powtórka i ile kart czeka — na osobę i bazę (do przypomnienia).
+  Strony: moduły „Widok” (tabela, drzewo, macierz, mapa), „Powtórka”, „Kurs / opowieść”, „Karta wpisu” czytają bazę tak, jak widzi ją czytelnik strony; uczy się osoba strony (zalogowana — ona sama, bez konta — ta przeglądarka).
+  Inne bazy wiedzy, które korzystają z tej jako źródła, widzą jej rodzaje, wpisy, szablony, powtórki i przebiegi tylko do odczytu; link dla AI i MCP czytają ją bez zmian.
+  Kto czyta: ten, kto czyta jej obszar (w obszarze jawnym — każdy); wpisy są szyfrowane kluczem obszaru.
+  Import niczego nie usuwa i nie dotyka odpowiedzi ani postępów: nowa karta zaczyna bez historii, a karta, której poprawna odpowiedź się zmieniła, zaczyna historię od nowa (zmiana wag "tests" historii nie zmienia).
 ```
 <!-- app:cogita-json:end -->
 
@@ -896,7 +945,7 @@ Widoki: „Wywód”, „Wywód — kolejność tekstu”, „Wywód — w czasi
 - "rodzaj" — Rodzaj faktu (choice; do wyboru: "zdarzenie", "stan", "liczba", "wypowiedz", "przyczyna", "opinia"): Jaki to fakt — od tego zależy, jak go sprawdzić i o co pytać (zdarzenie: kiedy i gdzie; wypowiedź: kto i do kogo; liczba: ile). Opinii nie potwierdza się źródłem — opisuje się, kto tak ocenia.
 - "kogo" — O kim, o czym (ref; kilka): Osoby, miejsca, rzeczy, pojęcia, których fakt dotyczy — wpisy tej bazy (np. Element stały, Pojęcie) albo osoby i dzieła z biblioteki.
 - "kiedy" — Kiedy (date; niepewne): Data z dokładnością, jaką znamy — rok, miesiąc albo dzień; przybliżona albo sporna — ze stanem, źródłem i notatką. Fakt bez daty — puste.
-- "gdzie" — Gdzie (ref; kilka): Miejsce — wpis tej bazy (np. Element stały: miejsce).
+- "gdzie" — Gdzie (ref; kilka; → @miejsce/miejsce): Miejsce — wpis rodzaju „Miejsce” (ze współrzędnymi): gdzie to się stało, gdzie ktoś był.
 - "okres" — Okres (ref; kilka; → @czas/okres; struktura up; kolejność nauki up): Okres, epoka albo etap, do którego fakt należy („Okupacja”, „Średniowiecze”, „Dzieciństwo”). Okres jest ogólniejszy — jego karty przychodzą przed kartami faktów.
 - "zrodlo" — Źródło (ref; kilka; z miejscem; → work): Skąd ten fakt: dzieło z biblioteki, które go podaje — książka, artykuł, nagranie, film, dokument, strona — z miejscem w nim (strona, rozdział, werset, minuta). Jak czytać to miejsce, wie Biblioteka (układ miejsc dzieła). Gdy uczysz się z jednego dzieła, to jest ono — także wtedy, gdy coś upiększa albo zmyśla.
 - "jak" — Jak podaje to źródło (text): Jak źródło to przedstawia: dosłownie, w skrócie, z dopowiedzeniami, w scenie z wymyślonym dialogiem, z inną datą, bez kontekstu, z postacią złożoną z kilku osób… Opis, bez oceny.
@@ -910,10 +959,16 @@ Widoki: „Wywód”, „Wywód — kolejność tekstu”, „Wywód — w czasi
 - "czas" — Kiedy (range): Od–do, z dokładnością, jaką znamy: „1939–1945”, „ok. 960–992”, „1978–2005”, „1990–” (bez końca). Okres bez dat — puste.
 - "nr" — Kolejność (number): Numer w kolejności (1 — najwcześniejszy) — według niego układają się okresy w widokach, także gdy dat brak albo okresy nachodzą na siebie.
 - "opis" — Opis (markup): Najważniejsze o tym okresie w dwóch–trzech zdaniach — to, co trzeba wiedzieć, zanim przyjdą szczegóły.
+- "gdzie" — Gdzie (ref; kilka; → @miejsce/miejsce): Gdzie toczył się ten okres albo etap („Becchi”, „Chieri”, „Turyn”) — może zostać puste.
 - "nalezy" — Należy do (ref; → @czas/okres; struktura up; kolejność nauki up): Szerszy okres, w którym ten leży („Młodość” w „Życie przed kapłaństwem”, „Wczesne średniowiecze” w „Średniowiecze”).
+### "@miejsce/miejsce" — Miejsce, etykieta {nazwa}
+- "nazwa" — Nazwa (line): Nazwa miejsca: „Becchi”, „Chieri”, „Turyn”, „Valdocco”, „Wadowice”.
+- "polozenie" — Położenie (geo): Współrzędne: {"lat": 45.0703, "lon": 7.6869} — szerokość i długość geograficzna (punkt na mapie).
+- "opis" — Opis (markup): Czym jest to miejsce i dlaczego jest ważne — jedno–dwa zdania.
+- "w" — Leży w (ref; → @miejsce/miejsce): Większe miejsce, w którym leży (Valdocco w Turynie, Becchi koło Castelnuovo) — może zostać puste.
 Szablony kart: „Hasło → co wiadomo (fiszka)”, „Hasło → kiedy (rok)”, „Czy to się zgadza? (wybór oceny)”, „Okres → co wtedy było (fiszka)”.
 Sposoby dodawania: „Fakty ze źródła — wiersz po wierszu”, „Okresy — wiersz po wierszu”.
-Widoki: „Fakty według okresów”, „Oś czasu”, „Fakty według oceny”, „Fakty według rodzaju”, „Fakty od podstaw”.
+Widoki: „Fakty według okresów”, „Oś czasu”, „Fakty według oceny”, „Fakty według rodzaju”, „Fakty od podstaw”, „Od ogólnego do szczegółu”.
 
 ## templates/cogita/zbior.json — Zbiór — pozycje do rozpoznania i rozróżnienia (modlitwy, prefacje, pieśni, psalmy, artykuły, utwory, obrazy…)
 ### "@zbior/pozycja" — Pozycja, etykieta {oznaczenie}

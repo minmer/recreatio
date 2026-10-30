@@ -3,21 +3,23 @@
  * Uczący się eines Kurses). Alles aus den Antworten, im Browser; gespeichert wird nichts davon.
  * <code>
  *   last       die letzte Antwort war richtig — so zählt ein einfacher Test, ohne Zeit
- *   memory     die Formel (A.1, \`knowness.ts\`): Abstände machen es dauerhaft — heute und morgen richtig
- *              hält kürzer als heute und in einer Woche (die Trwałość H wächst mit dem Abstand) —, und es
- *              verblasst: gleich nach der Antwort sicher, nach H Stunden gerade noch, danach immer weniger.
- *              Sitzt: Kenntnis jetzt mal Richtigkeit der letzten Antwort ≥ 1 (\`masteryOf\`).
+ *   memory     der Zustand der Karte (\`knowness.ts\`, 2026-10-30): Abstände machen es dauerhaft — heute und
+ *              morgen richtig hält kürzer als heute und in einer Woche (richtig: der vergangene Abstand × 3) —,
+ *              und es verblasst: gleich nach der Antwort sicher, am fälligen Termin gerade noch, danach immer
+ *              weniger; nach einer falschen gar nicht. Sitzt: Kenntnis jetzt ≥ 1.
  *   hierarchy  wie memory — und wer das Besondere kann, kann auch das Allgemeine (A.3, \`propagate\`):
- *              eine Karte gilt auch, wenn ihre Einträge über das, was auf ihnen aufbaut, sitzen.
+ *              eine Karte gilt auch, wenn ihre Einträge (gewogen aus ihren Karten, \`knowing.ts\`) über das,
+ *              was auf ihnen aufbaut, sitzen.
  * </code>
  * Je Karte dazu: wie oft, wie oft richtig, wie lange (die Zeit je Antwort steht in jeder Antwort, \`ms\`),
  * die Trwałość, die Kenntnis jetzt und in einer Woche (das Vergessen, vorausgerechnet).
  */
 
 import type { Card } from './cardBasics';
-import { dueAt, knownessOf, KNOWN, masteryOf, propagate, stability, type Dependency, type Mark } from './knowness';
+import { gaugeFromMarks } from './knowing';
+import { dueAt, knownessOf, KNOWN, stability, type Dependency, type Mark } from './knowness';
 import type { AnswerRecord, Progress } from './learn';
-import { cardEntities, entityMastery } from './prerequisites';
+import { cardEntities } from './prerequisites';
 
 export type Model = 'last' | 'memory' | 'hierarchy';
 
@@ -83,8 +85,8 @@ export function cardStats(cards: readonly Card[], all: readonly Card[], answers:
   const marksOf = (card: Card): Mark[] => answers(card).map((a) => ({ at: a.at, correctness: a.correctness }));
   let totals: ReadonlyMap<string, number> = new Map();
   if (model === 'hierarchy') {
-    const mastery = new Map(all.map((c) => [c.key, masteryOf(marksOf(c), now)]));
-    totals = propagate(entityMastery(all, (c) => mastery.get(c.key) ?? 0), deps);
+    const byKey = new Map(all.map((c) => [c.key, c]));
+    totals = gaugeFromMarks(all, (key) => { const c = byKey.get(key); return c === undefined ? [] : marksOf(c); }, deps, now).totals;
   }
   return cards.map((card): CardStat => {
     const list = answers(card);
@@ -92,10 +94,10 @@ export function cardStats(cards: readonly Card[], all: readonly Card[], answers:
     const timed = list.filter((a) => typeof a.ms === 'number' && a.ms > 0);
     const msTotal = timed.reduce((sum, a) => sum + (a.ms ?? 0), 0);
     const last = marks.length === 0 ? null : marks[marks.length - 1].correctness;
-    const mastery = masteryOf(marks, now);
+    const k = knownessOf(marks, now);
     const known = model === 'last' ? last !== null && last >= 0.999
-      : model === 'memory' ? mastery >= KNOWN
-      : mastery >= KNOWN || cardEntities(card).some((id) => (totals.get(id) ?? 0) >= KNOWN);
+      : model === 'memory' ? k >= KNOWN
+      : k >= KNOWN || cardEntities(card).some((id) => (totals.get(id) ?? 0) >= KNOWN);
     return {
       card,
       answers: marks.length,
@@ -105,7 +107,7 @@ export function cardStats(cards: readonly Card[], all: readonly Card[], answers:
       msAvg: timed.length === 0 ? null : msTotal / timed.length,
       lastAt: marks.length === 0 ? null : marks[marks.length - 1].at,
       last,
-      now: knownessOf(marks, now),
+      now: k,
       inWeek: knownessOf(marks, now + WEEK),
       holdsHours: marks.length === 0 ? null : stability(marks),
       due: dueAt(marks),

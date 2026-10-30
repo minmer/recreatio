@@ -313,7 +313,7 @@ try {
     assert.ok(pageKeys.indexOf('page.module') < pageKeys.indexOf('form') && pageKeys.indexOf('form') < pageKeys.indexOf('form.needs'), 'page → module → form → needs');
     for (const def of m.PARTS) assert.ok(pageKeys.includes(`part:${def.kind}`), `the page carries the kind ${def.kind}`);
     const formModule = keysOf(m.moduleFormat('form'));
-    assert.deepEqual(formModule, ['module:form', 'part:form', 'form', 'form.needs'], 'a form module: its kind, the form, its needs');
+    assert.deepEqual(formModule, ['module:form', 'part:form', 'form', 'form.usage', 'form.needs'], 'a form module: its kind, the form, how the app uses it, its needs');
     assert.deepEqual(keysOf(m.moduleFormat('text')), ['module:text', 'part:text'], 'another module: only its kind');
     assert.deepEqual(keysOf(m.partFormat('form')), ['part-doc:form', 'part:form']);
     /* Derselbe Knoten, derselbe Text — wo er auch steht. */
@@ -731,8 +731,8 @@ try {
     assert.ok(m.readScheme({ format: m.PLAN_FORMAT, name: 'x' }, []) === null && m.readPlan({ format: m.SCHEME_FORMAT, name: 'x' }, [], []) === null, 'the formats are not mixed up');
     /* Die Beschreibung ist ein Teil des Baums: jeder Knoten einmal, derselbe Text in Schema und Plan. */
     const keysOf = (root) => m.sectionsOf(root).map((s) => s.node.key);
-    assert.deepEqual(keysOf(m.SCHEME_JSON), ['scheme', 'scheme.field', 'scheme.list', 'flow.rule', 'flow', 'flow.test', 'flow.date'], 'scheme → field, list → rule → flow, test → date');
-    assert.deepEqual(keysOf(m.PLAN_JSON), ['plan', 'flow.plan', 'flow', 'flow.date', 'flow.test'], 'plan → its flow → flow, date, test');
+    assert.deepEqual(keysOf(m.SCHEME_JSON), ['scheme', 'scheme.usage', 'scheme.field', 'scheme.list', 'flow.rule', 'flow', 'flow.test', 'flow.date'], 'scheme → usage, field, list → rule → flow, test → date');
+    assert.deepEqual(keysOf(m.PLAN_JSON), ['plan', 'plan.usage', 'flow.plan', 'flow', 'flow.date', 'flow.test'], 'plan → usage, its flow → flow, date, test');
     const sd = m.describe(m.SCHEME_JSON);
     const pd = m.describe(m.PLAN_JSON);
     for (const node of [m.FLOW_TEST_JSON, m.FLOW_DATE_JSON]) {

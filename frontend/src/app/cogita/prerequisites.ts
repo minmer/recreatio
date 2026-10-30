@@ -9,9 +9,10 @@
  * Die MASCHINE macht daraus EINEN Graphen und tut überall dasselbe damit:
  * <code>
  *   Ebenen        Poziom 1 = Grundlagen (nichts davor); jede Ebene einen Schritt weiter
- *   Sperre        eine Karte kommt erst, wenn sitzt, was vor ihren Einträgen kommt
- *   Grundlagen    „Najpierw podstawy" holt die Karten fehlender Grundlagen dazu (`withBasics`)
- *   neue Karten   in der Reihenfolge der Ebenen, auch ohne Sperre (`cardLevel`)
+ *   Bedingung     „to, co wcześniej" (`nearestNeeds`): ein Widok, eine Powtórka zeigt, was danach kommt, erst,
+ *                 wenn das sitzt — 2026-10-30 ein Filter der einen Logik statt einer eigenen Sperre (`knowing.ts`)
+ *   Grundlagen    der Schritt „Idź po kolejności nauki" holt, was vorher kommt (`selection.ts`)
+ *   Reihenfolge   „najpierw ogólne" ordnet nach der Ebene (`cardLevel`, `revision.ts`)
  *   Kenntnis      wer das Spätere kann, hebt das Frühere (A.3, `propagate`)
  *   Ścieżka       die Ebenen mit dem, was sitzt und was wartet (Nauka, `LearningPath.tsx`)
  *   Kreise        eine Kante, die einen Kreis schlösse, fällt weg und steht in „Do zrobienia"
@@ -24,7 +25,7 @@
  */
 
 import type { Card } from './cardBasics';
-import { acyclic, average, type Dependency } from './knowness';
+import { acyclic, type Dependency } from './knowness';
 import { fieldsOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 
 /** Wie viel von der Kenntnis des Späteren an das Frühere geht (A.3) — wie bei einer neuen Kante in den Ustawienia. */
@@ -148,25 +149,13 @@ export function cardLevel(card: Pick<Card, 'entity' | 'question' | 'about'>, gra
   return at;
 }
 
-/** Wie gut jeder Eintrag sitzt: der Durchschnitt der Karten, die ihn prüfen [E2] (`mastery` je Karte). */
-export function entityMastery<C extends Pick<Card, 'entity' | 'question' | 'about' | 'key'>>(cards: readonly C[], mastery: (card: C) => number): Map<string, number> {
-  const by = new Map<string, number[]>();
-  for (const card of cards) {
-    const m = mastery(card);
-    for (const id of cardEntities(card)) {
-      const list = by.get(id);
-      if (list === undefined) by.set(id, [m]); else list.push(m);
-    }
-  }
-  return new Map([...by].map(([id, values]) => [id, average(values)]));
-}
-
 /**
- * WAS NOCH NICHT SITZT von dem, was vor diesen Einträgen kommt (`ids` — die Einträge einer Karte).
- * Ein Eintrag ohne Karten (`askable` sagt nein) steht für das, was vor IHM kommt; einer der `ids`
- * selbst auch (die Karte prüft ihn gerade). Was sitzt, wird nicht weiter hinauf verfolgt.
+ * 2026-10-30 — WAS VOR DIESEN EINTRÄGEN KOMMT, die nächsten mit Karten: ein Eintrag ohne Karten (`askable` sagt nein) —
+ * ein „Dział", der nur ordnet — steht für das, was vor IHM kommt; einer der `ids` selbst auch (eine Karte wartet nie
+ * auf das, was sie selbst prüft). Das ist die Beziehung „to, co wcześniej" der Bedingungen (`knowing.ts`): ein Widok
+ * oder eine Powtórka zeigt etwas erst, wenn es sitzt — die frühere Sperre „Najpierw podstawy", jetzt ein Filter.
  */
-export function unmetNeeds(ids: readonly string[], known: (id: string) => number, graph: PrerequisiteGraph, threshold: number, askable: (id: string) => boolean): string[] {
+export function nearestNeeds(ids: readonly string[], graph: PrerequisiteGraph, askable: (id: string) => boolean): string[] {
   const own = new Set(ids);
   const out: string[] = [];
   const seen = new Set<string>();
@@ -176,21 +165,7 @@ export function unmetNeeds(ids: readonly string[], known: (id: string) => number
     if (seen.has(p)) continue;
     seen.add(p);
     if (own.has(p) || !askable(p)) { stack.push(...(graph.needs.get(p) ?? [])); continue; }
-    if (known(p) < threshold && !out.includes(p)) out.push(p);
+    out.push(p);
   }
   return out;
-}
-
-/**
- * „NAJPIERW PODSTAWY" HOLT SIE DAZU: zu den Karten die Karten dessen, was vor ihren Einträgen kommt
- * (bis zu den Grundlagen) — eine Powtórka über Orbitale fragt dann zuerst nach dem Atom.
- */
-export function withBasics<C extends Pick<Card, 'entity' | 'question' | 'about' | 'key'>>(cards: readonly C[], all: readonly C[], graph: PrerequisiteGraph): C[] {
-  if (graph.edges.length === 0) return [...cards];
-  const ids = new Set(cards.flatMap(cardEntities));
-  const needed = new Set<string>();
-  for (const id of ids) for (const p of allNeeds(id, graph)) if (!ids.has(p)) needed.add(p);
-  if (needed.size === 0) return [...cards];
-  const have = new Set(cards.map((c) => c.key));
-  return [...cards, ...all.filter((c) => !have.has(c.key) && cardEntities(c).some((id) => needed.has(id)))];
 }

@@ -17,7 +17,8 @@ import { renamer, sendReport, type Learner } from './learn';
 import { toBase64Url } from '../core/crypto';
 import { answersFor, keepOffline, needsFiles, type OfflineRevision } from './offline';
 import type { Who } from '../core/session';
-import { answer, heldBack, levelsOf, planOf, progress, start, type Plan, type Session } from './revision';
+import { answer, levelsOf, planOf, progress, start, waiting, whyText, type Plan, type Session } from './revision';
+import { conditionText } from './logic';
 import type { CogitaLibrary } from './store';
 import { Bar, CogitaContext, entityName } from './ui';
 
@@ -109,8 +110,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
             const { cards: _cards, ...config } = plan;
             /*
              * 2026-10-27 — für die Zeit ohne Netz: die Karten ohne Dateien (die öffnen sich nur online), der Schlüssel der
-             * Annahme (sonst liest der Kurs die Antworten nie) und was schon beantwortet ist (sonst hielte die Sperre
-             * „Najpierw podstawy" ohne Netz alles zurück). 2026-10-28 — und wer lernt (die Person mit ihrem öffentlichen
+             * Annahme (sonst liest der Kurs die Antworten nie) und was schon beantwortet ist (sonst hielte ein „Filtr
+             * znajomości" ohne Netz alles zurück; seine Bedingungen liegen im Plan). 2026-10-28 — und wer lernt (die Person mit ihrem öffentlichen
              * Schlüssel): ohne Netz und ohne offenen Schlüsselbund wird für sie versiegelt.
              */
             const cards = plan.cards.filter((c) => !needsFiles(c));
@@ -175,8 +176,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
 
   if (session.current === null || card === undefined) {
     const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now());
-    /* 2026-10-27 — was noch auf Grundlagen wartet, und welche das sind. */
-    const held = heldBack(session, Date.now());
+    /* 2026-10-30 — was noch wartet, weil seine Bedingung (noch) nicht gilt: was zuerst sitzen muss, und andere Bedingungen. */
+    const held = waiting(session, Date.now());
     return (
       <section className="cg-face">
         <h2>Koniec powtórki</h2>
@@ -185,7 +186,9 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         {due !== null && <p className="cg-muted">{due.next === null ? 'Nic nie czeka.' : `Następna powtórka: ${new Date(due.next).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}.`}</p>}
         {held.cards > 0 && (
           <p className="wk-note" data-held-back={held.cards}>
-            {held.cards} {held.cards === 1 ? 'karta czeka' : 'kart czeka'} na podstawy{lib !== null && held.needs.length > 0 ? ` — najpierw: ${held.needs.slice(0, 4).map((id) => entityName(lib, id)).join(', ')}` : ''}. Wrócą, gdy je opanujesz.
+            {held.cards} {held.cards === 1 ? 'karta czeka' : 'kart czeka'}{held.needs.length > 0
+              ? ` na to, co trzeba znać wcześniej${lib !== null ? ` — najpierw: ${held.needs.slice(0, 4).map((id) => entityName(lib, id)).join(', ')}` : ''}`
+              : ''}{held.conditions.length > 0 ? `${held.needs.length > 0 ? '; ' : ' — '}warunek: ${held.conditions.slice(0, 2).map((c) => conditionText(c, (id) => (lib === null ? id : entityName(lib, id)))).join('; ')}` : ''}. Wejdą same, gdy warunek zacznie obowiązywać.
           </p>
         )}
         {learner !== null && learner.waiting > 0 && <p className="wk-note">{learner.waiting} pakietów odpowiedzi czeka na internet — wyślą się same.</p>}
@@ -210,6 +213,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         </span>
       </div>
       <CardFace
+        /* 2026-10-30 — jede Frage neu: kommt dieselbe Karte gleich wieder (allein im Stapel), steht sonst noch die alte Antwort da. */
+        key={`${card.key}#${session.step}`}
         card={card}
         rule={session.plan.rule}
         lib={lib ?? undefined}
@@ -224,7 +229,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         onNext={() => { if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending })); setPending(null); setNote(null); }}
         foot={(
           <div className="cg-row-between">
-            <span className="cg-muted">{card.answer.form === 'flash' ? 'Oceń się sam.' : ''}</span>
+            {/* 2026-10-30 — jede Wahl erklärbar: warum gerade diese Karte. */}
+            <span className="cg-muted" data-why={session.why?.reason ?? ''}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{session.why === null ? '' : whyText(session.why, Date.now())}</span>
             <span className="cg-row">
               {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote('Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).'); }}>Nie pytaj o to</button>}
               {lib !== null && <button type="button" className="wk-link-btn" onClick={() => {

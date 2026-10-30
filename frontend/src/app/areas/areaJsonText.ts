@@ -117,6 +117,23 @@ ${keyLines({
   questions: 'pytania — jak w formularzu (niżej: Formularz); także "design", "needs", "memberRoles", "virtualAreas", "group"'
 })}`;
 
+/*
+   2026-10-30 — WAS DIE APP MIT DEM BEREICH TUT, den der Import anlegt: der Reiter der Art
+   (`AreaKindPanel.tsx`: die Karte für jeden Leser, der Rest für den, der führt), die Wizytówka unter dem
+   Schlüssel ihres Bereichs (`profile.ts`, `Profiles.cs`), die Karten und Listen (`AreaEvent.cs`,
+   `parts/events.tsx`), die Termine (`Agenda.cs`), die Seite danach und das Archiv (`Page.Write.cs`,
+   `Profiles.SweepAsync`), wer für die Daten geradesteht (`Form.Submit.cs`, `Chat.List.cs`,
+   `Controllers.PageGateAsync`, `areaImport.ts`) und wohin veröffentlicht wird (`areaJson.ts`).
+*/
+const USAGE = (): string => `- Obszar dostaje pierwszą zakładkę nazwaną od rodzaju. Każdy, kto czyta obszar, widzi w niej wizytówkę, termin i miejsce, „Zapisy otwarte” oraz linki do stron i rozmów; tylko prowadzący — „Do zrobienia”, edytor wizytówki, narzędzia rodzaju i ten import.
+- Wizytówka jest szyfrowana kluczem obszaru, w którym ją opublikowano: z jawnego obszaru przeczyta ją każdy, z innego — tylko ci, którzy go czytają.
+- Karty w modułach „Wydarzenia” i „Wizytówka” prowadzą na stronę główną. Na listach obszar stoi tylko z publiczną, niezaszyfrowaną stroną główną (bez jawnej wizytówki karta bierze tytuł i tekst tej strony); datę pokazuje, gdy główny termin jest widoczny publicznie, a „Zapisy otwarte” — gdy formularz naprawdę przyjmuje (otwarty, publiczny, na publicznej stronie, z administratorem danych).
+- "listings" to prośby o miejsce: lista, którą prowadzisz, pokaże obszar od razu; inną zatwierdza jej właściciel, katalog "events" — operator serwisu.
+- Terminy stoją w kalendarzu obszaru: w kalendarzu i w module "program" widzi je, kto czyta obszar, w którym są widoczne ("publish").
+- Strona „po wydarzeniu” jest widoczna po końcu głównego terminu albo po „Zakończ teraz” (wcześniej tylko dla tych, którzy ją prowadzą); publiczną pokazują wtedy też karty. Przy "archive": "auto" wszystkie otwarte formularze obszaru zamykają się same po końcu, a „Przywróć” otwiera je znowu.
+- Bez administratora danych (własnego albo z obszaru nad nim) formularze nie przyjmą zgłoszeń, rozmowy obszaru nie powstaną, a publicznych stron nie da się zapisać. Gdy go ma, import oddaje publiczne strony z dokumentu pod odpowiedzialność tego obszaru.
+- Import nie publikuje w obszarze, którego nie prowadzisz — publiczne części zostają wtedy tutaj, z ostrzeżeniem w planie.`;
+
 /* -- Beispiele ------------------------------------------------------------------------- */
 
 const SIGNUP = [
@@ -222,6 +239,7 @@ export const AREA_JSON: JsonNode = {
   text: INTRO,
   inside: () => [
     textNode('area.keys', 'Obszar', AREA_KEYS),
+    textNode('area.usage', 'Jak aplikacja używa tych danych', USAGE),
     textNode('area.refs', 'Odwołania', REFS),
     textNode('area.roles', 'Role i linki', ROLES),
     textNode('area.appointments', 'Terminy obszaru', APPOINTMENTS),

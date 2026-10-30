@@ -69,7 +69,7 @@ try {
   assert.equal(tree.describe(m.CHAT_JSON), text, 'the description is the same every time (no clock in it)');
   assert.ok(text.startsWith(`# Rozmowa jako JSON ("${m.CHAT_FORMAT}", wersja ${m.CHAT_VERSION})`), 'it names its format');
   const sections = tree.sectionsOf(m.CHAT_JSON).map((s) => s.node.key);
-  assert.deepEqual(sections, ['chat', 'chat.topic', 'chat.message', 'chat.new', 'chat.linked', 'chat.example'], 'one section each, once');
+  assert.deepEqual(sections, ['chat', 'chat.usage', 'chat.topic', 'chat.message', 'chat.new', 'chat.linked', 'chat.example'], 'one section each, once');
   const local = (path) => path.replace(/^(?:chat\.|me\.|range\.|topics\[\]\.|messages\[\]\.|linked\[\]\.)/, '');
   for (const path of Object.keys(m.CHAT_PATHS)) assert.ok(text.includes(`"${local(path)}" — `), `the description explains ${path}`);
   for (const [path, says] of Object.entries(m.CHAT_PATHS)) assert.ok(typeof says === 'string' && says.trim().length > 3, `${path} has a real sentence`);

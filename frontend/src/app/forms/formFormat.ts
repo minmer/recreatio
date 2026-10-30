@@ -6,7 +6,7 @@
  * beide Importe tun damit dasselbe (`modules/moduleImport.ts`).
  */
 
-import { keyLines, pretty, type JsonNode, type JsonSample } from '../core/jsonTree';
+import { keyLines, pretty, textNode, type JsonNode, type JsonSample } from '../core/jsonTree';
 import { QUESTION_EXAMPLE, QUESTION_KEYS } from './formJson';
 import { choiceOf, NEEDS } from './needs';
 import { NEEDS_EXAMPLE, needsKeys } from './needsJson';
@@ -67,6 +67,24 @@ export const NEEDS_FORMAT: JsonNode = {
   samples: () => SAMPLES
 };
 
+/*
+   2026-10-30 — WAS DIE APP MIT EINEM FORMULAR TUT, sobald es importiert ist: wo man es ausfüllt
+   (`FormCard.tsx`, `Widget.tsx`, `Form.Submit.cs`), wer geradesteht (`Form.cs` → `Controllers`, `clause.ts`,
+   `SignSheet.tsx`), wer die Antworten öffnet (`Form.Office.cs`, `intake.ts`, `entrySubject.tsx`), die Glocke
+   (`Notify.cs`, `Push.cs`), der eigene Link (`Seat*.cs`, `parts/seat.tsx`), Rollen und Obszary osób
+   (`Form.Members.cs`, `Form.Virtual.cs`, `useFormOffice.tsx`), Kroki (`steps/steps.ts`), die Karte der Seite
+   (`pageLogic.ts`), Rozmowy (`Audience.cs`, `Chat.Ask.cs`) — und was der Import nicht anfasst (`moduleWish.ts`).
+*/
+const FORM_USAGE: JsonNode = textNode('form.usage', 'Jak aplikacja używa tych danych', () => `- Formularz wypełnia się bez konta na stronie, na której stoi (także w widżecie); podformularz — tylko przez osobisty link albo tylko kancelaria ("audience"). Ten sam formularz na kilku stronach zbiera jedną listę zgłoszeń.
+- Pytania przeczyta każdy, gdy obszar, w którym leżą, jest jawny; inaczej tylko ci, którzy go czytają (konto albo link).
+- Zgłoszenia przyjmuje tylko wtedy, gdy obszar formularza (albo obszar nad nim) ma administratora danych — jego klauzula stoi nad pytaniami i na wydruku do podpisu.
+- Odpowiedzi szyfruje przeglądarka wypełniającego; serwer ich nie czyta. Otwierają je koordynatorzy formularza: zakładki „Zgłoszenia” i „Tabela”, moduły strony „Lista osób” i „Panel osoby”. Kto tylko prowadzi stronę, widzi, że zgłoszenia są — bez ich treści.
+- Nowe zgłoszenie stoi w dzwonku osób, które czytają obszar formularza (także jako powiadomienie).
+- Kto wyśle formularz, dostaje własny link (widzi go raz; kancelaria może mu go wysłać SMS-em). Pod nim widzi swoje odpowiedzi i poprawia te z "selfEdit", uzupełnia podformularze z "audience": "person", odhacza swoje kroki i pisze w rozmowach.
+- Przez ten link działają "memberRoles" i "virtualAreas": osoba od razu należy do ról, a klucze ról i obszary osób rozdaje bez klikania przeglądarka kancelarii albo prowadzącego (gdy otworzy formularz albo dzwonek).
+- Podformularz daje osobie krok „Uzupełnij: …” (podformularz kancelarii — krok widoczny tylko dla niej). Ze zgłoszeń korzystają też kroki (zakładka „Kroki”), mapa logiki strony ("registered", "confirmed", "answer", "mark"), rozmowy połączone z formularzem i „Napisz do nas”.
+- Import nie otwiera ani nie zamyka zapisów i nie zmienia kroków ani niczyich odpowiedzi.`);
+
 /** Das Formular im Dokument — Fragen, Aufbau, und was nur ein Formular trägt. */
 export const FORM_FORMAT: JsonNode = {
   key: 'form',
@@ -80,5 +98,5 @@ ${keyLines(QUESTION_KEYS)}
 ${FORM_MODULE_LINES}
 Przykład:
 ${pretty(QUESTION_EXAMPLE)}`,
-  inside: () => [NEEDS_FORMAT]
+  inside: () => [FORM_USAGE, NEEDS_FORMAT]
 };

@@ -364,7 +364,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
     if (learning === null || lib == null) return null;
     const of = cards.filter((c) => c.entity === learning);
     const e = lib.entity(learning);
-    return { plan: readPlan(of, null, { mode: 'once', order: 'random' }), cards: of, deps, title: e === undefined ? 'Powtórka' : lib.label(e) };
+    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, deps, title: e === undefined ? 'Powtórka' : lib.label(e) };
   }, [learning, lib, cards, deps]);
 
   const title = config.title || 'Mapa wiedzy';
@@ -454,7 +454,7 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
     const at = marks.length === 0 ? null : dueAt(marks);
     return at !== null && at <= now;
   }).length;
-  const levels = cards == null || learner === null ? null : levelsOf(readPlan(cards, null, {}), (key) => learner.marks(key), now);
+  const levels = cards == null || learner === null ? null : levelsOf(readPlan(cards, {}), (key) => learner.marks(key), now);
   return (
     <CogitaContext.Provider value={ctx}>
       <p className="wk-card-muted">{name}{due !== null ? ` · na teraz: ${due} kart` : ''}</p>

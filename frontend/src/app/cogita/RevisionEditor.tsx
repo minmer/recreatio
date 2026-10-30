@@ -1,6 +1,6 @@
 /**
  * COGITA — WIEDERHOLUNGEN (COGITA.md §6, [F15]): ein Graph wählt die Karten
- * (Quellen → Filter → Sperre → ein Weg). Hier: anlegen aus einem Anfang,
+ * (Quellen — auch ein Widok — → Schritte, auch „Filtr znajomości" → ein Weg mit Kolejność und Wybór). Hier: anlegen aus einem Anfang,
  * bearbeiten, ausprobieren, für die Zeit ohne Netz behalten, als Aufgabe in
  * den Kalender stellen, und auf eine eigene Seite (`c/<kennung>`, [I13, F20]) —
  * 2026-10-22 (Schritt 8) ohne Kopie der Karten: wer sie dort sieht, sagt die Baza.
@@ -13,7 +13,7 @@ import { WhoSees } from './BaseWho';
 import { graphJson, readGraph, type Graph } from './graph';
 import { GraphEditor } from './GraphEditor';
 import { refFieldKeys } from './ViewSteps';
-import { REVISION_PALETTE, MODE_LABEL } from './revision';
+import { migrateRevision, MODE_LABEL, ORDER_LABEL, PICK_LABEL, REVISION_PALETTE } from './revision';
 import { REVISION_PRESETS } from './presets';
 import { planFor } from './RevisionRun';
 import { saveTask } from '../calendar/tasks';
@@ -33,7 +33,7 @@ export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string
         {writes && <NewRevision onMade={onChoose} />}
       </div>
       {entry === undefined
-        ? <p className="wk-hint">Powtórka wybiera karty (wszystkie, z rodzaju, zbioru albo listy), może je zawęzić i zablokować te, do których brakuje podstaw — i pyta wybranym sposobem.</p>
+        ? <p className="wk-hint">Powtórka wybiera karty (wszystkie, z rodzaju, zbioru, listy albo z widoku), może je zawęzić — także według tego, co już umiesz (np. szczegóły dopiero, gdy ogólne jest znane) — i pyta wybranym sposobem, w wybranej kolejności.</p>
         : <ForeignOnly id={entry.id} tab="powtorki"><RevisionForm key={entry.id} id={entry.id} onRun={() => onRun(entry.id)} /></ForeignOnly>}
     </div>
   );
@@ -42,7 +42,9 @@ export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string
 function NewRevision({ onMade }: { onMade: (id: string) => void }) {
   const { lib } = useCtx();
   const [preset, setPreset] = useState('temporal');
-  const [from, setFrom] = useState<'all' | 'kind' | 'collection'>('all');
+  const [from, setFrom] = useState<'all' | 'kind' | 'collection' | 'view'>('all');
+  /* 2026-10-30 — ein gespeicherter Widok entscheidet, was in Frage kommt; die Powtórka wählt daraus. */
+  const [viewId, setViewId] = useState(lib.docs('view')[0]?.id ?? '');
   const [kind, setKind] = useState(lib.materialKinds[0]?.id ?? '');
   /* 2026-10-22 — „Rodzaj … z …": eine Art der Bibliotheken (Cytaty) aus einer bestimmten Bibliothek. */
   const [library, setLibrary] = useState('');
@@ -62,8 +64,14 @@ function NewRevision({ onMade }: { onMade: (id: string) => void }) {
         <label className="wk-field"><span>Z czego</span>
           <select value={from} onChange={(e) => setFrom(e.target.value as typeof from)}>
             <option value="all">wszystkie karty</option><option value="kind">rodzaj</option><option value="collection">zbiór</option>
+            {lib.docs('view').length > 0 && <option value="view">widok (sposób wyświetlania)</option>}
           </select>
         </label>
+        {from === 'view' && (
+          <select value={viewId} aria-label="Widok" onChange={(e) => setViewId(e.target.value)}>
+            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
+          </select>
+        )}
         {from === 'kind' && <select value={kind} aria-label="Rodzaj" onChange={(e) => { setKind(e.target.value); setLibrary(''); }}>{lib.materialKinds.map((k) => <option key={k.id} value={k.id}>{kindLabel(k)}</option>)}</select>}
         {from === 'kind' && lib.isForeignKind(kind) && books.length > 1 && (
           <select value={library} aria-label="Z której biblioteki" onChange={(e) => setLibrary(e.target.value)}>
@@ -76,7 +84,7 @@ function NewRevision({ onMade }: { onMade: (id: string) => void }) {
         )}
         {from === 'collection' && <select value={collection} onChange={(e) => setCollection(e.target.value)}>{lib.collections().map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}
         <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(async () => {
-          const doc = p.make(from === 'kind' ? { kind, library } : from === 'collection' && collection !== '' ? { collection } : undefined);
+          const doc = p.make(from === 'kind' ? { kind, library } : from === 'collection' && collection !== '' ? { collection } : from === 'view' && viewId !== '' ? { view: viewId } : undefined);
           const made = await lib.saveDoc('revision', doc);
           onMade(made.id);
         })}>Utwórz</button>
@@ -92,13 +100,16 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
   const [name, setName] = useState(typeof entry.data.name === 'string' ? entry.data.name : 'Powtórka');
   const [summary, setSummary] = useState(typeof entry.data.summary === 'string' ? entry.data.summary : '');
   const [storage, setStorage] = useState(typeof entry.data.storageAreaId === 'string' ? entry.data.storageAreaId : '');
-  const [graph, setGraph] = useState<Graph>(() => readGraph(entry.data.graph));
+  /* 2026-10-30 — ein alter Knoten „Najpierw podstawy" erscheint als die allgemeinen Schritte, die dasselbe tun; gespeichert wird die neue Gestalt. */
+  const stored = readGraph(entry.data.graph);
+  const migrated = stored.nodes.some((n) => n.type === 'gate');
+  const [graph, setGraph] = useState<Graph>(() => migrateRevision(stored));
   const [dirty, setDirty] = useState(false);
   const { busy, failed, run } = useBusy();
   const [said, setSaid] = useState<string | null>(null);
   useEffect(() => {
     if (dirty) return;
-    setGraph(readGraph(entry.data.graph));
+    setGraph(migrateRevision(readGraph(entry.data.graph)));
     setName(typeof entry.data.name === 'string' ? entry.data.name : 'Powtórka');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.version]);
@@ -119,10 +130,16 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
         <label className="wk-field"><span>Krótki opis</span><input value={summary} disabled={!writes} onChange={(e) => { setSummary(e.target.value); setDirty(true); }} /></label>
         <button type="button" className="wk-btn" onClick={onRun}>Powtarzaj</button>
       </div>
+      {migrated && writes && !dirty && (
+        <p className="wk-note" data-revision-migrated="">Ta powtórka miała krok „Najpierw podstawy” — teraz to zwykłe kroki: „Idź po kolejności nauki”, „Filtr znajomości” i kolejność „najpierw ogólne”. Działa tak samo; zapisz, żeby została w nowej postaci.</p>
+      )}
       <GraphEditor graph={graph} palette={REVISION_PALETTE} fieldKeys={refFieldKeys(lib)} readOnly={!writes} onChange={(g) => { setGraph(g); setDirty(true); }} />
       <p className="cg-muted">
         {plan === undefined ? 'Liczenie kart…' : plan === null ? 'Podgląd się nie udał.'
-          : plan.plan === null ? plan.problems.join(' ') : `${plan.plan.cards.length} kart · ${MODE_LABEL[plan.plan.mode]}${plan.plan.gate !== null ? ' · najpierw podstawy' : ''}`}
+          : plan.plan === null ? plan.problems.join(' ')
+          : [`${plan.plan.cards.length} kart`, MODE_LABEL[plan.plan.mode], ORDER_LABEL[plan.plan.order],
+            ...(plan.plan.mode === 'levels' || plan.plan.mode === 'temporal' ? [PICK_LABEL[plan.plan.pick]] : []),
+            ...(plan.plan.when === undefined ? [] : [`${Object.keys(plan.plan.when).length} z warunkiem znajomości`])].join(' · ')}
       </p>
       {failed !== null && <p className="wk-error">{failed}</p>}
       {said !== null && <p className="wk-hint">{said}</p>}
@@ -134,7 +151,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
             <input value={storage} placeholder="identyfikator obszaru (puste — jak w bazie wiedzy)" onChange={(e) => { setStorage(e.target.value.trim()); setDirty(true); }} />
           </details>
           <div className="wk-actions">
-            <button type="button" className="wk-btn" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz powtórkę'}</button>
+            <button type="button" className="wk-btn" disabled={busy || !(dirty || migrated)} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz powtórkę'}</button>
             <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => lib.saveSettings({ offline: offline ? settings.offline.filter((x) => x !== id) : [...settings.offline, id] }))}>
               {offline ? 'Nie trzymaj bez internetu' : 'Trzymaj na urządzeniach bez internetu'}
             </button>

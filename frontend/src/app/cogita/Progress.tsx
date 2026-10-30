@@ -11,7 +11,8 @@ import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadSeats } from '../seats/seat';
 import type { Card } from './cardBasics';
-import { average, knownessOf, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
+import { average, knownessOf, KNOWN, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
+import { gaugeFromMarks, itemDue, itemKnowness, ownKnowness } from './knowing';
 import { adoptLocal, areaProgress, localProgress, marksOf, renamer, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
 import { answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
 import { planFor } from './RevisionRun';
@@ -68,6 +69,11 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
       <details className="cg-card" data-own-questions="">
         <summary>Moje pytania — co umiem, ile to trwało, jak długo zostanie</summary>
         <Stats cards={cards} progress={learner.progress} />
+      </details>
+      {/* 2026-10-30 — die Kenntnis gehört dem Eintrag: aus seinen Karten (gewogen), dazu, was auf ihm aufbaut. */}
+      <details className="cg-card" data-own-items="">
+        <summary>Moje wpisy — znajomość wpisu z jego kart</summary>
+        <ItemTable cards={cards} learner={learner} rename={rename} />
       </details>
       {lib.collections().length > 0 && (
         <div className="cg-grid">
@@ -246,6 +252,41 @@ function Stats({ cards, progress }: { cards: readonly Card[]; progress: Answers 
       <StatsControls scope={scope} model={model} onModel={setModel} />
       <span className="cg-muted" data-own-summary={all.known}>Umiem {all.known} z {all.cards} · w nauce {all.learning} · jeszcze nie {all.unseen} · czas nauki {all.msTotal === 0 ? '—' : spanText(all.msTotal)}{all.msPerAnswer === null ? '' : ` · średnio ${spanText(all.msPerAnswer)} na odpowiedź`}</span>
       <QuestionTable stats={stats} />
+    </div>
+  );
+}
+
+/**
+ * 2026-10-30 — WPIS PO WPISIE: seine Kenntnis aus den Karten, die ihn prüfen (gewogen; nur beantwortete zählen), und
+ * mit dem, co na nim buduje (A.3) — die Zahl, die widoki i powtórki widzą („Filtr znajomości"). Das Schwächste zuerst.
+ */
+function ItemTable({ cards, learner, rename }: { cards: readonly Card[]; learner: Learner; rename: ((key: string) => string) | undefined }) {
+  const { lib } = useCtx();
+  const now = Date.now();
+  const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
+  const g = gaugeFromMarks(cards, (key) => learner.marks(key, fp.get(key), rename), lib.dependencies(), now);
+  const rows = [...g.testing.entries()].filter(([id]) => lib.entity(id) !== undefined).map(([id, tests]) => ({
+    id, own: ownKnowness(g, id), total: itemKnowness(g, id), answered: tests.filter((t) => g.states.has(t.key)).length, all: tests.length, due: itemDue(g, id)
+  }));
+  rows.sort((a, b) => (a.answered === 0 ? 1 : 0) - (b.answered === 0 ? 1 : 0) || a.total - b.total);
+  if (rows.length === 0) return <span className="cg-muted">Brak wpisów z kartami.</span>;
+  return (
+    <div className="cg-table-wrap">
+      <table className="cg-table cg-stats-table" data-item-stats={rows.length}>
+        <thead><tr><th>Wpis</th><th>Z jego kart</th><th>Z tym, co na nim buduje</th><th>Karty z odpowiedzią</th><th>Kiedy powtórzyć</th></tr></thead>
+        <tbody>
+          {rows.slice(0, 300).map((r) => (
+            <tr key={r.id} className={r.total >= KNOWN ? 'is-known' : r.answered > 0 ? 'is-learning' : 'is-unseen'}>
+              <td className="cg-stats-q">{entityName(lib, r.id).slice(0, 140)}</td>
+              <td>{r.answered === 0 ? '—' : percent(shareOf(r.own))}</td>
+              <td>{r.total === 0 && r.answered === 0 ? '—' : percent(shareOf(r.total))}</td>
+              <td>{r.answered} z {r.all}</td>
+              <td>{r.due === null ? '—' : new Date(r.due).toLocaleString('pl-PL', { dateStyle: 'short', timeStyle: 'short' })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > 300 && <span className="cg-muted">Pokazano 300 najsłabszych z {rows.length}.</span>}
     </div>
   );
 }

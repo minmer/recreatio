@@ -261,8 +261,10 @@ export function quoteFieldsDoc(): string {
   return [...own, ...extra].join('\n');
 }
 
+/** 2026-10-30 — am Ende „Jak aplikacja używa tych danych": wo die Zitate danach stehen und wer sie liest. */
 export function quotesDescription(work: LibEntry): string {
   const summary = workSummary(work);
+  const key = `${work.key ?? 'klucz'}-1`;
   return `# Cytaty jednej książki jako JSON ("${QUOTES_FORMAT}", wersja ${QUOTES_VERSION})
 
 Co robi import (na stronie książki „${summary.title}”):
@@ -287,6 +289,14 @@ ${quoteFieldsDoc()}
 
 Przykład:
 ${JSON.stringify({ format: QUOTES_FORMAT, version: QUOTES_VERSION, work: summary, quotes: [QUOTE_EXAMPLE] }, null, 2)}
+
+## Jak aplikacja używa tych danych
+- Cytaty stoją na stronie książki („Cytaty z tej książki”) w kolejności miejsc w dziele (strony jak liczby, Pismo Święte według kanonu) i w zakładce „Cytaty” biblioteki.
+- [@${key}] w tekście Skryptorium albo we wpisie bazy wiedzy daje przypis do tej książki z miejscem cytatu; ![@${key}] wstawia cały cytat jako blok z podpisem, skąd pochodzi (także jako punkt planu).
+- Moduł strony „Zbiór cytatów” pokazuje cytaty biblioteki albo tylko tej książki: „myśl dnia” (co dzień inna, dla wszystkich ta sama) albo zbiór z wyszukiwaniem.
+- Gdy czytający może otworzyć pełny tekst tej książki, a miejsce cytatu w nim jest, pod cytatem stoi „pokaż w tekście”.
+- Baza wiedzy, która ma tę bibliotekę wśród źródeł, może robić z cytatów karty i powtórki; nic nie jest kopiowane. Wpis w Wiedzy, który wskazuje cytat (np. własny komentarz), widać przy cytacie w „Powiązaniach”.
+- Cytaty są zapieczętowane w przeglądarce kluczem obszaru biblioteki. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje tę bibliotekę, daje asystentowi cytaty do wyszukania i czytania; asystent niczego nie zmienia.
 `;
 }
 

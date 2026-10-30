@@ -20,8 +20,9 @@
  *   restart     das Kapitel von vorn
  *   subflow     ein anderer Ablauf, dann weiter
  *   each        für jeden Eintrag eines Zbiór ein Unterablauf (mit {item})
- *   prerequisite  wer es schon kann, geht weiter; sonst die Erklärung
  *   expand      ein Begriff, an Ort und Stelle erklärt, wenn er noch nicht sitzt
+ *   (2026-10-30: der frühere Schritt „Najpierw podstawy" — `prerequisite` — ist ein „Warunek" mit „Znajomość";
+ *   ein alter wird beim Lesen zu ihm, `migratePrerequisites`)
  *   opening     ein Anfang: entdecken (erst fragen) oder erinnern (erst zeigen) [G13]
  *   line        eine Gestalt spricht (ihr Satz ist ein Wissen) [H2]
  *   handoff     weiter in einem anderen Ablauf (eine Übergabe)
@@ -50,14 +51,14 @@ import { apply, holds, readAction, readCondition, type Action, type Condition, t
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
-  'prerequisite', 'expand', 'opening', 'line', 'handoff', 'scene', 'end', 'return'
+  'expand', 'opening', 'line', 'handoff', 'scene', 'end', 'return'
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
 export const STEP_LABEL: Record<StepType, string> = {
   show: 'Pokaż', question: 'Pytanie', choice: 'Wybór', condition: 'Warunek', set: 'Zmień wartość',
   chapters: 'Rozdziały', chapterEnd: 'Koniec rozdziału', restart: 'Rozdział od nowa', subflow: 'Inny przebieg',
-  each: 'Dla każdego', prerequisite: 'Najpierw podstawy', expand: 'Wyjaśnij w miejscu', opening: 'Otwarcie',
+  each: 'Dla każdego', expand: 'Wyjaśnij w miejscu', opening: 'Otwarcie',
   line: 'Postać mówi', handoff: 'Przekazanie', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
 };
 
@@ -66,14 +67,13 @@ export const STEP_SAYS: Record<StepType, string> = {
   show: 'Pokazuje wpis albo wypowiedź ("of"), albo plik ("media"); "title" — nagłówek ekranu.',
   question: 'Zadaje pytanie ("of": pytanie albo klucz karty); wyjścia "right" i "wrong".',
   choice: 'Daje wybór: "options" [{"label", "condition"?}]; wyjście "o0", "o1", … dla każdej możliwości.',
-  condition: 'Sprawdza warunek ("condition" — jedna logika); wyjścia "yes" i "no".',
+  condition: 'Sprawdza warunek ("condition" — jedna logika); wyjścia "yes" i "no". Kto zna wpis, idzie dalej: {"type": "knowness", "of": "@wpis", "op": "ge", "than": 1} (dawny krok „Najpierw podstawy”, "prerequisite", czyta się jako taki warunek: "known" → "yes", "explain" → "no").',
   set: 'Zmienia wartości ("actions": [{"type": "set"|"add", "value", "to"|"by"}]); wyjście "next".',
   chapters: 'Rozdziały ("chapters": [{"title"}]); wyjście "c0", "c1", … — początek rozdziału; "done", gdy wszystkie przerobione.',
   chapterEnd: 'Koniec rozdziału — wraca do wyboru rozdziałów.',
   restart: 'Zaczyna bieżący rozdział od nowa.',
   subflow: 'Wchodzi w inny przebieg ("flow"); po nim wyjście "next".',
   each: 'Dla każdego wpisu zbioru ("collection") albo rodzaju ("kind") — inny przebieg ("flow") z {item}; potem "next".',
-  prerequisite: 'Kto zna "of" (od progu "threshold", domyślnie 1), idzie dalej "known"; inaczej "explain".',
   expand: 'Wyjaśnia pojęcie "of" na miejscu, gdy jeszcze go nie zna; potem "next".',
   opening: 'Otwarcie ("mode": "discovery" — najpierw pytanie, "recall" — najpierw przypomnienie); "next".',
   line: 'Postać ("character") mówi zdanie ("of": wypowiedź — wpis z polem „Treść w blokach”); "mood" — nastrój; "next".',
@@ -95,7 +95,6 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || `możliwość ${i + 1}`));
     case 'condition': return [port('yes', 'tak'), port('no', 'nie')];
     case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || `rozdział ${i + 1}`)), port('done', 'wszystkie przerobione')];
-    case 'prerequisite': return [port('known', 'zna'), port('explain', 'wyjaśnij')];
     /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */
     case 'scene': return [
       port('next', 'dalej'),
@@ -120,7 +119,7 @@ const STEP: (type: StepType) => NodeKind<FlowCtx> = (type) => ({
   says: STEP_SAYS[type],
   group: type === 'show' || type === 'line' || type === 'expand' || type === 'scene' ? 'Treść'
     : type === 'question' || type === 'choice' || type === 'opening' ? 'Rozmowa'
-    : type === 'condition' || type === 'set' || type === 'prerequisite' ? 'Logika'
+    : type === 'condition' || type === 'set' ? 'Logika'
     : 'Przebieg',
   ports: (config) => ({ inputs: [port('in', 'wejście', true)], outputs: exitsOf(type, config) }),
   run: () => ({})
@@ -189,7 +188,7 @@ export interface Flow {
 
 export function readFlow(id: string, raw: unknown): Flow {
   const d = isObject(raw) ? raw : {};
-  const graph = readGraph(d.graph, true);
+  const graph = migratePrerequisites(readGraph(d.graph, true));
   const start = str(d.start);
   const fill: Record<string, string> = {};
   if (isObject(d.fill)) for (const [k, v] of Object.entries(d.fill)) if (typeof v === 'string' && v !== '') fill[k] = v;
@@ -234,7 +233,15 @@ export function resolveFlow(flow: Flow, find: (id: string) => Flow | undefined, 
     if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fill(v)]));
     return value;
   };
-  const nodes: GraphNode[] = template.graph.nodes.map((n) => ({ ...n, config: fill({ ...n.config, ...(flow.overrides[n.id] ?? {}) }) as Record<string, unknown> }));
+  const nodes: GraphNode[] = template.graph.nodes.map((n) => {
+    const over = flow.overrides[n.id] ?? {};
+    /* 2026-10-30 — eine Verwendung, die einen früheren „Najpierw podstawy" überschrieb (`of`, `threshold`): dieselbe Bedingung. */
+    const legacy = n.type === 'condition' && ('of' in over || 'threshold' in over) ? readCondition(n.config.condition) : null;
+    const merged = legacy !== null && legacy.type === 'knowness' && legacy.rel === undefined
+      ? prerequisiteCondition({ ...n.config, of: legacy.of, threshold: legacy.than, ...over })
+      : { ...n.config, ...over };
+    return { ...n, config: fill(merged) as Record<string, unknown> };
+  });
   return { ...template, id: flow.id, name: flow.name || template.name, look: flow.look, ...(flow.lookId === undefined ? {} : { lookId: flow.lookId }), graph: { nodes, edges: template.graph.edges }, fill: flow.fill, overrides: flow.overrides, template: flow.template, narrators: flow.narrators.length > 0 ? flow.narrators : template.narrators };
 }
 
@@ -301,10 +308,6 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
       const done = apply(actionsOf(c.actions), here.values, ctx.limits);
       const next = done.go !== null && nodeOf(flow, done.go) !== undefined ? done.go : follow(flow, to, 'next');
       return enter(flow, { ...here, values: done.values }, next, ctx, guard + 1);
-    }
-    case 'prerequisite': {
-      const known = facts.knowness(str(c.of)) >= num(c.threshold, 1);
-      return enter(flow, here, follow(flow, to, known ? 'known' : 'explain'), ctx, guard + 1);
     }
     case 'expand': {
       /* Wer es kann, sieht die Erklärung nicht. */
@@ -454,11 +457,33 @@ export function contentOf(flow: Flow): { entities: string[]; flows: string[]; fi
 export function proposedDependencies(flow: Flow): { parent: string; child: string }[] {
   const out: { parent: string; child: string }[] = [];
   for (const n of flow.graph.nodes) {
-    if (n.type !== 'prerequisite') continue;
-    const parent = str(n.config.of);
-    const next = follow(flow, n.id, 'known');
+    /* 2026-10-30 — ein „Warunek", der fragt, ob man einen Eintrag kennt (wie der frühere „Najpierw podstawy"). */
+    const c = n.type === 'condition' ? readCondition(n.config.condition) : null;
+    if (c === null || c.type !== 'knowness' || c.rel !== undefined) continue;
+    const parent = c.of ?? '';
+    const next = follow(flow, n.id, 'yes');
     const child = next === null ? '' : str(nodeOf(flow, next)?.config.of);
     if (parent !== '' && child !== '' && parent !== child) out.push({ parent, child });
   }
   return out;
+}
+
+/** Der frühere Schritt „Najpierw podstawy" als die Bedingung, die er war: wer `of` kennt (ab `threshold`, sonst 1). */
+const prerequisiteCondition = (config: Readonly<Record<string, unknown>>): Record<string, unknown> => {
+  const { of, threshold, ...rest } = config;
+  return { ...rest, condition: { type: 'knowness', of: of ?? '', op: 'ge', than: num(threshold, 1) } };
+};
+
+/**
+ * 2026-10-30 — DER SCHRITT „Najpierw podstawy" (`prerequisite`) IST EINE BEDINGUNG der einen Logik: „wer `of` kennt"
+ * ist ein „Warunek" mit „Znajomość". Ein alter Schritt wird beim Lesen zu ihm — Kennung und Platz bleiben, die
+ * Ausgänge heissen nun „tak" (vorher „zna") und „nie" (vorher „wyjaśnij").
+ */
+export function migratePrerequisites(graph: Graph): Graph {
+  const old = new Set(graph.nodes.filter((n) => n.type === 'prerequisite').map((n) => n.id));
+  if (old.size === 0) return graph;
+  return {
+    nodes: graph.nodes.map((n) => (old.has(n.id) ? { ...n, type: 'condition', config: prerequisiteCondition(n.config) } : n)),
+    edges: graph.edges.map((e) => (!old.has(e.from) ? e : e.out === 'known' ? { ...e, out: 'yes' } : e.out === 'explain' ? { ...e, out: 'no' } : e))
+  };
 }

@@ -119,6 +119,39 @@ export interface Facts {
   readonly place?: { readonly lat: number; readonly lon: number } | null;
   /** In welchen Zonen er steht (sagt der Dienst im Spiel). */
   readonly zones?: ReadonlySet<string>;
+  /**
+   * 2026-10-30 — WESSEN Kenntnis eine Bedingung mit `rel` prüft, gesehen von dem, was gerade geprüft wird (ein Eintrag
+   * in einem Widok, eine Karte in einer Powtórka, `knowing.ts`): die Kennungen (Einträge; Karten mit „#"). Fehlt es,
+   * ist die Menge leer.
+   */
+  readonly related?: (rel: string) => readonly string[];
+}
+
+/**
+ * 2026-10-30 — DIE BEZIEHUNGEN einer Bedingung „Znajomość" in Widoki und Powtórki (`rel`): der Eintrag selbst, seine
+ * Karten, was vorher zu können ist, worunter er in der Struktur liegt — oder (jeder andere Wert) der Schlüssel eines
+ * Verweisfeldes: worauf es zeigt.
+ */
+export const RELATIONS = ['self', 'cards', 'before', 'up'] as const;
+export type Relation = (typeof RELATIONS)[number];
+
+export const RELATION_LABEL: Record<Relation, string> = {
+  self: 'ten wpis',
+  cards: 'jego karty',
+  before: 'to, co trzeba znać wcześniej',
+  up: 'to, pod czym leży w strukturze'
+};
+
+/** Eine Beziehung in Worten — `field`: der Name eines Feldes. */
+export function relationText(rel: string, each: 'all' | 'any' | undefined, field: (key: string) => string = (key) => key): string {
+  const any = each === 'any';
+  switch (rel) {
+    case 'self': return 'tego wpisu';
+    case 'cards': return any ? 'którejś z jego kart' : 'każdej z jego kart';
+    case 'before': return any ? 'czegoś z tego, co trzeba znać wcześniej' : 'tego, co trzeba znać wcześniej';
+    case 'up': return any ? 'czegoś, pod czym leży' : 'tego, pod czym leży';
+    default: return `${any ? 'czegoś, na co wskazuje' : 'tego, na co wskazuje'} pole „${field(rel)}”`;
+  }
 }
 
 export const NO_FACTS: Facts = {
@@ -140,6 +173,8 @@ export const CONDITION_LABEL: Record<ConditionType, string> = {
  * <code>
  *   { "type": "value", "value": "zaufanie", "op": "ge", "than": 3 }
  *   { "type": "knowness", "of": "<id>", "op": "ge", "than": 1 }
+ *   { "type": "knowness", "rel": "before", "op": "ge", "than": 1 }      (2026-10-30) relativ: self · cards · before · up · <pole>
+ *   { "type": "knowness", "rel": "okres", "each": "any", "than": 1 }    — mehrere: alle (Vorgabe) oder einer genügt
  *   { "type": "answered", "of": "<pytanie>", "correct": true }
  *   { "type": "visited", "of": "<krok>" }
  *   { "type": "time", "after": "2026-12-24", "before": "2026-12-27", "from": "18:00", "to": "23:00" }
@@ -163,6 +198,10 @@ export interface Condition {
   readonly lon?: number;
   readonly radius?: number;
   readonly items?: readonly Condition[];
+  /** 2026-10-30 — relativ zu dem, was geprüft wird (`RELATIONS` oder ein Feld); statt `of`. */
+  readonly rel?: string;
+  /** Bei mehreren: alle müssen (Vorgabe) — oder einer genügt; über einer leeren Menge gilt „alle", „einer" nicht. */
+  readonly each?: 'all' | 'any';
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -192,7 +231,9 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     ...(str(raw.to) === undefined ? {} : { to: str(raw.to) }),
     ...(num(raw.lat) === undefined ? {} : { lat: num(raw.lat) }),
     ...(num(raw.lon) === undefined ? {} : { lon: num(raw.lon) }),
-    ...(num(raw.radius) === undefined ? {} : { radius: num(raw.radius) })
+    ...(num(raw.radius) === undefined ? {} : { radius: num(raw.radius) }),
+    ...(type === 'knowness' && str(raw.rel) !== undefined ? { rel: str(raw.rel)!.slice(0, 80) } : {}),
+    ...(type === 'knowness' && (raw.each === 'any' || raw.each === 'all') ? { each: raw.each } : {})
   };
 }
 
@@ -211,18 +252,21 @@ const minutesOf = (hhmm: string | undefined): number | null => {
 };
 
 /** Ein Wert in Worten: was die Bedingung prüft — für den Editor und die Beschreibung. */
-export function conditionText(c: Condition, name: (id: string) => string = (id) => id): string {
+/** `field`: der Name eines Feldes einer Beziehung (2026-10-30) — sonst steht sein Schlüssel da. */
+export function conditionText(c: Condition, name: (id: string) => string = (id) => id, field: (key: string) => string = (key) => key): string {
   const op = c.op === undefined ? '≥' : COMPARE_LABEL[c.op];
   switch (c.type) {
     case 'value': return `wartość „${c.value ?? '?'}" ${op} ${c.than ?? 0}`;
-    case 'knowness': return `znajomość „${name(c.of ?? '')}" ${op} ${c.than ?? 1}`;
+    case 'knowness': return c.rel !== undefined
+      ? `znajomość ${relationText(c.rel, c.each, field)} ${op} ${c.than ?? 1}`
+      : `znajomość „${name(c.of ?? '')}" ${op} ${c.than ?? 1}`;
     case 'answered': return c.correct === true ? `dobrze odpowiedziano na „${name(c.of ?? '')}"` : c.correct === false ? `źle odpowiedziano na „${name(c.of ?? '')}"` : `odpowiedziano na „${name(c.of ?? '')}"`;
     case 'visited': return `widziano krok „${name(c.of ?? '')}"`;
     case 'time': return ['czas', c.after === undefined ? '' : `od ${c.after}`, c.before === undefined ? '' : `do ${c.before}`, c.from === undefined ? '' : `godz. ${c.from}–${c.to ?? '24:00'}`].filter(Boolean).join(' ');
     case 'place': return `w promieniu ${c.radius ?? 50} m od ${c.lat ?? '?'}, ${c.lon ?? '?'}`;
     case 'zone': return `w strefie „${name(c.of ?? '')}"`;
-    case 'not': return `NIE (${c.items?.[0] === undefined ? '…' : conditionText(c.items[0], name)})`;
-    default: return (c.items ?? []).map((i) => `(${conditionText(i, name)})`).join(c.type === 'and' ? ' I ' : c.type === 'or' ? ' LUB ' : ' ALBO ') || CONDITION_LABEL[c.type];
+    case 'not': return `NIE (${c.items?.[0] === undefined ? '…' : conditionText(c.items[0], name, field)})`;
+    default: return (c.items ?? []).map((i) => `(${conditionText(i, name, field)})`).join(c.type === 'and' ? ' I ' : c.type === 'or' ? ' LUB ' : ' ALBO ') || CONDITION_LABEL[c.type];
   }
 }
 
@@ -232,7 +276,14 @@ export function holds(c: Condition | null | undefined, facts: Facts): boolean {
   const op = c.op ?? 'ge';
   switch (c.type) {
     case 'value': return compare(op, String(facts.values[c.value ?? ''] ?? 0), String(c.than ?? 0));
-    case 'knowness': return compare(op, String(facts.knowness(c.of ?? '')), String(c.than ?? 1));
+    case 'knowness': {
+      const than = String(c.than ?? 1);
+      if (c.rel === undefined) return compare(op, String(facts.knowness(c.of ?? '')), than);
+      /* 2026-10-30 — relativ: über alle (Vorgabe) oder einen von dem, worauf die Beziehung führt. */
+      const ids = facts.related?.(c.rel) ?? [];
+      const test = (id: string) => compare(op, String(facts.knowness(id)), than);
+      return c.each === 'any' ? ids.some(test) : ids.every(test);
+    }
     case 'answered': {
       const got = facts.answered(c.of ?? '');
       if (got === null) return false;

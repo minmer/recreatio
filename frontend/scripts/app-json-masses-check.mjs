@@ -123,6 +123,8 @@ try {
     for (const path of pathsOf(sample.doc())) { assert.ok(paths[path] !== undefined, `sample „${sample.label}”: "${path}" is described`); seen.add(path); }
   }
   for (const part of ['wolna', 'msza zbiorowa', '"free": true', '"collective": true', 'księgi intencji', 'konflikt', '[?]']) assert.ok(text.toLowerCase().includes(part.toLowerCase()), `the description speaks of ${part}`);
+  /* 2026-10-30 — gleich nach dem ersten Abschnitt: „Jak aplikacja używa tych danych". */
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
   ok(`description: ${sections.size} sections, ${Object.keys(paths).length} keys explained, every key of both samples described`);
 
   /* -- 2. Export → Plan: nichts zu tun ----------------------------------------------------------------- */

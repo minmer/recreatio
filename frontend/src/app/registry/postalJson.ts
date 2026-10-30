@@ -74,6 +74,12 @@ export function exportRegistry(areaName: string, places: readonly Place[], house
   };
 }
 
+/**
+ * 2026-10-30 — vor dem Beispiel „Jak aplikacja używa tych danych": die Kartoteka und ihre Kolęda (`Kartoteka.tsx`),
+ * lesen und schreiben nach dem Bereich (`Postal.cs`), die Familie versiegelt und im Browser gefiltert; die Teile der
+ * Adresse offen und für alle (`/addresses/parts`, `PostalInput.tsx` im Formular, in der Personenkarte, beim
+ * Administrator danych); der Import schreibt nur Orte und Haushalte (`savePlaces`, `saveHousehold`).
+ */
 export function registryDescription(): string {
   return [
     `Kartoteka adresów jako JSON — format "${REGISTRY_FORMAT}", wersja 1.`,
@@ -92,6 +98,14 @@ export function registryDescription(): string {
     '',
     'Import: ten sam adres (po normalizacji: wielkość liter, polskie znaki, "ul.") to to samo miejsce — nie powstaje drugi raz.',
     'Rodzina pod adresem, który już ma rodzinę, zostaje uzupełniona. Dane rodzin są szyfrowane kluczem obszaru w przeglądarce.',
+    '',
+    'Jak aplikacja używa tych danych:',
+    '- Kartoteka obszaru („Kartoteka i kolęda”) ma zakładki Adresy, Kolęda, Import i JSON. Czyta ją, kto czyta obszar; zmienia — kto w nim pisze.',
+    '- Adresy: miejsca z rodzinami; szukanie po adresie, nazwisku i etykiecie ("tags").',
+    '- Kolęda: odwiedziny roku z "kolenda" — filtry Rok, Stan, Ulica, Dzień, Kapłan; „Zaplanuj” dla zaznaczonych (dzień, kapłan); lista w kolejności dnia i adresu, „Drukuj listę”.',
+    '- Rodziny i kolęda otwierają się tylko w przeglądarce, która ma klucz obszaru — tam też działa szukanie i filtry.',
+    '- Adresy nie są szyfrowane. Ich części (ulice, miejscowości, dzielnice, kody, poczty) są wspólne dla całej aplikacji: podpowiadają adres także w pytaniu o adres w formularzach, w karcie osoby i przy administratorze danych.',
+    '- Import nie tworzy terminów w Kalendarzu (kolęda zostaje w kartotece), osób ani kont i niczego nie usuwa.',
     '',
     'Przykład:',
     JSON.stringify({

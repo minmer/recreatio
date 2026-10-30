@@ -51,6 +51,22 @@ const SAMPLE = {
   ]
 };
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEN KONTAKTEN TUT: nur der Telefonteil liest sie (Kontakty, SMS, Archiv,
+ * „Numery i grupy"); im Telefon die Abschrift im Konto „REcreatio" (`PhoneContacts.java`), deren Name gewinnt
+ * (`ContactIndex.java`); eine Gruppe trägt ihre Nummer über ihren Namen (`lines.ts`, `sms.groupLines`).
+ */
+export const CONTACTS_USAGE_JSON: JsonNode = {
+  key: 'contacts.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Kontakty leżą w Twoim obszarze „Tylko ja”, każdy zapieczętowany osobno: widzisz je tylko Ty, na każdym urządzeniu, na którym się zalogujesz. Nie trafiają do obszarów, rozmów ani formularzy.
+- Kontakty (#/workspace/contacts): lista z wyszukiwaniem po nazwie, numerze, firmie, funkcji, grupie i adresie e-mail; "groups" filtrują listę.
+- W wydaniu „sms” telefon trzyma ich kopię w osobnym koncie książki adresowej „REcreatio” — dzięki niej przy połączeniu widać nazwę. Kopię zmienia się w recreatio, nie w książce telefonu; usunięcie konta „REcreatio” z telefonu usuwa tylko kopie.
+- W SMS-ach aplikacji nazwa z recreatio ma pierwszeństwo przed nazwą z innych kont telefonu. Archiwum SMS w przeglądarce podpisuje numery nazwami z Twoich kontaktów, a „Nowa wiadomość” podpowiada z nich odbiorców.
+- Grupa może mieć własny numer do SMS (SMS → „Numery i grupy”, #/workspace/sms/numery): kto do niej należy, dostaje SMS-y z tego numeru, chyba że rozmowa ma własny wybór. Numer jest przypisany do nazwy grupy — pisz ją w "groups" tak samo jak dotąd.
+- Import nie wysyła SMS-ów i nie zmienia numerów przypisanych grupom.`
+};
+
 export const CONTACTS_JSON: JsonNode = {
   key: 'contacts',
   title: `Kontakty jako JSON ("${CONTACTS_FORMAT}", wersja ${CONTACTS_VERSION})`,
@@ -71,6 +87,7 @@ ${keyLines(CONTACT_KEYS)}
 
 Przykład:
 ${pretty(SAMPLE)}`,
+  inside: () => [CONTACTS_USAGE_JSON],
   samples: () => [{ label: 'Dwa kontakty', doc: () => SAMPLE }]
 };
 

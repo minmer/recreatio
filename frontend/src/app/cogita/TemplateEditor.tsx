@@ -157,10 +157,15 @@ function TemplateForm({ template }: { template: Template }) {
 
   const set = (patch: Partial<Template>) => { setDraft((d) => ({ ...d, ...patch })); setDirty(true); };
   const save = () => run(async () => {
-    await lib.saveDoc('template', { name: draft.name, kinds: draft.kinds, direction: draft.direction, graph: graphJson(draft.graph) }, draft.id);
+    /* Was der Editor nicht zeigt (ein bleibender Name aus einem Import), bleibt. */
+    const had = lib.docs('template').find((e) => e.id === draft.id)?.data ?? {};
+    await lib.saveDoc('template', { ...had, name: draft.name, kinds: draft.kinds, direction: draft.direction, graph: graphJson(draft.graph), tests: draft.tests.length === 0 ? undefined : draft.tests }, draft.id);
     setDirty(false);
   });
   const problems = templateProblems(draft);
+  /* 2026-10-30 — wovon die Karte zeugt: der Eintrag selbst, oder worauf eines seiner Verweisfelder zeigt. */
+  const refFields = lib.refKinds.filter((k) => draft.kinds.includes(k.id)).flatMap((k) => k.fields.filter((f) => f.type === 'ref'))
+    .filter((f, i, all) => all.findIndex((x) => x.key === f.key) === i);
 
   return (
     <div className="cg">
@@ -181,6 +186,24 @@ function TemplateForm({ template }: { template: Template }) {
         errors={preview === undefined || preview === null ? undefined : preview.errors}
         onChange={(g: Graph) => set({ graph: g })} />
       {problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
+      <details className="cg-card" data-template-tests={draft.tests.length}>
+        <summary>Co sprawdza ta karta — do znajomości {draft.tests.length > 0 ? `(${draft.tests.length})` : ''}</summary>
+        <p className="cg-muted">Znajomość należy do wpisu, a karta jest dowodem: każda odpowiedź liczy się dla wpisów wymienionych tu, z tą wagą (dokładne pytanie — więcej, ogólne — mniej). Bez ustawienia: ten wpis z wagą 1.</p>
+        {draft.tests.map((t, i) => (
+          <div key={`${t.of}-${i}`} className="cg-row">
+            <select value={t.of} disabled={!writes} aria-label="Który wpis" onChange={(e) => set({ tests: draft.tests.map((x, j) => (j === i ? { ...x, of: e.target.value } : x)) })}>
+              <option value="this">ten wpis</option>
+              {refFields.map((f) => <option key={f.key} value={f.key}>to, na co wskazuje „{f.label}”</option>)}
+              {t.of !== 'this' && !refFields.some((f) => f.key === t.of) && <option value={t.of}>{t.of}</option>}
+            </select>
+            <label className="wk-field"><span>Waga</span>
+              <input type="number" step="0.1" min="0" max="10" value={t.weight} disabled={!writes} onChange={(e) => set({ tests: draft.tests.map((x, j) => (j === i ? { ...x, weight: Math.max(0, Math.min(10, Number(e.target.value) || 0)) } : x)) })} />
+            </label>
+            {writes && <button type="button" className="wk-link-btn" aria-label="Usuń" onClick={() => set({ tests: draft.tests.filter((_, j) => j !== i) })}>×</button>}
+          </div>
+        ))}
+        {writes && <button type="button" className="wk-link-btn" onClick={() => set({ tests: [...draft.tests, { of: draft.tests.some((t) => t.of === 'this') ? (refFields.find((f) => !draft.tests.some((t) => t.of === f.key))?.key ?? 'this') : 'this', weight: 1 }] })}>+ wpis, który sprawdza</button>}
+      </details>
       <div className="cg-card">
         <div className="cg-row"><strong>Podgląd na wpisie:</strong>
           <EntityPicker lib={lib} kinds={draft.kinds} refs={draft.kinds.some((k) => BOOK_KINDS.has(k))} value={entity?.id ?? null} onPick={setSample} allowClear={false} />

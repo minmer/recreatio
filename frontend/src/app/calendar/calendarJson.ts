@@ -1581,6 +1581,24 @@ Wartości ("values"): "choice" i "colour" — wartość albo nazwa z listy pola;
   inside: () => [OCCURRENCE_JSON]
 };
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEN TERMINEN TUT: wer sie sieht, ist ein Schlüssel (`calendar.ts`,
+ * `Calendar.ReadableAreasAsync`: Zuteilung, Link, offengelegte Epoche); Kalender und Teraz (`CalendarApp.tsx`,
+ * `ViewParts.tsx`, `alerts.ts`); Bausteine (`calendar.tsx`, `program.tsx`, `live.tsx`, `events.tsx`, `Widget.tsx`);
+ * der offene Plan der Gottesdienste und der Bogen (`Mass.Show.cs`, `MassParts.tsx`, `sheet.ts`); Angebote
+ * (`calendarModel.ts`); Erinnerungen gibt es nur für Aufgaben (`notifyRich.remindersFor`), Push nicht (`Push.cs`).
+ */
+export const CALENDAR_USAGE_JSON: JsonNode = {
+  key: 'calendar.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Terminy widzi każdy, kto ma klucz obszaru, który widzi kalendarz („Kto widzi” w ustawieniach kalendarza) — także przez link z dostępem; gdy ten obszar jest jawny („każdy czyta”), każdy, również bez konta.
+- Kalendarz (Dzień, Tydzień, Miesiąc, Lista): punkty programu stoją w siatce przy swoim terminie; szczegóły terminu pokazują miejsce, notatkę, link, wartości schematu i listy wpisów dnia (intencje, zapisy). „Teraz”: „Najbliższe terminy” (dziś i jutro), a w „Czeka na Ciebie” — „Terminy dziś”.
+- Moduły stron: „Kalendarz” (wybrane kalendarze), „Program wydarzenia” (termin z punktami — "points"), „Rezerwacja” (terminy do wyboru); termin ustawiony jako główny termin obszaru — w modułach „Wydarzenia” i „Wizytówka”, gdy widzi go każdy. Na stronie każdy widzi to, co może otworzyć; moduł strony jawnej można też osadzić jako widżet na innej witrynie.
+- Msze, spowiedzi i nabożeństwa ("kind") są też w „Msze i nabożeństwa” (kancelaria). Gdy obszar, który widzi kalendarz, jest jawny, ich nazwy i godziny (przy mszy także jawne pola schematu) idą do jawnego planu — modułu strony „Msze i nabożeństwa” — a msze także na wydruk do gabloty; miejsca i notatki tam nie ma.
+- "bookable" i "capacity" (kalendarz z rezerwacjami): termin można wybrać w module „Rezerwacja”; w Kalendarzu stoi przy nim liczba zajętych miejsc, a prośby czekają w „Do potwierdzenia”.
+- Terminy nie mają przypomnień (mają je zadania), a import nikogo nie powiadamia.`
+};
+
 /** Die Termine eines Kalenders — die Wurzel neben ihrem Import und im MCP-Katalog. */
 export const CALENDAR_JSON: JsonNode = {
   key: 'calendar',
@@ -1605,6 +1623,6 @@ Zmiany po eksporcie — nowe miejsce, usunięcie, odwołany dzień serii i nowy 
 ${pretty(UPDATE_EXAMPLE)}
 Przykład (plan lekcji klasy):
 ${pretty(sampleLessons())}`,
-  inside: () => [APPOINTMENT_JSON, SCHEME_FIELD_JSON],
+  inside: () => [CALENDAR_USAGE_JSON, APPOINTMENT_JSON, SCHEME_FIELD_JSON],
   samples: () => CALENDAR_SAMPLES
 };

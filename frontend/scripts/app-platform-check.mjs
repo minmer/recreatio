@@ -231,6 +231,8 @@ try {
   assert.equal(plan.rows[1].placeId, null);
   assert.equal(plan.warnings.length, 1);
   assert.ok(m.registryDescription().includes('kolenda') && m.registryDescription().includes('postcode'));
+  /* 2026-10-30 — vor dem Beispiel: wie die App die Kartoteka verwendet. */
+  assert.ok(m.registryDescription().includes('\nJak aplikacja używa tych danych:\n'), 'the registry description says how the app uses the data');
   ok('registry JSON: places are recognised by their parts, households are completed, the description names every key');
 
   /* -- 3. Aufgaben ----------------------------------------------------------------------------- */

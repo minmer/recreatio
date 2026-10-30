@@ -37,6 +37,7 @@ import { DEPENDENCY_KINDS } from './knowness';
 import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
 import { readRule, ruleMatches, type RuleGroup, type SelectContext } from './selection';
+import { readView } from './views';
 
 /* -- Einstellungen einer Bibliothek als Kurs -------------------------------------------- */
 
@@ -344,8 +345,10 @@ export class CogitaLibrary {
       now,
       from: (id) => this.origin(id)?.libraryId,
       select: this.selectContext(),
-      /* 2026-10-27 — „Najpierw podstawy" holt damit die Karten fehlender Grundlagen dazu. */
-      deps: this.dependencies()
+      /* 2026-10-27 — die Reihenfolge des Lernens: „Idź po kolejności nauki", „to, co wcześniej", „najpierw ogólne". */
+      deps: this.dependencies(),
+      /* 2026-10-30 — ein gespeicherter Widok als Quelle einer Powtórka. */
+      viewSteps: (id) => { const doc = this.docs('view').find((e) => e.id === id); return doc === undefined ? undefined : readView(doc.data).steps; }
     };
   }
   get look(): Lookup { return this.fresh().look; }

@@ -1019,6 +1019,20 @@ Limity: najwyżej ${ROWS_MAX} urządzeń i timerów razem, ${SIGNALS_MAX} sygna�
 Zwróć JEDEN obiekt JSON, bez komentarzy.
 ${keyLines(DOC_KEYS)}`;
 
+/*
+ * 2026-10-30 — WAS DIE APP MIT DEM IMPORTIERTEN TUT: versiegelt in „Tylko ja" (`lampStore.ts`, `openPhone`);
+ * senden kann nur das Telefon der Ausgabe „sms" (`native.ts`, `lampHere`); Timer nennen Gerät und Sygnał, nicht
+ * Bytes; der Plan liegt im Telefon und wird nach einer Änderung dort und beim Start der App neu abgelegt
+ * (`LampsApp.tsx` → `sync`, `timerStart.ts`); das Tempo der Knöpfe am Konto (`useRemembered`).
+ */
+export const LAMPS_USAGE_JSON: JsonNode = textNode('lamps.usage', 'Jak aplikacja używa tych danych', () =>
+  `- Urządzenia i timery leżą w Twoim obszarze „Tylko ja”, każde zapieczętowane osobno: widzisz je tylko Ty, na każdym urządzeniu, na którym się zalogujesz; usługa widzi tylko, że są.
+- Nadaje tylko telefon z aplikacją w wydaniu SMS (reklama Bluetooth LE). W przeglądarce i w zwykłej aplikacji urządzenia, sygnały i timery można ustawiać, ale nie nadawać.
+- Timer pamięta urządzenie i sygnał, nie bajty: poprawiony sygnał obowiązuje także w timerach, gdy tylko telefon odłoży nowy plan.
+- Telefon trzyma własny plan timerów, a budzik nadaje o czasie — także przy zamkniętej aplikacji; „Ostatnie uruchomienia” widać na liście timerów w telefonie.
+- Plan odkłada się na nowo po każdej zmianie zrobionej na tym telefonie (także po imporcie) i przy starcie aplikacji: import zrobiony w przeglądarce telefon przejmie przy najbliższym otwarciu aplikacji.
+- Tempo przycisków ("buttons") jest zapamiętane na koncie: działa od razu przy każdym naciśnięciu, na każdym telefonie; timerów nie zmienia.`);
+
 /** Ein Paket: was Android senden kann (`adv.ts`). */
 export const LAMP_FRAME_JSON: JsonNode = {
   key: 'lamps.frame',
@@ -1078,6 +1092,7 @@ export const LAMPS_JSON: JsonNode = {
   short: 'Lampy',
   text: INTRO,
   inside: () => [
+    LAMPS_USAGE_JSON,
     LAMP_JSON,
     LAMP_TIMER_JSON,
     textNode('lamps.example', 'Przykład: dwie lampy i dwa timery', () => pretty(lampsExample())),

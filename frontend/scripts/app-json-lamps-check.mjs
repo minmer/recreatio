@@ -97,7 +97,7 @@ try {
   assert.equal(m.LAMPS_FORMAT, 'recreatio/lamps');
   const sections = m.sectionsOf(m.LAMPS_JSON).map((s) => s.node.key);
   assert.equal(new Set(sections).size, sections.length, 'every section once');
-  assert.deepEqual(sections, ['lamps', 'lamps.lamp', 'lamps.signal', 'lamps.frame', 'lamps.timer', 'lamps.action', 'lamps.pace', 'lamps.example', 'lamps.example-timers', 'lamps.example-change']);
+  assert.deepEqual(sections, ['lamps', 'lamps.usage', 'lamps.lamp', 'lamps.signal', 'lamps.frame', 'lamps.timer', 'lamps.action', 'lamps.pace', 'lamps.example', 'lamps.example-timers', 'lamps.example-change']);
   for (const [level, keys] of Object.entries(m.LAMPS_LEVELS)) {
     for (const [key, says] of Object.entries(keys)) {
       assert.ok(typeof says === 'string' && says.trim().length > 3, `${level || 'document'}.${key}: a real sentence`);

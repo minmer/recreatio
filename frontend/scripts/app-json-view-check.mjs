@@ -75,9 +75,13 @@ try {
   for (const key of Object.keys(m.VIEW_KEYS)) assert.ok(text.includes(`"${key.split(/[.[\]]+/).filter(Boolean).pop()}" — `), `the description explains "${key}"`);
   for (const kind of m.ALERT_KINDS) assert.ok(text.includes(`"${kind.kind}" — ${kind.label}`), `the description names the kind ${kind.kind}`);
   assert.ok(text.includes('stały'), 'and says that the layout is fixed');
-  const example = JSON.parse(text.slice(text.indexOf('Przykład'), text.length).replace(/^[^\n]*\n/, ''));
+  /* Das Beispiel schliesst den ersten Abschnitt — danach kommt „Jak aplikacja używa tych danych" (2026-10-30). */
+  const exampleAt = text.indexOf('Przykład');
+  const exampleEnd = text.indexOf('\n\n#', exampleAt);
+  const example = JSON.parse(text.slice(exampleAt, exampleEnd < 0 ? text.length : exampleEnd).replace(/^[^\n]*\n/, ''));
   assert.deepEqual(example, samples[0].doc(), 'the example in the text is the sample');
-  ok(`description: callable without context, every key described, all ${m.ALERT_KINDS.length} kinds named, the fixed layout said`);
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
+  ok(`description: callable without context, every key described, all ${m.ALERT_KINDS.length} kinds named, the fixed layout said, how the app uses it`);
 
   /* -- 2 ---------------------------------------------------------------------------------------- */
   const mine = m.toggleAlert(m.moveAlert(m.moveAlert(m.DEFAULT_ALERTS, 'chats', -1), 'links', -1), 'today', false);

@@ -356,9 +356,14 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - sources: a kind — also a kind of a source library or Scriptorium, optionally only from one source ("Skąd", `source.kind` `from`; 2026-10-22) —, a collection, a list (the source "Temat" is gone since 2026-10-23; an old revision with it says what to use instead);
 - the steps shared with views (step 9): **Idź po odwołaniu** gives the cards of the entries reached along a reference (or backwards), **Filtr wpisów** keeps the cards whose entry passes the collections' rule;
 - **Z wpisu** (`source.from`, step 11): the cards of what one entry points at. A sermon gives its quotes, statements, linked dictionary words and questions, and the places of its plan. A text's panel in the Scriptorium offers **"Powtórka z tego tekstu"** (`fromEntry.ts`), which creates such a revision in a base that draws on the Scriptorium; a base of the same area gets it as a source if needed;
-- dependency gates;
-- one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness;
-- order and limits.
+- **Widok** (`source.view`, 2026-10-30): the cards of what a saved view shows — the view decides what is eligible, the revision picks from it; editing the view changes the revision ("Powtórka z tego widoku" in Wpisy, „Widok” in „Nowa powtórka”);
+- **Idź po kolejności nauki** (`learning`): what comes before (or builds on) the chosen entries in the learning order, to the basics or one step; `keep` adds them to the cards it starts from (`follow` and `structure` take `keep` too);
+- **Filtr znajomości** (`filter.when`): a condition of the one logic (`logic.ts`) — also on knowness, relative to the card (below). In a revision it is checked DURING the run, card by card, with the knowness of now; a card already in the stack stays (A.2);
+- one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness — plus the **order** (`general` first — the levels of the learning order —, `text` order in the source, `date`, `random`, `given`, `due`) and the **pick** from the stack (`next` strictly, or `weighted`: random, weaker and longer-waiting cards more often). Each card carries its reason (`Why`) and the run shows it („Nowa karta — najpierw ogólne (poziom 2)”, „Wraca, bo się zaciera: znajomość 40 %; pora minęła 2 dni temu”); the end of a run says what waits and for what.
+
+**A revision is the simplest storyboard** (2026-10-30): information (structured by the schema) plus a view that decides
+what the learner sees next, with access to how well each item is known. Everything about *how* knowness is used belongs
+to the view and the schema; the computation of knowness is fixed in code and the same everywhere.
 
 **Collections** are saved filters with AND / OR groups, plus explicit lists [F1, F19].
 
@@ -367,13 +372,17 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
   base's own dependencies (Ustawienia). A question counts for what it is „O czym”.
 - **Levels** from the basics: level 1 needs nothing, each next one needs only lower ones. Entries without cards are
   passed through; circles are named in „Do zrobienia”.
-- **Mastery** = knowness now × correctness of the last answer, mastered at ≥ 1 (`masteryOf`): a forgotten basic
-  counts as not mastered again.
-- **The gate** (revision node; on in the daily preset and the template revisions) holds a card back until what it
-  needs is mastered; a card never waits for what it tests itself. It pulls the missing basics from the whole base
-  into the revision (`withBasics`; off with `"pull": false`).
-- **Order**: fresh cards lowest level first, so the general comes before the specific; the strategy takes the next
-  stack from the lowest open level.
+- **Known** = the item's knowness ≥ 1 (below): a forgotten basic counts as not known again.
+- **„Najpierw podstawy” is a preset, not code** (2026-10-30, `presets.ts`): „Idź po kolejności nauki” (`dir: before`,
+  `keep`) pulls the missing basics, „Filtr znajomości” with `{"type": "knowness", "rel": "before", "op": "ge", "than": 1}`
+  lets a card in once what comes before it is known (the nearest entries with cards — an entry without cards stands for
+  what is before it; a card never waits for what it tests itself; parts of a quote wait for their halves), and the
+  strategy orders `general`. The daily preset uses the same steps. An old `gate` node is read as these steps
+  (`migrateRevision`: in planning, in the editor — „Zapisz” stores the new form —, in JSON import and export; an
+  offline copy with `gate` gets the same condition from its dependencies).
+- **Order** `general`: fresh cards lowest level first, so the general comes before the specific; in the stack, new
+  cards come only from the lowest level that still has new ones, while cards already asked (wrong, fading) compete by
+  weight — a general card that will not stick does not block everything released behind it.
 - **Seen**: Nauka → **Ścieżka** (levels; known, learning, waiting and for what; „Ucz się od podstaw”), an entry's place
   („Poziom 4”, „Najpierw trzeba znać”, „Na tym budują”), the view grouping „Od podstaw”, and the end of a revision
   („3 karty czekają na podstawy — najpierw: Atom”).
@@ -383,10 +392,35 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - Propagation: parent knowness += child knowness × impact [E4].
 - Dependencies inferred from flows and character hand-offs are proposed to the author, who confirms them [E5].
 
-**Knowness:**
-- The spec formula `knowledge(q1, d1, q2, d2, t)` (Appendix A.1), over a card’s latest answers [E1].
-- An entity or collection averages its cards [E2].
+**Knowness** (2026-10-30, `knowness.ts`, `knowing.ts` — replaces the formula of Appendix A.1):
+- **One step per answer.** A card keeps only a few values (`CardState`): when it was last answered, how long had
+  actually passed before that answer, its interval now, and the best interval reached before its last mistake. The next
+  interval comes from these values and the new answer only (`step`); every raw answer stays stored, so `stateOf`
+  replays any state if a rule changes. Snapshots (§7) carry the state (`v: 2`).
+- **The rules** (named constants): right (≥ 0.9) — the time that actually passed × 3 (`GROWTH`; an early right answer
+  never shortens); partly — a third of it (`PARTIAL`), at least a day if days had passed (`PARTIAL_FLOOR`); wrong
+  (< 0.25) — back to 5 minutes (`MIN_INTERVAL`), never at once; right just after a mistake — 0.4 × the best interval
+  before it (`RELEARN`). Checked as ranges: wrong after 5 days → ~5 min; right then → 1–3 days; partly → 1–2 days;
+  right 2 days later → 6–10 days.
+- **A card's knowness**: last correctness × 10^(0.5·(1 − t/interval)) — √10 right after a right answer, exactly 1 at
+  the due time (the line „known”), then down; 0 after a wrong one.
+- **Knowness belongs to the item** — a card is evidence. A card template declares in the schema what its cards test
+  and how strongly (`tests`: `this` or a reference field, with a weight; a precise question counts more, one card may
+  feed several items); without it, its entry (and a question's „O czym”) with 1. The item's own knowness is the
+  weighted mean of its ANSWERED cards (a card never asked is no evidence); inferred knowness along prerequisite edges
+  stays (A.3: parent += child × impact). Both the item's and each card's knowness are visible (Postępy → „Moje wpisy”,
+  „Moje pytania”).
+- **Views see it** (`selection.ts` `filter.when`, `views.ts`): conditions of the one logic gain relative subjects —
+  `rel`: `self`, `cards` (its cards; in a revision the card), `before`, `up` (structure parents), or a reference field
+  (`okres`) — with `each` (`all` | `any`); columns and sorts `#knowness`, `#due`, `#level`. Without a learner it is the
+  viewing user's own (Wiedza: the account's learner; a page: the page's person or this browser).
 - It is computed in the browser [E7].
+- **Presets in schemes**: a scheme ships ready views and revisions (`templates/cogita/fakty.json`: the view and
+  revision „Od ogólnego do szczegółu”, a kind „Miejsce” with coordinates, weights on its card templates). The Don Bosco
+  case — nested periods, places, facts in three depths, a learner who sees the Turin years only once the Turin stage is
+  known — is built from it with a JSON import alone and checked on a small fixture in `app-cogita-check`.
+- **Flows**: the former step „Najpierw podstawy” (`prerequisite`) is read as the „Warunek” it was (knowness ≥ threshold;
+  exits `known`/`explain` → `yes`/`no`); dependency proposals [E5] come from such conditions.
 
 ## 7. Answers and progress
 
@@ -409,9 +443,11 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
   after introducing oneself cannot stay in the browser.
 - **Statistics** (2026-10-27, `measures.ts`, Nauka → Postępy): per learner and per question — answers, right, time per
   answer (each answer carries it), when last, knowness now and in a week, how long it holds — and known / learning /
-  not yet, counted one of three ways chosen above the table: **Pamięć** (A.1: spacing makes it last — right today and
-  in a week holds longer than today and tomorrow — and it fades with time), **Z hierarchią** (as Pamięć, and knowing
-  the specific counts for the general it builds on, A.3), **Ostatnia odpowiedź**. Scope: the whole base or one
+  not yet, counted one of three ways chosen above the table: **Pamięć** (the card's state, §6: spacing makes it last —
+  right today and in a week holds longer than today and tomorrow — and it fades with time), **Z hierarchią** (as
+  Pamięć, and knowing the specific counts for the general it builds on — the item's weighted knowness, A.3),
+  **Ostatnia odpowiedź**. Since 2026-10-30 also item by item („Moje wpisy”): the item's knowness from its cards and
+  with what builds on it. Scope: the whole base or one
   revision. One's own under „Moje pytania”; the learners' table of a course opens by itself.
 - **Offline revision** [E9, F21]. A revision runs without the network. Its answers and knowness are saved later.
   - The browser keeps a cache of some questions by itself.
@@ -430,8 +466,9 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
     answered offline. Signing out, „Tylko w pamięci” or dropping the last copy takes the login without network off
     the device. The price: whoever has the phone and its key store can try passwords offline (Argon2id, 64 MiB each).
   - In the strict key-keeping mode (`tab`), nothing is cached.
-  - Since 2026-10-27 the kept copy carries what the learning order needs (`offline.ts`): the revision's gate
-    „Najpierw podstawy” (it used to be dropped, so details came before basics), the learner's earlier answers to
+  - Since 2026-10-27 the kept copy carries what the learning order needs (`offline.ts`): the conditions of its cards
+    (since 2026-10-30 each with its relations resolved — `when`; an older copy's gate „Najpierw podstawy” becomes the
+    same condition), the learner's earlier answers to
     its cards (only for computing — without them the gate would hold back what is already known), and the intake's
     public key (without it, answers sealed offline could never be read by the course). Cards whose question shows a
     file (picture, sound) are not kept — they cannot open without the network.
@@ -858,6 +895,8 @@ Done on 2026-10-17: the dead `package.json` scripts (`api:types`, `rc:*`, `publi
 The code cites these four sections of the removed `CogitaAim.md` (“Cogita — Final Post-Recreation Product Specification”). They are quoted here unchanged so that the citations keep a target.
 
 ### A.1 Knowness (former I.8, I.8.1)
+
+*Superseded on 2026-10-30 by the incremental rules in §6 („Knowness”); kept as the record of the earlier formula.*
 
 Knowness is a computed signal attached to a person/entity context. Knowness snapshots MUST be refreshed when a new correctness entry is written for the related person/entity, and SHOULD remain computationally lightweight and stable.
 

@@ -808,6 +808,24 @@ const HOLDER_JSON: JsonNode = {
 Kto trzyma rolę, widzi wszystko, co ona widzi (jej obszary, rozmowy, kalendarze, role, które ona trzyma); z kluczem podpisu działa też w jej imieniu. Ta sama para na innym stopniu to osobne powiązanie (np. "read" obok "holds"). Konto trzyma tylko osoby i tylko z "holds".`
 };
 
+/*
+ * 2026-10-30 — WAS DER GRAPH IM SYSTEM TRÄGT: jede Kante den Rollenschlüssel (`addHolder`), der Bund wird
+ * gelaufen (`core/keys.ts`); Rechte des Dienstes nur über `holds` (`Workspace.RolesOfAsync`: Bereiche, Rozmowy,
+ * Seiten, Wecken); Bereichszugang als Zertifikat an der Rolle, zwei Jahre, erneuert (`Area.Renew.cs`);
+ * Formular und Link geben eine Rolle (`Form.Members.cs`); der Signierschlüssel nur mit „holds" und „sign".
+ */
+const USAGE_JSON: JsonNode = {
+  key: 'roles.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Graf ról to graf kluczy. Każde powiązanie — także "write" i "read" — niesie klucz roli zapieczętowany dla tego, kto ją trzyma; przeglądarka idzie od konta w dół i otwiera tyle, ile sięgają powiązania. Usługa kluczy nie ma — sprawdza tylko podpisy.
+- Dostęp do obszaru (czyta, pisze, prowadzi) dostaje rola: klucz obszaru i certyfikat podpisany przez rolę, która w obszarze przyjmuje. Certyfikat jest ważny dwa lata; po roku przeglądarka kogoś, kto przyjmuje w tym obszarze, odnawia go sama.
+- Usługa wpuszcza do obszarów roli tylko po "holds" (konto → osoba → rola → …, także przez role pośrednie): ci, do których rola tak schodzi, widzą rozmowy, kalendarze i zgłoszenia jej obszarów, a nowości z nich budzą ich telefony.
+- Adres strony (i wszystko pod nim) prowadzi jedna rola — stronę edytują ci, do których ta rola schodzi po "holds".
+- Formularz i link dostępu dają swoim osobom rolę; do czego prowadzi, mówi sama rola — jedna zmiana dotyczy wszystkich, którzy ją dostali.
+- Klucz podpisu ("sign": true, tylko przy "holds") to działanie w imieniu roli: nim podpisuje się jej wiadomości w rozmowach, powiązania, w których ona trzyma inne role (także nowe role zakładane pod nią), i certyfikaty, które wydaje.
+- Nowe "holds" daje więc od razu wszystko, do czego rola prowadzi — także przez role, które ona trzyma. Import nie nadaje dostępu do obszarów ani adresów stron; powiązanie odbiera się ręcznie (Role → rola → „Odbierz”).`
+};
+
 /** DIE BESCHREIBUNG — neben dem Import und für einen Assistenten (MCP). Ohne Zusammenhang aufrufbar. */
 export const ROLES_JSON: JsonNode = {
   key: 'roles',
@@ -835,7 +853,7 @@ ${pretty(exportRoles(EXAMPLE_STATE))}
 
 Przykład — nowe role pod Twoją osobą:
 ${pretty(PARISH_SAMPLE)}`,
-  inside: () => [ENTRY_JSON, HOLDER_JSON],
+  inside: () => [USAGE_JSON, ENTRY_JSON, HOLDER_JSON],
   samples: () => [
     { label: 'Parafia: proboszcz, kancelaria, rada, schola', doc: () => PARISH_SAMPLE },
     { label: 'Szkoła: dyrektor, nauczyciele, wychowawca', doc: () => SCHOOL_SAMPLE }

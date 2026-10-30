@@ -142,3 +142,21 @@ export async function learn(lib: CogitaLibrary, view: ViewDoc, ids?: readonly st
   const saved = await lib.saveDoc('revision', viewToRevision(chosen));
   return saved.id;
 }
+
+/**
+ * 2026-10-30 — EINE POWTÓRKA AUS DIESEM GESPEICHERTEN WIDOK (Quelle „Widok"), keine Kopie seiner Schritte: was der
+ * Widok zeigt, kommt in Frage — ändert er sich, ändert sich die Powtórka mit; seine „Filtry znajomości" gelten im Lauf.
+ */
+export async function learnFromView(lib: CogitaLibrary, viewId: string, name: string): Promise<string> {
+  const saved = await lib.saveDoc('revision', {
+    name: `Powtórka: ${name}`.slice(0, 120),
+    graph: {
+      nodes: [
+        { id: 'widok', type: 'source.view', x: 40, y: 40, config: { view: viewId } },
+        { id: 'plan', type: 'strategy', x: 300, y: 40, config: { mode: 'temporal', stackSize: 20, minCorrectness: 1 } }
+      ],
+      edges: [{ id: 'e1', from: 'widok', out: 'cards', to: 'plan', in: 'cards' }]
+    }
+  });
+  return saved.id;
+}

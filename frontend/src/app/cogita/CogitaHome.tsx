@@ -84,9 +84,12 @@ export function CogitaHome({ me, who, library, store, trail, part = 'knowledge' 
 }
 
 function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
-  const { lib, writes, me, href } = useCtx();
+  const ctx = useCtx();
+  const { lib, writes, me, href } = ctx;
   const holder = useMemo(() => (me === null ? null : holderOfMe(me)), [me]);
   const { learner } = useLearner(lib, holder);
+  /* 2026-10-30 — der Lernende auch für die Wiedza: Widoki mit „Filtr znajomości" sehen seine Kenntnis. */
+  const withLearner = useMemo<CogitaCtx>(() => ({ ...ctx, learner }), [ctx, learner]);
   const known = useCallback((_kind: string, entry: Parameters<typeof isOldInBase>[0]) => !isOldInBase(entry, (id) => lib.kind(id)), [lib]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const old = useMemo(() => (writes && part === 'knowledge' ? oldEntriesOf(lib.store, known).length : 0), [writes, part, lib.store, lib.revision, known]);
@@ -105,6 +108,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
     : { href: viewPath('knowledge', lib.libraryId), label: 'Wiedza tej bazy', icon: 'branch' as const };
 
   return (
+    <CogitaContext.Provider value={withLearner}>
     <div className="cg" data-cogita-part={part}>
       <nav className="cg-subtabs cg-parttabs" aria-label={part === 'knowledge' ? 'Wiedza' : 'Nauka'}>
         {tabs.map(([slug, label]) => <a key={slug} className={slug === tab ? 'is-on' : ''} aria-current={slug === tab ? 'page' : undefined} href={href(slug)}>{label}</a>)}
@@ -153,6 +157,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {/* -- in beiden -- */}
       {tab === 'ustawienia' && <CogitaSettings />}
     </div>
+    </CogitaContext.Provider>
   );
 }
 

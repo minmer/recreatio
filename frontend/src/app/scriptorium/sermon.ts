@@ -463,6 +463,11 @@ Zasady:
 - Odwołania do źródeł przepisz dokładnie tak, jak stoją w tekście: [@klucz, miejsce] albo ![@klucz-cytatu]. Nie wymyślaj nowych kluczy.
 - Nie dodawaj niczego, czego nie ma w tekście.
 
+Jak aplikacja używa tych danych:
+- Plan trafia do formularza tego tekstu i zastępuje obecny; każdy punkt dostaje stały identyfikator.
+- Wygłoszenia oznaczają punkty po identyfikatorach: powiedziany, tylko wspomniany, pominięty — z czasem w nagraniu. Oznaczenia zapisane do poprzedniego planu zostają przy wygłoszeniu, a jego formularz ostrzega, że tych punktów nie ma już w planie (można je usunąć).
+- Plan stoi przed treścią tekstu — w Skryptorium, na stronach i w druku (także sam, jako „Plan na ambonę”); [@klucz, miejsce] w punkcie staje się przypisem.
+
 Tekst:
 ---
 ${str(d, 'body')}

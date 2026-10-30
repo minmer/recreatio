@@ -5,8 +5,9 @@
  */
 
 import { ANSWER_FORM_LABEL, ANSWER_FORMS } from './check';
-import { MODE_LABEL, MODES } from './revision';
+import { MODE_LABEL, MODES, ORDER_LABEL, ORDERS, PICK_LABEL, PICKS } from './revision';
 import { LEVEL_LABEL } from './knowness';
+import { conditionText, readCondition } from './logic';
 import { QUANTITY_KINDS } from '../core/quantities';
 import { STATEMENT_KINDS } from './statements';
 
@@ -20,7 +21,9 @@ export type ConfigType =
   /* 2026-10-22 (Schritt 9) — die Regel der Zbiory (Feld, Vergleich, Gruppen), für „Filtr wpisów". */
   | 'query'
   /* 2026-10-22 — eine Bibliothek oder Baza wiedzy: diese oder eine ihrer Quellen. */
-  | 'source';
+  | 'source'
+  /* 2026-10-30 — ein gespeicherter Widok; eine Bedingung, die auch die Kenntnis relativ sieht (Widoki, Powtórki). */
+  | 'view' | 'when';
 
 export interface ConfigField {
   readonly key: string;
@@ -115,22 +118,36 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
   'source.list': [f('ids', 'Wpisy albo pytania', 'lines', { hint: 'identyfikatory, jeden w wierszu' })],
   /* 2026-10-22 (Schritt 11) — z kazania (albo innego wpisu): to, na co wskazuje. */
   'source.from': [f('entry', 'Wpis (np. kazanie)', 'entity', { kinds: ['text', 'project', STATEMENT_KINDS] })],
+  /* 2026-10-30 — ein gespeicherter Widok als Quelle einer Powtórka. */
+  'source.view': [f('view', 'Widok (sposób wyświetlania)', 'view')],
   filter: [f('templates', 'Tylko szablony', 'templates'), f('directions', 'Tylko kierunki', 'lines'), f('forms', 'Tylko formy', 'forms'), f('levels', 'Tylko stany', 'levels'), f('dueOnly', 'Tylko te, na które przyszła pora', 'bool')],
   /* 2026-10-22 (Schritt 9) — dieselben Schritte wie ein Widok (`selection.ts`). */
-  follow: [f('field', 'Po którym polu', 'field', { hint: 'puste: po wszystkich odwołaniach' }), f('back', 'Wstecz: do tego, co wskazuje na te wpisy', 'bool')],
+  follow: [
+    f('field', 'Po którym polu', 'field', { hint: 'puste: po wszystkich odwołaniach' }), f('back', 'Wstecz: do tego, co wskazuje na te wpisy', 'bool'),
+    f('keep', 'Zostaw też wpisy, od których wychodzi', 'bool')
+  ],
   /* 2026-10-25 (Wywód) — entlang der Strukturfelder, die der Rodzaj erklärt. */
   structure: [
     f('dir', 'Kierunek', 'select', { options: opts([['down', 'w dół — to, co leży pod nimi'], ['up', 'w górę — to, pod czym leżą']]) }),
-    f('one', 'Tylko jeden poziom', 'bool', { hint: 'bez zaznaczenia: do samego końca, wszystkie poziomy' })
+    f('one', 'Tylko jeden poziom', 'bool', { hint: 'bez zaznaczenia: do samego końca, wszystkie poziomy' }),
+    f('keep', 'Zostaw też wpisy, od których wychodzi', 'bool')
+  ],
+  /* 2026-10-30 — entlang der Reihenfolge des Lernens (die Grundlagen dazu holen). */
+  learning: [
+    f('dir', 'Kierunek', 'select', { options: opts([['before', 'wstecz — to, co trzeba znać wcześniej'], ['after', 'dalej — to, co na nich buduje']]) }),
+    f('one', 'Tylko jeden krok', 'bool', { hint: 'bez zaznaczenia: aż do samych podstaw (albo do końca)' }),
+    f('keep', 'Zostaw też wpisy, od których wychodzi', 'bool')
   ],
   'filter.rule': [f('rule', 'Reguła', 'query')],
+  /* 2026-10-30 — die eine Logik, auch über die Kenntnis: dieses Eintrags, seiner Karten, dessen, was vorher kommt … */
+  'filter.when': [f('when', 'Warunek', 'when')],
   union: [],
-  gate: [f('threshold', 'Od jakiej znajomości (1 = umie)', 'number')],
   strategy: [
     f('mode', 'Sposób', 'select', { options: MODES.map((m) => ({ value: m, label: MODE_LABEL[m] })) }),
+    f('order', 'Kolejność', 'select', { options: ORDERS.map((o) => ({ value: o, label: ORDER_LABEL[o] })), hint: 'puste: w stosie najpierw ogólne, w stałej kolejce losowo' }),
+    f('pick', 'Wybór ze stosu', 'select', { options: PICKS.map((p) => ({ value: p, label: PICK_LABEL[p] })), hint: 'puste: losowo, częściej słabsze' }),
     f('count', 'Ile kart (losowo)', 'number'), f('stackSize', 'Ile kart naraz w stosie', 'number'), f('levels', 'Ile poziomów', 'number'),
     f('minCorrectness', 'Od jakiej poprawności dobrze (0–1)', 'number'),
-    f('order', 'Kolejność', 'select', { options: opts([['random', 'losowa'], ['given', 'jak przychodzą'], ['due', 'najpierw zaległe']]) }),
     f('rule', 'Jak ściśle sprawdzać tekst', 'rule')
   ]
 };
@@ -151,7 +168,6 @@ const FLOW_FIELDS: Record<string, readonly ConfigField[]> = {
   restart: [],
   subflow: [f('flow', 'Przebieg', 'flow')],
   each: [f('collection', 'Zbiór', 'collection'), f('kind', 'albo rodzaj', 'kind'), f('flow', 'Przebieg dla każdego', 'flow')],
-  prerequisite: [f('of', 'Co trzeba znać', 'entity'), f('threshold', 'Od jakiej znajomości', 'number')],
   expand: [f('of', 'Pojęcie', 'entity'), f('explain', 'Wyjaśnienie (wypowiedź — treść w blokach)', 'entity', { kinds: [STATEMENT_KINDS] }), f('threshold', 'Kto zna od', 'number')],
   opening: [TITLE, f('mode', 'Otwarcie', 'select', { options: opts([['discovery', 'odkrywanie — najpierw pytanie'], ['recall', 'przypomnienie — najpierw treść']]) }), f('of', 'Czego dotyczy', 'entity')],
   line: [f('character', 'Postać', 'entity'), f('of', 'Co mówi (wypowiedź — treść w blokach)', 'entity', { kinds: [STATEMENT_KINDS] }), f('mood', 'Nastrój', 'text'), f('condition', 'Tylko gdy', 'condition')],
@@ -172,13 +188,14 @@ export const FORM_OPTIONS = ANSWER_FORMS.map((form) => ({ value: form, label: AN
 export const LEVEL_OPTIONS = (['unseen', 'learning', 'known'] as const).map((l) => ({ value: l, label: LEVEL_LABEL[l] }));
 
 /** Ein kurzer Satz am Knoten: was er gerade einstellt. */
-export function configSummary(palette: string, type: string, config: Readonly<Record<string, unknown>>, name: (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source', id: string) => string): string {
+export function configSummary(palette: string, type: string, config: Readonly<Record<string, unknown>>, name: (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source' | 'view', id: string) => string): string {
   const parts: string[] = [];
   for (const field of configFields(palette, type)) {
     const v = config[field.key];
     if (v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) continue;
     if (field.type === 'entity' && typeof v === 'string') parts.push(name('entity', v));
-    else if ((field.type === 'kind' || field.type === 'collection' || field.type === 'flow' || field.type === 'source') && typeof v === 'string') parts.push(name(field.type, v));
+    else if (field.type === 'when') { const c = readCondition(v); if (c !== null) parts.push(conditionText(c, (id) => name('entity', id))); }
+    else if ((field.type === 'kind' || field.type === 'collection' || field.type === 'flow' || field.type === 'source' || field.type === 'view') && typeof v === 'string') parts.push(name(field.type, v));
     else if (field.type === 'select' && typeof v === 'string') parts.push(field.options?.find((o) => o.value === v)?.label ?? v);
     else if (typeof v === 'string' && field.type !== 'code') parts.push(v.length > 28 ? `${v.slice(0, 27)}…` : v);
     else if (typeof v === 'number' || typeof v === 'boolean') parts.push(`${field.label.split(' ')[0].toLowerCase()} ${v === true ? 'tak' : v === false ? 'nie' : v}`);

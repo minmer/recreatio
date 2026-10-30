@@ -33,8 +33,8 @@
 
 import { checkCode, checkDate, checkFlash, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
 import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './graph';
-import { dateKey, plainOf, readNumber, type DatePrecision, type Entity } from './schema';
-import { type AnswerSpec, type Card, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, stable, str } from './cardBasics';
+import { dateKey, fieldsOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
+import { type AnswerSpec, type Card, type CardTest, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, stable, str } from './cardBasics';
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
@@ -113,6 +113,35 @@ export interface Template {
   /** Die Richtung ihrer Karten, etwa „a→b" — Teil der Kennung (COGITA.md §7). */
   readonly direction: string;
   readonly graph: Graph;
+  /**
+   * 2026-10-30 — CO SPRAWDZA TA KARTA, und wie stark: `of` ist `this` (der Eintrag der Karte) oder der Schlüssel eines
+   * Verweisfeldes (die Einträge, auf die es zeigt — der Okres eines Fakts, sein Ort); `weight` 0–10, eine genaue Frage
+   * zählt mehr als eine allgemeine. Leer: der Eintrag der Karte mit 1.
+   */
+  readonly tests: readonly TemplateTest[];
+}
+
+export interface TemplateTest {
+  readonly of: string;
+  readonly weight: number;
+}
+
+/** Das Gewicht einer Prüfung: 0–10, ohne Angabe 1. */
+const weightOf = (v: unknown): number => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(',', '.')) : Number.NaN;
+  return Number.isFinite(n) ? Math.max(0, Math.min(10, n)) : 1;
+};
+
+export function readTests(raw: unknown): TemplateTest[] {
+  const out: TemplateTest[] = [];
+  for (const one of Array.isArray(raw) ? raw : []) {
+    if (!isObject(one)) continue;
+    const of = str(one.of).trim() || 'this';
+    if (out.some((t) => t.of === of)) continue;
+    out.push({ of, weight: weightOf(one.weight) });
+    if (out.length >= 12) break;
+  }
+  return out;
 }
 
 export function readTemplate(id: string, raw: unknown): Template {
@@ -122,8 +151,26 @@ export function readTemplate(id: string, raw: unknown): Template {
     name: str(doc.name).trim().slice(0, 120) || 'Szablon',
     kinds: lines(doc.kinds),
     direction: str(doc.direction).trim().slice(0, 40),
-    graph: readGraph(doc.graph)
+    graph: readGraph(doc.graph),
+    tests: readTests(doc.tests)
   };
+}
+
+/**
+ * Was eine Karte dieser Vorlage für diesen Eintrag prüft — `null`: nichts erklärt (der Eintrag mit 1). Ein Feld zählt
+ * mit jedem Eintrag, auf den es zeigt; kommt einer zweimal vor, gilt das grössere Gewicht.
+ */
+export function testsOf(tests: readonly TemplateTest[], entity: Entity, look: Lookup): CardTest[] | null {
+  if (tests.length === 0) return null;
+  const out = new Map<string, number>();
+  const put = (id: string, weight: number) => out.set(id, Math.max(out.get(id) ?? 0, weight));
+  for (const t of tests) {
+    if (t.of === 'this') { put(entity.id, t.weight); continue; }
+    const field = fieldsOf(entity, look).find((f) => f.key === t.of && f.type === 'ref');
+    if (field === undefined) continue;
+    for (const v of valuesOf(entity, field)) if (typeof v.value === 'string' && v.value !== '') put(v.value, t.weight);
+  }
+  return [...out].map(([id, weight]) => ({ id, weight }));
 }
 
 /** Was eine Vorlage braucht, um Karten zu machen: genau eine Karte, höchstens eine Schleife. */
@@ -201,6 +248,7 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
     const question = run.variant === undefined ? `${template.id}:${ctx.entity.id}` : `${template.id}:${ctx.entity.id}:${run.variant}`;
     const direction = template.direction;
     const prefix = `${template.id}:${ctx.entity.id}`;
+    const tests = testsOf(template.tests, ctx.entity, ctx.look);
     cards.push({
       question,
       direction,
@@ -212,7 +260,8 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
       explain: made.explain,
       fingerprint: hashOf(varies ? stable(definitionOf(graph)) : stable(expectedOf(made.draft.answer))),
       varies,
-      requires: (run.requires ?? []).map((part) => cardKey(`${prefix}:${part}`, direction))
+      requires: (run.requires ?? []).map((part) => cardKey(`${prefix}:${part}`, direction)),
+      ...(tests === null ? {} : { tests })
     });
   }
   return { cards, problems };

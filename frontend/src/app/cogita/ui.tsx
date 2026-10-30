@@ -14,7 +14,8 @@ import { parseMarkup } from '../library/libraryMarkup';
 import { Blocks, countNotes, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
-import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
+import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
+import type { Learner } from './learn';
 import { runPython } from './python';
 import { viewPath } from '../routes';
 import { cogitaPath } from './parts';
@@ -40,6 +41,8 @@ export interface CogitaCtx {
   readonly seat?: string;
   readonly me: Me | null;
   readonly who: Who | null;
+  /** 2026-10-30 — wer hier lernt (das eigene Konto): seine Kenntnis sehen Widoki mit „Filtr znajomości" und Spalten der Kenntnis. */
+  readonly learner?: Learner | null;
   /** Der Weg zu einer Ansicht dieser Bibliothek (`#/workspace/library/<id>/cogita/...`). */
   readonly href: (...tail: readonly string[]) => string;
 }
@@ -311,18 +314,35 @@ export function MediaView({ media }: { media: MediaRef }) {
 
 /* -- Bedingungen und Aktionen der einen Logik ------------------------------------------------ */
 
-export function ConditionEditor({ value, onChange, name, depth = 0 }: {
+/** 2026-10-30 — die Verweisfelder, über die eine Bedingung relativ die Kenntnis sieht („to, na co wskazuje pole"). */
+export interface RelationField {
+  readonly key: string;
+  readonly label: string;
+  readonly group?: string;
+}
+
+export function ConditionEditor({ value, onChange, name, depth = 0, relations, fresh }: {
   value: Condition | null;
   onChange: (next: Condition | null) => void;
   name?: (id: string) => string;
   depth?: number;
+  /**
+   * 2026-10-30 — in einem Widok oder einer Powtórka: „Znajomość" auch relativ zu dem, was geprüft wird (ten wpis, jego
+   * karty, to, co wcześniej, to, pod czym leży, to, na co wskazuje pole — diese Felder).
+   */
+  relations?: readonly RelationField[];
+  /** Was „+ warunek" und „+ część" anlegen. */
+  fresh?: Condition;
 }) {
   const c = value;
+  const start: Condition = fresh ?? { type: 'value', value: '', op: 'ge', than: 1 };
   const set = (patch: Partial<Condition>) => onChange(readCondition({ ...(c ?? { type: 'value' }), ...patch }));
+  const fields = relations === undefined ? [] : [...new Map(relations.map((f) => [f.key, f])).values()];
+  const fieldName = (key: string) => fields.find((f) => f.key === key)?.label ?? key;
   if (c === null) {
     return (
       <div className="cg-cond">
-        <button type="button" className="wk-link-btn" onClick={() => onChange({ type: 'value', value: '', op: 'ge', than: 1 })}>+ warunek</button>
+        <button type="button" className="wk-link-btn" onClick={() => onChange(start)}>+ warunek</button>
       </div>
     );
   }
@@ -336,11 +356,28 @@ export function ConditionEditor({ value, onChange, name, depth = 0 }: {
         }}>
           {CONDITION_TYPES.map((t) => <option key={t} value={t}>{CONDITION_LABEL[t]}</option>)}
         </select>
+        {c.type === 'knowness' && relations !== undefined && (
+          <select value={c.rel ?? ''} aria-label="Czyja znajomość" onChange={(e) => set(e.target.value === '' ? { rel: undefined, each: undefined } : { rel: e.target.value, of: undefined })}>
+            <option value="">konkretnego wpisu albo karty</option>
+            {RELATIONS.map((r) => <option key={r} value={r}>{RELATION_LABEL[r]}</option>)}
+            {fields.length > 0 && (
+              <optgroup label="to, na co wskazuje pole">
+                {fields.map((f) => <option key={f.key} value={f.key}>{f.label}{f.group === undefined ? '' : ` (${f.group})`}</option>)}
+              </optgroup>
+            )}
+          </select>
+        )}
+        {c.type === 'knowness' && c.rel !== undefined && c.rel !== 'self' && (
+          <select value={c.each ?? 'all'} aria-label="Wszystkie czy jeden" onChange={(e) => set({ each: e.target.value === 'any' ? 'any' : undefined })}>
+            <option value="all">każdy z nich</option>
+            <option value="any">choć jeden</option>
+          </select>
+        )}
         {(c.type === 'value' || c.type === 'knowness') && (
           <>
             {c.type === 'value'
               ? <input value={c.value ?? ''} placeholder="nazwa wartości" onChange={(e) => set({ value: e.target.value })} />
-              : <input value={c.of ?? ''} placeholder="wpis albo karta" onChange={(e) => set({ of: e.target.value })} />}
+              : c.rel === undefined && <input value={c.of ?? ''} placeholder="wpis albo karta" onChange={(e) => set({ of: e.target.value })} />}
             <select value={c.op ?? 'ge'} onChange={(e) => set({ op: e.target.value as CompareOp })}>
               {COMPARE_OPS.filter((o) => o !== 'contains' && o !== 'filled' && o !== 'empty').map((o) => <option key={o} value={o}>{COMPARE_LABEL[o]}</option>)}
             </select>
@@ -378,7 +415,7 @@ export function ConditionEditor({ value, onChange, name, depth = 0 }: {
         <div className="cg-cond-items">
           {(c.items ?? []).map((item, i) => (
             <div key={i} className="cg-cond-item">
-              <ConditionEditor value={item} depth={depth + 1} name={name} onChange={(next) => {
+              <ConditionEditor value={item} depth={depth + 1} name={name} {...(relations === undefined ? {} : { relations })} {...(fresh === undefined ? {} : { fresh })} onChange={(next) => {
                 const items = [...(c.items ?? [])];
                 if (next === null) items.splice(i, 1); else items[i] = next;
                 onChange({ ...c, items });
@@ -387,11 +424,11 @@ export function ConditionEditor({ value, onChange, name, depth = 0 }: {
             </div>
           ))}
           {(c.type !== 'not' || (c.items ?? []).length === 0) && (
-            <button type="button" className="wk-link-btn" onClick={() => onChange({ ...c, items: [...(c.items ?? []), { type: 'value', value: '', op: 'ge', than: 1 }] })}>+ część</button>
+            <button type="button" className="wk-link-btn" onClick={() => onChange({ ...c, items: [...(c.items ?? []), start] })}>+ część</button>
           )}
         </div>
       )}
-      {depth === 0 && <p className="wk-hint">{conditionText(c, name)}</p>}
+      {depth === 0 && <p className="wk-hint">{conditionText(c, name, fieldName)}</p>}
     </div>
   );
 }

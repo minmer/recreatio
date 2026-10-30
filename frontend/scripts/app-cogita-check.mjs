@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing'];
 /* 2026-10-28 — dazu aus `core`: das Anmelden ohne Netz (away), die Rechnung des Anmeldens (session), die Siegel (crypto). */
 const cores = ['away', 'session', 'crypto'];
 await build({
@@ -30,7 +30,7 @@ await build({
 /* `learn` reaches the session module: without a BroadcastChannel it opens nothing that keeps node from ending. */
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN] = await Promise.all(names.map(load));
 const [AW, SE, CR] = await Promise.all(cores.map(load));
 
 let failed = 0;
@@ -241,19 +241,52 @@ check('a mask survives its storage', Array.from(C.readMask(C.maskText(new Uint8A
 
 /* ── Kenntnis ───────────────────────────────────────────────────────── */
 
+/*
+ * 2026-10-30 — EIN SCHRITT JE ANTWORT (knowness.ts): die Regeln mit ihren Namen, und die Beispiele des Autors als
+ * Spannen („grobe Ziele, keine genauen Werte").
+ */
 const H = 3_600_000;
-check('right after an answer the formula gives the square root of ten', K.knowledge(0, 0, 1, 0, 0), Math.sqrt(10));
+const MINUTE = 60_000;
+const DAY = 24 * H;
+const days = (ms) => ms / DAY;
 const first = [{ at: 0, correctness: 1 }];
-check('a first right answer holds for five minutes', K.stability(first), 5 / 60);
-check('after which it is due', K.dueAt(first), 5 * 60 * 1000);
-check('and the knowness is exactly 1', K.knownessOf(first, 5 * 60 * 1000), 1);
-check('a wrong last answer starts again at five minutes', K.stability([{ at: 0, correctness: 1 }, { at: 24 * H, correctness: 0 }]), 5 / 60);
-const spaced = [{ at: 0, correctness: 1 }, { at: 1 * H, correctness: 1 }, { at: 25 * H, correctness: 1 }];
-check('spacing makes it last: 12 · (24 + 1) hours', K.stability(spaced), 300);
-check('only the last three answers count', K.stability([{ at: -100 * H, correctness: 0 }, ...spaced]), 300);
+check('the rules have names: 5 min, × 3, a third (at least a day), 0.4 after a mistake',
+  [K.MIN_INTERVAL, K.GROWTH, K.PARTIAL, K.PARTIAL_FLOOR, K.RELEARN, K.CORRECT_FROM, K.WRONG_BELOW], [5 * MINUTE, 3, 1 / 3, DAY, 0.4, 0.9, 0.25]);
+check('a first right answer holds for 15 minutes (5 min × 3), and is due then', [K.stability(first), K.dueAt(first)], [0.25, 15 * MINUTE]);
+check('right after a right answer the knowness is √10', K.knownessOf(first, 0), Math.sqrt(10));
+check('at the due time it is exactly 1 — the line between known and shaky', K.knownessOf(first, 15 * MINUTE), 1);
+check('right after a wrong answer it is nothing (0), and it comes back in 5 minutes — never at once',
+  [K.knownessOf([{ at: 0, correctness: 0 }], 0), K.dueAt([{ at: 0, correctness: 0 }])], [0, 5 * MINUTE]);
 check('never answered is nothing', K.knownessOf([], 0), 0);
-check('unseen, learning, known', [K.levelOf([], 0), K.levelOf(first, 10 * 60 * 1000), K.levelOf(first, 60 * 1000)], ['unseen', 'learning', 'known']);
-check('an entity averages its cards', K.average([1, 0, 0.5]), 0.5);
+check('unseen, learning, known', [K.levelOf([], 0), K.levelOf(first, 20 * MINUTE), K.levelOf(first, MINUTE)], ['unseen', 'learning', 'known']);
+check('grades: from 0.9 right, below 0.25 wrong, between partly', [K.gradeOf(1), K.gradeOf(0.9), K.gradeOf(0.5), K.gradeOf(0.2)], ['correct', 'correct', 'partly', 'wrong']);
+/* Bis zu einem Abstand von 5 Tagen: richtig, und 40 Stunden später wieder richtig — 40 h × 3 = 5 Tage. */
+const five = [{ at: 0, correctness: 1 }, { at: 40 * H, correctness: 1 }];
+check('right after 40 hours: the elapsed time × 3 = 5 days', days(K.stateOf(five).interval), 5);
+const lapse = [...five, { at: 40 * H + 5 * DAY, correctness: 0 }];
+const lapsed = K.stateOf(lapse);
+truth('author’s example: wrong after 5 days gives about 5 minutes', lapsed.interval >= 4 * MINUTE && lapsed.interval <= 10 * MINUTE, lapsed.interval / MINUTE);
+check('… and remembers the best interval before the mistake', days(lapsed.best), 5);
+const relearn = [...lapse, { at: 40 * H + 5 * DAY + 5 * MINUTE, correctness: 1 }];
+const relearned = K.stateOf(relearn);
+truth('author’s example: right after that gives about 1 to 3 days (0.4 × 5 days — earlier learning is not lost)', days(relearned.interval) >= 1 && days(relearned.interval) <= 3, days(relearned.interval));
+const partly = K.stateOf([...five, { at: 40 * H + 5 * DAY, correctness: 0.5 }]);
+truth('author’s example: partly right gives 1 to 2 days (a third of the 5 days that passed)', days(partly.interval) >= 1 && days(partly.interval) <= 2, days(partly.interval));
+const partlySoon = K.stateOf([...relearn, { at: 40 * H + 5 * DAY + 5 * MINUTE + 2 * DAY, correctness: 0.5 }]);
+truth('… partly right two days later: at least a day, since days had passed', days(partlySoon.interval) >= 1 && days(partlySoon.interval) <= 2, days(partlySoon.interval));
+const twoLater = K.stateOf([...relearn, { at: 40 * H + 5 * DAY + 5 * MINUTE + 2 * DAY, correctness: 1 }]);
+truth('author’s example: right 2 days later gives about 6 to 10 days', days(twoLater.interval) >= 6 && days(twoLater.interval) <= 10, days(twoLater.interval));
+const late = K.stateOf([...five, { at: 40 * H + 10 * DAY, correctness: 1 }]);
+const onTime = K.stateOf([...five, { at: 40 * H + 5 * DAY, correctness: 1 }]);
+check('the time that actually passed counts: right after 10 days (due after 5) holds 30 days, on time 15', [days(late.interval), days(onTime.interval)], [30, 15]);
+check('an early right answer never shortens what it had (5 days, answered after 1 hour)', days(K.stateOf([...five, { at: 41 * H, correctness: 1 }]).interval), 5);
+check('a card keeps only a few values — when, elapsed, interval, best (and the last grade)', Object.keys(K.stateOf(lapse)).sort(), ['answers', 'at', 'best', 'elapsed', 'interval', 'lapsed', 'q']);
+check('incremental: one step from the kept state is the same as replaying every answer',
+  JSON.stringify(K.step(K.stateOf(lapse), relearn[relearn.length - 1])) === JSON.stringify(K.stateOf(relearn)), true);
+check('spacing makes it last: right today and tomorrow holds less long than right today and in a week',
+  K.stability([{ at: 0, correctness: 1 }, { at: DAY, correctness: 1 }]) < K.stability([{ at: 0, correctness: 1 }, { at: 7 * DAY, correctness: 1 }]), true);
+check('a snapshot keeps the state too (v2)', (({ v, interval, best, answers }) => [v, days(interval), days(best), answers])(K.snapshotOf('T:v1', '', lapse, 40 * H + 5 * DAY)), [2, 5 * MINUTE / DAY, 5, 3]);
+check('an average for bars', K.average([1, 0, 0.5]), 0.5);
 
 const deps = [
   { parent: 'a', child: 'b', kind: 'prerequisite', impact: 0.5 },
@@ -263,9 +296,40 @@ const deps = [
 check('the edge that closes a circle is dropped', K.acyclic(deps).length, 2);
 const totals = K.propagate(new Map([['a', 0.2], ['b', 0.4], ['c', 1]]), deps);
 check('knowing what builds on it lifts the foundation, along the chain', [totals.get('c'), totals.get('b'), totals.get('a')].map((v) => Math.round(v * 1e9) / 1e9), [1, 1.4, 0.9]);
-check('a prerequisite below the threshold blocks', K.blockedBy('b', totals, deps, 1), ['a']);
-check('an elaboration never blocks', K.gateOpen('c', totals, deps, 1), true);
 check('a snapshot carries the question and its direction', (({ question, direction, answers }) => [question, direction, answers])(K.snapshotOf('T:v1', 'pl→en', first, 0)), ['T:v1', 'pl→en', 1]);
+
+/*
+ * 2026-10-30 — DIE KENNTNIS GEHÖRT DEM EINTRAG (knowing.ts): eine Karte ist ein Zeugnis, mit dem Gewicht, das ihre
+ * Vorlage erklärt; nur beantwortete Karten zählen; dazu, was auf dem Eintrag aufbaut.
+ */
+{
+  const now = 10 * DAY;
+  const wc = (key, entity, tests) => ({ key, question: key, entity, requires: [], ...(tests === undefined ? {} : { tests }) });
+  const deck = [
+    wc('precise', 'A', [{ id: 'A', weight: 1 }, { id: 'P', weight: 0.5 }]),
+    wc('general', 'A', [{ id: 'A', weight: 0.25 }]),
+    wc('plain', 'B'),
+    wc('never', 'C')
+  ];
+  const answers = { precise: [{ at: now, correctness: 1 }], general: [{ at: now, correctness: 0 }], plain: [{ at: now - 3 * DAY, correctness: 1 }] };
+  const g = KN.gaugeFromMarks(deck, (key) => answers[key] ?? [], [{ parent: 'P', child: 'A', kind: 'prerequisite', impact: 0.5 }], now);
+  const sq = Math.sqrt(10);
+  check('an item weighs its answered cards: precise right (1) and general wrong (0.25) → (1·√10 + 0.25·0) / 1.25',
+    KN.ownKnowness(g, 'A'), sq / 1.25);
+  check('… one card feeds several items: the precise one counts for P too (0.5), and P gets half of what builds on it',
+    [KN.ownKnowness(g, 'P'), KN.itemKnowness(g, 'P')].map((v) => Math.round(v * 1e6) / 1e6), [sq, sq + 0.5 * (sq / 1.25)].map((v) => Math.round(v * 1e6) / 1e6));
+  check('… a card never asked is no evidence: C knows nothing, B fades with its own card',
+    [KN.itemKnowness(g, 'C'), KN.itemKnowness(g, 'B') < 1, KN.cardKnowness(g, 'plain') === KN.itemKnowness(g, 'B')], [0, true, true]);
+  check('… and every card keeps its own knowness, visible next to the item', [KN.cardKnowness(g, 'precise'), KN.cardKnowness(g, 'general')], [sq, 0]);
+  const tpl = Cards.readTemplate('t', { name: 'Kiedy?', kinds: ['k-fact'], tests: [{ of: 'this', weight: 1 }, { of: 'period', weight: 0.3 }, { of: 'nope', weight: 2 }, { weight: 'x' }] });
+  const FACT = S.readKind('k-fact', { name: 'Fakt', fields: [{ key: 'period', label: 'Okres', type: 'ref', multi: true }] });
+  const factLook = S.lookupOf([FACT], []);
+  check('a template declares what its cards test: "this" and a reference field, each with a weight (unknown fields test nothing)',
+    [tpl.tests, Cards.testsOf(tpl.tests, { id: 'f1', kinds: ['k-fact'], data: { period: ['p1', 'p2'] } }, factLook)],
+    [[{ of: 'this', weight: 1 }, { of: 'period', weight: 0.3 }, { of: 'nope', weight: 2 }], [{ id: 'f1', weight: 1 }, { id: 'p1', weight: 0.3 }, { id: 'p2', weight: 0.3 }]]);
+  check('… without a declaration the card tests its entry (and a question what it is about) with 1',
+    KN.cardTests({ key: 'q', question: 'q', entity: 'q', about: ['x'] }), [{ id: 'q', weight: 1 }, { id: 'x', weight: 1 }]);
+}
 
 /* ── Karten aus Vorlagen ──────────────────────────────────────────────── */
 
@@ -763,10 +827,17 @@ check('temporal: what is not known yet keeps coming back', stubborn.asked.filter
   check('temporal: the same card twice in a row only when it is alone in the stack', repeatsWithCompany, 0);
 }
 
-const gated = { ...plan, mode: 'temporal', stackSize: 5, gate: 1 };
+/* 2026-10-30 — ein „Filtr znajomości" wirkt im Lauf: die Karte trägt ihre Bedingung (und was „to, co wcześniej" für sie heisst). */
 const foundation = [{ parent: 'v2', child: 'v1', kind: 'prerequisite', impact: 0 }];
+const gated = (await R.planOf(G.readGraph({
+  nodes: [n('src', 'source.kind', { kind: 'k-word' }), n('f', 'filter', { directions: ['pl→en'] }, 10), n('w', 'filter.when', { when: { type: 'knowness', rel: 'before', op: 'ge', than: 1 } }, 20), n('s', 'strategy', { mode: 'temporal', stackSize: 5 }, 30)],
+  edges: [l('1', 'src', 'cards', 'f', 'cards'), l('2', 'f', 'cards', 'w', 'cards'), l('3', 'w', 'cards', 's', 'cards')]
+}), { ...revCtx(), deps: foundation })).plan;
+check('a knowness filter travels with the cards: every card carries its condition, and what „before" means for it',
+  [Object.keys(gated.when ?? {}).length, gated.when?.['vocab:v1|pl→en']?.related.before, gated.when?.['vocab:v2|pl→en']?.related.before], [5, ['v2'], []]);
 const g0 = begin(gated, 'g', { deps: foundation });
 check('a card waits for its foundation', g0.active.includes('vocab:v1|pl→en'), false);
+check('… and the end of a run says what it waits for', [R.waiting(g0, 0).cards, R.waiting(g0, 0).needs], [1, ['v2']]);
 let g = g0;
 while (g.current !== null && g.current !== 'vocab:v2|pl→en') g = R.answer(g, 1, 1000).session;
 const opened = R.answer(g, 1, 2000);
@@ -2391,18 +2462,25 @@ check('goals and lines follow the one logic', [
     [[0, 1, 1, 2, 3], ['orbital>atom'], false]);
   check('… all that comes before and after', [[...PR.allNeeds('orbital', graph)].sort(), [...PR.allBuilds('atom', graph)].sort()], [['atom', 'elektron', 'powloka'], ['elektron', 'jadro', 'orbital', 'powloka']]);
   check('… the name of a level', [PR.levelLabel(0), PR.levelLabel(2)], ['Poziom 1 — podstawy', 'Poziom 3']);
-  const known = (m) => (id) => m[id] ?? 0;
-  check('unmet: what is not known yet; an entry without cards stands for what is before it; a card never waits for what it tests itself',
-    [PR.unmetNeeds(['orbital'], known({ powloka: 0 }), graph, 1, () => true), PR.unmetNeeds(['orbital'], known({ elektron: 0.2 }), graph, 1, (id) => id !== 'powloka'),
-      PR.unmetNeeds(['orbital'], known({ elektron: 3 }), graph, 1, (id) => id !== 'powloka'), PR.unmetNeeds(['orbital', 'powloka'], known({ elektron: 3 }), graph, 1, () => true)],
-    [['powloka'], ['elektron'], [], []]);
+  check('„before”: the nearest entries with cards; an entry without cards stands for what is before it; a card never waits for what it tests itself',
+    [PR.nearestNeeds(['orbital'], graph, () => true), PR.nearestNeeds(['orbital'], graph, (id) => id !== 'powloka'), PR.nearestNeeds(['orbital', 'powloka'], graph, () => true)],
+    [['powloka'], ['elektron'], ['elektron']]);
   const card = (key, entity, about) => ({ key, question: key, entity, ...(about === undefined ? {} : { about }), requires: [] });
   const deck = [card('c-atom', 'atom'), card('c-jadro', 'jadro'), card('q-orb', 'q-orb', ['orbital']), card('c-el', 'elektron'), card('c-pow', 'powloka')];
-  check('„Najpierw podstawy” pulls in the cards of what comes before (a question about orbitals brings powłoka, elektron, atom)',
-    PR.withBasics([deck[2]], deck, graph).map((c) => c.key), ['q-orb', 'c-atom', 'c-el', 'c-pow']);
+  const bare = { entities: () => [], material: () => [], entity: () => undefined, look: { kind: () => undefined, entity: () => undefined }, collection: () => undefined, pointing: () => new Set(), prerequisites: () => graph };
+  const pulled = (await R.planOf(G.readGraph({
+    nodes: [n('s', 'source.list', { ids: ['q-orb'] }), n('l', 'learning', { dir: 'before', keep: true }, 10), n('p', 'strategy', { mode: 'once', order: 'given' }, 20)],
+    edges: [l('1', 's', 'cards', 'l', 'cards'), l('2', 'l', 'cards', 'p', 'cards')]
+  }), { cards: deck, kindsOf: () => [], collection: () => undefined, marks: () => [], now: 0, select: bare })).plan;
+  check('„Idź po kolejności nauki” pulls in the cards of what comes before (a question about orbitals brings powłoka, elektron, atom)',
+    pulled.cards.map((c) => c.key), ['q-orb', 'c-atom', 'c-el', 'c-pow']);
   check('a card stands on the level of what it tests', [PR.cardLevel(deck[2], graph), PR.cardLevel(deck[0], graph)], [3, 0]);
-  check('mastery: a wrong last answer is nothing yet, a right one is known — the formula alone gives √10 after both',
-    [K.masteryOf([{ at: 0, correctness: 0 }], 0), K.masteryOf([{ at: 0, correctness: 1 }], 0) >= K.KNOWN, K.knownessOf([{ at: 0, correctness: 0 }], 0) >= K.KNOWN], [0, true, true]);
+  check('knowness counts the last grade: a wrong last answer is nothing yet, a right one is known',
+    [K.knownessOf([{ at: 0, correctness: 0 }], 0), K.knownessOf([{ at: 0, correctness: 1 }], 0) >= K.KNOWN], [0, true]);
+  const oldGate = R.migrateRevision(G.readGraph({ nodes: [n('s', 'source.all'), n('g', 'gate', { threshold: 0.8 }, 0), n('p', 'strategy', { mode: 'temporal' }, 0)], edges: [l('1', 's', 'cards', 'g', 'cards'), l('2', 'g', 'cards', 'p', 'cards')] }));
+  check('an old step „Najpierw podstawy” (gate) reads as the general steps: learning before (kept), a knowness filter, the order „general”',
+    [oldGate.nodes.map((x) => x.type).sort(), oldGate.nodes.find((x) => x.type === 'filter.when').config.when, oldGate.nodes.find((x) => x.type === 'strategy').config.order, oldGate.edges.map((e) => `${oldGate.nodes.find((x) => x.id === e.from).type}>${oldGate.nodes.find((x) => x.id === e.to).type}`).sort()],
+    [['filter.when', 'learning', 'source.all', 'strategy'], { type: 'knowness', rel: 'before', op: 'ge', than: 0.8 }, 'general', ['filter.when>strategy', 'learning>filter.when', 'source.all>learning']]);
 
   /* -- Wie gut es sitzt, auf drei Weisen (Nauka → Postępy) ------------------------------------------------------ */
   {
@@ -2501,7 +2579,10 @@ check('goals and lines follow the one logic', [
   const levelOfCard = (c) => PR.cardLevel(c, ag);
   const { plan: aplan } = await R.planOf(G.readGraph(rev.data.graph), alib.revisionContext(acards, (key) => marks.get(key) ?? [], 0));
   let session = R.start({ plan: aplan, all: acards, deps: alib.dependencies(), now: 0, seed: 'od-podstaw', marks: (key) => marks.get(key) ?? [] });
-  const opening = R.heldBack(session, 0);
+  const opening = R.waiting(session, 0);
+  check('the example’s revision is „Najpierw podstawy” from general steps: learning before, a knowness filter, the order „general”',
+    [G.readGraph(rev.data.graph).nodes.map((x) => x.type).sort(), aplan.order, Object.keys(aplan.when ?? {}).length === aplan.cards.length], [['filter.when', 'learning', 'source.all', 'strategy'], 'general', true]);
+  check('… every card says why it comes: the first one is new, the general first, from the basics', [session.why?.reason, session.why?.order, session.why?.level, R.whyText(session.why, 0).startsWith('Nowa karta — najpierw ogólne')], ['fresh', 'general', 0, true]);
   check('at the start only the basics are asked: the stack holds cards about the atom; the rest waits for it',
     [session.active.map((k) => levelOfCard(acards.find((c) => c.key === k))).every((l) => l === 0), session.active.length > 0, opening.cards, opening.needs.includes(idOf('atom/atom'))],
     [true, true, aplan.cards.length - session.active.length, true]);
@@ -2524,14 +2605,20 @@ check('goals and lines follow the one logic', [
   const copy = JSON.parse(JSON.stringify({ libraryId: 'A', revisionId: rev.id, name: 'Od podstaw', plan: keptConfig, cards: aplan.cards.filter((c) => !OFF.needsFiles(c)), deps: alib.dependencies(), target: { areaId: 'K', intake: 'AQID' }, answers: [], savedAt: 0 }));
   const src = OFF.offlineSource(copy);
   const offline = R.start({ plan: src.plan, all: src.cards, deps: src.deps, now: 0, seed: 'od-podstaw', marks: () => [] });
-  check('offline: the kept copy keeps the gate „Najpierw podstawy” — the basics are asked first there too',
-    [src.plan.gate, aplan.gate !== null, offline.active.length > 0 && offline.active.every((k) => levelOfCard(acards.find((c) => c.key === k)) === 0)], [aplan.gate, true, true]);
+  check('offline: the kept copy keeps the conditions of its cards (with what „before” means, resolved) — the basics are asked first there too',
+    [Object.keys(src.plan.when ?? {}).length, JSON.stringify(src.plan.when) === JSON.stringify(aplan.when), offline.active.length > 0 && offline.active.every((k) => levelOfCard(acards.find((c) => c.key === k)) === 0)], [aplan.cards.length, true, true]);
+  /* Eine Abschrift von vor 2026-10-30 trägt noch die Sperre (`gate`): dieselbe Bedingung, aus ihren Abhängigkeiten gerechnet. */
+  const { when: _when, ...plainConfig } = keptConfig;
+  const oldCopy = OFF.offlineSource(JSON.parse(JSON.stringify({ ...copy, plan: { ...plainConfig, gate: 1, order: undefined } })));
+  const oldRun = R.start({ plan: oldCopy.plan, all: oldCopy.cards, deps: oldCopy.deps, now: 0, seed: 'od-podstaw', marks: () => [] });
+  check('… an older copy with the gate gets the same condition and the order „general”',
+    [oldCopy.plan.order, oldRun.active.every((k) => levelOfCard(acards.find((c) => c.key === k)) === 0), JSON.stringify(oldRun.active) === JSON.stringify(offline.active)], ['general', true, true]);
   const basics = aplan.cards.filter((c) => levelOfCard(c) === 0);
   const learner = new LRN.Learner('A', { kind: 'local', id: 'offline' }, null);
   learner.remember(basics.map((c, i) => ({ id: `kept-${i}`, key: c.key, question: c.question, direction: c.direction, fingerprint: c.fingerprint, at: 0, correctness: 1 })));
   const offKnown = R.start({ plan: src.plan, all: src.cards, deps: src.deps, now: 60_000, seed: 'od-podstaw', marks: (key) => learner.marks(key) });
   check('… with the answers the copy brought along, what is already known opens the next level instead of starting over',
-    [R.heldBack(offKnown, 60_000).cards < R.heldBack(offline, 0).cards, offKnown.active.some((k) => levelOfCard(acards.find((c) => c.key === k)) === 1)], [true, true]);
+    [R.waiting(offKnown, 60_000).cards < R.waiting(offline, 0).cards, offKnown.active.some((k) => levelOfCard(acards.find((c) => c.key === k)) === 1)], [true, true]);
   check('… cards whose question shows a file (picture, sound) are not kept: without the network they cannot open',
     [OFF.needsFiles({ prompt: [{ text: 'Która to?', media: { file: 'f', type: 'audio' } }] }), OFF.needsFiles({ prompt: [{ text: 'Czym jest atom?' }] })], [true, false]);
 }
@@ -2584,9 +2671,9 @@ check('goals and lines follow the one logic', [
   /* -- fakty.json: was eine Quelle über die Welt sagt, geprüft — eine Powieść über eine wirkliche Person UND eine aufgezeichnete Debatte -- */
   const flib = await baseWith('F');
   const pf = Js.planImport(flib, JSON.parse(await readFile('../templates/cogita/fakty.json', 'utf8')));
-  check('fakty.json imports: Fakt and Okres, four card templates, two adding methods, five views — no warning',
-    [pf.kinds.map((k) => k.def.name), pf.docs.filter((d) => d.kind === 'template').length, pf.docs.filter((d) => d.kind === 'addform').length, pf.docs.filter((d) => d.kind === 'view').length, pf.warnings],
-    [['Fakt', 'Okres'], 4, 2, 5, []]);
+  check('fakty.json imports: Fakt, Okres and Miejsce, four card templates, two adding methods, six views and the revision „Od ogólnego do szczegółu” — no warning',
+    [pf.kinds.map((k) => k.def.name), pf.docs.filter((d) => d.kind === 'template').length, pf.docs.filter((d) => d.kind === 'addform').length, pf.docs.filter((d) => d.kind === 'view').length, pf.docs.filter((d) => d.kind === 'revision').map((d) => d.data.name), pf.warnings],
+    [['Fakt', 'Okres', 'Miejsce'], 4, 2, 6, ['Od ogólnego do szczegółu'], []]);
   await Js.applyImport(flib, pf, () => undefined);
   const FAKT = flib.kinds.find((k) => k.name === 'Fakt');
   const OKRES = flib.kinds.find((k) => k.name === 'Okres');
@@ -2667,6 +2754,159 @@ check('goals and lines follow the one logic', [
   check('… adding row by row: group and work chosen once; number, designation, beginning, theme and place typed — a preface, a song',
     [zrows.rows[0].problems, zrows.saves[0]?.data.grupa, zrows.saves[0]?.data.miejsce, zrows.saves[0]?.data.nr, hrows.rows[0].problems, hrows.saves[0]?.data.miejsce],
     [[], adwent.id, [{ value: MISSAL, locator: 's. 4*' }], 4, [], [{ value: HYMNAL, locator: 's. 115' }]]);
+}
+
+/*
+ * ══ 2026-10-30 — DIE WIEDERHOLUNG ALS STORYBOARD: der Fall Don Bosco, gebaut NUR aus dem Schema (fakty.json), einem
+ * JSON-Import und dem mitgelieferten Widok — ohne neuen Code. Eine kleine Abschrift, nicht die echte Baza „Bosko":
+ * das Leben (1815–1888), vier Etappen (Becchi, Chieri, Turyn, Valdocco), drei Jahre, vier Orte mit Koordinaten,
+ * Fakten in drei Tiefen (dass er lebte und wo er geboren wurde; wo und wann er war; was geschah und warum), Quelle:
+ * „Don Bosco. Una biografia nuova" von Teresio Bosco. Dann ein Lernender von null an. ══
+ */
+{
+  const bfake = (libraryId, entries) => {
+    const map = new Map(entries.map((x) => [x.id, x]));
+    let n = 0;
+    const byKey = (key) => [...map.values()].find((x) => (x.key ?? '').toLowerCase() === key.toLowerCase());
+    const store = {
+      libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
+      all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
+      save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-${n += 1}`, libraryId, updatedAt: `2026-10-30T09:00:${String(n % 60).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+      remove: async (id) => { map.delete(id); store.revision += 1; },
+      subscribe: () => () => undefined
+    };
+    return store;
+  };
+  const AUTHOR = '01a1c0de-0000-7000-8000-0000000000b1';
+  const WORK = '01a1c0de-0000-7000-8000-0000000000b2';
+  const books = bfake('LBB', [
+    { id: AUTHOR, kind: 'person', key: 'bosco-teresio', data: { personType: 'person', givenNames: 'Teresio', surname: 'Bosco' } },
+    { id: WORK, kind: 'work', key: 'bosco-biografia', data: { workType: 'book', genre: 'biografia', title: 'Don Bosco. Una biografia nuova', authors: [AUTHOR] } }
+  ]);
+  const lib = new So.CogitaLibrary(bfake('BOSKO', [{ id: 'sBOSKO', kind: 'settings', data: { sources: [{ id: 'LBB', kind: 'books', name: 'Biblioteka' }] } }]), true);
+  lib.setSources((await Src.loadSources(lib, async (ref) => ({ LBB: books }[ref.id] ?? null))).loaded);
+  await Js.applyImport(lib, Js.planImport(lib, JSON.parse(await readFile('../templates/cogita/fakty.json', 'utf8'))), () => undefined);
+
+  const okres = (ref, nazwa, from, to, nr, opis, more = {}) => ({ ref, kinds: ['@czas/okres'], data: { nazwa, czas: { segments: [{ from, to }] }, nr, opis, ...more } });
+  const fakt = (ref, text, haslo, kiedy, okresRef, gdzie, locator) => ({
+    ref, kinds: ['@fakty/fakt'],
+    data: { tresc: [{ type: 'paragraph', text }], haslo, rodzaj: 'zdarzenie', kiedy, okres: [okresRef], ...(gdzie === null ? {} : { gdzie: [gdzie] }), zrodlo: [{ value: '@bosco-biografia', locator }], ocena: 'potwierdzone' }
+  });
+  const miejsce = (ref, nazwa, lat, lon, opis, w) => ({ ref, kinds: ['@miejsce/miejsce'], data: { nazwa, polozenie: { lat, lon }, opis, ...(w === undefined ? {} : { w }) } });
+  const course = {
+    format: 'recreatio.cogita.course', version: 1, name: 'Bosko — próbka',
+    entities: [
+      miejsce('@bosko/m-becchi', 'Becchi', 45.046, 7.999, 'Przysiółek koło Castelnuovo d’Asti, gdzie stał dom rodzinny.'),
+      miejsce('@bosko/m-chieri', 'Chieri', 45.0127, 7.8222, 'Miasto szkoły i seminarium.'),
+      miejsce('@bosko/m-turyn', 'Turyn', 45.0703, 7.6869, 'Stolica Piemontu.'),
+      miejsce('@bosko/m-valdocco', 'Valdocco', 45.0806, 7.6726, 'Dzielnica Turynu, dom oratorium.', '@bosko/m-turyn'),
+      /* Tiefe 1: das Leben — dass er lebte und wo er geboren wurde. */
+      okres('@bosko/zycie', 'Życie Jana Bosko', '1815', '1888', 1, 'Kapłan z Piemontu, wychowawca młodzieży i założyciel salezjanów.'),
+      fakt('@bosko/f-zyl', 'Jan Bosko żył w latach 1815–1888.', 'Lata życia Jana Bosko', '1815', '@bosko/zycie', null, 's. 11'),
+      fakt('@bosko/f-urodzony', 'Jan Bosko urodził się 16 sierpnia 1815 roku w Becchi.', 'Narodziny Jana Bosko', '1815-08-16', '@bosko/zycie', '@bosko/m-becchi', 's. 15'),
+      /* Tiefe 2: die Etappen — wo und wann er war. */
+      okres('@bosko/becchi', 'Becchi — dzieciństwo', '1815', '1831', 1, 'Dom, matka Małgorzata, pierwsze „oratorium” na łące.', { nalezy: '@bosko/zycie', gdzie: ['@bosko/m-becchi'] }),
+      okres('@bosko/chieri', 'Chieri — szkoła i seminarium', '1831', '1841', 2, 'Szkoła publiczna, potem seminarium.', { nalezy: '@bosko/zycie', gdzie: ['@bosko/m-chieri'] }),
+      okres('@bosko/turyn', 'Turyn — Konwikt i pierwsze oratorium', '1841', '1846', 3, 'Konwikt kościelny u ks. Cafasso, chłopcy z ulic.', { nalezy: '@bosko/zycie', gdzie: ['@bosko/m-turyn'] }),
+      okres('@bosko/valdocco', 'Valdocco — oratorium i salezjanie', '1846', '1888', 4, 'Szopa Pinardiego, dom, szkoły, Zgromadzenie.', { nalezy: '@bosko/zycie', gdzie: ['@bosko/m-valdocco'] }),
+      fakt('@bosko/f-chieri', 'Od 1831 do 1841 roku Jan uczył się w Chieri — najpierw w szkole, potem w seminarium.', 'Jan w Chieri', '1831', '@bosko/chieri', '@bosko/m-chieri', 's. 60'),
+      fakt('@bosko/f-turyn', 'W 1841 roku Jan zamieszkał w Turynie, w Konwikcie kościelnym.', 'Jan w Turynie', '1841', '@bosko/turyn', '@bosko/m-turyn', 's. 101'),
+      /* Tiefe 3: die Jahre — was geschah und warum. */
+      okres('@bosko/r1835', 'Rok 1835', '1835', '1835', 5, 'Wstąpienie do seminarium.', { nalezy: '@bosko/chieri' }),
+      okres('@bosko/r1841', 'Rok 1841', '1841', '1841', 1, 'Święcenia i Konwikt.', { nalezy: '@bosko/turyn' }),
+      okres('@bosko/r1844', 'Rok 1844', '1844', '1844', 4, 'Oratorium przy Rifugio.', { nalezy: '@bosko/turyn' }),
+      fakt('@bosko/f-seminarium', 'W 1835 roku Jan wstąpił do seminarium w Chieri, bo chciał zostać kapłanem.', 'Seminarium w Chieri', '1835', '@bosko/r1835', '@bosko/m-chieri', 's. 75'),
+      fakt('@bosko/f-swiecenia', 'W 1841 roku Jan przyjął święcenia; uczył się dalej w Konwikcie, bo ks. Cafasso widział w nim duszpasterza młodzieży.', 'Święcenia Jana Bosko', '1841-06-05', '@bosko/r1841', '@bosko/m-turyn', 's. 104'),
+      fakt('@bosko/f-rifugio', 'W 1844 roku oratorium przeszło do Rifugio markizy Barolo, bo chłopców było już za wielu na Konwikt.', 'Oratorium przy Rifugio', '1844', '@bosko/r1844', '@bosko/m-turyn', 's. 131')
+    ]
+  };
+  const planned = Js.planImport(lib, course);
+  check('Bosko: built only from the scheme and a JSON import — places, periods, facts; no warning', [planned.warnings, planned.entities.length, planned.kinds.length], [[], 19, 0]);
+  await Js.applyImport(lib, planned, () => undefined);
+  const id = (ref) => lib.entities().find((x) => lib.entry(x.id)?.data._ref === ref)?.id;
+  const name = (eid) => lib.label(lib.entity(eid));
+  check('… places are a kind of the scheme, with coordinates', [lib.kind(lib.entity(id('bosko/m-turyn')).kinds[0])?.name, lib.entity(id('bosko/m-turyn')).data.polozenie], ['Miejsce', { lat: 45.0703, lon: 7.6869 }]);
+  const bg = lib.prerequisites();
+  check('… nested periods and facts in three depths: life → stages → years; a fact one level below its period',
+    ['zycie', 'f-urodzony', 'turyn', 'f-turyn', 'r1841', 'f-swiecenia'].map((r) => bg.level.get(id(`bosko/${r}`))), [0, 1, 1, 2, 2, 3]);
+  const { cards } = await lib.cards('s');
+  const cardsOf = (r) => cards.filter((c) => c.entity === id(`bosko/${r}`));
+  const whenCard = cardsOf('f-swiecenia').find((c) => c.answer.form === 'date');
+  check('… the card templates declare how strongly they test: „when?” counts fully for the fact and half for its year',
+    [whenCard?.tests, cardsOf('turyn').length], [[{ id: id('bosko/f-swiecenia'), weight: 1 }, { id: id('bosko/r1841'), weight: 0.5 }], 1]);
+
+  /* Der Widok aus dem Schema: was der Lernende sieht, mit der Kenntnis von jetzt. */
+  const view = VW.readView(lib.docs('view').find((d) => d.data.name === 'Od ogólnego do szczegółu').data);
+  const marks = new Map();
+  const T0 = Date.UTC(2026, 9, 30, 8, 0, 0);
+  const answer = (r, at, correctness = 1) => { for (const c of cardsOf(r)) marks.set(c.key, [...(marks.get(c.key) ?? []), { at, correctness }]); };
+  const gaugeAt = (at) => KN.gaugeFromMarks(cards, (key) => marks.get(key) ?? [], lib.dependencies(), at);
+  const seen = (at) => VW.viewList(VW.withKnowing(lib, gaugeAt(at)), view).map((e) => e.id);
+  const has = (list, r) => list.includes(id(`bosko/${r}`));
+  check('a new learner sees only the most general: the whole life', seen(T0).map(name), ['Życie Jana Bosko']);
+  answer('zycie', T0);
+  const afterLife = seen(T0 + 60_000);
+  check('the life is known → its stages and the facts of the life appear; no year, no detail of a stage yet',
+    [['becchi', 'chieri', 'turyn', 'valdocco', 'f-zyl', 'f-urodzony'].every((r) => has(afterLife, r)), ['r1841', 'r1835', 'f-turyn', 'f-chieri', 'f-swiecenia'].some((r) => has(afterLife, r))], [true, false]);
+  answer('turyn', T0 + 2 * 60_000);
+  const afterTurin = seen(T0 + 3 * 60_000);
+  check('the Turin stage is known → the Turin years and what happened in Turin appear; Chieri’s details do not',
+    [['r1841', 'r1844', 'f-turyn'].every((r) => has(afterTurin, r)), ['r1835', 'f-chieri', 'f-seminarium'].some((r) => has(afterTurin, r)), has(afterTurin, 'f-swiecenia')], [true, false, false]);
+  const factsSource = view.steps.find((st) => st.type === 'source.kind' && lib.kind(String(st.config.kind))?.name === 'Fakt');
+  const byPeriod = { ...view, steps: [factsSource, { type: 'filter.when', config: { when: { type: 'knowness', rel: 'okres', op: 'ge', than: 1 } } }] };
+  const known3 = VW.viewList(VW.withKnowing(lib, gaugeAt(T0 + 3 * 60_000)), byPeriod).map((e) => e.id);
+  check('a filter on what a field points to: facts of a period only once that period is known well (Turin, the life — not Chieri, not a year)',
+    [['f-turyn', 'f-zyl', 'f-urodzony'].every((r) => has(known3, r)), ['f-chieri', 'f-swiecenia', 'f-seminarium'].some((r) => has(known3, r))], [true, false]);
+  const facts = { values: {}, knowness: (x) => ({ a: 2, b: 0 })[x] ?? 0, answered: () => null, visited: new Set(), now: new Date(0), related: (rel) => (rel === 'pole' ? ['a', 'b'] : []) };
+  check('the one logic, relative: all of them (default) or any one; with nothing to check, „all” holds and „any” does not',
+    [{ rel: 'pole' }, { rel: 'pole', each: 'any' }, { rel: 'brak' }, { rel: 'brak', each: 'any' }].map((x) => Lg.holds(Lg.readCondition({ type: 'knowness', op: 'ge', than: 1, ...x }), facts)), [false, true, true, false]);
+  check('… in words, for the editor and the learner', Lg.conditionText(Lg.readCondition({ type: 'knowness', rel: 'okres', each: 'any', op: 'ge', than: 1 }), (x) => x, (k) => (k === 'okres' ? 'Okres' : k)), 'znajomość czegoś, na co wskazuje pole „Okres” ≥ 1');
+  check('every choice explained: a card that fades comes back with its knowness and how late it is',
+    R.whyText({ reason: 'weak', order: 'general', pick: 'weighted', level: 1, knowness: 0.4, due: T0 - 2 * DAY, among: 5 }, T0),
+    'Wraca, bo się zaciera: znajomość 40 %; pora minęła 2 dni temu. Wybrana losowo spośród 5 w stosie — częściej to, co słabiej znasz i co dłużej czeka.');
+  const g3 = gaugeAt(T0 + 3 * 60_000);
+  check('… knowness belongs to the item (from its cards), every card’s own stays visible', [KN.itemKnowness(g3, id('bosko/turyn')) >= 1, KN.cardKnowness(g3, cardsOf('turyn')[0].key) >= 1, KN.itemKnowness(g3, id('bosko/chieri'))], [true, true, 0]);
+  answer('turyn', T0 + 4 * 60_000, 0);
+  const forgot = seen(T0 + 5 * 60_000);
+  check('a card is forgotten (Turin answered wrong) → the item’s knowness drops, its years vanish again, the stage itself stays to be learned',
+    [KN.itemKnowness(gaugeAt(T0 + 5 * 60_000), id('bosko/turyn')) < 1, has(forgot, 'r1841'), has(forgot, 'turyn')], [true, false, true]);
+  check('… and two months without review: everything fades, the view brings back the whole life first', seen(T0 + 60 * DAY).map(name), ['Życie Jana Bosko']);
+  check('… a view column and sort from knowness', [VW.viewColumns(lib, { ...view, columns: ['#knowness', '#due'] }, []).map((c) => c.label), VW.needsKnowing(view)], [['Znajomość', 'Kiedy powtórzyć'], true]);
+
+  /* Die Powtórka aus dem Schema („Od ogólnego do szczegółu", Quelle: der Widok) — derselbe Weg im Lauf, Karte für Karte. */
+  const rev = lib.docs('revision').find((d) => d.data.name === 'Od ogólnego do szczegółu');
+  const { plan: bplan } = await R.planOf(G.readGraph(rev.data.graph), lib.revisionContext(cards, () => [], T0));
+  check('the revision takes the saved view as its source: every card of its entries, each with the view’s condition',
+    [bplan.cards.length === cards.filter((c) => lib.entity(c.entity)?.kinds.some((k) => ['Okres', 'Fakt'].includes(lib.kind(k)?.name))).length, Object.keys(bplan.when ?? {}).length === bplan.cards.length, bplan.order, bplan.pick],
+    [true, true, 'general', 'weighted']);
+  const entityOf = (key) => cards.find((c) => c.key === key)?.entity;
+  let run = R.start({ plan: bplan, all: cards, deps: lib.dependencies(), now: T0, seed: 'bosko', marks: () => [] });
+  check('a new learner’s first stack: only the cards of the whole life', [...new Set(run.active.map(entityOf))].map(name), ['Życie Jana Bosko']);
+  check('… and the card says why it comes', [run.why?.reason, R.whyText(run.why, T0)], ['fresh', 'Nowa karta — najpierw ogólne, potem szczegóły (poziom 1 — podstawy).']);
+  /* Der Lernende kann das Leben und Turin; die anderen Etappen (und alles darunter) antwortet er falsch. */
+  const right = new Set(['zycie', 'turyn', 'r1841', 'r1844', 'f-turyn', 'f-zyl', 'f-urodzony', 'f-swiecenia', 'f-rifugio'].map((r) => id(`bosko/${r}`)));
+  const asked = new Set();
+  let at = T0;
+  for (let step = 0; run.current !== null && step < 120; step += 1) {
+    asked.add(entityOf(run.current));
+    at += 30_000;
+    run = R.answer(run, right.has(entityOf(run.current)) ? 1 : 0, at).session;
+  }
+  check('in the run: once Turin is known, the Turin years and their facts are asked; Chieri (answered wrong) never opens its details',
+    [['r1841', 'r1844', 'f-turyn', 'f-swiecenia'].every((r) => asked.has(id(`bosko/${r}`))), ['r1835', 'f-chieri', 'f-seminarium'].some((r) => asked.has(id(`bosko/${r}`))), asked.has(id('bosko/chieri'))],
+    [true, false, true]);
+  const held = R.waiting(run, at);
+  check('… and what still waits says for what: the stages not known yet', [held.cards > 0, held.needs.includes(id('bosko/chieri'))], [true, true]);
+
+  /* Der frühere Ablaufschritt „Najpierw podstawy" ist die Bedingung, die er war — keine zweite Logik. */
+  const oldFlow = Fl.readFlow('f', { name: 'Stary', graph: {
+    nodes: [{ id: 'p', type: 'prerequisite', x: 0, y: 0, config: { of: 'atom', threshold: 0.8 } }, { id: 'a', type: 'show', x: 200, y: 0, config: { of: 'orbital' } }, { id: 'x', type: 'show', x: 200, y: 100, config: { of: 'atom' } }],
+    edges: [{ id: 'e1', from: 'p', out: 'known', to: 'a', in: 'in' }, { id: 'e2', from: 'p', out: 'explain', to: 'x', in: 'in' }]
+  } });
+  check('a flow step „Najpierw podstawy” reads as a „Warunek” on knowness (from its threshold), exits yes / no — and it still proposes the dependency',
+    [oldFlow.graph.nodes[0].type, oldFlow.graph.nodes[0].config.condition, oldFlow.graph.edges.map((e) => e.out), Fl.proposedDependencies(oldFlow)],
+    ['condition', { type: 'knowness', of: 'atom', op: 'ge', than: 0.8 }, ['yes', 'no'], [{ parent: 'atom', child: 'orbital' }]]);
 }
 
 /* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */

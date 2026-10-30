@@ -73,7 +73,7 @@ export function LearnStep({ seat, registrationId, step }: { seat: SeatView; regi
       return { revisionId: target.revisionId, title: typeof doc?.data.name === 'string' ? doc.data.name : step.label };
     }
     const cards = measured?.cards ?? [];
-    return { plan: readPlan(cards, null, { mode: 'temporal', stackSize: 20 }), cards, title: step.label };
+    return { plan: readPlan(cards, { mode: 'temporal', stackSize: 20 }), cards, title: step.label };
     // Der Plan bleibt, solange dieselben Karten gelten — sonst finge der Lauf bei jeder Antwort neu an.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target.revisionId, lib, step.label, measured?.cards]);

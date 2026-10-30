@@ -5,6 +5,8 @@
  * Drzewo gruppiert und (Schritt 10) was Zeilen und Spalten der Macierz sind.
  * 2026-10-23 (Schritt 5): eine Achse ist ein Rodzaj — mit dem Feld, über das
  * man zu ihr gehört, einer Reihenfolge und Überschriften (`AxisSettings`).
+ * 2026-10-30: „Filtr znajomości" (die eine Logik, auch über die Kenntnis) und
+ * „Idź po kolejności nauki".
  * Dieselben Felder wie an den Knoten einer Powtórka (`nodeFields.ts`, Palette
  * `view`), gezeichnet von derselben Eingabe (`ConfigInput`).
  */
@@ -163,6 +165,14 @@ export function axisColumns(lib: CogitaLibrary): { key: string; label: string }[
   return axesOf(lib).map((k) => ({ key: `${AXIS_COLUMN}${k.id}`, label: `${k.name} (oś)` }));
 }
 
+/** Womit ein neuer Schritt beginnt — „Filtr znajomości": was vorher zu können ist, sitzt (2026-10-30). */
+const STEP_START: Partial<Record<StepType, Readonly<Record<string, unknown>>>> = {
+  'filter.rule': { rule: { op: 'and', items: [] } },
+  structure: { dir: 'down' },
+  learning: { dir: 'before' },
+  'filter.when': { when: { type: 'knowness', rel: 'before', op: 'ge', than: 1 } }
+};
+
 export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: ViewDoc) => void }) {
   const { lib } = useCtx();
   const refs = refFieldKeys(lib);
@@ -172,7 +182,7 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
   const sources = Math.max(1, leading);
   const setStep = (i: number, step: Step) => onChange({ ...view, steps: steps.map((s, j) => (j === i ? step : s)) });
   const remove = (i: number) => onChange({ ...view, steps: steps.filter((_, j) => j !== i) });
-  const add = (type: StepType) => onChange({ ...view, steps: [...steps, { type, config: type === 'filter.rule' ? { rule: { op: 'and', items: [] } } : type === 'structure' ? { dir: 'down' } : {} }] });
+  const add = (type: StepType) => onChange({ ...view, steps: [...steps, { type, config: STEP_START[type] ?? {} }] });
   const addSource = () => onChange({ ...view, steps: [...steps.slice(0, sources), { type: 'source.kind', config: {} }, ...steps.slice(sources)] });
   const fields = (step: Step, i: number) => configFields('view', step.type).map((field) => (
     <ConfigInput key={field.key} field={field} value={step.config[field.key]} fieldKeys={refs} readOnly={false}
@@ -211,7 +221,9 @@ export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: 
         <button type="button" className="wk-link-btn" onClick={addSource}>+ Źródło (razem)</button>
         <button type="button" className="wk-link-btn" onClick={() => add('follow')}>+ Idź po odwołaniu</button>
         <button type="button" className="wk-link-btn" onClick={() => add('structure')}>+ Idź po strukturze</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('learning')}>+ Idź po kolejności nauki</button>
         <button type="button" className="wk-link-btn" onClick={() => add('filter.rule')}>+ Filtr</button>
+        <button type="button" className="wk-link-btn" onClick={() => add('filter.when')}>+ Filtr znajomości</button>
       </span>
       {view.retired.map((line) => <p key={line} className="wk-warn">{line}</p>)}
       <GroupingSelect label="Drzewo grupuje" value={view.group} kindLabel="według rodzaju" onChange={(g) => onChange({ ...view, group: g.by === 'kind' ? null : g })} />

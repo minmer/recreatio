@@ -92,6 +92,21 @@ const OUTSIDE: readonly string[] = [
   'Zgoda usługi: nazwa domeny w „Api:Origins” usługi api.recreatio.pl — ustawia ją administrator serwera; bez tego strona pod domeną nie odczyta danych.'
 ];
 
+/*
+ * 2026-10-30 — WAS EIN ZWEITER WEG BEWIRKT: der Dienst folgt ihm zum Ziel und nimmt alles von dort
+ * (`Page.Write.cs`: Inhalt, Aussehen, Zugang, Sperre); unter der eigenen Domain sind die Unterwege lokal
+ * (`Page.Show.cs`); Rechte gibt er keine (`Slug.cs`); in der Wahl einer Seite stehen Aliase nicht (`aliasOf`).
+ */
+export const ADDRESSES_USAGE_JSON: JsonNode = {
+  key: 'addresses.usage',
+  title: 'Jak aplikacja używa tych danych',
+  text: () => `- Alias i domena to tylko drugie wejście: usługa prowadzi je do strony docelowej i stamtąd bierze wszystko — tytuł, wstęp, moduły, wygląd. Zmiana strony jest od razu widoczna pod każdym wejściem.
+- Pod własną domeną podstrony mają krótsze adresy: na cogita.pl strona cogita/kursy to #/kursy.
+- Dostęp idzie za stroną docelową: strona tylko z dostępem (także zapieczętowana) zostaje taka pod aliasem i pod domeną, a zablokowana po zgłoszeniu nie pokazuje się pod żadnym wejściem.
+- Nikt nie dostaje nowych praw: stronę edytują dalej ci, którzy prowadzą jej adres. "role" aliasu mówi tylko, kto nim zarządza — nie, kto widzi stronę.
+- Alias nie jest osobną stroną: tam, gdzie wybiera się stronę (np. przy linkach dostępu), go nie ma — wybiera się stronę docelową. Mapa zależności pokazuje domenę przy jej stronie.`
+};
+
 export const ADDRESSES_JSON: JsonNode = {
   key: 'addresses',
   title: `Adresy i domeny jako JSON ("${ADDRESSES_FORMAT}", wersja ${ADDRESSES_VERSION})`,
@@ -122,6 +137,7 @@ ${keyLines(ROLE_KEYS)}
 
 Przykład:
 ${pretty(SAMPLE)}`,
+  inside: () => [ADDRESSES_USAGE_JSON],
   samples: () => [{ label: 'Alias i własna domena', doc: () => SAMPLE }]
 };
 

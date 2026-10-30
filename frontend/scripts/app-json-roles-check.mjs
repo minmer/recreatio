@@ -104,6 +104,7 @@ try {
   }
   for (const [path, says] of Object.entries(m.ROLES_PATHS)) assert.ok(typeof says === 'string' && says.trim().length > 3, `"${path}" has a real sentence`);
   assert.ok(m.sectionsOf(m.ROLES_JSON).length >= 3, 'the format has its entry and holder sections');
+  assert.ok(m.sectionsOf(m.ROLES_JSON).some((s) => s.node.key === 'roles.usage'), 'and says how the app uses the role graph');
   const samples = m.samplesOf(m.ROLES_JSON);
   assert.ok(samples.length >= 1, 'at least one sample to insert');
 

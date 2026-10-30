@@ -242,7 +242,6 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           </>
         );
       }
-      case 'prerequisite':
       case 'condition':
       case 'set':
         return <Next onNext={() => go('next')} />;

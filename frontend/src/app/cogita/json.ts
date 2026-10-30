@@ -24,8 +24,9 @@ import { newId } from '../core/ids';
 import { plural } from '../core/plural';
 import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, VALUE_SEPARATORS } from './addForm';
 import { readTemplate } from './cards';
-import { readFlow } from './flow';
+import { migratePrerequisites, readFlow } from './flow';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
+import { migrateRevision } from './revision';
 import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, QUESTION, type DocKind } from './kinds';
 import { QUESTION_SHARED, QUESTION_TYPES, SHOW_MAX } from './questionTypes';
 import { anchorData, readAnchor } from './anchors';
@@ -141,7 +142,10 @@ const docJson = (lib: CogitaLibrary, kind: DocKind, id: string, data: Readonly<R
       ...(isObject(v.sort) ? { sort: { ...v.sort, key: axis(v.sort.key) } } : {})
     };
   }
-  const graph = kind === 'template' || kind === 'revision' ? { graph: graphOut(readGraph(data.graph), walk) } : kind === 'flow' ? { graph: graphOut(readGraph(data.graph, true), walk) } : {};
+  /* 2026-10-30 — eine Powtórka mit dem alten Knoten „Najpierw podstawy" geht in der neuen Gestalt hinaus (`migrateRevision`). */
+  const graph = kind === 'template' ? { graph: graphOut(readGraph(data.graph), walk) }
+    : kind === 'revision' ? { graph: graphOut(migrateRevision(readGraph(data.graph)), walk) }
+    : kind === 'flow' ? { graph: graphOut(migratePrerequisites(readGraph(data.graph, true)), walk) } : {};
   return { ref: `@${name(id)}`, ...(walk(rest) as Record<string, unknown>), ...graph };
 };
 
@@ -185,7 +189,11 @@ export function exportSchema(lib: CogitaLibrary, name: string, kinds: readonly K
     version: 1,
     name,
     kinds: kinds.map((k) => kindJson(lib, k)),
-    templates: lib.templates().filter((t) => t.kinds.some((k) => ids.has(k))).map((t) => ({ ref: `@${nameIn(lib)(t.id)}`, name: t.name, kinds: t.kinds.map((k) => `@${nameIn(lib)(k)}`), direction: t.direction, graph: graphOut(t.graph, idsOut(lib, nameIn(lib))) })),
+    templates: lib.templates().filter((t) => t.kinds.some((k) => ids.has(k))).map((t) => ({
+      ref: `@${nameIn(lib)(t.id)}`, name: t.name, kinds: t.kinds.map((k) => `@${nameIn(lib)(k)}`), direction: t.direction, graph: graphOut(t.graph, idsOut(lib, nameIn(lib))),
+      /* 2026-10-30 — was ihre Karten prüfen, und wie stark. */
+      ...(t.tests.length === 0 ? {} : { tests: t.tests })
+    })),
     /* 2026-10-17 — die Formularze dodawania gehören zum Schema: sie sagen, wie man seine Einträge anlegt. */
     forms: lib.docs('addform').filter((e) => lib.isOwn(e.id)).map((e) => formJson(lib, e.id, e.data))
   };
@@ -665,8 +673,11 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     }
     if (kind === 'template') {
       const t = readTemplate(id, data);
-      data = { ...data, kinds: t.kinds.map((k) => kindId(k) ?? k), graph: graphJson(t.graph) };
+      data = { ...data, kinds: t.kinds.map((k) => kindId(k) ?? k), graph: graphJson(t.graph), tests: t.tests.length === 0 ? undefined : t.tests };
     }
+    /* 2026-10-30 — der alte Knoten „Najpierw podstawy" kommt als die allgemeinen Schritte an, die dasselbe tun (in einem Ablauf: ein „Warunek"). */
+    if (kind === 'revision') data = { ...data, graph: graphJson(migrateRevision(readGraph(data.graph))) };
+    if (kind === 'flow' && isObject(data.graph)) data = { ...data, graph: graphJson(migratePrerequisites(readGraph(data.graph, true))) };
     if (kind === 'addform') {
       /* Ein Rodzaj darf auch beim Namen stehen; einer aus demselben Dokument hat schon seine neue Kennung. */
       const kindOf = (k: string) => (kinds.some((x) => x.id === k) ? k : kindId(k));
@@ -986,7 +997,7 @@ const kindsSection = (): string => `"kinds" — rodzaje:
   "structure" (odwołanie) — połączenie w STRUKTURZE (np. wywód artykułu): "up" — ten wpis leży POD tym, na co wskazuje (krok → krok wyżej: „Należy do"); "down" — wskazane wpisy leżą pod nim („Argumenty za");
     widok „Struktura" z krokiem "structure" rysuje z tego drzewo w kolejności miejsc w dziele; takie pole nie czyni wypowiedzi „interpretacją"
   "prerequisite" (odwołanie) — KOLEJNOŚĆ NAUKI: "up" — to, na co wskazuje, trzeba znać WCZEŚNIEJ (pojęcie → „Wymaga": orbital wymaga elektronu i atomu); "down" — to, na co wskazuje, buduje na tym wpisie („Prowadzi do");
-    z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (powtórka z „Najpierw podstawy”, Nauka → Ścieżka), nowe karty idą od ogólnych do szczegółowych;
+    z takich pól (i z pola "needs" pytań) aplikacja liczy poziomy od podstaw: karty szczegółu przychodzą, gdy podstawy są opanowane (widok albo powtórka z „Filtrem znajomości” "rel": "before" — np. gotowa „Najpierw podstawy”; Nauka → Ścieżka), z kolejnością "general" nowe karty idą od ogólnych do szczegółowych;
     to coś innego niż "structure" (co pod czym leży); koło (A wymaga B, B wymaga A) nie działa i stoi w „Do zrobienia"
     np. {"key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@pojecie"], "multi": true, "prerequisite": "up", "inverse": "Na tym budują"}
   "when" — pole tylko dla niektórych wartości pola-wyboru tego samego rodzaju: {"field": "typ", "values": ["bitwa", "traktat"]} — JEDEN rodzaj z polem „typ” zamiast osobnego rodzaju dla każdego typu; edytor pokazuje pole tylko przy tych wartościach
@@ -1022,13 +1033,17 @@ export function formDescription(lib?: CogitaLibrary): string {
 Format: "${SCHEMA_FORMAT}" (ten sam co schemat), wersja 1:
   {"format", "version": 1, "name", "kinds": [...], "templates": [...], "forms": [...]}
   "kinds" — rodzaje, których formularze potrzebują; bez nich muszą już być w tej bazie wiedzy (rozpoznane po "ref", nazwie albo wbudowanym identyfikatorze).
-  "templates" — szablony kart dla tych rodzajów (opcjonalnie): {"ref", "name", "kinds": ["@rodzaj"], "direction", "graph"}.
+  "templates" — szablony kart dla tych rodzajów (opcjonalnie): {"ref", "name", "kinds": ["@rodzaj"], "direction", "graph", "tests"} ("tests" — co sprawdzają ich karty i jak mocno, jak w kursie).
   Formularz z tym samym "ref" co istniejący zmienia go w miejscu; inny — powstaje nowy. Niczego się nie usuwa.
   "ref" — własna nazwa, np. "@miejsce"; w tym samym dokumencie odwołuje się nią do rodzaju ("kind": "@miejsce", "to": ["@miejsce"]).
 
 ${kindsSection()}
 
 ${formsSection()}
+## Jak aplikacja używa tych danych
+  Formularz staje w Wiedzy → „Dodaj” obok innych sposobów dodawania; wiersz po wierszu (albo wklejony tekst) robi z niego wpisy jego rodzajów — przed zapisem widać, co powstanie i co pominięto.
+  Zapisane wpisy są zwykłymi wpisami bazy: stoją w „Wpisy” i w widokach, a szablony kart robią z nich karty do Nauki; nowe rodzaje i szablony z dokumentu działają jak dodane ręcznie.
+  Kto widzi: ten, kto czyta bazę; dodaje ten, kto może w niej pisać. Import formularza sam niczego nie dodaje do wpisów.
 ${kindsOfBase(lib)}`;
 }
 
@@ -1040,6 +1055,8 @@ export function courseDescription(lib?: CogitaLibrary): string {
 Formaty:
   "${COURSE_FORMAT}" — cały kurs: rodzaje, wpisy, szablony kart, powtórki, przebiegi, zbiory, wygląd, zasady, wartości
   "${SCHEMA_FORMAT}" — rodzaje z ich szablonami kart i formularzami dodawania (niezależna kopia do innej bazy wiedzy); eksport schematu nie zawiera widoków, ale import przyjmuje je w każdym formacie, tak jak "anchors"
+    schemat może nieść GOTOWE widoki i powtórki ("views", "revisions") — import tworzy je jak każde inne, użytkownik kopiuje je i zmienia; z trwałą nazwą ("@fakty/…") kolejny import schematu je uaktualnia;
+    np. templates/cogita/fakty.json niesie widok i powtórkę „Od ogólnego do szczegółu”: {"views": [{"ref": "@fakty/w-ogolne", "name": "Od ogólnego do szczegółu", "steps": [{"type": "source.kind", "config": {"kind": "@czas/okres"}}, {"type": "source.kind", "config": {"kind": "@fakty/fakt"}}, {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "op": "ge", "than": 1}}}]}], "revisions": [{"ref": "@fakty/p-ogolne", "name": "Od ogólnego do szczegółu", "graph": …}]}
   "${ENTITIES_FORMAT}" — same wpisy (także wypowiedzi i pytania)
   "${FLOW_FORMAT}" — przebieg razem z tym, co pokazuje
 
@@ -1078,11 +1095,33 @@ ${questionSection()}
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
 
-"templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}}
+"templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}, "tests"}
   szablon może dotyczyć rodzaju z biblioteki ("quote", "work", "person") albo ze skryptorium ("text", "delivery", "project"), z których korzysta ta baza: wtedy karty powstają z ich wpisów, np. {"name": "Miejsce cytatu", "kinds": ["quote"], "direction": "locator", "graph": …}
-"revisions" — powtórki: {"name", "graph"} (źródła → filtr → … → jeden „Sposób pytania")
-  także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę; {"type": "structure", "config": {"dir": "down|up", "one": true}} — karty wpisów, które leżą w strukturze pod tymi wpisami (albo nad nimi)
+  "tests" — co sprawdzają karty szablonu i jak mocno: [{"of": "this" (ten wpis) | "klucz pola-odwołania" (wpisy, na które wskazuje), "weight": 0–10}]; bez "tests": ten wpis z wagą 1.
+    Znajomość należy do wpisu, a karta jest jego dowodem: dokładne pytanie waży więcej niż ogólne, jedna karta może liczyć się dla kilku wpisów;
+    np. karta „Co się wtedy stało?” faktu: "tests": [{"of": "this", "weight": 1}, {"of": "okres", "weight": 0.3}, {"of": "gdzie", "weight": 0.3}]
+
+Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w JSON):
+  każda odpowiedź zostaje zapisana; karta pamięta tylko kilka wartości: kiedy ostatnio odpowiedziano, ile czasu naprawdę minęło przed tą odpowiedzią, odstęp do następnego razu i najlepszy odstęp przed ostatnim błędem;
+  dobrze (od 90%): odstęp = czas, który naprawdę minął × 3 (odpowiedź przed terminem go nie skraca); częściowo: jedna trzecia tego czasu, co najmniej dzień, jeśli minęły dni; źle (poniżej 25%): 5 minut; dobrze zaraz po błędzie: 0,4 × najlepszy odstęp sprzed błędu
+    — np. źle po 5 dniach: wraca po 5 minutach; dobrze zaraz potem: za 2 dni; znów dobrze po 2 dniach: za 6 dni;
+  znajomość karty: poprawność ostatniej odpowiedzi × 10^(0,5·(1 − czas od odpowiedzi ÷ odstęp)) — zaraz po dobrej 3,16, w dniu powtórki 1 („umiem” od 1), potem spada; po złej 0;
+  znajomość wpisu: średnia znajomości jego kart Z ODPOWIEDZIĄ, ważona "weight" z "tests" (karta jeszcze nie pytana nie jest dowodem), plus to, co na nim buduje (pola z "prerequisite" — połowa znajomości tego, co od wpisu zależy — i zależności z Ustawień, z ich wagą)
+
+"revisions" — powtórki: {"name", "graph"} (źródła → kroki → … → jeden „Sposób pytania")
+  także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę; {"type": "structure", "config": {"dir": "down|up", "one": true}} — karty wpisów, które leżą w strukturze pod tymi wpisami (albo nad nimi); "follow" i "structure" z "keep": true zostawiają też karty, od których wyszły
   źródło „rodzaj z biblioteki": {"type": "source.kind", "config": {"kind": "quote", "from": "<identyfikator biblioteki>"}} — "from" puste: z tej bazy i ze wszystkich źródeł
+  źródło „widok”: {"type": "source.view", "config": {"view": "@widok"}} — karty wpisów, które pokazuje zapisany widok: widok decyduje, co wchodzi w grę, powtórka z tego wybiera; zmiana widoku zmienia powtórkę, a jego „Filtry znajomości” na końcu działają w trakcie powtórki
+    np. {"name": "Od ogólnego do szczegółu", "graph": {"nodes": [{"id": "w", "type": "source.view", "config": {"view": "@fakty/w-ogolne"}}, {"id": "p", "type": "strategy", "config": {"mode": "temporal", "order": "general"}}], "edges": [{"id": "e1", "from": "w", "out": "cards", "to": "p", "in": "cards"}]}}
+  „Filtr znajomości”: {"type": "filter.when", "config": {"when": warunek}} — zostają karty, dla których warunek jest spełniony, sprawdzany W TRAKCIE powtórki przy każdej karcie: co czekało, wchodzi, gdy warunek zacznie obowiązywać; karta już w stosie zostaje
+    warunek to ta sama logika co w przebiegach: {"type": "knowness", "rel": "before", "op": "ge", "than": 1} — znajomość tego, co trzeba znać wcześniej, co najmniej 1;
+    "rel": "self" (ten wpis) | "cards" (jego karty; w powtórce: ta karta) | "before" (to, co trzeba znać wcześniej — najbliższe wpisy z kartami w kolejności nauki) | "up" (to, pod czym leży w strukturze) | klucz pola-odwołania (to, na co wskazuje, np. "okres");
+    "each": "all" (domyślnie — każdy) | "any" (choć jeden); gdy nic takiego nie ma, "all" jest spełnione; "of": "@wpis" zamiast "rel" — znajomość jednego wpisu; warunki łączą "and" / "or" / "not": {"type": "and", "items": [ … ]}
+  „Idź po kolejności nauki”: {"type": "learning", "config": {"dir": "before" | "after", "one": true, "keep": true}} — karty tego, co trzeba znać wcześniej (albo, "after", co na tym buduje), aż do podstaw albo ("one") o krok; "keep": true dokłada je do kart wyjściowych
+  „Sposób pytania” ("strategy"): {"mode": "temporal" (według tego, co umiem) | "levels" | "once" | "random", "order", "pick", "stackSize", "count", "levels", "minCorrectness", "rule"}
+    "order" — kolejność: "general" (najpierw ogólne — według poziomów kolejności nauki) | "text" (jak w tekście źródła — miejsce w dziele) | "date" (według najwcześniejszej daty wpisu) | "random" | "given" (jak przychodzą) | "due" (najpierw zaległe); bez "order": w stosie "general", w stałej kolejce "random"
+    "pick" — wybór ze stosu: "next" (ściśle następna według kolejności) | "weighted" (losowo, częściej to, co słabiej znane i dłużej czeka; domyślnie); przy każdej karcie uczący się widzi, dlaczego przyszła
+  „Najpierw podstawy” to zwykłe kroki: {"type": "learning", "config": {"dir": "before", "keep": true}} → {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "op": "ge", "than": 1}}} → „Sposób pytania” z "order": "general"; dawny krok "gate" import i eksport zamieniają na nie
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines", "narrators"}
   "narrators" — kto opowiada, według wartości: [{"character": "@piotr", "condition": {"type": "value", "value": "przewodnik", "op": "eq", "than": 1}}, {"character": "@maria"}] — opowiada pierwszy, którego warunek jest spełniony (bez warunku: zawsze); jego portret i imię stoją nad krokiem i zapowiadają jego tytuł
   krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …
@@ -1092,6 +1131,9 @@ ${questionSection()}
   na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text" ze skryptorium, "from"} | "source.collection" {"collection": "@zbiór"} | "source.list" {"ids": ["@wpis"]};
   także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, wypowiedzi, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"}, "structure" {"dir": "down|up", "one": true} (po polach struktury — bez "one": do samego końca; "one": true — jeden poziom) i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
+  także "filter.when" {"when": warunek} i "learning" {"dir", "one", "keep"} — te same co w powtórce; w widoku liczy się znajomość tego, kto patrzy (uczącego się na tym koncie; na stronie — osoby strony albo tej przeglądarki),
+    np. fakty okresu dopiero, gdy okres jest znany: {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "okres", "op": "ge", "than": 1}}}; tylko wpisy, których podstawy są znane: "rel": "before";
+  kolumny i "sort" ze znajomości: "#knowness" (znajomość wpisu), "#due" (kiedy powtórzyć), "#level" (poziom w kolejności nauki), np. "sort": {"key": "#knowness", "dir": 1} — najpierw najsłabsze;
   "mode": "outline" (Struktura) rysuje źródła jako korzenie, a pod nimi to, do czego prowadzą kroki; "outline": {"chip": "klucz pola nad każdym krokiem (np. rola)", "order": "tree|text" (bez "order": ostatni wybór czytelnika, a na początek kolejność tekstu u Tomasza i drzewo w innych dziełach), "by": "klucz pola, według którego najpierw układają się kroki jednego poziomu (np. czas — czas opowieści; bez \"by\": według miejsca w dziele)", "tie": "klucz pola przy tym samym miejscu (np. nr)"};
     widok otwarty od wpisu (wejście z Biblioteki) zastępuje tym wpisem wszystko przed pierwszym „Idź po…”; np. {"name": "Wywód", "mode": "outline", "steps": [{"type": "source.kind", "config": {"kind": "@krok"}}, {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field": "nalezy", "cmp": "empty"}]}}}, {"type": "structure", "config": {"dir": "down"}}], "outline": {"chip": "rola", "order": "tree", "tie": "nr"}}
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "axis", "kind": "@rodzaj", "via", "through", "sort", "group"} — OŚ: jej wartości to wpisy rodzaju
@@ -1107,8 +1149,23 @@ ${questionSection()}
   przy dziele w Bibliotece pojawia się przycisk z nazwą wejścia — tylko dla tych, którzy mogą czytać tę bazę (Biblioteka niczego nie zapisuje); kilka wejść jednego dzieła może dotyczyć całości, początku, końca, także kilku części naraz
   części oddziela „;”; część, która zaczyna się niżej niż poprzednia, należy do jej ramy („I q. 2 a. 3; a. 4” — artykuł 4 tej samej kwestii; „t. 2, rozdz. 1; rozdz. 9” — rozdział 9 tego samego tomu)
 ${formsSection()}
+${COURSE_USAGE}
 ${kinds}`;
 }
+
+/**
+ * 2026-10-30 — WAS AUS DEM IMPORTIERTEN WIRD, im ganzen System (der Wunsch des Besitzers: neben jedem Import, wie die
+ * Daten gebraucht werden). Jede Zeile ist im Code nachgeprüft.
+ */
+const COURSE_USAGE = `## Jak aplikacja używa tych danych
+  Wiedza: wpisy stoją w „Wpisy” (tabela, drzewo, struktura, macierz, płótno — według widoków), każdy ze swoją stroną (pola, odwołania, kolejność nauki); rodzaje, szablony, widoki i sposoby dodawania — w „Schematach”; wejścia ("anchors") dają przy dziele w Bibliotece i w czytniku przycisk „W Wiedzy”.
+  Nauka: szablony robią z wpisów karty (z kluczem „szablon:wpis”); powtórki wybierają z kart i pytają; „Ścieżka” pokazuje kolejność nauki; widoki i powtórki z „Filtrem znajomości” pokazują to, co uczący się już może.
+  Odpowiedzi: każda zapisuje się zaszyfrowana w przeglądarce — dla uczącego się i dla obszaru przyjęć kursu (Ustawienia), gdzie nauczyciel widzi „Postępy”; z nich liczy się znajomość kart i wpisów. Serwis nie czyta odpowiedzi; widzi tylko, kiedy następna powtórka i ile kart czeka — na osobę i bazę (do przypomnienia).
+  Strony: moduły „Widok” (tabela, drzewo, macierz, mapa), „Powtórka”, „Kurs / opowieść”, „Karta wpisu” czytają bazę tak, jak widzi ją czytelnik strony; uczy się osoba strony (zalogowana — ona sama, bez konta — ta przeglądarka).
+  Inne bazy wiedzy, które korzystają z tej jako źródła, widzą jej rodzaje, wpisy, szablony, powtórki i przebiegi tylko do odczytu; link dla AI i MCP czytają ją bez zmian.
+  Kto czyta: ten, kto czyta jej obszar (w obszarze jawnym — każdy); wpisy są szyfrowane kluczem obszaru.
+  Import niczego nie usuwa i nie dotyka odpowiedzi ani postępów: nowa karta zaczyna bez historii, a karta, której poprawna odpowiedź się zmieniła, zaczyna historię od nowa (zmiana wag "tests" historii nie zmienia).
+`;
 
 /**
  * DER AUFTRAG FÜR DIE EIGENE KI [P13] — zum Kopieren: was sie tun soll, das

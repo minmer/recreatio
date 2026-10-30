@@ -23,13 +23,18 @@ import { MenuButton } from '../ui/Menu';
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { SelectionBar } from './EntitySelection';
 import { RuleEditor } from './RuleEditor';
-import { OriginTag, useBusy, useCtx } from './ui';
+import { OriginTag, useAsync, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
-import { AXIS_COLUMN, cellKey, cellText, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline, withRule, withSourceKind, type OutlineDisplay, type ViewDoc } from './views';
+import {
+  AXIS_COLUMN, cellKey, cellText, KNOWING_COLUMNS, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
+  withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
+} from './views';
+import { gaugeFromMarks } from './knowing';
+import { renamer } from './learn';
 import { StructureView } from './StructureView';
 import type { Group } from './selection';
 import { MatrixGrid } from './MatrixGrid';
-import { addToPlan, contextOf, createHere, learn } from './viewActions';
+import { addToPlan, contextOf, createHere, learn, learnFromView } from './viewActions';
 import { containerPath } from '../library/library';
 import { ask, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
@@ -57,7 +62,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   onSaved?: (id: string) => void;
   onRemoved?: () => void;
 }) {
-  const { lib, writes, href } = useCtx();
+  const { lib, writes, href, learner } = useCtx();
   const saved = viewId === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
   const [view, setView] = useState<ViewDoc>(() => readView(saved?.data ?? { mode: 'table', ...(design ? { name: 'Nowy sposób wyświetlania' } : {}) }));
   const [shownFor, setShownFor] = useState(viewId);
@@ -76,26 +81,43 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   /* 2026-10-25 — an einem Eintrag geöffnet: was vor dem ersten „Idź po…" steht, ist dieser Eintrag. */
   const start = startAt === null ? undefined : lib.entity(startAt);
   const shown = useMemo(() => (start === undefined ? view : viewFrom(view, start.id)), [view, start?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  /*
+    2026-10-30 — DIE KENNTNIS DES BETRACHTERS, nur wenn der Widok sie braucht (Filtr znajomości, Spalten oder
+    Reihenfolge daraus): der Lernende dieses Kontos — ein Autor, der eine Tabelle ansieht, sieht seine eigene.
+  */
+  const wants = needsKnowing(shown);
+  const knowCards = useAsync(wants ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, lib.revision]);
+  const knowing = useMemo(() => {
+    if (!wants || knowCards === null || knowCards === undefined) return null;
+    const rename = renamer(lib.merges());
+    const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
+    return gaugeFromMarks(knowCards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wants, knowCards, learner, learner?.progress, lib.revision]);
+  const vlib = useMemo(() => withKnowing(lib, knowing), [lib, knowing]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const list = useMemo(() => viewList(lib, shown), [lib, lib.revision, shown.query, JSON.stringify(shown.steps), JSON.stringify(shown.sort)]);
+  const list = useMemo(() => viewList(vlib, shown), [vlib, lib.revision, shown.query, JSON.stringify(shown.steps), JSON.stringify(shown.sort)]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const groups = useMemo(() => (view.mode === 'tree' && view.group !== null ? viewGroups(lib, view, list) : null), [list, view.mode, JSON.stringify(view.group)]);
+  const groups = useMemo(() => (view.mode === 'tree' && view.group !== null ? viewGroups(vlib, view, list) : null), [list, view.mode, JSON.stringify(view.group)]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const matrix = useMemo(() => (view.mode === 'matrix' ? viewMatrix(lib, view, list) : null), [list, view.mode, JSON.stringify(view.matrix)]);
+  const matrix = useMemo(() => (view.mode === 'matrix' ? viewMatrix(vlib, view, list) : null), [list, view.mode, JSON.stringify(view.matrix)]);
   const [cell, setCell] = useState<{ row: string; col: string } | null>(null);
   const cellIds = matrix === null || cell === null ? [] : matrix.cell(cell.row, cell.col);
 
   const quickKind = sourceKind(view);
   const kind = quickKind === null || quickKind === '' ? undefined : lib.kind(quickKind);
-  const shownColumns = viewColumns(lib, view, list);
+  const shownColumns = viewColumns(vlib, view, list);
   const columns = view.columns.length > 0 ? view.columns : kind !== undefined ? kind.fields.filter((f) => f.type !== 'markup' && f.type !== 'text').slice(0, 4).map((f) => f.key) : shownColumns.map((f) => f.key);
   const chooserFields = [
     ...(kind !== undefined ? kind.fields.map((f) => ({ key: f.key, label: f.label }))
       : [...new Map(list.slice(0, 200).flatMap((e) => fieldsOf(e, look)).filter((f) => f.type !== 'markup' && f.type !== 'blocks').map((f) => [f.key, { key: f.key, label: f.label }])).values()]),
     /* 2026-10-22 (Schritt 10) — eine Achse als Spalte; 2026-10-23: ein Rodzaj — die Werte, auf die der Eintrag zeigt. */
-    ...axisColumns(lib)
+    ...axisColumns(lib),
+    /* 2026-10-30 — wie gut der Betrachter den Eintrag kann, wann er wieder dran ist, auf welchem Poziom nauki. */
+    ...KNOWING_COLUMNS
   ];
-  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? chooserFields.find((f) => f.key === key)?.label.replace(/ \(oś\)$/, '') ?? key : undefined);
+  const label = (key: string) => (key.startsWith(AXIS_COLUMN) ? chooserFields.find((f) => f.key === key)?.label.replace(/ \(oś\)$/, '') ?? key
+    : KNOWING_COLUMNS.find((c) => c.key === key)?.label);
 
   /* Die Taten (Schritt 10) — nur, wer schreiben darf. */
   const here = (row: string, col: string) => run(async () => {
@@ -212,7 +234,9 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
             ...(writes && viewId !== null ? [{ label: 'Zapisz zmiany tego sposobu', icon: 'check' as const, onSelect: () => void saveView(false) }] : []),
             ...(writes && onDesign !== undefined ? [{ label: viewId === null ? 'Sposoby wyświetlania (Schematy)…' : 'Ustaw ten sposób w Schematach…', icon: 'settings' as const, onSelect: () => onDesign(viewId) }] : []),
             ...(viewId !== null ? [{ label: 'Kopiuj link do tego widoku', icon: 'link' as const, onSelect: () => { void navigator.clipboard?.writeText(window.location.href); } }] : []),
-            ...(writes && list.length > 0 ? [{ label: 'Ucz się tego — powtórka w Nauce', icon: 'cap' as const, onSelect: () => void toRevision() }] : [])
+            ...(writes && list.length > 0 ? [{ label: 'Ucz się tego — powtórka w Nauce', icon: 'cap' as const, onSelect: () => void toRevision() }] : []),
+            /* 2026-10-30 — eine Powtórka, die diesen Widok als Quelle nimmt (keine Kopie): ändert er sich, ändert sie sich mit. */
+            ...(writes && viewId !== null && start === undefined ? [{ label: 'Powtórka z tego widoku (zawsze aktualna)', icon: 'cap' as const, onSelect: () => void run(async () => { const id = await learnFromView(lib, viewId, view.name); window.location.hash = href('powtorki', id); }) }] : [])
           ]} />
         )}
       </div>
@@ -231,8 +255,9 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         </p>
       )}
       {picked.size > 0 && <SelectionBar ids={picked} total={list.length} onAll={() => setPicked(new Set(list.map((e) => e.id)))} onClear={() => setPicked(new Set())} onKept={setPicked} />}
+      {wants && knowing === null && <p className="cg-muted" data-knowing-wait="">Liczenie znajomości…</p>}
       {view.mode === 'table' && <Table list={list} picked={picked} onPick={setPicked} columns={columns} sort={view.sort} onSort={(key) => setV({ sort: view.sort?.key === key ? { key, dir: view.sort.dir === 1 ? -1 : 1 } : { key, dir: 1 } })} onOpen={onOpen}
-        onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} label={label} />}
+        onColumns={(cols) => setV({ columns: cols })} kindFields={chooserFields} label={label} vlib={vlib} />}
       {view.retired.map((line) => <p key={line} className="wk-warn">{line}</p>)}
       {view.mode === 'matrix' && matrix === null && <p className="cg-muted">Wybierz wiersze i kolumny macierzy w „Wybór i grupy".</p>}
       {view.mode === 'matrix' && matrix !== null && (
@@ -266,7 +291,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         </>
       )}
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} />)}
-      {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} />}
+      {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} vlib={vlib} />}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
         onMoved={(id, at) => {
           const next = { ...view, positions: { ...view.positions, [id]: at } };
@@ -279,7 +304,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   );
 }
 
-function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns, kindFields, label }: {
+function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns, kindFields, label, vlib }: {
   list: readonly Entity[];
   picked: ReadonlySet<string>;
   onPick: (next: ReadonlySet<string>) => void;
@@ -291,6 +316,8 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
   kindFields: readonly { key: string; label: string }[];
   /** 2026-10-22 (Schritt 10) — der Name einer Spalte, die kein Feld ist (eine Achse). */
   label?: (key: string) => string | undefined;
+  /** 2026-10-30 — die Baza mit der Kenntnis des Betrachters (Spalten „Znajomość", „Kiedy powtórzyć"). */
+  vlib: ViewLib;
 }) {
   const { lib } = useCtx();
   const look = lib.look;
@@ -387,7 +414,7 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
                 <td>{lib.label(e)}{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>} <OriginTag id={e.id} /></td>
                 <td className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</td>
                 {columns.map((c) => {
-                  if (c.startsWith(AXIS_COLUMN)) return <td key={c}>{cellText(lib, e, c).slice(0, 120)}</td>;
+                  if (c.startsWith('#')) return <td key={c}>{cellText(vlib, e, c).slice(0, 120)}</td>;
                   const f = fieldsOf(e, look).find((x) => x.key === c);
                   return <td key={c}>{f === undefined ? '' : fieldText(e, f, look).slice(0, 120)}</td>;
                 })}
@@ -508,10 +535,10 @@ function Canvas({ list, positions, onOpen, onMoved }: {
  * „Idź po strukturze" führen. Gezeichnet von `StructureView`: die Wurzel oben (eine Frage als
  * „Pytanie wiodące"), die Schritte als Baum oder in der Reihenfolge des Textes.
  */
-function Outline({ view, onOpen }: { view: ViewDoc; onOpen: (id: string) => void }) {
+function Outline({ view, onOpen, vlib }: { view: ViewDoc; onOpen: (id: string) => void; vlib: ViewLib }) {
   const { lib } = useCtx();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const shape = useMemo(() => viewOutline(lib, view), [lib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort), JSON.stringify(view.outline)]);
+  const shape = useMemo(() => viewOutline(vlib, view), [vlib, lib.revision, view.query, JSON.stringify(view.steps), JSON.stringify(view.sort), JSON.stringify(view.outline)]);
   const leads = view.steps.some((x) => x.type === 'follow' || x.type === 'structure');
   return (
     <div className="cg-outline">

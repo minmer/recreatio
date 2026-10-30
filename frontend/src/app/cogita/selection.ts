@@ -17,7 +17,11 @@
  *   follow              weiter entlang eines Verweises: wohin sie zeigen (ein Feld oder alle) —
  *                       oder, rückwärts, wer auf sie zeigt (Felder und Zapis, auch in Bibliotheken)
  *   filter.rule         nur, was die Regel erfüllt (die Regel der Zbiory: Feld, Vergleich, Gruppen)
+ *   filter.when         (2026-10-30) nur, wofür eine Bedingung der einen Logik gilt (`logic.ts`) — auch über die
+ *                       Kenntnis: des Eintrags, seiner Karten, dessen, was vorher kommt, worauf er zeigt (`knowing.ts`)
+ *   learning            (2026-10-30) entlang der Reihenfolge des Lernens: was vorher kommt (oder darauf aufbaut)
  * </code>
+ * `follow`, `structure` und `learning` können das, wovon sie ausgehen, behalten (`keep`).
  *
  * <b>Quellen am Anfang zählen zusammen</b> (2026-10-22, Schritt 10): „Kazania"
  * und „Komentarze" in einem Widok sind zwei Quellen hintereinander; eine Quelle
@@ -37,7 +41,9 @@
 import { fieldKind, fieldsOf, fieldText, fieldUnit, labelOf, plainOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 import { convert, measures, parseQuantity } from '../core/quantities';
 import { childrenOf, parentsOf } from './structure';
-import { levelLabel, type PrerequisiteGraph } from './prerequisites';
+import { allBuilds, allNeeds, levelLabel, type PrerequisiteGraph } from './prerequisites';
+import { readCondition } from './logic';
+import { EMPTY_GAUGE, itemHolds, relSourceOf, type Gauge } from './knowing';
 
 /** 2026-10-25 — wie viele Einträge „Idź po strukturze" höchstens erreicht (ein Kreis endet ohnehin). */
 const STRUCTURE_CAP = 5000;
@@ -161,6 +167,11 @@ export interface SelectContext {
   readonly refsOf?: (id: string) => readonly string[];
   /** 2026-10-27 — die Voraussetzungen als Graph (`prerequisites.ts`): die Gruppierung nach Ebenen. */
   readonly prerequisites?: () => PrerequisiteGraph;
+  /**
+   * 2026-10-30 — WAS DER BETRACHTER KANN (`knowing.ts`): der Lernende — ohne einen der, der schaut (seine eigene
+   * Kenntnis). Fehlt es, weiss er nichts: Bedingungen über Kenntnis sehen 0.
+   */
+  readonly knowing?: Gauge;
 }
 
 /* -- Die Schritte ------------------------------------------------------------------------------ */
@@ -168,7 +179,7 @@ export interface SelectContext {
 export const SOURCE_TYPES = ['source.all', 'source.kind', 'source.collection', 'source.list', 'source.from'] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 /** 2026-10-25 (Wywód) — `structure`: entlang der Felder, die der Rodzaj als Verbindung einer Struktur erklärt (`structure.ts`). */
-export type StepType = SourceType | 'follow' | 'structure' | 'filter.rule';
+export type StepType = SourceType | 'follow' | 'structure' | 'filter.rule' | 'filter.when' | 'learning';
 
 export interface Step {
   readonly type: StepType;
@@ -184,10 +195,12 @@ export const STEP_WORDS: Readonly<Record<StepType, { readonly label: string; rea
   'source.from': { label: 'Z wpisu', says: 'To, na co wskazuje wybrany wpis — np. kazanie: jego cytaty, komentarze, słowa, miejsca z planu.' },
   follow: { label: 'Idź po odwołaniu', says: 'Od wybranych wpisów dalej: do tego, na co wskazują (jedno pole albo wszystkie) — albo wstecz: do tego, co wskazuje na nie.' },
   structure: { label: 'Idź po strukturze', says: 'Od wybranych wpisów w dół struktury — po polach, które ich rodzaje oznaczają jako „połączenie w strukturze” — do samego końca albo o jeden poziom; albo w górę, do wpisów, pod którymi leżą. W „Strukturze” rysuje drzewo w kolejności miejsc w dziele.' },
-  'filter.rule': { label: 'Filtr', says: 'Zostawia wpisy spełniające regułę: pole, porównanie, grupy warunków (I / LUB).' }
+  'filter.rule': { label: 'Filtr', says: 'Zostawia wpisy spełniające regułę: pole, porównanie, grupy warunków (I / LUB).' },
+  'filter.when': { label: 'Filtr znajomości', says: 'Zostawia wpisy, dla których warunek jest spełniony — także o tym, jak dobrze się je zna: ten wpis, jego karty, to, co trzeba znać wcześniej, to, pod czym leży, to, na co wskazuje jego pole (np. fakty okresu dopiero, gdy okres jest znany). Bez uczącego się liczy się znajomość oglądającego.' },
+  learning: { label: 'Idź po kolejności nauki', says: 'Od wybranych wpisów do tego, co trzeba znać wcześniej („Najpierw trzeba znać”) — do samych podstaw albo o jeden krok; albo dalej: do tego, co na nich buduje.' }
 };
 
-const STEP_TYPES: readonly StepType[] = [...SOURCE_TYPES, 'follow', 'structure', 'filter.rule'];
+const STEP_TYPES: readonly StepType[] = [...SOURCE_TYPES, 'follow', 'structure', 'filter.rule', 'filter.when', 'learning'];
 export const isSource = (type: string): type is SourceType => (SOURCE_TYPES as readonly string[]).includes(type);
 
 /** 2026-10-23 (Schritt 5) — ein Schritt, den es nicht mehr gibt: was er war, für den Hinweis. */
@@ -232,7 +245,8 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
     case 'source.list': return new Set(lines(c.ids));
     case 'source.from': return new Set(str(c.entry) === '' ? [] : ctx.refsOf?.(str(c.entry)) ?? []);
     case 'follow': {
-      const out = new Set<string>();
+      /* 2026-10-30 — „Zostaw też wyjściowe" (`keep`): was hereinkommt, bleibt mit dem Erreichten. */
+      const out = new Set<string>(c.keep === true ? input ?? [] : []);
       const field = str(c.field);
       for (const id of input ?? []) {
         if (c.back === true) {
@@ -253,7 +267,7 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
       /* „Tylko jeden poziom" (`one`) — ein Häkchen kann nur `true` speichern; ein altes `deep: false` gilt weiter. */
       const deep = !(c.one === true || c.deep === false);
       const src = { entity: ctx.entity, look: ctx.look, pointing: ctx.pointing };
-      const out = new Set<string>();
+      const out = new Set<string>(c.keep === true ? input ?? [] : []);
       /* Was schon aufgeklappt wurde (gegen Kreise) — getrennt vom Ergebnis: ein gewählter Eintrag unter einem anderen gewählten gehört dazu. */
       const expanded = new Set(input ?? []);
       let layer = [...expanded];
@@ -274,6 +288,26 @@ export function pick(ctx: SelectContext, step: Step, input: ReadonlySet<string> 
       const rule = readRule(c.rule);
       if (rule === null || rule.items.length === 0) return new Set(input ?? []);
       return new Set([...(input ?? [])].filter((id) => { const e = ctx.entity(id); return e !== undefined && ruleMatches(e, ctx.look, rule); }));
+    }
+    case 'filter.when': {
+      /* 2026-10-30 — die eine Logik über Einträge: wessen Kenntnis, sagt die Beziehung, gesehen von jedem Eintrag. */
+      const when = readCondition(c.when);
+      if (when === null) return new Set(input ?? []);
+      const g = ctx.knowing ?? EMPTY_GAUGE;
+      const src = relSourceOf(g, { entity: ctx.entity, look: ctx.look, pointing: ctx.pointing }, ctx.prerequisites?.() ?? g.graph);
+      return new Set([...(input ?? [])].filter((id) => itemHolds(when, g, src, id)));
+    }
+    case 'learning': {
+      /* 2026-10-30 — was vorher zu können ist (bis zu den Grundlagen oder einen Schritt) — oder was darauf aufbaut. */
+      const graph = ctx.prerequisites?.();
+      const out = new Set<string>(c.keep === true ? input ?? [] : []);
+      if (graph === undefined) return out;
+      const after = c.dir === 'after';
+      for (const id of input ?? []) {
+        const reach = c.one === true ? (after ? graph.builds.get(id) : graph.needs.get(id)) ?? [] : after ? allBuilds(id, graph) : allNeeds(id, graph);
+        for (const x of reach) out.add(x);
+      }
+      return out;
     }
     default: return new Set(input ?? []);
   }

@@ -32,7 +32,9 @@ import { RevisionRun } from '../../cogita/RevisionRun';
 import { fieldsOf, type Entity } from '../../cogita/schema';
 import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync } from '../../cogita/ui';
-import { cellKey, cellText, readView, viewColumns, viewGroups, viewList, viewMatrix, type ListMode } from '../../cogita/views';
+import { cellKey, cellText, needsKnowing, readView, viewColumns, viewGroups, viewList, viewMatrix, withKnowing, type ListMode } from '../../cogita/views';
+import { gaugeFromMarks } from '../../cogita/knowing';
+import { usePageLearner } from '../../cogita/pageLearner';
 import { StatementCard } from '../../library/markupView';
 import { blocksField } from '../../cogita/statements';
 import { later } from '../../ui/later';
@@ -84,7 +86,7 @@ function LearnThis({ lib, ids, title, onClose }: { lib: CogitaLibrary; ids: read
     if (all == null) return null;
     const wanted = new Set(ids);
     const of = all.filter((c) => wanted.has(c.entity ?? c.question));
-    return { plan: readPlan(of, null, { mode: 'temporal', stackSize: 20 }), cards: of, deps: lib.dependencies(), title };
+    return { plan: readPlan(of, { mode: 'temporal', stackSize: 20 }), cards: of, deps: lib.dependencies(), title };
   }, [all, ids, lib, title]);
   if (source === null) return <Loading />;
   if (source.cards.length === 0) return <p className="wk-card-muted">Z tych wpisów nie powstają karty do nauki. <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button></p>;
@@ -134,13 +136,27 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const subject = useEntitySubject();
   const doc = lib == null ? undefined : lib.docs('view').find((e) => e.id === config.view);
   const saved = useMemo(() => readView(doc?.data), [doc]);
-  const list = useMemo(() => (lib == null || doc === undefined ? [] : viewList(lib, saved)),
+  /*
+    2026-10-30 — DIE KENNTNIS DES BESUCHERS, wenn der Widok sie braucht (Filtr znajomości, Spalten daraus): gelernt
+    als die Person der Seite (`pageLearner.tsx`) — angemeldet man selbst, sonst dieser Browser.
+  */
+  const wants = needsKnowing(saved);
+  const visitor = usePageLearner(wants ? lib : null);
+  const knowCards = useAsync(wants && lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [wants, lib, lib?.revision]);
+  const knowing = useMemo(() => {
+    if (!wants || lib == null || knowCards == null) return null;
+    const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
+    return gaugeFromMarks(knowCards, (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lib, lib?.revision, saved]);
+  }, [wants, lib, knowCards, visitor.learner, visitor.learner?.progress]);
+  const vlib = useMemo(() => (lib == null ? lib : withKnowing(lib, knowing)), [lib, knowing]);
+  const list = useMemo(() => (vlib == null || doc === undefined ? [] : viewList(vlib, saved)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [vlib, lib?.revision, saved]);
   const mode = modeOf(state.u ?? config.mode, saved.mode);
-  const matrix = useMemo(() => (lib == null || mode !== 'matrix' ? null : viewMatrix(lib, saved.matrix === null ? { ...saved, matrix: { rows: saved.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : saved, list)),
+  const matrix = useMemo(() => (vlib == null || mode !== 'matrix' ? null : viewMatrix(vlib, saved.matrix === null ? { ...saved, matrix: { rows: saved.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : saved, list)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lib, list, mode, saved]);
+    [vlib, list, mode, saved]);
   const title = config.title || saved.name || 'Widok';
 
   if (lib === undefined) return <><h2 className="wk-card-title">{title}</h2><Loading /></>;
@@ -184,8 +200,9 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const textOf = (e: Entity) => `${lib.label(e)} ${fieldsOf(e, lib.look).map((f) => cellText(lib, e, f.key)).join(' ')}`;
   const shown = words.length === 0 ? list : list.filter((e) => { const t = fold(textOf(e)); return words.every((w) => t.includes(w)); });
   const sortKey = state.s ?? '';
-  const columns = viewColumns(lib, saved, list);
-  const sorted = sortKey === '' ? shown : [...shown].sort((a, b) => cellText(lib, a, sortKey.replace(/^-/, '')).localeCompare(cellText(lib, b, sortKey.replace(/^-/, '')), 'pl', { numeric: true }) * (sortKey.startsWith('-') ? -1 : 1));
+  const shownLib = vlib ?? lib;
+  const columns = viewColumns(shownLib, saved, list);
+  const sorted = sortKey === '' ? shown : [...shown].sort((a, b) => cellText(shownLib, a, sortKey.replace(/^-/, '')).localeCompare(cellText(shownLib, b, sortKey.replace(/^-/, '')), 'pl', { numeric: true }) * (sortKey.startsWith('-') ? -1 : 1));
   const sortBy = (key: string) => setState({ s: sortKey === key ? `-${key}` : sortKey === `-${key}` ? null : key });
   const arrow = (key: string) => (sortKey === key ? ' ▲' : sortKey === `-${key}` ? ' ▼' : '');
 
@@ -231,7 +248,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
               {sorted.slice(0, 500).map((e) => (
                 <tr key={e.id} className={state.e === e.id ? 'is-on' : undefined}>
                   <td><button type="button" className="cg-ref" onClick={() => open(e.id)}>{lib.label(e)}</button></td>
-                  {columns.map((c) => <td key={c.key}>{cellText(lib, e, c.key).slice(0, 160)}</td>)}
+                  {columns.map((c) => <td key={c.key}>{cellText(shownLib, e, c.key).slice(0, 160)}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -240,7 +257,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       )}
       {mode === 'tree' && (
         <ul className="cg-tree">
-          {viewGroups(lib, saved, sorted).map((g) => (
+          {viewGroups(shownLib, saved, sorted).map((g) => (
             <li key={g.key || '#reszta'}>
               <details open={g.ids.length < 30}>
                 <summary><strong>{g.label}</strong> <span className="cg-muted">({g.ids.length})</span></summary>

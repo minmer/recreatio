@@ -142,13 +142,34 @@ export function absorb(into: Progress, body: unknown): Progress {
  */
 export function marksOf(progress: Progress, key: string, fingerprint?: string, rename?: (key: string) => string): Mark[] {
   const out: Mark[] = [];
-  for (const one of progress.answers.values()) {
-    const k = rename === undefined ? one.key : rename(one.key);
-    if (k !== key) continue;
+  for (const one of answerIndex(progress.answers, rename).get(key) ?? []) {
     if (fingerprint !== undefined && one.fingerprint !== '' && one.fingerprint !== fingerprint) continue;
     out.push({ at: one.at, correctness: one.correctness });
   }
   return out.sort((a, b) => a.at - b.at);
+}
+
+/**
+ * 2026-10-30 — DIE ANTWORTEN JE KARTE, einmal je Stand gesammelt: Widoki und Powtórki fragen nach der Kenntnis aller
+ * Karten. Ein neuer Stand ist eine neue Map (`absorb`), also gilt der Index, solange sie gilt.
+ */
+const NO_RENAME = {};
+const answerIndexes = new WeakMap<object, WeakMap<object, Map<string, AnswerRecord[]>>>();
+function answerIndex(answers: ReadonlyMap<string, AnswerRecord>, rename?: (key: string) => string): Map<string, AnswerRecord[]> {
+  let byRename = answerIndexes.get(answers);
+  if (byRename === undefined) { byRename = new WeakMap(); answerIndexes.set(answers, byRename); }
+  const which = rename ?? NO_RENAME;
+  let index = byRename.get(which);
+  if (index === undefined) {
+    index = new Map();
+    for (const one of answers.values()) {
+      const k = rename === undefined ? one.key : rename(one.key);
+      const list = index.get(k);
+      if (list === undefined) index.set(k, [one]); else list.push(one);
+    }
+    byRename.set(which, index);
+  }
+  return index;
 }
 
 /** Ein Zusammenführen in den Kennungen der Karten: `vorlage:alt[:wert]` wird `vorlage:neu[:wert]`. */

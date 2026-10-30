@@ -489,7 +489,7 @@ export function ExtensionOf({ row, busy, onRepeat }: { row: ModuleRow; busy: boo
             ? 'Są już wpisy — powtarzania nie da się zmienić.'
             : repeat === 'once'
               ? 'Jeden wpis na osobę.'
-              : 'Osobny wpis na każdy okres — w zakładce „Osoby” przełączasz okres u góry.'}
+              : 'Osobny wpis na każdy okres — w zakładce „Zgłoszenia” przełączasz okres u góry.'}
         </span>
       </label>
       <p className="wk-hint">

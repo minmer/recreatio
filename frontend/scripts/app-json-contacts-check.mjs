@@ -31,7 +31,8 @@ try {
   const sampleKeys = new Set(sample.contacts.flatMap((c) => Object.keys(c)));
   for (const key of sampleKeys) assert.ok(m.CONTACT_JSON_KEYS.includes(key), `sample key ${key} is described`);
   for (const key of m.CONTACT_JSON_KEYS) assert.ok(text.includes(`"${key}" — `), `the description explains ${key}`);
-  ok(`every key is described (${m.CONTACT_JSON_KEYS.length}), the description stands without context`);
+  assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
+  ok(`every key is described (${m.CONTACT_JSON_KEYS.length}), the description stands without context and says how the app uses the contacts`);
 
   const existing = [
     { id: 'c1', version: 3, updatedAt: '', name: 'Anna Kowalska', given: 'Anna', family: 'Kowalska', org: null, title: null, phones: [{ number: '+48 600 100 200', label: 'komórka' }], emails: [], note: null, birthday: null, groups: ['Schola'], source: { kind: 'phone', key: 'raw:1' } },

@@ -72,7 +72,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
     if (learning === null) return null;
     const of = cardsAbout(cards, learning);
     const e = lib.entity(learning);
-    return { plan: readPlan(of, null, { mode: 'once', order: 'random' }), cards: of, title: e === undefined ? 'Powtórka' : lib.label(e) };
+    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, title: e === undefined ? 'Powtórka' : lib.label(e) };
   }, [learning, cards, lib]);
 
   if (source !== null) {

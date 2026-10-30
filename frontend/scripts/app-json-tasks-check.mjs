@@ -91,7 +91,9 @@ try {
     const text = m.tasksDescription();
     assert.equal(text, tree.describe(m.TASKS_JSON), 'the description is the tree');
     assert.ok(text.startsWith(`# Zadania jako JSON ("${m.TASKS_FORMAT}", wersja 1)`), 'it names the format and its version');
-    assert.deepEqual(tree.sectionsOf(m.TASKS_JSON).map((s) => s.node.key), ['tasks', 'tasks.task', 'tasks.kinds', 'tasks.groups', 'tasks.example'], 'one section per part, each once');
+    assert.deepEqual(tree.sectionsOf(m.TASKS_JSON).map((s) => s.node.key), ['tasks', 'tasks.usage', 'tasks.task', 'tasks.kinds', 'tasks.groups', 'tasks.example'], 'one section per part, each once');
+    /* 2026-10-30 — gleich nach dem ersten Abschnitt: „Jak aplikacja używa tych danych". */
+    assert.ok(text.includes('\n## Jak aplikacja używa tych danych\n'), 'the description says how the app uses the data');
     for (const keys of [m.TASKS_DOC_KEYS, m.TASK_KEYS, m.TASK_GROUP_KEYS]) {
       for (const [key, says] of Object.entries(keys)) {
         assert.ok(text.includes(`"${key}" — `), `the description explains "${key}"`);

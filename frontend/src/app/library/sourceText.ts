@@ -610,8 +610,26 @@ export const SOURCE_EXAMPLES: Readonly<Record<Exclude<SchemeId, 'time'>, Record<
   }
 };
 
-/** Die Beschreibung des Formats — vollständig und ohne Wissen über die App zu schreiben. */
-export function sourceTextDescription(asked?: SchemeId): string {
+/**
+ * 2026-10-30 — WAS DIE APP MIT EINEM TEXT TUT („Jak aplikacja używa tych danych"): Czytnik, „pokaż w tekście",
+ * andere Ausgaben, „W Wiedzy", wer ihn sieht, der Dostęp dla AI. Steht am Ende dieser Beschreibung und — mit dem
+ * Werk davor — am Ende von „Dzieło z tekstem" (`sourceImport.ts`, dort ohne den eigenen Abschnitt hier).
+ */
+export const SOURCE_TEXT_USE = `- Na stronie dzieła ramka „Tekst źródła” pokazuje, jakie teksty są (części, słowa, w której bibliotece), i otwiera czytnik („Czytaj”).
+- Czytnik (#/workspace/library/<biblioteka>/<dzieło>/tekst/<miejsce>): spis części, miejsca na marginesie, granice stron, przypisy; „Przejdź” do miejsca, szukanie w całym tekście, „Obok” — inne wydanie albo przekład tego dzieła, wyrównane według miejsc w strukturze.
+- Zaznaczony fragment można dodać jako cytat (z dziełem i miejscem) albo skopiować z miejscem.
+- Każde miejsce, które już gdzieś zacytowano (przypis, cytat, odwołanie we wpisie bazy wiedzy, pole z miejscem), dostaje „pokaż w tekście”, jeśli jest w tym tekście: fragment otwiera się na miejscu, także na stronie. Nic się przy tym nie zapisuje — połączenie powstaje przy czytaniu.
+- Miejsce w strukturze (werset, numer, artykuł) prowadzi też do tekstu innego wydania tego dzieła ("editionOf"); strona — tylko do tekstu tego wydania.
+- „W Wiedzy” przy dziele i w czytniku: wejścia z baz wiedzy, które czytający może otworzyć, wskazujące to dzieło albo jego miejsca.
+- Tekst jest zapieczętowany kluczem obszaru biblioteki, w której go zapisano — może to być inna (np. prywatna) biblioteka niż ta z dziełem. Kto jej nie czyta, nie widzi tekstu: ani w czytniku, ani w szukaniu, ani na stronie.
+- „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje bibliotekę z tekstem, daje go asystentowi do czytania: list_texts, read_text (według miejsca), search_text.
+- Tekstu nie ma w JSON biblioteki ("recreatio/library"); oddaje go eksport w ramce „Tekst źródła” — w tym formacie.`;
+
+/**
+ * Die Beschreibung des Formats — vollständig und ohne Wissen über die App zu schreiben. `usage: false` lässt
+ * „Jak aplikacja używa tych danych" weg (für „Dzieło z tekstem", das ihn am eigenen Ende trägt).
+ */
+export function sourceTextDescription(asked?: SchemeId, { usage = true }: { readonly usage?: boolean } = {}): string {
   const scheme = asked === 'time' ? undefined : asked;
   const schemes = scheme === undefined ? TEXT_SCHEMES : TEXT_SCHEMES.filter((x) => x.id === scheme);
   return `# Tekst źródła jako JSON ("${SOURCE_FORMAT}", wersja ${SOURCE_VERSION})
@@ -677,7 +695,7 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 
 ## Przykłady
 ${schemes.map((x) => `### ${x.label} ("${x.id}")\n${JSON.stringify(SOURCE_EXAMPLES[x.id as Exclude<SchemeId, 'time'>], null, 2)}`).join('\n\n')}
-`;
+${usage ? `\n## Jak aplikacja używa tych danych\n${SOURCE_TEXT_USE}\n` : ''}`;
 }
 
 /** Der Auftrag für die eigene KI: was zu tun ist, das Werk, das Format für SEINE Regel. */

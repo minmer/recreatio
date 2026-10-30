@@ -233,6 +233,10 @@ const TEXT_WITH_TYPE = {
   ]
 };
 
+/**
+ * 2026-10-30 — am Ende „Jak aplikacja używa tych danych": Editor, Wygłoszenia am Plan, Seiten, LaTeX, Bazy
+ * wiedzy, Programme der Schule, Dostęp dla AI — nur, was der Code tut.
+ */
 export function scriptoriumDescription(): string {
   return `# Skryptorium jako JSON ("${SCRIPTORIUM_FORMAT}", wersja ${SCRIPTORIUM_VERSION})
 
@@ -269,5 +273,15 @@ ${MARKUP_DOC}
 
 ## Miejsce w źródle
 ${BIBLE_DOC}
+
+## Jak aplikacja używa tych danych
+- W Skryptorium wpisy stoją w zakładkach „Teksty”, „Wygłoszenia”, „Projekty” i „Rodzaje tekstów”; tekst ma edytor (Plan · Treść · Dalsze informacje) z podglądem, a obok swoje wygłoszenia.
+- Tekst czyta się z planem, treścią, przypisami do źródeł Biblioteki i listą „Źródła” na końcu; wartości pól jego rodzaju stoją w nagłówku („Tajemnica: Zwiastowanie”).
+- Wygłoszenie wskazuje punkty planu po ich "id": wybrane przy tekście pokazuje na planie, co powiedziano, co tylko wspomniano, co pominięto (z czasem w nagraniu) i co doszło. Wygłoszenia stoją od najnowszego; w archiwum datą tekstu jest jego ostatnie wygłoszenie.
+- Na stronach: moduł „Tekst ze skryptorium” (jeden tekst — plan, wygłoszenia z nagraniem, treść, źródła) i „Archiwum tekstów” (teksty skryptorium albo jednego projektu; szukanie i filtry według pól-odwołań rodzajów tekstów i według projektów). Strona pokazuje sam wpis, nie kopię: poprawka w Skryptorium jest od razu na każdej stronie.
+- Druk przez LaTeX: tekst jako artykuł, projekt jako książka (teksty w kolejności "outline"), sam plan jako „Plan na ambonę”.
+- Baza wiedzy, która ma to skryptorium wśród źródeł, bierze jego wpisy jako materiał: rodzaj tekstu jest tam rodzajem wpisu, a szablony kart i powtórki mogą sięgać po teksty; nic się tam nie kopiuje. „Powtórka z tego tekstu” robi tam powtórkę z tego, na co tekst wskazuje (np. cytaty, komentarze, słowa ze słownika).
+- W szkole projekt z "projectType": "program" i "classes" to program nauczania: teksty z jego "outline" to lekcje, a wygłoszenie z "classArea" — lekcja w klasie (Dziennik klasy, „Realizacja w klasach”).
+- Wpisy są zapieczętowane w przeglądarce kluczem obszaru. „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje to skryptorium, daje asystentowi jego odpis do czytania: teksty, wygłoszenia, projekty i rodzaje tekstów; asystent niczego nie zmienia.
 `;
 }

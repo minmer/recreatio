@@ -79,9 +79,12 @@ try {
   assert.ok(samples.length >= 1);
   for (const sample of samples) documented(`sample „${sample.label}”`, sample.doc(), m.PROGRESS_KEYS);
   for (const key of Object.keys(m.PROGRESS_KEYS)) assert.ok(text.includes(`"${key.split(/[.[\]]+/).filter(Boolean).pop()}" — `), `the description explains "${key}"`);
-  const example = JSON.parse(text.slice(text.indexOf('Przykład:') + 'Przykład:'.length).trim());
+  const after = text.slice(text.indexOf('Przykład:') + 'Przykład:'.length);
+  const example = JSON.parse((after.indexOf('\n\n#') < 0 ? after : after.slice(0, after.indexOf('\n\n#'))).trim());
   assert.deepEqual(example, samples[0].doc(), 'the example in the text is the sample');
   assert.ok(text.includes('nigdy do cudzych'), 'and says that it never writes for someone else');
+  /* 2026-10-30 — wozu die Antworten dienen, im ganzen System. */
+  assert.ok(text.includes('## Jak aplikacja używa tych danych') && text.includes('znajomość'), 'and says how the app uses the answers');
   ok('description: callable without context, every key of the sample described');
 
   /* -- 2 ---------------------------------------------------------------------------------------- */

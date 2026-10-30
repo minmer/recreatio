@@ -135,8 +135,9 @@ export function GraphEditor<C>({ graph, palette, onChange, cycles = false, field
   const [chosen, setChosen] = useState<string | null>(null);
   const [moving, setMoving] = useState<Readonly<Record<string, { x: number; y: number }>>>({});
   const [said, setSaid] = useState<string | null>(null);
-  const name = (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source', id: string): string => {
+  const name = (kind: 'entity' | 'kind' | 'collection' | 'flow' | 'template' | 'source' | 'view', id: string): string => {
     if (kind === 'entity') return entityName(lib, id);
+    if (kind === 'view') { const view = lib.docs('view').find((e) => e.id === id); return typeof view?.data.name === 'string' ? view.data.name : id; }
     if (kind === 'source') return id === lib.libraryId ? 'ta baza' : lib.sourceList().find((s) => s.store.libraryId === id)?.name ?? id;
     if (kind === 'kind') return lib.kind(id)?.name ?? id;
     if (kind === 'collection') return lib.collections().find((c) => c.id === id)?.name ?? id;
@@ -467,6 +468,23 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       return <div className="wk-field">{label}<RuleEditor rule={readQuery(value) ?? { op: 'and', items: [] }} onChange={(r) => onSet(r)} /></div>;
     case 'condition':
       return <div className="wk-field">{label}<ConditionEditor value={readCondition(value)} onChange={(c) => onSet(c ?? undefined)} name={(id) => entityName(lib, id)} /></div>;
+    case 'when':
+      /* 2026-10-30 — eine Bedingung, die auch die Kenntnis relativ sieht: dieses Eintrags, seiner Karten, dessen, was vorher kommt, worauf seine Felder zeigen. */
+      return (
+        <div className="wk-field">{label}
+          <ConditionEditor value={readCondition(value)} onChange={(c) => onSet(c ?? undefined)} name={(id) => entityName(lib, id)}
+            relations={fieldKeys} fresh={{ type: 'knowness', rel: 'before', op: 'ge', than: 1 }} />
+        </div>
+      );
+    case 'view':
+      return (
+        <label className="wk-field">{label}
+          <select value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value === '' ? undefined : e.target.value)}>
+            <option value="">—</option>
+            {lib.docs('view').map((v) => <option key={v.id} value={v.id}>{typeof v.data.name === 'string' ? v.data.name : 'Widok'}</option>)}
+          </select>
+        </label>
+      );
     case 'actions':
       return <div className="wk-field">{label}<ActionsEditor value={(Array.isArray(value) ? value : []).map(readAction).filter((a): a is Action => a !== null)} onChange={(a) => onSet(a)} /></div>;
     case 'options':

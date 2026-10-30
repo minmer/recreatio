@@ -22,7 +22,7 @@ import type { LibraryStore } from './libraryStore';
 import { SCHEMES, schemeOf, workScheme, type SchemeId } from './locations';
 import {
   nextManifest, overlapsWith, PART_KIND, pageRangeLabel, partData, planSourceImport, portionDocs, readManifest, readPart, samePart,
-  SOURCE_FORMAT, SOURCE_VERSION, sourceTextDescription, TEXT_KIND, type TextManifest
+  SOURCE_FORMAT, SOURCE_TEXT_USE, SOURCE_VERSION, sourceTextDescription, TEXT_KIND, type TextManifest
 } from './sourceText';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -231,7 +231,11 @@ const forText = (def: LibKind): LibKind => ({
   fields: def.fields.filter((f) => f.when === undefined || TEXT_TYPES.some((workType) => f.when!({ workType })))
 });
 
-/** Wie man ein Werk MIT seinem Text als ein Dokument schreibt — für Mensch und KI. */
+/**
+ * Wie man ein Werk MIT seinem Text als ein Dokument schreibt — für Mensch und KI. 2026-10-30 — am Ende „Jak
+ * aplikacja używa tych danych" einmal für beides: das Werk (ein Eintrag der Bibliothek) und der Text
+ * (`SOURCE_TEXT_USE`; der Abschnitt des Textformats selbst bleibt darum weg).
+ */
 export function workWithTextDescription(scheme?: SchemeId): string {
   const work = forText(kindOf('work')!);
   const person = forText(kindOf('person')!);
@@ -255,9 +259,14 @@ Jeden dokument tworzy w Bibliotece wpis dzieła (książki, artykułu, rozdział
 ## Pola dzieła i osoby
 ${kindsDoc([work, person])}
 
-${sourceTextDescription(scheme).replace(/^# .*\n/, '## Tekst\n')}
+${sourceTextDescription(scheme, { usage: false }).replace(/^# .*\n/, '## Tekst\n')}
 ## Pełny przykład (artykuł w czasopiśmie, tekst w dwóch częściach)
 ${JSON.stringify(WORK_WITH_TEXT_EXAMPLE, null, 2)}
+
+## Jak aplikacja używa tych danych
+- Dzieło i wpisy z "entries" trafiają do biblioteki, w której importuje się dokument; tekst — do biblioteki wybranej przy imporcie. Po zapisie otwiera się strona dzieła.
+- Dzieło, autorzy i czasopismo to zwykłe wpisy Biblioteki (widzi je, kto widzi jej obszar): mają swoje strony i cytuje się je kluczem — [@kowalski2020, s. 47] w tekście Skryptorium, we wpisie bazy wiedzy albo w module strony „Tekst” staje się przypisem.
+${SOURCE_TEXT_USE}
 `;
 }
 

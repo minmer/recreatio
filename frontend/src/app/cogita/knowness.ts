@@ -1,41 +1,54 @@
 /**
- * COGITA — WIE GUT ETWAS SITZT (COGITA.md §6, A.1).
+ * COGITA — WIE GUT ETWAS SITZT (COGITA.md §6).
  *
- * <b>Die Formel steht wörtlich da</b> [E1]. Sie rechnet mit zwei Antworten und
- * den Abständen davor:
+ * <b>2026-10-30: ein Schritt je Antwort.</b> Jede Karte behält nur wenige Werte (`CardState`): wann sie zuletzt
+ * beantwortet wurde, wie lange es davor WIRKLICH her war, den Abstand, den sie jetzt hat, und den besten Abstand vor
+ * ihrem letzten Fehler. Die nächste Antwort rechnet nur aus diesen Werten und sich selbst (`step`) — nie aus der
+ * ganzen Geschichte. Die Antworten bleiben trotzdem alle gespeichert (`learn.ts`): ändert sich eine Regel, spielt
+ * `stateOf` jeden Zustand aus ihnen neu ab (dasselbe Ergebnis wie Schritt für Schritt).
  *
  * <code>
- *   q1, d1   die vorletzte Antwort: wie richtig (0–1), und wie lange vor ihr die drittletzte war
- *   q2, d2   die letzte Antwort: wie richtig, und wie lange nach der vorletzten
- *   t        wie lange die letzte her ist
- *   alles in Stunden; T0 = fünf Minuten
- *
- *   H = max(T0, T0^(1−q2) · (12 · (d2 + q1·d1))^q2)
- *   Kenntnis = 10^(0,5 · (1 − t/H))
+ *   richtig                     der wirklich vergangene Abstand × 3 (GROWTH); eine frühe Antwort kürzt nie
+ *   teilweise richtig           ein Drittel davon (PARTIAL), mindestens ein Tag, wenn Tage vergangen waren
+ *   falsch                      zurück auf fünf Minuten (MIN_INTERVAL) — die Karte kommt nie sofort wieder
+ *   richtig gleich nach Fehler  0,4 × der beste Abstand vor dem Fehler (RELEARN) — Gelerntes ist nicht weg
  * </code>
  *
- * Gleich nach einer Antwort steht die Kenntnis bei 10^0,5 ≈ 3,16; nach `H`
- * Stunden bei genau 1 — das ist die Grenze zwischen „sitzt" und „wackelt" und
- * damit der Zeitpunkt, an dem die Karte wieder fällig ist —, und danach sinkt
- * sie weiter gegen 0. Eine falsche letzte Antwort (q2 = 0) setzt H auf fünf
- * Minuten zurück, eine richtige nach einem langen Abstand macht H gross.
+ * Immer zählt die WIRKLICH vergangene Zeit: eine späte richtige Antwort zählt mehr. Richtig heisst ab 0,9
+ * (`CORRECT_FROM`), falsch unter 0,25 (`WRONG_BELOW`), dazwischen teilweise.
  *
- * <b>Gerechnet wird im Browser</b> [E7] — der Dienst kann die Antworten nicht
- * lesen. Gespeichert werden die Antworten und je Karte eine Momentaufnahme mit
- * der Kennung der Frage und der Richtung (COGITA.md §7).
+ * <b>Die Kenntnis einer Karte</b>: die Richtigkeit der letzten Antwort × 10^(0,5 · (1 − t / Abstand)) — gleich nach
+ * einer richtigen 3,16, am fälligen Termin genau 1 (die Grenze „sitzt", `KNOWN`), danach weiter gegen 0; nach einer
+ * falschen 0. Ein langer Abstand (viele gute Antworten in grossen Abständen) lässt sie langsam fallen.
  *
- * <b>Abhängigkeiten</b> [E3, E4]: Voraussetzung, Vertiefung, Zusammenhang, jede
- * Kante mit einem Gewicht. Nur Voraussetzungen sperren; jede Kante gibt etwas
- * von der Kenntnis des Abhängigen an seine Grundlage weiter.
+ * <b>Die Kenntnis eines Eintrags</b> setzt sich aus seinen Karten zusammen (`knowing.ts`, gewogen, wie stark jede ihn
+ * prüft); was auf ihm aufbaut, gibt etwas dazu (A.3, `propagate`). <b>Gerechnet wird im Browser</b> [E7] — der Dienst
+ * kann die Antworten nicht lesen.
  */
 
-/** Fünf Minuten, in Stunden. */
-export const T0 = 5 / 60;
-
-/** Ab hier sitzt es: bei t = H gibt die Formel genau 1. */
-export const KNOWN = 1;
-
+const MINUTE = 60_000;
 const HOUR = 3_600_000;
+const DAY = 86_400_000;
+
+/* -- Die Regeln, benannt und leicht zu stellen ---------------------------------------------------------- */
+
+/** Falsch: zurück auf fünf Minuten — nie gleich wieder. */
+export const MIN_INTERVAL = 5 * MINUTE;
+/** Richtig: der wirklich vergangene Abstand mal drei. */
+export const GROWTH = 3;
+/** Teilweise richtig: ein Drittel des vergangenen Abstands … */
+export const PARTIAL = 1 / 3;
+/** … mindestens ein Tag, wenn Tage vergangen waren. */
+export const PARTIAL_FLOOR = DAY;
+/** Richtig gleich nach einem Fehler: 0,4 × der beste Abstand vor dem Fehler. */
+export const RELEARN = 0.4;
+/** Ab dieser Richtigkeit ist eine Antwort richtig … */
+export const CORRECT_FROM = 0.9;
+/** … unter dieser falsch; dazwischen teilweise. */
+export const WRONG_BELOW = 0.25;
+
+/** Ab hier sitzt es: am fälligen Termin einer richtigen Antwort steht die Kenntnis genau auf 1. */
+export const KNOWN = 1;
 
 /** Eine Antwort, wie die Kenntnis sie braucht: wann, und wie richtig. */
 export interface Mark {
@@ -47,68 +60,79 @@ export interface Mark {
 
 const clamp01 = (n: number): number => (Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0);
 
-/** Die Formel aus COGITA.md A.1 — unverändert. */
-export function knowledge(q1: number, d1: number, q2: number, d2: number, t: number): number {
-  const H = Math.max(T0, Math.pow(T0, 1 - q2) * Math.pow(12 * (d2 + q1 * d1), q2));
-  return Math.pow(10, 0.5 * (1 - t / H));
+export type Grade = 'correct' | 'partly' | 'wrong';
+
+export const gradeOf = (correctness: number): Grade => {
+  const q = clamp01(correctness);
+  return q >= CORRECT_FROM - 1e-9 ? 'correct' : q < WRONG_BELOW ? 'wrong' : 'partly';
+};
+
+/** Was eine Karte behält — alles in Millisekunden. */
+export interface CardState {
+  /** Wann zuletzt beantwortet. */
+  readonly at: number;
+  /** Der Abstand ab `at`, nach dem sie wieder dran ist. */
+  readonly interval: number;
+  /** Wie lange es vor der letzten Antwort wirklich her war (0 bei der ersten). */
+  readonly elapsed: number;
+  /** Der beste Abstand vor dem letzten Fehler (0: noch keiner). */
+  readonly best: number;
+  /** Wie richtig die letzte Antwort war (0–1). */
+  readonly q: number;
+  /** Seit dem letzten Fehler noch keine richtige Antwort. */
+  readonly lapsed: boolean;
+  readonly answers: number;
 }
 
-/** Die Antworten in ihrer Zeitfolge, die letzten drei — mehr braucht die Formel nicht. */
-function lastThree(marks: readonly Mark[]): Mark[] {
-  return marks
-    .filter((m) => Number.isFinite(m.at))
-    .slice()
-    .sort((a, b) => a.at - b.at)
-    .slice(-3);
+/** EIN SCHRITT: der neue Zustand aus dem alten und der neuen Antwort — sonst nichts. */
+export function step(state: CardState | null, mark: Mark): CardState {
+  const q = clamp01(mark.correctness);
+  const grade = gradeOf(q);
+  if (state === null) {
+    return { at: mark.at, interval: grade === 'correct' ? MIN_INTERVAL * GROWTH : MIN_INTERVAL, elapsed: 0, best: 0, q, lapsed: grade === 'wrong', answers: 1 };
+  }
+  const elapsed = Math.max(0, mark.at - state.at);
+  const answers = state.answers + 1;
+  if (grade === 'wrong') {
+    /* Der beste Abstand vor DIESEM Fehler: der, den sie hatte — war sie noch beim Wiederlernen, bleibt der frühere. */
+    return { at: mark.at, interval: MIN_INTERVAL, elapsed, best: state.lapsed ? state.best : state.interval, q, lapsed: true, answers };
+  }
+  if (grade === 'partly') {
+    const interval = Math.max(MIN_INTERVAL, elapsed * PARTIAL, elapsed >= PARTIAL_FLOOR ? PARTIAL_FLOOR : 0);
+    return { at: mark.at, interval, elapsed, best: state.best, q, lapsed: state.lapsed, answers };
+  }
+  const grown = Math.max(MIN_INTERVAL, elapsed * GROWTH);
+  const interval = state.lapsed ? Math.max(grown, RELEARN * state.best) : Math.max(grown, state.interval);
+  return { at: mark.at, interval, elapsed, best: state.best, q, lapsed: false, answers };
 }
 
-/** Was die Formel aus den letzten drei Antworten nimmt: q1, d1, q2, d2. */
-function termsOf(marks: readonly Mark[]): { q1: number; d1: number; q2: number; d2: number; last: Mark } | null {
-  const recent = lastThree(marks);
-  const c = recent[recent.length - 1];
-  if (c === undefined) return null;
-  const b = recent[recent.length - 2];
-  const a = recent[recent.length - 3];
-  return {
-    q2: clamp01(c.correctness),
-    d2: b === undefined ? 0 : Math.max(0, (c.at - b.at) / HOUR),
-    q1: b === undefined ? 0 : clamp01(b.correctness),
-    d1: a === undefined || b === undefined ? 0 : Math.max(0, (b.at - a.at) / HOUR),
-    last: c
-  };
+/** Den Zustand aus den gespeicherten Antworten neu abspielen — dasselbe wie Schritt für Schritt. */
+export function stateOf(marks: readonly Mark[]): CardState | null {
+  let state: CardState | null = null;
+  for (const m of marks.filter((x) => Number.isFinite(x.at)).slice().sort((a, b) => a.at - b.at)) state = step(state, m);
+  return state;
 }
 
-/** H in Stunden — wie lange es nach der letzten Antwort sitzt. */
-export function stability(marks: readonly Mark[]): number {
-  const terms = termsOf(marks);
-  if (terms === null) return T0;
-  return Math.max(T0, Math.pow(T0, 1 - terms.q2) * Math.pow(12 * (terms.d2 + terms.q1 * terms.d1), terms.q2));
+/** Die Kenntnis eines Zustands zum Zeitpunkt `now` — 0 ohne Antwort und gleich nach einer falschen. */
+export function knownessAt(state: CardState | null, now: number): number {
+  if (state === null) return 0;
+  const t = Math.max(0, now - state.at);
+  return state.q * Math.pow(10, 0.5 * (1 - t / Math.max(1, state.interval)));
 }
 
 /** Die Kenntnis zum Zeitpunkt `now` — 0, solange nie geantwortet wurde. */
-export function knownessOf(marks: readonly Mark[], now: number): number {
-  const terms = termsOf(marks);
-  if (terms === null) return 0;
-  const t = Math.max(0, (now - terms.last.at) / HOUR);
-  return knowledge(terms.q1, terms.d1, terms.q2, terms.d2, t);
-}
+export const knownessOf = (marks: readonly Mark[], now: number): number => knownessAt(stateOf(marks), now);
 
-/**
- * 2026-10-27 — WIE SICHER ES SITZT, für Sperren und die Ścieżka: die Kenntnis mal die Richtigkeit
- * der letzten Antwort. Gleich nach einer FALSCHEN Antwort steht die Formel bei 10^0,5 wie nach
- * einer richtigen (sie hält nur kürzer) — eine Voraussetzung darf darauf nicht als „sitzt" gelten.
- */
-export function masteryOf(marks: readonly Mark[], now: number): number {
-  const terms = termsOf(marks);
-  if (terms === null) return 0;
-  return knownessOf(marks, now) * terms.q2;
-}
-
-/** Wann die Kenntnis auf 1 fällt und die Karte wieder dran ist; `null`: noch nie gefragt (also gleich). */
+/** Wann die Karte wieder dran ist; `null`: noch nie gefragt (also gleich). */
 export function dueAt(marks: readonly Mark[]): number | null {
-  const terms = termsOf(marks);
-  if (terms === null) return null;
-  return terms.last.at + stability(marks) * HOUR;
+  const state = stateOf(marks);
+  return state === null ? null : state.at + state.interval;
+}
+
+/** Der Abstand in Stunden — wie lange es nach der letzten Antwort hält (für „Postępy"). */
+export function stability(marks: readonly Mark[]): number {
+  const state = stateOf(marks);
+  return (state === null ? MIN_INTERVAL : state.interval) / HOUR;
 }
 
 export type Level = 'unseen' | 'learning' | 'known';
@@ -123,7 +147,7 @@ export function levelOf(marks: readonly Mark[], now: number): Level {
 /** Für Balken und Prozente: über 1 ist „sitzt", mehr als 100 % gibt es nicht. */
 export const shareOf = (knowness: number): number => clamp01(knowness / KNOWN);
 
-/** Der Durchschnitt — so rechnet ein Eintrag, ein Thema, eine Sammlung aus ihren Karten [E2]. */
+/** Der Durchschnitt — für Balken über mehrere Karten. */
 export function average(values: readonly number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
@@ -132,10 +156,9 @@ export function average(values: readonly number[]): number {
 /* -- Momentaufnahme --------------------------------------------------------------- */
 
 /**
- * Was je Karte gespeichert wird (COGITA.md §7): die Kennung der Frage, die
- * Richtung, die Kenntnis im Augenblick der letzten Antwort und wann sie fällig
- * wird. Die Antworten selbst liegen daneben; aus ihnen lässt sich alles neu
- * rechnen.
+ * Was je Karte gespeichert wird (COGITA.md §7): die Kennung der Frage, die Richtung, die Kenntnis im Augenblick der
+ * letzten Antwort, wann sie fällig wird — und (v2, 2026-10-30) der Zustand selbst. Die Antworten liegen daneben; aus
+ * ihnen lässt sich alles neu rechnen.
  */
 export interface Snapshot {
   readonly question: string;
@@ -144,10 +167,22 @@ export interface Snapshot {
   readonly due: number | null;
   readonly at: number;
   readonly answers: number;
+  readonly v?: 2;
+  readonly interval?: number;
+  readonly elapsed?: number;
+  readonly best?: number;
 }
 
 export function snapshotOf(question: string, direction: string, marks: readonly Mark[], now: number): Snapshot {
-  return { question, direction, knowness: knownessOf(marks, now), due: dueAt(marks), at: now, answers: marks.length };
+  return snapshotOfState(question, direction, stateOf(marks), now);
+}
+
+/** Dasselbe aus dem Zustand, wie ein Lauf ihn Schritt für Schritt nachführt. */
+export function snapshotOfState(question: string, direction: string, state: CardState | null, now: number): Snapshot {
+  return {
+    question, direction, knowness: knownessAt(state, now), due: state === null ? null : state.at + state.interval, at: now, answers: state?.answers ?? 0,
+    ...(state === null ? {} : { v: 2 as const, interval: state.interval, elapsed: state.elapsed, best: state.best })
+  };
 }
 
 /* -- Abhängigkeiten ----------------------------------------------------------------- */
@@ -162,8 +197,8 @@ export const DEPENDENCY_LABEL: Record<DependencyKind, string> = {
 };
 
 /**
- * `parent` ist die Grundlage, `child` baut auf ihr auf. Gesperrt wird nur über
- * Voraussetzungen; weitergegeben wird über jede Kante.
+ * `parent` ist die Grundlage, `child` baut auf ihr auf. Die Reihenfolge des Lernens kommt nur aus Voraussetzungen
+ * (`prerequisites.ts`); weitergegeben wird über jede Kante.
  */
 export interface Dependency {
   readonly parent: string;
@@ -198,10 +233,9 @@ export function acyclic(deps: readonly Dependency[]): Dependency[] {
 }
 
 /**
- * DIE WEITERGABE (COGITA.md A.3): die Grundlage bekommt zu ihrer eigenen
- * Kenntnis, was die Abhängigen wissen, mal dem Gewicht — `parent += child ·
- * impact`. Gerechnet von den Blättern her, damit eine Kette weiterträgt. Wird
- * das Abhängige schlechter, sinkt der Beitrag mit; gespeichert wird nichts davon.
+ * DIE WEITERGABE (COGITA.md A.3): die Grundlage bekommt zu ihrer eigenen Kenntnis, was die Abhängigen wissen, mal
+ * dem Gewicht — `parent += child · impact`. Gerechnet von den Blättern her, damit eine Kette weiterträgt. Wird das
+ * Abhängige schlechter, sinkt der Beitrag mit; gespeichert wird nichts davon.
  */
 export function propagate(own: ReadonlyMap<string, number>, deps: readonly Dependency[]): Map<string, number> {
   const edges = acyclic(deps);
@@ -220,13 +254,3 @@ export function propagate(own: ReadonlyMap<string, number>, deps: readonly Depen
   for (const id of ids) visit(id);
   return total;
 }
-
-/** Welche Voraussetzungen von `id` noch nicht sitzen — leer: offen [E3]. */
-export function blockedBy(id: string, totals: ReadonlyMap<string, number>, deps: readonly Dependency[], threshold = KNOWN): string[] {
-  return acyclic(deps)
-    .filter((d) => d.child === id && d.kind === 'prerequisite' && (totals.get(d.parent) ?? 0) < threshold)
-    .map((d) => d.parent);
-}
-
-export const gateOpen = (id: string, totals: ReadonlyMap<string, number>, deps: readonly Dependency[], threshold = KNOWN): boolean =>
-  blockedBy(id, totals, deps, threshold).length === 0;

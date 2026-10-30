@@ -501,8 +501,15 @@ export interface RevisionPreset {
   readonly id: string;
   readonly label: string;
   readonly says: string;
-  /** `library` (2026-10-22): nur Einträge dieser Bibliothek oder Baza wiedzy (mit `kind`). */
-  readonly make: (from?: { kind?: string; library?: string; collection?: string }) => Record<string, unknown>;
+  /** `library` (2026-10-22): nur Einträge dieser Bibliothek oder Baza wiedzy (mit `kind`); `view` (2026-10-30): ein gespeicherter Widok. */
+  readonly make: (from?: RevisionFrom) => Record<string, unknown>;
+}
+
+export interface RevisionFrom {
+  readonly kind?: string;
+  readonly library?: string;
+  readonly collection?: string;
+  readonly view?: string;
 }
 
 const revisionGraph = (source: GraphNode, strategy: Record<string, unknown>) => {
@@ -510,24 +517,45 @@ const revisionGraph = (source: GraphNode, strategy: Record<string, unknown>) => 
   return graphOf([source, s], [edge(source, 'cards', s, 'cards')]);
 };
 
-const sourceOf = (from?: { kind?: string; library?: string; collection?: string }) =>
+const sourceOf = (from?: RevisionFrom) =>
   from?.kind !== undefined ? node('source.kind', 0, 0, { kind: from.kind, ...(from.library === undefined || from.library === '' ? {} : { from: from.library }) })
     : from?.collection !== undefined ? node('source.collection', 0, 0, { collection: from.collection })
+    : from?.view !== undefined ? node('source.view', 0, 0, { view: from.view })
     : node('source.all', 0, 0);
 
+/** Eine Kette: jeder Knoten an den nächsten, von links nach rechts. */
+const chain = (nodes: GraphNode[]): Record<string, unknown> => graphOf(nodes, nodes.slice(1).map((n, i) => edge(nodes[i], 'cards', n, 'cards')));
+
 /**
- * 2026-10-27 — die Powtórka codzienna mit „Najpierw podstawy": wo die Baza eine Reihenfolge des
- * Lernens hat (Felder „Najpierw trzeba znać"), kommt das Besondere erst nach dem Allgemeinen; wo
- * nicht, ändert die Sperre nichts.
+ * 2026-10-30 — „NAJPIERW PODSTAWY" ALS ZUSAMMENSTELLUNG, ohne eigenen Code: „Idź po kolejności nauki" holt, was vorher
+ * zu können ist (die Grundlagen der gewählten Karten), „Filtr znajomości" lässt eine Karte erst zu, wenn das, was vor
+ * ihr kommt, sitzt — im Lauf, Karte für Karte —, und der „Sposób pytania" nimmt das Allgemeine zuerst. Wo die Baza
+ * keine Reihenfolge des Lernens hat, ändert das nichts.
  */
-const gatedGraph = (source: GraphNode, strategy: Record<string, unknown>) => {
-  const gate = node('gate', 230, 0, { threshold: 1 });
-  const s = node('strategy', 460, 0, strategy);
-  return graphOf([source, gate, s], [edge(source, 'cards', gate, 'cards'), edge(gate, 'cards', s, 'cards')]);
-};
+const basicsFirst = (source: GraphNode, strategy: Record<string, unknown>) => chain([
+  source,
+  node('learning', 230, 0, { dir: 'before', keep: true }),
+  node('filter.when', 460, 0, { when: { type: 'knowness', rel: 'before', op: 'ge', than: 1 } }),
+  node('strategy', 690, 0, { order: 'general', ...strategy })
+]);
+
+/** 2026-10-30 — „Ucz się od podstaw" (Ścieżka): dieselbe Zusammenstellung über genannte Einträge (oder alles). */
+export const basicsRevision = (ids: readonly string[] | null, name: string): Record<string, unknown> => ({
+  name, graph: basicsFirst(ids === null ? node('source.all', 0, 0) : node('source.list', 0, 0, { ids: [...ids] }), { mode: 'temporal', stackSize: 20, minCorrectness: 1 })
+});
+
+/**
+ * 2026-10-30 — „OD OGÓLNEGO DO SZCZEGÓŁU" nach der Struktur: ein Eintrag kommt erst, wenn das, worunter er liegt (ein
+ * Abschnitt unter dem Leben, ein Jahr unter dem Abschnitt), sitzt; das Allgemeine zuerst.
+ */
+const generalToDetail = (source: GraphNode) => chain([
+  source,
+  node('filter.when', 230, 0, { when: { type: 'knowness', rel: 'up', op: 'ge', than: 1 } }),
+  node('strategy', 460, 0, { mode: 'temporal', stackSize: 20, minCorrectness: 1, order: 'general', pick: 'weighted' })
+]);
 
 export const REVISION_PRESETS: readonly RevisionPreset[] = [
-  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, co się zaciera, potem nowe — od podstaw do szczegółów; stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: gatedGraph(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
+  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, co się zaciera, potem nowe — od podstaw do szczegółów; stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
   { id: 'random', label: '20 losowych', says: 'Dwadzieścia kart, każda raz.', make: (from) => ({ name: '20 losowych', graph: revisionGraph(sourceOf(from), { mode: 'random', count: 20, order: 'random' }) }) },
   { id: 'once', label: 'Wszystko raz', says: 'Cały zbiór, każda karta raz — sprawdzian.', make: (from) => ({ name: 'Wszystko raz', graph: revisionGraph(sourceOf(from), { mode: 'once', order: 'random' }) }) },
   { id: 'levels', label: 'Poziomy', says: 'Dobra odpowiedź podnosi kartę o poziom, zła wraca na pierwszy; koniec, gdy wszystko na górze.', make: (from) => ({ name: 'Poziomy', graph: revisionGraph(sourceOf(from), { mode: 'levels', levels: 5, stackSize: 10, minCorrectness: 1 }) }) },
@@ -541,8 +569,12 @@ export const REVISION_PRESETS: readonly RevisionPreset[] = [
     }
   },
   {
-    id: 'gated', label: 'Najpierw podstawy', says: 'Karta wchodzi dopiero, gdy to, czego wymaga („Najpierw trzeba znać”), jest opanowane; brakujące podstawy dochodzą same.',
-    make: (from) => ({ name: 'Od podstaw', graph: gatedGraph(sourceOf(from), { mode: 'temporal', stackSize: 20 }) })
+    id: 'gated', label: 'Najpierw podstawy', says: 'Karta wchodzi dopiero, gdy to, czego wymaga („Najpierw trzeba znać”), jest opanowane; brakujące podstawy dochodzą same. Złożone ze zwykłych kroków: „Idź po kolejności nauki”, „Filtr znajomości”, kolejność „najpierw ogólne”.',
+    make: (from) => ({ name: 'Od podstaw', graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20 }) })
+  },
+  {
+    id: 'general', label: 'Od ogólnego do szczegółu', says: 'Najpierw to, co najogólniejsze; wpis, który leży pod innym w strukturze (rok pod etapem, etap pod całym życiem), wchodzi, gdy tamten jest już znany. Złożone z „Filtra znajomości” i kolejności „najpierw ogólne”.',
+    make: (from) => ({ name: 'Od ogólnego do szczegółu', graph: generalToDetail(sourceOf(from)) })
   }
 ];
 

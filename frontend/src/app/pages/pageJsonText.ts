@@ -306,6 +306,27 @@ const PAGE_KEYS = (): string => `  "format" — "${PAGE_FORMAT}"
 
 const PAGE_TEXTS = `Krótki napis (powitanie, ogłoszenie, kilka zdań) zostaje w module — np. "text". Dłuższy tekst (kazanie, konferencja, rozważanie, rozdział) mieszka w Skryptorium i stamtąd go się pokazuje: moduł "writing" (jeden tekst — z planem, wygłoszeniami, przypisami) albo "writings" (archiwum tekstów jednego skryptorium). Wtedy poprawka w Skryptorium jest od razu na każdej stronie, a kto widzi tekst, decyduje obszar skryptorium. Cytaty pokazuje moduł "quotes" (z Biblioteki).`;
 
+/*
+   2026-10-30 — WAS DIE APP MIT DER SEITE TUT: wo sie steht, wer sie sieht, was von ihr liest — und was
+   ihr Dokument nicht ändert. Jeder Satz im Code nachgesehen: Adresse und Alias (`routes.ts`, `Slug.Alias.cs`),
+   Menü nicht geerbt (`Menu.cs`), ein Modul an mehreren Stellen (`Form.Config.cs`), was vom Platz geht
+   (`Page.Parts.cs`), Zugang und „po wydarzeniu" (`Page.Write.cs`, `Page.Show.cs`), Widżet (`Widget.tsx`),
+   wer geradesteht (`Controllers.PageGateAsync`, `PageFooter.tsx`), Dateien ohne Siegel (`PageImage.cs`),
+   die Karten (`parts/events.tsx`), Nauka (`presentation/storyOfPage.ts`), die Vorschau (`preview/`).
+*/
+const PAGE_USAGE = `- Strona stoi pod adresem recreatio.pl/#/<ścieżka> (także pod aliasem albo własną domeną, które na nią wskazują) — jako siatka modułów, slajdy albo prezentacja ("mode").
+- Menu ("menu") stoi na tej stronie i na stronach, które biorą je przez { "from" }; podstrony go nie dziedziczą.
+- Moduły czytają dane na żywo: kalendarze ("calendar", "program"), formularze, teksty Skryptorium, cytaty Biblioteki, bazy wiedzy, rozmowę obszaru ("chat"). Każdy widzi z nich tyle, ile sam może przeczytać.
+- Moduł, który stoi na kilku stronach, jest jeden: zmieniona treść zmienia się na każdej z nich. Moduł zdjęty ze strony (także przez „Zastąp moduły strony”) znika tylko z niej — formularz z pytaniami albo zgłoszeniami zostaje w „Modułach”.
+- Osobisty link z formularza otwiera stronę, na której moduły osoby („Zgłoszenie osoby”, „Kroki osoby”…) pokazują jej zgłoszenie, kroki i rozmowy. Mapa logiki ("logic") tylko ukrywa moduły w przeglądarce — nie jest zabezpieczeniem.
+- Moduł strony publicznej można osadzić na innej witrynie jako widżet („Osadź na innej stronie” w edytorze); strony z dostępem widżet nie pokaże.
+- Stronę publiczną widzi każdy, bez konta. Zapisze się tylko wtedy, gdy wskazany jest obszar z administratorem danych, który za nią odpowiada („Kto odpowiada za tę stronę” w edytorze); stopka strony mówi, kto odpowiada za treść, i ma „Zgłoś treść”.
+- Stronę z dostępem widzą osoby jej obszarów (konto, link, osobisty link) i ci, którzy ją prowadzą. Jej treść zna też serwer — chyba że strona jest zaszyfrowana (Drzewo adresów → Ustawienia).
+- Pliki strony (zdjęcia, filmy, dokumenty) nie są szyfrowane: kto zna adres pliku, otworzy go — także ze strony z dostępem.
+- Tytuł strony widać w „Twoje strony” tych, którzy ją prowadzą albo mają do niej dostęp; karty „Wydarzenia” i „Wizytówka” prowadzą na stronę główną obszaru (bez wizytówki biorą jej tytuł i tekst); prezentację może grać przebieg bazy wiedzy w Nauce.
+- Dokument strony nie zmienia jej adresu, dostępu, szyfrowania ani obszaru, który za nią odpowiada (dostęp stron obszaru ustawia "access" w dokumencie obszaru).
+- Podgląd przed importem (preview.html; dla asystentów AI — serwer MCP recreatio-preview) rysuje stronę tak, jak zrobi ją import, i niczego nie zapisuje.`;
+
 /** Die Arten — ihr Inhalt ("config") je Art. */
 const KINDS_JSON: JsonNode = {
   key: 'kinds',
@@ -329,6 +350,7 @@ export const PAGE_JSON: JsonNode = {
   text: PAGE_INTRO,
   inside: () => [
     textNode('page.keys', 'Strona', PAGE_KEYS),
+    textNode('page.usage', 'Jak aplikacja używa tych danych', () => PAGE_USAGE),
     textNode('page.texts', 'Teksty na stronie', () => PAGE_TEXTS),
     textNode('page.appointments', 'Terminy do kalendarza', () => APPOINTMENTS_SECTION),
     textNode('page.images', 'Pliki do dodania', () => IMAGES_SECTION),
