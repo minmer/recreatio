@@ -198,8 +198,26 @@ export interface TemplateCards {
 export interface KnowledgeSetup {
   /** Ein `recreatio.cogita.course` ohne Einträge: Schema, Vorlagen, Powtórki, Widoki, Przebiegi, Zbiory, Wejścia, Formularze, Einstellungen. */
   readonly course: Record<string, unknown>;
-  readonly cards: { readonly total: number; readonly questions: number; readonly templates: readonly TemplateCards[] };
+  readonly cards: { readonly total: number; readonly questions: number; readonly templates: readonly TemplateCards[]; readonly failed?: string };
 }
+
+/**
+ * 2026-10-31 — NIE ETWAS VOM LERNEN EINES MENSCHEN: Schlüssel, die Antworten, Kenntnis oder Fortschritt tragen könnten,
+ * fallen überall weg — heute steht keiner davon in einem Dokument der Baza; das bleibt so, auch wenn einmal einer
+ * hineingerät. Derselbe Filter im Dienst (`AiMcpTools.Private`). Werte wie die Spalte „#knowness" eines Widoku bleiben:
+ * sie sind Bau, kein Stand.
+ */
+export const PRIVATE_KEYS: ReadonlySet<string> = new Set(['marks', 'correctness', 'knowness', 'dueAt', 'progress', 'learners', 'accountId', 'answeredAt']);
+
+/** Die Einstellungen einer Baza, die zu ihrem Bau gehören (nicht: wohin Antworten gehen, wohin Vorschläge). */
+const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'offline', 'joinPage'] as const;
+
+/** Die Schlüssel eines Objekts unter „fields" sind Feldnamen eines Rodzaju (ein Formularz: „answers") — Bau, sie bleiben. */
+const withoutPrivate = (v: unknown, named = false): unknown => {
+  if (Array.isArray(v)) return v.map((x) => withoutPrivate(x));
+  if (isObject(v)) return Object.fromEntries(Object.entries(v).filter(([k]) => named || !PRIVATE_KEYS.has(k)).map(([k, x]) => [k, withoutPrivate(x, !named && k === 'fields' && isObject(x))]));
+  return v;
+};
 
 /**
  * 2026-10-30 — WAS DAS LERNEN STEUERT, ohne Einträge und ohne eine einzige Antwort: die Baza wiedzy als Kurs ohne
@@ -208,8 +226,15 @@ export interface KnowledgeSetup {
  */
 export async function exportSetup(lib: CogitaLibrary, name: string): Promise<KnowledgeSetup> {
   const course = exportCourse(lib, name, { entities: new Set() });
-  const { entities: _none, ...rest } = course;
-  const made = await lib.cards();
+  const { entities: _none, settings, ...others } = course;
+  const kept = (Array.isArray(settings) ? settings : []).map((one) => (isObject(one)
+    ? Object.fromEntries(Object.entries(one).filter(([k]) => k === 'ref' || (SETUP_SETTINGS as readonly string[]).includes(k)))
+    : one));
+  const rest = withoutPrivate({ ...others, ...(Array.isArray(settings) ? { settings: kept } : {}) }) as Record<string, unknown>;
+  /* Die Karten zu rechnen darf die Abschrift nicht kosten: misslingt es, kommt der Rest — mit dem Grund. */
+  let made: Awaited<ReturnType<CogitaLibrary['cards']>>;
+  let failed: string | undefined;
+  try { made = await lib.cards(); } catch (e) { made = { cards: [], problems: new Map() }; failed = e instanceof Error && e.message !== '' ? e.message : 'karty się nie policzyły'; }
   const named = nameIn(lib);
   const kindName = (k: string): string => (isBaseKind(k) ? k : lib.kind(k)?.name ?? k);
   const templates = lib.templates().map((t): TemplateCards => {
@@ -222,7 +247,7 @@ export async function exportSetup(lib: CogitaLibrary, name: string): Promise<Kno
       ...(problems.length === 0 ? {} : { problems: [...new Set(problems)].slice(0, 5) })
     };
   });
-  return { course: rest, cards: { total: made.cards.length, questions: made.cards.filter((c) => c.template === undefined).length, templates } };
+  return { course: rest, cards: { total: made.cards.length, questions: made.cards.filter((c) => c.template === undefined).length, templates, ...(failed === undefined ? {} : { failed }) } };
 }
 
 /** Das Schema mit seinen Vorlagen — eine unabhängige Kopie für eine andere Bibliothek [B12]. */

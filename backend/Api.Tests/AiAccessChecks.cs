@@ -212,6 +212,17 @@ internal static class AiAccessChecks
                 && pages.Sum(x => x.Document["views"]!.AsArray().Count) == 40 && pages.SelectMany(x => x.Document["views"]!.AsArray()).Select(v => v!["ref"]!.GetValue<string>()).Distinct().Count() == 40,
                 "MCP get_knowledge_setup: a large base — an overview, then a section in pieces with nextOffset");
             check(AiMcp.Instructions.Contains("get_knowledge_setup"), "MCP instructions: name get_knowledge_setup");
+            var leaky = System.Text.Json.Nodes.JsonNode.Parse("""
+                { "settings": [ { "ref": "@s", "sources": [], "storageAreaId": "x", "progress": { "a": 1 } } ],
+                  "revisions": [ { "ref": "@r", "marks": [ { "correctness": 1 } ], "graph": { "nodes": [ { "config": { "knowness": 0.7, "order": "general" } } ] } } ],
+                  "forms": [ { "graph": { "nodes": [ { "config": { "fields": { "answers": { "show": true }, "tresc": { "learners": 2 } } } } ] } } ],
+                  "views": [ { "columns": ["#knowness", "#due"] } ] }
+                """)!;
+            AiMcpTools.Scrub(leaky);
+            var leakText = leaky.ToJsonString();
+            check(!leakText.Contains("progress") && !leakText.Contains("storageAreaId") && !leakText.Contains("marks") && !leakText.Contains("correctness") && !leakText.Contains("\"knowness\"") && !leakText.Contains("learners")
+                && leakText.Contains("\"order\":\"general\"") && leakText.Contains("\"answers\":{\"show\":true}") && leakText.Contains("#knowness"),
+                "MCP get_knowledge_setup: nothing of a learner even if a snapshot carried it; settings only with their structure; a form field named „answers” and the column #knowness stay");
         }
 
         /* 2026-10-24 — vollständige Texte in der Abschrift: lesen, eine Stelle finden, suchen. */

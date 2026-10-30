@@ -553,6 +553,26 @@ public sealed class AiMcpTools
         ("looks", "wygląd"), ("rules", "zasady"), ("values", "wartości")
     ];
 
+    /// <summary>
+    /// 2026-10-31 — NIE ETWAS VOM LERNEN EINES MENSCHEN, auch wenn eine Abschrift es trüge (ein anderer Stand der Seite):
+    /// dieselben Schlüssel wie <c>PRIVATE_KEYS</c> in <c>cogita/json.ts</c> fallen weg; die Schlüssel unter „fields" sind
+    /// Feldnamen (Bau) und bleiben. Einstellungen nur mit ihren Bau-Schlüsseln.
+    /// </summary>
+    public static readonly HashSet<string> Private = ["marks", "correctness", "knowness", "dueAt", "progress", "learners", "accountId", "answeredAt"];
+    private static readonly HashSet<string> SettingsKept = ["ref", "sources", "dependencies", "tags", "motivation", "offline", "joinPage"];
+
+    public static void Scrub(JsonNode? node, bool named = false)
+    {
+        if (node is JsonArray list) { foreach (var one in list) Scrub(one); return; }
+        if (node is not JsonObject obj) return;
+        foreach (var key in obj.Select(kv => kv.Key).ToList())
+            if (!named && Private.Contains(key)) obj.Remove(key);
+        foreach (var (key, value) in obj.ToList()) Scrub(value, !named && key == "fields" && value is JsonObject);
+        if (obj["settings"] is JsonArray settings)
+            foreach (var one in settings.OfType<JsonObject>())
+                foreach (var key in one.Select(kv => kv.Key).Where(k => !SettingsKept.Contains(k)).ToList()) one.Remove(key);
+    }
+
     internal static string? ReadersText(string? readers, string area) => readers switch
     {
         "members" => $"Czytają ją członkowie obszaru „{area}” (i ci, którym dali link albo miejsce).",
@@ -600,6 +620,7 @@ public sealed class AiMcpTools
             throw new McpException($"not_ready: odpis bazy „{p.Name}” powstał przed 2026-10-30 i nie niesie jeszcze ustawień nauki. Odświeży się po następnej zmianie w bazie albo po otwarciu panelu „Dostęp dla AI” przez kogoś, kto w niej pisze.");
 
         var course = JsonNode.Parse(courseEl.GetRawText())!.AsObject();
+        Scrub(course);
         var cards = p.Setup.TryGetProperty("cards", out var cardsEl) && cardsEl.ValueKind == JsonValueKind.Object ? ObjectOf(cardsEl) : null;
         var readers = ReadersText(p.Setup.TryGetProperty("readers", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null, p.AreaName);
 

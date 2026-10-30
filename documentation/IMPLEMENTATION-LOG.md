@@ -2695,3 +2695,9 @@ dependencies, who reads), and per template how many cards it really makes — in
   in pieces with `nextOffset`. An old snapshot → `not_ready` (rebuilt after the next write or when the panel opens).
 - Checks: Api.Tests 563 (7 new), app-cogita-check 682 (setup of the Bosko fixture equals the export's templates/views,
   card counts equal the app's cards, nothing of progress), app-library-check (snapshot with setup, `ref`, only bases).
+- 2026-10-31 — privacy guard: settings leave with their structure only (`sources`, `dependencies`, `tags`,
+  `motivation`, `offline`, `joinPage` — not `storageAreaId` / `contributionLibraryId`); keys that could carry a
+  learner's state (`marks`, `correctness`, `knowness`, `dueAt`, `progress`, `learners`, `accountId`, `answeredAt`) are
+  dropped everywhere, in the browser (`json.ts` `PRIVATE_KEYS`) and again in the service (`AiMcpTools.Scrub`); keys
+  under `fields` are field names (a form's `answers`) and stay. Failing card counts no longer cost the snapshot
+  (`cards.failed`). Checks: Api.Tests 564, app-cogita-check 684, LocalDB drive `mcp/setup-e2e.mjs` 15/15.

@@ -2926,6 +2926,19 @@ check('goals and lines follow the one logic', [
       setup.cards.templates.every((t) => t.entries <= t.cards)],
     [cards.length, cards.length, cards.filter((c) => c.template === lib.templates().find((t) => t.name === 'Hasło → kiedy (rok)')?.id).length, ['Fakt'], true]);
   check('… no learner’s answer or progress inside', [/"(marks|answers|correctness|progress)"/.test(JSON.stringify(setup))], [false]);
+  await lib.saveSettings({ storageAreaId: 'obszar-odpowiedzi', contributionLibraryId: 'propozycje' });
+  const privateSetup = await Js.exportSetup(lib, 'Bosko');
+  const pytania = JSON.parse(await readFile('../templates/cogita/pytania.json', 'utf8'));
+  const formFields = (doc) => JSON.stringify(doc.forms?.map((f) => f.graph?.nodes?.map((n) => Object.keys(n.config?.fields ?? {}))) ?? []);
+  const pytaniaLib = new So.CogitaLibrary(bfake('PYTANIA', []), true);
+  await Js.applyImport(pytaniaLib, Js.planImport(pytaniaLib, pytania), () => undefined);
+  const pytaniaSetup = await Js.exportSetup(pytaniaLib, 'Pytania');
+  check('… settings only with their structure (sources, dependencies, offline …) — not where answers go; a form field named „answers” stays',
+    [Object.keys(privateSetup.course.settings[0]).filter((k) => !['ref', 'sources', 'dependencies', 'tags', 'motivation', 'offline', 'joinPage'].includes(k)), formFields(pytaniaSetup.course) === formFields(Js.exportCourse(pytaniaLib, 'Pytania')), formFields(pytaniaSetup.course).includes('answers')],
+    [[], true, true]);
+  const broken = Object.assign(Object.create(Object.getPrototypeOf(lib)), lib, { cards: async () => { throw new Error('Python niedostępny'); } });
+  const partial = await Js.exportSetup(broken, 'Bosko');
+  check('… cards that cannot be counted do not cost the rest: the setup comes, with the reason', [partial.course.views.length === setup.course.views.length, partial.cards.total, partial.cards.failed], [true, 0, 'Python niedostępny']);
 }
 
 /* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */
