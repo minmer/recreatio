@@ -80,4 +80,29 @@ internal static class Schema
         if (there) records = true;
         return there;
     }
+
+    private static volatile bool learnEpoch;
+    private static long learnEpochCheckedAt;
+
+    /// <summary>
+    /// 0136 — ein Stapel des Lernens kann für den Epochenschlüssel seines Bereichs versiegelt sein
+    /// (<c>app.learn_batch.area_epoch</c>): die Antworten einer Person in ihrem Kleinbereich. Bis dahin nimmt der
+    /// Dienst solche Stapel nicht an und liest die Spalte nicht.
+    /// </summary>
+    internal static async Task<bool> LearnEpochAsync(SqlConnection connection, CancellationToken ct)
+    {
+        if (learnEpoch) return true;
+
+        var now = Environment.TickCount64;
+        var last = Interlocked.Read(ref learnEpochCheckedAt);
+        if (last != 0 && now - last < 30_000) return false;
+
+        await using var cmd = new SqlCommand(
+            "SELECT CASE WHEN COL_LENGTH(N'app.learn_batch', N'area_epoch') IS NULL THEN 0 ELSE 1 END;", connection);
+        var there = (int)(await cmd.ExecuteScalarAsync(ct))! == 1;
+
+        Interlocked.Exchange(ref learnEpochCheckedAt, now);
+        if (there) learnEpoch = true;
+        return there;
+    }
 }
