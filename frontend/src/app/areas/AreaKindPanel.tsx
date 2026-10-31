@@ -275,6 +275,9 @@ export function quiet<T>(promise: Promise<T>, fallback: T): Promise<T> {
 const levelOf = (caps: readonly string[]): RoleSeen['level'] =>
   caps.includes('admin') ? 'admin' : caps.includes('write') ? 'write' : 'read';
 
+/** 0135 — unter diesem Schlüssel (Art `library`) merkt sich ein Kurs seine Baza. */
+const COURSE_BASE_KEY = 'base';
+
 async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring | null): Promise<World> {
   /* Der frische Bund: eben angelegte Rollen sind darin, der der Ansicht kennt sie noch nicht. */
   const ring = (await keysFor(who).then((k) => k.ring, () => null)) ?? held;
@@ -325,9 +328,14 @@ async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring 
     .then((r) => (r.members.some((m) => m.roleId.toLowerCase() === learners.roleId.toLowerCase()) ? there : null)), null)));
   const sharedAreas = new Set(read.filter((x): x is string => x !== null));
   const onPage = new Set((page?.parts ?? []).filter((p) => p.kind === 'cogita-revision').map((p) => readConfig(p.config).library));
-  /* Die Baza des Kurses ist die, deren Powtórka auf der Hauptseite steht — dann die des Bereichs, dann die geteilten. */
+  /*
+   * Die Baza des Kurses ist die gewählte (0135, Schlüssel `library`/`base`), sonst die, deren Powtórka auf der
+   * Hauptseite steht — dann die des Bereichs, dann die geteilten.
+   */
+  const chosen = keys.find((k) => k.kind === 'library' && k.key === COURSE_BASE_KEY)?.refId?.toLowerCase() ?? null;
+  const rank = (l: LibraryRow) => (l.libraryId.toLowerCase() === chosen ? 2 : onPage.has(l.libraryId) ? 1 : 0);
   const course = [...knowledge.filter((l) => l.areaId === areaId), ...knowledge.filter((l) => sharedAreas.has(l.areaId))]
-    .sort((a, b) => Number(onPage.has(b.libraryId)) - Number(onPage.has(a.libraryId)));
+    .sort((a, b) => rank(b) - rank(a));
   const others = profile.kind === 'course' ? knowledge.filter((l) => l.areaId !== areaId && !sharedAreas.has(l.areaId)) : [];
   const named = ring === null || profile.kind !== 'course' ? [] : await openLibraries(ring, [...course, ...others]).catch(() => [] as OpenLibrary[]);
 
@@ -2169,18 +2177,22 @@ async function pickBase(ctx: Ctx, held: Held, base: OpenLibrary, replacing?: { r
 
   const revision = store.all().find((e) => e.kind === 'revision');
   const pageHas = (ctx.world.page?.parts ?? []).some((part) => part.kind === 'cogita-revision');
-  const pageHadOld = replacing !== undefined && hasRevisionPart(ctx, replacing.base.libraryId);
+  /* Beim Wechsel zeigt die Powtórka jeder bisherigen Baza des Kurses auf der Hauptseite jetzt die neue. */
+  const old = replacing === undefined ? [] : ctx.world.bases.map((b) => b.libraryId).filter((id) => id !== base.libraryId && hasRevisionPart(ctx, id));
   if (revision === undefined) {
     notes.push('Baza nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki), potem dodaj ją na stronę główną.');
-  } else if (ctx.main !== null && pageHadOld && replacing !== undefined) {
+  } else if (ctx.main !== null && old.length > 0) {
     held.step('Powtórka na stronie głównej…');
-    await pointRevisionPart(ctx.main, replacing.base.libraryId, { libraryId: base.libraryId, revisionId: revision.id });
+    await pointRevisionPart(ctx.main, old, { libraryId: base.libraryId, revisionId: revision.id });
     notes.push('Powtórka na stronie głównej jest teraz z tej bazy.');
   } else if (ctx.main !== null && !pageHas) {
     held.step('Powtórka na stronie głównej…');
     await addToPage(ctx.main, [revisionPart({ libraryId: base.libraryId, revisionId: revision.id })]);
     notes.push('Jej powtórka stoi na stronie głównej — tam uczą się osoby z linku.');
   }
+  /* 0135 — die Wahl gilt auch ohne Powtórka auf der Hauptseite. */
+  await saveImportKeys(course, [{ kind: 'library', key: COURSE_BASE_KEY, refId: base.libraryId, refText: base.name }])
+    .catch(() => notes.push('Serwer nie zapamiętał wyboru (potrzebna nowsza wersja) — dopóki na stronie głównej nie ma powtórki tej bazy, karta może pokazywać poprzednią.'));
   if (replacing?.revoke === true && learners !== null) {
     held.step(`Zamykanie obszaru „${nameOf(ctx, replacing.base.areaId)}” dla uczących się…`);
     const dropped = await dropFromArea(replacing.base.areaId, learners.roleId).then((r) => r.note, (e) => { notes.push(`Dostępu do obszaru „${nameOf(ctx, replacing.base.areaId)}” nie odebrano (${failure(e, 'błąd')}) — zrobisz to w jego karcie Dostęp.`); return null; });
@@ -2191,10 +2203,10 @@ async function pickBase(ctx: Ctx, held: Held, base: OpenLibrary, replacing?: { r
 }
 
 /** 2026-10-31 — die Powtórka einer Baza auf einer Seite zeigt jetzt eine andere: der Baustein bleibt, wo er steht. */
-async function pointRevisionPart(path: string, from: string, to: { readonly libraryId: string; readonly revisionId: string }): Promise<void> {
+async function pointRevisionPart(path: string, from: readonly string[], to: { readonly libraryId: string; readonly revisionId: string }): Promise<void> {
   const page = await loadPage(path);
   if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
-  const parts = page.parts.map(toDraft).map((part) => (part.kind === 'cogita-revision' && part.config.library === from
+  const parts = page.parts.map(toDraft).map((part) => (part.kind === 'cogita-revision' && from.includes(String(part.config.library))
     ? { ...part, config: { ...part.config, library: to.libraryId, revision: to.revisionId } } : part));
   await saveParts(path, parts);
 }
@@ -2217,6 +2229,7 @@ async function unlinkBase(ctx: Ctx, held: Held, base: LibraryRow): Promise<strin
     if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
     await saveParts(ctx.main, page.parts.map(toDraft).filter((part) => !(part.kind === 'cogita-revision' && part.config.library === base.libraryId)));
   }
+  await saveImportKeys(ctx.area.areaId, [{ kind: 'library', key: COURSE_BASE_KEY, remove: true }]).catch(() => undefined);
   return notes.join(' ') || undefined;
 }
 

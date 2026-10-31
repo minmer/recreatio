@@ -180,7 +180,8 @@ export function defaultPublishArea(areas: readonly AreaRow[], areaId: string): s
 /* -- Was ein Import angelegt hat --------------------------------------------------- */
 
 /** `question`: „formularz#pytanie" → die Frage (eine Kennung im Dokument ist keine Kennung des Dienstes). */
-export type ImportKeyKind = 'page' | 'form' | 'appointment' | 'role' | 'chat' | 'link' | 'question';
+/* 0135 — `library`, Schlüssel `base`: die Baza, die ein Kurs zeigt (gewählt in der Karte Kurs). */
+export type ImportKeyKind = 'page' | 'form' | 'appointment' | 'role' | 'chat' | 'link' | 'question' | 'library';
 
 export interface ImportKey {
   readonly kind: ImportKeyKind;

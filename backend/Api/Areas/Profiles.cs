@@ -535,7 +535,8 @@ public static class Profiles
     /* -- Was ein Import angelegt hat ---------------------------------------------------- */
 
     /* `question`: „formularz#pytanie" — die Kennung einer Frage im Dokument und die beim Dienst. */
-    private static readonly string[] KeyKinds = ["page", "form", "appointment", "role", "chat", "link", "question"];
+    /* 0135 — `library`: Schlüssel `base` = die Baza, die ein Kurs zeigt. */
+    private static readonly string[] KeyKinds = ["page", "form", "appointment", "role", "chat", "link", "question", "library"];
 
     private static async Task KeysAsync(HttpContext ctx, Db db, Guid id)
     {
