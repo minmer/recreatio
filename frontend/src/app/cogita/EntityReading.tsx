@@ -30,7 +30,7 @@ import { parseMarkup } from '../library/libraryMarkup';
 import { Blocks, countNotes, Inlines, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
 import { placeFor, workLook } from '../library/sourceFind';
 import type { TextLink } from '../library/sourceText';
-import { citedPlaces, leadAt, leadPlain, leadShape, readingParts, readingSource } from './reading';
+import { citedPlaces, formatReading, leadAt, leadPlain, leadShape, readingParts, readingPattern, readingSource } from './reading';
 import { fieldsOf, fieldText, kindsOf, labelOf, patternKeys, placeText, plainOf, valuesOf, type Entity, type FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
 import { originPath } from './ui';
@@ -77,12 +77,18 @@ function labelKeys(entity: Entity, lib: CogitaLibrary): Set<string> {
 
 const filled = (entity: Entity, field: FieldDef): boolean => valuesOf(entity, field).some((v) => v.value !== null && v.value !== '' && !(Array.isArray(v.value) && v.value.length === 0));
 
-/** Was ein Lernender von einem Eintrag liest — Streszczenie, Prosa, Zeit, Quellen; ohne Technisches. */
-export function readingOf(lib: CogitaLibrary, entity: Entity) {
+/**
+ * Was ein Lernender von einem Eintrag liest — Streszczenie, Prosa, Zeit, Quellen; ohne Technisches. Hat sein Rodzaj
+ * einen Wzór tekstu (`reading`), ist `shown` der Text nach ihm, und nur er steht da. `pattern`: ein anderer Wzór (die
+ * Vorschau im Editor des Rodzaju).
+ */
+export function readingOf(lib: CogitaLibrary, entity: Entity, pattern?: string) {
   const look = lib.look;
   const inTitle = labelKeys(entity, lib);
+  const question = entity.kinds.includes('question');
+  const wzor = question ? undefined : pattern ?? readingPattern(entity, look);
   /* Eine Frage als Erklärung: nur ihr Titel — ihre Felder sind Kartentext (Möglichkeiten, Antworten), keine Lektüre. */
-  const fields = entity.kinds.includes('question') ? [] : fieldsOf(entity, look).filter((f) => filled(entity, f));
+  const fields = question ? [] : fieldsOf(entity, look).filter((f) => filled(entity, f));
   const summary = fields.find(isSummary);
   const prose = fields.filter((f) => PROSE.has(f.type) && f !== summary && !(f.type !== 'blocks' && inTitle.has(f.key)));
   const when = fields.filter((f) => WHEN.has(f.type)).map((f) => ({ label: f.label, text: fieldText(entity, f, look) })).filter((x) => x.text !== '');
@@ -90,14 +96,17 @@ export function readingOf(lib: CogitaLibrary, entity: Entity) {
     .flatMap((f) => valuesOf(entity, f).filter((v) => typeof v.value === 'string' && v.value !== '')
       .map((v) => ({ field: f, work: v.value as string, locator: v.locator ?? '' })));
   const leadField = summary ?? prose[0];
+  const shown = wzor === undefined || wzor.trim() === '' ? undefined : formatReading(wzor, entity, look);
   return {
     title: labelOf(entity, look),
     summary,
     prose,
     when,
     places,
-    /** Der Anriss ohne Zeichen: das Streszczenie, sonst der erste Absatz des ersten Textes. */
-    lead: leadField === undefined ? '' : plainLead(entity, leadField, leadField === summary)
+    /** Der Text nach dem Wzór des Rodzaju — statt Streszczenie, Feldern, Daten und Stellen. */
+    shown,
+    /** Der Anriss ohne Zeichen: der erste Absatz nach dem Wzór, sonst das Streszczenie, sonst der erste Absatz des ersten Textes. */
+    lead: shown !== undefined ? leadPlain(shown) : leadField === undefined ? '' : plainLead(entity, leadField, leadField === summary)
   };
 }
 

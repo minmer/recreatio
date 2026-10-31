@@ -531,11 +531,15 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
       ? (merged.some((f) => f.key === wantTells) ? wantTells : undefined)
       : (before.tells !== undefined && merged.some((f) => f.key === before.tells) ? before.tells : undefined);
     const system = 'system' in raw ? def.system : before.system;
+    /* 2026-10-31 — der Wzór tekstu bleibt, wenn das Dokument ihn nicht nennt; "reading": "" nimmt ihn ab. */
+    const reading = 'reading' in raw ? def.reading : before.reading;
     if (name !== before.name) warnings.push(`Rodzaj „${before.name}” zmienia nazwę na „${name}”.`);
     if (label !== before.label) warnings.push(`Rodzaj „${name}”: wzór etykiety „${before.label}” → „${label}”.`);
     if (tells !== before.tells) warnings.push(`Rodzaj „${name}”: pole odróżniające imienników „${before.tells ?? '—'}” → „${tells ?? '—'}”.`);
     if (system !== before.system) warnings.push(`Rodzaj „${name}”: stała rola w silniku „${before.system ?? '—'}” → „${system ?? '—'}”.`);
-    kinds.push({ id, isNew, ...withMarks, def: { ...def, name, fields: merged, label, tells, system } });
+    if (reading !== before.reading) warnings.push(`Rodzaj „${name}”: ${reading === undefined ? 'bez wzoru tekstu do czytania (jak dotąd: streszczenie albo pierwszy akapit, potem pola z tekstem)' : 'nowy wzór tekstu do czytania'}.`);
+    const { reading: _named, ...rest } = def;
+    kinds.push({ id, isNew, ...withMarks, def: { ...rest, name, fields: merged, label, tells, system, ...(reading === undefined ? {} : { reading }) } });
   }
   /* Wie ein Feld eines Eintrags seine Werte meint: aus den Rodzajen dieses Dokuments, sonst der Baza. */
   const planKinds = new Map(kinds.map((k) => [k.id, k.def]));

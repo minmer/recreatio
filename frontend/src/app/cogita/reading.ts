@@ -11,10 +11,13 @@
  *   readingParts    Listen unter einem Zwischentitel klappen zu, der Titel ist der Knopf (ein Satz mit „:" davor
  *                   gehört dazu); alles andere bleibt, wie es ist
  *   citedPlaces     die Quellen des Textes mit ihrer Stelle, in der Reihenfolge — wohin „Czytaj tekst" führt
+ *   formatReading   der Text eines Eintrags nach dem Wzór seines Rodzaju (`KindDef.reading`)
  * </code>
  */
 
+import { blocksIn, blocksMarkup } from '../library/blocks';
 import { parseMarkup, type Block, type CiteItem, type Inline } from '../library/libraryMarkup';
+import { fieldsOf, fieldText, kindsOf, labelOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 
 /* Wie `parseMarkup` die Zeilen liest (libraryMarkup.ts) — nur so weit, wie es hier zählt. */
 const ITEM = /^\s*([-*•]|(\d+)[.)])\s+\S/;
@@ -158,3 +161,87 @@ export function citedPlaces(blocks: readonly Block[]): CiteItem[] {
   walk(blocks);
   return out;
 }
+
+/* -- 2026-10-31: der Wzór eines Rodzaju (`KindDef.reading`) ------------------------------------------------------- */
+
+const SLOT = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
+const SLOT_ALONE = /^\s*\{([A-Za-z][A-Za-z0-9_]*)\}\s*$/;
+
+/** Schlichter Text in einem Zapis: seine Zeichen bedeuten dort nichts (`*`, `_`, `[`, `]`, `^`, `\`). */
+const plainInMarkup = (text: string): string => text.replace(/([\*_[\]^])/g, '\$1');
+
+/** Ein Name in einem Link `[[…|@…]]` — ohne die Zeichen, die ihn beenden. */
+const linkWords = (text: string): string => text.replace(/\||\[|\]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Ein Feld an seiner Stelle im Wzór; `alone`: allein in seiner Zeile — dann darf es Absätze und Punkte bilden. */
+function slotText(entity: Entity, field: FieldDef, look: Lookup, alone: boolean): string {
+  const values = valuesOf(entity, field);
+  const oneLine = (t: string) => (alone ? t : t.replace(/\s*\n\s*/g, ' '));
+  switch (field.type) {
+    case 'markup':
+    case 'text': {
+      const texts = values.map((v) => (typeof v.value === 'string' ? v.value.trim() : '')).filter((t) => t !== '');
+      return oneLine((field.type === 'text' ? texts.map(plainInMarkup) : texts).join(alone ? '\n\n' : ' '));
+    }
+    case 'blocks':
+      return oneLine(blocksMarkup(blocksIn(entity.data[field.key])).trim());
+    case 'list': {
+      const items = values.flatMap((v) => (Array.isArray(v.value) ? v.value : [v.value]))
+        .map((x) => (typeof x === 'string' ? x.trim() : '')).filter((x) => x !== '').map(plainInMarkup);
+      return alone ? items.map((x) => `- ${x}`).join('\n') : items.join(', ');
+    }
+    case 'ref':
+      return values.map((v) => {
+        if (typeof v.value !== 'string' || v.value === '') return '';
+        /* Mit Stelle: eine Quelle wird eine Fussnote (mit „pokaż w tekście"), ein eigener Eintrag „(zob. …)". */
+        const place = (v.locator ?? '').replace(/;/g, ',').replace(/\]/g, ')').trim();
+        if (field.locator === true && place !== '') return `[@${v.value}, ${place}]`;
+        const target = look.entity(v.value);
+        const name = target === undefined ? '' : linkWords(labelOf(target, look));
+        return name === '' ? '' : `[[${name}|@${v.value}]]`;
+      }).filter((t) => t !== '').join(', ');
+    case 'url':
+      return values.map((v) => (typeof v.value === 'string' && /^https?:\/\/\S+$/i.test(v.value.trim()) ? `[${plainInMarkup(v.value.trim())}](${v.value.trim()})` : ''))
+        .filter((t) => t !== '').join(', ');
+    case 'media':
+    case 'geo':
+      return '';
+    default:
+      return plainInMarkup(fieldText(entity, field, look));
+  }
+}
+
+/**
+ * DER TEXT EINES EINTRAGS NACH DEM WZÓR SEINES RODZAJU: ein Zapis, in dem `{klucz}` der Wert des Feldes wird — ein
+ * Zapis bleibt Zapis, Text bleibt Text, eine Liste allein in ihrer Zeile wird Punkte (unter einem fetten Titel also
+ * zugeklappt), ein Verweis mit Stelle eine Fussnote, ein Verweis ein Link mit dem Namen, alles andere sein Text
+ * (Datum, Zahl mit Einheit, Wahl). Ein Abschnitt bis zur Leerzeile, dessen Felder alle leer sind, fällt weg — samt
+ * seinem Zwischentitel. Der erste Absatz ist der Anriss vor „Czytaj dalej".
+ */
+export function formatReading(pattern: string, entity: Entity, look: Lookup): string {
+  const fields = new Map(fieldsOf(entity, look).map((f) => [f.key, f]));
+  const out: string[] = [];
+  for (const chunk of pattern.replace(/\r\n?/g, '\n').split(/\n[ \t]*\n/)) {
+    let slots = 0;
+    let filled = 0;
+    const text = chunk.split('\n').map((line) => {
+      const alone = SLOT_ALONE.test(line);
+      return line.replace(SLOT, (_all, key: string) => {
+        slots += 1;
+        const field = fields.get(key);
+        const value = field === undefined ? '' : slotText(entity, field, look, alone);
+        if (value !== '') filled += 1;
+        return value;
+      });
+    }).join('\n');
+    if (slots > 0 && filled === 0) continue;
+    if (text.trim() !== '') out.push(text.replace(/\s+$/, ''));
+  }
+  return out.join('\n\n').trim();
+}
+
+/** Der Wzór, nach dem ein Eintrag gelesen wird: der seines ersten Rodzaju, der einen hat. */
+export function readingPattern(entity: Entity, look: Pick<Lookup, 'kind'>): string | undefined {
+  return kindsOf(entity, look).find((k) => (k.reading ?? '').trim() !== '')?.reading;
+}
+

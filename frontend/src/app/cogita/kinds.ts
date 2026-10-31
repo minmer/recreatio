@@ -226,7 +226,9 @@ function overridden(base: KindDef, doc: KindDef): KindDef {
     fields.push(was === undefined ? f : { ...was, label: f.label, says: f.says ?? was.says });
   }
   for (const f of base.fields) if (!fields.some((one) => one.key === f.key)) fields.push(f);
-  return { ...base, name: doc.name || base.name, label: doc.label || base.label, tells: doc.tells ?? base.tells, fields };
+  /* 2026-10-31 — auch ein eingebauter Rodzaj darf sagen, wie seine Einträge zum Lesen aussehen. */
+  const reading = doc.reading ?? base.reading;
+  return { ...base, name: doc.name || base.name, label: doc.label || base.label, tells: doc.tells ?? base.tells, ...(reading === undefined ? {} : { reading }), fields };
 }
 
 /** Alle Arten einer Bibliothek: die eingebauten (wie geändert), dann die eigenen. */
@@ -269,6 +271,7 @@ export function kindDoc(kind: KindDef): Record<string, unknown> {
     name: kind.name,
     label: kind.label,
     ...(kind.tells === undefined ? {} : { tells: kind.tells }),
+    ...(kind.reading === undefined ? {} : { reading: kind.reading }),
     ...(kind.system === undefined ? {} : { system: kind.system }),
     fields: kind.fields.map((f) => {
       const out: Record<string, unknown> = { key: f.key, label: f.label, type: f.type };

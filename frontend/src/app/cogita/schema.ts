@@ -232,6 +232,13 @@ export interface KindDef {
   readonly label: string;
   /** Das Feld, das Gleichnamige in der Suche unterscheidet [F4]. */
   readonly tells?: string;
+  /**
+   * 2026-10-31 — WIE EIN EINTRAG ZUM LESEN AUSSIEHT („Nowy temat", die Erklärung nach einer Antwort): ein Zapis mit
+   * Feldern in Klammern, etwa „{streszczenie}\n\n{opis}\n\n**Wydarzenia**\n{wydarzenia}" (`reading.ts` `formatReading`).
+   * Fehlt er: das Streszczenie oder der erste Absatz, dann die Felder mit Text, Daten und Stellen. Im JSON "reading"
+   * („show" ist schon ein Feld der Frage: wie viele Paare auf einmal).
+   */
+  readonly reading?: string;
   readonly fields: readonly FieldDef[];
   /*
     2026-10-17 — „Postać — może mówić" ist fort: sprechen darf in einem Ablauf
@@ -396,11 +403,13 @@ export function readKind(id: string, raw: unknown): KindDef {
   }
   const name = clip(str(doc.name).trim(), 80) || 'Rodzaj';
   const tells = str(doc.tells);
+  const reading = clip(str(doc.reading).replace(/\r\n?/g, '\n').trim(), 4000);
   return {
     id,
     name,
     label: clip(str(doc.label).trim(), 200) || (fields[0] ? `{${fields[0].key}}` : ''),
     tells: seen.has(tells) ? tells : undefined,
+    ...(reading === '' ? {} : { reading }),
     fields,
     system: pick(SYSTEM_KINDS, doc.system)
   };
@@ -412,6 +421,9 @@ export function problemsOf(kind: KindDef, look: Pick<Lookup, 'kind'>): string[] 
   const keys = new Set(kind.fields.map((f) => f.key));
   for (const token of patternKeys(kind.label)) {
     if (!keys.has(token)) out.push(`Wzór etykiety używa pola „${token}", którego ten rodzaj nie ma.`);
+  }
+  for (const token of patternKeys(kind.reading ?? '')) {
+    if (!keys.has(token)) out.push(`Wzór tekstu do czytania używa pola „${token}", którego ten rodzaj nie ma.`);
   }
   for (const field of kind.fields) {
     for (const target of field.to ?? []) {

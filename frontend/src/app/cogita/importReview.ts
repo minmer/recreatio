@@ -138,6 +138,7 @@ function kindChange(before: KindDef, after: KindDef): string {
   if (before.fields.map((f) => f.key).join() !== after.fields.map((f) => f.key).join() && added.length === 0) out.push('inna kolejność pól');
   if (before.tells !== after.tells) out.push(`pole odróżniające „${before.tells ?? '—'}” → „${after.tells ?? '—'}”`);
   if (before.system !== after.system) out.push('inna stała rola');
+  if ((before.reading ?? '') !== (after.reading ?? '')) out.push(after.reading === undefined ? 'bez wzoru tekstu do czytania' : 'inny wzór tekstu do czytania');
   return out.join('; ');
 }
 
