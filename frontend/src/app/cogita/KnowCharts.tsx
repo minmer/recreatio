@@ -396,7 +396,7 @@ function OwnTiles({ s }: { s: KnowStats }) {
     <Tiles tiles={[
       { key: 'known', label: 'Umiem', value: `${s.known} z ${s.cards}`, sub: `średnia znajomość ${percent(s.share)}` },
       { key: 'answers', label: 'Odpowiedzi', value: String(s.answers), sub: s.accuracy === null ? 'jeszcze żadnej' : `dobrze ${percent(s.accuracy)}` },
-      { key: 'streak', label: 'Dni z rzędu', value: String(s.streak), sub: `${s.activeDays} dni nauki` },
+      { key: 'streak', label: 'Dni z rzędu', value: String(s.streak), sub: `${s.activeDays} ${s.activeDays === 1 ? 'dzień' : 'dni'} nauki` },
       { key: 'time', label: 'Czas nauki', value: s.msTotal === 0 ? '—' : spanText(s.msTotal), sub: s.lastAt === null ? undefined : `ostatnio ${new Date(s.lastAt).toLocaleDateString('pl-PL')}` },
       { key: 'due', label: 'Na dziś', value: String(s.forecast[0]?.due ?? 0), sub: 'kart do powtórki' }
     ]} />

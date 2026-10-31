@@ -2750,3 +2750,42 @@ EVENTS.md (the course's base).
   folds, ↩, „Czytaj tekst” to the reader, a kind pattern in the panel, the explanation and the editor preview),
   `stats-browser.mjs` 12 (charts, hover and keys, range, tables, class heat map, a learner, phone dark, end of run),
   `kurs-browser.mjs` 13 (pick, switch, unlink; memberships read back from the service).
+
+## C8 — A course uses many bases, answers go where the learning happens, answers in each person's own area (2026-11-01)
+
+Owner: „a course should use multiple bases and one base should be usable by multiple pages … the course is only a
+help and not a necessity”, then „the teacher has no possibility to see the answers of the student”, then „the virtual
+role of the form … the admin of the form has read ability … used to show their correctnesses”. As built — COGITA.md §7,
+EVENTS.md (the course's bases).
+
+- Where answers go is said by the PLACE (`cogita/answersTo.ts`): a learning module's field „Odpowiedzi uczących się do”
+  (`answers`, field kind `area`, `pages/PickArea.tsx` with the intake state), else the revision's area (the editor's
+  field is now an area picker and is honoured), else the base's Ustawienia, else the person's private area. A base is
+  never changed by a course, so one base serves many courses and pages.
+- The service (`Cogita.cs`) also takes answers into an area INSIDE one the learner reads, if it has an intake (a
+  course's leaders' area), and says `verdict: "area"` when it refuses; the browser then moves the waiting batches to
+  the fallback (`Learner.retarget`: private area for a person, the base area for a seat) instead of keeping them for
+  ever.
+- Per person (0136, `learn_batch.area_epoch`): when the place names a form's virtual area („Obszary osób”, 0120), a
+  person of that form sends into HER own area of it, sealed under its epoch key; whoever reads that area by the rule
+  (the leaders) opens it — no intake. Seat grants say their `virtualAreaId`; `/workspace/learn/area/{virtual}/batches`
+  returns the batches of every person's area the caller reads; the area list groups them under the virtual area.
+- Teacher: `GET /workspace/learn/library/{id}/areas` (areas with answers to a base that the caller reads, with
+  counts); Nauka → Postępy chooses the area („Uczący się z obszaru”), `postepy/<area>` in the address puts the learners
+  first; each learner opened shows his answers one by one (question, the answer in words via `givenText`, right or
+  wrong, time); names from the answers area, the areas above it and the base's area; a link „Odpowiedzi uczących się →”
+  under a learning module for whoever leads its area.
+- Kurs tab (`AreaKindPanel.tsx`, `areas/courseBases.ts`): any number of bases — the course's own, the ones shown on its
+  main page, the ones kept under import keys of kind `library` (0135; the old key `base` counts); „Utwórz nową bazę”,
+  „Dodaj istniejącą” (no change to the base), per base „Dodaj na stronę”, „Wpuść uczących się”, „Odłącz” (closes the
+  area only when no other course base lies there), „Postępy uczących się” where its modules send; checks for closed
+  areas, the main page without learning and modules whose answers do not go to the course or an area inside it.
+- Checks: app-cogita-check 714, app-duty-check (course bases), tsc, style, JSON 35 formats (ImportFormats.json
+  regenerated), parts 12/12, platform, library, schemes 111. LocalDB drives (session scratchpad `many/`):
+  `many-browser.mjs` 26 (two courses share a base, a course with two bases, the leaders' area inside a course, link
+  learners per course, the teacher's chooser and answers, unlink), `va-learn-api.mjs` 9 and `va-learn-browser.mjs` 4
+  (a form's „Obszary osób”: answers in the person's own area, refused for another person, read by the leader).
+- Later the same day (owner: „the user in the module should see his own statistics and charts”): „Moje statystyki” in
+  the modules Powtórka, Przebieg and Nauka (osoba z linkiem) — `ModuleStats.tsx` (lazy) with `KnowledgeStats` for the
+  module's cards and „Moje odpowiedzi” (`AnswerLog.tsx`, moved out of `Progress.tsx` so a page does not load the
+  teacher's screen); a button beside „Zacznij”, above the run in a tall module; „Wróć” back. Drive `many-browser.mjs` 30.

@@ -67,15 +67,16 @@ kind, other lists, and the JSON import/export (admins only).
 | organisation | data controller, main page, one-click lists "Wydarzenia" and "Grupy" |
 | course | knowledge base with daily revision (new, or an existing one: see below), learners' role and link |
 
-**The course's base** (2026-10-31) is made in the area („Utwórz bazę”) or **picked** („Wybierz istniejącą”): an
-existing base stays where it is, and the learners' role reads its area (made now if missing) — the form says that
-the learners will read the whole area, naming its other bases; only areas one may let others into, never the
-private one. Answers go to the course's intake if the base names no place yet; its revision goes on the main page if
-none is there. Which bases a course has is not stored: those of the area, plus those of the areas its learners' role
-reads. Which one leads is stored (0135: import key `library`/`base`, also without a revision on the main page),
-else the one whose revision is on the main page. „Wybierz inną” switches (the page's revision follows; the
-old area can be closed for the learners, checked by default), „Odłącz” closes a shared base's area for the learners
-and takes its revision off the main page — the base, its entries and progress stay.
+**The course's bases** (2026-10-31, many since 2026-11-01, `courseBases.ts`): made in the area („Utwórz bazę”, „Utwórz
+nową bazę”) or **added** („Dodaj istniejącą”): an existing base stays where it is and is not changed — the learners'
+role reads its area (made now if missing; the form says they will read the whole area, naming its other bases; only
+areas one may let others into, never the private one), and its first revision can go on the main page with the
+answers to the course (`answers`). A course's bases: those of its area, those its main page shows, and the kept ones
+(import keys of kind `library`, 0135; the old key `base` counts). Per base: „Dodaj na stronę”, „Wpuść uczących się”,
+„Postępy uczących się” (where its modules send — the course, or an area inside it such as the leaders'), „Odłącz”
+(its modules leave the page; the area closes for the learners only when no other course base lies there). „Do
+zrobienia” names closed areas, a main page without learning and modules whose answers do not go to the course (fix:
+„Kieruj do kursu”).
 
 The main appointment is made there or **picked** ("Wybierz istniejący"): single (no repeat), not a programme point,
 editable by me, from a month back to a year ahead. The area's own calendar comes first; one from another calendar

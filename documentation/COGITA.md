@@ -447,14 +447,24 @@ to the view and the schema; the computation of knowness is fixed in code and the
   „umiem” 1–2, „zanika” 0.5–1, „słabo”, „jeszcze nie”); cards known at the end of each day; answers per day; due in
   the next 14 days; topics („O czym”) weakest first; question kinds by accuracy; the hardest questions. A range of
   7 / 30 / 90 days scopes every chart; each chart is one tab stop (arrows walk it), hover and focus show the same
-  readout, and a table under it holds the same values. Shown in Nauka → Postępy, and at the end of a run (also on a
-  page, for learners from a link). The teacher (Postępy uczących się) sees the same for each learner, and all
+  readout, and a table under it holds the same values. Shown in Nauka → Postępy, at the end of a run (also on a
+  page, for learners from a link), and — since 2026-11-01 — in every learning module on a page: „Moje statystyki” (the
+  module's cards, the learner's own answers one by one; `ModuleStats.tsx`, loaded when opened). The teacher (Postępy uczących się) sees the same for each learner, and all
   together: every learner as a stacked bar, topics × learners as a heat map, answers of all per day, the questions
   hardest for all. Colours were validated against both surfaces (blue series; a one-hue ramp for the stages).
 - **Knowness is saved too**, as a snapshot per card: the question id plus the direction. A template card’s question id is the stable id of the generated card.
-- **A declared storage area** receives a learner’s answers. A teacher who can read there sees the progress [E10].
-  - The course (library) declares the area; a revision, session or form step may override it.
-  - For your own study, it is your private area.
+- **Answers go where the learning happens** (2026-11-01, `answersTo.ts`): the learning module on a page names the
+  area („Odpowiedzi uczących się do”), else its revision, else the base's Ustawienia; nothing named — the person's
+  private area (a seat: the base's area). No course changes a base, so one base serves many courses and pages, and
+  each place's teacher sees its own learners [E10].
+  - The service takes answers into an area the learner reads, or into one INSIDE it that has an intake (the leaders'
+    area of a course); refused (`verdict: "area"`), the browser moves them to the fallback instead of waiting forever.
+  - **A form's „Obszary osób”** (0120) named as the place: each person of the form sends into HER own area of it,
+    sealed under that area's key (0136, `area_epoch`) — whoever reads it by the rule (the leaders) opens the answers;
+    no intake needed.
+  - The teacher (Nauka → Postępy) chooses whose learners: the areas with answers to this base that she reads; from a
+    module („Odpowiedzi uczących się →”) or the Kurs tab the area is in the address and the learners come first.
+    Each learner opened shows the answers one by one — the question, the answer in words, right or wrong, the time.
 - **Answers reach the storage area exactly the way a form reaches its office.** Each batch is sealed for the learner and for the area’s intake key, and whoever holds the role the intake was made for reads it. Learners write without reading one another.
 - **Progress is per person**, including several persons on one account [E11, F06]. Form people (seats) are always visible to their office [E10].
 - **Reminders.** The service sees one plain “next due” time per learner and library, and nothing more [E8].
@@ -690,7 +700,7 @@ Phones stay awake.
 | Pages with one module | One common way to put a module on its own page (a form, a revision, a flow…) at `recreatio.pl/#/c/<id>`, owned by whoever creates it, without building a page by hand; the module reads the base itself | F20 |
 | Search | Library and knowledge-base content in Ctrl K | P12 |
 | Wiedza and Nauka | Two workspace views of Cogita on the same bases (2026-10-24, §14.1): Wiedza for the knowledge (`#/workspace/knowledge/<id>`), Nauka for learning (`#/workspace/learn/<id>`): due now, sessions, offline practice. The library itself has no Cogita tab. | A1 |
-| Course (Kurs) | An area of kind Kurs (2026-10-27, `AreaKindPanel.tsx`, nothing built beside the existing pieces): „Utwórz bazę” (a base with the daily gated revision, answers to the area's intake), the main page made with that revision on it („Nauka na stronie” adds it to an existing one), the role Uczący się and its link to that page — whoever opens it introduces themselves and learns without an account — and „Postępy uczących się” (Nauka → Postępy). | A2 |
+| Course (Kurs) | An area of kind Kurs (2026-10-27, `AreaKindPanel.tsx`, nothing built beside the existing pieces) — a help, not a necessity: any page can carry learning modules with their answers area. Since 2026-11-01 any number of bases (its own, the ones on its main page, the kept ones — `courseBases.ts`), each unchanged and usable by other courses; their revisions on the main page send answers to the course; the role Uczący się and its link to that page — whoever opens it introduces themselves and learns without an account — and per base „Postępy uczących się” (Nauka → Postępy of the course's area). | A2 |
 | JSON and your AI | Schema, entities, statements, questions and flows from a text: a prompt to copy and an import with review. A whole book: `templates/cogita/ksiazka-AI.md` — step 1 the work with its text and bibliography at once, step 2 after reading a menu (scope; layers — the work's course and elements, facts and sources, chronology, a set of items, concepts; questions; learning order; revisions; fact checking) from which the owner picks; general, not per book: each layer is one general scheme; its appendices come from the app (`scripts/ksiazka-guide.mjs`, checked by `app-cogita-check`) | P13 |
 | Android app | Reminders, the screen kept awake, offline practice | P17 |
 

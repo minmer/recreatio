@@ -38,12 +38,24 @@ import { Bar, CogitaContext, useAsync, useBusy, type CogitaCtx } from '../../cog
 import { OnSeat } from './seat';
 import type { EntityConfig, FlowConfig, LiveConfig, MapConfig, RevisionConfig, SeatLearnConfig, TableConfig, TopicsConfig } from './cogita';
 import { Loading } from '../../ui/Loading';
+import { later } from '../../ui/later';
 import { FogMap } from '../../cogita/FogMap';
 
 /** Hoch oder im ganzen Fenster: das Ganze. */
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
 
 const Head = ({ title }: { title: string }) => <h2 className="wk-card-title">{title}</h2>;
+
+/*
+ * 2026-11-01 — DIE EIGENE STATISTIK IM BAUSTEIN (`cogita/ModuleStats.tsx`): dieselben Diagramme wie in Nauka → Postępy
+ * und die eigenen Antworten, für die Karten dieses Bausteins. Geladen erst, wenn jemand sie öffnet.
+ */
+const ModuleStats = later(() => import('../../cogita/ModuleStats').then((m) => m.ModuleStats));
+
+/** Der Knopf dazu — im hohen Baustein über der laufenden Powtórka, sonst neben „Zacznij”. */
+const StatsButton = ({ onOpen, line = false }: { onOpen: () => void; line?: boolean }) => (
+  <button type="button" className={line ? 'wk-link-btn' : 'wk-btn wk-btn-line'} onClick={onOpen} data-module-stats-open="">Moje statystyki</button>
+);
 
 /** Was die Seite sagt, solange die Baza wiedzy geöffnet wird — oder wenn dieser Leser sie nicht lesen darf. */
 function Closed({ title, lib }: { title: string; lib: CogitaLibrary | null | undefined }) {
@@ -85,19 +97,27 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
    */
   const who = usePageLearner(lib, answersArea(config.answers, doc?.data.storageAreaId));
   const learner = who.learner;
-  const [running, setRunning] = useState(false);
+  const [view, setView] = useState<'run' | 'stats' | null>(null);
   const name = typeof doc?.data.name === 'string' ? doc.data.name : '';
   const title = config.title || name || 'Powtórka';
   const planned = useAsync(lib == null || doc === undefined ? null : () => planFor(lib, doc.id, null, 'page'), [lib, lib?.revision, doc?.id]);
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
   if (doc === undefined) return <><Head title={title} /><p className="wk-card-muted">Tej powtórki nie ma w bazie wiedzy.</p></>;
 
-  if (running || isTall(ctx)) {
+  if (view === 'stats') {
+    return (
+      <CogitaContext.Provider value={cg}>
+        <ModuleStats lib={lib} learner={learner} cards={planned === undefined ? null : planned?.plan?.cards ?? []} title={title} onBack={() => setView(null)} />
+      </CogitaContext.Provider>
+    );
+  }
+  if (view === 'run' || isTall(ctx)) {
     /* Hoch läuft die Powtórka gleich — wer nur den Link hat, stellt sich darüber vor; danach lernt er neu als er selbst. */
     return (
       <CogitaContext.Provider value={cg}>
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
-        <RevisionRun key={who.as ?? ''} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setRunning(false)} />
+        {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
+        <RevisionRun key={who.as ?? ''} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setView(null)} />
       </CogitaContext.Provider>
     );
   }
@@ -111,7 +131,8 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
       {levels !== null && levels.known > 0 && <Bar value={levels.known / Math.max(1, total)} label="Ile już umiesz" />}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setRunning(true)}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
+        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('run')}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
+        {who.ready && <StatsButton onOpen={() => setView('stats')} />}
       </div>
       <LearnerLine learner={who} lib={lib} />
       <TeacherLink library={lib.libraryId} area={answersArea(config.answers, doc.data.storageAreaId, lib.settings().storageAreaId)} />
@@ -124,7 +145,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
   const { lib, ctx: cg } = usePageBase(config.library);
   const who = usePageLearner(lib, answersArea(config.answers));
   const learner = who.learner;
-  const [playing, setPlaying] = useState(false);
+  const [view, setView] = useState<'play' | 'stats' | null>(null);
   const cards = useAsync(lib == null ? null : () => lib.cards('flow').then((r) => r.cards), [lib, lib?.revision]);
   const content = useMemo(() => (lib == null || cards == null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
   const flow = useMemo(() => (content === null ? undefined : content.flow(config.flow)), [content, config.flow]);
@@ -133,12 +154,20 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
   if (content === null) return <><Head title={title} /><Loading /></>;
   if (flow === undefined) return <><Head title={title} /><p className="wk-card-muted">Tego przebiegu nie ma w bazie wiedzy.</p></>;
 
-  if (playing || isTall(ctx)) {
+  if (view === 'stats') {
+    return (
+      <CogitaContext.Provider value={cg}>
+        <ModuleStats lib={lib} learner={learner} cards={cards ?? null} title={title} onBack={() => setView(null)} />
+      </CogitaContext.Provider>
+    );
+  }
+  if (view === 'play' || isTall(ctx)) {
     return (
       <CogitaContext.Provider value={cg}>
         {!isTall(ctx) && <Head title={title} />}
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
-        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setPlaying(false)} presentationAs="link" />
+        {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
+        <FlowPlayer key={who.as ?? ''} flow={flow} content={content} learner={learner} onClose={isTall(ctx) ? undefined : () => setView(null)} presentationAs="link" />
       </CogitaContext.Provider>
     );
   }
@@ -151,7 +180,8 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
       {flow.goals.length > 0 && ctx.size.width !== 'narrow' && <p className="wk-card-muted">Cele: {flow.goals.map((g) => g.title).join(' · ')}</p>}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
-        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setPlaying(true)}>{saved !== null ? 'Wróć tam, gdzie skończyłeś' : 'Zacznij'}</button>
+        <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('play')}>{saved !== null ? 'Wróć tam, gdzie skończyłeś' : 'Zacznij'}</button>
+        {who.ready && <StatsButton onOpen={() => setView('stats')} />}
       </div>
       <LearnerLine learner={who} lib={lib} />
       <TeacherLink library={lib.libraryId} area={answersArea(config.answers, lib.settings().storageAreaId)} />
@@ -453,7 +483,10 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   const { lib, name } = opened;
   const { learner, failed } = useSeatLearner(seat, lib, answersArea(config.answers));
   const [running, setRunning] = useState<string | null>(null);
+  const [stats, setStats] = useState(false);
   const cards = useAsync(lib == null ? null : () => lib.cards('learn').then((r) => r.cards), [lib, lib?.revision]);
+  /* 2026-11-01 — die Statistik gilt den Karten, die dieser Baustein lernt: der einen Powtórka, sonst der ganzen Baza. */
+  const scoped = useAsync(lib == null || config.revision === '' ? null : () => planFor(lib, config.revision, null, 'page').then((r) => r.plan?.cards ?? []), [lib, lib?.revision, config.revision]);
   const ctx = useMemo<CogitaCtx | null>(() => (lib == null ? null : seatCtx(lib, opened, seat.token)), [lib, opened, seat.token]);
 
   if (lib === undefined) return <p className="wk-card-muted">Otwieranie bazy wiedzy…</p>;
@@ -464,6 +497,13 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
     return typeof doc?.data.name === 'string' ? doc.data.name : 'Powtórka';
   };
 
+  if (stats) {
+    return (
+      <CogitaContext.Provider value={ctx}>
+        <ModuleStats lib={lib} learner={learner} cards={(config.revision === '' ? cards : scoped) ?? null} title={config.title || name || 'Twoja nauka'} onBack={() => setStats(false)} />
+      </CogitaContext.Provider>
+    );
+  }
   if (running !== null) {
     return (
       <CogitaContext.Provider value={ctx}>
@@ -492,6 +532,7 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
       {revisions.length === 0 ? <p className="wk-card-muted">W tej bazie wiedzy nie ma jeszcze powtórki.</p> : (
         <div className="wk-actions">
           {revisions.map((r) => <button key={r.id} type="button" className="wk-btn" disabled={learner === null} onClick={() => setRunning(r.id)}>{nameOf(r.id)}</button>)}
+          {learner !== null && <StatsButton onOpen={() => setStats(true)} />}
         </div>
       )}
       {failed !== null && <p className="wk-error">{failed}</p>}
