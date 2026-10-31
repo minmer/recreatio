@@ -66,7 +66,7 @@ export interface KindFormOptions {
   readonly hint?: ReactNode;
 }
 
-export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), base = false, problems = [], extra, options = {}, onChange, onSave, onRemove }: {
+export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), base = false, problems = [], extra, readingPreview, options = {}, onChange, onSave, onRemove }: {
   draft: KindDef;
   writes: boolean;
   busy: boolean;
@@ -79,6 +79,8 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
   problems?: readonly string[];
   /** Unter dem Kopf — z. B. „+ Pola nauki" am Thema. */
   extra?: ReactNode;
+  /** 2026-10-31 — unter dem Wzór tekstu: ein Eintrag dieses Rodzaju, wie ihn der Lernende damit sieht (die Baza zeichnet ihn). */
+  readingPreview?: ReactNode;
   options?: KindFormOptions;
   onChange: (k: KindDef) => void;
   onSave: () => void;
@@ -138,6 +140,22 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
       {options.hint}
       {pattern && <p className="wk-hint">W etykiecie: {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && '— wzór nie używa jeszcze żadnego pola.'}</p>}
       {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich wbudowane narzędzia: przypisy, karty, sprawdzanie odpowiedzi) — można zmienić ich nazwy i dodać własne.</p>}
+      {/* 2026-10-31 — wie ein Eintrag zum Lesen aussieht („Nowy temat", die Erklärung): ein Zapis mit Feldern in Klammern (`reading.ts`). */}
+      {pattern && (
+        <div className="cg-kind-reading" data-kind-reading="">
+          <label className="wk-field"><span>Tekst do czytania — wzór</span>
+            <textarea rows={4} value={draft.reading ?? ''} disabled={!writes} placeholder={'{streszczenie}\n\n{opis}\n\n**Wydarzenia**\n{wydarzenia}'}
+              onChange={(e) => set({ reading: e.target.value === '' ? undefined : e.target.value })} />
+          </label>
+          <p className="cg-muted">
+            Tak uczący się widzi wpis tego rodzaju: „Nowy temat” przed pierwszym pytaniem i wyjaśnienie po odpowiedzi. Pola w klamrach, zapis jak w tekście
+            (**pogrubienie**, *kursywa*, ## śródtytuł, przypis [@dzieło, s. 12]). Pierwszy akapit to zapowiedź, reszta po „Czytaj dalej”; lista sama w linii pod
+            pogrubionym śródtytułem jest zwinięta; część do pustej linii, w której wszystkie pola są puste, znika. Puste pole wzoru: streszczenie albo pierwszy
+            akapit, potem pola z tekstem.
+          </p>
+          {readingPreview}
+        </div>
+      )}
       {extra}
 
       {/*
