@@ -53,7 +53,7 @@ import { loadDesk, type PageCard } from '../workspace/desk';
 import { chatsNow, invalidate, modulesNow, refreshDesk } from '../workspace/viewData';
 import { createArea, dropFromArea, joinArea, loadMembers, type AreaRow, type Member } from './area';
 import { AreaPick } from './AreaPick';
-import { baseKey, closesArea, courseBaseRefs, LEARNING_KINDS, strayLearning, type CourseBaseRef } from './courseBases';
+import { answersOfBase, baseKey, closesArea, courseBaseRefs, isInside, strayLearning, type CourseBaseRef } from './courseBases';
 import { partOf } from '../pages/parts/registry';
 import { linkAudienceForm } from './audience';
 import { setPageController } from './controllers';
@@ -759,7 +759,7 @@ function checksOf(ctx: Ctx): Check[] {
         fix: <Fix ctx={ctx} label="Dodaj powtórki" what="Dodawanie powtórek…" done="Powtórki są na stronie głównej." act={(held) => placeAll(ctx, held)} />
       });
       /* Ein Lernbaustein, dessen Antworten nicht ausdrücklich in den Kurs gehen (womöglich in einen anderen Kurs derselben Baza). */
-      const stray = strayLearning((world.page?.parts ?? []).map((p) => ({ id: p.id, kind: p.kind, config: readConfig(p.config) })), ctx.area.areaId);
+      const stray = strayLearning(pageParts(ctx), ctx.area.areaId, (id) => insideCourse(ctx, id));
       if (stray.length > 0) {
         out.push({
           key: 'answers', ok: false,
@@ -1162,7 +1162,7 @@ function BaseRow({ ctx, base }: { ctx: Ctx; base: CourseBase }) {
       <div className="wk-actions">
         {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', row.libraryId, 'wpisy')}>Otwórz</a>}
         {/* 2026-10-27 — wie die Uczący się lernen; 2026-11-01 — die DIESES Kurses (sein Bereich in der Adresse). */}
-        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', row.libraryId, 'postepy', ctx.area.areaId)} data-course-progress="">Postępy uczących się</a>}
+        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', row.libraryId, 'postepy', answersOfBase(pageParts(ctx), base.learning, ctx.area.areaId))} data-course-progress="">Postępy uczących się</a>}
         {row !== null && ctx.main !== null && base.learning.length === 0 && (
           <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-place=""
             onClick={() => void ctx.run('Dodawanie powtórki…', 'Powtórka jest na stronie głównej.', (held) => placeBase(ctx, held, row))}>Dodaj na stronę</button>
@@ -2284,14 +2284,25 @@ async function placeAll(ctx: Ctx, held: Held): Promise<string | void> {
   return without.length === 0 ? undefined : `Bez powtórki (nie dodano): ${without.join(', ')}.`;
 }
 
-/** Jeder Lernbaustein der Hauptseite schickt die Antworten in den Kurs (`answers`) — der Baustein bleibt, wo er steht. */
+/** Die Bausteine der Hauptseite, wie die Regeln sie lesen (`courseBases.ts`). */
+const pageParts = (ctx: Ctx) => (ctx.world.page?.parts ?? []).map((p) => ({ id: p.id, kind: p.kind, config: readConfig(p.config) }));
+
+/** Liegt ein Bereich im Kurs (ein Bereich seiner Prowadzący darin)? Nach dem, was die Bereiche, die ich sehe, sagen. */
+const insideCourse = (ctx: Ctx, areaId: string): boolean =>
+  isInside(areaId, ctx.area.areaId, (id) => ctx.areas.find((a) => a.areaId.toLowerCase() === id.toLowerCase())?.parentAreaId ?? null);
+
+/**
+ * Jeder Lernbaustein der Hauptseite, dessen Antworten nicht in den Kurs gehen (`strayLearning`), schickt sie jetzt
+ * dorthin (`answers`) — einer, der in einen Bereich IM Kurs schickt, bleibt; der Baustein bleibt, wo er steht.
+ */
 async function routeAnswers(ctx: Ctx): Promise<void> {
   if (ctx.main === null) return;
   const course = ctx.area.areaId;
   const page = await loadPage(ctx.main);
   if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
-  await saveParts(ctx.main, page.parts.map(toDraft).map((part) => (LEARNING_KINDS.includes(part.kind) && String(part.config.answers ?? '').toLowerCase() !== course.toLowerCase()
-    ? { ...part, config: { ...part.config, answers: course } } : part)));
+  const drafts = page.parts.map(toDraft);
+  const stray = new Set(strayLearning(drafts.map((p) => ({ id: p.id, kind: p.kind, config: p.config as Record<string, string> })), course, (id) => insideCourse(ctx, id)).map((p) => p.id));
+  await saveParts(ctx.main, drafts.map((part) => (stray.has(part.id) ? { ...part, config: { ...part.config, answers: course } } : part)));
 }
 
 /**

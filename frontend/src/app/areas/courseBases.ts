@@ -75,10 +75,34 @@ export function courseBaseRefs(input: {
 
 /**
  * Lernbausteine der Hauptseite, deren Antworten NICHT ausdrücklich in den Kurs gehen — kein Bereich genannt (dann
- * entscheidet die Powtórka oder die Baza, also womöglich ein anderer Kurs) oder ein anderer.
+ * entscheidet die Powtórka oder die Baza, also womöglich ein anderer Kurs) oder einer ausserhalb. Ein Bereich IM Kurs
+ * (`inside`: die Prowadzący mit eigenem Bereich darin) ist richtig: dorthin schicken die Uczący się des Kurses auch.
  */
-export function strayLearning(parts: readonly PartLike[], areaId: string): PartLike[] {
-  return parts.filter((p) => LEARNING_KINDS.includes(p.kind) && !same((p.config.answers ?? '').trim(), areaId));
+export function strayLearning(parts: readonly PartLike[], areaId: string, inside: (areaId: string) => boolean = () => false): PartLike[] {
+  return parts.filter((p) => {
+    if (!LEARNING_KINDS.includes(p.kind)) return false;
+    const said = (p.config.answers ?? '').trim();
+    return said === '' || !(same(said, areaId) || inside(said));
+  });
+}
+
+/** Liegt ein Bereich in einem anderen (über die Elternbereiche, höchstens 16 Stufen)? `parentOf`: was ich von ihm weiss. */
+export function isInside(areaId: string, outer: string, parentOf: (areaId: string) => string | null): boolean {
+  let at = parentOf(areaId);
+  for (let n = 0; at !== null && n < 16; n += 1) {
+    if (same(at, outer)) return true;
+    at = parentOf(at);
+  }
+  return false;
+}
+
+/**
+ * Wohin die Lernbausteine einer Baza auf der Hauptseite die Antworten schicken — dort sieht die Lehrerin ihre Uczący
+ * się. Ein einziger genannter Bereich: der; sonst (keiner oder mehrere) der Kurs.
+ */
+export function answersOfBase(parts: readonly PartLike[], learning: readonly string[], areaId: string): string {
+  const said = [...new Set(parts.filter((p) => learning.includes(p.id)).map((p) => (p.config.answers ?? '').trim().toLowerCase()))];
+  return said.length === 1 && said[0] !== '' ? parts.find((p) => (p.config.answers ?? '').trim().toLowerCase() === said[0])!.config.answers!.trim() : areaId;
 }
 
 /**

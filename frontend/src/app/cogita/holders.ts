@@ -56,32 +56,21 @@ export function personalArea(): Promise<string | null> {
   return personal;
 }
 
-let readable: { readonly at: number; readonly ids: Promise<ReadonlySet<string> | null> } | null = null;
-
-/** Die Bereiche, die dieses Konto liest — eine halbe Minute gemerkt; `null`: unbekannt (ohne Netz). */
-function readableAreas(): Promise<ReadonlySet<string> | null> {
-  if (readable === null || Date.now() - readable.at > 30_000) {
-    const ids = loadAreas().then((r) => new Set(r.areas.map((a) => a.areaId.toLowerCase())), () => null);
-    readable = { at: Date.now(), ids };
-  }
-  return readable.ids;
-}
-
 /**
  * Wohin (`answersTo.ts`): was der Ort sagt — ein Baustein auf einer Seite, eine Powtórka, ein Schritt (`override`) —,
- * sonst die Baza (Ustawienia), sonst der eigene Bereich. 2026-11-01: eine Person schickt nur in einen Bereich, den sie
- * liest; sonst bleiben die Antworten bei ihr.
+ * sonst die Baza (Ustawienia), sonst der eigene Bereich. 2026-11-01: dazu der Ausweichort — nimmt der Dienst den
+ * genannten Bereich nicht (der Lernende gehört nicht dazu), gehen die Antworten dorthin (`Learner.retarget`).
  */
-export async function targetFor(lib: CogitaLibrary, holder: Holder, override?: string | null): Promise<Target | null> {
-  if (holder.kind === 'local') return null;
+export async function targetFor(lib: CogitaLibrary, holder: Holder, override?: string | null): Promise<{ readonly target: Target | null; readonly fallback: Target | null }> {
+  if (holder.kind === 'local') return { target: null, fallback: null };
   const said = answersArea(override, lib.settings().storageAreaId);
-  if (holder.kind === 'seat') return targetOf(placeFor('seat', said, null, null, lib.areaId).areaId);
-  const reads = said === null ? null : await readableAreas();
-  const may = reads === null ? null : (id: string) => reads.has(id.toLowerCase());
-  const allowed = said !== null && (may === null || may(said));
-  const place = placeFor('role', said, may, allowed ? null : await personalArea(), lib.areaId);
-  const target = await targetOf(place.areaId);
-  return place.own ? { ...target, own: true } : target;
+  const personal = holder.kind === 'role' ? await personalArea() : null;
+  const { place, fallback } = placeFor(holder.kind, said, personal, lib.areaId);
+  const as = async (where: { readonly areaId: string; readonly own: boolean }): Promise<Target> => {
+    const target = await targetOf(where.areaId);
+    return where.own ? { ...target, own: true } : target;
+  };
+  return { target: await as(place), fallback: fallback === null ? null : await as(fallback) };
 }
 
 /**
@@ -102,8 +91,8 @@ export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, ove
     let off = () => undefined as void;
     void (async () => {
       try {
-        const target = await targetFor(lib, holder, override);
-        const made = new Learner(lib.libraryId, holder, target);
+        const { target, fallback } = await targetFor(lib, holder, override);
+        const made = new Learner(lib.libraryId, holder, target, fallback);
         off = made.subscribe(() => setTick((n) => n + 1));
         await made.load();
         if (alive) { setHeld({ key: whose, learner: made }); setFailed(null); }

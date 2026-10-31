@@ -127,6 +127,46 @@ public static partial class Cogita
         return await cmd.ExecuteScalarAsync(ct) is not null;
     }
 
+    /// <summary>Die Bereiche über einem Bereich — sein Elternbereich, dessen Elternbereich … (höchstens 16).</summary>
+    private static async Task<List<Guid>> AboveAsync(SqlConnection connection, Guid areaId, CancellationToken ct)
+    {
+        var above = new List<Guid>();
+        await using var cmd = new SqlCommand("""
+            WITH up AS (
+                SELECT a.parent_area_id AS id, 1 AS depth FROM app.area a WHERE a.id = @area AND a.parent_area_id IS NOT NULL
+                UNION ALL
+                SELECT a.parent_area_id, up.depth + 1 FROM up JOIN app.area a ON a.id = up.id
+                 WHERE a.parent_area_id IS NOT NULL AND up.depth < 16
+            )
+            SELECT id FROM up ORDER BY depth;
+            """, connection);
+        cmd.Parameters.AddWithValue("@area", areaId);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) above.Add(reader.GetGuid(0));
+        return above;
+    }
+
+    /// <summary>
+    /// 2026-11-01 — ANTWORTEN IN EINEN BEREICH DARIN: die Prowadzący eines Kurses haben oft einen eigenen Bereich im
+    /// Kurs; dorthin dürfen die Uczący się ihre Antworten schicken, wie ein Formular sein Amt erreicht — wenn der
+    /// Bereich Przyjęcia hat und der Lernende einen Bereich darüber liest. Versiegelt für die Przyjęcia: lesen kann
+    /// sie nur, wer deren Schlüssel hält; der Lernende sieht vom Bereich nichts.
+    /// </summary>
+    private static async Task<bool> InsideAsync(SqlConnection connection, Guid areaId, Func<Guid, Task<bool>> reads, CancellationToken ct)
+    {
+        if (!await HasIntakeAsync(connection, areaId, ct)) return false;
+        foreach (var above in await AboveAsync(connection, areaId, ct))
+            if (await reads(above)) return true;
+        return false;
+    }
+
+    /// <summary>Ein Nein zum Bereich — mit dem Wort `area`: der Browser schickt die Antworten dann dorthin, wo er darf.</summary>
+    private static Task RefuseArea(HttpContext ctx, string message)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return ctx.Response.WriteAsJsonAsync(new { error = message, verdict = "area" });
+    }
+
     /// <summary>Wie viele Stapel dieser Halter heute schon geschickt hat — ein Browser in einer Schleife soll nicht die Datenbank füllen.</summary>
     private static async Task<int> TodayAsync(SqlConnection connection, Guid? role, Guid? seat, CancellationToken ct)
     {
@@ -215,9 +255,9 @@ public static partial class Cogita
                 await Fail(ctx, StatusCodes.Status404NotFound, "Takiej biblioteki nie ma.");
                 return;
             }
-            if (!await Reads(batch.AreaId))
+            if (!await Reads(batch.AreaId) && !await InsideAsync(connection, batch.AreaId, Reads, ctx.RequestAborted))
             {
-                await Fail(ctx, StatusCodes.Status403Forbidden, "Postępy zapisuje się w obszarze, który czytasz.");
+                await RefuseArea(ctx, "Postępy zapisuje się w obszarze, który czytasz (albo w obszarze z przyjęciami wewnątrz niego).");
                 return;
             }
 
@@ -596,9 +636,10 @@ public static partial class Cogita
                 await Fail(ctx, StatusCodes.Status404NotFound, "Takiej biblioteki nie ma.");
                 return;
             }
-            if (!await SeatStoresAsync(connection, seat.Value, batch.AreaId, ctx.RequestAborted))
+            if (!await SeatStoresAsync(connection, seat.Value, batch.AreaId, ctx.RequestAborted)
+                && !await InsideAsync(connection, batch.AreaId, (above) => SeatStoresAsync(connection, seat.Value, above, ctx.RequestAborted), ctx.RequestAborted))
             {
-                await Fail(ctx, StatusCodes.Status403Forbidden, "Postępy zapisuje się w obszarze Twojej grupy.");
+                await RefuseArea(ctx, "Postępy zapisuje się w obszarze Twojej grupy (albo w obszarze z przyjęciami wewnątrz niej).");
                 return;
             }
             if (stored.Count == 0 && await TodayAsync(connection, null, seat.Value.Id, ctx.RequestAborted) + given.Count > MaxBatchesPerDay)

@@ -590,6 +590,8 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 /* -- 2026-10-27: Postępy — zakres, sposób liczenia, pytanie po pytaniu (Progress.tsx) -------- */
 .cg-stats-controls .cg-row { align-items: flex-end; flex-wrap: wrap; gap: var(--wk-space-3); }
 .cg-stats-controls .cg-chips { margin: 0; }
+/* 2026-11-01 — wessen Uczący się: der Bereich, in den ihre Antworten gingen (eine Baza in vielen Kursen). */
+.cg-office-area { max-width: 32rem; }
 .cg-stats-table td, .cg-stats-table th { white-space: nowrap; }
 .cg-stats-table .cg-stats-q { white-space: normal; min-width: 14rem; }
 .cg-stats-table tr.is-known td:last-child { color: var(--wk-free-ink); font-weight: 600; }

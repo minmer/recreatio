@@ -7,14 +7,14 @@
  * ändert dafür kein Kurs.
  *
  * <code>
- *   der Ort nennt einen Bereich     Person: dorthin, wenn sie ihn liest — sonst bleibt es bei ihr (privat);
- *                                   Platz: dorthin (der Dienst nimmt nur den eigenen Bereich und die seiner Rollen)
+ *   der Ort nennt einen Bereich     dorthin — der Dienst nimmt ihn, wenn der Lernende ihn liest oder einen Bereich
+ *                                   darüber (dann muss er Przyjęcia haben: die Prowadzący eines Kurses in ihrem
+ *                                   eigenen Bereich darin); sonst sagt er „area", und es geht zum Ausweichort
  *   niemand nennt einen             Person: ihr privater Bereich; Platz: der Bereich der Baza
+ *   Ausweichort                     Person: ihr privater Bereich (es bleibt bei ihr); Platz: der Bereich der Baza
  * </code>
  *
- * Eine Person, die den genannten Bereich nicht liest, schickte sonst Stapel, die der Dienst mit 403 abweist — sie
- * hingen für immer in der Ablage, und „czeka na internet" wäre falsch. Wer ihn liest, gehört dazu (ein Kurs gibt
- * seinen Uczący się die Rolle, die ihn liest).
+ * So hängt kein Stapel in der Ablage, den der Dienst nie nimmt (vorher: „czeka na internet" für immer).
  */
 
 /** Der erste genannte Bereich — der Ort zuerst, dann die Powtórka, dann die Baza. `null`: keiner nennt einen. */
@@ -29,12 +29,9 @@ export interface AnswersPlace {
   readonly own: boolean;
 }
 
-/**
- * Wohin ein Halter schickt. `reads`: ob die Person den Bereich liest (`null`: unbekannt, etwa ohne Netz — dann wie
- * gesagt; der Stapel wartet höchstens in der Ablage). `personal`: ihr privater Bereich, wenn bekannt.
- */
-export function placeFor(holder: 'role' | 'seat', said: string | null, reads: ((areaId: string) => boolean) | null, personal: string | null, baseArea: string): AnswersPlace {
-  if (holder === 'seat') return { areaId: said ?? baseArea, own: false };
-  if (said !== null && (reads === null || reads(said))) return { areaId: said, own: false };
-  return personal !== null ? { areaId: personal, own: true } : { areaId: baseArea, own: false };
+/** Wohin ein Halter schickt — und wohin, wenn der Dienst den Bereich nicht nimmt (`null`: es gibt nichts anderes). */
+export function placeFor(holder: 'role' | 'seat', said: string | null, personal: string | null, baseArea: string): { readonly place: AnswersPlace; readonly fallback: AnswersPlace | null } {
+  const rest: AnswersPlace = holder === 'role' && personal !== null ? { areaId: personal, own: true } : { areaId: baseArea, own: false };
+  if (said === null) return { place: rest, fallback: null };
+  return { place: { areaId: said, own: false }, fallback: rest.areaId.toLowerCase() === said.toLowerCase() ? null : rest };
 }

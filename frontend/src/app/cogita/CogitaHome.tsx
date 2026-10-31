@@ -144,12 +144,14 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'sesje' && <SessionsTab trail={trail.slice(1)} go={(...t) => go('sesje', ...t)} />}
       {tab === 'postepy' && (
         <div className="cg">
-          <OwnProgress learner={learner} cards={cards ?? null} />
           {/*
             2026-10-27 — eine Baza, deren Antworten in einen Bereich gehen (ein Kurs): die Uczący się gleich offen.
-            2026-11-01 — welcher Bereich: aus der Adresse (`postepy/<obszar>`, der Kurs führt so hierher) oder gewählt.
+            2026-11-01 — welcher Bereich: aus der Adresse (`postepy/<obszar>`: der Kurs und der Baustein auf der Seite
+            führen so hierher — dann stehen die Uczący się zuerst) oder gewählt.
           */}
-          <LearnersProgress cards={cards ?? null} chosen={trail[1] ?? null} />
+          {trail[1] !== undefined && <LearnersProgress cards={cards ?? null} chosen={trail[1]} />}
+          <OwnProgress learner={learner} cards={cards ?? null} />
+          {trail[1] === undefined && <LearnersProgress cards={cards ?? null} chosen={null} />}
         </div>
       )}
       {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">Liczenie kart…</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}

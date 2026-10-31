@@ -46,6 +46,7 @@ export {
   progressOf, progressLine, journalRows, distribute, schoolYear, firstWeekday, weekdayBit, lessonSlots, lessonMessage, dayOf
 } from '${app}areas/school';
 export { sectionsOf, samplesOf } from '${app}core/jsonTree';
+export { courseBaseRefs, strayLearning, closesArea, baseKey, LEARNING_KINDS, isInside, answersOfBase } from '${app}areas/courseBases';
 `);
 
 const out = join(workspace, 'bundle.mjs');
@@ -558,6 +559,52 @@ try {
     assert.ok(said.startsWith('Lekcja, wtorek') && said.includes('Stworzenie świata') && said.endsWith('Zadanie: Przeczytaj Rdz 1'), said);
     ok('school (0134): lesson and class lists, a program\'s lessons and classes, realizations per class, matrix cell, progress, journal rows, spreading over free slots, school year and weekdays, the message to a class');
     }
+  }
+
+  /* 2026-11-01 — die Bazy eines Kurses: beliebig viele, keine gehört ihm allein; die Seite schickt die Antworten in den Kurs. */
+  {
+    const C = 'c0000000-0000-0000-0000-00000000000c';
+    const X = 'a0000000-0000-0000-0000-00000000000a';
+    const knowledge = [
+      { libraryId: 'O1', areaId: C }, { libraryId: 'B', areaId: X }, { libraryId: 'N', areaId: X }, { libraryId: 'K', areaId: X }, { libraryId: 'O2', areaId: C.toUpperCase() }
+    ];
+    const keys = [
+      { kind: 'library', key: m.baseKey('K'), refId: 'K' }, { kind: 'library', key: 'base', refId: 'b' },
+      { kind: 'role', key: 'learners', refId: 'R' }, { kind: 'library', key: 'broken', refId: null }
+    ];
+    const parts = [
+      { id: 'p1', kind: 'text', config: { title: 'Witaj' } },
+      { id: 'p2', kind: 'cogita-revision', config: { library: 'B', revision: 'r', answers: C } },
+      { id: 'p3', kind: 'view', config: { library: 'Q', view: 'v' } },
+      { id: 'p4', kind: 'cogita-flow', config: { library: 'O1', flow: 'f' } }
+    ];
+    const fields = (kind) => (kind === 'text' ? [] : ['library']);
+    const refs = m.courseBaseRefs({ areaId: C, knowledge, keys, parts, knowledgeFields: fields });
+    assert.deepEqual(refs.map((r) => [r.libraryId, r.own]), [['O1', true], ['O2', true], ['B', false], ['Q', false], ['K', false]],
+      'a course has its own bases, those its main page shows (also unreadable ones) and the kept ones — the neighbour N in the same area does not count');
+    assert.deepEqual(refs.find((r) => r.libraryId === 'B'), { libraryId: 'B', own: false, keys: ['base'], parts: ['p2'], learning: ['p2'] },
+      '… the key of 0135 („base”) is one of the kept, matched without case');
+    assert.deepEqual(refs.find((r) => r.libraryId === 'Q')?.learning, [], '… a Widok shows a base but does not learn with it');
+    assert.deepEqual(refs.find((r) => r.libraryId === 'O1')?.learning, ['p4']);
+    assert.equal(m.baseKey('ABC'), 'base-abc');
+    assert.deepEqual(m.strayLearning(parts, C.toUpperCase()).map((p) => p.id), ['p4'], 'a learning module without the course as its answers area is stray (case does not matter)');
+    assert.ok(m.LEARNING_KINDS.includes('seat-learn') && !m.LEARNING_KINDS.includes('view'));
+    assert.equal(m.closesArea(C, { libraryId: 'K', areaId: X }, [{ libraryId: 'B', areaId: X }]), false, 'unlinking K keeps X open while B of the course is there');
+    assert.equal(m.closesArea(C, { libraryId: 'K', areaId: X }, [{ libraryId: 'K', areaId: X }, { libraryId: 'O1', areaId: C }]), true, '… and closes it when K was the last one there');
+    assert.equal(m.closesArea(C, { libraryId: 'O1', areaId: C }, []), false, '… never the course area itself');
+    const P = 'b0000000-0000-0000-0000-00000000000b';
+    const parents = { [P]: C, [C]: 'root' };
+    const parentOf = (id) => parents[id] ?? null;
+    assert.equal(m.isInside(P, C, parentOf), true, 'the leaders’ area P lies in the course C');
+    assert.equal(m.isInside(C, P, parentOf), false);
+    assert.equal(m.isInside(X, C, parentOf), false);
+    const withLeaders = [...parts, { id: 'p5', kind: 'seat-learn', config: { library: 'B', answers: P } }];
+    assert.deepEqual(m.strayLearning(withLeaders, C, (id) => m.isInside(id, C, parentOf)).map((p) => p.id), ['p4'], 'answers into an area inside the course are not stray');
+    assert.deepEqual(m.strayLearning(withLeaders, C).map((p) => p.id), ['p4', 'p5'], '… without knowing the tree they are');
+    assert.equal(m.answersOfBase(withLeaders, ['p5'], C), P, 'the base’s progress opens where its modules send the answers');
+    assert.equal(m.answersOfBase(withLeaders, ['p2', 'p5'], C), C, '… two different areas: the course');
+    assert.equal(m.answersOfBase(withLeaders, ['p4'], C), C, '… none named: the course');
+    ok('course bases (2026-11-01): own, shown on the main page and kept ones, never the neighbours; learning vs showing modules; stray answers; when unlinking closes an area');
   }
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;

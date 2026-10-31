@@ -286,6 +286,9 @@ export async function openForArea(intakePrivate: Uint8Array, batch: StoredBatch)
 
 /* -- Der Weg zum Dienst ------------------------------------------------------------------------ */
 
+/** 2026-11-01 — der Dienst nimmt den Bereich für diesen Lernenden nicht (er gehört nicht dazu): das Wort `area`. */
+export const refusedArea = (e: unknown): boolean => e instanceof Error && (e as Partial<WorkspaceError>).verdict === 'area';
+
 const seatPath = (token: string) => `/seat/${encodeURIComponent(token)}`;
 
 export function postBatches(holder: Exclude<Holder, { kind: 'local' }>, batches: readonly SealedBatch[]): Promise<{ stored: readonly string[] }> {
@@ -392,7 +395,38 @@ export class Learner {
   /** Wie viele Antworten nicht hinaus konnten und in der Ablage warten. */
   waiting = 0;
 
-  constructor(readonly libraryId: string, readonly holder: Holder, readonly target: Target | null) {}
+  /**
+   * `target`: wohin die Antworten gehen. 2026-11-01 — `fallback`: wohin, wenn der Dienst den Bereich nicht nimmt
+   * (`answersTo.ts`) — dann wechselt `target` dorthin, und was schon für den alten Bereich wartete, wird neu
+   * versiegelt (`retarget`).
+   */
+  constructor(readonly libraryId: string, readonly holder: Holder, public target: Target | null, private fallback: Target | null = null) {}
+
+  /**
+   * 2026-11-01 — DER DIENST NIMMT DEN BEREICH NICHT („area"): der Lernende gehört nicht dazu. Die Antworten gehen
+   * an den Ausweichort, auch die schon wartenden — der Halter öffnet seine eigenen Stapel und versiegelt sie neu.
+   */
+  private async retarget(): Promise<boolean> {
+    const fallback = this.fallback;
+    if (this.holder.kind === 'local' || this.target === null || fallback === null) return false;
+    const holder = this.holder;
+    const from = this.target.areaId;
+    this.target = fallback;
+    this.fallback = null;
+    for (const batch of await pending(holder)) {
+      if (batch.areaId !== from) continue;
+      const body = await openOwn(holder, { ...batch, holderRoleId: batch.holderRoleId ?? null, holderSeatId: null, key: batch.keyForHolder, createdAt: '' });
+      if (body !== null) {
+        const again = await sealBatch(batch.libraryId, holder, fallback, body as BatchBody);
+        await idbPut('outbox', outboxKey(holder, again.batchId), again);
+      }
+      await idbDelete('outbox', outboxKey(holder, batch.batchId));
+    }
+    try { await flushOutbox(holder); } catch { /* später */ }
+    this.waiting = (await pending(holder)).length;
+    this.changed();
+    return true;
+  }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -517,8 +551,9 @@ export class Learner {
     try {
       const done = await postBatches(holder, [batch]);
       for (const id of done.stored) await idbDelete('outbox', outboxKey(holder, id));
-    } catch {
-      /* Wartet in der Ablage. */
+    } catch (e) {
+      /* Wartet in der Ablage — ausser der Dienst nimmt den Bereich nicht: dann zum Ausweichort. */
+      if (refusedArea(e) && await this.retarget()) return;
     }
     this.waiting = (await pending(holder)).length;
     this.changed();
@@ -533,7 +568,7 @@ export class Learner {
     if (this.holder.kind === 'local') { await this.keepLocal(); return; }
     if (answers.length > 0) await this.send({ v: 1, kind: 'answers', answers, snapshots });
     else {
-      try { await flushOutbox(this.holder); } catch { /* später */ }
+      try { await flushOutbox(this.holder); } catch (e) { if (refusedArea(e) && await this.retarget()) return; /* sonst später */ }
       this.waiting = (await pending(this.holder)).length;
       this.changed();
     }

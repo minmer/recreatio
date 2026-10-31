@@ -88,19 +88,29 @@ export function usePageLearner(lib: CogitaLibrary | null | undefined, answers: s
 
   /*
    * Lernt man im Browser: öffnet ein Link dieses Browsers den Bereich, in den die Antworten gehen (der Ort, sonst die
-   * Baza)? Dann kann man sich vorstellen — als Mensch dieses Bereichs.
+   * Baza)? Dann kann man sich vorstellen — als Mensch dieses Bereichs. Öffnet er ihn nicht (die Antworten gehen in den
+   * Bereich der Prowadzący IM Kurs, der Link öffnet den Kurs), dann im Bereich der Baza — der Dienst nimmt die Antworten
+   * auch in einen Bereich darin, wenn er Przyjęcia hat.
    */
-  const areaId = lib == null ? null : answersArea(answers, lib.settings().storageAreaId) ?? lib.areaId;
+  const said = lib == null ? null : answersArea(answers, lib.settings().storageAreaId);
+  const baseArea = lib?.areaId ?? null;
   useEffect(() => {
     let alive = true;
-    if (areaId === null || holder?.as !== 'local' || heldLinks().length === 0) { setLink(null); return undefined; }
+    const wanted = [said, baseArea].filter((x): x is string => x !== null);
+    if (wanted.length === 0 || holder?.as !== 'local' || heldLinks().length === 0) { setLink(null); return undefined; }
     void heldLinkKeys().then((keys) => {
-      const opens = keys.roles.find((r) => r.areas.some((a) => a.areaId === areaId)) ?? null;
-      const info = opens === null ? null : keys.links.find((l) => l.token === opens.token)?.info ?? null;
-      if (alive) setLink(info === null || !keys.areaKeys.has(areaId) ? null : { areaId, invitationId: info.invitationId, linkRoleId: info.roleId, label: info.label ?? 'link' });
+      for (const areaId of wanted) {
+        const opens = keys.roles.find((r) => r.areas.some((a) => a.areaId.toLowerCase() === areaId.toLowerCase())) ?? null;
+        const info = opens === null ? null : keys.links.find((l) => l.token === opens.token)?.info ?? null;
+        if (info !== null && keys.areaKeys.has(areaId)) {
+          if (alive) setLink({ areaId, invitationId: info.invitationId, linkRoleId: info.roleId, label: info.label ?? 'link' });
+          return;
+        }
+      }
+      if (alive) setLink(null);
     }, () => { if (alive) setLink(null); });
     return () => { alive = false; };
-  }, [areaId, holder?.as]);
+  }, [said, baseArea, holder?.as]);
 
   /* Der eben vorgestellte Platz: gewählt, sobald die Seite ihn unter ihren Personen hat. */
   useEffect(() => {

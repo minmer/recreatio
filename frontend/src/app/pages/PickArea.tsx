@@ -24,6 +24,12 @@ export function PickArea({ value, busy, onPick }: { value: string; busy: boolean
     <>
       <AreaPick label="Obszar" areas={areas} only={answerAreas(areas)} value={value} disabled={busy}
         extras={[{ value: '', label: 'jak w bazie wiedzy' }]} onChange={onPick} />
+      {value !== '' && (
+        <p className="wk-part-audience-says" data-area-says="">
+          Odpowiedzi przyślą uczący się, którzy należą do tego obszaru albo do obszaru nad nim (np. kursu). Czyta je ten, kto ma klucz przyjęć —
+          na stronie zobaczy pod modułem „Odpowiedzi uczących się →”. Kto tu nie może wysłać, zachowa odpowiedzi dla siebie.
+        </p>
+      )}
       {value !== '' && <IntakeNote key={value} areaId={value} areas={areas} />}
     </>
   );
@@ -60,7 +66,7 @@ function IntakeNote({ areaId, areas }: { areaId: string; areas: readonly AreaRow
   };
   return (
     <div className="wk-part-intake" data-area-intake="missing">
-      <p className="wk-part-audience-says">Ten obszar nie ma jeszcze przyjęć — odpowiedzi zobaczy tylko sam uczący się.</p>
+      <p className="wk-part-audience-says">Ten obszar nie ma jeszcze przyjęć — odpowiedzi tu nie trafią (zobaczy je tylko sam uczący się).</p>
       {leads && who != null && (
         <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={busy} onClick={() => void make()}>
           {busy ? 'Tworzenie klucza (kilka sekund)…' : 'Utwórz przyjęcia'}

@@ -23,6 +23,9 @@ import { joinByCode, loadSession, openTitle, participantId, ticketFromAddress, t
 import { publicEntity } from '../../cogita/publish';
 import { useEntitySubject } from '../../cogita/entitySubject';
 import { answersArea } from '../../cogita/answersTo';
+import { loadAreas } from '../../areas/area';
+import { useWho } from '../../core/me';
+import { viewPath } from '../../routes';
 import { usePageBase } from '../../cogita/pageBase';
 import { useLocalLearner } from '../../cogita/PublicRun';
 import { IntroduceToLearn, LearnerLine, usePageLearner } from '../../cogita/pageLearner';
@@ -49,6 +52,22 @@ function Closed({ title, lib }: { title: string; lib: CogitaLibrary | null | und
       <Head title={title} />
       {lib === undefined ? <Loading /> : <p className="wk-card-muted">Tej bazy wiedzy nie możesz tu czytać — nie jest publiczna albo nie masz do niej dostępu.</p>}
     </>
+  );
+}
+
+/**
+ * 2026-11-01 — FÜR DIE LEHRERIN, auf der Seite selbst: wer den Bereich führt, in den dieser Baustein die Antworten
+ * schickt, kommt von hier zu ihnen (Nauka → Postępy dieses Bereichs: jeder Uczący się mit seinen Antworten).
+ */
+function TeacherLink({ library, area }: { library: string; area: string | null }) {
+  const who = useWho();
+  const leads = useAsync(area === null || library === '' || who == null ? null
+    : () => loadAreas().then((r) => r.areas.some((a) => a.areaId.toLowerCase() === area.toLowerCase() && (a.myLevel === 'admin' || a.myLevel === 'write'))), [area, library, who]);
+  if (leads !== true || area === null) return null;
+  return (
+    <p className="wk-card-muted">
+      <a className="wk-link" href={viewPath('learn', library, 'postepy', area)} data-teacher-answers="">Odpowiedzi uczących się →</a>
+    </p>
   );
 }
 
@@ -95,6 +114,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
         <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setRunning(true)}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
       </div>
       <LearnerLine learner={who} lib={lib} />
+      <TeacherLink library={lib.libraryId} area={answersArea(config.answers, doc.data.storageAreaId, lib.settings().storageAreaId)} />
     </>
   );
 }
@@ -134,6 +154,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
         <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setPlaying(true)}>{saved !== null ? 'Wróć tam, gdzie skończyłeś' : 'Zacznij'}</button>
       </div>
       <LearnerLine learner={who} lib={lib} />
+      <TeacherLink library={lib.libraryId} area={answersArea(config.answers, lib.settings().storageAreaId)} />
     </>
   );
 }
@@ -482,8 +503,12 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
 /** Hinter einem persönlichen Link: der Platz (oder die Wahl oben auf der Seite), dann sein Lernen. */
 export function SeatLearnView({ config, ctx }: { config: SeatLearnConfig; ctx: PartContext }) {
   return (
-    <OnSeat title={config.title} fallback="Twoja nauka" empty="Tu pojawi się nauka — dla osoby, która otworzy swój link.">
-      {(seat) => <SeatLearn seat={seat} config={config} tall={isTall(ctx)} />}
-    </OnSeat>
+    <>
+      <OnSeat title={config.title} fallback="Twoja nauka" empty="Tu pojawi się nauka — dla osoby, która otworzy swój link.">
+        {(seat) => <SeatLearn seat={seat} config={config} tall={isTall(ctx)} />}
+      </OnSeat>
+      {/* 2026-11-01 — wer den Bereich der Antworten führt, kommt von hier zu ihnen. */}
+      <TeacherLink library={config.library} area={answersArea(config.answers)} />
+    </>
   );
 }

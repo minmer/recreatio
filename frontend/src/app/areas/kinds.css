@@ -80,6 +80,13 @@
 .wk-kind-roles > li > .wk-link-share { flex-basis: 100%; }
 .wk-kind-role-name { min-width: 0; font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
 
+/* 2026-11-01 — die Bazy eines Kurses: je eine Zeile mit Stand und Handgriffen, durch eine Linie getrennt. */
+.wk-kind-bases { list-style: none; margin: 0; padding: 0; display: grid; }
+.wk-kind-base { display: grid; gap: var(--wk-space-1); min-width: 0; padding: var(--wk-space-2) 0; border-top: 1px solid var(--wk-line); }
+.wk-kind-base:first-child { border-top: 0; padding-top: 0; }
+.wk-kind-base > .wk-actions { margin: 0; flex-wrap: wrap; align-items: center; }
+.wk-kind-base-name { margin: 0; font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
+
 /* Das Bild der Wizytówka. */
 .wk-kind-images { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); }
 .wk-kind-pick {

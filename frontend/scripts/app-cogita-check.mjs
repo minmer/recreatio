@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing', 'reading', 'knowStats'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing', 'reading', 'knowStats', 'answersTo'];
 /* 2026-10-28 — dazu aus `core`: das Anmelden ohne Netz (away), die Rechnung des Anmeldens (session), die Siegel (crypto). */
 const cores = ['away', 'session', 'crypto'];
 /* 2026-10-31 — und der Leser des Zapis (der Text zum Lesen baut auf ihm). */
@@ -32,7 +32,7 @@ await build({
 /* `learn` reaches the session module: without a BroadcastChannel it opens nothing that keeps node from ending. */
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN, RD, KS] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN, RD, KS, ANS] = await Promise.all(names.map(load));
 const [AW, SE, CR] = await Promise.all(cores.map(load));
 const [LM] = await Promise.all(libs.map(load));
 
@@ -3136,6 +3136,22 @@ check('goals and lines follow the one logic', [
   const forPerson = await LRN.openOwn({ ...offlineHolder, wrapPrivate: async () => person.privateKey }, { ...stored, key: batch.keyForHolder });
   check('… an answer given without network is sealed with public keys only — the course opens it with its intake key, the person with hers',
     [forCourse?.answers?.[0]?.id, forPerson?.answers?.[0]?.id], ['a1', 'a1']);
+}
+
+/*
+ * ══ 2026-11-01 — WOHIN DIE ANTWORTEN GEHEN (answersTo.ts): dorthin, wo gelernt wird. Der Baustein nennt den Bereich,
+ * sonst die Powtórka, sonst die Baza; eine Person schickt nur in einen Bereich, den sie liest, sonst bleibt es bei ihr.
+ */
+{
+  check('answers: the place first, then the revision, then the base — empty and blank values do not count',
+    [ANS.answersArea('K', 'R', 'B'), ANS.answersArea('', 'R', 'B'), ANS.answersArea(undefined, '  ', 'B'), ANS.answersArea(null, 7, undefined), ANS.answersArea(' K ')], ['K', 'R', 'B', null, 'K']);
+  check('… a person sends where the place says; refused there, to her private area', ANS.placeFor('role', 'K', 'P', 'BASE'),
+    { place: { areaId: 'K', own: false }, fallback: { areaId: 'P', own: true } });
+  check('… nothing named: her private area (no fallback); without one, the base area', [ANS.placeFor('role', null, 'P', 'BASE'), ANS.placeFor('role', null, null, 'BASE')],
+    [{ place: { areaId: 'P', own: true }, fallback: null }, { place: { areaId: 'BASE', own: false }, fallback: null }]);
+  check('… a seat sends where the place says, refused there to the base area; nothing named: the base area', [ANS.placeFor('seat', 'K', null, 'BASE'), ANS.placeFor('seat', null, null, 'BASE'), ANS.placeFor('seat', 'base', null, 'BASE')],
+    [{ place: { areaId: 'K', own: false }, fallback: { areaId: 'BASE', own: false } }, { place: { areaId: 'BASE', own: false }, fallback: null }, { place: { areaId: 'base', own: false }, fallback: null }]);
+  check('… the refusal word of the service („area”) is recognised, nothing else', [LRN.refusedArea(new SE.WorkspaceError('x', 'area')), LRN.refusedArea(new SE.WorkspaceError('x')), LRN.refusedArea(new Error('x'))], [true, false, false]);
 }
 
 await rm(workspace, { recursive: true, force: true });
