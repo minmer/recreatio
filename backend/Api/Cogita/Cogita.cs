@@ -77,13 +77,14 @@ public static partial class Cogita
 
     /* -- Prüfen, was hereinkommt ------------------------------------------------------------ */
 
+    /// <summary>`AreaEpoch` (0136): `KeyForArea` ist unter dem Epochenschlüssel des Bereichs versiegelt, nicht für seine Przyjęcia.</summary>
     public sealed record BatchIn(
         string? BatchId, string? LibraryId, string? AreaId, string? Kind, string? HolderRoleId,
-        string? Sealed, string? KeyForHolder, string? KeyForArea);
+        string? Sealed, string? KeyForHolder, string? KeyForArea, int? AreaEpoch = null);
 
     public sealed record BatchesRequest(IReadOnlyList<BatchIn>? Batches);
 
-    private sealed record Batch(Guid Id, Guid LibraryId, Guid AreaId, string Kind, byte[] Sealed, byte[]? KeyForHolder, byte[]? KeyForArea, Guid? HolderRole);
+    private sealed record Batch(Guid Id, Guid LibraryId, Guid AreaId, string Kind, byte[] Sealed, byte[]? KeyForHolder, byte[]? KeyForArea, Guid? HolderRole, int? AreaEpoch = null);
 
     private static bool Blob(string? text, int max, out byte[] bytes)
     {
@@ -110,7 +111,8 @@ public static partial class Cogita
             if (!Guid.TryParse(one.HolderRoleId, out var role)) return (null, "Czyje to odpowiedzi?");
             holder = role;
         }
-        return (new Batch(id, library, area, kind, sealedBytes, forHolder, forArea, holder), null);
+        if (one.AreaEpoch is < 0 || (one.AreaEpoch is not null && forArea is null)) return (null, "Nieczytelny klucz dla obszaru.");
+        return (new Batch(id, library, area, kind, sealedBytes, forHolder, forArea, holder, one.AreaEpoch), null);
     }
 
     private static async Task<Guid?> LibraryAreaAsync(SqlConnection connection, Guid libraryId, CancellationToken ct)
@@ -181,14 +183,15 @@ public static partial class Cogita
     /// <summary>Einen Stapel ablegen. Ein zweites Mal dieselbe Kennung ist kein Fehler: ein Browser, der ohne Netz war, schickt nach.</summary>
     private static async Task<bool> StoreAsync(SqlConnection connection, Batch batch, Guid? role, Guid? seat, CancellationToken ct)
     {
+        var epoch = await Schema.LearnEpochAsync(connection, ct);
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(ct);
         var holder = role is not null ? "holder_role_id" : "holder_access_id";
         await using (var cmd = new SqlCommand($"""
             IF NOT EXISTS (SELECT 1 FROM app.learn_batch WHERE id = @id)
             BEGIN
                 {(Latest.Contains(batch.Kind) ? $"DELETE FROM app.learn_batch WHERE {holder} = @h AND library_id = @library AND area_id = @area AND kind = @kind;" : "")}
-                INSERT INTO app.learn_batch (id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, key_for_area, created_at)
-                VALUES (@id, @library, @area, @role, @seat, @kind, @sealed, @forHolder, @forArea, SYSDATETIMEOFFSET());
+                INSERT INTO app.learn_batch (id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, key_for_area, created_at{(epoch ? ", area_epoch" : "")})
+                VALUES (@id, @library, @area, @role, @seat, @kind, @sealed, @forHolder, @forArea, SYSDATETIMEOFFSET(){(epoch ? ", @epoch" : "")});
             END
             """, connection, tx))
         {
@@ -202,6 +205,7 @@ public static partial class Cogita
             cmd.Parameters.AddBlob("@sealed", batch.Sealed);
             cmd.Parameters.AddBlob("@forHolder", batch.KeyForHolder);
             cmd.Parameters.AddBlob("@forArea", batch.KeyForArea);
+            if (epoch) cmd.Parameters.Add("@epoch", System.Data.SqlDbType.Int).Value = (object?)batch.AreaEpoch ?? DBNull.Value;
             await cmd.ExecuteNonQueryAsync(ct);
         }
         await tx.CommitAsync(ct);
@@ -260,6 +264,11 @@ public static partial class Cogita
                 await RefuseArea(ctx, "Postępy zapisuje się w obszarze, który czytasz (albo w obszarze z przyjęciami wewnątrz niego).");
                 return;
             }
+            if (batch.AreaEpoch is not null && !await Schema.LearnEpochAsync(connection, ctx.RequestAborted))
+            {
+                await RefuseArea(ctx, "Odpowiedzi do obszaru osoby przyjmie usługa po migracji 0136.");
+                return;
+            }
 
             if (stored.Count == 0 && await TodayAsync(connection, holder, null, ctx.RequestAborted) + given.Count > MaxBatchesPerDay)
             {
@@ -291,7 +300,9 @@ public static partial class Cogita
                     kind = reader.GetString(5),
                     @sealed = Base64Url.Encode((byte[])reader[6]),
                     key = reader.IsDBNull(7) ? null : Base64Url.Encode((byte[])reader[7]),
-                    createdAt = reader.GetDateTimeOffset(8)
+                    createdAt = reader.GetDateTimeOffset(8),
+                    /* 0136 — unter dem Epochenschlüssel des Bereichs versiegelt (sonst für seine Przyjęcia). */
+                    areaEpoch = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetInt32(9) : (int?)null
                 });
             }
         }
@@ -321,7 +332,7 @@ public static partial class Cogita
 
         var names = string.Join(", ", mine.Select((_, i) => $"@r{i}"));
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 5000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at
+            SELECT TOP 5000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at{(await Schema.LearnEpochAsync(connection, ctx.RequestAborted) ? ", area_epoch" : "")}
             FROM app.learn_batch
             WHERE holder_role_id IN ({names})
               {(library is null ? "" : "AND library_id = @library")}
@@ -353,15 +364,37 @@ public static partial class Cogita
             return;
         }
 
+        /*
+         * 2026-11-01 — EIN VIRTUELLER BEREICH EINES FORMULARS (0120): die Antworten liegen im Kleinbereich jeder Person
+         * (versiegelt unter seinem Schlüssel, 0136). Mit dazu kommt jeder Kleinbereich, den der Rufer liest — die
+         * Regel des virtuellen Bereichs gibt ihn den Prowadzący.
+         */
+        var areas = new List<Guid> { areaId };
+        if (await Schema.VirtualAreasAsync(connection, ctx.RequestAborted))
+        {
+            var instances = new List<Guid>();
+            await using (var find = new SqlCommand("SELECT TOP 1000 area_id FROM app.area_instance WHERE virtual_area_id = @area;", connection))
+            {
+                find.Parameters.AddWithValue("@area", areaId);
+                await using var reader = await find.ExecuteReaderAsync(ctx.RequestAborted);
+                while (await reader.ReadAsync(ctx.RequestAborted)) instances.Add(reader.GetGuid(0));
+            }
+            var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+            foreach (var one in instances)
+                if (await Area.MayAsync(connection, new Caller(who.Value.AccountId, mine), one, Capability.Read, ctx.RequestAborted)) areas.Add(one);
+        }
+        var epoch = await Schema.LearnEpochAsync(connection, ctx.RequestAborted);
+        var inAreas = string.Join(", ", areas.Select((_, i) => $"@a{i}"));
+
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 20000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_area, created_at
+            SELECT TOP 20000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_area, created_at{(epoch ? ", area_epoch" : "")}
             FROM app.learn_batch
-            WHERE area_id = @area AND key_for_area IS NOT NULL AND kind NOT IN (N'flags', N'counts')
+            WHERE area_id IN ({inAreas}) AND key_for_area IS NOT NULL AND kind NOT IN (N'flags', N'counts')
               {(library is null ? "" : "AND library_id = @library")}
               {(from is null ? "" : "AND created_at >= @since")}
             ORDER BY created_at;
             """, connection);
-        cmd.Parameters.AddWithValue("@area", areaId);
+        for (var i = 0; i < areas.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", areas[i]);
         if (library is not null) cmd.Parameters.AddWithValue("@library", library.Value);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
         await WriteBatchesAsync(ctx, cmd, forArea: true);
@@ -389,11 +422,16 @@ public static partial class Cogita
         }
 
         var rows = new List<(Guid Area, int Learners, int Batches, DateTimeOffset Last)>();
-        await using (var cmd = new SqlCommand("""
-            SELECT area_id, COUNT(DISTINCT COALESCE(holder_role_id, holder_access_id)), COUNT(*), MAX(created_at)
-            FROM app.learn_batch
-            WHERE library_id = @library AND key_for_area IS NOT NULL AND kind NOT IN (N'flags', N'counts')
-            GROUP BY area_id;
+        /* 0120 — die Antworten im Kleinbereich einer Person zählen für ihren virtuellen Bereich (dort wählt die Lehrerin). */
+        var whereOf = await Schema.VirtualAreasAsync(connection, ctx.RequestAborted)
+            ? "COALESCE((SELECT ai.virtual_area_id FROM app.area_instance ai WHERE ai.area_id = b.area_id), b.area_id)"
+            : "b.area_id";
+        await using (var cmd = new SqlCommand($"""
+            SELECT x.place, COUNT(DISTINCT x.holder), COUNT(*), MAX(x.created_at)
+            FROM (SELECT {whereOf} AS place, COALESCE(b.holder_role_id, b.holder_access_id) AS holder, b.created_at
+                  FROM app.learn_batch b
+                  WHERE b.library_id = @library AND b.key_for_area IS NOT NULL AND b.kind NOT IN (N'flags', N'counts')) x
+            GROUP BY x.place;
             """, connection))
         {
             cmd.Parameters.AddWithValue("@library", id);
@@ -642,6 +680,11 @@ public static partial class Cogita
                 await RefuseArea(ctx, "Postępy zapisuje się w obszarze Twojej grupy (albo w obszarze z przyjęciami wewnątrz niej).");
                 return;
             }
+            if (batch.AreaEpoch is not null && !await Schema.LearnEpochAsync(connection, ctx.RequestAborted))
+            {
+                await RefuseArea(ctx, "Odpowiedzi do obszaru osoby przyjmie usługa po migracji 0136.");
+                return;
+            }
             if (stored.Count == 0 && await TodayAsync(connection, null, seat.Value.Id, ctx.RequestAborted) + given.Count > MaxBatchesPerDay)
             {
                 await Fail(ctx, StatusCodes.Status429TooManyRequests, "Na dziś to za dużo pakietów — reszta pójdzie jutro.");
@@ -665,7 +708,7 @@ public static partial class Cogita
         if (seat is null) { await Fail(ctx, StatusCodes.Status404NotFound, "Tego miejsca nie ma."); return; }
 
         await using var cmd = new SqlCommand($"""
-            SELECT TOP 5000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at
+            SELECT TOP 5000 id, library_id, area_id, holder_role_id, holder_access_id, kind, sealed, key_for_holder, created_at{(await Schema.LearnEpochAsync(connection, ctx.RequestAborted) ? ", area_epoch" : "")}
             FROM app.learn_batch
             WHERE holder_access_id = @seat
               {(library is null ? "" : "AND library_id = @library")}

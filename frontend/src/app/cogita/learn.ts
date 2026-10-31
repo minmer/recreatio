@@ -19,7 +19,7 @@
  * ins Konto mit [L6, I13].
  */
 
-import { aad, Field, fromBase64Url, openText, sealText, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
+import { aad, Field, fromBase64Url, open, openText, seal, sealText, toBase64Url, unwrapKey, unwrapKeyP256, wrapKey, wrapKeyP256 } from '../core/crypto';
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import { call, Unreachable, WorkspaceError } from '../core/session';
@@ -186,7 +186,8 @@ export function renamer(merges: ReadonlyMap<string, string>): ((key: string) => 
 
 export type Holder =
   | { readonly kind: 'role'; readonly roleId: string; readonly wrapPublicKey: Uint8Array; readonly wrapPrivate: () => Promise<Uint8Array> }
-  | { readonly kind: 'seat'; readonly token: string; readonly seatId: string; readonly wrapPublicKey: Uint8Array; readonly wrapPrivate: Uint8Array }
+  /* `seatKey` (2026-11-01): öffnet die Schlüssel der eigenen Bereiche (Kleinbereiche seines Formulars) — siehe `Target.areaKey`. */
+  | { readonly kind: 'seat'; readonly token: string; readonly seatId: string; readonly wrapPublicKey: Uint8Array; readonly wrapPrivate: Uint8Array; readonly seatKey?: Uint8Array }
   | { readonly kind: 'local'; readonly id: string };
 
 export const holderKey = (h: Holder): string => (h.kind === 'role' ? `r:${h.roleId}` : h.kind === 'seat' ? `s:${h.seatId}` : `l:${h.id}`);
@@ -197,6 +198,12 @@ export interface Target {
   readonly intake: Uint8Array | null;
   /** 2026-11-01 — der eigene private Bereich (`answersTo.ts`): die Antworten liest niemand sonst. */
   readonly own?: boolean;
+  /**
+   * 2026-11-01 (0136) — STATT DER PRZYJĘCIA DER SCHLÜSSEL DES BEREICHS: die Antworten einer Person in ihrem eigenen
+   * Bereich eines Formulars (0120). Öffnen kann sie jeder, der den Bereich liest — die Person selbst und die Rollen,
+   * die die Regel des virtuellen Bereichs nennt.
+   */
+  readonly areaKey?: { readonly epoch: number; readonly key: Uint8Array };
 }
 
 const intakes = new Map<string, Promise<Uint8Array | null>>();
@@ -228,6 +235,8 @@ export interface SealedBatch {
   readonly sealed: string;
   readonly keyForHolder: string;
   readonly keyForArea?: string;
+  /** 0136 — `keyForArea` unter dem Schlüssel dieser Epoche des Bereichs (sonst für seine Przyjęcia). */
+  readonly areaEpoch?: number;
 }
 
 /** Versiegeln — ohne Geheimnis, ohne Netz: beide Schlüssel sind öffentlich. */
@@ -238,12 +247,14 @@ export async function sealBatch(libraryId: string, holder: Exclude<Holder, { kin
   const forHolder = holder.kind === 'role'
     ? await wrapKey(holder.wrapPublicKey, holderAad(batchId), key)
     : await wrapKeyP256(holder.wrapPublicKey, holderAad(batchId), key);
-  const forArea = target.intake === null ? null : await wrapKey(target.intake, areaAad(batchId), key);
+  const forArea = target.areaKey !== undefined ? await seal(target.areaKey.key, areaAad(batchId), key)
+    : target.intake === null ? null : await wrapKey(target.intake, areaAad(batchId), key);
   return {
     batchId, libraryId, areaId: target.areaId, kind: body.kind,
     ...(holder.kind === 'role' ? { holderRoleId: holder.roleId } : {}),
     sealed, keyForHolder: toBase64Url(forHolder),
-    ...(forArea === null ? {} : { keyForArea: toBase64Url(forArea) })
+    ...(forArea === null ? {} : { keyForArea: toBase64Url(forArea) }),
+    ...(target.areaKey === undefined || forArea === null ? {} : { areaEpoch: target.areaKey.epoch })
   };
 }
 
@@ -257,6 +268,8 @@ export interface StoredBatch {
   readonly sealed: string;
   readonly key: string | null;
   readonly createdAt: string;
+  /** 0136 — `key` liegt unter dem Schlüssel dieser Epoche des Bereichs (nur in Stapeln für die Kanzlei von Belang). */
+  readonly areaEpoch?: number | null;
 }
 
 /** Einen eigenen Stapel öffnen — mit dem privaten Schlüssel des Halters. `null`: geht nicht auf. */
@@ -267,6 +280,17 @@ export async function openOwn(holder: Exclude<Holder, { kind: 'local' }>, batch:
     const key = holder.kind === 'role'
       ? await unwrapKey(pkcs8, holderAad(batch.batchId), fromBase64Url(batch.key))
       : await unwrapKeyP256(pkcs8, holderAad(batch.batchId), fromBase64Url(batch.key));
+    return JSON.parse(await openText(key, batchAad(batch.batchId), fromBase64Url(batch.sealed))) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/** 2026-11-01 (0136) — ein Stapel im eigenen Bereich einer Person, mit dem Schlüssel des Bereichs (wer ihn liest). */
+export async function openWithAreaKey(areaKey: Uint8Array, batch: StoredBatch): Promise<unknown> {
+  if (batch.key === null) return null;
+  try {
+    const key = await open(areaKey, areaAad(batch.batchId), fromBase64Url(batch.key));
     return JSON.parse(await openText(key, batchAad(batch.batchId), fromBase64Url(batch.sealed))) as unknown;
   } catch {
     return null;
@@ -627,14 +651,30 @@ export interface LearnerProgress {
   readonly lastAt: string;
 }
 
-/** Die Fortschritte im Bereich, je Lernendem — geöffnet mit dem privaten Schlüssel der Annahme. */
-export async function areaProgress(areaId: string, libraryId: string | null, intakePrivate: Uint8Array): Promise<LearnerProgress[]> {
+/**
+ * Die Fortschritte im Bereich, je Lernendem — geöffnet mit dem privaten Schlüssel der Annahme. 2026-11-01: dazu, bei
+ * einem virtuellen Bereich eines Formulars, die Stapel in den Bereichen der Personen (`areaEpoch`) — geöffnet mit dem
+ * Schlüssel jenes Bereichs (`keyOf`: wer ihn liest, hat ihn). Ohne Przyjęcia (`intakePrivate` null) nur diese.
+ */
+export async function areaProgress(
+  areaId: string, libraryId: string | null, intakePrivate: Uint8Array | null,
+  keyOf: (areaId: string, epoch: number) => Promise<Uint8Array | undefined> = () => Promise.resolve(undefined)
+): Promise<LearnerProgress[]> {
   const { batches } = await loadAreaBatches(areaId, libraryId, null);
   const by = new Map<string, { roleId: string | null; seatId: string | null; progress: Progress; lastAt: string }>();
   for (const batch of batches) {
+    const epoch = batch.areaEpoch ?? null;
+    let body: unknown = null;
+    if (epoch !== null) {
+      const key = await keyOf(batch.areaId, epoch).catch(() => undefined);
+      body = key === undefined ? null : await openWithAreaKey(key, batch);
+    } else if (intakePrivate !== null) {
+      body = await openForArea(intakePrivate, batch);
+    }
+    if (body === null) continue;
     const holder = batch.holderRoleId !== null ? `r:${batch.holderRoleId}` : `s:${batch.holderSeatId ?? '?'}`;
     const had = by.get(holder) ?? { roleId: batch.holderRoleId, seatId: batch.holderSeatId, progress: EMPTY_PROGRESS, lastAt: batch.createdAt };
-    by.set(holder, { ...had, progress: absorb(had.progress, await openForArea(intakePrivate, batch)), lastAt: batch.createdAt > had.lastAt ? batch.createdAt : had.lastAt });
+    by.set(holder, { ...had, progress: absorb(had.progress, body), lastAt: batch.createdAt > had.lastAt ? batch.createdAt : had.lastAt });
   }
   return [...by.entries()].map(([holder, one]) => ({ holder, ...one }));
 }

@@ -369,6 +369,20 @@ public static partial class Seat
             }
         }
 
+        /*
+         * 2026-11-01 — welcher Kleinbereich zu welchem virtuellen Bereich gehört (0120): dorthin schickt die Person ihre
+         * Antworten, wenn ein Lernbaustein „Obszary osób" dieses Formulars nennt (`cogita/answersTo.ts`).
+         */
+        var virtualOf = new Dictionary<Guid, Guid>();
+        if (await Schema.VirtualAreasAsync(connection, ct))
+        {
+            await using var cmd = new SqlCommand(
+                $"SELECT area_id, virtual_area_id FROM app.area_instance WHERE area_id IN ({areaNames});", connection);
+            for (var i = 0; i < areaIds.Count; i++) cmd.Parameters.AddWithValue($"@a{i}", areaIds[i]);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) virtualOf[reader.GetGuid(0)] = reader.GetGuid(1);
+        }
+
         foreach (var row in rows)
         {
             if (!map.TryGetValue(row.Seat, out var list)) map[row.Seat] = list = [];
@@ -379,7 +393,8 @@ public static partial class Seat
                 areaName = row.Name,
                 epoch = row.Epoch,
                 @sealed = Base64Url.Encode(row.Blob),
-                calendars = calendars.TryGetValue(row.Area, out var found) ? found : []
+                calendars = calendars.TryGetValue(row.Area, out var found) ? found : [],
+                virtualAreaId = virtualOf.TryGetValue(row.Area, out var virtualArea) ? Ids.ToText(virtualArea) : null
             });
         }
 

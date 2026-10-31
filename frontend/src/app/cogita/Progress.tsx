@@ -181,8 +181,14 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
     let alive = true;
     void (async () => {
       try {
-        const intake = await openIntakeKey(await loadIntake(area), me.ring);
-        const found = await areaProgress(area, lib.libraryId, intake);
+        /*
+         * Die Przyjęcia des Bereichs — wenn es sie gibt und ich ihren Schlüssel halte. 2026-11-01: ohne sie lese ich
+         * trotzdem, was im eigenen Bereich einer Person liegt (die „Obszary osób" eines Formulars): mit dem Schlüssel
+         * jenes Bereichs, den mir die Regel gibt.
+         */
+        const intake = await loadIntake(area).then((row) => openIntakeKey(row, me.ring), () => null).catch(() => null);
+        const found = await areaProgress(area, lib.libraryId, intake, (where, epoch) => areaKeys(me.ring, where).then((m) => m.get(epoch)));
+        if (intake === null && found.length === 0) throw new Error('no intake');
         const named = new Map<string, string>();
         /*
          * 2026-11-01 — die Namen stehen dort, wo die Menschen sind: im Bereich der Antworten, in den Bereichen darüber

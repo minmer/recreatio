@@ -169,7 +169,7 @@ export function LearnerLine({ learner, lib }: { learner: PageLearner; lib: Cogit
   if (learner.as === null) return null;
   const who = learner.name ?? (learner.as === 'seat' ? 'osoba z linku' : 'Ty');
   const target = learner.learner?.target ?? null;
-  const office = target !== null ? target.own !== true && target.intake !== null : learner.as === 'seat' || lib.settings().storageAreaId !== undefined;
+  const office = target !== null ? target.own !== true && (target.intake !== null || target.areaKey !== undefined) : learner.as === 'seat' || lib.settings().storageAreaId !== undefined;
   return (
     <p className="wk-card-muted" data-learner-as={learner.as} data-learner-office={office ? '' : undefined}>
       {learner.as === 'local' ? 'Bez konta postępy zostają w tej przeglądarce.'

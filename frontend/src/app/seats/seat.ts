@@ -101,6 +101,12 @@ export interface SeatGrant {
    * Konto nicht, WAS er damit öffnen kann — und fragen kann er nicht.
    */
   readonly calendars: readonly { calendarId: string; title: string; timeZone: string }[];
+
+  /**
+   * 2026-11-01 — der eigene Bereich einer Person in einem virtuellen Bereich ihres Formulars (0120): welcher. Dorthin
+   * schickt sie ihre Antworten, wenn ein Lernbaustein diesen virtuellen Bereich nennt (`cogita/answersTo.ts`).
+   */
+  readonly virtualAreaId?: string | null;
 }
 
 /**

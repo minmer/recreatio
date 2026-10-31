@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { loadAreas } from '../areas/area';
 import { fromBase64Url } from '../core/crypto';
 import type { Me } from '../core/me';
+import { isChallenge, loadPortal, openGrants } from '../seats/seat';
 import { loadSeatChats, seatIdentity } from '../seats/seatChat';
 import type { SeatView } from '../seats/seatContext';
 import { answersArea, placeFor } from './answersTo';
@@ -31,7 +32,7 @@ export async function holderOfSeat(seat: SeatView): Promise<Holder | null> {
   const opened = await seatIdentity(seat.token, seat.seatId, seat.seatKey, found);
   if (found === null) found = (await loadSeatChats(seat.token)).identity;
   if (found === null) return null;
-  return { kind: 'seat', token: seat.token, seatId: seat.seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey };
+  return { kind: 'seat', token: seat.token, seatId: seat.seatId, wrapPublicKey: fromBase64Url(found.wrapPublicKey), wrapPrivate: opened.wrapPrivateKey, seatKey: seat.seatKey };
 }
 
 const LOCAL = 'recreatio:cogita:local';
@@ -64,6 +65,18 @@ export function personalArea(): Promise<string | null> {
 export async function targetFor(lib: CogitaLibrary, holder: Holder, override?: string | null): Promise<{ readonly target: Target | null; readonly fallback: Target | null }> {
   if (holder.kind === 'local') return { target: null, fallback: null };
   const said = answersArea(override, lib.settings().storageAreaId);
+  /*
+   * 2026-11-01 — NENNT DER ORT DIE „OBSZARY OSÓB" EINES FORMULARS (einen virtuellen Bereich, 0120), schickt eine
+   * Person ihre Antworten in IHREN Bereich darin — versiegelt unter seinem Schlüssel (0136): sie selbst liest ihn, und
+   * wer ihn nach der Regel liest (die Prowadzący), sieht ihre Antworten. Die Lesbarkeit ist der Zugang.
+   */
+  if (holder.kind === 'seat' && said !== null && holder.seatKey !== undefined) {
+    const own = await ownAreaIn(holder.token, holder.seatKey, said).catch(() => null);
+    if (own !== null) {
+      const fallback = await targetOf(lib.areaId);
+      return { target: { areaId: own.areaId, intake: null, areaKey: { epoch: own.epoch, key: own.key } }, fallback: own.areaId === lib.areaId ? null : fallback };
+    }
+  }
   const personal = holder.kind === 'role' ? await personalArea() : null;
   const { place, fallback } = placeFor(holder.kind, said, personal, lib.areaId);
   const as = async (where: { readonly areaId: string; readonly own: boolean }): Promise<Target> => {
@@ -71,6 +84,16 @@ export async function targetFor(lib: CogitaLibrary, holder: Holder, override?: s
     return where.own ? { ...target, own: true } : target;
   };
   return { target: await as(place), fallback: fallback === null ? null : await as(fallback) };
+}
+
+/** Der eigene Bereich eines Platzes in einem virtuellen Bereich seines Formulars — mit seinem Schlüssel; `null`: keiner. */
+async function ownAreaIn(token: string, seatKey: Uint8Array, virtualAreaId: string): Promise<{ readonly areaId: string; readonly epoch: number; readonly key: Uint8Array } | null> {
+  const portal = await loadPortal(token);
+  if (isChallenge(portal)) return null;
+  const grant = portal.grants.find((g) => (g.virtualAreaId ?? '').toLowerCase() === virtualAreaId.toLowerCase());
+  if (grant === undefined) return null;
+  const opened = (await openGrants([grant], seatKey)).get(grant.areaId);
+  return opened === undefined ? null : { areaId: grant.areaId, epoch: opened.epoch, key: opened.key };
 }
 
 /**
