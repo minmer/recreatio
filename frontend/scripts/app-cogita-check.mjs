@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing', 'reading'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing', 'reading', 'knowStats'];
 /* 2026-10-28 — dazu aus `core`: das Anmelden ohne Netz (away), die Rechnung des Anmeldens (session), die Siegel (crypto). */
 const cores = ['away', 'session', 'crypto'];
 /* 2026-10-31 — und der Leser des Zapis (der Text zum Lesen baut auf ihm). */
@@ -32,7 +32,7 @@ await build({
 /* `learn` reaches the session module: without a BroadcastChannel it opens nothing that keeps node from ending. */
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN, RD] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN, RD, KS] = await Promise.all(names.map(load));
 const [AW, SE, CR] = await Promise.all(cores.map(load));
 const [LM] = await Promise.all(libs.map(load));
 
@@ -3049,6 +3049,42 @@ check('goals and lines follow the one logic', [
   check('… inline, a list is one line and a text loses its breaks; which pattern an entry reads by: its first kind that has one',
     [RD.formatReading('Wydarzenia: {wydarzenia}. {opis}', { ...turyn, data: { ...turyn.data, opis: 'a\nb' } }, look), RD.readingPattern(turyn, look), RD.readingPattern(caf, look)],
     ['Wydarzenia: 1841 — święcenia, 1846 — Valdocco. a b', ROZ.reading, undefined]);
+}
+
+/*
+ * ══ 2026-10-31 — STATYSTYKI ZNAJOMOŚCI (knowStats.ts): wo jede Karte steht, Tag für Tag, was fällig wird, Themen,
+ * Rodzaje pytań, das Schwerste — für einen und für alle (die Lehrerin); die Antworten nach Karte (measures.answerIndex). ══
+ */
+{
+  const now = new Date(2026, 9, 31, 18, 0, 0).getTime();
+  const MIN = 60_000;
+  const yesterdayNoon = new Date(2026, 9, 30, 12, 0, 0).getTime();
+  const card = (key, form, extra) => ({ key, fingerprint: 'f', question: key, direction: '', prompt: [{ text: key }], answer: { form }, ...extra });
+  const cards = [
+    card('c1', 'one', { about: ['t1'] }), card('c2', 'one', { about: ['t1'] }), card('c3', 'order', { about: ['t2'] }),
+    card('c4', 'order', { about: ['t2'] }), card('c5', 'date', { entity: 'e5' }), card('c6', 'text', { about: ['t2'] })
+  ];
+  const a = (key, at, correctness) => ({ id: `${key}@${at}`, key, question: key, direction: '', fingerprint: 'f', at, correctness });
+  const mine = { c1: [a('c1', now - MIN, 1)], c2: [a('c2', now - 8 * MIN, 1)], c3: [a('c3', now - 20 * MIN, 1)], c4: [a('c4', now - MIN, 0)], c6: [a('c6', yesterdayNoon, 1)] };
+  const s = KS.knowStats(cards, (c) => mine[c.key] ?? [], now, { days: 3, ahead: 3 });
+  const r3 = (x) => (x === null ? null : Math.round(x * 1000) / 1000);
+  check('where each card stands: fresh right „pewnie”, before its due „umiem”, past it „zanika”, wrong or long gone „słabo”, never asked „jeszcze nie”',
+    [s.bands, s.known, s.answers, s.accuracy, s.streak, s.activeDays, s.fresh],
+    [{ unseen: 1, weak: 2, fading: 1, known: 1, solid: 1 }, 2, 5, 0.8, 2, 2, 1]);
+  check('… day by day: answers, right ones, and how many cards sat at the end of each day; due ahead (overdue counts for today)',
+    [s.days.map((d) => [d.answers, d.right, d.known]), s.forecast.map((f) => f.due)], [[[0, 0, 0], [1, 1, 0], [4, 3, 2]], [5, 0, 0]]);
+  check('… topics weakest first (never-asked last), question types by accuracy, the hardest cards',
+    [s.topics.map((t) => [t.id, t.cards, t.answered, t.known, r3(t.share)]), s.forms.map((f) => [f.id, f.answers, r3(f.accuracy)]), s.hardest.map((h) => h.card.key)],
+    [[['t2', 3, 3, 0, 0.227], ['t1', 2, 2, 2, 1], ['e5', 1, 0, 0, 0]], [['order', 2, 0.5], ['one', 2, 1], ['text', 1, 1], ['date', 0, null]], ['c4']]);
+  const theirs = { c1: [a('c1', now - MIN, 1)] };
+  const cls = KS.classStats(cards, [{ id: 'a', answers: (c) => mine[c.key] ?? [] }, { id: 'b', answers: (c) => theirs[c.key] ?? [] }], now, { days: 3 });
+  check('the class: learners, active this week, answers and accuracy of all, answers per day, topics weakest first, each one’s share per topic (— where nothing was answered), the hardest card',
+    [cls.all.learners, cls.all.active, cls.all.answers, r3(cls.all.accuracy), cls.all.days.map((d) => d.answers), cls.all.topics, [...cls.all.grid.get('t1')].map(([k, v]) => [k, r3(v)]), [...cls.all.grid.get('t2')].map(([k, v]) => [k, r3(v)]), cls.all.hardest.map((h) => h.card.key)],
+    [2, 2, 6, 0.833, [0, 1, 5], ['t2', 't1', 'e5'], [['a', 1], ['b', 0.5]], [['a', 0.227], ['b', null]], ['c4']]);
+  const progress = { answers: new Map([['x1', { ...a('k', 5, 1), id: 'x1' }], ['x2', { ...a('k', 2, 0), id: 'x2' }], ['x3', { ...a('k', 3, 1), id: 'x3', fingerprint: 'old' }], ['x4', { ...a('old-k', 4, 1), id: 'x4' }]]) };
+  const byCard = ME.answerIndex(progress, (key) => (key === 'old-k' ? 'k' : key));
+  check('answers per card in one pass: in time order, renamed keys follow, an answer to another wording does not count',
+    byCard({ key: 'k', fingerprint: 'f' }).map((x) => x.id), ['x2', 'x4', 'x1']);
 }
 
 /* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */

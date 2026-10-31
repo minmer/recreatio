@@ -2723,3 +2723,30 @@ kinds, schemes, templates, revisions, views or the import format). As built — 
 - Set aside (built the same day from the first, wider prompt, not in the tree): a topic scheme `tematy.json` with
   „Który to temat?” cards, a course check before publishing, branch revisions in Ścieżka, guide changes — kept as a
   patch in the session scratchpad.
+
+## C7 — „Nowy temat” as reading, a reading pattern per kind, statistics with charts, the course's base (2026-10-31)
+
+Four owner requests of the same afternoon. As built — COGITA.md §2.2 (`reading`), §5 („Nowy temat”), §7 (Statistics),
+EVENTS.md (the course's base).
+
+- `reading.ts` (pure): `readingSource` (a list right under its line starts a list; a bold-only line stands alone),
+  `headingOf`, `leadAt`, `readingParts` (lists folded under their bold heading, a lead-in with a colon inside),
+  `citedPlaces`, `formatReading` / `readingPattern` (the kind's `reading`). `EntityReading.tsx`: `TopicIntro` (lead
+  with formatting and footnotes, clamped; „Czytaj dalej” / „Zwiń tekst” in place; a footnote in the lead expands and
+  jumps; ↩ from a note opens its fold; „Czytaj tekst” to the reader or the passage), `ReadingPreview` for the kind
+  editor; explanations read the same text. Schema: `KindDef.reading` (readKind, kindDoc, built-in overrides, JSON
+  merge with warnings, review line, problems for unknown fields); JSON description, `ksiazka-AI.md` and
+  `ImportFormats.json` regenerated.
+- `knowStats.ts` (pure): stages per card, days, forecast, topics, question kinds, hardest, streak; `classStats` for the
+  teacher. `measures.answerIndex` (answers per card in one pass). `KnowCharts.tsx`: hand-drawn SVG (measured width),
+  tooltips on hover and focus, arrow keys, a table under each chart; in `Progress.tsx` (own, class, each learner) and
+  at the end of `RevisionRun` (loaded when opened). Colours validated with the dataviz validator on #ffffff/#1f1c16.
+- `AreaKindPanel.tsx`: „Wybierz istniejącą” / „Wybierz inną” / „Odłącz” for the course's base — the learners' role
+  reads the base's area (`createCommonRole` for both areas, or `joinArea`), the page's revision follows
+  (`pointRevisionPart`), the old area can be closed (`dropFromArea`). Nothing new is stored: a course's bases are those
+  of the area and of the areas its learners' role reads; the one on the main page leads.
+- Checks: app-cogita-check 709, tsc, style, library, JSON parts 12/12, formats/guide, schemes 111, JSON 35 formats.
+  LocalDB drives (session scratchpad `topicpanel/`): `topic-browser.mjs` 22 (phone 390 and 360, clamp, footnote jump,
+  folds, ↩, „Czytaj tekst” to the reader, a kind pattern in the panel, the explanation and the editor preview),
+  `stats-browser.mjs` 12 (charts, hover and keys, range, tables, class heat map, a learner, phone dark, end of run),
+  `kurs-browser.mjs` 13 (pick, switch, unlink; memberships read back from the service).

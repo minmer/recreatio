@@ -78,6 +78,21 @@ export function answersOf(progress: Progress, key: string, fingerprint?: string,
 }
 
 /**
+ * 2026-10-31 — ALLE ANTWORTEN EINMAL NACH KARTE GEORDNET: dasselbe wie `answersOf`, aber für viele Karten (Statystyki,
+ * die Lehrerin über alle Uczący się) — sonst ginge jede Karte noch einmal alle Antworten durch.
+ */
+export function answerIndex(progress: Progress, rename?: (key: string) => string): (card: { readonly key: string; readonly fingerprint?: string }) => AnswerRecord[] {
+  const by = new Map<string, AnswerRecord[]>();
+  for (const one of progress.answers.values()) {
+    const key = rename === undefined ? one.key : rename(one.key);
+    const list = by.get(key);
+    if (list === undefined) by.set(key, [one]); else list.push(one);
+  }
+  for (const list of by.values()) list.sort((a, b) => a.at - b.at);
+  return (card) => (by.get(card.key) ?? []).filter((one) => card.fingerprint === undefined || one.fingerprint === '' || one.fingerprint === card.fingerprint);
+}
+
+/**
  * DIE ZAHLEN JE KARTE nach einem Weg. \`all\`: alle Karten der Baza — die Hierarchie rechnet über sie (wer das
  * Besondere aus einem anderen Teil kann), gezeigt werden nur \`cards\`.
  */

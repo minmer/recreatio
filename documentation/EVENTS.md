@@ -65,7 +65,16 @@ kind, other lists, and the JSON import/export (admins only).
 | event | main page (new sub-page with the card on top, or an existing page), sub-pages, registration form + sub-forms (questions moved to the publishing area), main appointment + programme, "Napisz do nas" (an answerers area inside the area, organisers in it, the form attached), channel, participants' chat, roles Organizatorzy / Pomocnicy / Uczestnicy with links (the form gives Uczestnicy), after page with a members-only module, end now / restore |
 | group | chat, channel, Członkowie / Prowadzący, members' link opening `workspace/areas/<id>` |
 | organisation | data controller, main page, one-click lists "Wydarzenia" and "Grupy" |
-| course | knowledge base with daily revision, learners' role and link |
+| course | knowledge base with daily revision (new, or an existing one: see below), learners' role and link |
+
+**The course's base** (2026-10-31) is made in the area („Utwórz bazę”) or **picked** („Wybierz istniejącą”): an
+existing base stays where it is, and the learners' role reads its area (made now if missing) — the form says that
+the learners will read the whole area, naming its other bases; only areas one may let others into, never the
+private one. Answers go to the course's intake if the base names no place yet; its revision goes on the main page if
+none is there. Which bases a course has is not stored: those of the area, plus those of the areas its learners' role
+reads; the one whose revision is on the main page leads. „Wybierz inną” switches (the page's revision follows; the
+old area can be closed for the learners, checked by default), „Odłącz” closes a shared base's area for the learners
+and takes its revision off the main page — the base, its entries and progress stay.
 
 The main appointment is made there or **picked** ("Wybierz istniejący"): single (no repeat), not a programme point,
 editable by me, from a month back to a year ahead. The area's own calendar comes first; one from another calendar

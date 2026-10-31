@@ -16,6 +16,8 @@ import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
+import { answerIndex } from './measures';
+import { later } from '../ui/later';
 import { toBase64Url } from '../core/crypto';
 import { answersFor, keepOffline, needsFiles, type OfflineRevision } from './offline';
 import type { Who } from '../core/session';
@@ -23,6 +25,9 @@ import { answer, levelsOf, planOf, progress, start, waiting, whyDetail, whyText,
 import { conditionText } from './logic';
 import type { CogitaLibrary } from './store';
 import { Bar, CogitaContext, entityName } from './ui';
+
+/* 2026-10-31 — die Statystyki am Ende einer Powtórka: erst geladen, wenn man sie aufklappt. */
+const RunStats = later(() => import('./KnowCharts').then((m) => m.KnowledgeStats));
 
 export interface RunSource {
   /** Aus der Bibliothek: die Wiederholung (ihr Graph wählt). */
@@ -206,6 +211,13 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           <button type="button" className="wk-btn" onClick={() => setRound((n) => n + 1)}>Jeszcze raz</button>
           {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button>}
         </div>
+        {/* 2026-10-31 — was ich in dieser Powtórka kann, als Diagramme (auch auf einer Seite, für die mit dem Link). */}
+        {learner !== null && lib !== null && (
+          <details className="cg-run-stats" data-run-stats="">
+            <summary>Statystyki — co umiem w tej powtórce</summary>
+            <RunStats lib={lib} cards={state.all} answers={answerIndex(learner.progress, rename)} />
+          </details>
+        )}
       </section>
     );
   }

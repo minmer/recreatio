@@ -14,7 +14,8 @@ import type { Card } from './cardBasics';
 import { average, knownessOf, KNOWN, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
 import { gaugeFromMarks, itemDue, itemKnowness, ownKnowness } from './knowing';
 import { adoptLocal, areaProgress, localProgress, marksOf, renamer, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
-import { answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
+import { answerIndex, answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
+import { ClassKnowledge, KnowledgeStats } from './KnowCharts';
 import { planFor } from './RevisionRun';
 import { entityName } from './ui';
 import { offlineList, dropOffline } from './offline';
@@ -42,6 +43,10 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
   const account = who?.accountId ?? null;
   const offline = useAsync(() => (account === null ? Promise.resolve([]) : offlineList(account)), [account, tick]);
   const { busy, failed, run } = useBusy();
+  /* 2026-10-31 — die eigenen Antworten einmal nach Karte (für die Diagramme); neu, sobald eine dazukommt. */
+  const answered = learner?.progress.answers.size ?? 0;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const byCard = useMemo(() => (learner === null ? null : answerIndex(learner.progress, rename)), [learner, rename, answered]);
   if (cards === null) return <p className="wk-hint">Liczenie kart…</p>;
   if (learner === null) return <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce — zaloguj się, żeby je zachować.</p>;
   const marks = (card: Card) => learner.marks(card.key, card.fingerprint, rename);
@@ -56,6 +61,13 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
         <span className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${all.levels[l]}`).join(' · ')} · odpowiedzi: {learner.progress.answers.size}</span>
         {learner.waiting > 0 && <span className="wk-note">{learner.waiting} pakietów czeka na internet.</span>}
       </div>
+      {/* 2026-10-31 — Statystyki: wo die Karten stehen, Tag für Tag, was fällig wird, Themen, Rodzaje pytań, das Schwerste. */}
+      {byCard !== null && (
+        <details className="cg-card" open data-own-stats="">
+          <summary>Statystyki — wykresy znajomości</summary>
+          <KnowledgeStats lib={lib} cards={cards} answers={byCard} />
+        </details>
+      )}
       <div className="cg-grid">
         {byKind.map(({ k, s, n }) => (
           <div key={k.id} className="cg-card">
@@ -145,16 +157,21 @@ export function OfficeProgress({ cards }: { cards: readonly Card[] | null }) {
   const scope = useScope(cards);
   const [model, setModel] = useModel();
   const [open, setOpen] = useState<string | null>(null);
+  const nameOf = (r: LearnerProgress) => names.get(r.holder) ?? (r.seatId !== null ? `osoba ${r.seatId.slice(-4)}` : `osoba ${r.roleId?.slice(-4) ?? ''}`);
+  /* 2026-10-31 — jeder Uczący się mit seinen Antworten nach Karte geordnet: für die Diagramme aller und jedes Einzelnen. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const learners = useMemo(() => (rows ?? []).map((r) => ({ id: r.holder, name: nameOf(r), answers: answerIndex(r.progress, rename) })), [rows, names, rename]);
   if (failed !== null) return <p className="wk-hint">{failed}</p>;
   if (rows === null || cards === null) return <p className="wk-hint">Otwieranie postępów…</p>;
   if (rows.length === 0) return <p className="wk-empty">Nikt jeszcze nie odpowiadał w tym obszarze.</p>;
-  const nameOf = (r: LearnerProgress) => names.get(r.holder) ?? (r.seatId !== null ? `osoba ${r.seatId.slice(-4)}` : `osoba ${r.roleId?.slice(-4) ?? ''}`);
   const now = Date.now();
   const shown = scope.cards ?? cards;
   const statsFor = (progress: Answers) => cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), now);
   return (
     <div className="cg" data-office-progress={rows.length}>
       <StatsControls scope={scope} model={model} onModel={setModel} />
+      {/* 2026-10-31 — alle zusammen als Diagramme: Kacheln, jeder als Balken, Tematy × uczący się, Antworten je Tag, das Schwerste. */}
+      <ClassKnowledge lib={lib} cards={shown} learners={learners} />
       <div className="cg-table-wrap">
         <table className="cg-table cg-stats-table">
           <thead><tr><th>Uczący się</th><th>Umie</th><th>W nauce</th><th>Jeszcze nie</th><th>Odpowiedzi</th><th>Czas nauki</th><th>Na odpowiedź</th><th>Ostatnio</th></tr></thead>
@@ -175,7 +192,13 @@ export function OfficeProgress({ cards }: { cards: readonly Card[] | null }) {
                     <td>{new Date(r.lastAt).toLocaleDateString('pl-PL')}</td>
                   </tr>
                   {open === r.holder && (
-                    <tr className="cg-stats-open"><td colSpan={8}><QuestionTable stats={statsFor(r.progress)} /></td></tr>
+                    <tr className="cg-stats-open">
+                      <td colSpan={8}>
+                        {/* 2026-10-31 — dieselben Diagramme, die der Uczący się selbst sieht. */}
+                        <KnowledgeStats lib={lib} cards={shown} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} />
+                        <QuestionTable stats={statsFor(r.progress)} />
+                      </td>
+                    </tr>
                   )}
                 </Fragment>
               );

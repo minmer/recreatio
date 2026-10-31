@@ -55,6 +55,13 @@ Status: decided on 2026-10-15 from your answers on the page “Cogita rebuild qu
 - a name;
 - a **label pattern** such as `{givenNames} {surname}` [B8];
 - the **field that tells entries apart** in search results [F4];
+- optionally a **reading pattern** (`reading`, 2026-10-31): markup with `{field}` slots for how a learner reads an entry
+  of the kind (the „Nowy temat” panel, the explanation after an answer; `reading.ts` `formatReading`) — markup stays
+  markup, plain text stays text, a list alone in its line becomes points (folded under a bold heading), a reference a
+  link with its name, a reference with a place a footnote, other fields their text; a part up to a blank line whose
+  fields are all empty disappears with its heading, a half-empty line loses its dangling separators; the first
+  paragraph is the lead. Without it: the summary (a field `summary`/„Streszczenie”) or the first paragraph, then the
+  text fields, dates and places. The kind editor shows it live on the kind's first entry;
 - its fields and its card templates [D8].
 
 **No kind comes by itself** (2026-10-18), and **no built-in content schema** (2026-10-23, decision 2). A new knowledge base has no kinds. „+ Rodzaj” adds an empty own kind; ready-made schemas are JSON files in the repository (`templates/cogita/*.json`, below), imported under Schemat → "Schemat jako JSON". Built in are only `question` (the engine's learning item — grading depends on it; offered as "+ Pytanie" in Wpisy) and the kinds of the other parts (`person`, `work`, `quote`; `text`, `delivery`, `project`), which a base points at and learns from. A built-in kind is listed only where it was changed or where entries of it exist — the engine still knows all of them. **Every kind can be removed**, a built-in one too. The removal is counted first and listed in the question: entries only of this kind are deleted (with the progress of their cards), entries with another kind lose only this one, entries from source bases stay there, references of other entries to the deleted ones are taken out, reference fields of own kinds pointing only at it are removed (pointing at several: no longer at it), card templates only for it are deleted (for several: without it), add-form steps of this kind are removed (a form without entry steps is deleted), collections lose the deleted entries. A kind that comes from a source base is removed there (`kindRemoval.ts`).
@@ -353,7 +360,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - After „Sprawdź” the result stands on the learner's own answer: ✓/✗ on each option, item (with „→ N”, the right place) or pair (with its right partner); a line „4 z 6 na swoim miejscu”; „Pokaż poprawną kolejność” animates the right order and back. No long „Poprawnie: A → B → …” for order, match or choice. Controls lock and „Sprawdź” becomes „Dalej” in the same place.
 - Partial credit: ordering takes the better of items in place and neighbouring pairs in order (one swap or one moved item is not zero); a date asked to the day gives 0.5 for the right year, 0.75 for year and month (`check.ts`). Every date card says its precision („Podaj rok.”, `PRECISION_ASK`).
 - Explanations are collapsed: one line each (title and the first sentence of a `summary` field, else of the first text field), the question's own topic („O czym”) first with two or three lines; expanded: the text with footnotes and „pokaż w tekście”, dates, sources with places, „Otwórz wpis”. Never shown: numbers, choices, lists, references without a place, map points, files, empty fields, and the fields of a linked question.
-- Before the first question about a topic („O czym”) the learner has not met, a „Nowy temat” panel shows its title and summary with „Czytaj tekst”. Only real questions count as meeting a topic; which cards come is unchanged.
+- Before the first question about a topic („O czym”) the learner has not met, a „Nowy temat” panel shows its title and its lead — the summary, or the first paragraph of its text, with its formatting and clickable footnotes, at most four lines on a phone (six wider, two each when several topics come at once), so the question stays in view. „Czytaj dalej” expands the whole text in place (paragraphs, bold subheadings, footnotes as on the entry page; a footnote in the lead opens the text at its note), „Zwiń tekst” brings the question back; „Czytaj tekst” opens the source at the topic's place (its field with a place, else the first cited source whose text this reader has: the reader in the workspace, the passage itself on a page). Lists under a bold heading stay folded until opened (`reading.ts`; a list written right under its line still counts as a list here). Only real questions count as meeting a topic; which cards come is unchanged.
 - Under the card a short line (`whyText`), the full reason as its hint (`whyDetail`). „Zgłoś problem” is an inline form; the report carries the question, the learner's answer, the right one and the score, and „Do zrobienia” shows them.
 
 **Card history** is kept unless the expected answer changed [D7]. A learner can suspend a card for themselves and flag it for the authors [D12].
@@ -435,6 +442,15 @@ to the view and the schema; the computation of knowness is fixed in code and the
 ## 7. Answers and progress
 
 - **Every answer is stored in the database, sealed.** Knowness and the statistics come from the answers [F16, F22].
+- **Statistics with charts** (2026-10-31, `knowStats.ts`, `KnowCharts.tsx`; nothing stored): tiles (known of all,
+  answers and accuracy, days in a row, study time, due today); where the cards stand (one stacked bar: „pewnie” ≥ 2,
+  „umiem” 1–2, „zanika” 0.5–1, „słabo”, „jeszcze nie”); cards known at the end of each day; answers per day; due in
+  the next 14 days; topics („O czym”) weakest first; question kinds by accuracy; the hardest questions. A range of
+  7 / 30 / 90 days scopes every chart; each chart is one tab stop (arrows walk it), hover and focus show the same
+  readout, and a table under it holds the same values. Shown in Nauka → Postępy, and at the end of a run (also on a
+  page, for learners from a link). The teacher (Postępy uczących się) sees the same for each learner, and all
+  together: every learner as a stacked bar, topics × learners as a heat map, answers of all per day, the questions
+  hardest for all. Colours were validated against both surfaces (blue series; a one-hue ramp for the stages).
 - **Knowness is saved too**, as a snapshot per card: the question id plus the direction. A template card’s question id is the stable id of the generated card.
 - **A declared storage area** receives a learner’s answers. A teacher who can read there sees the progress [E10].
   - The course (library) declares the area; a revision, session or form step may override it.
