@@ -8,6 +8,8 @@
  * 2026-10-23 (Schritt 5) — ohne Themen: „Tematy do rozwinięcia" ist fort (offene
  * Fragen sind Aussagen, deren Teza mit „?" endet — „Pytania bez odpowiedzi");
  * eine parallele Frage wird eine solche Aussage, kein Thema.
+ *
+ * 2026-10-31 — die Meldungen der Lernenden mit der Frage, ihrer Antwort und der richtigen.
  */
 
 import { useMemo, useState } from 'react';
@@ -118,7 +120,17 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
                 /* Ein Szablon: „szablon:wpis"; ein Pytanie: der Eintrag selbst — oder (2026-10-27) „pytanie:p<para>". */
                 const parts = question.split(':');
                 const entity = lib.entity(parts[1] ?? '') !== undefined ? parts[1] : parts[0];
-                return <li key={i}>{new Date(f.createdAt).toLocaleDateString('pl-PL')} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}>{entityName(lib, entity)}</button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}</li>;
+                /* 2026-10-31 — die Meldung trägt die Frage, die Antwort des Lernenden und die richtige: der Autor sieht, was geschah. */
+                const said = (key: string) => (typeof body[key] === 'string' && (body[key] as string).trim() !== '' ? (body[key] as string).trim().slice(0, 300) : null);
+                const share = typeof body.correctness === 'number' ? ` (${Math.round(body.correctness * 100)} %)` : '';
+                return (
+                  <li key={i} data-report-flag>
+                    {new Date(f.createdAt).toLocaleDateString('pl-PL')} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}>{entityName(lib, entity)}</button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}
+                    {said('prompt') !== null && <div className="cg-muted">Pytanie: {said('prompt')}</div>}
+                    {said('given') !== null && <div className="cg-muted">Odpowiedź: {said('given')}{share}</div>}
+                    {said('expected') !== null && <div className="cg-muted">Poprawnie: {said('expected')}</div>}
+                  </li>
+                );
               })}</ul>}
           {counts.length > 0 && (
             <>

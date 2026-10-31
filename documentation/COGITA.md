@@ -346,6 +346,16 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 
 **After answering** the learner sees the correct answer, the per-character comparison and the linked knowledge [D14].
 
+**The learning screen** (2026-10-31, `CardFace.tsx`, `OrderAnswer.tsx`, `EntityReading.tsx`, `RevisionRun.tsx`):
+- Choice options are shuffled at every showing (the answer keeps the stored option numbers); options have equal width and wrap.
+- Ordering is drag and drop with a live preview (pointer events: mouse, touch on the ⋮⋮ grip, pen; auto-scroll near the edge; items of any height); ↑/↓ stay as a secondary control; keyboard Space / arrows / Space / Esc, announced to screen readers. The start order is never the right one (`shuffleAway`).
+- Matching shows both columns shuffled, the left never in its stored order (`shuffledPairs`).
+- After „Sprawdź” the result stands on the learner's own answer: ✓/✗ on each option, item (with „→ N”, the right place) or pair (with its right partner); a line „4 z 6 na swoim miejscu”; „Pokaż poprawną kolejność” animates the right order and back. No long „Poprawnie: A → B → …” for order, match or choice. Controls lock and „Sprawdź” becomes „Dalej” in the same place.
+- Partial credit: ordering takes the better of items in place and neighbouring pairs in order (one swap or one moved item is not zero); a date asked to the day gives 0.5 for the right year, 0.75 for year and month (`check.ts`). Every date card says its precision („Podaj rok.”, `PRECISION_ASK`).
+- Explanations are collapsed: one line each (title and the first sentence of a `summary` field, else of the first text field), the question's own topic („O czym”) first with two or three lines; expanded: the text with footnotes and „pokaż w tekście”, dates, sources with places, „Otwórz wpis”. Never shown: numbers, choices, lists, references without a place, map points, files, empty fields, and the fields of a linked question.
+- Before the first question about a topic („O czym”) the learner has not met, a „Nowy temat” panel shows its title and summary with „Czytaj tekst”. Only real questions count as meeting a topic; which cards come is unchanged.
+- Under the card a short line (`whyText`), the full reason as its hint (`whyDetail`). „Zgłoś problem” is an inline form; the report carries the question, the learner's answer, the right one and the score, and „Do zrobienia” shows them.
+
 **Card history** is kept unless the expected answer changed [D7]. A learner can suspend a card for themselves and flag it for the authors [D12].
 
 **JSON:** new formats only. There is no converter for the old question JSON [D13].

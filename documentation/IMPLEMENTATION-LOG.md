@@ -2701,3 +2701,25 @@ dependencies, who reads), and per template how many cards it really makes — in
   dropped everywhere, in the browser (`json.ts` `PRIVATE_KEYS`) and again in the service (`AiMcpTools.Scrub`); keys
   under `fields` are field names (a form's `answers`) and stay. Failing card counts no longer cost the snapshot
   (`cards.failed`). Checks: Api.Tests 564, app-cogita-check 684, LocalDB drive `mcp/setup-e2e.mjs` 15/15.
+
+## C6 — Cogita: the learning screen (2026-10-31)
+
+Owner spec „Cogita – learning screen changes” (scope: only how cards are shown, answered and explained; no change to
+kinds, schemes, templates, revisions, views or the import format). As built — COGITA.md §5 „The learning screen”.
+
+- `CardFace.tsx`: options shuffled per showing (stored indices kept), equal width; date precision line; „Sprawdź” →
+  „Dalej” in place; ✓/✗ on the own answer; no long „Poprawnie” line for order/match/choice; explanations via
+  `EntityReading.tsx` (`ExplainList`: collapsed, the question's topic first, technical fields never shown).
+- `OrderAnswer.tsx`: pointer-event drag with live preview, auto-scroll, keyboard, live region, marks with the right
+  place, „Pokaż poprawną kolejność” (FLIP).
+- `cardBasics.ts` `shuffleAway` / `shuffledPairs`, used by `cards.ts` and the palette's order/match nodes: never the
+  stored order (fingerprints unchanged). `check.ts`: fair partial credit for order and date, `orderMarks`,
+  `PRECISION_ASK`. `revision.ts`: short `whyText`, long `whyDetail`.
+- `RevisionRun.tsx`: „Nowy temat” before the first question about an unmet topic; inline „Zgłoś problem” with
+  `prompt`, `given`, `expected`, `correctness`; `Pending.tsx` shows them.
+- Checks: app-cogita-check 693, tsc, style; LocalDB drive `learnscreen/learn-browser.mjs` 42 + `learn-reports.mjs` 6
+  (mouse, touch and keyboard ordering, marks, toggles, match partners, date precision, collapsed explanations, the
+  report read back with the intake key, phone width in dark mode).
+- Set aside (built the same day from the first, wider prompt, not in the tree): a topic scheme `tematy.json` with
+  „Który to temat?” cards, a course check before publishing, branch revisions in Ścieżka, guide changes — kept as a
+  patch in the session scratchpad.

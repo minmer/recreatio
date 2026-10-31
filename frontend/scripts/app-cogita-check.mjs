@@ -2438,7 +2438,8 @@ check('goals and lines follow the one logic', [
   const whole = Cards.questionCard(longQ, 's1');
   check('the question as ONE card (a flow, a page): 4 pairs drawn per attempt, history kept for the whole list', [whole.answer.left.length, whole.varies, whole.key, Cards.questionCard(longQ, 's9').fingerprint === whole.fingerprint], [4, true, 'q-z', true]);
   const short = Cards.questionCards({ id: 'q-s', kinds: ['question'], data: { form: 'match', prompt: 'P', left: ['a', 'b', 'c'], right: ['1', '2', '3'], show: 6 } }, 's');
-  check('a short list (fewer pairs than „Ile par naraz”): one card with all of them', [short.length, short[0].answer.left, short[0].varies], [1, ['a', 'b', 'c'], false]);
+  check('a short list (fewer pairs than „Ile par naraz”): one card with all of them (the left column shuffled, never as stored)',
+    [short.length, [...short[0].answer.left].sort(), short[0].answer.left.join() === 'a,b,c', short[0].varies], [1, ['a', 'b', 'c'], false, false]);
   const gapCard = Cards.questionCard({ id: 'q-g', kinds: ['question'], data: { form: 'gap', prompt: 'Litwo! [[Ojczyzno]] moja!' } }, '');
   check('a gap written in the text: „…” is shown, the word is the answer', [gapCard.answer.shown, gapCard.answer.accepted], ['Litwo! … moja!', ['Ojczyzno']]);
   check('a question as a card carries what it is about', Cards.questionCard({ id: 'q-a', kinds: ['question'], data: { form: 'truefalse', prompt: 'Z', value: true, about: ['e1', { value: 'e2' }, 'q-a'] } }, '').about, ['e1', 'e2']);
@@ -2582,7 +2583,7 @@ check('goals and lines follow the one logic', [
   const opening = R.waiting(session, 0);
   check('the example’s revision is „Najpierw podstawy” from general steps: learning before, a knowness filter, the order „general”',
     [G.readGraph(rev.data.graph).nodes.map((x) => x.type).sort(), aplan.order, Object.keys(aplan.when ?? {}).length === aplan.cards.length], [['filter.when', 'learning', 'source.all', 'strategy'], 'general', true]);
-  check('… every card says why it comes: the first one is new, the general first, from the basics', [session.why?.reason, session.why?.order, session.why?.level, R.whyText(session.why, 0).startsWith('Nowa karta — najpierw ogólne')], ['fresh', 'general', 0, true]);
+  check('… every card says why it comes: the first one is new, the general first, from the basics', [session.why?.reason, session.why?.order, session.why?.level, R.whyDetail(session.why, 0).startsWith('Nowa karta — najpierw ogólne')], ['fresh', 'general', 0, true]);
   check('at the start only the basics are asked: the stack holds cards about the atom; the rest waits for it',
     [session.active.map((k) => levelOfCard(acards.find((c) => c.key === k))).every((l) => l === 0), session.active.length > 0, opening.cards, opening.needs.includes(idOf('atom/atom'))],
     [true, true, aplan.cards.length - session.active.length, true]);
@@ -2863,8 +2864,12 @@ check('goals and lines follow the one logic', [
     [{ rel: 'pole' }, { rel: 'pole', each: 'any' }, { rel: 'brak' }, { rel: 'brak', each: 'any' }].map((x) => Lg.holds(Lg.readCondition({ type: 'knowness', op: 'ge', than: 1, ...x }), facts)), [false, true, true, false]);
   check('… in words, for the editor and the learner', Lg.conditionText(Lg.readCondition({ type: 'knowness', rel: 'okres', each: 'any', op: 'ge', than: 1 }), (x) => x, (k) => (k === 'okres' ? 'Okres' : k)), 'znajomość czegoś, na co wskazuje pole „Okres” ≥ 1');
   check('every choice explained: a card that fades comes back with its knowness and how late it is',
-    R.whyText({ reason: 'weak', order: 'general', pick: 'weighted', level: 1, knowness: 0.4, due: T0 - 2 * DAY, among: 5 }, T0),
+    R.whyDetail({ reason: 'weak', order: 'general', pick: 'weighted', level: 1, knowness: 0.4, due: T0 - 2 * DAY, among: 5 }, T0),
     'Wraca, bo się zaciera: znajomość 40 %; pora minęła 2 dni temu. Wybrana losowo spośród 5 w stosie — częściej to, co słabiej znasz i co dłużej czeka.');
+  check('… under the card only a short, human line (the whole explanation as a hint beside it)',
+    [{ reason: 'weak', knowness: 0.4 }, { reason: 'fresh', level: 1 }, { reason: 'fresh', level: 0 }, { reason: 'again', level: 2 }, { reason: 'queue', level: null }]
+      .map((x) => R.whyText({ order: 'general', pick: 'weighted', level: null, knowness: null, due: null, among: 5, ...x }, T0)),
+    ['Wraca — zaciera się (znajomość 40 %)', 'Nowa karta · poziom 2', 'Nowa karta · poziom 1 (podstawy)', 'Wraca — przed chwilą była źle', 'Kolejna karta']);
   const g3 = gaugeAt(T0 + 3 * 60_000);
   check('… knowness belongs to the item (from its cards), every card’s own stays visible', [KN.itemKnowness(g3, id('bosko/turyn')) >= 1, KN.cardKnowness(g3, cardsOf('turyn')[0].key) >= 1, KN.itemKnowness(g3, id('bosko/chieri'))], [true, true, 0]);
   answer('turyn', T0 + 4 * 60_000, 0);
@@ -2883,7 +2888,7 @@ check('goals and lines follow the one logic', [
   const entityOf = (key) => cards.find((c) => c.key === key)?.entity;
   let run = R.start({ plan: bplan, all: cards, deps: lib.dependencies(), now: T0, seed: 'bosko', marks: () => [] });
   check('a new learner’s first stack: only the cards of the whole life', [...new Set(run.active.map(entityOf))].map(name), ['Życie Jana Bosko']);
-  check('… and the card says why it comes', [run.why?.reason, R.whyText(run.why, T0)], ['fresh', 'Nowa karta — najpierw ogólne, potem szczegóły (poziom 1 — podstawy).']);
+  check('… and the card says why it comes', [run.why?.reason, R.whyText(run.why, T0), R.whyDetail(run.why, T0)], ['fresh', 'Nowa karta · poziom 1 (podstawy)', 'Nowa karta — najpierw ogólne, potem szczegóły (poziom 1 — podstawy).']);
   /* Der Lernende kann das Leben und Turin; die anderen Etappen (und alles darunter) antwortet er falsch. */
   const right = new Set(['zycie', 'turyn', 'r1841', 'r1844', 'f-turyn', 'f-zyl', 'f-urodzony', 'f-swiecenia', 'f-rifugio'].map((r) => id(`bosko/${r}`)));
   const asked = new Set();
@@ -2939,6 +2944,45 @@ check('goals and lines follow the one logic', [
   const broken = Object.assign(Object.create(Object.getPrototypeOf(lib)), lib, { cards: async () => { throw new Error('Python niedostępny'); } });
   const partial = await Js.exportSetup(broken, 'Bosko');
   check('… cards that cannot be counted do not cost the rest: the setup comes, with the reason', [partial.course.views.length === setup.course.views.length, partial.cards.total, partial.cards.failed], [true, 0, 'Python niedostępny']);
+}
+
+/*
+ * ══ 2026-10-31 — DER LERNBILDSCHIRM ("Cogita – learning screen changes"): faire Teilpunkte (Reihenfolge, Datum), die Marken
+ * auf der eigenen Reihenfolge, gemischte Reihenfolgen und Paare (nie wie gespeichert), die Genauigkeit einer Datumsfrage,
+ * der kurze Satz unter der Karte. ══
+ */
+{
+  /* -- Teilpunkte -- */
+  check('order: one swap is not a total failure (the places), one moved item neither (the neighbours)',
+    [C.checkOrder(['a', 'b', 'c', 'd', 'e'], ['a', 'c', 'b', 'd', 'e']).correctness, C.checkOrder(['a', 'b', 'c', 'd', 'e'], ['b', 'c', 'd', 'e', 'a']).correctness, C.checkOrder(['a', 'b', 'c'], ['c', 'b', 'a']).correctness, C.checkOrder(['a', 'b', 'c'], ['a', 'b', 'c']).correct],
+    [0.6, 0.75, 1 / 3, true]);
+  const day = { values: ['1841-06-05'], precision: 'day', tolerance: 0 };
+  check('date: a right year earns part on a day question (also when only the year is given), year and month more — right only when whole',
+    [['1841', '1841-06', '1841-06-07', '1841-07-05', '1842-06-05', '5.06.1841'].map((g) => C.checkDate(day, g).correctness), C.checkDate(day, '1841').correct, C.checkDate({ values: ['1841-06'], precision: 'month', tolerance: 0 }, '1841-07').correctness, C.checkDate({ values: ['1841'], precision: 'year', tolerance: 0 }, '1842').correctness],
+    [[0.5, 0.75, 0.75, 0.5, 0, 1], false, 0.5, 0]);
+  check('date: every date question says the precision it expects', [C.PRECISION_ASK.year, C.PRECISION_ASK.day], ['Podaj rok.', 'Podaj dzień, miesiąc i rok.']);
+  check('marks on one’s own order: right or not, and where each belongs — twins each in their own place',
+    [C.orderMarks(['a', 'b', 'c'], ['b', 'a', 'c']), C.orderMarks(['x', 'x', 'y'], ['x', 'y', 'x'])],
+    [[{ right: false, place: 2 }, { right: false, place: 1 }, { right: true, place: 3 }], [{ right: true, place: 1 }, { right: false, place: 3 }, { right: false, place: 2 }]]);
+
+  /* -- Gemischt, nie wie gespeichert -- */
+  const years = { id: 'q-years', kinds: ['question'], data: { form: 'match', prompt: 'Połącz', left: ['1815', '1835', '1841', '1846', '1888'], right: ['urodziny', 'seminarium', 'święcenia', 'Valdocco', 'śmierć'] } };
+  const stages = { id: 'q-stages', kinds: ['question'], data: { form: 'order', prompt: 'Ułóż', items: ['Becchi', 'Chieri', 'Turyn'] } };
+  const two = { id: 'q-two', kinds: ['question'], data: { form: 'order', prompt: 'Ułóż', items: ['wcześniej', 'później'] } };
+  const seeds = Array.from({ length: 40 }, (_, i) => `s${i}`);
+  const matches = seeds.map((s) => Cards.questionCard(years, s).answer);
+  const orders = seeds.map((s) => Cards.questionCard(stages, s).answer.shown.join());
+  check('match: the left column is never shown as stored (often by time), nor straight across from its partner — and the pairs stay right',
+    [matches.some((a) => a.left.join() === years.data.left.join()), matches.some((a) => a.pairs.every(([l, r]) => l === r)), matches.every((a) => C.checkMatch(a.pairs, a.pairs).correct && a.pairs.every(([l, r]) => years.data.left.indexOf(a.left[l]) === years.data.right.indexOf(a.right[r]))), new Set(matches.map((a) => a.left.join())).size > 5],
+    [false, false, true, true]);
+  check('order: the start is shuffled and never the right order (also with two items)',
+    [orders.includes('Becchi,Chieri,Turyn'), new Set(orders).size > 2, seeds.every((s) => Cards.questionCard(two, s).answer.shown.join() === 'później,wcześniej')], [false, true, true]);
+  check('… what counts as right did not change: the fingerprints are those of the stored data, whatever the shuffle',
+    [Cards.questionCard(years, 'a').fingerprint === Cards.questionCard(years, 'b').fingerprint, Cards.questionCard(years, 'a').fingerprint === Basics.hashOf(Basics.stable({ f: 'match', p: years.data.left.map((l, i) => `${l}→${years.data.right[i]}`).sort() })),
+      Cards.questionCard(stages, 'a').fingerprint === Basics.hashOf(Basics.stable({ f: 'order', i: stages.data.items }))],
+    [true, true, true]);
+  check('shuffleAway: never the stored order from two items on; all equal items stay as they are',
+    [seeds.every((s) => Basics.shuffleAway([1, 2], Basics.rngOf(s)).join() === '2,1'), Basics.shuffleAway(['x', 'x'], Basics.rngOf('a')), Basics.shuffleAway([7], Basics.rngOf('a'))], [true, ['x', 'x'], [7]]);
 }
 
 /* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */

@@ -2,7 +2,7 @@
  * Die Bausteine einer Vorlage (COGITA.md §5): Daten, Text, Wahl, Zahlen, Karte — und die Palette, aus der der Editor sie anbietet.
  */
 
-import { type AnswerSpec, type Fragment, type Item, type PromptPart, type TemplateContext, fragmentTree, isObject, lines, num, rngOf, shuffle, str } from './cardBasics';
+import { type AnswerSpec, type Fragment, type Item, type PromptPart, type TemplateContext, fragmentTree, isObject, lines, num, rngOf, shuffle, shuffleAway, shuffledPairs, str } from './cardBasics';
 import { GAP_RULE, TEXT_RULE, readDateAnswer, readRule } from './check';
 import { type NodeKind, type Port, paletteOf } from './graph';
 import { type DatePrecision, type Entity, type GeoPoint, type MediaRef, dateKey, fieldOf, labelOf, plainOf, readDate, readNumber, valueText, valuesOf } from './schema';
@@ -747,7 +747,8 @@ const ANSWER_ORDER: Kind = {
   run: ({ node, inputs, ctx }) => {
     const items = texts(itemsAt(inputs, 'items'));
     if (items.length < 2) return {};
-    return { answer: { answer: { form: 'order', items, shown: shuffle(items, rngFor(ctx, node.id)) } } satisfies Draft };
+    /* 2026-10-31 — nie w kolejności, w jakiej przyszły (to ta dobra). */
+    return { answer: { answer: { form: 'order', items, shown: shuffleAway(items, rngFor(ctx, node.id), (a, b) => norm(a) === norm(b)) } } satisfies Draft };
   }
 };
 
@@ -760,10 +761,9 @@ const ANSWER_MATCH: Kind = {
     const right = texts(itemsAt(inputs, 'right'));
     const n = Math.min(left.length, right.length);
     if (n < 2) return {};
-    const order = shuffle(Array.from({ length: n }, (_, i) => i), rngFor(ctx, node.id));
-    const shownRight = order.map((i) => right[i]);
-    const pairs = Array.from({ length: n }, (_, i): [number, number] => [i, order.indexOf(i)]);
-    return { answer: { answer: { form: 'match', left: left.slice(0, n), right: shownRight, pairs } } satisfies Draft };
+    /* 2026-10-31 — obie kolumny wymieszane, lewa nigdy w kolejności, w jakiej przyszła (często według czasu). */
+    const shown = shuffledPairs(Array.from({ length: n }, (_, i) => ({ left: left[i], right: right[i] })), rngFor(ctx, node.id));
+    return { answer: { answer: { form: 'match', ...shown } } satisfies Draft };
   }
 };
 

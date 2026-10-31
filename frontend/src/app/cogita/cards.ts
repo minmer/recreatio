@@ -34,7 +34,7 @@
 import { checkCode, checkDate, checkFlash, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
 import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './graph';
 import { dateKey, fieldsOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
-import { type AnswerSpec, type Card, type CardTest, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, stable, str } from './cardBasics';
+import { type AnswerSpec, type Card, type CardTest, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, shuffleAway, shuffledPairs, stable, str } from './cardBasics';
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
@@ -304,6 +304,8 @@ function numberAnswer(text: string, unitText: string, quantity: string | undefin
   return convert(read.value, read.unit, own) ?? read.value;
 }
 
+const sameText = (a: string, b: string): boolean => a.trim().toLocaleLowerCase('pl-PL') === b.trim().toLocaleLowerCase('pl-PL');
+
 /** Die Kennungen in einem Verweisfeld — auch in einer Hülle ({ value }). */
 const refIds = (v: unknown): string[] => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v])
   .map((x) => (typeof x === 'string' ? x : isObject(x) && typeof x.value === 'string' ? x.value : '')).filter((x) => x !== '');
@@ -315,15 +317,9 @@ const headsOf = (d: Readonly<Record<string, unknown>>): readonly [string, string
   return l === '' && r === '' ? undefined : [l, r];
 };
 
-/** Paare als Antwort: links in der gegebenen Folge, rechts gemischt. */
+/** Paare als Antwort — 2026-10-31 beide Spalten gemischt: links nie in der gespeicherten (oft zeitlichen) Folge. */
 function matchAnswer(pairs: readonly { left: string; right: string }[], heads: readonly [string, string] | undefined, rng: () => number): AnswerSpec {
-  const n = pairs.length;
-  const order = shuffle(Array.from({ length: n }, (_, i) => i), rng);
-  return {
-    form: 'match', left: pairs.map((p) => p.left), right: order.map((i) => pairs[i].right),
-    pairs: Array.from({ length: n }, (_, i): [number, number] => [i, order.indexOf(i)]),
-    ...(heads === undefined ? {} : { heads })
-  };
+  return { form: 'match', ...shuffledPairs(pairs, rng), ...(heads === undefined ? {} : { heads }) };
 }
 
 /**
@@ -377,7 +373,8 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     case 'truefalse': answer = typeof d.value === 'boolean' ? { form, value: d.value } : null; break;
     case 'order': {
       const items = lines(d.items);
-      answer = items.length < 2 ? null : { form, items, shown: shuffle(items, rng) };
+      /* 2026-10-31 — nie so, wie gespeichert: sonst wäre Ordnen Abschreiben. */
+      answer = items.length < 2 ? null : { form, items, shown: shuffleAway(items, rng, sameText) };
       break;
     }
     case 'match': {

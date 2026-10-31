@@ -67,6 +67,36 @@ export function shuffle<T>(list: readonly T[], rng: () => number): T[] {
   return out;
 }
 
+/**
+ * 2026-10-31 — GEMISCHT, ABER NIE WIE GESPEICHERT: Reihenfolgen und Paare stehen richtig im Speicher (oft nach der Zeit);
+ * zeigte die Karte sie so, wäre Ordnen nur Abschreiben. Ab zwei Stücken ist das Gezeigte nie die gespeicherte Folge
+ * (ausser alle Stücke sind gleich).
+ */
+export function shuffleAway<T>(list: readonly T[], rng: () => number, same: (a: T, b: T) => boolean = (a, b) => a === b): T[] {
+  const out = shuffle(list, rng);
+  const unchanged = () => out.every((x, i) => same(x, list[i]));
+  if (out.length >= 2 && unchanged()) {
+    out.push(out.shift()!);
+    if (unchanged()) [out[0], out[1]] = [out[1], out[0]];
+  }
+  return out;
+}
+
+/**
+ * 2026-10-31 — PAARE ZUM VERBINDEN: beide Spalten unabhängig gemischt (die linke nie in der gespeicherten Folge, die
+ * rechte nie gerade gegenüber ihrer Partnerin); `pairs` nennt je Paar die Stelle links und rechts.
+ */
+export function shuffledPairs(pairs: readonly { readonly left: string; readonly right: string }[], rng: () => number): { left: string[]; right: string[]; pairs: [number, number][] } {
+  const ids = pairs.map((_p, i) => i);
+  const lo = shuffleAway(ids, rng);
+  const ro = shuffleAway(lo, rng);
+  return {
+    left: lo.map((i) => pairs[i].left),
+    right: ro.map((i) => pairs[i].right),
+    pairs: lo.map((p, at): [number, number] => [at, ro.indexOf(p)])
+  };
+}
+
 /** Stabil serialisiert: gleiche Daten, gleicher Text, gleich in welcher Reihenfolge die Schlüssel kamen. */
 export function stable(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;

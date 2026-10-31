@@ -815,8 +815,22 @@ const ORDER_WHY: Record<Order, string> = {
   due: 'najpierw te, na które przyszła pora'
 };
 
-/** 2026-10-30 — WARUM DIESE KARTE, für den Lernenden. */
-export function whyText(why: Why, now: number): string {
+/**
+ * 2026-10-31 — WARUM DIESE KARTE, kurz und menschlich (unter der Karte): „Nowa karta · poziom 2". Die ganze Erklärung —
+ * nach welcher Ordnung, unter wie vielen, wie lange überfällig — gibt `whyDetail` (als Hinweis daneben).
+ */
+export function whyText(why: Why, _now: number): string {
+  const level = why.level === null ? '' : ` · poziom ${why.level + 1}${why.level === 0 ? ' (podstawy)' : ''}`;
+  switch (why.reason) {
+    case 'queue': return `Kolejna karta${level}`;
+    case 'fresh': return `Nowa karta${level}`;
+    case 'again': return 'Wraca — przed chwilą była źle';
+    default: return `Wraca — zaciera się (znajomość ${Math.round(shareOf(why.knowness ?? 0) * 100)} %)`;
+  }
+}
+
+/** 2026-10-30 — WARUM DIESE KARTE, ganz: die Ordnung, die Ebene, unter wie vielen, wie lange überfällig. */
+export function whyDetail(why: Why, now: number): string {
   const level = why.level === null ? '' : ` (poziom ${why.level + 1}${why.level === 0 ? ' — podstawy' : ''})`;
   const pickText = why.reason === 'queue' || why.among <= 1 ? ''
     : why.pick === 'weighted' ? ` Wybrana losowo spośród ${why.among} w stosie — częściej to, co słabiej znasz i co dłużej czeka.`

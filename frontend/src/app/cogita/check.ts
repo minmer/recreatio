@@ -373,21 +373,31 @@ export interface DateExpected {
 
 const RANK: Record<DatePrecision, number> = { year: 0, month: 1, day: 2 };
 
+/** 2026-10-31 — was ein Teil der Antwort wert ist, wo der Tag (oder Monat) gefragt war: das Jahr die Hälfte, Jahr und Monat drei Viertel. */
+const DATE_PART: Readonly<Record<DatePrecision, number>> = { year: 0.5, month: 0.75, day: 1 };
+
+/**
+ * Ein Datum, so genau wie gefragt. 2026-10-31 — TEILPUNKTE: ein richtiges Jahr (bei der Frage nach dem Tag auch Jahr und
+ * Monat) zählt zum Teil — auch wenn nur das Jahr genannt wurde, wo der Tag gefragt war. Richtig ist es erst ganz.
+ */
 export function checkDate(expected: DateExpected, given: string): Outcome {
   if (given.trim() === '') return NOTHING;
   const answer = readDateAnswer(given);
   if (answer === null) return { correct: false, correctness: 0, answered: true };
   const precision = expected.precision;
-  const have = answer.d !== undefined ? 'day' : answer.m !== undefined ? 'month' : 'year';
-  /* Wer nur das Jahr nennt, wo der Tag gefragt ist, hat die Frage nicht beantwortet. */
-  if (RANK[have] < RANK[precision]) return { correct: false, correctness: 0, answered: true };
-  const mine = coarsen(answer, precision);
-  const correct = expected.values.some((raw) => {
-    const want = readDate(raw);
-    return want !== null && RANK[want.d !== undefined ? 'day' : want.m !== undefined ? 'month' : 'year'] >= RANK[precision]
-      && distance(coarsen(want, precision), mine, precision) <= Math.max(0, expected.tolerance);
-  });
-  return { correct, correctness: correct ? 1 : 0, answered: true };
+  const have: DatePrecision = answer.d !== undefined ? 'day' : answer.m !== undefined ? 'month' : 'year';
+  const wants = expected.values.map((raw) => readDate(raw)).filter((w): w is DateValue => w !== null);
+  const rankOf = (d: DateValue): number => RANK[d.d !== undefined ? 'day' : d.m !== undefined ? 'month' : 'year'];
+  const correct = RANK[have] >= RANK[precision] && wants.some((want) => rankOf(want) >= RANK[precision]
+    && distance(coarsen(want, precision), coarsen(answer, precision), precision) <= Math.max(0, expected.tolerance));
+  if (correct) return { correct, correctness: 1, answered: true };
+  /* Wie genau stimmt es, höchstens bis eine Stufe unter der gefragten — und nie genauer, als geantwortet wurde. */
+  let part = 0;
+  for (const level of ['month', 'year'] as const) {
+    if (RANK[level] >= RANK[precision] || RANK[level] > RANK[have]) continue;
+    if (wants.some((want) => rankOf(want) >= RANK[level] && distance(coarsen(want, level), coarsen(answer, level), level) === 0)) { part = DATE_PART[level]; break; }
+  }
+  return { correct: false, correctness: part, answered: true };
 }
 
 /* -- Wahl, Reihenfolge, Paare ----------------------------------------------------- */
@@ -414,7 +424,46 @@ export function checkTrueFalse(correct: boolean, given: boolean | null | undefin
   return { correct: ok, correctness: ok ? 1 : 0, answered: true };
 }
 
-/** Reihenfolge: der Anteil der Stellen, an denen das Richtige steht. */
+/**
+ * 2026-10-31 — WAS EINE DATUMSFRAGE VERLANGT, in Worten: jede Karte sagt es unter der Frage, damit niemand raten muss,
+ * ob das Jahr genügt (im Allgemeinen genügt es; der genaue Tag kommt im Thema, das davon erzählt).
+ */
+export const PRECISION_ASK: Readonly<Record<DatePrecision, string>> = {
+  year: 'Podaj rok.',
+  month: 'Podaj miesiąc i rok.',
+  day: 'Podaj dzień, miesiąc i rok.'
+};
+
+/** Ein Stück der Reihenfolge nach der Prüfung: steht es an seiner Stelle, und welche ist seine (1 = die erste). */
+export interface OrderMark {
+  readonly right: boolean;
+  readonly place: number;
+}
+
+/**
+ * 2026-10-31 — DIE MARKEN AUF DER EIGENEN ANTWORT (Ułóż w kolejności): je gegebenem Stück, ob es richtig steht und wohin
+ * es gehört. Gleiche Texte (zweimal „1841”) bekommen je eine eigene Stelle — die, an der es steht, wenn sie dort
+ * richtig ist, sonst die erste freie.
+ */
+export function orderMarks(correct: readonly string[], given: readonly string[]): OrderMark[] {
+  const norm = (s: string) => s.trim().toLocaleLowerCase('pl-PL');
+  const want = correct.map(norm);
+  const used = new Set<number>();
+  const place: number[] = given.map(() => -1);
+  given.forEach((g, i) => { if (want[i] === norm(g)) { place[i] = i; used.add(i); } });
+  given.forEach((g, i) => {
+    if (place[i] >= 0) return;
+    const at = want.findIndex((w, j) => !used.has(j) && w === norm(g));
+    if (at >= 0) { place[i] = at; used.add(at); }
+  });
+  return place.map((p, i) => ({ right: p === i, place: p + 1 }));
+}
+
+/**
+ * Reihenfolge: der Anteil der Stellen, an denen das Richtige steht — 2026-10-31 oder, wenn das mehr ist, der Anteil der
+ * richtigen Nachbarn (a direkt vor b, wie es sein soll): ein einziges verschobenes Stück lässt sonst alles dahinter
+ * falsch stehen, und ein Tausch ist kein völliger Fehlschlag.
+ */
 export function checkOrder(correct: readonly string[], given: readonly string[]): Outcome {
   if (given.length === 0) return NOTHING;
   const norm = (s: string) => s.trim().toLocaleLowerCase('pl-PL');
@@ -422,7 +471,12 @@ export function checkOrder(correct: readonly string[], given: readonly string[])
   let hits = 0;
   for (let i = 0; i < Math.min(correct.length, given.length); i += 1) if (norm(correct[i]) === norm(given[i])) hits += 1;
   const ok = hits === correct.length && given.length === correct.length && correct.length > 0;
-  return { correct: ok, correctness: hits / longest, answered: true };
+  const pairs = new Set<string>();
+  for (let i = 0; i + 1 < correct.length; i += 1) pairs.add(`${norm(correct[i])}\u0000${norm(correct[i + 1])}`);
+  let neighbours = 0;
+  for (let i = 0; i + 1 < given.length; i += 1) if (pairs.delete(`${norm(given[i])}\u0000${norm(given[i + 1])}`)) neighbours += 1;
+  const byNeighbours = correct.length > 1 ? neighbours / (Math.max(correct.length, given.length) - 1) : 0;
+  return { correct: ok, correctness: ok ? 1 : Math.max(hits / longest, byNeighbours), answered: true };
 }
 
 /** Paare als Stellen links und rechts: `[[0, 2], [1, 0], …]`. */

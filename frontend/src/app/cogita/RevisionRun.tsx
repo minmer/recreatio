@@ -9,15 +9,17 @@
 
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CardFace } from './CardFace';
+import { answerText, CardFace, givenText } from './CardFace';
 import type { Card } from './cardBasics';
+import type { Outcome } from './check';
+import { EntityReading } from './EntityReading';
 import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
 import { toBase64Url } from '../core/crypto';
 import { answersFor, keepOffline, needsFiles, type OfflineRevision } from './offline';
 import type { Who } from '../core/session';
-import { answer, levelsOf, planOf, progress, start, waiting, whyText, type Plan, type Session } from './revision';
+import { answer, levelsOf, planOf, progress, start, waiting, whyDetail, whyText, type Plan, type Session } from './revision';
 import { conditionText } from './logic';
 import type { CogitaLibrary } from './store';
 import { Bar, CogitaContext, entityName } from './ui';
@@ -66,6 +68,13 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   /* Die nächste Stelle des Laufs — erst nach „Dalej", damit das Urteil stehen bleibt. */
   const [pending, setPending] = useState<Session | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  /* 2026-10-31 — die Antwort auf die Karte, die gerade dasteht (für „Zgłoś problem”), und das offene Zgłoszenie. */
+  const [last, setLast] = useState<{ readonly outcome: Outcome; readonly given: unknown } | null>(null);
+  const [flag, setFlag] = useState<string | null>(null);
+  /* 2026-10-31 — die Themen, die dieser Lauf schon vorgestellt hat („Nowy temat” nur vor der ersten Frage). */
+  const [introduced, setIntroduced] = useState<ReadonlySet<string>>(new Set());
+  /* Gerechnet, wenn die Karte kommt — nach der Antwort hat das Thema Antworten, und die Vorstellung bliebe doch stehen. */
+  const intro = useRef<{ at: string; ids: readonly string[] }>({ at: '', ids: [] });
   const saved = useRef(false);
   /*
    * 2026-10-28 — die Abschrift für die Zeit ohne Netz, wie sie abgelegt wurde: am Ende des Laufs (und beim
@@ -202,6 +211,34 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   }
 
   const share = p.total === null ? null : p.answered / Math.max(1, p.total);
+  /*
+   * 2026-10-31 — EIN NEUES THEMA KOMMT NICHT AUS DEM NICHTS: vor der ersten Frage über ein Thema („O czym”), das dieser
+   * Lernende noch nie hatte (keine Karte darüber beantwortet) und das dieser Lauf noch nicht vorgestellt hat, steht es
+   * da — Titel, Streszczenie, der Text zum Aufklappen. Nur bei „O czym”: eine Karte aus einem Szablon fragt oft nach
+   * dem Namen des Eintrags selbst, sein Titel verriete die Antwort. Darum zählen als „schon gehabt” auch nur Fragen
+   * über das Thema: kam zuerst eine Karte „Który to temat?”, steht das Thema vor seiner ersten Frage trotzdem da.
+   */
+  const now = Date.now();
+  const at = `${card.key}#${session.step}`;
+  if (intro.current.at !== at) {
+    intro.current = {
+      at,
+      ids: lib === null ? [] : (card.about ?? []).filter((id) => id !== card.entity && !introduced.has(id) && lib.entity(id) !== undefined
+        && state.all.filter((c) => (c.about ?? []).includes(id)).every((c) => (learner?.marks(c.key, c.fingerprint, rename).length ?? 0) === 0))
+    };
+  }
+  const fresh = intro.current.ids;
+  const promptText = (card.answer.form === 'gap' ? card.answer.shown : card.prompt.map((x) => x.text).join(' ')).replace(/\s+/g, ' ').trim().slice(0, 500);
+  const sendFlag = (text: string) => {
+    if (lib === null) return;
+    setFlag(null);
+    void sendReport(lib.libraryId, lib.areaId, 'flags', {
+      card: card.key, question: card.question, text: text.trim().slice(0, 1000),
+      prompt: promptText, given: last === null ? '' : givenText(card, last.given).slice(0, 500), expected: answerText(card).slice(0, 500),
+      correctness: last === null ? null : last.outcome.correctness
+    }, ctx?.seat)
+      .then((ok) => setNote(ok ? 'Dziękujemy — autorzy dostaną zgłoszenie z tą kartą i Twoją odpowiedzią (bez Twojego imienia).' : 'Ta baza wiedzy nie przyjmuje jeszcze zgłoszeń.'), () => setNote('Nie udało się wysłać zgłoszenia.'));
+  };
   return (
     <div className="cg">
       <div className="cg-run-head">
@@ -218,7 +255,14 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         card={card}
         rule={session.plan.rule}
         lib={lib ?? undefined}
+        head={lib === null || fresh.length === 0 ? undefined : (
+          <section className="cg-topic-intro" data-topic-intro={fresh.join(' ')} aria-label="Nowy temat">
+            <span className="cg-topic-tag">Nowy temat</span>
+            {fresh.map((id) => { const e = lib.entity(id); return e === undefined ? null : <EntityReading key={id} lib={lib} entity={e} variant="intro" />; })}
+          </section>
+        )}
         onAnswered={(outcome, given, ms) => {
+          setLast({ outcome, given });
           learner?.record(card, outcome.correctness, { given: typeof given === 'string' ? given : JSON.stringify(given), ms, via: via ?? source.revisionId });
           const had = tally.current.get(card.key) ?? { asked: 0, wrong: 0 };
           tally.current.set(card.key, { asked: had.asked + 1, wrong: had.wrong + (outcome.correct ? 0 : 1) });
@@ -226,21 +270,34 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           setStats((s) => ({ answered: s.answered + 1, correct: s.correct + (outcome.correct ? 1 : 0) }));
           setPending(answer(session, outcome.correctness, Date.now()).session);
         }}
-        onNext={() => { if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending })); setPending(null); setNote(null); }}
+        onNext={() => {
+          if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending }));
+          setPending(null); setNote(null); setLast(null); setFlag(null);
+          if (fresh.length > 0) setIntroduced((was) => new Set([...was, ...fresh]));
+        }}
         foot={(
-          <div className="cg-row-between">
-            {/* 2026-10-30 — jede Wahl erklärbar: warum gerade diese Karte. */}
-            <span className="cg-muted" data-why={session.why?.reason ?? ''}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{session.why === null ? '' : whyText(session.why, Date.now())}</span>
-            <span className="cg-row">
-              {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote('Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).'); }}>Nie pytaj o to</button>}
-              {lib !== null && <button type="button" className="wk-link-btn" onClick={() => {
-                const text = window.prompt('Co jest nie tak z tą kartą? (autorzy zobaczą to bez Twojego imienia)');
-                if (text === null || text.trim() === '') return;
-                void sendReport(lib.libraryId, lib.areaId, 'flags', { card: card.key, question: card.question, text: text.trim().slice(0, 1000) }, ctx?.seat)
-                  .then((ok) => setNote(ok ? 'Dziękujemy — autorzy dostaną zgłoszenie.' : 'Ta baza wiedzy nie przyjmuje jeszcze zgłoszeń.'), () => setNote('Nie udało się wysłać zgłoszenia.'));
-              }}>Zgłoś błąd</button>}
-            </span>
-            {note !== null && <span className="wk-hint">{note}</span>}
+          <div className="cg-card-foot">
+            <div className="cg-row-between">
+              {/* 2026-10-30 — jede Wahl erklärbar: warum gerade diese Karte; 2026-10-31 kurz, das Ganze als Hinweis. */}
+              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{session.why === null ? '' : whyText(session.why, now)}</span>
+              <span className="cg-row">
+                {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote('Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).'); }}>Nie pytaj o to</button>}
+                {lib !== null && <button type="button" className="wk-link-btn" aria-expanded={flag !== null} data-flag-open="" onClick={() => setFlag((was) => (was === null ? '' : null))}>Zgłoś problem</button>}
+              </span>
+            </div>
+            {flag !== null && (
+              <form className="cg-flag" data-flag-form="" onSubmit={(e) => { e.preventDefault(); if (flag.trim() !== '') sendFlag(flag); }}>
+                <label className="wk-field">
+                  <span>Co jest nie tak z tą kartą? Autorzy zobaczą kartę, pytanie i Twoją odpowiedź — bez Twojego imienia.</span>
+                  <textarea rows={3} value={flag} autoFocus maxLength={1000} onChange={(e) => setFlag(e.target.value)} />
+                </label>
+                <div className="cg-row">
+                  <button type="submit" className="wk-btn" disabled={flag.trim() === ''}>Wyślij</button>
+                  <button type="button" className="wk-link-btn" onClick={() => setFlag(null)}>Anuluj</button>
+                </div>
+              </form>
+            )}
+            {note !== null && <p className="wk-note" role="status" data-flag-note="">{note}</p>}
           </div>
         )}
       />
