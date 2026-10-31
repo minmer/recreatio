@@ -60,6 +60,7 @@ import { CogitaContext, ForeignOnly, useAsync, useBusy, useCogita, useCtx, type 
 import type { Card } from './cardBasics';
 import { MenuButton } from '../ui/Menu';
 import { Icon } from '../ui/icons';
+import { Loading } from '../ui/Loading';
 import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { isOldInBase, oldInBaseLabel } from './oldInBase';
 
@@ -180,7 +181,10 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   const holder = useMemo(() => (storage === null || me === null ? null : holderOfMe(me)), [storage, me]);
   const own = useLearner(storage === null ? null : lib, holder, storage);
   if (source !== null) {
-    return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who?.keyKeeping === 'kept' && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')} />;
+    /* 2026-10-31 — der eigene Lernende dieser Powtórka lädt erst: solange warten, sonst finge der Lauf ohne ihn an. */
+    if (storage !== null && holder !== null && own.learner === null && own.failed === null) return <Loading label="Wczytywanie postępów…" />;
+    /* Ob das Konto den Schlüssel hier behält, prüft der Lauf selbst — und sagt es, statt still nichts abzulegen. */
+    return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who !== null && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')} />;
   }
   const now = Date.now();
   const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m); return d !== null && d <= now; }).length;

@@ -19,8 +19,10 @@ import { renamer, sendReport, type Learner } from './learn';
 import { answerIndex } from './measures';
 import { later } from '../ui/later';
 import { toBase64Url } from '../core/crypto';
-import { answersFor, keepOffline, needsFiles, type OfflineRevision } from './offline';
-import type { Who } from '../core/session';
+import { answersFor, keepOffline, needsFiles, offlineList, type OfflineRevision } from './offline';
+import { AWAY_HERE } from '../core/away';
+import { keepsKey, type Who } from '../core/session';
+import { toast } from '../ui/dialogs';
 import { answer, levelsOf, planOf, progress, start, waiting, whyDetail, whyText, type Plan, type Session } from './revision';
 import { conditionText } from './logic';
 import type { CogitaLibrary } from './store';
@@ -56,7 +58,10 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   source: RunSource;
   learner: Learner | null;
   onClose?: () => void;
-  /** Darf das Gerät eine Abschrift für die Zeit ohne Netz behalten (`kept`)? */
+  /**
+   * Die Powtórka ist für die Zeit ohne Netz markiert („Trzymaj na urządzeniach bez internetu") — dann behält das
+   * Gerät eine Abschrift, wenn das Konto seinen Schlüssel hier behält (`kept`); sonst sagt der Lauf, warum nicht.
+   */
   keep?: boolean;
   /** Wohin die Antworten gehören (eine Sitzung, ein Ablauf) — sonst die Wiederholung. */
   via?: string;
@@ -103,8 +108,74 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   const rename = useMemo(() => (lib === null ? undefined : renamer(lib.merges())), [lib]);
   renameNow.current = rename;
 
+  /*
+   * 2026-10-31 — DER LERNENDE KOMMT OFT NACH DEM LAUF: `useLearner` lädt erst seine Antworten, und eine Powtórka mit
+   * eigenem Bereich für Antworten bekommt ihren Lernenden erst beim Öffnen. Bis dahin plante der Lauf ohne den
+   * Fortschritt, nahm keine Antwort an — und die Abschrift für die Zeit ohne Netz entstand nie (Nauka bez internetu:
+   * „Nic"). Kommt er, bevor etwas beantwortet ist, plant der Lauf neu, mit ihm; war schon geantwortet, bleibt der Lauf,
+   * und nur die Abschrift kommt jetzt.
+   */
+  const [arrived, setArrived] = useState(learner !== null);
+  useEffect(() => { if (learner !== null) setArrived(true); }, [learner]);
+  const answeredHere = useRef(0);
+  const planned = useRef<{ readonly plan: Plan; readonly withLearner: boolean } | null>(null);
+  /** Wie es um die Abschrift steht — gesagt am Ende des Laufs (in der App; im Browser hilft sie nur dem offenen Tab). */
+  const [kept, setKept] = useState<'saved' | 'no-key' | 'failed' | null>(null);
+
+  /**
+   * DIE ABSCHRIFT FÜR DIE ZEIT OHNE NETZ — sobald Plan UND Lernender da sind. 2026-10-27: die Karten ohne Dateien (die
+   * öffnen sich nur online), der Schlüssel der Annahme (sonst liest der Kurs die Antworten nie) und was schon
+   * beantwortet ist (sonst hielte ein „Filtr znajomości" ohne Netz alles zurück; seine Bedingungen liegen im Plan).
+   * 2026-10-28 — und wer lernt (die Person mit ihrem öffentlichen Schlüssel): ohne Netz und ohne offenen
+   * Schlüsselbund wird für sie versiegelt.
+   */
+  const keepCopy = (plan: Plan, made: Learner): void => {
+    const keeper = ctx?.who ?? null;
+    if (!keep || saved.current || lib === null || source.revisionId === undefined || keeper === null || made.holder.kind !== 'role') return;
+    saved.current = true;
+    if (!keepsKey(keeper)) {
+      if (AWAY_HERE) {
+        setKept('no-key');
+        toast('Ta powtórka jest do nauki bez internetu, ale na tym urządzeniu klucz nie jest zachowany — ustaw „Klucz zachowany na tym urządzeniu” (Konto → Bezpieczeństwo i klucze) i otwórz ją jeszcze raz.');
+      }
+      return;
+    }
+    const { cards: _cards, ...config } = plan;
+    const cards = plan.cards.filter((c) => !needsFiles(c));
+    const copy: OfflineRevision = {
+      libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? 'Powtórka', plan: config as Record<string, unknown>,
+      cards, deps: lib.dependencies(),
+      target: made.target === null ? null : { areaId: made.target.areaId, intake: made.target.intake === null ? null : toBase64Url(made.target.intake) },
+      holder: { roleId: made.holder.roleId, wrapPublicKey: toBase64Url(made.holder.wrapPublicKey) },
+      answers: answersFor(cards, made.progress.answers.values(), rename),
+      savedAt: Date.now()
+    };
+    keptCopy.current = { copy, who: keeper };
+    const libraryId = lib.libraryId;
+    const revisionId = source.revisionId;
+    void (async () => {
+      const before = await offlineList(keeper.accountId).catch(() => []);
+      const ok = await keepOffline(copy, keeper).catch(() => false);
+      if (!AWAY_HERE) return;
+      setKept(ok ? 'saved' : 'failed');
+      if (!ok) toast('Nie udało się zapisać tej powtórki na tym urządzeniu do nauki bez internetu.');
+      else if (!before.some((r) => r.libraryId === libraryId && r.revisionId === revisionId)) {
+        toast('Zapisano na tym urządzeniu — tę powtórkę przejdziesz też bez internetu (Nauka → Bez internetu na tym urządzeniu).');
+      }
+    })();
+  };
+
   useEffect(() => {
+    /* Der Lernende kam, als schon geantwortet wurde: der Lauf bleibt, wie er ist — nur die Abschrift entsteht jetzt. */
+    const was = planned.current;
+    if (was !== null && !was.withLearner && learner !== null && answeredHere.current > 0) {
+      planned.current = { ...was, withLearner: true };
+      keepCopy(was.plan, learner);
+      return undefined;
+    }
     let alive = true;
+    planned.current = null;
+    answeredHere.current = 0;
     setState(null);
     setFailed(null);
     setStats({ answered: 0, correct: 0 });
@@ -115,31 +186,12 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         let all: readonly Card[] = source.cards ?? [];
         if (plan === null && lib !== null && source.revisionId !== undefined) {
           const made = await planFor(lib, source.revisionId, learner, seed);
-          if (made.plan === null) { if (alive) setFailed(made.problems.join(' ') || 'Powtórka nie dała planu.'); return; }
+          if (!alive) return;
+          if (made.plan === null) { setFailed(made.problems.join(' ') || 'Powtórka nie dała planu.'); return; }
           plan = made.plan;
           all = made.cards;
-          const keeper = ctx?.who ?? null;
-          if (keep && !saved.current && learner !== null && keeper !== null && learner.holder.kind === 'role') {
-            saved.current = true;
-            const { cards: _cards, ...config } = plan;
-            /*
-             * 2026-10-27 — für die Zeit ohne Netz: die Karten ohne Dateien (die öffnen sich nur online), der Schlüssel der
-             * Annahme (sonst liest der Kurs die Antworten nie) und was schon beantwortet ist (sonst hielte ein „Filtr
-             * znajomości" ohne Netz alles zurück; seine Bedingungen liegen im Plan). 2026-10-28 — und wer lernt (die Person mit ihrem öffentlichen
-             * Schlüssel): ohne Netz und ohne offenen Schlüsselbund wird für sie versiegelt.
-             */
-            const cards = plan.cards.filter((c) => !needsFiles(c));
-            const copy: OfflineRevision = {
-              libraryId: lib.libraryId, revisionId: source.revisionId, name: source.title ?? 'Powtórka', plan: config as Record<string, unknown>,
-              cards, deps: lib.dependencies(),
-              target: learner.target === null ? null : { areaId: learner.target.areaId, intake: learner.target.intake === null ? null : toBase64Url(learner.target.intake) },
-              holder: { roleId: learner.holder.roleId, wrapPublicKey: toBase64Url(learner.holder.wrapPublicKey) },
-              answers: answersFor(cards, learner.progress.answers.values(), rename),
-              savedAt: Date.now()
-            };
-            keptCopy.current = { copy, who: keeper };
-            void keepOffline(copy, keeper).catch(() => false);
-          }
+          planned.current = { plan, withLearner: learner !== null };
+          if (learner !== null) keepCopy(plan, learner);
         }
         if (plan === null) { if (alive) setFailed('Nie ma czego powtarzać.'); return; }
         if (plan.cards.length === 0) { if (alive) setFailed('W tej powtórce nie ma jeszcze żadnej karty.'); return; }
@@ -154,8 +206,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
       }
     })();
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lib?.libraryId, source.revisionId, source.plan, round]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `arrived`: einmal, wenn der Lernende da ist (oben)
+  }, [lib?.libraryId, source.revisionId, source.plan, round, arrived]);
 
   const finished = state !== null && state.session.current === null;
   useEffect(() => {
@@ -206,6 +258,9 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           </p>
         )}
         {learner !== null && learner.waiting > 0 && <p className="wk-note">{learner.waiting} pakietów odpowiedzi czeka na internet — wyślą się same.</p>}
+        {kept === 'saved' && <p className="cg-muted" data-offline-kept="saved">Ta powtórka jest na tym urządzeniu także bez internetu — w stanie z teraz.</p>}
+        {kept === 'no-key' && <p className="wk-note" data-offline-kept="no-key">Bez internetu jej tu nie ma: klucz nie jest zachowany na tym urządzeniu (Konto → Bezpieczeństwo i klucze).</p>}
+        {kept === 'failed' && <p className="wk-note" data-offline-kept="failed">Nie udało się zapisać tej powtórki na tym urządzeniu do nauki bez internetu.</p>}
         {learner === null && <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce.</p>}
         <div className="wk-actions">
           <button type="button" className="wk-btn" onClick={() => setRound((n) => n + 1)}>Jeszcze raz</button>
@@ -275,6 +330,7 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           </section>
         )}
         onAnswered={(outcome, given, ms) => {
+          answeredHere.current += 1;
           setLast({ outcome, given });
           learner?.record(card, outcome.correctness, { given: typeof given === 'string' ? given : JSON.stringify(given), ms, via: via ?? source.revisionId });
           const had = tally.current.get(card.key) ?? { asked: 0, wrong: 0 };
