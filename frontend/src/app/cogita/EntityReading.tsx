@@ -222,9 +222,10 @@ function sourceOf(lib: CogitaLibrary, entity: Entity, r: Reading): SourceLink | 
     if (hit !== null) return hit;
   }
   const look = lib.markupLook;
-  for (const field of [...(r.summary === undefined ? [] : [r.summary]), ...r.prose]) {
-    if (field.type === 'text') continue;
-    for (const item of citedPlaces(parseMarkup(readingSource(proseText(entity, field))))) {
+  const texts = r.shown !== undefined ? [r.shown]
+    : [...(r.summary === undefined ? [] : [r.summary]), ...r.prose].filter((f) => f.type !== 'text').map((f) => proseText(entity, f));
+  for (const text of texts) {
+    for (const item of citedPlaces(parseMarkup(readingSource(text)))) {
       const target = refTarget(look, item.key);
       if (target === undefined || !isSource(target)) continue;
       const work = workBehind(target, look);
@@ -264,14 +265,18 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
       </button>
       {open && (
         <div className="cg-reading-body" id={bodyId}>
-          {r.summary !== undefined && <section className="cg-reading-part"><ReadingField lib={lib} entity={entity} field={r.summary} onEntity={onEntity} /></section>}
-          {r.prose.map((f, i) => (
-            <section key={f.key} className="cg-reading-part">
-              {(i > 0 || r.summary !== undefined) && <h4 className="cg-reading-label">{f.label}</h4>}
-              <ReadingField lib={lib} entity={entity} field={f} onEntity={onEntity} />
-            </section>
-          ))}
-          <ReadingMeta lib={lib} r={r} />
+          {r.shown !== undefined ? <ReadingMarkup lib={lib} text={r.shown} onEntity={onEntity} short={false} /> : (
+            <>
+              {r.summary !== undefined && <section className="cg-reading-part"><ReadingField lib={lib} entity={entity} field={r.summary} onEntity={onEntity} /></section>}
+              {r.prose.map((f, i) => (
+                <section key={f.key} className="cg-reading-part">
+                  {(i > 0 || r.summary !== undefined) && <h4 className="cg-reading-label">{f.label}</h4>}
+                  <ReadingField lib={lib} entity={entity} field={f} onEntity={onEntity} />
+                </section>
+              ))}
+              <ReadingMeta lib={lib} r={r} />
+            </>
+          )}
           {onEntity !== undefined
             ? <button type="button" className="wk-link-btn cg-reading-open" onClick={() => onEntity(entity.id)}>Otwórz wpis</button>
             : href !== undefined && <a className="wk-link-btn cg-reading-open" href={href}>Otwórz wpis</a>}
@@ -302,7 +307,7 @@ export function ExplainList({ lib, ids, onEntity }: { lib: CogitaLibrary; ids: r
  * dalej" klappt den ganzen Text an Ort und Stelle auf, „Czytaj tekst" führt zur Stelle im Buch. Eine Fussnote im
  * Anriss klappt auf und springt zu ihr.
  */
-export function TopicIntro({ lib, entity }: { lib: CogitaLibrary; entity: Entity }) {
+export function TopicIntro({ lib, entity, pattern }: { lib: CogitaLibrary; entity: Entity; pattern?: string }) {
   const [open, setOpen] = useState(false);
   const [passage, setPassage] = useState(false);
   const [clamped, setClamped] = useState(false);
@@ -311,11 +316,11 @@ export function TopicIntro({ lib, entity }: { lib: CogitaLibrary; entity: Entity
   const body = useRef<HTMLDivElement>(null);
   /* Was nach dem Auf- oder Zuklappen geschieht: zur Fussnote springen, den Text fokussieren, das Thema wieder zeigen. */
   const then = useRef<{ jump?: string; focus?: boolean; back?: boolean }>({});
-  const r = readingOf(lib, entity);
-  const source = useMemo(() => sourceOf(lib, entity, readingOf(lib, entity)), [lib, entity]);
+  const r = readingOf(lib, entity, pattern);
+  const source = useMemo(() => sourceOf(lib, entity, readingOf(lib, entity, pattern)), [lib, entity, pattern]);
   const leadField = r.summary ?? r.prose[0];
-  const shape = leadField === undefined ? { lead: false, more: false } : fieldShape(entity, leadField);
-  const more = shape.more || r.prose.length > (r.summary === undefined ? 1 : 0) || r.when.length > 0 || r.places.length > 0;
+  const more = r.shown !== undefined ? leadShape(r.shown).more
+    : (leadField !== undefined && fieldShape(entity, leadField).more) || r.prose.length > (r.summary === undefined ? 1 : 0) || r.when.length > 0 || r.places.length > 0;
 
   /* Zu: ist der Anriss länger als seine Zeilen, gibt es auch „Czytaj dalej" (gemessen nach dem Zeichnen, auch beim Drehen). */
   useEffect(() => {
@@ -329,7 +334,7 @@ export function TopicIntro({ lib, entity }: { lib: CogitaLibrary; entity: Entity
     const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
     watch?.observe(el);
     return () => watch?.disconnect();
-  }, [open, entity]);
+  }, [open, entity, pattern]);
 
   useEffect(() => {
     const next = then.current;
@@ -355,14 +360,18 @@ export function TopicIntro({ lib, entity }: { lib: CogitaLibrary; entity: Entity
     <div ref={root} className={`cg-reading is-intro${open ? ' is-open' : ''}`} data-reading={entity.id} onClickCapture={onClickCapture}>
       <h3 className="cg-reading-title">{r.title}</h3>
       <div ref={body} id={bodyId} tabIndex={-1} className={open ? 'cg-reading-body' : 'cg-reading-short'} data-read-open={open ? '' : undefined}>
-        {r.summary !== undefined && <section className="cg-reading-part"><ReadingField lib={lib} entity={entity} field={r.summary} short={!open} /></section>}
-        {r.prose.map((f, i) => (open || (r.summary === undefined && i === 0)) && (
-          <section key={f.key} className="cg-reading-part">
-            {open && (i > 0 || r.summary !== undefined) && <h4 className="cg-reading-label">{f.label}</h4>}
-            <ReadingField lib={lib} entity={entity} field={f} short={!open} />
-          </section>
-        ))}
-        {open && <ReadingMeta lib={lib} r={r} />}
+        {r.shown !== undefined ? <ReadingMarkup lib={lib} text={r.shown} short={!open} /> : (
+          <>
+            {r.summary !== undefined && <section className="cg-reading-part"><ReadingField lib={lib} entity={entity} field={r.summary} short={!open} /></section>}
+            {r.prose.map((f, i) => (open || (r.summary === undefined && i === 0)) && (
+              <section key={f.key} className="cg-reading-part">
+                {open && (i > 0 || r.summary !== undefined) && <h4 className="cg-reading-label">{f.label}</h4>}
+                <ReadingField lib={lib} entity={entity} field={f} short={!open} />
+              </section>
+            ))}
+            {open && <ReadingMeta lib={lib} r={r} />}
+          </>
+        )}
       </div>
       {(more || clamped || source !== null) && (
         <div className="cg-reading-actions">
