@@ -28,6 +28,7 @@ import { isBaseKind, QUESTION } from './kinds';
 import { QUESTION_SHARED, QUESTION_TYPES } from './questionTypes';
 import { problemsOf, type KindDef } from './schema';
 import { KindForm } from './KindForm';
+import { ReadingPreview } from './EntityReading';
 import { useImportReview } from './ImportReviewPanel';
 import { OriginTag, useBusy, useCtx } from './ui';
 
@@ -126,9 +127,13 @@ function BaseKindForm({ draft, writes, busy, onChange, onSave, onRemove }: { dra
   const question = draft.id === 'question';
   /* 2026-10-27 — die Felder des Pytanie gehören der Maschine (Prüfen, Karten): nur Namen und Erklärungen sind frei. */
   const fixedKeys = useMemo(() => new Set(question ? QUESTION.fields.map((f) => f.key) : base ? (lib.kind(draft.id)?.fields ?? []).filter((f) => f.role === f.key).map((f) => f.key) : []), [base, question, draft.id, lib]);
+  /* 2026-10-31 — der Wzór tekstu, gleich am ersten Eintrag dieses Rodzaju gezeigt, wie „Nowy temat" ihn zeigt. */
+  const sample = question ? undefined : lib.ofKind(draft.id)[0];
   return (
     <KindForm draft={draft} writes={writes} busy={busy} targets={lib.refKinds} fixedKeys={fixedKeys} base={base} problems={problemsOf(draft, lib.look)}
       extra={question ? <QuestionTypes kind={draft} /> : undefined}
+      options={question ? { reading: false } : undefined}
+      readingPreview={sample === undefined ? undefined : <ReadingPreview lib={lib} entity={sample} pattern={draft.reading ?? ''} />}
       onChange={onChange} onSave={onSave} onRemove={onRemove}
     />
   );

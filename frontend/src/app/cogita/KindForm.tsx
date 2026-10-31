@@ -56,6 +56,8 @@ export interface KindFormOptions {
   readonly uncertain?: boolean;
   /** Muster des Etiketts und „Co odróżnia imienników" (ein Rodzaj tekstu hat seinen Titel). */
   readonly pattern?: boolean;
+  /** 2026-10-31 — der Wzór tekstu do czytania (mit `pattern`; nicht bei der Frage: sie liest sich als ihr Titel). */
+  readonly reading?: boolean;
   /** Schlüssel, die schon belegt sind — mit dem Grund (die festen Felder eines Textes). */
   readonly reserved?: ReadonlyMap<string, string>;
   readonly nameLabel?: string;
@@ -141,7 +143,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
       {pattern && <p className="wk-hint">W etykiecie: {draft.fields.map((f) => `{${f.key}}`).join(' ')} {patternKeys(draft.label).length === 0 && '— wzór nie używa jeszcze żadnego pola.'}</p>}
       {base && <p className="wk-hint">Pola wbudowanego rodzaju zostają (korzystają z nich wbudowane narzędzia: przypisy, karty, sprawdzanie odpowiedzi) — można zmienić ich nazwy i dodać własne.</p>}
       {/* 2026-10-31 — wie ein Eintrag zum Lesen aussieht („Nowy temat", die Erklärung): ein Zapis mit Feldern in Klammern (`reading.ts`). */}
-      {pattern && (
+      {pattern && options.reading !== false && (
         <div className="cg-kind-reading" data-kind-reading="">
           <label className="wk-field"><span>Tekst do czytania — wzór</span>
             <textarea rows={4} value={draft.reading ?? ''} disabled={!writes} placeholder={'{streszczenie}\n\n{opis}\n\n**Wydarzenia**\n{wydarzenia}'}

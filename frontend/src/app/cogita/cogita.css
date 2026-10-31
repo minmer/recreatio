@@ -674,7 +674,33 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-reading.is-intro { border: 0; background: none; display: grid; gap: var(--wk-space-1); }
 .cg-reading.is-intro .cg-reading-title { margin: 0; font-size: var(--wk-text-md); }
 .cg-reading.is-intro .cg-reading-body { padding: 0; }
-.cg-reading.is-intro > .wk-link-btn { justify-self: start; }
+.cg-reading.is-intro .cg-reading-body:focus { outline: none; }
+/* 2026-10-31 — zu: der Anriss höchstens vier Zeilen (breit sechs, mehrere Themen auf einmal zwei) — die Frage bleibt im Blick. */
+.cg-reading-short { display: grid; gap: var(--wk-space-1); }
+.cg-reading-short p { margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+@media (min-width: 40rem) { .cg-reading-short p { -webkit-line-clamp: 6; line-clamp: 6; } }
+.cg-topic-intro[data-many] .cg-reading-short p { -webkit-line-clamp: 2; line-clamp: 2; }
+.cg-reading-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-4); }
+.cg-reading .cg-markup ul, .cg-reading .cg-markup ol { margin: 0 0 0.5rem; padding-left: 1.5rem; display: grid; gap: 0.25rem; }
+/* Listen unter ihrem fetten Zwischentitel (reading.ts): zu, bis man sie öffnet; der Titel ist der Knopf, daneben wie viele Punkte. */
+.cg-fold { margin: 0 0 0.5rem; }
+.cg-fold > summary {
+  display: flex; align-items: center; gap: var(--wk-space-2); width: fit-content; max-width: 100%;
+  padding: 0.125rem 0; cursor: pointer; list-style: none;
+}
+.cg-fold > summary::-webkit-details-marker { display: none; }
+.cg-fold > summary::before {
+  content: ""; flex: none; width: 0.4rem; height: 0.4rem; margin: 0 0.125rem;
+  border-right: 2px solid var(--wk-muted); border-bottom: 2px solid var(--wk-muted); transform: rotate(-45deg); transition: transform 0.15s ease;
+}
+.cg-fold[open] > summary::before { transform: rotate(45deg); }
+.cg-fold > summary:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; border-radius: var(--wk-radius-sm); }
+.cg-fold-title { min-width: 0; }
+.cg-fold-count { flex: none; font-size: var(--wk-text-xs); color: var(--wk-muted); border: 1px solid var(--wk-line); border-radius: 999px; padding: 0 0.4rem; }
+.cg-fold > :not(summary) { margin-top: 0.25rem; }
+/* Der Wzór tekstu im Editor eines Rodzaju, mit der Vorschau darunter. */
+.cg-kind-reading { display: grid; gap: var(--wk-space-2); }
+.cg-kind-reading textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
 .cg-topic-intro {
   text-align: left; display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3);
   border: 1px solid var(--wk-line); border-left: 4px solid var(--wk-accent); border-radius: var(--wk-radius-sm); background: var(--wk-accent-soft);
@@ -689,4 +715,5 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .cg-order-item, .cg-order.is-checked .cg-order-item { transition: none; }
+  .cg-fold > summary::before { transition: none; }
 }

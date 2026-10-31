@@ -302,6 +302,16 @@ export function ExplainList({ lib, ids, onEntity }: { lib: CogitaLibrary; ids: r
 
 /* -- „Nowy temat" ---------------------------------------------------------------------------------------------- */
 
+/** 2026-10-31 — im Editor des Rodzaju: ein Eintrag, wie ihn „Nowy temat" mit diesem Wzór zeigt (leer: wie ohne Wzór). */
+export function ReadingPreview({ lib, entity, pattern }: { lib: CogitaLibrary; entity: Entity; pattern: string }) {
+  return (
+    <section className="cg-topic-intro" data-reading-preview="" aria-label="Podgląd tekstu do czytania">
+      <span className="cg-topic-tag">Podgląd — tak wygląda „Nowy temat”</span>
+      <TopicIntro lib={lib} entity={entity} pattern={pattern} />
+    </section>
+  );
+}
+
 /**
  * EIN NEUES THEMA VOR SEINER ERSTEN FRAGE: Titel und Anriss (kurz — die Frage bleibt auf dem Telefon im Blick), „Czytaj
  * dalej" klappt den ganzen Text an Ort und Stelle auf, „Czytaj tekst" führt zur Stelle im Buch. Eine Fussnote im

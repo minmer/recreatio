@@ -1064,6 +1064,12 @@ const formsSection = (): string => `"forms" — formularze dodawania (należą d
 /** Was ein Rodzaj im JSON ist. */
 const kindsSection = (): string => `"kinds" — rodzaje:
   "name" — nazwa, "label" — wzór etykiety, np. "{givenNames} {surname}", "tells" — pole, które odróżnia imienników,
+  "reading" — tekst do czytania: jak uczący się widzi wpis tego rodzaju („Nowy temat” przed pierwszym pytaniem o ten wpis, wyjaśnienie po odpowiedzi) — zapis z polami w klamrach, jak "label",
+    np. "{streszczenie}\\n\\n{opis}\\n\\n**Wydarzenia**\\n{wydarzenia}\\n\\n*{czas}*"; pierwszy akapit to zapowiedź (krótko; reszta po „Czytaj dalej”);
+    pole "markup" zostaje zapisem (pogrubienia, przypisy [@dzielo, s. 12]), "text" — tekstem, "list" sama w linii — punktami (pod pogrubionym śródtytułem zwinięta, aż uczący się ją otworzy),
+    "ref" — link z nazwą wpisu, "ref" z "locator" — przypis do źródła z miejscem (z „pokaż w tekście”), data, liczba, wybór — tekstem; pliki i miejsca na mapie się nie pokazują;
+    część wzoru do pustej linii, w której wszystkie pola są puste, znika razem ze swoim śródtytułem;
+    bez "reading": streszczenie (pole "streszczenie" albo "summary") albo pierwszy akapit tekstu, potem pola z tekstem, daty i miejsca; "reading": "" usuwa wzór
   "builtin" — zmiana wbudowanego rodzaju (person, work, quote — z biblioteki; text, delivery, project — ze skryptorium; question);
     innych wbudowanych treści nie ma: rodzaje pisze właściciel bazy albo importuje gotowy schemat (niżej)
   "fields": [{"key", "label", "type", "multi", "uncertain", "unit", "quantity", "options", "to", "inverse", "symmetric", "locator", "structure", "prerequisite", "when", "media", "rangeOf", "says"}]
@@ -1233,6 +1239,7 @@ ${kinds}`;
 const COURSE_USAGE = `## Jak aplikacja używa tych danych
   Wiedza: wpisy stoją w „Wpisy” (tabela, drzewo, struktura, macierz, płótno — według widoków), każdy ze swoją stroną (pola, odwołania, kolejność nauki); rodzaje, szablony, widoki i sposoby dodawania — w „Schematach”; wejścia ("anchors") dają przy dziele w Bibliotece i w czytniku przycisk „W Wiedzy”.
   Nauka: szablony robią z wpisów karty (z kluczem „szablon:wpis”); powtórki wybierają z kart i pytają; „Ścieżka” pokazuje kolejność nauki; widoki i powtórki z „Filtrem znajomości” pokazują to, co uczący się już może.
+  Czytanie w Nauce: przed pierwszym pytaniem o wpis z "about" stoi „Nowy temat” (tytuł i zapowiedź, „Czytaj dalej”, „Czytaj tekst” do miejsca w źródle), po odpowiedzi — wyjaśnienie; oba według "reading" jego rodzaju, a bez niego — streszczenie albo pierwszy akapit, potem pola z tekstem.
   Odpowiedzi: każda zapisuje się zaszyfrowana w przeglądarce — dla uczącego się i dla obszaru przyjęć kursu (Ustawienia), gdzie nauczyciel widzi „Postępy”; z nich liczy się znajomość kart i wpisów. Serwis nie czyta odpowiedzi; widzi tylko, kiedy następna powtórka i ile kart czeka — na osobę i bazę (do przypomnienia).
   Strony: moduły „Widok” (tabela, drzewo, macierz, mapa), „Powtórka”, „Kurs / opowieść”, „Karta wpisu” czytają bazę tak, jak widzi ją czytelnik strony; uczy się osoba strony (zalogowana — ona sama, bez konta — ta przeglądarka).
   Inne bazy wiedzy, które korzystają z tej jako źródła, widzą jej rodzaje, wpisy, szablony, powtórki i przebiegi tylko do odczytu; link dla AI i MCP czytają ją bez zmian.
