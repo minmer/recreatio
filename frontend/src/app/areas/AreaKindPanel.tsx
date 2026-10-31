@@ -53,6 +53,8 @@ import { loadDesk, type PageCard } from '../workspace/desk';
 import { chatsNow, invalidate, modulesNow, refreshDesk } from '../workspace/viewData';
 import { createArea, dropFromArea, joinArea, loadMembers, type AreaRow, type Member } from './area';
 import { AreaPick } from './AreaPick';
+import { baseKey, closesArea, courseBaseRefs, LEARNING_KINDS, strayLearning, type CourseBaseRef } from './courseBases';
+import { partOf } from '../pages/parts/registry';
 import { linkAudienceForm } from './audience';
 import { setPageController } from './controllers';
 import {
@@ -258,14 +260,23 @@ export interface World {
   readonly pages: readonly PageCard[];
   readonly roles: readonly RoleSeen[];
   /**
-   * Bazy wiedzy des Kurses: die des Bereichs — und (2026-10-31) die eines anderen Bereichs, den seine Uczący się lesen
-   * (eine bestehende, gewählt; die auf der Hauptseite zuerst).
+   * 2026-11-01 — DIE BAZY DES KURSES (`courseBases.ts`), beliebig viele: die des Bereichs, die gemerkten (Art
+   * `library`) und die, aus denen die Hauptseite etwas zeigt. Jede bleibt, wo sie ist; keine wird dafür geändert.
    */
-  readonly bases: readonly LibraryRow[];
-  /** 2026-10-31 — bestehende Bazy anderer Bereiche (mit Namen): wählbar als Baza des Kurses. */
+  readonly bases: readonly CourseBase[];
+  /** Bestehende Bazy anderer Bereiche (mit Namen), die der Kurs noch nicht nutzt: „Dodaj istniejącą". */
   readonly otherBases: readonly OpenLibrary[];
   /** Die Namen der Bazy, die geöffnet werden konnten. */
   readonly baseNames: ReadonlyMap<string, string>;
+  /** Bereiche ausser dem Kurs, die die Rolle der Uczący się liest. */
+  readonly learnersIn: ReadonlySet<string>;
+}
+
+/** 2026-11-01 — eine Baza des Kurses: wo sie liegt, warum sie dazugehört, was die Hauptseite von ihr zeigt. */
+export interface CourseBase extends CourseBaseRef {
+  /** Ihre Zeile — `null`: ich kann sie nicht (mehr) lesen. */
+  readonly row: LibraryRow | null;
+  readonly name: string | null;
 }
 
 export function quiet<T>(promise: Promise<T>, fallback: T): Promise<T> {
@@ -274,9 +285,6 @@ export function quiet<T>(promise: Promise<T>, fallback: T): Promise<T> {
 
 const levelOf = (caps: readonly string[]): RoleSeen['level'] =>
   caps.includes('admin') ? 'admin' : caps.includes('write') ? 'write' : 'read';
-
-/** 0135 — unter diesem Schlüssel (Art `library`) merkt sich ein Kurs seine Baza. */
-const COURSE_BASE_KEY = 'base';
 
 async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring | null): Promise<World> {
   /* Der frische Bund: eben angelegte Rollen sind darin, der der Ansicht kennt sie noch nicht. */
@@ -318,26 +326,26 @@ async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring 
   }
 
   /*
-   * 2026-10-31 — EINE BESTEHENDE BAZA FÜR DEN KURS bleibt, wo sie ist; die Rolle der Uczący się liest ihren Bereich
-   * (`pickBase`). Welche Bazy der Kurs hat, sagt also, welche Bereiche diese Rolle liest — nichts wird dafür gespeichert.
+   * 2026-11-01 — DIE BAZY DES KURSES (`courseBases.ts`): beliebig viele, jede bleibt, wo sie ist; die Uczący się lesen
+   * ihre Bereiche (die Rolle tritt ihnen bei — welche, sagt `learnersIn`). Vorher galt EINE Baza, geraten aus den
+   * Bereichen der Rolle (dann zählte jede Nachbarin im selben Bereich mit) und ihre Ustawienia wurden umgestellt.
    */
   const knowledge = libraries.filter((l) => libraryKindOf(l) === 'knowledge');
+  const refs = profile.kind !== 'course' ? [] : courseBaseRefs({
+    areaId, knowledge, keys,
+    parts: (page?.parts ?? []).map((p) => ({ id: p.id, kind: p.kind, config: readConfig(p.config) })),
+    knowledgeFields: (kind) => partOf(kind)?.fields.filter((f) => f.kind === 'knowledge').map((f) => f.key) ?? []
+  });
+  const rowOf = (id: string) => knowledge.find((l) => l.libraryId.toLowerCase() === id.toLowerCase()) ?? null;
   const learners = profile.kind === 'course' ? roleFor(roles, LEARNERS) : null;
-  const elsewhere = [...new Set(knowledge.filter((l) => l.areaId !== areaId).map((l) => l.areaId))];
+  const elsewhere = [...new Set(refs.map((b) => rowOf(b.libraryId)?.areaId ?? areaId).filter((there) => there !== areaId))];
   const read = learners === null ? [] : await Promise.all(elsewhere.map((there) => quiet<string | null>(loadMembers(there)
     .then((r) => (r.members.some((m) => m.roleId.toLowerCase() === learners.roleId.toLowerCase()) ? there : null)), null)));
-  const sharedAreas = new Set(read.filter((x): x is string => x !== null));
-  const onPage = new Set((page?.parts ?? []).filter((p) => p.kind === 'cogita-revision').map((p) => readConfig(p.config).library));
-  /*
-   * Die Baza des Kurses ist die gewählte (0135, Schlüssel `library`/`base`), sonst die, deren Powtórka auf der
-   * Hauptseite steht — dann die des Bereichs, dann die geteilten.
-   */
-  const chosen = keys.find((k) => k.kind === 'library' && k.key === COURSE_BASE_KEY)?.refId?.toLowerCase() ?? null;
-  const rank = (l: LibraryRow) => (l.libraryId.toLowerCase() === chosen ? 2 : onPage.has(l.libraryId) ? 1 : 0);
-  const course = [...knowledge.filter((l) => l.areaId === areaId), ...knowledge.filter((l) => sharedAreas.has(l.areaId))]
-    .sort((a, b) => rank(b) - rank(a));
-  const others = profile.kind === 'course' ? knowledge.filter((l) => l.areaId !== areaId && !sharedAreas.has(l.areaId)) : [];
-  const named = ring === null || profile.kind !== 'course' ? [] : await openLibraries(ring, [...course, ...others]).catch(() => [] as OpenLibrary[]);
+  const learnersIn = new Set(read.filter((x): x is string => x !== null));
+  const rows = refs.map((b) => rowOf(b.libraryId)).filter((r): r is LibraryRow => r !== null);
+  const others = profile.kind === 'course' ? knowledge.filter((l) => !refs.some((b) => b.libraryId.toLowerCase() === l.libraryId.toLowerCase())) : [];
+  const named = ring === null || profile.kind !== 'course' ? [] : await openLibraries(ring, [...rows, ...others]).catch(() => [] as OpenLibrary[]);
+  const baseNames = new Map(named.map((l) => [l.libraryId, l.name]));
 
   return {
     card,
@@ -350,9 +358,13 @@ async function loadWorld(who: Who, areaId: string, profile: Profile, held: Ring 
     publicCard,
     pages,
     roles,
-    bases: course,
+    bases: refs.map((b) => {
+      const row = rowOf(b.libraryId);
+      return { ...b, row, name: row === null ? null : baseNames.get(row.libraryId) ?? null };
+    }),
     otherBases: named.filter((l) => others.some((o) => o.libraryId === l.libraryId)),
-    baseNames: new Map(named.map((l) => [l.libraryId, l.name]))
+    baseNames,
+    learnersIn
   };
 }
 
@@ -712,10 +724,11 @@ function checksOf(ctx: Ctx): Check[] {
   }
 
   if (profile.kind === 'course') {
-    const base = world.bases[0] ?? null;
+    const bases = world.bases;
     out.push({
-      key: 'base', ok: base !== null,
-      text: base !== null ? 'Baza wiedzy z codzienną powtórką jest.' : 'Kurs nie ma jeszcze bazy wiedzy.',
+      key: 'base', ok: bases.length > 0,
+      text: bases.length === 1 ? 'Kurs korzysta z jednej bazy wiedzy.'
+        : bases.length > 1 ? `Kurs korzysta z ${bases.length} baz wiedzy.` : 'Kurs nie ma jeszcze bazy wiedzy.',
       fix: (
         <>
           <Fix ctx={ctx} label="Utwórz bazę" what="Zakładanie bazy…" done="Baza wiedzy jest gotowa." act={(held) => makeBase(ctx, held)} />
@@ -729,6 +742,32 @@ function checksOf(ctx: Ctx): Check[] {
       text: learners !== null ? 'Rola uczących się jest — link utworzysz niżej.' : 'Brak roli uczących się.',
       fix: <Fix ctx={ctx} label="Utwórz rolę" what="Tworzenie roli…" done="Rola uczących się jest gotowa." act={(held) => makeRole(ctx, held, LEARNERS)} />
     });
+    /* 2026-11-01 — Bazy aus anderen Bereichen: die Uczący się müssen sie lesen, sonst sehen sie auf der Seite nichts. */
+    const closed = bases.filter((b) => b.row !== null && !b.own && !world.learnersIn.has(b.row.areaId) && !isPublic(ctx, b.row.areaId));
+    if (closed.length > 0) {
+      out.push({
+        key: 'access', ok: false,
+        text: `Uczący się nie czytają ${closed.length === 1 ? 'obszaru bazy' : 'obszarów baz'} ${closed.map((b) => `„${b.name ?? 'Baza wiedzy'}”`).join(', ')} — nie zobaczą ${closed.length === 1 ? 'jej' : 'ich'} na stronie.`,
+        fix: <Fix ctx={ctx} label="Wpuść uczących się" what="Dostęp dla uczących się…" done="Uczący się czytają bazy kursu." act={(held) => letLearnersIntoAll(ctx, held, closed)} />
+      });
+    }
+    if (ctx.main !== null && bases.length > 0) {
+      const learning = bases.some((b) => b.learning.length > 0);
+      out.push({
+        key: 'learnpage', ok: learning,
+        text: learning ? 'Na stronie głównej jest nauka z bazy kursu — link dla uczących się prowadzi tam.' : 'Na stronie głównej nie ma jeszcze powtórki — tam uczą się osoby z linku, także bez konta.',
+        fix: <Fix ctx={ctx} label="Dodaj powtórki" what="Dodawanie powtórek…" done="Powtórki są na stronie głównej." act={(held) => placeAll(ctx, held)} />
+      });
+      /* Ein Lernbaustein, dessen Antworten nicht ausdrücklich in den Kurs gehen (womöglich in einen anderen Kurs derselben Baza). */
+      const stray = strayLearning((world.page?.parts ?? []).map((p) => ({ id: p.id, kind: p.kind, config: readConfig(p.config) })), ctx.area.areaId);
+      if (stray.length > 0) {
+        out.push({
+          key: 'answers', ok: false,
+          text: `${stray.length === 1 ? 'Moduł nauki' : `${stray.length} moduły nauki`} na stronie głównej nie ${stray.length === 1 ? 'kieruje' : 'kierują'} odpowiedzi do kursu — ich postępów możesz tu nie zobaczyć.`,
+          fix: <Fix ctx={ctx} label="Kieruj do kursu" what="Zapisywanie strony…" done="Odpowiedzi z modułów nauki idą do kursu." act={() => routeAnswers(ctx)} />
+        });
+      }
+    }
   }
 
   return out;
@@ -1049,115 +1088,130 @@ function OrganisationTools({ ctx }: { ctx: Ctx }) {
   );
 }
 
+/**
+ * 2026-11-01 — DER KURS NUTZT BAZY, ER BESITZT SIE NICHT (`courseBases.ts`): beliebig viele, jede in ihrem Bereich,
+ * jede auch in anderen Kursen und auf Seiten ohne Kurs. Je Baza: wo sie liegt, ob die Uczący się sie lesen, ob die
+ * Hauptseite mit ihr lernt — und Otwórz, Postępy (die dieses Kurses), Dodaj na stronę, Odłącz.
+ */
 function CourseTools({ ctx }: { ctx: Ctx }) {
-  const base = ctx.world.bases[0] ?? null;
-  const onPage = base !== null && hasRevisionPart(ctx, base.libraryId);
-  /* 2026-10-31 — eine bestehende Baza aus einem anderen Bereich: wo sie liegt und wer sie dadurch liest, steht dabei. */
-  const elsewhere = base !== null && base.areaId !== ctx.area.areaId;
+  const bases = ctx.world.bases;
   const picking = ctx.open === 'base';
-  const others = base === null ? ctx.world.otherBases.length : ctx.world.bases.length - 1 + ctx.world.otherBases.length;
-  const unlink = async () => {
-    if (base === null) return;
-    const name = ctx.world.baseNames.get(base.libraryId) ?? 'Baza wiedzy';
-    const there = ctx.world.bases.filter((b) => b.libraryId !== base.libraryId && b.areaId === base.areaId).map((b) => `„${ctx.world.baseNames.get(b.libraryId) ?? 'Baza wiedzy'}”`);
-    const yes = await ask({
-      title: `Odłączyć „${name}” od kursu?`,
-      body: `Rola „${LEARNERS.label}” przestanie czytać obszar „${nameOf(ctx, base.areaId)}”${there.length > 0 ? ` (także ${there.join(', ')})` : ''}, a powtórka tej bazy zniknie ze strony głównej. Baza, jej wpisy i postępy zostają, jak są.`,
-      confirm: 'Odłącz'
-    });
-    if (yes) void ctx.run('Odłączanie bazy…', `„${name}” nie jest już bazą kursu.`, (held) => unlinkBase(ctx, held, base));
-  };
   return (
     <>
-      <Tool id="base" name="Baza wiedzy" ok={base !== null}
-        says={elsewhere
-          ? <>„{ctx.world.baseNames.get(base.libraryId) ?? 'Baza wiedzy'}” z obszaru „{nameOf(ctx, base.areaId)}” — uczący się tego kursu czytają ten obszar.</>
-          : base !== null && ctx.world.baseNames.has(base.libraryId) ? <>„{ctx.world.baseNames.get(base.libraryId)}” — wpisy i pytania kursu, z codzienną powtórką dla uczących się.</>
-          : base === null && ctx.world.otherBases.length > 0 ? 'Wpisy i pytania kursu, z codzienną powtórką dla uczących się — nowa baza albo jedna z tych, które już masz.'
+      <Tool id="base" name={bases.length > 1 ? 'Bazy wiedzy' : 'Baza wiedzy'} ok={bases.length > 0}
+        says={bases.length > 0
+          ? 'Z tych baz uczą się uczący się kursu. Każda zostaje w swoim obszarze i może służyć też innym kursom i stronom — odpowiedzi z modułów tego kursu idą do kursu.'
+          : ctx.world.otherBases.length > 0 ? 'Wpisy i pytania kursu, z codzienną powtórką dla uczących się — nowa baza albo te, które już masz (ile chcesz).'
           : 'Wpisy i pytania kursu, z codzienną powtórką dla uczących się.'}>
-        {picking && <PickBase ctx={ctx} current={base} />}
-        <div className="wk-actions">
-          {base === null ? (!picking && (
-            <>
-              <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy}
-                onClick={() => void ctx.run('Zakładanie bazy…', 'Baza wiedzy jest gotowa.', (held) => makeBase(ctx, held))}>Utwórz bazę</button>
-              {ctx.world.otherBases.length > 0 && (
-                <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-pick="" onClick={() => ctx.setOpen('base')}>Wybierz istniejącą</button>
-              )}
-            </>
-          )) : (
-            <>
-              <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', base.libraryId, 'wpisy')}>Otwórz</a>
-              {/* 2026-10-27 — wie die Uczący się lernen: je Osoba, je Pytanie, mit Zeit und Sposób liczenia (Nauka → Postępy). */}
-              <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', base.libraryId, 'postepy')} data-course-progress="">Postępy uczących się</a>
-              {/* 2026-10-31 — die gewählte Baza ändern: eine andere wählen, eine geteilte wieder lösen. */}
-              {!picking && others > 0 && <button type="button" className="wk-link-btn" disabled={ctx.busy} data-course-switch="" onClick={() => ctx.setOpen('base')}>Wybierz inną</button>}
-              {!picking && elsewhere && <button type="button" className="wk-link-btn" disabled={ctx.busy} data-course-unlink="" onClick={() => void unlink()}>Odłącz</button>}
-            </>
-          )}
-        </div>
+        {bases.length > 0 && (
+          <ul className="wk-kind-bases" data-course-bases={bases.length}>
+            {bases.map((b) => <BaseRow key={b.libraryId} ctx={ctx} base={b} />)}
+          </ul>
+        )}
+        {picking ? <PickBase ctx={ctx} /> : (
+          <div className="wk-actions">
+            <button type="button" className={bases.length === 0 ? 'wk-btn wk-btn-small' : 'wk-btn wk-btn-line wk-btn-small'} disabled={ctx.busy} data-course-new=""
+              onClick={() => void ctx.run('Zakładanie bazy…', 'Baza wiedzy jest gotowa.', (held) => makeBase(ctx, held))}>
+              {bases.length === 0 ? 'Utwórz bazę' : 'Utwórz nową bazę'}
+            </button>
+            {ctx.world.otherBases.length > 0 && (
+              <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-pick="" onClick={() => ctx.setOpen('base')}>
+                {bases.length === 0 ? 'Wybierz istniejącą' : 'Dodaj istniejącą'}
+              </button>
+            )}
+          </div>
+        )}
       </Tool>
-      {/* 2026-10-27 — die Powtórka auf der Seite des Kurses: dorthin führt der Link der Uczący się, auch ohne Konto. */}
-      {base !== null && ctx.main !== null && (
-        <Tool id="learnpage" name="Nauka na stronie" ok={onPage}
-          says={onPage ? 'Na stronie głównej jest powtórka kursu — link dla uczących się prowadzi tam; kto nie ma konta, przedstawia się i jego postępy też widzisz.' : 'Powtórka kursu na stronie głównej: tam uczą się osoby z linku, także bez konta.'}>
-          {!onPage && (
-            <div className="wk-actions">
-              <button type="button" className="wk-btn wk-btn-small" disabled={ctx.busy} data-course-learnpage=""
-                onClick={() => void ctx.run('Dodawanie powtórki…', 'Powtórka jest na stronie głównej — utwórz teraz link dla uczących się.', async (held) => {
-                  const revision = await courseRevision(ctx, held);
-                  if (revision === null) throw new WorkspaceError('Baza kursu nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki).');
-                  await addToPage(ctx.main!, [revisionPart(revision)]);
-                })}>Dodaj powtórkę na stronę główną</button>
-            </div>
-          )}
-        </Tool>
-      )}
       <RolesTool ctx={ctx} defs={[LEARNERS]} />
       <MainPageTool ctx={ctx} optional />
     </>
   );
 }
 
+/** Eine Baza des Kurses — eine Zeile mit ihrem Stand und ihren Handgriffen. */
+function BaseRow({ ctx, base }: { ctx: Ctx; base: CourseBase }) {
+  const name = base.name ?? 'Baza wiedzy';
+  const row = base.row;
+  const learners = roleFor(ctx.world.roles, LEARNERS);
+  const elsewhere = row !== null && !base.own;
+  const reads = row === null || base.own || ctx.world.learnersIn.has(row.areaId);
+  const open = !reads && row !== null && isPublic(ctx, row.areaId);
+  const state = [
+    row === null ? 'nie masz już do niej dostępu' : null,
+    elsewhere ? (reads ? 'uczący się czytają ten obszar' : open ? 'obszar jest jawny' : 'uczący się nie czytają tego obszaru') : null,
+    ctx.main === null ? null : base.learning.length > 0 ? 'na stronie głównej ✓' : 'nie ma jej na stronie głównej'
+  ].filter((x): x is string => x !== null);
+  const unlink = async () => {
+    const remaining = ctx.world.bases.filter((b) => b.libraryId !== base.libraryId && b.row !== null).map((b) => b.row!);
+    const closes = row !== null && learners !== null && ctx.world.learnersIn.has(row.areaId) && closesArea(ctx.area.areaId, row, remaining);
+    const yes = await ask({
+      title: `Odłączyć „${name}” od kursu?`,
+      body: [
+        base.parts.length > 0 ? 'Jej moduły znikną ze strony głównej kursu.' : null,
+        closes && row !== null ? `Rola „${LEARNERS.label}” przestanie czytać obszar „${nameOf(ctx, row.areaId)}”.` : null,
+        'Baza, jej wpisy i postępy zostają, jak są — także w innych kursach, które z niej korzystają.'
+      ].filter((x) => x !== null).join(' '),
+      confirm: 'Odłącz'
+    });
+    if (yes) void ctx.run('Odłączanie bazy…', `„${name}” nie jest już w kursie.`, (held) => unlinkBase(ctx, held, base, closes));
+  };
+  return (
+    <li className="wk-kind-base" data-course-base={base.libraryId}>
+      <p className="wk-kind-base-name"><strong>„{name}”</strong>{row !== null && <span className="wk-card-muted"> — {base.own ? 'w obszarze kursu' : `obszar „${nameOf(ctx, row.areaId)}”`}</span>}</p>
+      {state.length > 0 && <p className="wk-kind-small" data-course-base-state="">{state.join(' · ')}</p>}
+      <div className="wk-actions">
+        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('knowledge', row.libraryId, 'wpisy')}>Otwórz</a>}
+        {/* 2026-10-27 — wie die Uczący się lernen; 2026-11-01 — die DIESES Kurses (sein Bereich in der Adresse). */}
+        {row !== null && <a className="wk-btn wk-btn-line wk-btn-small" href={viewPath('learn', row.libraryId, 'postepy', ctx.area.areaId)} data-course-progress="">Postępy uczących się</a>}
+        {row !== null && ctx.main !== null && base.learning.length === 0 && (
+          <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-place=""
+            onClick={() => void ctx.run('Dodawanie powtórki…', 'Powtórka jest na stronie głównej.', (held) => placeBase(ctx, held, row))}>Dodaj na stronę</button>
+        )}
+        {row !== null && !reads && !open && (
+          <button type="button" className="wk-btn wk-btn-line wk-btn-small" disabled={ctx.busy} data-course-letin=""
+            onClick={() => void ctx.run('Dostęp dla uczących się…', `Uczący się czytają obszar „${nameOf(ctx, row.areaId)}”.`, async (held) => { await letLearnersIn(ctx, held, [row.areaId]); })}>Wpuść uczących się</button>
+        )}
+        {!base.own && <button type="button" className="wk-link-btn" disabled={ctx.busy} data-course-unlink="" onClick={() => void unlink()}>Odłącz</button>}
+      </div>
+    </li>
+  );
+}
+
 /**
- * 2026-10-31 — „WYBIERZ ISTNIEJĄCĄ": eine der eigenen Bazy wird die des Kurses, wo sie ist. Zur Wahl stehen Bazy aus
- * Bereichen, in die ich hineinlassen darf, nie aus dem privaten; dabei steht, dass die Uczący się den ganzen Bereich
- * lesen werden — mit den anderen Bazy darin.
+ * 2026-10-31 — „WYBIERZ ISTNIEJĄCĄ", 2026-11-01 „DODAJ ISTNIEJĄCĄ": noch eine Baza für den Kurs, wo sie ist. Zur Wahl
+ * stehen Bazy aus Bereichen, in die ich hineinlassen darf (oder die die Uczący się schon lesen), nie aus dem privaten;
+ * dabei steht, dass die Uczący się den ganzen Bereich lesen werden — mit den anderen Bazy darin. Die Baza selbst
+ * ändert sich nicht.
  */
-function PickBase({ ctx, current }: { ctx: Ctx; current: LibraryRow | null }) {
+function PickBase({ ctx }: { ctx: Ctx }) {
   const course = ctx.area.areaId;
-  /* Bereiche, die die Uczący się schon lesen (eine andere Baza des Kurses liegt dort) — dorthin muss niemand neu. */
-  const read = new Set(ctx.world.bases.filter((b) => b.areaId !== course).map((b) => b.areaId));
+  const read = ctx.world.learnersIn;
   const name = (b: LibraryRow) => ctx.world.baseNames.get(b.libraryId) ?? 'Baza wiedzy';
-  const choices = [...ctx.world.bases, ...ctx.world.otherBases].filter((b) => {
-    if (b.libraryId === current?.libraryId) return false;
+  const choices = ctx.world.otherBases.filter((b) => {
     if (b.areaId === course || read.has(b.areaId)) return true;
     const area = ctx.areas.find((a) => a.areaId === b.areaId);
     return area !== undefined && area.personal !== true && area.mayCertify;
   });
   const [picked, setPicked] = useState('');
-  const [revoke, setRevoke] = useState(true);
+  const [place, setPlace] = useState(true);
   const chosen = choices.find((b) => b.libraryId === picked) ?? choices[0];
-  const neighbours = chosen === undefined ? [] : ctx.world.otherBases.filter((b) => b.areaId === chosen.areaId && b.libraryId !== chosen.libraryId);
-  /*
-   * Die bisherige lag in einem anderen Bereich und die neue nicht dort: den Bereich wieder schliessen? (Was sonst dort
-   * liegt, lasen die Uczący się nur nebenbei — mit dem Bereich endet auch das.)
-   */
-  const leaving = current !== null && current.areaId !== course && chosen !== undefined && chosen.areaId !== current.areaId;
-  const alsoThere = current === null ? [] : ctx.world.bases.filter((b) => b.libraryId !== current.libraryId && b.areaId === current.areaId);
+  const neighbours = chosen === undefined ? [] : [
+    ...ctx.world.otherBases.filter((b) => b.areaId === chosen.areaId && b.libraryId !== chosen.libraryId),
+    ...ctx.world.bases.map((b) => b.row).filter((r): r is LibraryRow => r !== null && r.areaId === chosen.areaId)
+  ];
   return (
     <form className="wk-kind-form" data-course-pick-form="" onSubmit={(e) => {
       e.preventDefault();
       if (chosen === undefined) return;
       const pick = { ...chosen, name: name(chosen) };
-      void ctx.run('Łączenie bazy z kursem…', `„${pick.name}” jest bazą kursu.`, (held) => pickBase(ctx, held, pick, current === null ? undefined : { base: current, revoke: leaving && revoke }));
+      void ctx.run('Łączenie bazy z kursem…', `„${pick.name}” jest w kursie.`, (held) => addBase(ctx, held, pick, place && ctx.main !== null));
     }}>
       {chosen === undefined ? (
-        <p className="wk-kind-small">Nie ma bazy, którą można tu wybrać: kurs może korzystać z bazy z obszaru, do którego możesz kogoś wpuścić — nie z Twojego prywatnego.</p>
+        <p className="wk-kind-small">Nie ma bazy, którą można tu dodać: kurs może korzystać z bazy z obszaru, do którego możesz kogoś wpuścić — nie z Twojego prywatnego.</p>
       ) : (
         <>
           <label className="wk-field">
-            <span>{current === null ? 'Istniejąca baza wiedzy' : 'Inna baza wiedzy dla kursu'}</span>
+            <span>Istniejąca baza wiedzy</span>
             <select value={chosen.libraryId} disabled={ctx.busy} onChange={(e) => setPicked(e.target.value)} data-course-pick-select="">
               {choices.map((b) => <option key={b.libraryId} value={b.libraryId}>{name(b)} — obszar „{nameOf(ctx, b.areaId)}”</option>)}
             </select>
@@ -1173,17 +1227,17 @@ function PickBase({ ctx, current }: { ctx: Ctx; current: LibraryRow | null }) {
               {roleFor(ctx.world.roles, LEARNERS) === null && ' Rola uczących się powstanie przy tym (kilkanaście sekund).'}
             </p>
           )}
-          {current !== null && <p className="wk-kind-small">Powtórka na stronie głównej będzie z nowej bazy; postępy w „{name(current)}” zostają przy niej.</p>}
-          {leaving && (
-            <label className="wk-check" data-course-revoke="">
-              <input type="checkbox" checked={revoke} disabled={ctx.busy} onChange={(e) => setRevoke(e.target.checked)} />
-              <span>Odbierz uczącym się dostęp do obszaru „{nameOf(ctx, current!.areaId)}” (poprzedniej bazy{alsoThere.length > 0 ? <> — także do {alsoThere.map((b) => `„${name(b)}”`).join(', ')}</> : ''})</span>
+          <p className="wk-kind-small">Ustawienia bazy się nie zmieniają — może też służyć innym kursom i stronom.</p>
+          {ctx.main !== null && (
+            <label className="wk-check" data-course-pick-place="">
+              <input type="checkbox" checked={place} disabled={ctx.busy} onChange={(e) => setPlace(e.target.checked)} />
+              <span>Dodaj jej powtórkę na stronę główną (odpowiedzi do kursu)</span>
             </label>
           )}
         </>
       )}
       <div className="wk-actions">
-        {chosen !== undefined && <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy} data-course-pick-go="">Wybierz tę bazę</button>}
+        {chosen !== undefined && <button type="submit" className="wk-btn wk-btn-small" disabled={ctx.busy} data-course-pick-go="">Dodaj tę bazę</button>}
         <button type="button" className="wk-link-btn" disabled={ctx.busy} onClick={() => ctx.setOpen(null)}>Anuluj</button>
       </div>
     </form>
@@ -1922,10 +1976,13 @@ function ListsTool({ ctx }: { ctx: Ctx }) {
 async function makeMainPage(ctx: Ctx, held: Held, path: string): Promise<string | void> {
   const parts: NewPart[] = [];
   if (ctx.profile.kind === 'event') parts.push(cardPart(ctx.area.areaId));
-  /* 2026-10-27 — ein Kurs: seine Powtórka gleich auf der Seite — dort lernt, wer den Link bekommt. */
+  /* 2026-10-27 — ein Kurs: seine Powtórki gleich auf der Seite — dort lernt, wer den Link bekommt (2026-11-01: aus jeder Baza eine). */
   if (ctx.profile.kind === 'course') {
-    const revision = await courseRevision(ctx, held);
-    if (revision !== null) parts.push(revisionPart(revision));
+    for (const base of ctx.world.bases) {
+      if (base.row === null) continue;
+      const revision = await firstRevision(held.ring, base.row, held);
+      if (revision !== null) parts.push(revisionPart(revision, ctx.area.areaId));
+    }
   }
   /* Ein Formular, das noch auf keiner Seite steht, kommt gleich mit. */
   if (ctx.signup !== null && ctx.signup.pages.length === 0) parts.push(formPart(ctx.signup.moduleId));
@@ -2046,33 +2103,33 @@ async function makeRole(ctx: Ctx, held: Held, def: RoleDef): Promise<string | vo
 }
 
 /**
- * 2026-10-27 — DIE POWTÓRKA EINES KURSES auf seiner Seite: die erste Powtórka seiner Baza (die tägliche, die
- * `createCourseBase` anlegt). Wer den Link der Uczący się öffnet, lernt dort — mit Konto als er selbst, ohne
+ * 2026-10-27 — DIE POWTÓRKA EINER BAZA auf der Seite des Kurses: ihre erste Powtórka (bei einer neuen die tägliche,
+ * die `createCourseBase` anlegt). Wer den Link der Uczący się öffnet, lernt dort — mit Konto als er selbst, ohne
  * Konto stellt er sich vor (`cogita/pageLearner.tsx`); seine Antworten gehen in die Przyjęcia des Kurses.
  */
-async function courseRevision(ctx: Ctx, held: Held): Promise<{ libraryId: string; revisionId: string } | null> {
-  const base = ctx.world.bases[0];
-  if (base === undefined) return null;
-  held.step('Powtórka kursu…');
-  const store = storeOf(held.ring, base);
+async function firstRevision(ring: Ring, base: Pick<LibraryRow, 'libraryId' | 'areaId'>, held?: Held): Promise<{ libraryId: string; revisionId: string } | null> {
+  held?.step('Powtórka bazy…');
+  const store = storeOf(ring, base);
   await store.sync();
   const revision = store.all().find((e) => e.kind === 'revision');
   return revision === undefined ? null : { libraryId: base.libraryId, revisionId: revision.id };
 }
 
-const revisionPart = (r: { libraryId: string; revisionId: string }): NewPart =>
-  ({ kind: 'cogita-revision', config: { title: '', library: r.libraryId, revision: r.revisionId }, box: { colSpan: 6, rowSpan: 4 } });
-
-/** Steht auf der Hauptseite schon eine Powtórka dieser Baza? */
-const hasRevisionPart = (ctx: Ctx, libraryId: string): boolean =>
-  (ctx.world.page?.parts ?? []).some((part) => part.kind === 'cogita-revision' && readConfig(part.config).library === libraryId);
+/** 2026-11-01 — mit dem Bereich für die Antworten (`answers`): auf der Seite des Kurses — der Kurs. */
+const revisionPart = (r: { libraryId: string; revisionId: string }, answers: string): NewPart =>
+  ({ kind: 'cogita-revision', config: { title: '', library: r.libraryId, revision: r.revisionId, answers }, box: { colSpan: 6, rowSpan: 4 } });
 
 /** Wohin der Link einer Rolle führt. */
 function aimFor(ctx: Ctx, def: RoleDef): string {
   if (def.key === PARTICIPANTS.key && ctx.main !== null) return ctx.main;
-  /* 2026-10-27 — die Seite des Kurses, wenn es sie gibt (dort lernt man auch ohne Konto); sonst die Nauka (mit Konto). */
-  if (def.key === LEARNERS.key && ctx.main !== null && ctx.world.bases[0] !== undefined && hasRevisionPart(ctx, ctx.world.bases[0].libraryId)) return ctx.main;
-  if (def.key === LEARNERS.key && ctx.world.bases[0] !== undefined) return `workspace/learn/${ctx.world.bases[0].libraryId}`;
+  /*
+   * 2026-10-27 — die Seite des Kurses, wenn es sie gibt (dort lernt man auch ohne Konto); sonst die Nauka (mit Konto).
+   * 2026-11-01 — mit mehreren Bazy immer die Seite; ohne Seite die Nauka nur, wenn es genau eine Baza gibt.
+   */
+  if (def.key === LEARNERS.key && ctx.main !== null && ctx.world.bases.some((b) => b.learning.length > 0)) return ctx.main;
+  const only = ctx.world.bases.length === 1 ? ctx.world.bases[0]!.row : null;
+  if (def.key === LEARNERS.key && only !== null) return `workspace/learn/${only.libraryId}`;
+  if (def.key === LEARNERS.key && ctx.main !== null) return ctx.main;
   return `workspace/areas/${ctx.area.areaId}`;
 }
 
@@ -2108,8 +2165,21 @@ async function placeList(ctx: Ctx, type: 'event' | 'group'): Promise<void> {
   await addToPage(ctx.main, [{ kind: 'events', config, box: { colSpan: 6, rowSpan: 3 } }]);
 }
 
-async function makeBase(ctx: Ctx, held: Held): Promise<void> {
-  await createCourseBase(held.ring, held.person, ctx.area.areaId, ctx.title, held.step);
+/**
+ * Eine neue Baza im Bereich des Kurses (mit täglicher Powtórka und Przyjęcia) — 2026-11-01: auch neben anderen; ihre
+ * Powtórka kommt gleich auf die Hauptseite, die Antworten in den Kurs.
+ */
+async function makeBase(ctx: Ctx, held: Held): Promise<string | void> {
+  const taken = new Set(ctx.world.bases.map((b) => b.name ?? ''));
+  let name = ctx.title;
+  for (let n = 2; taken.has(name); n += 1) name = `${ctx.title} ${n}`;
+  const libraryId = await createCourseBase(held.ring, held.person, ctx.area.areaId, name, held.step);
+  if (ctx.main === null) return;
+  const revision = await firstRevision(held.ring, { libraryId, areaId: ctx.area.areaId }, held);
+  if (revision === null) return;
+  held.step('Powtórka na stronie głównej…');
+  await addToPage(ctx.main, [revisionPart(revision, ctx.area.areaId)]);
+  return 'Jej powtórka stoi na stronie głównej — tam uczą się osoby z linku.';
 }
 
 /** Der Name einer Rolle unter den Mitgliedern eines Bereichs — ohne ihn steht sie dort namenlos (es geht auch ohne). */
@@ -2123,113 +2193,130 @@ async function nameRoleIn(ring: Ring, areaId: string, roleId: string, name: stri
 }
 
 /**
- * 2026-10-31 — EINE BESTEHENDE BAZA WIRD DIE BAZA DES KURSES, wo sie ist (der Besitzer: „use it in place"):
- *   1. die Rolle der Uczący się liest ihren Bereich — gibt es die Rolle noch nicht, entsteht sie gleich für beide;
- *   2. nennt die Baza noch keinen Ort für Antworten, gehen sie in die Przyjęcia des Kurses (dort die Postępy);
- *   3. steht auf der Hauptseite noch keine Powtórka, kommt ihre erste dorthin — dort lernen die mit dem Link.
- * Ihre Einträge, Fortschritte, Seiten und Links für AI bleiben, wie sie sind. `replacing` (eine andere wählen): die
- * Powtórka der bisherigen auf der Hauptseite zeigt jetzt die neue, und — wenn gewünscht und dort keine Baza des Kurses
- * mehr liegt — lesen die Uczący się den Bereich der bisherigen nicht mehr.
+ * Die Uczący się lesen weitere Bereiche (die von Bazy): gibt es ihre Rolle noch nicht, entsteht sie gleich für den Kurs
+ * und diese Bereiche; sonst tritt sie ihnen bei (lesen). Der neue Bund, falls einer entstand.
  */
-async function pickBase(ctx: Ctx, held: Held, base: OpenLibrary, replacing?: { readonly base: LibraryRow; readonly revoke: boolean }): Promise<string | void> {
+async function letLearnersIn(ctx: Ctx, held: Held, areas: readonly string[]): Promise<Ring> {
   const course = ctx.area.areaId;
-  const there = base.areaId;
-  const notes: string[] = [];
   const name = `${LEARNERS.label}: ${ctx.title}`;
   const learners = roleFor(ctx.world.roles, LEARNERS);
-  /* Liegt die Baza im Kurs selbst oder in einem Bereich, den die Uczący się schon lesen, muss niemand hinein. */
-  const reads = there === course || ctx.world.bases.some((b) => b.areaId === there && b.areaId !== course);
-  let ring = held.ring;
-  if (reads) {
-    /* nichts zu öffnen */
-  } else if (learners === null) {
+  if (learners === null) {
     held.step('Rola uczących się (kilkanaście sekund)…');
-    const made = await createCommonRole(ring, held.person, { name, areas: [{ areaId: course, capability: 'read' }, { areaId: there, capability: 'read' }] }, held.step);
-    ring = made.ring;
-    await nameRoleIn(ring, course, made.roleId, name);
-    await nameRoleIn(ring, there, made.roleId, name);
+    const made = await createCommonRole(held.ring, held.person, { name, areas: [course, ...areas].map((areaId) => ({ areaId, capability: 'read' as const })) }, held.step);
+    for (const there of [course, ...areas]) await nameRoleIn(made.ring, there, made.roleId, name);
     await saveImportKeys(course, [{ kind: 'role', key: LEARNERS.key, refId: made.roleId, refText: LEARNERS.label }]).catch(() => undefined);
-  } else {
+    return made.ring;
+  }
+  for (const there of areas) {
     held.step(`Dostęp uczących się do obszaru „${nameOf(ctx, there)}”…`);
-    const issuer = await issuerIn(ring, there);
-    if (issuer === null) throw new WorkspaceError(`Do obszaru „${nameOf(ctx, there)}” nie możesz nikogo wpuścić — wybierz bazę z obszaru, który prowadzisz.`);
-    await joinArea(ring, there, { id: learners.roleId, kind: 'group', wrapPublicKey: learners.wrapPublicKey }, issuer, 'read');
-    await nameRoleIn(ring, there, learners.roleId, learners.name ?? name);
+    const issuer = await issuerIn(held.ring, there);
+    if (issuer === null) throw new WorkspaceError(`Do obszaru „${nameOf(ctx, there)}” nie możesz nikogo wpuścić — poproś tego, kto go prowadzi, albo wybierz bazę z obszaru, który prowadzisz.`);
+    await joinArea(held.ring, there, { id: learners.roleId, kind: 'group', wrapPublicKey: learners.wrapPublicKey }, issuer, 'read');
+    await nameRoleIn(held.ring, there, learners.roleId, learners.name ?? name);
   }
+  return held.ring;
+}
 
-  held.step('Ustawienia bazy…');
-  const store = storeOf(ring, base);
-  await store.sync();
-  const { CogitaLibrary } = await import('../cogita/store');
-  const lib = new CogitaLibrary(store, base.writes);
-  const storage = lib.settings().storageAreaId;
-  if (storage === undefined && base.writes) {
-    if (!(await loadIntake(course).then(() => true, () => false))) {
-      held.step('Klucz przyjęć odpowiedzi (kilka sekund)…');
-      await createIntake(ring, course, held.person.id);
+/** Die Bereiche dieser Bazy für die Uczący się öffnen (ein Handgriff aus „Do zrobienia"). */
+async function letLearnersIntoAll(ctx: Ctx, held: Held, bases: readonly CourseBase[]): Promise<void> {
+  await letLearnersIn(ctx, held, [...new Set(bases.map((b) => b.row?.areaId).filter((a): a is string => a !== undefined))]);
+}
+
+/** Die Przyjęcia des Kurses — ohne sie läse niemand die Antworten, die in den Kurs gehen. */
+async function ensureIntake(ctx: Ctx, held: Held, ring: Ring): Promise<void> {
+  if (await loadIntake(ctx.area.areaId).then(() => true, () => false)) return;
+  held.step('Klucz przyjęć odpowiedzi (kilka sekund)…');
+  await createIntake(ring, ctx.area.areaId, held.person.id);
+}
+
+/**
+ * 2026-10-31 „WYBIERZ ISTNIEJĄCĄ", 2026-11-01 „DODAJ ISTNIEJĄCĄ" — NOCH EINE BAZA FÜR DEN KURS, wo sie ist:
+ *   1. die Rolle der Uczący się liest ihren Bereich (gibt es die Rolle noch nicht, entsteht sie für beide);
+ *   2. der Kurs merkt sie sich (Art `library`, 0135) — auch ohne Baustein auf der Seite;
+ *   3. auf Wunsch kommt ihre erste Powtórka auf die Hauptseite, die Antworten in den Kurs (`answers`).
+ * Die Baza selbst ändert sich nicht (früher stellte der Kurs ihre Ustawienia um — dann gehörten die Antworten aller
+ * Kurse dem ersten); sie kann weiter anderen Kursen und Seiten dienen.
+ */
+async function addBase(ctx: Ctx, held: Held, base: OpenLibrary, place: boolean): Promise<string | void> {
+  const course = ctx.area.areaId;
+  const notes: string[] = [];
+  const reads = base.areaId === course || ctx.world.learnersIn.has(base.areaId);
+  const ring = reads ? held.ring : await letLearnersIn(ctx, held, [base.areaId]);
+  await saveImportKeys(course, [{ kind: 'library', key: baseKey(base.libraryId), refId: base.libraryId, refText: base.name }])
+    .catch(() => notes.push('Serwer nie zapamiętał tej bazy przy kursie (potrzebna nowsza wersja) — kurs pokaże ją, dopóki jej moduł stoi na stronie głównej.'));
+  await ensureIntake(ctx, held, ring);
+  if (place && ctx.main !== null) {
+    const revision = await firstRevision(ring, base, held);
+    if (revision === null) notes.push('Baza nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki), potem „Dodaj na stronę”.');
+    else {
+      held.step('Powtórka na stronie głównej…');
+      await addToPage(ctx.main, [revisionPart(revision, course)]);
+      notes.push('Jej powtórka stoi na stronie głównej — odpowiedzi idą do kursu.');
     }
-    await lib.saveSettings({ storageAreaId: course });
-  } else if (storage === undefined) {
-    notes.push('W tej bazie nie możesz pisać, więc nie ustawiono, gdzie zapisują się odpowiedzi — zrobi to jej prowadzący (Nauka → Ustawienia).');
-  } else if (storage !== course) {
-    notes.push(`Odpowiedzi uczących się tej bazy zapisują się w obszarze „${nameOf(ctx, storage)}” (ustawienia bazy) — tam też są ich postępy.`);
-  }
-
-  const revision = store.all().find((e) => e.kind === 'revision');
-  const pageHas = (ctx.world.page?.parts ?? []).some((part) => part.kind === 'cogita-revision');
-  /* Beim Wechsel zeigt die Powtórka jeder bisherigen Baza des Kurses auf der Hauptseite jetzt die neue. */
-  const old = replacing === undefined ? [] : ctx.world.bases.map((b) => b.libraryId).filter((id) => id !== base.libraryId && hasRevisionPart(ctx, id));
-  if (revision === undefined) {
-    notes.push('Baza nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki), potem dodaj ją na stronę główną.');
-  } else if (ctx.main !== null && old.length > 0) {
-    held.step('Powtórka na stronie głównej…');
-    await pointRevisionPart(ctx.main, old, { libraryId: base.libraryId, revisionId: revision.id });
-    notes.push('Powtórka na stronie głównej jest teraz z tej bazy.');
-  } else if (ctx.main !== null && !pageHas) {
-    held.step('Powtórka na stronie głównej…');
-    await addToPage(ctx.main, [revisionPart({ libraryId: base.libraryId, revisionId: revision.id })]);
-    notes.push('Jej powtórka stoi na stronie głównej — tam uczą się osoby z linku.');
-  }
-  /* 0135 — die Wahl gilt auch ohne Powtórka auf der Hauptseite. */
-  await saveImportKeys(course, [{ kind: 'library', key: COURSE_BASE_KEY, refId: base.libraryId, refText: base.name }])
-    .catch(() => notes.push('Serwer nie zapamiętał wyboru (potrzebna nowsza wersja) — dopóki na stronie głównej nie ma powtórki tej bazy, karta może pokazywać poprzednią.'));
-  if (replacing?.revoke === true && learners !== null) {
-    held.step(`Zamykanie obszaru „${nameOf(ctx, replacing.base.areaId)}” dla uczących się…`);
-    const dropped = await dropFromArea(replacing.base.areaId, learners.roleId).then((r) => r.note, (e) => { notes.push(`Dostępu do obszaru „${nameOf(ctx, replacing.base.areaId)}” nie odebrano (${failure(e, 'błąd')}) — zrobisz to w jego karcie Dostęp.`); return null; });
-    if (dropped !== null && dropped !== '') notes.push(dropped);
   }
   ctx.setOpen(null);
   return notes.join(' ') || undefined;
 }
 
-/** 2026-10-31 — die Powtórka einer Baza auf einer Seite zeigt jetzt eine andere: der Baustein bleibt, wo er steht. */
-async function pointRevisionPart(path: string, from: readonly string[], to: { readonly libraryId: string; readonly revisionId: string }): Promise<void> {
-  const page = await loadPage(path);
+/** Die erste Powtórka einer Baza auf die Hauptseite — die Antworten in den Kurs. */
+async function placeBase(ctx: Ctx, held: Held, base: LibraryRow): Promise<void> {
+  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  const revision = await firstRevision(held.ring, base, held);
+  if (revision === null) throw new WorkspaceError('Ta baza nie ma jeszcze powtórki — utwórz ją w Nauce (Powtórki).');
+  await ensureIntake(ctx, held, held.ring);
+  await addToPage(ctx.main, [revisionPart(revision, ctx.area.areaId)]);
+}
+
+/** Jede Baza des Kurses ohne Lernbaustein auf der Hauptseite bekommt ihre erste Powtórka dort (die ohne Powtórka nicht). */
+async function placeAll(ctx: Ctx, held: Held): Promise<string | void> {
+  if (ctx.main === null) throw new WorkspaceError('Najpierw strona główna.');
+  const parts: NewPart[] = [];
+  const without: string[] = [];
+  for (const base of ctx.world.bases) {
+    if (base.row === null || base.learning.length > 0) continue;
+    const revision = await firstRevision(held.ring, base.row, held);
+    if (revision === null) without.push(`„${base.name ?? 'Baza wiedzy'}”`);
+    else parts.push(revisionPart(revision, ctx.area.areaId));
+  }
+  if (parts.length === 0) throw new WorkspaceError(`${without.join(', ')} — bez powtórki. Utwórz ją w Nauce (Powtórki).`);
+  await ensureIntake(ctx, held, held.ring);
+  await addToPage(ctx.main, parts);
+  return without.length === 0 ? undefined : `Bez powtórki (nie dodano): ${without.join(', ')}.`;
+}
+
+/** Jeder Lernbaustein der Hauptseite schickt die Antworten in den Kurs (`answers`) — der Baustein bleibt, wo er steht. */
+async function routeAnswers(ctx: Ctx): Promise<void> {
+  if (ctx.main === null) return;
+  const course = ctx.area.areaId;
+  const page = await loadPage(ctx.main);
   if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
-  const parts = page.parts.map(toDraft).map((part) => (part.kind === 'cogita-revision' && from.includes(String(part.config.library))
-    ? { ...part, config: { ...part.config, library: to.libraryId, revision: to.revisionId } } : part));
-  await saveParts(path, parts);
+  await saveParts(ctx.main, page.parts.map(toDraft).map((part) => (LEARNING_KINDS.includes(part.kind) && String(part.config.answers ?? '').toLowerCase() !== course.toLowerCase()
+    ? { ...part, config: { ...part.config, answers: course } } : part)));
 }
 
 /**
- * 2026-10-31 — „ODŁĄCZ": eine geteilte Baza ist nicht mehr die des Kurses. Die Uczący się lesen ihren Bereich nicht mehr
- * (mit allem, was sonst dort liegt), ihre Powtórka verschwindet von der Hauptseite. Die Baza selbst bleibt.
+ * 2026-10-31, 2026-11-01 — „ODŁĄCZ": eine Baza aus einem anderen Bereich gehört nicht mehr zum Kurs. Der Kurs vergisst
+ * sie, ihre Bausteine verlassen die Hauptseite, und — liegt dort keine andere Baza des Kurses mehr (`closes`) — lesen die
+ * Uczący się ihren Bereich nicht mehr. Die Baza selbst bleibt, auch in anderen Kursen.
  */
-async function unlinkBase(ctx: Ctx, held: Held, base: LibraryRow): Promise<string | void> {
+async function unlinkBase(ctx: Ctx, held: Held, base: CourseBase, closes: boolean): Promise<string | void> {
   const notes: string[] = [];
-  const learners = roleFor(ctx.world.roles, LEARNERS);
-  if (learners !== null) {
-    held.step(`Zamykanie obszaru „${nameOf(ctx, base.areaId)}” dla uczących się…`);
-    const r = await dropFromArea(base.areaId, learners.roleId);
-    if (r.note !== '') notes.push(r.note);
+  if (base.keys.length > 0) {
+    await saveImportKeys(ctx.area.areaId, base.keys.map((key) => ({ kind: 'library' as const, key, remove: true }))).catch(() => undefined);
   }
-  if (ctx.main !== null && hasRevisionPart(ctx, base.libraryId)) {
+  if (ctx.main !== null && base.parts.length > 0) {
     held.step('Strona główna…');
     const page = await loadPage(ctx.main);
     if (page.locked === true) throw new WorkspaceError('Ta strona jest zapieczętowana, a ta karta nie ma jej klucza.');
-    await saveParts(ctx.main, page.parts.map(toDraft).filter((part) => !(part.kind === 'cogita-revision' && part.config.library === base.libraryId)));
+    const gone = new Set(base.parts);
+    await saveParts(ctx.main, page.parts.map(toDraft).filter((part) => !gone.has(part.id)));
   }
-  await saveImportKeys(ctx.area.areaId, [{ kind: 'library', key: COURSE_BASE_KEY, remove: true }]).catch(() => undefined);
+  const learners = roleFor(ctx.world.roles, LEARNERS);
+  if (closes && learners !== null && base.row !== null) {
+    held.step(`Zamykanie obszaru „${nameOf(ctx, base.row.areaId)}” dla uczących się…`);
+    const r = await dropFromArea(base.row.areaId, learners.roleId);
+    if (r.note !== '') notes.push(r.note);
+  }
   return notes.join(' ') || undefined;
 }
 

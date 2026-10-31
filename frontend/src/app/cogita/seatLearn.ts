@@ -92,15 +92,18 @@ export function useSeatLibrary(seat: SeatView, libraryId: string): SeatLibrary {
   return { lib, name, keyOf, keyIn, sources };
 }
 
-/** Der Platz als Lernender dieser Bibliothek — seine Identität entsteht beim ersten Mal (wie für die Rozmowa). */
-export function useSeatLearner(seat: SeatView, lib: CogitaLibrary | null | undefined): { learner: Learner | null; failed: string | null } {
+/**
+ * Der Platz als Lernender dieser Bibliothek — seine Identität entsteht beim ersten Mal (wie für die Rozmowa).
+ * `answers` (2026-11-01): der Bereich, den der Baustein für die Antworten nennt (`answersTo.ts`).
+ */
+export function useSeatLearner(seat: SeatView, lib: CogitaLibrary | null | undefined, answers: string | null = null): { learner: Learner | null; failed: string | null } {
   const [holder, setHolder] = useState<Holder | null>(null);
   useEffect(() => {
     let alive = true;
     void holderOfSeat(seat).then((h) => { if (alive) setHolder(h); }, () => { if (alive) setHolder(null); });
     return () => { alive = false; };
   }, [seat]);
-  const { learner, failed } = useLearner(lib ?? null, holder);
+  const { learner, failed } = useLearner(lib ?? null, holder, answers);
   return { learner, failed };
 }
 

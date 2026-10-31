@@ -22,6 +22,7 @@ import { average, dueAt, knownessOf, LEVEL_LABEL, shareOf } from '../../cogita/k
 import { joinByCode, loadSession, openTitle, participantId, ticketFromAddress, ticketOf, type Credentials, type SessionRow, type Ticket } from '../../cogita/live';
 import { publicEntity } from '../../cogita/publish';
 import { useEntitySubject } from '../../cogita/entitySubject';
+import { answersArea } from '../../cogita/answersTo';
 import { usePageBase } from '../../cogita/pageBase';
 import { useLocalLearner } from '../../cogita/PublicRun';
 import { IntroduceToLearn, LearnerLine, usePageLearner } from '../../cogita/pageLearner';
@@ -58,11 +59,14 @@ function Closed({ title, lib }: { title: string; lib: CogitaLibrary | null | und
  */
 export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  /* 2026-10-27 — als wer: die Person der Seite, ein Platz aus dem Link, sonst der Browser (`pageLearner.tsx`). */
-  const who = usePageLearner(lib);
+  const doc = lib == null ? undefined : lib.docs('revision').find((e) => e.id === config.revision);
+  /*
+   * 2026-10-27 — als wer: die Person der Seite, ein Platz aus dem Link, sonst der Browser (`pageLearner.tsx`).
+   * 2026-11-01 — und wohin: der Bereich, den dieser Baustein nennt, sonst die Powtórka (`answersTo.ts`).
+   */
+  const who = usePageLearner(lib, answersArea(config.answers, doc?.data.storageAreaId));
   const learner = who.learner;
   const [running, setRunning] = useState(false);
-  const doc = lib == null ? undefined : lib.docs('revision').find((e) => e.id === config.revision);
   const name = typeof doc?.data.name === 'string' ? doc.data.name : '';
   const title = config.title || name || 'Powtórka';
   const planned = useAsync(lib == null || doc === undefined ? null : () => planFor(lib, doc.id, null, 'page'), [lib, lib?.revision, doc?.id]);
@@ -98,7 +102,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
 /** Ein Przebieg der Baza wiedzy selbst — Schritte, Fragen und Dateien aus ihren Einträgen. */
 export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  const who = usePageLearner(lib);
+  const who = usePageLearner(lib, answersArea(config.answers));
   const learner = who.learner;
   const [playing, setPlaying] = useState(false);
   const cards = useAsync(lib == null ? null : () => lib.cards('flow').then((r) => r.cards), [lib, lib?.revision]);
@@ -345,7 +349,7 @@ export function TopicExplorerView({ config }: { config: TopicsConfig; ctx: PartC
 /** Die Karte des Wissens einer Powtórka — aus den Einträgen der Baza selbst, im eigenen Nebel. */
 export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  const learner = usePageLearner(lib).learner;
+  const learner = usePageLearner(lib, answersArea(lib?.docs('revision').find((e) => e.id === config.revision)?.data.storageAreaId)).learner;
   const [chosen, setChosen] = useState<string | null>(null);
   const [learning, setLearning] = useState<string | null>(null);
   const planned = useAsync(lib == null || config.revision === '' ? null : () => planFor(lib, config.revision, null, 'page'), [lib, lib?.revision, config.revision]);
@@ -426,7 +430,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
 function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnConfig; tall: boolean }) {
   const opened = useSeatLibrary(seat, config.library);
   const { lib, name } = opened;
-  const { learner, failed } = useSeatLearner(seat, lib);
+  const { learner, failed } = useSeatLearner(seat, lib, answersArea(config.answers));
   const [running, setRunning] = useState<string | null>(null);
   const cards = useAsync(lib == null ? null : () => lib.cards('learn').then((r) => r.cards), [lib, lib?.revision]);
   const ctx = useMemo<CogitaCtx | null>(() => (lib == null ? null : seatCtx(lib, opened, seat.token)), [lib, opened, seat.token]);

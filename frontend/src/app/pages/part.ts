@@ -151,7 +151,9 @@ export type FieldKind = 'line' | 'text' | 'resource' | 'form' | 'questions' | 'c
   /* 0082 — eine Seite (ihr Pfad), gewählt aus den eigenen. */
   | 'page'
   /* 2026-10-25 — „Co pokazuje": Häkchen je Möglichkeit (`options`); gespeichert ist, was WEGBLEIBT, leer — alles (`HideField.tsx`). */
-  | 'hide';
+  | 'hide'
+  /* 2026-11-01 — ein Bereich, den ich führe (`PickArea.tsx`): wohin die Antworten eines Lernbausteins gehen. */
+  | 'area';
 
 export interface FieldDef {
   readonly key: string;
@@ -392,7 +394,8 @@ const FIELD_SAYS: Record<FieldKind, string> = {
   libraryEntry: 'identyfikator wpisu biblioteki, skryptorium albo bazy wiedzy — najprościej wybrać w edytorze',
   calendarItem: 'identyfikator terminu z wybranego kalendarza — najprościej wybrać w edytorze',
   page: 'ścieżka strony, np. "parafia/bierzmowanie/kandydat" — najprościej wybrać w edytorze',
-  hide: 'lista tego, czego moduł NIE pokazuje (brak albo pusta lista — pokazuje wszystko)'
+  hide: 'lista tego, czego moduł NIE pokazuje (brak albo pusta lista — pokazuje wszystko)',
+  area: 'identyfikator obszaru (np. kursu albo grupy) — najprościej wybrać w edytorze'
 };
 
 /** Eine Zeile des JSON als gespeicherter Wert — oder `null`: nichts. */

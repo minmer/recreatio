@@ -12,6 +12,11 @@
  * Eine Person und ein Platz senden ihre Antworten versiegelt in den Bereich des Kurses (`targetFor`):
  * wer seine Przyjęcia liest, sieht ihre Postępy (Nauka → Postępy) — mit dem Namen, unter dem sie sich
  * vorgestellt haben. So gibt man jemandem einen Link zu einer Seite mit einer Powtórka und sieht, wie er lernt.
+ *
+ * 2026-11-01 — DER BEREICH DES ORTES: welcher das ist, sagt der Baustein („Odpowiedzi uczących się do",
+ * `answersTo.ts`), sonst die Powtórka, sonst die Baza. Eine Baza kann so in vielen Kursen stehen — jeder bekommt
+ * die Antworten seiner Uczący się. Vorgestellt wird man in DIESEM Bereich (dort sieht die Lehrerin den Namen, und
+ * dorthin darf der Platz schicken); der Link muss ihn öffnen.
  */
 
 import { useEffect, useState } from 'react';
@@ -23,6 +28,7 @@ import { heldLinks } from '../links/linkKeep';
 import { createLinkPerson } from '../links/linkPerson';
 import { usePerson } from '../pages/pagePerson';
 import { parsePath } from '../routes';
+import { answersArea } from './answersTo';
 import { holderOfMe, holderOfSeat, localHolder, useLearner } from './holders';
 import type { Holder, Learner } from './learn';
 import type { CogitaLibrary } from './store';
@@ -49,7 +55,7 @@ export interface PageLearner {
   readonly introduced: (token: string) => void;
 }
 
-export function usePageLearner(lib: CogitaLibrary | null | undefined): PageLearner {
+export function usePageLearner(lib: CogitaLibrary | null | undefined, answers: string | null = null): PageLearner {
   const person = usePerson();
   const me = useMe(useWho());
   const chosen = person?.chosen ?? null;
@@ -80,8 +86,11 @@ export function usePageLearner(lib: CogitaLibrary | null | undefined): PageLearn
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, seat?.token, seat?.seatKey === null, roleId, me]);
 
-  /* Lernt man im Browser: öffnet ein Link dieses Browsers den Bereich der Baza? Dann kann man sich vorstellen. */
-  const areaId = lib?.areaId ?? null;
+  /*
+   * Lernt man im Browser: öffnet ein Link dieses Browsers den Bereich, in den die Antworten gehen (der Ort, sonst die
+   * Baza)? Dann kann man sich vorstellen — als Mensch dieses Bereichs.
+   */
+  const areaId = lib == null ? null : answersArea(answers, lib.settings().storageAreaId) ?? lib.areaId;
   useEffect(() => {
     let alive = true;
     if (areaId === null || holder?.as !== 'local' || heldLinks().length === 0) { setLink(null); return undefined; }
@@ -99,7 +108,7 @@ export function usePageLearner(lib: CogitaLibrary | null | undefined): PageLearn
     if (person.options.some((o) => o.kind === 'seat' && o.id === waiting)) { person.choose(waiting); setWaiting(null); }
   }, [waiting, person]);
 
-  const { learner, failed } = useLearner(lib ?? null, holder?.holder ?? null);
+  const { learner, failed } = useLearner(lib ?? null, holder?.holder ?? null, answers);
   return {
     learner: holder === null ? null : learner, as: holder?.as ?? null, name: holder?.name ?? null, link, introduced: setWaiting,
     ready: holder !== null && (learner !== null || failed !== null)
@@ -143,15 +152,16 @@ export function IntroduceToLearn({ link, onDone }: { link: LearnLink; onDone: (t
 }
 
 /**
- * Ein Satz unter der Powtórka: als wer man lernt, und wer es sieht — ein Platz und eine Person, wenn der Kurs
- * seinen Bereich für Antworten nennt, schicken sie dorthin (`targetFor`); sonst bleiben sie beim Konto.
+ * Ein Satz unter der Powtórka: als wer man lernt, und wer es sieht — wohin die Antworten wirklich gehen (`targetFor`):
+ * in einen Bereich mit Przyjęcia, dann sieht es, wer ihn prowadzi; sonst bleiben sie beim Konto.
  */
 export function LearnerLine({ learner, lib }: { learner: PageLearner; lib: CogitaLibrary }) {
   if (learner.as === null) return null;
   const who = learner.name ?? (learner.as === 'seat' ? 'osoba z linku' : 'Ty');
-  const office = learner.as === 'seat' || lib.settings().storageAreaId !== undefined;
+  const target = learner.learner?.target ?? null;
+  const office = target !== null ? target.own !== true && target.intake !== null : learner.as === 'seat' || lib.settings().storageAreaId !== undefined;
   return (
-    <p className="wk-card-muted" data-learner-as={learner.as}>
+    <p className="wk-card-muted" data-learner-as={learner.as} data-learner-office={office ? '' : undefined}>
       {learner.as === 'local' ? 'Bez konta postępy zostają w tej przeglądarce.'
         : office ? `Uczysz się jako ${who} — postępy widzi też prowadzący kurs.` : `Uczysz się jako ${who} — postępy zostają na Twoim koncie.`}
     </p>

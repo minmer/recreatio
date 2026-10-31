@@ -119,4 +119,8 @@ export function AreaPickMany({ areas, only, value, onChange, label }: {
   );
 }
 
+/** 2026-11-01 — Bereiche, in die Antworten gehen können (Lernbausteine, Powtórki): geführt (schreiben oder leiten), nicht „Tylko ja", keine Rozmowa. */
+export const answerAreas = (areas: readonly AreaRow[]): readonly AreaRow[] =>
+  areas.filter((a) => a.personal !== true && a.ownChat == null && (a.myLevel === 'admin' || a.myLevel === 'write'));
+
 export default AreaPick;

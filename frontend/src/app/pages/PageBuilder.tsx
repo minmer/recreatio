@@ -37,6 +37,7 @@ import { palette, partLabel, partOf } from './parts/registry';
 import { PickModule } from '../modules/PickModule';
 import { PickForm, PickQuestions, pickedForm } from '../forms/FormPick';
 import { PickPage } from './PickPage';
+import { PickArea } from './PickArea';
 import { HideField } from './HideField';
 import { PickCalendar, PickCalendarItem, PickCalendars } from '../calendar/PickCalendar';
 import { PickChat } from '../chat/PickChat';
@@ -625,10 +626,12 @@ function Fields({ part, size, busy, onSet, path }: {
 
         return (
           /* Eine Auswahl mit mehreren Knöpfen darin ist kein <label>: ein Klick daneben träfe den ersten. */
-          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' || field.kind === 'calendarItem' || field.kind === 'page' || field.kind === 'hide' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
+          <Wrap as={field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendars' || field.kind === 'calendarItem' || field.kind === 'page' || field.kind === 'hide' || field.kind === 'area' ? 'div' : 'label'} className={`wk-field${empty ? ' is-empty' : ''}`} key={field.key}>
             <span>{field.label}</span>
 
-            {field.kind === 'hide' ? (
+            {field.kind === 'area' ? (
+              <PickArea value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
+            ) : field.kind === 'hide' ? (
               <HideField field={field} value={value} busy={busy} onChange={(next) => onSet({ [field.key]: next })} />
             ) : field.kind === 'calendar' ? (
               <PickCalendar value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />

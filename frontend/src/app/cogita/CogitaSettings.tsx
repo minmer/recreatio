@@ -47,7 +47,7 @@ export function CogitaSettings() {
 
       <section className="cg-card">
         <h3>Gdzie zapisują się odpowiedzi uczących się</h3>
-        <p className="wk-hint">Postępy uczących się widzi ten, kto prowadzi wybrany obszar (np. nauczyciel). Bez wyboru — tylko sam uczący się.</p>
+        <p className="wk-hint">Postępy uczących się widzi ten, kto prowadzi wybrany obszar (np. nauczyciel). To wybór dla nauki tutaj, w aplikacji, i dla modułów bez własnego — moduł na stronie kursu (albo grupy) kieruje odpowiedzi do swojego obszaru, więc ta sama baza może służyć wielu kursom. Bez wyboru — tylko sam uczący się.</p>
         <AreaPick label="Gdzie zapisują się odpowiedzi uczących się" areas={areas} value={settings.storageAreaId ?? ''} disabled={busy}
           extras={[{ value: '', label: 'prywatny obszar uczącego się' }]} personalLabel="mój prywatny obszar"
           onChange={(areaId) => void save({ storageAreaId: areaId || undefined })} />

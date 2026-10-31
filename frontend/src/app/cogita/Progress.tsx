@@ -7,13 +7,15 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
 
+import { loadAreas, type AreaRow } from '../areas/area';
 import { areaKeys, loadAreaNames, openNames } from '../chat/chat';
+import { plural } from '../core/plural';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadSeats } from '../seats/seat';
 import type { Card } from './cardBasics';
 import { average, knownessOf, KNOWN, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
 import { gaugeFromMarks, itemDue, itemKnowness, ownKnowness } from './knowing';
-import { adoptLocal, areaProgress, localProgress, marksOf, renamer, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
+import { adoptLocal, areaProgress, loadAnswerAreas, localProgress, marksOf, renamer, type AnswerArea, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
 import { answerIndex, answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
 import { ClassKnowledge, KnowledgeStats } from './KnowCharts';
 import { planFor } from './RevisionRun';
@@ -125,10 +127,50 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
   );
 }
 
-/** Für die Lehrerin: alle Lernenden des Speicherbereichs — mit dem Schlüssel der Annahme, den sie hält. */
-export function OfficeProgress({ cards }: { cards: readonly Card[] | null }) {
+/**
+ * 2026-11-01 — WESSEN UCZĄCY SIĘ: die Antworten gehen dorthin, wo gelernt wird (`answersTo.ts`) — eine Baza steht in
+ * vielen Kursen, und jeder Kurs (jede Gruppe, jede Seite mit eigenem Bereich) hat seine Leute. Zur Wahl stehen die
+ * Bereiche mit Antworten zu dieser Baza, die ich führe, dazu der aus dem Kurs (`chosen`, aus der Adresse) und der aus
+ * den Ustawienia der Baza. Wer keinen davon führt und die Baza nicht schreibt, sieht hier nichts.
+ */
+export function LearnersProgress({ cards, chosen }: { cards: readonly Card[] | null; chosen: string | null }) {
+  const { lib, writes } = useCtx();
+  const found = useAsync(() => loadAnswerAreas(lib.libraryId).then((r) => r.areas, () => [] as readonly AnswerArea[]), [lib.libraryId]);
+  const mine = useAsync(() => loadAreas().then((r) => r.areas, () => [] as readonly AreaRow[]), []);
+  const [picked, setPicked] = useState<string | null>(null);
+  if (found === undefined || found === null || mine === undefined || mine === null) return null;
+  const storage = lib.settings().storageAreaId ?? null;
+  const same = (a: string, b: string | null) => b !== null && a.toLowerCase() === b.toLowerCase();
+  const leads = (id: string) => mine.some((a) => same(a.areaId, id) && (a.myLevel === 'admin' || a.myLevel === 'write'));
+  const options: string[] = [];
+  for (const id of [chosen, storage, ...found.map((a) => a.areaId)]) {
+    if (id === null || options.some((o) => same(o, id))) continue;
+    if (same(id, chosen) || leads(id)) options.push(id);
+  }
+  const fallback = writes ? storage ?? lib.areaId : null;
+  const area = options.find((o) => same(o, picked)) ?? options[0] ?? fallback;
+  if (area === null) return null;
+  const nameOf = (id: string) => mine.find((a) => same(a.areaId, id))?.name ?? 'obszar';
+  const countOf = (id: string) => found.find((a) => same(a.areaId, id))?.learners ?? 0;
+  return (
+    <details className="cg-card" open={chosen !== null || storage !== null || found.length > 0 || undefined} data-office-fold="">
+      <summary>Postępy uczących się (dla nauczyciela)</summary>
+      {options.length > 1 && (
+        <label className="wk-field cg-office-area">
+          <span>Uczący się z obszaru</span>
+          <select value={area} onChange={(e) => setPicked(e.target.value)} data-office-area="">
+            {options.map((id) => <option key={id} value={id}>{nameOf(id)} — {countOf(id)} {plural(countOf(id), 'uczący się', 'uczących się', 'uczących się')}</option>)}
+          </select>
+        </label>
+      )}
+      <OfficeProgress key={area} cards={cards} area={area} />
+    </details>
+  );
+}
+
+/** Für die Lehrerin: alle Lernenden eines Bereichs — mit dem Schlüssel der Annahme, den sie hält. */
+export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null; area: string }) {
   const { lib, me } = useCtx();
-  const area = lib.settings().storageAreaId ?? lib.areaId;
   const [rows, setRows] = useState<readonly LearnerProgress[] | null>(null);
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [failed, setFailed] = useState<string | null>(null);

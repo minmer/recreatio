@@ -195,6 +195,8 @@ export const holderKey = (h: Holder): string => (h.kind === 'role' ? `r:${h.role
 export interface Target {
   readonly areaId: string;
   readonly intake: Uint8Array | null;
+  /** 2026-11-01 — der eigene private Bereich (`answersTo.ts`): die Antworten liest niemand sonst. */
+  readonly own?: boolean;
 }
 
 const intakes = new Map<string, Promise<Uint8Array | null>>();
@@ -295,6 +297,18 @@ export function loadOwnBatches(holder: Exclude<Holder, { kind: 'local' }>, libra
   const query = `?libraryId=${encodeURIComponent(libraryId)}${since === null ? '' : `&since=${encodeURIComponent(since)}`}`;
   return call(holder.kind === 'role' ? `/workspace/learn/batches${query}` : `${seatPath(holder.token)}/learn/batches${query}`);
 }
+
+/** 2026-11-01 — ein Bereich, in den Antworten zu einer Baza gingen (nur Zahlen; nur Bereiche, die ich lese). */
+export interface AnswerArea {
+  readonly areaId: string;
+  readonly learners: number;
+  readonly batches: number;
+  readonly lastAt: string;
+}
+
+/** Wohin die Antworten zu dieser Baza gingen — eine Baza steht in vielen Kursen, jeder hat seine Uczący się. */
+export const loadAnswerAreas = (libraryId: string): Promise<{ areas: readonly AnswerArea[] }> =>
+  call(`/workspace/learn/library/${encodeURIComponent(libraryId)}/areas`);
 
 export const loadAreaBatches = (areaId: string, libraryId: string | null, since: string | null): Promise<{ now: string; batches: readonly StoredBatch[] }> =>
   call(`/workspace/learn/area/${encodeURIComponent(areaId)}/batches?${libraryId === null ? '' : `libraryId=${encodeURIComponent(libraryId)}&`}${since === null ? '' : `since=${encodeURIComponent(since)}`}`);

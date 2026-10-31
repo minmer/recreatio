@@ -19,6 +19,8 @@ import { planFor } from './RevisionRun';
 import { saveTask } from '../calendar/tasks';
 import { ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
+import { loadAreas, type AreaRow } from '../areas/area';
+import { AreaPick, answerAreas } from '../areas/AreaPick';
 
 export function RevisionEditor({ chosenId, onChoose, onRun }: { chosenId: string | null; onChoose: (id: string | null) => void; onRun: (id: string) => void }) {
   const { lib, writes } = useCtx();
@@ -115,6 +117,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
   }, [entry.version]);
 
   const plan = useAsync(() => planFor(lib, id, null, 'podglad'), [id, lib.revision]);
+  const areas = useAsync(() => (writes ? loadAreas().then((r) => r.areas) : Promise.resolve([] as readonly AreaRow[])), [writes]);
   const settings = lib.settings();
   const offline = settings.offline.includes(id);
 
@@ -145,10 +148,12 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
       {said !== null && <p className="wk-hint">{said}</p>}
       {writes && (
         <>
-          <details>
+          <details data-revision-storage="">
             <summary>Gdzie zapisują się odpowiedzi (dla tej powtórki)</summary>
-            <p className="wk-hint">Domyślnie tam, gdzie mówi baza wiedzy (Ustawienia), a bez tego — w prywatnym obszarze uczącego się. Nauczyciel, który czyta wybrany obszar, widzi postępy.</p>
-            <input value={storage} placeholder="identyfikator obszaru (puste — jak w bazie wiedzy)" onChange={(e) => { setStorage(e.target.value.trim()); setDirty(true); }} />
+            <p className="wk-hint">Moduł na stronie (kurs, grupa) może wskazać własny obszar — wtedy idą tam. Bez tego: obszar wybrany tutaj, potem ten z Ustawień bazy, a bez nich zostają u uczącego się. Postępy widzi ten, kto prowadzi wybrany obszar; uczący się, który go nie czyta, zachowuje odpowiedzi dla siebie.</p>
+            {/* 2026-11-01 — gewählt statt abgetippt; und jetzt gilt es auch (in der Nauka und auf Seiten, `answersTo.ts`). */}
+            <AreaPick label="Obszar dla odpowiedzi tej powtórki" areas={areas ?? []} only={answerAreas(areas ?? [])} value={storage} disabled={busy}
+              extras={[{ value: '', label: 'jak w bazie wiedzy' }]} onChange={(id) => { setStorage(id); setDirty(true); }} />
           </details>
           <div className="wk-actions">
             <button type="button" className="wk-btn" disabled={busy || !(dirty || migrated)} onClick={() => void save()}>{busy ? 'Zapisywanie…' : 'Zapisz powtórkę'}</button>

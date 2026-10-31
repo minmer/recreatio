@@ -59,6 +59,8 @@ public static partial class Cogita
         app.MapGet("/workspace/learn/due", MyDueAsync);
         app.MapPost("/workspace/learn/library/{id:guid}/report", ReportAsync);
         app.MapGet("/workspace/learn/library/{id:guid}/reports", ReportsAsync);
+        /* 2026-11-01 — in welche Bereiche die Antworten zu einer Baza gingen (eine Baza steht in vielen Kursen). */
+        app.MapGet("/workspace/learn/library/{id:guid}/areas", AnswerAreasAsync);
 
         app.MapPost("/seat/{token}/learn/batches", SeatPostBatchesAsync);
         app.MapGet("/seat/{token}/learn/batches", SeatBatchesAsync);
@@ -323,6 +325,50 @@ public static partial class Cogita
         if (library is not null) cmd.Parameters.AddWithValue("@library", library.Value);
         if (from is not null) cmd.Parameters.AddWithValue("@since", from.Value);
         await WriteBatchesAsync(ctx, cmd, forArea: true);
+    }
+
+    /// <summary>
+    /// 2026-11-01 — WOHIN DIE ANTWORTEN ZU EINER BAZA GINGEN. Eine Baza steht in vielen Kursen und auf Seiten ohne
+    /// Kurs; jeder Ort schickt die Antworten seiner Uczący się in seinen Bereich. Die Lehrerin wählt, wessen sie
+    /// sieht — genannt werden nur Bereiche, die sie liest, und nur Zahlen: wie viele Lernende, wie viele Pakete,
+    /// wann zuletzt. Öffnen kann sie sie weiter nur mit dem Schlüssel der Annahme.
+    /// </summary>
+    private static async Task AnswerAreasAsync(HttpContext ctx, Db db, Guid id)
+    {
+        var who = await Auth.WhoAsync(ctx, db);
+        if (who is null) { ctx.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+
+        await using var connection = await db.OpenAsync(ctx.RequestAborted);
+        var mine = await Workspace.RolesOfAsync(connection, who.Value.AccountId, ctx.RequestAborted);
+        var caller = new Caller(who.Value.AccountId, mine);
+        var libraryArea = await LibraryAreaAsync(connection, id, ctx.RequestAborted);
+        if (libraryArea is null || !await Area.MayAsync(connection, caller, libraryArea.Value, Capability.Read, ctx.RequestAborted))
+        {
+            await Fail(ctx, StatusCodes.Status404NotFound, "Takiej biblioteki nie ma.");
+            return;
+        }
+
+        var rows = new List<(Guid Area, int Learners, int Batches, DateTimeOffset Last)>();
+        await using (var cmd = new SqlCommand("""
+            SELECT area_id, COUNT(DISTINCT COALESCE(holder_role_id, holder_access_id)), COUNT(*), MAX(created_at)
+            FROM app.learn_batch
+            WHERE library_id = @library AND key_for_area IS NOT NULL AND kind NOT IN (N'flags', N'counts')
+            GROUP BY area_id;
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("@library", id);
+            await using var reader = await cmd.ExecuteReaderAsync(ctx.RequestAborted);
+            while (await reader.ReadAsync(ctx.RequestAborted))
+                rows.Add((reader.GetGuid(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetDateTimeOffset(3)));
+        }
+
+        var areas = new List<object>();
+        foreach (var row in rows.OrderByDescending(r => r.Last))
+        {
+            if (!await Area.MayAsync(connection, caller, row.Area, Capability.Read, ctx.RequestAborted)) continue;
+            areas.Add(new { areaId = Ids.ToText(row.Area), learners = row.Learners, batches = row.Batches, lastAt = row.Last });
+        }
+        await ctx.Response.WriteAsJsonAsync(new { libraryId = Ids.ToText(id), areas });
     }
 
     public sealed record DueRequest(string? LibraryId, string? HolderRoleId, DateTimeOffset? DueAt, int DueCount);

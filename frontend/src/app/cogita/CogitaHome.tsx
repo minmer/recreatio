@@ -40,13 +40,14 @@ import { ExploreMap } from './ExploreMap';
 import { FlowEditor } from './FlowEditor';
 import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
 import { readFlow, resolveFlow } from './flow';
+import { answersArea } from './answersTo';
 import { holderOfMe, useLearner } from './holders';
 import { dueAt } from './knowness';
 import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
 import { renamer } from './learn';
 import { cogitaPath, KNOWLEDGE_MORE, KNOWLEDGE_READER_TABS, KNOWLEDGE_TABS, LEARN_MORE, LEARN_READER_TABS, LEARN_TABS, type CogitaPart } from './parts';
-import { OfficeProgress, OwnProgress } from './Progress';
+import { LearnersProgress, OwnProgress } from './Progress';
 import { Pending } from './Pending';
 import { REVISION_PRESETS } from './presets';
 import { EntityPrerequisites, LearningPath } from './LearningPath';
@@ -144,13 +145,11 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
       {tab === 'postepy' && (
         <div className="cg">
           <OwnProgress learner={learner} cards={cards ?? null} />
-          {/* 2026-10-27 — eine Baza, deren Antworten in einen Bereich gehen (ein Kurs): die Uczący się gleich offen. */}
-          {writes && (
-            <details className="cg-card" open={lib.settings().storageAreaId !== undefined || undefined} data-office-fold="">
-              <summary>Postępy uczących się (dla nauczyciela)</summary>
-              <OfficeProgress cards={cards ?? null} />
-            </details>
-          )}
+          {/*
+            2026-10-27 — eine Baza, deren Antworten in einen Bereich gehen (ein Kurs): die Uczący się gleich offen.
+            2026-11-01 — welcher Bereich: aus der Adresse (`postepy/<obszar>`, der Kurs führt so hierher) oder gewählt.
+          */}
+          <LearnersProgress cards={cards ?? null} chosen={trail[1] ?? null} />
         </div>
       )}
       {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">Liczenie kart…</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}
@@ -164,7 +163,7 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
 /* -- Nauka ------------------------------------------------------------------------------------ */
 
 function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; learner: Learner | null; cards: readonly Card[] | null; go: (...tail: string[]) => void }) {
-  const { lib, writes, who } = useCtx();
+  const { lib, writes, who, me } = useCtx();
   const { busy, run } = useBusy();
   const revisions = lib.docs('revision');
   const chosen = trail[0];
@@ -174,8 +173,12 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
     return entry === undefined ? null : { revisionId: entry.id, title: String(entry.data.name ?? 'Powtórka') };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosen, revisions.length]);
+  /* 2026-11-01 — eine Powtórka, die ihren Bereich für Antworten nennt (`answersTo.ts`): ein eigener Lernender dorthin. */
+  const storage = answersArea(revisions.find((e) => e.id === chosen)?.data.storageAreaId);
+  const holder = useMemo(() => (storage === null || me === null ? null : holderOfMe(me)), [storage, me]);
+  const own = useLearner(storage === null ? null : lib, holder, storage);
   if (source !== null) {
-    return <RevisionRun lib={lib} learner={learner} source={source} keep={who?.keyKeeping === 'kept' && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')} />;
+    return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who?.keyKeeping === 'kept' && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')} />;
   }
   const now = Date.now();
   const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m); return d !== null && d <= now; }).length;

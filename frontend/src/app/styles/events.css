@@ -84,6 +84,8 @@
 
 .wk-part-audience { display: grid; gap: var(--wk-space-1); min-width: 0; }
 .wk-part-audience-says { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-ink-2); }
+/* 2026-11-01 — unter „Odpowiedzi uczących się do": der Bereich hat noch keine Przyjęcia. */
+.wk-part-intake { display: grid; gap: var(--wk-space-1); justify-items: start; min-width: 0; }
 
 /* Formular: unter welchem Bereich die Fragen liegen (die Antworten bleiben im eigenen). */
 .wk-questions-area { display: grid; gap: var(--wk-space-2); min-width: 0; }

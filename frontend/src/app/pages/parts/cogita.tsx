@@ -30,7 +30,7 @@
 
 import { createElement, lazy, Suspense, type ComponentType } from 'react';
 
-import { definePart, text, type PartContext, type RawConfig } from '../part';
+import { definePart, text, type FieldDef, type PartContext, type RawConfig } from '../part';
 import { Loading } from '../../ui/Loading';
 
 /** Eine Ansicht, die erst geladen wird, wenn sie gezeigt wird — bis dahin der Platzhalter. */
@@ -41,26 +41,36 @@ function later<C>(load: () => Promise<{ default: ComponentType<{ config: C; ctx:
   return View;
 }
 
+/**
+ * 2026-11-01 — WOHIN DIE ANTWORTEN GEHEN (`cogita/answersTo.ts`): der Baustein nennt den Bereich seiner Uczący się —
+ * einen Kurs, eine Gruppe, eine Klasse. Eine Baza kann so auf vielen Seiten stehen, und jeder Ort sieht seine Leute.
+ * Leer: wie die Powtórka oder die Baza es sagt (Ustawienia), sonst bleiben sie beim Uczący się.
+ */
+const ANSWERS: FieldDef = { key: 'answers', label: 'Odpowiedzi uczących się do', kind: 'area', hint: 'puste: jak w bazie wiedzy; bez tego zostają u uczącego się' };
+
 /* == Powtórka ==================================================================================== */
 
 export interface RevisionConfig {
   readonly title: string;
   readonly library: string;
   readonly revision: string;
+  /** 2026-11-01 — der Bereich für die Antworten (leer: wie die Powtórka oder die Baza). */
+  readonly answers: string;
 }
 
 export const cogitaRevisionPart = definePart<RevisionConfig>({
   kind: 'cogita-revision',
-  example: { title: 'Powtórka przed bierzmowaniem', library: '<id-biblioteki>', revision: '<id-powtórki>' },
+  example: { title: 'Powtórka przed bierzmowaniem', library: '<id-biblioteki>', revision: '<id-powtórki>', answers: '<id-obszaru-kursu>' },
   label: 'Powtórka',
-  use: 'Powtórka z bazy wiedzy (Cogita). Widzą ją ci, którzy mogą czytać bazę — w jawnym obszarze (baza otwarta) każdy, bez konta; postępy bez konta zostają w przeglądarce.',
+  use: 'Powtórka z bazy wiedzy (Cogita). Widzą ją ci, którzy mogą czytać bazę — w jawnym obszarze (baza otwarta) każdy, bez konta; postępy bez konta zostają w przeglądarce. Odpowiedzi idą do obszaru, który wskażesz (np. kursu) — jego prowadzący widzi postępy.',
   box: { colSpan: 4, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa powtórki' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'revision', label: 'Która powtórka', kind: 'libraryEntry', of: 'library', entryKinds: ['revision'] }
+    { key: 'revision', label: 'Która powtórka', kind: 'libraryEntry', of: 'library', entryKinds: ['revision'] },
+    ANSWERS
   ],
-  read: (raw: RawConfig): RevisionConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision') }),
+  read: (raw: RawConfig): RevisionConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision'), answers: text(raw, 'answers') }),
   hasContent: (c) => c.library !== '' && c.revision !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.revision === '' ? 'Wybierz powtórkę z tej bazy wiedzy.' : null),
   strip: { title: 'Powtórka', open: 'Zacznij' },
@@ -77,20 +87,22 @@ export interface FlowConfig {
   readonly title: string;
   readonly library: string;
   readonly flow: string;
+  readonly answers: string;
 }
 
 export const cogitaFlowPart = definePart<FlowConfig>({
   kind: 'cogita-flow',
-  example: { title: 'Droga przez Ewangelię Marka', library: '<id-biblioteki>', flow: '<id-przebiegu>' },
+  example: { title: 'Droga przez Ewangelię Marka', library: '<id-biblioteki>', flow: '<id-przebiegu>', answers: '<id-obszaru-kursu>' },
   label: 'Kurs / opowieść',
   use: 'Przebieg z bazy wiedzy (Cogita): kurs, opowieść, rozmowa w dymkach, mapa do odkrywania. Widzą go ci, którzy mogą czytać bazę — w jawnym obszarze każdy, bez konta.',
   box: { colSpan: 6, rowSpan: 5 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa przebiegu' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'flow', label: 'Który przebieg', kind: 'libraryEntry', of: 'library', entryKinds: ['flow'] }
+    { key: 'flow', label: 'Który przebieg', kind: 'libraryEntry', of: 'library', entryKinds: ['flow'] },
+    ANSWERS
   ],
-  read: (raw: RawConfig): FlowConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), flow: text(raw, 'flow') }),
+  read: (raw: RawConfig): FlowConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), flow: text(raw, 'flow'), answers: text(raw, 'answers') }),
   hasContent: (c) => c.library !== '' && c.flow !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.flow === '' ? 'Wybierz przebieg z tej bazy wiedzy.' : null),
   strip: { title: 'Kurs', open: 'Zacznij' },
@@ -255,20 +267,22 @@ export interface SeatLearnConfig {
   readonly title: string;
   readonly library: string;
   readonly revision: string;
+  readonly answers: string;
 }
 
 export const seatLearnPart = definePart<SeatLearnConfig>({
   kind: 'seat-learn',
-  example: { title: 'Twoja nauka', library: '<id-biblioteki>', revision: '<id-powtórki albo puste>' },
+  example: { title: 'Twoja nauka', library: '<id-biblioteki>', revision: '<id-powtórki albo puste>', answers: '<id-obszaru-kursu>' },
   label: 'Nauka (osoba z linkiem)',
   use: 'Powtórki z bazy wiedzy kursu dla osoby z linkiem — jej postępy idą do kursu (prowadzący widzą je w Postępach).',
   box: { colSpan: 3, rowSpan: 3 },
   fields: [
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoja nauka' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
-    { key: 'revision', label: 'Tylko powtórka', kind: 'line', hint: 'identyfikator powtórki — puste: wszystkie powtórki bazy wiedzy' }
+    { key: 'revision', label: 'Tylko powtórka', kind: 'line', hint: 'identyfikator powtórki — puste: wszystkie powtórki bazy wiedzy' },
+    ANSWERS
   ],
-  read: (raw: RawConfig): SeatLearnConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision') }),
+  read: (raw: RawConfig): SeatLearnConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision'), answers: text(raw, 'answers') }),
   hasContent: () => true,
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy kursu — osoba z linkiem musi czytać jej obszar (rola formularza albo udostępnienie).' : null),
   strip: { title: 'Twoja nauka', open: 'Otwórz' },

@@ -40,6 +40,7 @@ import { PARTS, partLabel, partOf, takesEntries } from '../pages/parts/registry'
 import { PickChat } from '../chat/PickChat';
 import { PickForm, PickQuestions, pickedForm } from '../forms/FormPick';
 import { PickPage } from '../pages/PickPage';
+import { PickArea } from '../pages/PickArea';
 import { HideField } from '../pages/HideField';
 import { PickResource } from '../bookings/PickResource';
 import { PickLibrary, PickLibraryEntry } from '../library/LibraryPick';
@@ -525,7 +526,9 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
       {def.fields.map((field) => {
         const value = config[field.key] ?? '';
 
-        const input = field.kind === 'hide' ? (
+        const input = field.kind === 'area' ? (
+          <PickArea value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
+        ) : field.kind === 'hide' ? (
           <HideField field={field} value={value} busy={busy} onChange={(next) => { setConfig({ ...config, [field.key]: next }); void save(field.key, next); }} />
         ) : field.kind === 'chat' ? (
           <PickChat value={value} busy={busy} onPick={(id) => { setConfig({ ...config, [field.key]: id }); void save(field.key, id); }} />
@@ -576,7 +579,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
         );
 
         /* Mehrere Knöpfe darin — kein <label>, sonst träfe ein Klick daneben den ersten. */
-        return field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendarItem' || field.kind === 'hide' ? (
+        return field.kind === 'questions' || field.kind === 'form' || field.kind === 'calendarItem' || field.kind === 'hide' || field.kind === 'area' ? (
           <div className="wk-field" key={field.key}><span>{field.label}</span>{input}</div>
         ) : (
           <label className="wk-field" key={field.key}><span>{field.label}</span>{input}</label>

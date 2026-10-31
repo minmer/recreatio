@@ -72,7 +72,8 @@ existing base stays where it is, and the learners' role reads its area (made now
 the learners will read the whole area, naming its other bases; only areas one may let others into, never the
 private one. Answers go to the course's intake if the base names no place yet; its revision goes on the main page if
 none is there. Which bases a course has is not stored: those of the area, plus those of the areas its learners' role
-reads; the one whose revision is on the main page leads. „Wybierz inną” switches (the page's revision follows; the
+reads. Which one leads is stored (0135: import key `library`/`base`, also without a revision on the main page),
+else the one whose revision is on the main page. „Wybierz inną” switches (the page's revision follows; the
 old area can be closed for the learners, checked by default), „Odłącz” closes a shared base's area for the learners
 and takes its revision off the main page — the base, its entries and progress stay.
 

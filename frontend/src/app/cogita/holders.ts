@@ -15,6 +15,7 @@ import { fromBase64Url } from '../core/crypto';
 import type { Me } from '../core/me';
 import { loadSeatChats, seatIdentity } from '../seats/seatChat';
 import type { SeatView } from '../seats/seatContext';
+import { answersArea, placeFor } from './answersTo';
 import { Learner, targetOf, type Holder, type Target } from './learn';
 import type { CogitaLibrary } from './store';
 
@@ -55,13 +56,32 @@ export function personalArea(): Promise<string | null> {
   return personal;
 }
 
-/** Wohin: was die Wiederholung (oder Sitzung, oder der Schritt) sagt, sonst der Kurs, sonst der eigene Bereich. */
+let readable: { readonly at: number; readonly ids: Promise<ReadonlySet<string> | null> } | null = null;
+
+/** Die Bereiche, die dieses Konto liest — eine halbe Minute gemerkt; `null`: unbekannt (ohne Netz). */
+function readableAreas(): Promise<ReadonlySet<string> | null> {
+  if (readable === null || Date.now() - readable.at > 30_000) {
+    const ids = loadAreas().then((r) => new Set(r.areas.map((a) => a.areaId.toLowerCase())), () => null);
+    readable = { at: Date.now(), ids };
+  }
+  return readable.ids;
+}
+
+/**
+ * Wohin (`answersTo.ts`): was der Ort sagt — ein Baustein auf einer Seite, eine Powtórka, ein Schritt (`override`) —,
+ * sonst die Baza (Ustawienia), sonst der eigene Bereich. 2026-11-01: eine Person schickt nur in einen Bereich, den sie
+ * liest; sonst bleiben die Antworten bei ihr.
+ */
 export async function targetFor(lib: CogitaLibrary, holder: Holder, override?: string | null): Promise<Target | null> {
   if (holder.kind === 'local') return null;
-  const declared = override ?? lib.settings().storageAreaId ?? null;
-  if (declared !== null) return targetOf(declared);
-  if (holder.kind === 'role') return targetOf((await personalArea()) ?? lib.areaId);
-  return targetOf(lib.areaId);
+  const said = answersArea(override, lib.settings().storageAreaId);
+  if (holder.kind === 'seat') return targetOf(placeFor('seat', said, null, null, lib.areaId).areaId);
+  const reads = said === null ? null : await readableAreas();
+  const may = reads === null ? null : (id: string) => reads.has(id.toLowerCase());
+  const allowed = said !== null && (may === null || may(said));
+  const place = placeFor('role', said, may, allowed ? null : await personalArea(), lib.areaId);
+  const target = await targetOf(place.areaId);
+  return place.own ? { ...target, own: true } : target;
 }
 
 /**
