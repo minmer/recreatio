@@ -25,21 +25,28 @@ const HEADING = /^#{1,3}\s+\S/;
 const RULE = /^\s*(-{3,}|\*{3,})\s*$/;
 const EMBED = /^!\[@[^\]]+\]$/;
 const INDENTED = /^\s{2,}\S/;
+/** Eine Zeile nur aus Fettem (ein Stück, auch mit „:" danach) — ein Zwischentitel. */
+const BOLD_LINE = /^\s*\*\*(?:(?!\*\*).)+\*\*\s*:?\s*$/;
 
 /** Länger ist ein fetter Absatz kein Zwischentitel mehr, sondern ein betonter Satz. */
 const HEAD_MAX = 100;
 
 /**
- * Eine Liste, die gleich unter einer Zeile beginnt, beginnt eine Liste: davor kommt eine Leerzeile. Wie in Markdown
- * unterbricht ein Punkt („- ", „* ", „• ") jeden Absatz, eine Nummer nur als „1." — „1918. Wtedy…" bleibt Text.
+ * Wie der Text eines Themas zu lesen ist, ehe `parseMarkup` ihn liest. Eine Liste, die gleich unter einer Zeile
+ * beginnt, beginnt eine Liste (wie in Markdown: ein Punkt „- ", „* ", „• " unterbricht jeden Absatz, eine Nummer nur
+ * als „1." — „1918. Wtedy…" bleibt Text); eine Zeile nur aus Fettem steht für sich (ein Zwischentitel, auch wenn der
+ * Text gleich darunter weitergeht).
  */
 export function readingSource(text: string): string {
   const out: string[] = [];
   let paragraph = false;
   let list = false;
   let quote = false;
+  let afterHead = false;
   for (const raw of text.replace(/\r\n?/g, '\n').split('\n')) {
     const line = raw.replace(/\s+$/, '');
+    const wasHead = afterHead;
+    afterHead = false;
     if (quote) {
       if (line.startsWith('>')) { out.push(raw); continue; }
       quote = false;
@@ -47,10 +54,19 @@ export function readingSource(text: string): string {
     if (line.trim() === '') { paragraph = false; list = false; out.push(raw); continue; }
     if (line.startsWith('>')) { paragraph = false; list = false; quote = true; out.push(raw); continue; }
     if ((RULE.test(line) && !paragraph) || HEADING.test(line) || EMBED.test(line.trim())) { paragraph = false; list = false; out.push(raw); continue; }
+    if (BOLD_LINE.test(line) && !(list && INDENTED.test(raw))) {
+      if (paragraph || list) out.push('');
+      paragraph = true;
+      list = false;
+      afterHead = true;
+      out.push(raw);
+      continue;
+    }
     const item = ITEM.exec(line);
     if (item !== null && !paragraph) { list = true; out.push(raw); continue; }
     if (item !== null && (item[2] === undefined || Number(item[2]) === 1)) { out.push(''); paragraph = false; list = true; out.push(raw); continue; }
     if (list && INDENTED.test(raw)) { out.push(raw); continue; }
+    if (wasHead) out.push('');
     list = false;
     paragraph = true;
     out.push(raw);
@@ -168,7 +184,7 @@ const SLOT = /\{([A-Za-z][A-Za-z0-9_]*)\}/g;
 const SLOT_ALONE = /^\s*\{([A-Za-z][A-Za-z0-9_]*)\}\s*$/;
 
 /** Schlichter Text in einem Zapis: seine Zeichen bedeuten dort nichts (`*`, `_`, `[`, `]`, `^`, `\`). */
-const plainInMarkup = (text: string): string => text.replace(/([\*_[\]^])/g, '\$1');
+const plainInMarkup = (text: string): string => text.replace(/([\\*_[\]^])/g, '\\$1');
 
 /** Ein Name in einem Link `[[…|@…]]` — ohne die Zeichen, die ihn beenden. */
 const linkWords = (text: string): string => text.replace(/\||\[|\]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -224,20 +240,39 @@ export function formatReading(pattern: string, entity: Entity, look: Lookup): st
   for (const chunk of pattern.replace(/\r\n?/g, '\n').split(/\n[ \t]*\n/)) {
     let slots = 0;
     let filled = 0;
-    const text = chunk.split('\n').map((line) => {
+    const lines: string[] = [];
+    for (const line of chunk.split('\n')) {
       const alone = SLOT_ALONE.test(line);
-      return line.replace(SLOT, (_all, key: string) => {
-        slots += 1;
+      let here = 0;
+      let full = 0;
+      const text = line.replace(SLOT, (_all, key: string) => {
+        here += 1;
         const field = fields.get(key);
         const value = field === undefined ? '' : slotText(entity, field, look, alone);
-        if (value !== '') filled += 1;
+        if (value !== '') full += 1;
         return value;
       });
-    }).join('\n');
+      slots += here;
+      filled += full;
+      /* Eine Zeile, deren Felder alle leer sind, fällt weg („Miejsce: {gdzie}"); eine halb leere verliert, was nun am Rand hängt. */
+      if (here > 0 && full === 0) continue;
+      lines.push(here > full ? tidyLine(text) : text.replace(/\s+$/, ''));
+    }
     if (slots > 0 && filled === 0) continue;
-    if (text.trim() !== '') out.push(text.replace(/\s+$/, ''));
+    const text = lines.join('\n');
+    if (text.trim() !== '') out.push(text);
   }
   return out.join('\n\n').trim();
+}
+
+/** Was in einer Zeile übrig bleibt, wenn ein Feld darin leer war: keine leeren Klammern, kein Trenner doppelt oder am Ende. */
+function tidyLine(line: string): string {
+  return line
+    .replace(/\(\s*\)|\[\s*\]/g, '')
+    .replace(/[ \t]+([,.;:)\]])/g, '$1')
+    .replace(/([,;:·–—])([ \t]*[,;:·–—])+/g, '$1')
+    .replace(/[ \t,;:·–—]+$/, '')
+    .replace(/(\S)[ \t]{2,}/g, '$1 ');
 }
 
 /** Der Wzór, nach dem ein Eintrag gelesen wird: der seines ersten Rodzaju, der einen hat. */

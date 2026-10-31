@@ -14,11 +14,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-cogita-'));
-const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing'];
+const names = ['schema', 'graph', 'check', 'knowness', 'cards', 'revision', 'cardBasics', 'addForm', 'addFormText', 'addFormBuild', 'addFormEdit', 'presets', 'kindRemoval', 'store', 'kinds', 'selection', 'views', 'viewActions', 'statements', 'oldInBase', 'parts', 'prerequisites', 'questionTypes', 'measures', 'offline', 'learn', 'knowing', 'reading'];
 /* 2026-10-28 — dazu aus `core`: das Anmelden ohne Netz (away), die Rechnung des Anmeldens (session), die Siegel (crypto). */
 const cores = ['away', 'session', 'crypto'];
+/* 2026-10-31 — und der Leser des Zapis (der Text zum Lesen baut auf ihm). */
+const libs = ['libraryMarkup'];
 await build({
-  entryPoints: Object.fromEntries([...names.map((n) => [n, `src/app/cogita/${n}.ts`]), ...cores.map((n) => [n, `src/app/core/${n}.ts`])]),
+  entryPoints: Object.fromEntries([...names.map((n) => [n, `src/app/cogita/${n}.ts`]), ...cores.map((n) => [n, `src/app/core/${n}.ts`]), ...libs.map((n) => [n, `src/app/library/${n}.ts`])]),
   bundle: true,
   format: 'esm',
   platform: 'node',
@@ -30,8 +32,9 @@ await build({
 /* `learn` reaches the session module: without a BroadcastChannel it opens nothing that keeps node from ending. */
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN] = await Promise.all(names.map(load));
+const [S, G, C, K, Cards, R, Basics, AF, AT, AB, AE, P, KR, ST, KD, SEL, VW, VA, STM, OLD, PARTS, PR, QTY, ME, OFF, LRN, KN, RD] = await Promise.all(names.map(load));
 const [AW, SE, CR] = await Promise.all(cores.map(load));
+const [LM] = await Promise.all(libs.map(load));
 
 let failed = 0;
 let passed = 0;
@@ -1952,6 +1955,16 @@ check('goals and lines follow the one logic', [
     await doImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ ref: '@o', name: 'Kolejność', label: '{a} {x}', tells: 'x', fields: [{ key: 'a', label: 'A', type: 'text' }, { key: 'x', label: 'X', type: 'text' }, { key: 'b', label: 'B', type: 'text' }] }] });
     const re = Js.planImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ name: 'Kolejność', fields: [{ key: 'b', label: 'B', type: 'text' }, { key: 'a', label: 'A', type: 'text' }] }] });
     check('a kind completed in place: the document’s order, a kept field behind its old neighbour; label and tells stay when not named', [re.kinds[0].def.fields.map((f) => f.key), re.kinds[0].def.label, re.kinds[0].def.tells], [['b', 'a', 'x'], '{a} {x}', 'x']);
+    /* 2026-10-31 — der Wzór tekstu do czytania: bleibt, wenn das Dokument ihn nicht nennt; ein neuer ersetzt ihn, "" nimmt ihn ab. */
+    await doImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ ref: '@o', name: 'Kolejność', reading: '{a}\r\n\r\n{b} ', fields: [{ key: 'a', label: 'A', type: 'text' }] }] });
+    const kept = Js.planImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ name: 'Kolejność', fields: [{ key: 'a', label: 'A', type: 'text' }] }] });
+    const swapped = Js.planImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ name: 'Kolejność', reading: '{x}', fields: [] }] });
+    const dropped = Js.planImport(l2, { format: 'recreatio.cogita.schema', version: 1, kinds: [{ name: 'Kolejność', reading: '', fields: [] }] });
+    const saved = l2.kinds.find((k) => k.name === 'Kolejność');
+    check('the reading pattern of a kind: stored (lines kept), stays when a document does not name it, a new one replaces it, "" removes it — and the preview says so',
+      [saved?.reading, KD.kindDoc(saved).reading, kept.kinds[0].def.reading, swapped.kinds[0].def.reading, dropped.kinds[0].def.reading, swapped.warnings.some((w) => w.includes('nowy wzór tekstu do czytania')), dropped.warnings.some((w) => w.includes('bez wzoru tekstu do czytania')), 'reading' in KD.kindDoc({ ...saved, reading: undefined })],
+      ['{a}\n\n{b}', '{a}\n\n{b}', '{a}\n\n{b}', '{x}', undefined, true, true, false]);
+    check('… a pattern that names a field the kind has not is a problem of the kind', S.problemsOf({ ...saved, reading: '{a}\n\n{zz}' }, l2.look).filter((p) => p.includes('tekstu do czytania')), ['Wzór tekstu do czytania używa pola „zz", którego ten rodzaj nie ma.']);
   }
   {
     /* „Beantwortet": was eine Frage in einer Struktur unter sich nennt (down), beantwortet sie — und wird dadurch nicht selbst beantwortet. */
@@ -2983,6 +2996,59 @@ check('goals and lines follow the one logic', [
     [true, true, true]);
   check('shuffleAway: never the stored order from two items on; all equal items stay as they are',
     [seeds.every((s) => Basics.shuffleAway([1, 2], Basics.rngOf(s)).join() === '2,1'), Basics.shuffleAway(['x', 'x'], Basics.rngOf('a')), Basics.shuffleAway([7], Basics.rngOf('a'))], [true, ['x', 'x'], [7]]);
+}
+
+/*
+ * ══ 2026-10-31 — DER TEXT ZUM LESEN („Nowy temat”, die Erklärung): Absätze, fette Zwischentitel, Listen und Fussnoten,
+ * nie ein Block; der Anriss; Listen unter ihrem Zwischentitel zu; wohin „Czytaj tekst” führt; der Wzór eines Rodzaju. ══
+ */
+{
+  const blocks = (s) => LM.parseMarkup(RD.readingSource(s));
+  const plain = (xs) => (xs === null ? null : RD.plainInlines(xs));
+  check('a list right under its line starts a list (as in Markdown) — a bullet always, a number only from 1; „1918.” in a sentence and a continued item stay; a bold-only line stands alone as a subheading',
+    [RD.readingSource('**Wydarzenia**\n- a\n- b'), RD.readingSource('Rok\n1918. Wtedy'), RD.readingSource('- a\n- b\n  dalej\n- c'), RD.readingSource('Wstęp:\n1. raz\n2. dwa'), RD.readingSource('> cytat\n- punkt'), RD.readingSource('**Postacie:**\nW rozdziale:\n- a\n**Dalej**\nTekst')],
+    ['**Wydarzenia**\n\n- a\n- b', 'Rok\n1918. Wtedy', '- a\n- b\n  dalej\n- c', 'Wstęp:\n\n1. raz\n2. dwa', '> cytat\n- punkt', '**Postacie:**\n\nW rozdziale:\n\n- a\n\n**Dalej**\n\nTekst']);
+  check('a subheading: „## …” or a paragraph of bold only (a colon may follow, inside or after) — not a bold word in a sentence, not a long bold sentence',
+    [['**Wydarzenia**', '**Wydarzenia:**', '**Wydarzenia**:', '## Postacie'].map((s) => plain(RD.headingOf(blocks(s)[0]))), RD.headingOf(blocks('**Ważne** zdanie.')[0]), RD.headingOf(blocks(`**${'słowo '.repeat(20)}**`)[0])],
+    [['Wydarzenia', 'Wydarzenia', 'Wydarzenia', 'Postacie'], null, null]);
+  const opis = 'Rozdział opowiada o Turynie [@bosko, s. 12–20].\n\nJan trafia do Konwiktu.\n\n**Wydarzenia**\n- 1841 — święcenia [@bosko, s. 13]\n- 1846 — Valdocco\n\n**Postacie:**\nW rozdziale występują:\n- ks. Cafasso\n- ks. Borel\n\n**Znaczenie**\nTu zaczyna się dzieło.';
+  const parts = RD.readingParts(blocks(opis));
+  check('the parts of a topic’s text: paragraphs stay paragraphs, each list folds under its bold heading (a lead-in with a colon goes with it), a heading over text stays',
+    parts.map((p) => (p.t === 'fold' ? `fold:${plain(p.head)}:${p.items}:${p.body.length}` : `${p.block.t}:${RD.plainInlines(p.block.t === 'p' ? p.block.c : [])}`)),
+    ['p:Rozdział opowiada o Turynie.', 'p:Jan trafia do Konwiktu.', 'fold:Wydarzenia:2:1', 'fold:Postacie:2:2', 'p:Znaczenie', 'p:Tu zaczyna się dzieło.']);
+  check('the lead: the first paragraph that is no heading, without its footnote marks; whether more follows',
+    [RD.leadAt(blocks('**Streszczenie**\n\nPierwszy.\n\nDrugi.')), RD.leadPlain(opis), RD.leadShape(opis), RD.leadShape('Jeden akapit [@x].'), RD.leadShape('**Wydarzenia**\n- a'), RD.leadPlain('')],
+    [1, 'Rozdział opowiada o Turynie.', { lead: true, more: true }, { lead: true, more: false }, { lead: false, more: true }, '']);
+  check('the cited places in order — in lists and in one bracket with several — where „Czytaj tekst” looks first',
+    RD.citedPlaces(blocks(opis + '\n\nPor. [@x, rozdz. 2; @y].')).map((c) => `${c.key}|${c.locator}`), ['bosko|s. 12–20', 'bosko|s. 13', 'x|rozdz. 2', 'y|']);
+
+  /* -- Der Wzór eines Rodzaju -- */
+  const ROZ = S.readKind('k-roz', { name: 'Rozdział', label: '{nazwa}',
+    reading: '{streszczenie}\n\n{opis}\n\n**Wydarzenia**\n{wydarzenia}\n\n**Osoby**\n{osoby}\n\nCzas: {czas} · {liczba}\n\nŹródło: {zrodlo}',
+    fields: [
+      { key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'streszczenie', label: 'Streszczenie', type: 'text' }, { key: 'opis', label: 'Opis', type: 'markup' },
+      { key: 'wydarzenia', label: 'Wydarzenia', type: 'list' }, { key: 'osoby', label: 'Osoby', type: 'ref', multi: true }, { key: 'czas', label: 'Czas', type: 'date' },
+      { key: 'liczba', label: 'Strony', type: 'number', unit: 's.' }, { key: 'zrodlo', label: 'Źródło', type: 'ref', locator: true }
+    ] });
+  const OSOBA = S.readKind('k-os', { name: 'Osoba', label: '{imie}', fields: [{ key: 'imie', label: 'Imię', type: 'line' }] });
+  const caf = { id: 'e-caf', kinds: ['k-os'], data: { imie: 'ks. Józef [Cafasso]' } };
+  const turyn = { id: 'e-tur', kinds: ['k-roz'], data: { nazwa: 'Turyn', streszczenie: 'Jan w Konwikcie *kościelnym*.', opis: 'Pierwsze **oratorium** [@bosko, s. 12].', wydarzenia: ['1841 — święcenia', '1846 — Valdocco'], osoby: ['e-caf'], czas: '1841', liczba: 8, zrodlo: { value: 'w-bosko', locator: 's. 12; 14' } } };
+  const bare = { id: 'e-bare', kinds: ['k-roz'], data: { nazwa: 'Becchi', opis: 'Dom rodzinny.', czas: '1815' } };
+  const look = S.lookupOf([ROZ, OSOBA], [caf, turyn, bare]);
+  const czas = S.fieldText(turyn, ROZ.fields.find((f) => f.key === 'czas'), look);
+  const liczba = S.fieldText(turyn, ROZ.fields.find((f) => f.key === 'liczba'), look);
+  check('a kind’s reading pattern: markup stays markup, plain text keeps its signs, a list alone in its line becomes points, a reference a link with its name, a place a footnote',
+    RD.formatReading(ROZ.reading, turyn, look),
+    `Jan w Konwikcie \\*kościelnym\\*.\n\nPierwsze **oratorium** [@bosko, s. 12].\n\n**Wydarzenia**\n- 1841 — święcenia\n- 1846 — Valdocco\n\n**Osoby**\n[[ks. Józef Cafasso|@e-caf]]\n\nCzas: ${czas} · ${liczba}\n\nŹródło: [@w-bosko, s. 12, 14]`);
+  check('… a part whose fields are all empty drops with its heading; a line half empty loses what hangs at its end',
+    [RD.formatReading(ROZ.reading, bare, look), RD.formatReading('**Dane**\nCzas: {czas}\nStrony: {liczba}\n{nazwa} ({liczba}) — {streszczenie}', bare, look)],
+    [`Dom rodzinny.\n\nCzas: ${S.fieldText(bare, ROZ.fields.find((f) => f.key === 'czas'), look)}`, `**Dane**\nCzas: ${S.fieldText(bare, ROZ.fields.find((f) => f.key === 'czas'), look)}\nBecchi`]);
+  check('… the pattern’s text is read like any text: the list folds under its heading, the lead is the first paragraph',
+    [RD.readingParts(blocks(RD.formatReading(ROZ.reading, turyn, look))).filter((p) => p.t === 'fold').map((p) => `${plain(p.head)}:${p.items}`), RD.leadPlain(RD.formatReading(ROZ.reading, turyn, look))],
+    [['Wydarzenia:2'], 'Jan w Konwikcie *kościelnym*.']);
+  check('… inline, a list is one line and a text loses its breaks; which pattern an entry reads by: its first kind that has one',
+    [RD.formatReading('Wydarzenia: {wydarzenia}. {opis}', { ...turyn, data: { ...turyn.data, opis: 'a\nb' } }, look), RD.readingPattern(turyn, look), RD.readingPattern(caf, look)],
+    ['Wydarzenia: 1841 — święcenia, 1846 — Valdocco. a b', ROZ.reading, undefined]);
 }
 
 /* ── 2026-10-28 — ANMELDEN OHNE NETZ und die Abschriften je Konto (core/away.ts, cogita/offline.ts) ──────── */
