@@ -12,7 +12,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { answerText, CardFace, givenText } from './CardFace';
 import type { Card } from './cardBasics';
 import type { Outcome } from './check';
-import { EntityReading } from './EntityReading';
+import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
@@ -256,9 +256,10 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         rule={session.plan.rule}
         lib={lib ?? undefined}
         head={lib === null || fresh.length === 0 ? undefined : (
-          <section className="cg-topic-intro" data-topic-intro={fresh.join(' ')} aria-label="Nowy temat">
-            <span className="cg-topic-tag">Nowy temat</span>
-            {fresh.map((id) => { const e = lib.entity(id); return e === undefined ? null : <EntityReading key={id} lib={lib} entity={e} variant="intro" />; })}
+          /* 2026-10-31 — kurz, damit die Frage im Blick bleibt; mehrere Themen auf einmal je zwei Zeilen. Aufgeklappter Text wird nicht vorgelesen (aria-live der Karte). */
+          <section className="cg-topic-intro" data-topic-intro={fresh.join(' ')} data-many={fresh.length > 1 ? '' : undefined} aria-label="Nowy temat" aria-live="off">
+            <span className="cg-topic-tag">{fresh.length > 1 ? 'Nowe tematy' : 'Nowy temat'}</span>
+            {fresh.map((id) => { const e = lib.entity(id); return e === undefined ? null : <TopicIntro key={id} lib={lib} entity={e} />; })}
           </section>
         )}
         onAnswered={(outcome, given, ms) => {
