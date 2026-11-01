@@ -145,12 +145,14 @@ export type AnswerSpec =
   | { readonly form: 'number'; readonly values: readonly number[]; readonly tolerance: number; readonly relative: boolean; readonly unit: string; readonly quantity?: string }
   | { readonly form: 'date'; readonly values: readonly string[]; readonly precision: DatePrecision; readonly tolerance: number }
   | { readonly form: 'one'; readonly options: readonly string[]; readonly correct: number }
-  | { readonly form: 'many'; readonly options: readonly string[]; readonly correct: readonly number[] }
+  /* 2026-11-01 — `set`: wessen Sätze es sind (die Frage, oder ein gemeinsamer Satz `share`) — jeder Satz ein Fakt. */
+  | { readonly form: 'many'; readonly options: readonly string[]; readonly correct: readonly number[]; readonly set?: string }
   | { readonly form: 'truefalse'; readonly value: boolean }
   /* 2026-11-01 — `preview`: das Gelegte darüber als Wzór (`math`) oder Text, `join` zwischen den Stücken. */
   | { readonly form: 'order'; readonly items: readonly string[]; readonly shown: readonly string[]; readonly preview?: 'math' | 'text'; readonly join?: string }
   /* 2026-10-27 — `heads`: was über den beiden Spalten steht („Rok” — „Wydarzenie”). */
-  | { readonly form: 'match'; readonly left: readonly string[]; readonly right: readonly string[]; readonly pairs: readonly (readonly [number, number])[]; readonly heads?: readonly [string, string] }
+  /* 2026-11-01 — `set`: wessen Paare es sind (die Frage, oder ein gemeinsamer Satz `share`) — jedes Paar ein Fakt. */
+  | { readonly form: 'match'; readonly left: readonly string[]; readonly right: readonly string[]; readonly pairs: readonly (readonly [number, number])[]; readonly heads?: readonly [string, string]; readonly set?: string }
   | { readonly form: 'flash'; readonly back: readonly string[] }
   /* 2026-11-01 — `tests`: sichtbare Beispiele, vor den verdeckten Fällen aus `create_input`/`reference` geprüft. */
   | { readonly form: 'code'; readonly task: string; readonly starter: string; readonly createInput: string; readonly reference: string; readonly cases: number; readonly tests?: readonly CodeTest[] }

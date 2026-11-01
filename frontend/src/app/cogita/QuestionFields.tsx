@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CardFace } from './CardFace';
 import { questionCards, readAlternatives, readChoices } from './cards';
 import { drawParams, paramsProblems, readParamsSpec } from './questionParams';
-import { GAP, QUESTION_GROUPS, QUESTION_TYPES, SHOW_MAX, pairsOf, parsePairs, questionProblems, questionType, rawList, showOf } from './questionTypes';
+import { choicesOf, GAP, QUESTION_GROUPS, QUESTION_TYPES, SHOW_MAX, pairsOf, parsePairs, questionProblems, questionType, rawList, showOf } from './questionTypes';
 import type { FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
 import { TexText } from '../ui/tex/Tex';
@@ -71,6 +71,7 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
       {type.form === 'date' && <div className="cg-qmore">{field('precision')}{field('tolerance')}</div>}
       {type.form === 'gap' && <GapChoices data={data} writes={writes} onSet={onSet} />}
       {(type.form === 'one' || type.form === 'many') && <Choices id={id} data={data} many={type.form === 'many'} writes={writes} onSet={onSet} />}
+      {type.form === 'many' && <Sentences data={data} writes={writes} onSet={onSet} share={field('share')} />}
       {type.form === 'truefalse' && (
         <fieldset className="cg-row cg-qtruth">
           <legend>To zdanie jest</legend>
@@ -79,6 +80,8 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
         </fieldset>
       )}
       {type.form === 'match' && <Pairs data={data} writes={writes} onSet={onSet} />}
+      {/* 2026-11-01 — Fassungen einer Liste mit denselben Paaren teilen ihre Antworten. */}
+      {type.form === 'match' && <div className="cg-qmore">{field('share')}</div>}
       {type.form === 'order' && <Rows label="Elementy w dobrej kolejności — uczący się zobaczy je pomieszane" add="element" values={rawList(data.items)} writes={writes} ordered min={2} placeholder={(i) => `${i + 1}.`} onChange={(v) => onSet('items', v)} />}
       {type.form === 'order' && <PreviewChoice data={data} writes={writes} onSet={onSet} optional />}
       {type.form === 'build' && <Build data={data} writes={writes} onSet={onSet} />}
@@ -98,6 +101,15 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
       <Rows label="Podpowiedzi — przed odpowiedzią, od łagodnej do konkretnej (każda obniża wynik o ¼)" add="podpowiedź" values={rawList(data.hints)} writes={writes} min={0} placeholder={(i) => (i === 0 ? 'np. Pomyśl o definicji…' : 'konkretniejsza podpowiedź')} onChange={(v) => onSet('hints', v)} />
       {field('explanation')}
       <Params data={data} writes={writes} onSet={onSet} />
+      {/* 2026-11-01 — die Teile der Frage mit anderen Fragen teilen (Paare und Sätze haben „share" schon oben). */}
+      {type.form !== 'many' && type.form !== 'match' && (
+        <details className="cg-qshare" data-question-share="" open={str(data.share).trim() !== '' || str(data.fact).trim() !== ''}>
+          <summary>Wspólne odpowiedzi z innymi pytaniami</summary>
+          <span className="cg-muted">{type.form === 'gap' ? 'Kilka luk: każde słowo jest osobną częścią. ' : ''}Pytania o tę samą część (ta sama nazwa „Wspólne części”, ten sam fakt) liczą odpowiedzi razem — jedna odpowiedź wystarczy, by obie karty wiedziały.</span>
+          {field('share')}
+          {type.form !== 'gap' && field('fact')}
+        </details>
+      )}
 
       {problems.length > 0 && (
         <ul className="cg-qmissing" aria-label="Czego brakuje">
@@ -359,6 +371,31 @@ function Pairs({ data, writes, onSet }: { data: Readonly<Record<string, unknown>
           : ` — na karcie po ${show}: każda para ma swoją kartę, a obok niej ${show - 1} innych, losowo. W powtórce wracają pary, których jeszcze nie umiesz.`}
       </span>
     </fieldset>
+  );
+}
+
+/**
+ * 2026-11-01 — „KILKA Z KILKU": jedes Zdanie zählt für sich. „Ile zdań naraz" gibt jedem Satz seine Karte (wie die
+ * Paare); „Wspólne zdania" lässt mehrere Fassungen der Frage dieselben Sätze teilen.
+ */
+function Sentences({ data, writes, onSet, share }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put; share: ReactNode }) {
+  const count = choicesOf(data).options.length;
+  const show = showOf(data, count);
+  return (
+    <div className="cg-qmore" data-question-sentences="">
+      <label className="wk-field cg-qshow">
+        <span>Ile zdań naraz na karcie</span>
+        <input type="number" min={2} max={SHOW_MAX} step={1} value={typeof data.show === 'number' ? data.show : ''} disabled={!writes} placeholder="wszystkie"
+          onChange={(e) => onSet('show', e.target.value === '' ? undefined : Math.max(2, Math.min(SHOW_MAX, Math.round(Number(e.target.value)))))} />
+      </label>
+      {share}
+      <span className="cg-muted" data-sentences-count={count}>
+        Każde zdanie liczy się osobno: dobrze zaznaczone albo dobrze pominięte; wynik to średnia.
+        {show === null || count < 3
+          ? ' Wszystkie zdania na jednej karcie.'
+          : ` Na karcie po ${show}: każde zdanie ma swoją kartę (obok niego ${show - 1} innych, co najmniej jedno dobre). W powtórce wracają zdania, których jeszcze nie umiesz.`}
+      </span>
+    </div>
   );
 }
 

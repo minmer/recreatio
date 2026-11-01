@@ -3345,6 +3345,107 @@ check('goals and lines follow the one logic', [
   check('… never asked: no curve, nothing due', [KS.cardHistory([], t0, now, now + H).past.length, KS.cardHistory([], t0, now, now + H).dueAt, KS.cardHistory([], t0, now, now + H).k], [0, null, 0]);
 }
 
+/*
+ * ══ 2026-11-01 — „KILKA Z KILKU" SATZ FÜR SATZ (cards.ts sentenceCards/sentenceFact, check.ts checkMany): jeder Satz
+ * zählt für sich, ist ein Fakt; mit `show` hat jeder Satz seine Karte; `share` lässt Fassungen dieselben Sätze teilen.
+ */
+{
+  const options = ['„−5 ∈ ℕ”', '„Bitte schließen Sie die Tür.”', '„Wie spät ist es?”', '„2 + 2 = 5”', '„Rechnen Sie 3 · 4 aus.”', '„Es gibt Außerirdische.”'];
+  const q = (id, extra = {}) => ({ id, kinds: ['question'], data: { form: 'many', prompt: 'Welche Sätze sind Aussagen?', options, correct: [0, 3, 5], ...extra } });
+  check('many: every sentence counts on its own — marked and should be, or left out and should be; the mean',
+    [C.checkMany([0, 3, 5], [0, 1], 6).correctness, C.checkMany([0, 3, 5], [0, 3], 6).correctness, C.checkMany([0, 3, 5], [0, 3, 5], 6).correct, C.checkMany([0, 3, 5], [], 6).answered],
+    [0.5, 5 / 6, true, false]);
+  const [whole] = Cards.questionCards(q('q-aus'), 'x');
+  check('… without „show”: one card, its six sentences are six facts of the question', [Cards.questionCards(q('q-aus'), 'x').length, whole.facts.length, whole.facts.every((x) => x.startsWith('q-aus#opt:'))], [1, 6, true]);
+  const per = Cards.questionCards(q('q-aus', { show: 3 }), 'x');
+  check('… with „show: 3”: each sentence its own card — three on it, its own among them, at least one good one, one fact',
+    [per.length, per.every((c) => c.answer.options.length === 3), per.every((c) => c.answer.options.includes(c.label)), per.every((c) => c.answer.correct.length >= 1), per.every((c) => c.facts.length === 1)],
+    [6, true, true, true, true]);
+  check('… the fingerprint is the sentence (another draw keeps the history)',
+    Cards.questionCards(q('q-aus', { show: 3 }), 'y').map((c) => c.fingerprint), per.map((c) => c.fingerprint));
+  /* Eine Antwort auf eine Satz-Karte zählt für jede gezeigte Satz-Karte: richtig, was richtig behandelt wurde. */
+  const card = per[0];
+  const goodIdx = card.answer.correct;
+  const ev = Cards.answerEvidence(card, goodIdx, C.checkMany(goodIdx, goodIdx, 3), per);
+  check('… one answer counts for every sentence on the card (three cards), all right here',
+    [ev.length, ev.every((e) => e.correctness === 1), ev.map((e) => e.card.label).sort()], [3, true, [...card.answer.options].sort()]);
+  const allMarked = [0, 1, 2];
+  const ev2 = Cards.answerEvidence(card, allMarked, C.checkMany(goodIdx, allMarked, 3), per);
+  check('… everything marked: the good sentences count right, the others wrong — each on its own card',
+    ev2.map((e) => [e.card.label, e.correctness]).sort(), card.answer.options.map((t) => [t, [0, 3, 5].some((i) => options[i] === t) ? 1 : 0]).sort());
+  check('… the whole card takes an answer about all its sentences (their mean)',
+    Cards.answerEvidence(whole, [whole.answer.options.indexOf(options[0])], C.checkMany(whole.answer.correct, [whole.answer.options.indexOf(options[0])], 6), [whole]).map((e) => e.correctness), [4 / 6]);
+  /* Zwei Fassungen mit „share": dieselben Sätze, dieselben Fakten. */
+  const a = Cards.questionCards(q('q-v1', { share: 'aussagen', show: 3 }), 'x');
+  const b = Cards.questionCards(q('q-v2', { share: 'aussagen', show: 3 }), 'x');
+  const evAB = Cards.answerEvidence(a[0], a[0].answer.correct, C.checkMany(a[0].answer.correct, a[0].answer.correct, 3), [...a, ...b]);
+  check('… „share”: versions share their sentences — an answer in one counts for the same sentence in the other',
+    [a[0].facts[0] === b.find((c) => c.label === a[0].label).facts[0], evAB.length, evAB.filter((e) => e.card.key.startsWith('q-v2')).length], [true, 6, 3]);
+  check('… without „share” the versions stay apart', Cards.questionCards(q('q-v3', { show: 3 }), 'x')[0].facts[0] === Cards.questionCards(q('q-v4', { show: 3 }), 'x')[0].facts[0], false);
+}
+
+/* 2026-11-01 — „Połącz w pary” mit „share”: zwei Listen mit gemeinsamen Paaren teilen sie. */
+{
+  const m = (id, left, right, extra = {}) => ({ id, kinds: ['question'], data: { form: 'match', prompt: 'Rok — wydarzenie', left, right, show: 2, ...extra } });
+  const a = Cards.questionCards(m('q-m1', ['1410', '1569', '1791'], ['Grunwald', 'Unia lubelska', 'Konstytucja'], { share: 'daty' }), 'x');
+  const b = Cards.questionCards(m('q-m2', ['1410', '1918', '1791'], ['Grunwald', 'Niepodległość', 'Konstytucja'], { share: 'daty' }), 'x');
+  const c = Cards.questionCards(m('q-m3', ['1410', '1918', '1791'], ['Grunwald', 'Niepodległość', 'Konstytucja']), 'x');
+  const card = a.find((x) => x.label === '1410 — Grunwald');
+  const given = card.answer.pairs.map(([l, r]) => [l, r]);
+  const ev = Cards.answerEvidence(card, given, { correctness: 1 }, [...a, ...b, ...c]);
+  check('pairs: „share” — the same pair in another list counts too; a list without the name stays apart; pairs no other list has stay theirs',
+    [ev.some((e) => e.card.key.startsWith('q-m2') && e.card.label === '1410 — Grunwald'), ev.some((e) => e.card.key.startsWith('q-m3')), a[0].facts[0].startsWith('share:daty#pair:'), c[0].facts[0].startsWith('q-m3#pair:')],
+    [true, false, true, true]);
+}
+
+/*
+ * ══ 2026-11-01 — DIE TEILE EINER FRAGE, allgemein (cards.ts partFacts): jede Frage fragt Teile, jeder Teil ein Fakt;
+ * `share` teilt sie zwischen Fragen, `fact` benennt den einen Teil einer Frage ohne Teile, `#seite` ist die Seite des
+ * Eintrags aus `about` (dieselbe wie die Karte einer Vorlage mit `asks`).
+ */
+{
+  const Q = (id, data) => Cards.questionCards({ id, kinds: ['question'], data }, 'x');
+  const statements = ['„2 + 2 = 5”', '„Wie spät ist es?”', '„Es gibt Außerirdische.”'];
+  const [many] = Q('q-p-many', { form: 'many', prompt: 'Welche sind Aussagen?', options: statements, correct: [0, 2], share: 'aussagen' });
+  const [tf] = Q('q-p-tf', { form: 'truefalse', prompt: '„2 + 2 = 5” ist eine Aussage.', fact: '„2 + 2 = 5”', value: true, share: 'aussagen' });
+  const [plain] = Q('q-p-plain', { form: 'truefalse', prompt: 'Zdanie bez nazwy.', value: true });
+  check('parts: a true/false sentence with „share” is the same fact as that sentence in a „Kilka z kilku”; without share or fact: no fact (as before)',
+    [tf.facts.length === 1 && many.facts.includes(tf.facts[0]), plain.facts === undefined], [true, true]);
+  const pick = [many.answer.options.indexOf(statements[0])];
+  const ev = Cards.answerEvidence(many, pick, C.checkMany(many.answer.correct, pick, 3), [many, tf]);
+  check('… an answer to the „Kilka z kilku” counts for the true/false card (its sentence was judged right)', ev.map((e) => [e.card.key, e.correctness]), [[many.key, 2 / 3], [tf.key, 1]]);
+  const [when] = Q('q-p-when', { form: 'date', prompt: 'Kiedy był Grunwald?', answers: ['1410'], fact: 'Grunwald 1410' });
+  const [what] = Q('q-p-what', { form: 'text', prompt: 'Co było w 1410?', answers: ['Grunwald'], fact: 'Grunwald 1410' });
+  check('… „fact” names the one part of any question: two questions with the same name share it (base-wide without share)',
+    [when.facts[0] === what.facts[0], Cards.answerEvidence(when, '1410', { correctness: 1 }, [when, what]).map((e) => e.card.key)], [true, [when.key, what.key]]);
+  const [byEntry] = Q('q-p-entry', { form: 'date', prompt: 'Kiedy?', answers: ['1410'], about: ['e-grunwald'], fact: '#data' });
+  check('… „#data” with „about”: the side of that entry — the same fact as a template card with asks [{of: this, facet: data}]',
+    [byEntry.facts, Cards.factsOf([{ of: 'this', facet: 'data' }], { id: 'e-grunwald', kinds: ['event'], data: {} }, () => undefined)], [['e-grunwald#data'], ['e-grunwald#data']]);
+  const [gaps] = Q('q-p-gap', { form: 'gap', prompt: 'W [[1410]] pod [[Grunwaldem]] wygrał [[Jagiełło]].' });
+  const [gaps2] = Q('q-p-gap2', { form: 'gap', prompt: 'Bitwa pod [[Grunwaldem]] była w [[1410]].', share: 'grunwald' });
+  const [gaps3] = Q('q-p-gap3', { form: 'gap', prompt: 'Jagiełło zwyciężył pod [[Grunwaldem]] w [[1410]].', share: 'grunwald' });
+  const out = C.checkGaps(gaps.answer.gaps, ['1410', 'Malborkiem', 'Jagiełło'], gaps.answer.rule);
+  const facts = Cards.answerFacts(gaps, ['1410', 'Malborkiem', 'Jagiełło'], out);
+  check('… several gaps: each word its own part, judged on its own', [gaps.facts.length, [...facts.values()].map((x) => x.correctness)], [3, [1, 0, 1]]);
+  const ev2 = Cards.answerEvidence(gaps2, ['Grunwaldem', '1410'], C.checkGaps(gaps2.answer.gaps, ['Grunwaldem', '1410'], gaps2.answer.rule), [gaps2, gaps3]);
+  check('… gaps with „share”: the same words in another text count too', ev2.map((e) => [e.card.key, e.correctness]), [[gaps2.key, 1], [gaps3.key, 1]]);
+}
+
+/* 2026-11-01 — der Prompt für Agenten (templates/cogita/czesci-AI.md): sein Beispiel tut, was er sagt. */
+{
+  const md = await readFile(new URL('../../templates/cogita/czesci-AI.md', import.meta.url), 'utf8');
+  const doc = JSON.parse(md.split('```json')[1].split('```')[0]);
+  const cards = doc.entities.filter((e) => e.kinds.includes('question')).flatMap((e) => Cards.questionCards({ id: e.ref, kinds: ['question'], data: e.data }, 'x'));
+  const ofQ = (ref) => cards.filter((c) => c.entity === ref);
+  const sentence = (ref) => ofQ(ref).find((c) => (c.label ?? '').includes('2 + 2 = 5') || c.answer.form !== 'many');
+  const fact225 = (c) => (c.facts ?? []).find((x) => cards.filter((o) => (o.facts ?? []).includes(x)).length >= 3);
+  check('guide czesci-AI.md: the example parses; version A has a card per sentence (6), B one card, „2 + 2 = 5” is one fact in A, B and the true/false; the two Grunwald questions share a fact',
+    [doc.format, ofQ('@logik/q-aussagen-a').length, ofQ('@logik/q-aussagen-b').length,
+      fact225(sentence('@logik/q-aussagen-a')) !== undefined && fact225(sentence('@logik/q-aussagen-a')) === fact225(sentence('@logik/q-tf-225')),
+      ofQ('@hist/q-grunwald-kiedy')[0].facts[0] === ofQ('@hist/q-grunwald-co')[0].facts[0]],
+    ['recreatio.cogita.course', 6, 1, true, true]);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

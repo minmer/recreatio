@@ -114,7 +114,7 @@ export function checkCard(card: Card, given: unknown, rule?: Partial<TextRule>):
     case 'number': return checkNumber(a, given);
     case 'date': return checkDate(a, typeof given === 'string' ? given : '');
     case 'one': return checkOne(a.correct, typeof given === 'number' ? given : null);
-    case 'many': return checkMany(a.correct, Array.isArray(given) ? given.filter((g): g is number => typeof g === 'number') : []);
+    case 'many': return checkMany(a.correct, Array.isArray(given) ? given.filter((g): g is number => typeof g === 'number') : [], a.options.length);
     case 'truefalse': return checkTrueFalse(a.value, typeof given === 'boolean' ? given : null);
     case 'order': return checkOrder(a.items, Array.isArray(given) ? given.map(String) : []);
     case 'match': return checkMatch(a.pairs, Array.isArray(given) ? given.filter((p): p is [number, number] => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number')) : []);
@@ -440,8 +440,8 @@ const headsOf = (d: Readonly<Record<string, unknown>>): readonly [string, string
 };
 
 /** Paare als Antwort — 2026-10-31 beide Spalten gemischt: links nie in der gespeicherten (oft zeitlichen) Folge. */
-function matchAnswer(pairs: readonly { left: string; right: string }[], heads: readonly [string, string] | undefined, rng: () => number): AnswerSpec {
-  return { form: 'match', ...shuffledPairs(pairs, rng), ...(heads === undefined ? {} : { heads }) };
+function matchAnswer(pairs: readonly { left: string; right: string }[], heads: readonly [string, string] | undefined, rng: () => number, set?: string): AnswerSpec {
+  return { form: 'match', ...shuffledPairs(pairs, rng), ...(heads === undefined ? {} : { heads }), ...(set === undefined ? {} : { set }) };
 }
 
 /**
@@ -519,7 +519,7 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       const shown = order.map((i) => options[i]);
       answer = form === 'one'
         ? { form, options: shown, correct: order.indexOf(correct[0]) }
-        : { form, options: shown, correct: correct.map((c) => order.indexOf(c)).sort((a, b) => a - b) };
+        : { form, options: shown, correct: correct.map((c) => order.indexOf(c)).sort((a, b) => a - b), set: sentenceSet(d, entity.id) };
       if (said.some((x) => x !== '')) feedback = order.map((i) => said[i] ?? '');
       break;
     }
@@ -537,7 +537,7 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       const show = showOf(d, pairs.length);
       /* 2026-10-27 — eine lange Liste: je Versuch `show` Paare, gewürfelt; die Geschichte gilt der ganzen Liste. */
       if (show !== null) { print = { f: 'match-all', p: pairs.map((p) => `${p.left}→${p.right}`).sort(), n: show }; varied = true; }
-      answer = matchAnswer(show === null ? pairs : shuffle(pairs, rng).slice(0, show), headsOf(d), rng);
+      answer = matchAnswer(show === null ? pairs : shuffle(pairs, rng).slice(0, show), headsOf(d), rng, sentenceSet(d, entity.id));
       break;
     }
     case 'flash': {
@@ -575,7 +575,8 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
   /* 2026-10-27 — was die Frage prüft („O czym"): ihre Kenntnis zählt dort mit, und sie wartet auf das, was dort zuerst zu können ist. */
   const about = refIds(d.about).filter((id) => id !== entity.id);
   /* 2026-11-01 — jedes Paar einer Liste ist ein Fakt: die Karte der ganzen Liste fragt sie alle. */
-  const facts = form === 'match' ? pairsOf(d).map((p) => pairFact(entity.id, p.left, p.right)) : [];
+  /* 2026-11-01 — DIE TEILE DER FRAGE als Fakten (`partFacts`): Paare, Sätze, Lücken, ein benannter Fakt. */
+  const facts = partFacts(entity.id, d, answer, prompt);
   const hints = hintsOf(d);
   const explanation = str(d.explanation).trim();
   const params = drawn === null ? undefined : readParams(drawn);
@@ -618,6 +619,57 @@ export function redrawCard(card: Card, entity: Entity | undefined, seed: string)
 /** 2026-11-01 — der Fakt eines Paars einer Frage „Połącz w pary": die Frage und das Paar (nicht die Karte, auf der es steht). */
 export const pairFact = (questionId: string, left: string, right: string): string => `${questionId}#pair:${hashOf(`${left}→${right}`)}`;
 
+/**
+ * 2026-11-01 — DER FAKT EINES SATZES einer Frage „Kilka z kilku": der Satz in seinem Satz von Sätzen — gewöhnlich die
+ * Frage; mit `share` ein gemeinsamer Name, dann zählen Fragen (Fassungen) mit demselben Namen für dieselben Sätze.
+ */
+export const sentenceFact = (set: string, text: string): string => `${set}#opt:${hashOf(text.trim())}`;
+
+/** Der Satz von Sätzen einer Frage: `share` (getrimmt), sonst die Frage selbst. */
+export const sentenceSet = (d: Readonly<Record<string, unknown>>, questionId: string): string =>
+  (typeof d.share === 'string' && d.share.trim() !== '' ? `share:${d.share.trim()}` : questionId);
+
+/** Der Fakt eines Teils, der nur sich selbst hat: ein benannter (`fact`) — gemeinsam mit `share`, sonst in der ganzen Baza. */
+export const namedFact = (d: Readonly<Record<string, unknown>>, name: string): string =>
+  `${typeof d.share === 'string' && d.share.trim() !== '' ? `share:${d.share.trim()}` : 'fact'}#fact:${hashOf(name.trim())}`;
+
+/**
+ * 2026-11-01 — EIN FAKT EINES EINTRAGS: `"fact": "#data"` heisst „die Seite data des Eintrags aus about“ — derselbe Fakt
+ * wie die Karte einer Vorlage mit `asks: [{of: "this", facet: "data"}]` über diesen Eintrag. So zählen eine geschriebene
+ * Frage und die Karten der Vorlagen füreinander. Ohne about: kein Eintrag, `null`.
+ */
+export const entryFact = (d: Readonly<Record<string, unknown>>, name: string): string | null => {
+  if (!name.startsWith('#') || name.length < 2) return null;
+  const about = refIds(d.about);
+  return about.length === 0 ? null : `${about[0]}${name}`;
+};
+
+/** Die Lücke als Teil: das Wort, das hineingehört (dasselbe Wort zweimal ist ein Teil). */
+export const gapFact = (set: string, word: string): string => `${set}#gap:${hashOf(word.trim().toLowerCase())}`;
+
+/**
+ * 2026-11-01 — DIE TEILE EINER FRAGE, allgemein: jede Frage fragt einen oder mehrere Teile, jeder Teil ist ein Fakt
+ * `<Satz von Teilen>#<Teil>`. Der Satz ist `share` (dann teilen Fragen mit demselben Namen ihre Teile), sonst die Frage.
+ * - „Połącz w pary": jedes Paar (`pair:`), „Kilka z kilku": jeder Satz (`opt:`), eine Lücke im Text mit mehreren
+ *   Lücken: jedes Wort (`gap:`) — die Antwort sagt über jeden Teil für sich etwas.
+ * - „Prawda czy fałsz": EIN Satz (`opt:`, der Text aus `fact` oder die Frage) — derselbe Fakt wie dieser Satz in einer
+ *   Frage „Kilka z kilku" mit demselben `share`.
+ * - Jede andere Form: nur mit `fact` (einem Namen) ein Teil — Fragen mit demselben Namen (und `share`) teilen ihn.
+ * Ohne Teile: keine Fakten — die Karte zählt nur für sich, wie bisher.
+ */
+export function partFacts(questionId: string, d: Readonly<Record<string, unknown>>, answer: AnswerSpec, prompt: string): string[] {
+  const set = sentenceSet(d, questionId);
+  const named = typeof d.fact === 'string' && d.fact.trim() !== '' ? d.fact.trim() : null;
+  const shared = typeof d.share === 'string' && d.share.trim() !== '';
+  switch (answer.form) {
+    case 'match': return pairsOf(d).map((p) => pairFact(set, p.left, p.right));
+    case 'many': return answer.options.map((o) => sentenceFact(set, o));
+    case 'gap': return answer.gaps !== undefined && answer.gaps.length > 1 ? answer.gaps.map((g) => gapFact(set, g.accepted[0] ?? '')) : named === null ? [] : [namedFact(d, named)];
+    case 'truefalse': return named === null && !shared ? [] : [(named === null ? null : entryFact(d, named)) ?? sentenceFact(shared ? set : 'fact', named ?? prompt)];
+    default: return named === null ? [] : [entryFact(d, named) ?? namedFact(d, named)];
+  }
+}
+
 /** Ein Fakt mit dem, was die Antwort über ihn sagte. */
 export interface FactAnswer {
   readonly correctness: number;
@@ -629,7 +681,7 @@ export interface FactAnswer {
  * 2026-11-01 — WAS EINE ANTWORT ÜBER JEDEN FAKT SAGT. „Połącz w pary": jedes gezeigte Paar für sich (richtig verbunden
  * 1, sonst 0) — auch die Paare, die nur danebenstanden. Jede andere Form: alle Fakten der Karte mit ihrer Richtigkeit.
  */
-export function answerFacts(card: Card, given: unknown, outcome: Pick<Outcome, 'correctness'>): Map<string, FactAnswer> {
+export function answerFacts(card: Card, given: unknown, outcome: Pick<Outcome, 'correctness'> & Partial<Pick<Outcome, 'marks'>>): Map<string, FactAnswer> {
   const out = new Map<string, FactAnswer>();
   const a = card.answer;
   if (a.form === 'match' && card.entity !== undefined) {
@@ -637,8 +689,29 @@ export function answerFacts(card: Card, given: unknown, outcome: Pick<Outcome, '
     for (const p of Array.isArray(given) ? given : []) if (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number') mine.set(p[0], p[1]);
     for (const [l, r] of a.pairs) {
       const chosen = mine.get(l);
-      out.set(pairFact(card.entity, a.left[l] ?? '', a.right[r] ?? ''), { correctness: chosen === r ? 1 : 0, given: chosen === undefined ? '' : `${a.left[l]} — ${a.right[chosen]}` });
+      out.set(pairFact(a.set ?? card.entity, a.left[l] ?? '', a.right[r] ?? ''), { correctness: chosen === r ? 1 : 0, given: chosen === undefined ? '' : `${a.left[l]} — ${a.right[chosen]}` });
     }
+    return out;
+  }
+  /* 2026-11-01 — „Kilka z kilku": jeder gezeigte Satz für sich — richtig angekreuzt oder richtig frei gelassen. */
+  if (a.form === 'many' && card.entity !== undefined) {
+    const got = new Set(Array.isArray(given) ? given.filter((g): g is number => typeof g === 'number') : []);
+    if (got.size === 0) return out;
+    a.options.forEach((text, i) => {
+      const marked = got.has(i);
+      out.set(sentenceFact(a.set ?? card.entity!, text), { correctness: marked === a.correct.includes(i) ? 1 : 0, given: `${marked ? '☑' : '☐'} ${text}` });
+    });
+    return out;
+  }
+  /* 2026-11-01 — mehrere Lücken: jede für sich (die Fakten stehen in der Folge der Lücken; dasselbe Wort zweimal: der Mittelwert). */
+  if (a.form === 'gap' && a.gaps !== undefined && (card.facts ?? []).length === a.gaps.length && outcome.marks !== undefined) {
+    const words = Array.isArray(given) ? given : [];
+    const sums = new Map<string, { sum: number; n: number; given: string[] }>();
+    card.facts!.forEach((fact, i) => {
+      const was = sums.get(fact) ?? { sum: 0, n: 0, given: [] };
+      sums.set(fact, { sum: was.sum + (outcome.marks![i] ? 1 : 0), n: was.n + 1, given: [...was.given, typeof words[i] === 'string' ? (words[i] as string) : ''] });
+    });
+    for (const [fact, x] of sums) out.set(fact, { correctness: x.sum / x.n, given: x.given.filter((g) => g !== '').join(', ') });
     return out;
   }
   const said = typeof given === 'string' ? given : '';
@@ -653,7 +726,7 @@ export function answerFacts(card: Card, given: unknown, outcome: Pick<Outcome, '
  * eine Karte „Połącz w pary" für jedes gezeigte Paar, und zwei Vorlagen, die mit `asks` dasselbe fragen, teilen jede
  * Antwort. Vorher kamen die eben richtig verbundenen Paare auf der nächsten Karte derselben Liste gleich wieder.
  */
-export function answerEvidence(card: Card, given: unknown, outcome: Pick<Outcome, 'correctness'>, all: readonly Card[]): { readonly card: Card; readonly correctness: number; readonly given: string }[] {
+export function answerEvidence(card: Card, given: unknown, outcome: Pick<Outcome, 'correctness'> & Partial<Pick<Outcome, 'marks'>>, all: readonly Card[]): { readonly card: Card; readonly correctness: number; readonly given: string }[] {
   const facts = answerFacts(card, given, outcome);
   const own = (card.facts ?? []).length === 1 ? facts.get(card.facts![0]) : undefined;
   const out: { card: Card; correctness: number; given: string }[] = [{ card, correctness: own?.correctness ?? outcome.correctness, given: own?.given ?? '' }];
@@ -680,6 +753,7 @@ export function questionCards(entity: Entity, seed = ''): Card[] {
   const whole = questionCard(entity, seed);
   if (whole === null) return [];
   const d = entity.data;
+  if (whole.answer.form === 'many') return sentenceCards(entity, whole, seed);
   const pairs = whole.answer.form === 'match' ? pairsOf(d) : [];
   const show = pairs.length < 2 ? null : showOf(d, pairs.length);
   if (show === null) return [whole];
@@ -703,11 +777,54 @@ export function questionCards(entity: Entity, seed = ''): Card[] {
       ...whole,
       question,
       key: cardKey(question, ''),
-      answer: matchAnswer(shuffle([pair, ...others], rng), heads, rng),
+      answer: matchAnswer(shuffle([pair, ...others], rng), heads, rng, sentenceSet(d, entity.id)),
       fingerprint: hashOf(stable({ f: 'pair', l: pair.left, r: pair.right, n: show })),
       varies: true,
       label: `${pair.left} — ${pair.right}`,
-      facts: [pairFact(entity.id, pair.left, pair.right)]
+      facts: [pairFact(sentenceSet(d, entity.id), pair.left, pair.right)]
+    };
+  });
+}
+
+/**
+ * 2026-11-01 — „KILKA Z KILKU" MIT „Ile zdań naraz" (`show`) kleiner als die Sätze: JEDER SATZ SEINE KARTE
+ * (`frage:s<hash des Satzes>`) — er und `show − 1` andere, je Versuch anders gewürfelt, mindestens einer davon richtig
+ * (sonst gäbe es nichts anzukreuzen). Jede Antwort zählt für jeden gezeigten Satz (`answerEvidence`), so kommen nur
+ * die Sätze wieder, die noch nicht sitzen. Ohne `show`: die eine Karte mit allen Sätzen (gezählt Satz für Satz).
+ */
+function sentenceCards(entity: Entity, whole: Card, seed: string): Card[] {
+  const d = entity.data;
+  const { options, correct, feedback: said } = choicesOf(d);
+  const show = showOf(d, options.length);
+  if (show === null || options.length < 3) return [whole];
+  const set = sentenceSet(d, entity.id);
+  const good = new Set(correct);
+  const seen = new Map<string, number>();
+  return options.map((text, i) => {
+    let variant = `s${hashOf(text.trim())}`;
+    const n = seen.get(variant) ?? 0;
+    seen.set(variant, n + 1);
+    if (n > 0) variant = `${variant}.${n}`;
+    const rng = rngOf(`${seed}:${entity.id}:${variant}`);
+    const rest = shuffle(options.map((_o, j) => j).filter((j) => j !== i && options[j]!.trim() !== text.trim()), rng);
+    const picked: number[] = [i];
+    /* Ist der Satz selbst falsch, steht ein richtiger daneben. */
+    if (!good.has(i)) { const one = rest.find((j) => good.has(j)); if (one !== undefined) picked.push(one); }
+    for (const j of rest) { if (picked.length >= show) break; if (!picked.includes(j)) picked.push(j); }
+    const order = shuffle(picked, rng);
+    const question = `${entity.id}:${variant}`;
+    const feedback = said.some((x) => x !== '') ? order.map((j) => said[j] ?? '') : undefined;
+    const { feedback: _whole, ...rest0 } = whole;
+    return {
+      ...rest0,
+      question,
+      key: cardKey(question, ''),
+      answer: { form: 'many', options: order.map((j) => options[j]!), correct: order.flatMap((j, k) => (good.has(j) ? [k] : [])), set },
+      fingerprint: hashOf(stable({ f: 'sentence', t: text.trim(), c: good.has(i), n: show })),
+      varies: true,
+      label: text,
+      facts: [sentenceFact(set, text)],
+      ...(feedback === undefined ? {} : { feedback })
     };
   });
 }

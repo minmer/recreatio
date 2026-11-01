@@ -56,8 +56,8 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
     says: 'Tekst z zakrytym słowem — w treści [[słowo]] (albo „…” i dobre odpowiedzi niżej); uczący się wpisuje, czego brakuje. Kilka luk: każda osobno; luka z „Do wyboru” jest listą do wybrania (może mieć wzory), bez — polem do wpisania.' },
   { form: 'one', label: 'Jedna z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback'],
     says: 'Kilka możliwości, dobra jest jedna; kolejność miesza się przy każdym pytaniu. Do każdej możliwości można dopisać zdanie, które uczący się zobaczy po odpowiedzi.' },
-  { form: 'many', label: 'Kilka z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback'],
-    says: 'Kilka możliwości, dobrych może być kilka — trzeba zaznaczyć wszystkie. Do każdej możliwości można dopisać zdanie na po odpowiedzi.' },
+  { form: 'many', label: 'Kilka z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback', 'show'],
+    says: 'Kilka możliwości, dobrych może być kilka — trzeba zaznaczyć wszystkie. Każde zdanie liczy się osobno (dobrze zaznaczone albo dobrze pominięte), wynik to ich średnia; każde jest też osobnym faktem, więc liczy się na każdej karcie, na której stoi. Długa lista z „Ile naraz” — każde zdanie ma swoją kartę. Do każdej możliwości można dopisać zdanie na po odpowiedzi.' },
   { form: 'truefalse', label: 'Prawda czy fałsz', group: 'choose', prompt: 'Zdanie', fields: ['value'],
     says: 'Jedno zdanie; uczący się mówi, czy jest prawdziwe.' },
   { form: 'match', label: 'Połącz w pary', group: 'connect', prompt: 'Polecenie', fields: ['left', 'right', 'leftLabel', 'rightLabel', 'show'],
@@ -80,7 +80,7 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
  * Was jede Frage hat, gleich welcher Art. 2026-11-01 — dazu Podpowiedzi (vor der Antwort), das Wyjaśnienie als Text
  * (nach ihr) und Parameter (neue Zahlen je Versuch).
  */
-export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require'] as const;
+export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require', 'share', 'fact'] as const;
 
 export const questionType = (form: unknown): QuestionType =>
   QUESTION_TYPES.find((t) => t.form === form) ?? QUESTION_TYPES[0];

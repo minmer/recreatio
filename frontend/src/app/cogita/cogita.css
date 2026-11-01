@@ -563,6 +563,9 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-qpaste summary { cursor: pointer; color: var(--wk-accent); }
 .cg-qpaste textarea { width: 100%; box-sizing: border-box; font-family: inherit; }
 .cg-qshow { max-width: 14rem; }
+/* 2026-11-01 — „Wspólne odpowiedzi z innymi pytaniami” (share, fact). */
+.cg-qshare { display: grid; gap: var(--wk-space-2); }
+.cg-qshare > summary { cursor: pointer; }
 .cg-qmissing { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
 .cg-qpreview { display: grid; gap: var(--wk-space-2); }
 .cg-qpreview .cg-face { margin: 0; max-width: none; }

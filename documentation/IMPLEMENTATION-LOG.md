@@ -2965,3 +2965,42 @@ intervals and knowness 10^−47.
   fall, the history's due/forgotten times and bent future), full app:check. Browser harness: `drive-bands.mjs` 8,
   `drive-history.mjs` 8 (new: one right answer 44 h ago still ~8 % before the next answer, the bent curve).
 
+## C14 — Cogita: „Kilka z kilku” sentence by sentence (2026-11-01)
+
+Owner (a "Welche Sätze sind Aussagen?" card with six sentences): "such cards shouldn't be asked separately for every
+version, but concern every sentence separately, and the correctness should be the sum of these parts."
+
+- `check.ts` `checkMany(correct, given, count)`: with the count, each sentence is right when marked and good or left
+  out and not good; correctness = the mean (before: hits ÷ max(wanted, given), a correctly left-out sentence earned
+  nothing). Nothing marked is still „no answer”.
+- `cards.ts`: the `many` answer carries `set` (`share` or the question); `sentenceFact(set, text)`; the whole card has
+  one fact per sentence; `answerFacts` judges every shown sentence. `sentenceCards`: with `show` (fewer than the
+  sentences, at least 3 sentences) each sentence its card `question:s<hash>` with `show − 1` others (at least one
+  good), fingerprint = the sentence, its own fact, the feedback per sentence kept.
+- Fields: `show` („Ile naraz”, now for pairs and sentences), `share` („Wspólne zdania”); editor block under the
+  choices (`QuestionFields.tsx` `Sentences`); type description; pytania.json, the guides and ImportFormats.json
+  regenerated.
+- Checks: app-cogita-check 763 (+9: per-sentence score, facts, cards per sentence, fingerprints, evidence for each
+  shown sentence, the whole card's mean, `share` across versions, versions apart without it), full app:check. Browser
+  harness `cardrun/drive-many.mjs` (3): a sentence card with three sentences, a 1-of-3 answer = 33 %.
+
+## C15 — Cogita: parts of every question as facts; pairs with `share`; a prompt for agents (2026-11-01)
+
+Owner: "For connecting (two columns, event–year) this also applies?" — yes (pairs were facts since C10, scored pair
+by pair, `show` per pair); only sharing across versions was missing. Then: "Think about a generalized way possible to
+apply in different card/knowledge items — also create a prompt for the agents, so that they can create a JSON import to
+match the new format."
+
+- `cards.ts` `partFacts(question, data, answer, prompt)` — one rule for all forms: match → pairs, many → sentences, gap
+  with several gaps → words (`gapFact`, `answerFacts` judges each gap from `outcome.marks`), truefalse → one sentence
+  (`sentenceFact`, shared with a many of the same `share`), any other form → one part only with `fact`
+  (`namedFact`; `"#facet"` + `about` → `entryFact` = `<entry>#<facet>`, the template cards' `asks` fact). Without
+  parts nothing changes. Pairs: the `match` answer carries `set`, `pairFact(set, …)` — ids without `share` unchanged.
+- Fields `share` („Wspólne części”) and `fact` („O jaki fakt pyta”) shared by every question (`QUESTION_SHARED`);
+  editor: under pairs and in the sentences block `share`, for the other forms a fold „Wspólne odpowiedzi z innymi
+  pytaniami”. JSON description: a „części” paragraph.
+- Prompt `templates/cogita/czesci-AI.md` (MCP `guide-parts`): what the app counts, the keys, a decision table, an
+  example, what not to do, a checklist; `schematy-AI.md` points to it.
+- Checks: app-cogita-check 771 (+8: share across pair lists, true/false = the many sentence, `fact` across forms,
+  `#data` = the template fact, gap words each on its own and shared, the guide's example parses and shares what it
+  says), full app:check; pytania.json, guides and ImportFormats.json regenerated.

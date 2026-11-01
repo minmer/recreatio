@@ -176,7 +176,10 @@ export const QUESTION: KindDef = {
     q('right', 'Prawa strona', 'list', { says: 'Prawa strona par, w tej samej kolejności, np. wydarzenia (match)' }),
     q('leftLabel', 'Nagłówek lewej strony', 'line', { says: 'Nad lewą kolumną karty, np. „Rok” (match)' }),
     q('rightLabel', 'Nagłówek prawej strony', 'line', { says: 'Nad prawą kolumną karty, np. „Wydarzenie” (match)' }),
-    q('show', 'Ile par naraz', 'number', { says: `Długa lista: tyle par na jednej karcie (2–${SHOW_MAX}) — każda para ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne pary; puste: wszystkie pary na jednej karcie (match)` }),
+    q('show', 'Ile naraz', 'number', { says: `Długa lista: tyle par (match) albo zdań (many) na jednej karcie (2–${SHOW_MAX}) — każda para / każde zdanie ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne; puste: wszystko na jednej karcie` }),
+    /* 2026-11-01 — Fassungen einer Frage „Kilka z kilku" mit denselben Sätzen teilen ihre Antworten. */
+    q('share', 'Wspólne części', 'text', { says: 'Nazwa zbioru części: pytania z tą samą nazwą liczą odpowiedź na tę samą część razem — to samo zdanie (many, truefalse), tę samą parę (match), to samo słowo w luce (gap), ten sam nazwany fakt (fact). Np. kilka wersji „Które zdania są twierdzeniami?”. Puste: części tylko tego pytania' }),
+    q('fact', 'O jaki fakt pyta', 'text', { says: 'Nazwa jednego faktu, o który pyta pytanie bez części (text, number, date, one, flash, order…): pytania o tym samym fakcie dzielą odpowiedzi — np. „Kiedy był Grunwald?” i „Co było w 1410?” z "fact": "Grunwald 1410". „Prawda czy fałsz”: zdanie, które ocenia (bez tego — treść pytania), to samo co zdanie w „Kilka z kilku” z tym samym "share"' }),
     q('items', 'W dobrej kolejności', 'list', { says: 'Elementy w poprawnej kolejności (order); kafelki dobrej odpowiedzi w kolejności (build)' }),
     q('extra', 'Kafelki zbędne', 'list', { says: 'Kafelki, których nie trzeba użyć (build); „Ułóż w kolejności” ich nie pokazuje' }),
     q('alternatives', 'Inne dobre kolejności', 'json', { says: 'Inne przyjmowane odpowiedzi z kafelków: lista list, np. [["$B$", "$=$", "$A$"]] (build)' }),

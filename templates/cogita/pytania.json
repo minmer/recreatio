@@ -209,15 +209,28 @@
         },
         {
           "key": "show",
-          "label": "Ile par naraz",
+          "label": "Ile naraz",
           "type": "number",
           "when": {
             "field": "form",
             "values": [
+              "many",
               "match"
             ]
           },
-          "says": "Długa lista: tyle par na jednej karcie (2–12) — każda para ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne pary; puste: wszystkie pary na jednej karcie (match)"
+          "says": "Długa lista: tyle par (match) albo zdań (many) na jednej karcie (2–12) — każda para / każde zdanie ma wtedy swoją kartę, a resztę miejsc zajmują losowe inne; puste: wszystko na jednej karcie"
+        },
+        {
+          "key": "share",
+          "label": "Wspólne części",
+          "type": "text",
+          "says": "Nazwa zbioru części: pytania z tą samą nazwą liczą odpowiedź na tę samą część razem — to samo zdanie (many, truefalse), tę samą parę (match), to samo słowo w luce (gap), ten sam nazwany fakt (fact). Np. kilka wersji „Które zdania są twierdzeniami?”. Puste: części tylko tego pytania"
+        },
+        {
+          "key": "fact",
+          "label": "O jaki fakt pyta",
+          "type": "text",
+          "says": "Nazwa jednego faktu, o który pyta pytanie bez części (text, number, date, one, flash, order…): pytania o tym samym fakcie dzielą odpowiedzi — np. „Kiedy był Grunwald?” i „Co było w 1410?” z \"fact\": \"Grunwald 1410\". „Prawda czy fałsz”: zdanie, które ocenia (bez tego — treść pytania), to samo co zdanie w „Kilka z kilku” z tym samym \"share\""
         },
         {
           "key": "items",

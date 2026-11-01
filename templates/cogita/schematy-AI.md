@@ -84,6 +84,7 @@ Znajomość wpisu to średnia jego kart z odpowiedzią, ważona `"tests"`. Karta
 - `"about"` — wpisy, które pytanie sprawdza (liczy się dla nich i czeka na to, co trzeba znać przed nimi); `"needs"` — co dokładnie musi być poznane przed nim.
 - Data: `"precision"` (`year`, `month`, `day`) tak dokładnie, jak naprawdę trzeba to umieć; `"tolerance"` tylko gdy sama wiedza jest przybliżona (±1 rok). Części daty i „blisko” aplikacja liczy sama.
 - Długie listy par: `"show"` (Ile par naraz) 4–6.
+- Części pytań (pary, zdania, luki, `"fact"`, `"share"`, `"#strona"`) — osobny przewodnik `guide-parts` (`templates/cogita/czesci-AI.md`).
 
 ### 2.4 Widoki i powtórki w schemacie: warunki pasmami
 

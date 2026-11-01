@@ -544,13 +544,24 @@ export function checkOne(correct: number, given: number | null | undefined): Out
 }
 
 /** Mehrere Wahlen: getroffen durch alles, was hätte gewählt werden können — wie im Altbestand. */
-export function checkMany(correct: readonly number[], given: readonly number[]): Outcome {
+/**
+ * „Kilka z kilku". 2026-11-01 — mit `count` (wie viele Sätze dastehen) zählt JEDER SATZ FÜR SICH: richtig, wenn er
+ * angekreuzt ist und es sein soll, oder frei bleibt und es soll; die Richtigkeit ist der Durchschnitt der Sätze. Ohne
+ * `count` wie früher: Treffer ÷ max(gewollt, gegeben).
+ */
+export function checkMany(correct: readonly number[], given: readonly number[], count?: number): Outcome {
   const want = new Set(correct);
   const got = new Set(given);
   if (got.size === 0) return NOTHING;
   const hits = [...got].filter((g) => want.has(g)).length;
   const ok = hits === want.size && got.size === want.size;
-  return { correct: ok, correctness: ok ? 1 : hits / Math.max(want.size, got.size, 1), answered: true };
+  if (ok) return { correct: true, correctness: 1, answered: true };
+  if (count !== undefined && count > 0) {
+    let right = 0;
+    for (let i = 0; i < count; i++) if (want.has(i) === got.has(i)) right++;
+    return { correct: false, correctness: right / count, answered: true };
+  }
+  return { correct: false, correctness: hits / Math.max(want.size, got.size, 1), answered: true };
 }
 
 export function checkTrueFalse(correct: boolean, given: boolean | null | undefined): Outcome {

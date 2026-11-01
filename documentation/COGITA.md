@@ -505,6 +505,17 @@ fixed in the app and what a scheme declares — and how to build schemes for it 
   every answer. A card asking several facts takes an answer when all of them were answered (their mean). The answer of
   the asked card is the one about its own fact. Items and cards: cards feed items (`tests`), items gate cards
   (conditions with bands).
+- **„Kilka z kilku” sentence by sentence** (2026-11-01, C14): every sentence counts on its own — marked and should be,
+  or left out and should be — and the card's correctness is their mean (`checkMany` with the count). Every sentence is
+  a fact (`sentenceFact`); with `show` each sentence has its own card (it and `show − 1` others, at least one good),
+  so one answer counts for every sentence shown and only unknown sentences come back; `share` (a name) makes versions
+  of a question share their sentences.
+- **Parts, in general** (2026-11-01, C15, `cards.ts` `partFacts`; guide for agents `templates/cogita/czesci-AI.md`, MCP
+  `guide-parts`): every question asks parts and every part is a fact `<set>#<part>` (set = `share` or the question).
+  From the content: pairs (match), sentences (many), words of a gap with several gaps — each judged on its own. A
+  true/false is one sentence (`fact` or the prompt), the same as in a many with the same `share`. Any other form has
+  one part only with `fact` (a name; base-wide without `share`); `"#facet"` with `about` is that side of the entry —
+  the same fact as a template card with `asks`, so written questions and template cards count for each other.
 - **Statistics** follow the bands: zapomniane (< 0.1), do powtórki (0.1–1), umiem, pewnie (`knowStats.ts`).
 - **The history of a card after each answer** (2026-11-01, `KnowCharts.tsx` `CardHistoryChart`, `knowStats.ts`
   `cardHistory`): under the verdict in a run with a learner, the knowness of this card over 1 day / 7 / 30 / 90 days /
