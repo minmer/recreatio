@@ -510,6 +510,12 @@ to the view and the schema; the computation of knowness is fixed in code and the
     file (picture, sound) are not kept — they cannot open without the network.
   - Not offline: learning on a page through an access link (a course learner without an account); signed-in
     learners keep a revision in Nauka when the author marks it „Trzymaj na urządzeniach bez internetu”.
+  - Since 2026-10-31 the copy is made when the plan AND the learner are there (`RevisionRun`): the learner often
+    arrives after the run started (a revision with its own answers area gets one only when opened), and the run
+    planned without it — no progress, answers dropped, no copy („Nauka bez internetu”: „Nic”). Now the run plans
+    again when the learner comes before the first answer (after it: the run stays, only the copy is made), and Nauka
+    waits for the revision's own learner. In the app the run says what happened: the copy is new on this device, it
+    could not be kept, or the key is not kept here (`tab`).
 
 ## 8. Narratives
 
