@@ -50,6 +50,13 @@ export const WRONG_BELOW = 0.25;
 /** Ab hier sitzt es: am fälligen Termin einer richtigen Antwort steht die Kenntnis genau auf 1. */
 export const KNOWN = 1;
 
+/**
+ * 2026-11-01 — DARUNTER IST ES NICHT (MEHR) GEWUSST: nie beantwortet, zuletzt falsch oder vergessen (eine richtige
+ * Antwort, deren Abstand dreimal verstrichen ist). Der Termin einer Wiederholung sagt NICHT „unbekannt", sondern „jetzt
+ * wiederholen": dann steht die Kenntnis knapp unter 1 — im Band „do powtórki", nicht „nieznane".
+ */
+export const FORGOTTEN = 0.1;
+
 /** Eine Antwort, wie die Kenntnis sie braucht: wann, und wie richtig. */
 export interface Mark {
   /** Millisekunden seit 1970. */
@@ -135,13 +142,27 @@ export function stability(marks: readonly Mark[]): number {
   return (state === null ? MIN_INTERVAL : state.interval) / HOUR;
 }
 
+/**
+ * 2026-11-01 — DIE DREI BÄNDER (fest, für jede Art von Wissen gleich):
+ * <code>
+ *   unseen    „nieznane"      nie gefragt, zuletzt falsch oder vergessen (unter FORGOTTEN)
+ *   learning  „do powtórki"   FORGOTTEN bis unter 1 — gewusst, jetzt (oder bald) zu wiederholen
+ *   known     „znane"         ab 1 — gewusst, noch nicht an der Reihe
+ * </code>
+ * Die Namen der Werte bleiben (gespeichert in Filtern „Tylko stany"); ihre Bedeutung sind die Bänder.
+ */
 export type Level = 'unseen' | 'learning' | 'known';
 
-export const LEVEL_LABEL: Record<Level, string> = { unseen: 'jeszcze nie', learning: 'w nauce', known: 'umiem' };
+export const LEVEL_LABEL: Record<Level, string> = { unseen: 'nieznane', learning: 'do powtórki', known: 'znane' };
+
+/** Das Band einer Kenntnis — `answered: false` heisst nie gefragt (also nieznane). */
+export const levelOfKnowness = (k: number, answered = true): Level => (!answered || !(k >= FORGOTTEN) ? 'unseen' : k < KNOWN ? 'learning' : 'known');
+
+/** Das Band eines Zustands jetzt. */
+export const levelOfState = (state: CardState | null, now: number): Level => (state === null ? 'unseen' : levelOfKnowness(knownessAt(state, now)));
 
 export function levelOf(marks: readonly Mark[], now: number): Level {
-  if (marks.length === 0) return 'unseen';
-  return knownessOf(marks, now) >= KNOWN ? 'known' : 'learning';
+  return levelOfState(marks.length === 0 ? null : stateOf(marks), now);
 }
 
 /** Für Balken und Prozente: über 1 ist „sitzt", mehr als 100 % gibt es nicht. */
@@ -233,9 +254,11 @@ export function acyclic(deps: readonly Dependency[]): Dependency[] {
 }
 
 /**
- * DIE WEITERGABE (COGITA.md A.3): die Grundlage bekommt zu ihrer eigenen Kenntnis, was die Abhängigen wissen, mal
- * dem Gewicht — `parent += child · impact`. Gerechnet von den Blättern her, damit eine Kette weiterträgt. Wird das
- * Abhängige schlechter, sinkt der Beitrag mit; gespeichert wird nichts davon.
+ * DIE WEITERGABE (COGITA.md A.3): wer das Spätere kann, kann das Frühere wenigstens zum Teil — die Grundlage steht
+ * mindestens auf dem, was ein Abhängiger weiss, mal dem Gewicht. 2026-11-01 — BEGRENZT: das Beste von ihr selbst und
+ * ihren Abhängigen (`max`), nicht ihre Summe. Vorher zählten vier halb gekonnte Abhängige zusammen als „sitzt" (eine
+ * nie gefragte Grundlage öffnete, was auf ihr aufbaut), und wer auf zwei Wegen erreichbar war, zählte doppelt.
+ * Gerechnet von den Blättern her, damit eine Kette weiterträgt; gespeichert wird nichts davon.
  */
 export function propagate(own: ReadonlyMap<string, number>, deps: readonly Dependency[]): Map<string, number> {
   const edges = acyclic(deps);
@@ -246,10 +269,10 @@ export function propagate(own: ReadonlyMap<string, number>, deps: readonly Depen
   const visit = (id: string): number => {
     const done = total.get(id);
     if (done !== undefined) return done;
-    let sum = own.get(id) ?? 0;
-    for (const dep of children.get(id) ?? []) sum += visit(dep.child) * Math.max(0, dep.impact);
-    total.set(id, sum);
-    return sum;
+    let best = own.get(id) ?? 0;
+    for (const dep of children.get(id) ?? []) best = Math.max(best, visit(dep.child) * Math.max(0, Math.min(1, dep.impact)));
+    total.set(id, best);
+    return best;
   };
   for (const id of ids) visit(id);
   return total;

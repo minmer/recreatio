@@ -2822,3 +2822,66 @@ The AI stays outside the app; the work is in the format, the import and the read
   session's change). Browser drive on LocalDB (session scratchpad `tex/tex-browser.mjs`, 28): the textbook pasted
   unescaped → preview repaired, every formula set → import → reader (KaTeX, numbers, boxes, ∎, figure, code),
   references and labels, search, selection → quote with LaTeX, copy, phone 375 px, dark.
+
+## C9 — Cogita: dates checked part by part; every pair shown counts (2026-11-01)
+
+Owner, with two screenshots of the learning screen: „1829 11” was judged wrong for November 1829 („Poprawnie: 1829-11”),
+and a „Połącz w pary” card came back many times in a row in almost the same set. „Create a real date check — every part
+checked on its own, a year one off as near (50 %), month and day separately. Also think why the second question is
+asked many times in a row.” As built — COGITA.md §5 (learning screen, long pair lists) and §6 (pick).
+
+- Dates (`check.ts`): `readDateAnswer` reads every usual form (numbers in any order with any separator, Polish month
+  names in any case form and without Polish letters, English names, Roman months, filler words such as „r.”, „roku”,
+  „w”, „ok.”); a day without a year or an unknown word is unreadable, never guessed. `checkDate` scores each asked part
+  on its own (1 / ½ for one off, also across a month or year boundary / 0): year ½ (all when only the year is asked),
+  month and day share ½; right = all parts right or within the tolerance; the closest accepted answer counts;
+  `Outcome.dateParts` and `near`. `dateAsked`: never more precise than the answer is known.
+- Card (`CardFace.tsx`): the reading under the field („= listopad 1829”), an unreadable answer is not submitted (the
+  card says how to write a date), the verdict lists day / month / year with ✓ ≈ ✗ and the right value, the right answer
+  in words („listopad 1829”, `dateText`), „Prawie” also for a near date at 50 %.
+- Why the pairs came back: the question „Połącz nazwę z tym, co mówi o niej książka (Rozdział 6)” has 6 pairs and
+  „Ile par naraz” 4, so each pair is its own card showing 3 others; an answer counted only for the card's own pair, the
+  3 others just matched stayed new, and the next card of the same list came straight away — up to 6 times. Now
+  `pairEvidence` (`cards.ts`) gives every pair shown its own answer (right or wrong), `RevisionRun` records them and the
+  session steps them (`answer(…, also)` in `revision.ts`: settled pairs leave the stack and the queue); the card asked
+  is scored by its own pair. And `pickFrom` does not take a card of the same entry right after one, while another card
+  waits (not in a deliberate sequence: `next` with `given`, `text`, `date`).
+- Checks: app-cogita-check 728 (date reading and scoring, the screenshot's answer, boundaries, unreadable, `dateAsked`;
+  pair evidence, a 12-pair list learnt in fewer cards, no two cards of one question in a row). A DB-free browser
+  harness (the real `RevisionRun` bundled with esbuild, session scratchpad `cardrun/`, 12 checks, light and dark): the
+  month question read and right, the day question near part by part (63 %), the unreadable answer, the 6 pairs settled
+  in 2 screens, never twice in a row.
+
+## C10 — Cogita: three bands, the stack of the owner's algorithm, cards that share answers (2026-11-01)
+
+Owner: knowness bands as in his original algorithm — below 5–10 % unknown, from there to 100 % "to be asked" (from the
+least to the best known), above 100 % known; a repeat interval is the moment knowness falls just under 1 (to be
+asked), not "unknown"; a stack of ~10 cards asked until fully right, a free place filled from "to be asked", then
+unknown, then the least known of the known. Then: "the correctness of one card should be usable for other cards —
+cards and knowledge items should cooperate. Implement the hardcoded parts and create a prompt how the schemes should
+be built." As built — COGITA.md §6 („Three bands, the stack, cards that work together”), the prompt
+`templates/cogita/schematy-AI.md` (also over MCP as „guide-schemes”).
+
+- Bands (`knowness.ts`): `FORGOTTEN` 0.1; levels keep their names, mean the bands — `unseen` „nieznane” (never asked,
+  wrong last, forgotten), `learning` „do powtórki” (0.1–1), `known` „znane” (≥ 1); `levelOfKnowness`, `levelOfState`.
+- Stack (`revision.ts` `fillTemporal`): do powtórki weakest first → nieznane in the revision's order → (with
+  `plan.ahead`, default for `temporal`, off with `endWhenDone`) znane weakest first; known cards in the stack only when
+  nothing else is there, then the weakest; partly right cards stay asked. `Why` reasons `weak` / `forgotten` /
+  `missed` / `ahead` with their words. `RevisionRun`: „Zakończ” shows the end of the run (a run „na zapas” does not
+  end by itself). Preset „Tylko zaległe” ends; the others go on.
+- Conditions (`logic.ts`): `band` (`learned` | `known` | `due` | `unknown`), editor select (ui.tsx), text; presets and
+  the editors' defaults gate on `learned`; the old preset shape `rel: before|up, ≥ 1` reads as `learned` (existing
+  revisions and views, e.g. „Od ogólnego do szczegółu”, stop hiding details when the general card is due).
+- Bounded inference (`propagate`): max of own and child × impact (impact ≤ 1), never a sum.
+- Cards share answers through facts (`Card.facts`, `cards.ts` `answerFacts` / `answerEvidence`, replaces
+  `pairEvidence`): pair facts of „Połącz w pary” (pair cards, and the whole-list card), template `asks` (reader, JSON
+  import/export, schema export, editor „O jaki fakt pyta”); a card takes an answer when all its facts were answered;
+  the run records them and steps them (`answer(…, also)`). Not yet in flows and live sessions.
+- Statistics stages follow the bands (`knowStats.ts`: zapomniane < 0.1, do powtórki 0.1–1).
+- JSON description (`json.ts`) for bands, `band`, `asks`, `endWhenDone`, bounded inference; ImportFormats.json and the
+  guides regenerated.
+- Checks: app-cogita-check 742 (bands, the stack order, why by band, „na zapas” weakest first, `endWhenDone`, band
+  conditions and the old shape, bounded propagation, facts and `asks`), app-json-check (36 formats), full app:check.
+  DB-free browser harness (session scratchpad `cardrun/drive-bands.mjs`, 8): due → forgotten → new → „na zapas”,
+  the band of each card in words, „Zakończ” → summary with the three bands, the condition editor (old ≥ 1 → poznane,
+  znane, liczba…).

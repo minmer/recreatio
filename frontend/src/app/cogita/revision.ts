@@ -34,7 +34,7 @@ import { hashOf, rngOf, type Card } from './cardBasics';
 import type { TextRule } from './check';
 import { evaluate, paletteOf, type Graph, type GraphEdge, type GraphNode, type NodeKind, type Port } from './graph';
 import { gateFor, gateHolds, gauge, gaugeFromMarks, waitsFor, CARD_REF, type CardGate, type Gauge, type RelSource } from './knowing';
-import { KNOWN, knownessAt, levelOf, shareOf, snapshotOfState, stateOf, step, type CardState, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
+import { gradeOf, KNOWN, knownessAt, levelOf, levelOfKnowness, levelOfState, shareOf, snapshotOfState, stateOf, step, type CardState, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
 import { readCondition, type Condition } from './logic';
 import { cardEntities, cardLevel, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { fieldsOf, labelOf, valuesOf, type Entity, type Lookup } from './schema';
@@ -337,6 +337,11 @@ export interface Plan {
   readonly order: Order;
   /** 2026-10-30 — wybór ze stosu. */
   readonly pick: PickMode;
+  /**
+   * 2026-11-01 — `temporal`: gdy nic nie jest do powtórki i nic nieznanego nie zostało, stos dobiera ze znanych te,
+   * które się zna najsłabiej („na zapas”) — lauf się nie kończy sam. `false` („endWhenDone”): koniec.
+   */
+  readonly ahead: boolean;
   /** 2026-10-30 — warunki kart (z „Filtra znajomości") z rozwiązanymi relacjami — liczą się także bez internetu. */
   readonly when?: Readonly<Record<string, CardGate>>;
   /** 2026-10-30 — miejsce karty dla „jak w tekście” i „według daty” (liczone przy planowaniu). */
@@ -362,6 +367,7 @@ export function readPlan(cards: readonly Card[], config: Readonly<Record<string,
     minCorrectness: Math.max(0, Math.min(1, num(config.minCorrectness, 1))),
     order,
     pick: pickMode,
+    ahead: mode === 'temporal' && config.endWhenDone !== true,
     ...(when === undefined || Object.keys(when).length === 0 ? {} : { when }),
     ...(rank === undefined ? {} : { rank }),
     ...(rule !== undefined ? { rule } : {})
@@ -466,7 +472,9 @@ export function migrateRevision(graph: Graph): Graph {
     const whenId = `${g.id}-znajomosc`;
     const learnId = `${g.id}-podstawy`;
     if (pull) nodes = nodes.map((n) => (n.x > g.x ? { ...n, x: n.x + 230 } : n));
-    const condition = { type: 'knowness', rel: 'before', op: 'ge', than: Math.max(0, num(g.config.threshold, KNOWN)) };
+    /* 2026-11-01 — ohne eigene Schwelle: „poznane" (was vorher kommt, ist gewusst — fällig oder nicht). */
+    const threshold = num(g.config.threshold, KNOWN);
+    const condition = threshold === KNOWN ? { type: 'knowness', rel: 'before', band: 'learned' } : { type: 'knowness', rel: 'before', op: 'ge', than: Math.max(0, threshold) };
     nodes.push(...(pull ? [{ id: learnId, type: 'learning', x: g.x, y: g.y, config: { dir: 'before', keep: true } }] : []),
       { id: whenId, type: 'filter.when', x: g.x + (pull ? 230 : 0), y: g.y, config: { when: condition } });
     edges = edges.map((e) => (e.to === g.id ? { ...e, to: pull ? learnId : whenId } : e.from === g.id ? { ...e, from: whenId } : e));
@@ -493,8 +501,12 @@ export async function planOf(raw: Graph, ctx: RevisionContext): Promise<{ plan: 
 
 /** 2026-10-30 — WARUM DIESE KARTE: was der Lernende darüber lesen kann (`whyText`). */
 export interface Why {
-  /** queue — die nächste der festen Folge; fresh — neu; weak — sie verwischt (oder war fällig); again — eben falsch. */
-  readonly reason: 'queue' | 'fresh' | 'weak' | 'again';
+  /**
+   * queue — die nächste der festen Folge; fresh — neu; again — in diesem Lauf eben falsch; 2026-11-01 nach den Bändern:
+   * weak — do powtórki (ihre Zeit ist da); missed — zuletzt (in einem früheren Lauf) falsch; forgotten — vergessen;
+   * ahead — znana, „na zapas" (nichts anderes mehr da).
+   */
+  readonly reason: 'queue' | 'fresh' | 'weak' | 'again' | 'missed' | 'forgotten' | 'ahead';
   readonly order: Order;
   readonly pick: PickMode;
   /** Die Ebene der Kolejność nauki (0 = podstawy) — nur bei „najpierw ogólne" in einer Baza mit einer Reihenfolge. */
@@ -600,24 +612,39 @@ function ordered(s: Internal, keys: readonly string[], now: number): string[] {
   return ranked.map((x) => x.key);
 }
 
-/** Füllt den Stapel nach der Kenntnis: erst was unter 1 liegt (das Schwächste zuerst), dann das nie Gefragte in der Kolejność. */
+/**
+ * DER STAPEL NACH DEN DREI BÄNDERN (2026-11-01, fest — `knowness.ts`). Ein freier Platz nimmt zuerst, was DO POWTÓRKI
+ * ist — das am wenigsten Gewusste zuerst —, dann aus NIEZNANE (neue, zuletzt falsche, vergessene) in der Kolejność der
+ * Powtórka, und erst wenn beides aufgebraucht ist, aus ZNANE das am wenigsten Gewusste („na zapas", `plan.ahead`).
+ * Vorher stand alles unter 1 in einem Haufen, das Schwächste zuerst: lange Vergessenes kam vor dem, was gerade fällig
+ * ist, und das Fällige wurde darüber selbst vergessen.
+ */
 function fillTemporal(s: Internal, active: readonly string[], now: number): string[] {
   const out = active.slice();
   const taken = new Set(out);
-  const weak: { key: string; k: number; r: readonly [number, number] }[] = [];
-  const fresh: string[] = [];
+  type Ranked = { key: string; k: number; r: readonly [number, number] };
+  const due: Ranked[] = [];
+  const unknown: string[] = [];
+  const known: Ranked[] = [];
   for (const card of eligible(s, now)) {
     if (taken.has(card.key)) continue;
     const st = stateIn(s, card.key);
-    if (st === null) { fresh.push(card.key); continue; }
-    const k = knownessAt(st, now);
-    if (k < KNOWN) weak.push({ key: card.key, k, r: rankOf(s, card.key, now) });
+    const k = st === null ? 0 : knownessAt(st, now);
+    const level = st === null ? 'unseen' : levelOfKnowness(k);
+    if (level === 'unseen') unknown.push(card.key);
+    else (level === 'learning' ? due : known).push({ key: card.key, k, r: rankOf(s, card.key, now) });
   }
-  weak.sort((a, b) => a.k - b.k || cmp(a.r[0], b.r[0]) || cmp(a.r[1], b.r[1]));
-  for (const one of [...weak.map((w) => w.key), ...ordered(s, fresh, now)]) {
-    if (out.length >= s.plan.stackSize) break;
-    out.push(one);
-  }
+  const weakest = (a: Ranked, b: Ranked) => a.k - b.k || cmp(a.r[0], b.r[0]) || cmp(a.r[1], b.r[1]);
+  const fill = (keys: readonly string[]) => {
+    for (const one of keys) {
+      if (out.length >= s.plan.stackSize) break;
+      out.push(one);
+    }
+  };
+  fill(due.sort(weakest).map((d) => d.key));
+  fill(ordered(s, unknown, now));
+  /* Ist noch Platz, war beides aufgebraucht. */
+  if (s.plan.ahead) fill(known.sort(weakest).map((d) => d.key));
   return out;
 }
 
@@ -659,6 +686,19 @@ function pickFrom(s: Internal, active: readonly string[], previous: string | nul
   if (active.length === 0) return { key: null, among: 0 };
   const others = active.filter((k) => k !== previous);
   let from = others.length > 0 ? others : active.slice();
+  /*
+   * 2026-11-01 — was „na zapas" (znane) im Stapel liegt, kommt erst, wenn sonst nichts im Stapel ist. Eine Karte, die in
+   * diesem Lauf nicht ganz richtig war, bleibt gefragt, auch wenn ihre Kenntnis schon über 1 liegt (teilweise richtig).
+   */
+  if (s.plan.ahead) {
+    const needed = from.filter((k) => s.wrongSinceCorrect.has(k) || levelOfState(stateIn(s, k), now) !== 'known');
+    if (needed.length > 0) from = needed;
+    else {
+      /* Nur noch Gewusstes: das am wenigsten Gewusste zuerst — nicht die Kolejność (sonst immer dieselben vorn). */
+      const k = (key: string) => knownessAt(stateIn(s, key), now);
+      return { key: from.slice().sort((a, b) => k(a) - k(b) || cmp(rankOf(s, a, now)[0], rankOf(s, b, now)[0]))[0], among: from.length };
+    }
+  }
   if (s.plan.order === 'general' && s.graph.edges.length > 0) {
     const fresh = from.filter((k) => stateIn(s, k) === null);
     if (fresh.length > 0) {
@@ -691,7 +731,9 @@ function pickFrom(s: Internal, active: readonly string[], previous: string | nul
 function whyOf(s: Internal, key: string | null, among: number, now: number, queue: boolean): Why | null {
   if (key === null) return null;
   const st = stateIn(s, key);
-  const reason: Why['reason'] = queue ? 'queue' : s.wrongSinceCorrect.has(key) ? 'again' : st === null ? 'fresh' : 'weak';
+  const level = levelOfState(st, now);
+  const reason: Why['reason'] = queue ? 'queue' : s.wrongSinceCorrect.has(key) ? 'again' : st === null ? 'fresh'
+    : level === 'known' ? 'ahead' : level === 'learning' ? 'weak' : gradeOf(st.q) === 'wrong' ? 'missed' : 'forgotten';
   return {
     reason, order: s.plan.order, pick: s.plan.pick,
     level: s.plan.order === 'general' && s.graph.edges.length > 0 ? s.fixed.level(key) : null,
@@ -761,7 +803,7 @@ export interface AlsoAnswered {
 /**
  * EINE ANTWORT auf die aktuelle Karte. `correctness` ist die Teilrichtigkeit der Prüfung (0–1); als „richtig" für die
  * Stufen und den Stapel gilt sie ab `plan.minCorrectness`. Der Zustand der Karte geht EINEN Schritt weiter.
- * 2026-11-01 — `also`: was dieselbe Antwort über andere Karten sagt (die anderen gezeigten Paare, `pairEvidence`) —
+ * 2026-11-01 — `also`: was dieselbe Antwort über andere Karten sagt (die anderen gezeigten Paare, gleiche Fakten — `answerEvidence`) —
  * jede geht ebenfalls einen Schritt weiter; was dabei richtig war, verlässt den Stapel (und die Folge), was falsch war,
  * kommt wie jede schwache Karte wieder. Gezählt wird im Lauf nur die gefragte Karte.
  */
@@ -860,11 +902,15 @@ const ORDER_WHY: Record<Order, string> = {
  */
 export function whyText(why: Why, _now: number): string {
   const level = why.level === null ? '' : ` · poziom ${why.level + 1}${why.level === 0 ? ' (podstawy)' : ''}`;
+  const pct = `${Math.round((why.knowness ?? 0) * 100)} %`;
   switch (why.reason) {
     case 'queue': return `Kolejna karta${level}`;
     case 'fresh': return `Nowa karta${level}`;
-    case 'again': return 'Wraca — przed chwilą była źle';
-    default: return `Wraca — zaciera się (znajomość ${Math.round(shareOf(why.knowness ?? 0) * 100)} %)`;
+    case 'again': return 'Jeszcze raz — przed chwilą była źle';
+    case 'missed': return 'Ostatnio była źle — jeszcze raz';
+    case 'forgotten': return `Zapomniana — dawno nie powtarzana (znajomość ${pct})`;
+    case 'ahead': return `Na zapas — umiesz (znajomość ${pct}), tę najsłabiej`;
+    default: return `Pora powtórki (znajomość ${pct})`;
   }
 }
 
@@ -874,15 +920,16 @@ export function whyDetail(why: Why, now: number): string {
   const pickText = why.reason === 'queue' || why.among <= 1 ? ''
     : why.pick === 'weighted' ? ` Wybrana losowo spośród ${why.among} w stosie — częściej to, co słabiej znasz i co dłużej czeka.`
     : ` Następna spośród ${why.among} w stosie.`;
+  const pct = `${Math.round((why.knowness ?? 0) * 100)} %`;
+  const late = why.due !== null && why.due <= now ? `; pora powtórki minęła ${span(now - why.due)} temu` : '';
   switch (why.reason) {
     case 'queue': return `Kolejna karta — ${ORDER_WHY[why.order]}${level}.`;
-    case 'fresh': return `Nowa karta — ${ORDER_WHY[why.order]}${level}.${pickText}`;
-    case 'again': return `Wraca, bo przed chwilą była źle — aż odpowiesz dobrze.${pickText}`;
-    default: {
-      const k = why.knowness ?? 0;
-      const late = why.due !== null && why.due <= now ? `; pora minęła ${span(now - why.due)} temu` : '';
-      return `Wraca, bo się zaciera: znajomość ${Math.round(shareOf(k) * 100)} %${late}.${pickText}`;
-    }
+    case 'fresh': return `Nowa karta (nieznana) — ${ORDER_WHY[why.order]}${level}. Nowe przychodzą, gdy nic nie czeka na powtórkę.${pickText}`;
+    case 'again': return `Wraca, bo przed chwilą była źle — zostaje w stosie, aż odpowiesz całkiem dobrze.${pickText}`;
+    case 'missed': return `Nieznana: ostatnim razem była źle. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.${pickText}`;
+    case 'forgotten': return `Nieznana: znajomość spadła do ${pct}${late}. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.${pickText}`;
+    case 'ahead': return `Znana (${pct}) — nic nie czeka na powtórkę i nie ma nic nowego, więc stos bierze to, co umiesz najsłabiej.${pickText}`;
+    default: return `Do powtórki: znajomość ${pct}${late}. Najpierw to, co znasz najsłabiej.${pickText}`;
   }
 }
 

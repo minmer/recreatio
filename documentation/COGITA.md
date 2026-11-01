@@ -325,6 +325,10 @@ There are no spoken answers.
 (`questionCards`, key `<question>:p<hash of the left side>`, fingerprint of its own pair): the pair with `n − 1`
 others drawn per attempt, so a revision brings back exactly the pairs not yet known, and a list of forty years is
 never shown whole. A flow and the page module ask the whole question as one card with `n` pairs drawn per attempt.
+Since 2026-11-01 an answer counts for **every pair shown** (`pairEvidence`): each pair goes to its own card — matched
+right, it sits; matched wrong or left out, it comes back — and the card asked is scored by its own pair. Before, only
+the asked pair counted, so the other pairs just matched stayed new and came straight back on the next card of the same
+list, in almost the same set, once per pair.
 
 **Distractors** come from [D15]:
 - the same field of other entities of the kind;
@@ -358,7 +362,8 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - Ordering is drag and drop with a live preview (pointer events: mouse, touch on the ⋮⋮ grip, pen; auto-scroll near the edge; items of any height); ↑/↓ stay as a secondary control; keyboard Space / arrows / Space / Esc, announced to screen readers. The start order is never the right one (`shuffleAway`).
 - Matching shows both columns shuffled, the left never in its stored order (`shuffledPairs`).
 - After „Sprawdź” the result stands on the learner's own answer: ✓/✗ on each option, item (with „→ N”, the right place) or pair (with its right partner); a line „4 z 6 na swoim miejscu”; „Pokaż poprawną kolejność” animates the right order and back. No long „Poprawnie: A → B → …” for order, match or choice. Controls lock and „Sprawdź” becomes „Dalej” in the same place.
-- Partial credit: ordering takes the better of items in place and neighbouring pairs in order (one swap or one moved item is not zero); a date asked to the day gives 0.5 for the right year, 0.75 for year and month (`check.ts`). Every date card says its precision („Podaj rok.”, `PRECISION_ASK`).
+- Partial credit: ordering takes the better of items in place and neighbouring pairs in order (one swap or one moved item is not zero) (`check.ts`). Every date card says its precision („Podaj rok.”, `PRECISION_ASK`).
+- **Dates part by part** (2026-11-01, `checkDate`): year, month and day are compared each on its own — the same scores 1, one off scores ½ („blisko”; also across a boundary: December 1829 and January 1830, the 31st and the 1st), anything else 0. The year is worth half (all of it when only the year is asked), month and day share the other half (a quarter each when the day is asked). Right means every part right, or within the question's tolerance; several accepted answers: the closest counts. The verdict lists the parts (✓ ≈ ✗ with the right value); a date never asks more precisely than its answer is known (`dateAsked`). Answers are read in every usual form (`readDateAnswer`): „1829 11”, „11.1829”, „3.11.1829”, „1829/11/3”, „listopad 1829”, „3 listopada 1829 r.”, „w listopadzie 1829”, „3 XI 1829”, „November 1829”, „1000 p.n.e.”; under the field the reading appears („= listopad 1829”), and what cannot be read („3 listopada” without a year, a word that is no month) is not counted — the card says how to write a date.
 - Explanations are collapsed: one line each (title and the first sentence of a `summary` field, else of the first text field), the question's own topic („O czym”) first with two or three lines; expanded: the text with footnotes and „pokaż w tekście”, dates, sources with places, „Otwórz wpis”. Never shown: numbers, choices, lists, references without a place, map points, files, empty fields, and the fields of a linked question.
 - Before the first question about a topic („O czym”) the learner has not met, a „Nowy temat” panel shows its title and its lead — the summary, or the first paragraph of its text, with its formatting and clickable footnotes, at most four lines on a phone (six wider, two each when several topics come at once), so the question stays in view. „Czytaj dalej” expands the whole text in place (paragraphs, bold subheadings, footnotes as on the entry page; a footnote in the lead opens the text at its note), „Zwiń tekst” brings the question back; „Czytaj tekst” opens the source at the topic's place (its field with a place, else the first cited source whose text this reader has: the reader in the workspace, the passage itself on a page). Lists under a bold heading stay folded until opened (`reading.ts`; a list written right under its line still counts as a list here). Only real questions count as meeting a topic; which cards come is unchanged.
 - Under the card a short line (`whyText`), the full reason as its hint (`whyDetail`). „Zgłoś problem” is an inline form; the report carries the question, the learner's answer, the right one and the score, and „Do zrobienia” shows them.
@@ -376,7 +381,7 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - **Widok** (`source.view`, 2026-10-30): the cards of what a saved view shows — the view decides what is eligible, the revision picks from it; editing the view changes the revision ("Powtórka z tego widoku" in Wpisy, „Widok” in „Nowa powtórka”);
 - **Idź po kolejności nauki** (`learning`): what comes before (or builds on) the chosen entries in the learning order, to the basics or one step; `keep` adds them to the cards it starts from (`follow` and `structure` take `keep` too);
 - **Filtr znajomości** (`filter.when`): a condition of the one logic (`logic.ts`) — also on knowness, relative to the card (below). In a revision it is checked DURING the run, card by card, with the knowness of now; a card already in the stack stays (A.2);
-- one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness — plus the **order** (`general` first — the levels of the learning order —, `text` order in the source, `date`, `random`, `given`, `due`) and the **pick** from the stack (`next` strictly, or `weighted`: random, weaker and longer-waiting cards more often). Each card carries its reason (`Why`) and the run shows it („Nowa karta — najpierw ogólne (poziom 2)”, „Wraca, bo się zaciera: znajomość 40 %; pora minęła 2 dni temu”); the end of a run says what waits and for what.
+- one strategy node from a fixed list, with its parameters [E6]: random fixed number, whole stack once, levels, time-knowness — plus the **order** (`general` first — the levels of the learning order —, `text` order in the source, `date`, `random`, `given`, `due`) and the **pick** from the stack (`next` strictly, or `weighted`: random, weaker and longer-waiting cards more often). Since 2026-11-01 the pick does not take a card of the same entry as the one just asked (the pairs of one list, the template questions about one entry) while another card waits — except in a deliberate sequence (`next` with `given`, `text` or `date`). Each card carries its reason (`Why`) and the run shows it („Nowa karta — najpierw ogólne (poziom 2)”, „Do powtórki: znajomość 40 %; pora powtórki minęła 2 dni temu”); the end of a run says what waits and for what.
 
 **A revision is the simplest storyboard** (2026-10-30): information (structured by the schema) plus a view that decides
 what the learner sees next, with access to how well each item is known. Everything about *how* knowness is used belongs
@@ -425,7 +430,7 @@ to the view and the schema; the computation of knowness is fixed in code and the
   and how strongly (`tests`: `this` or a reference field, with a weight; a precise question counts more, one card may
   feed several items); without it, its entry (and a question's „O czym”) with 1. The item's own knowness is the
   weighted mean of its ANSWERED cards (a card never asked is no evidence); inferred knowness along prerequisite edges
-  stays (A.3: parent += child × impact). Both the item's and each card's knowness are visible (Postępy → „Moje wpisy”,
+  stays (A.3; since 2026-11-01 bounded: the best of itself and child × impact, never a sum). Both the item's and each card's knowness are visible (Postępy → „Moje wpisy”,
   „Moje pytania”).
 - **Views see it** (`selection.ts` `filter.when`, `views.ts`): conditions of the one logic gain relative subjects —
   `rel`: `self`, `cards` (its cards; in a revision the card), `before`, `up` (structure parents), or a reference field
@@ -438,6 +443,36 @@ to the view and the schema; the computation of knowness is fixed in code and the
   known — is built from it with a JSON import alone and checked on a small fixture in `app-cogita-check`.
 - **Flows**: the former step „Najpierw podstawy” (`prerequisite`) is read as the „Warunek” it was (knowness ≥ threshold;
   exits `known`/`explain` → `yes`/`no`); dependency proposals [E5] come from such conditions.
+
+**Three bands, the stack, cards that work together** (2026-11-01, owner's algorithm; IMPLEMENTATION-LOG C10). What is
+fixed in the app and what a scheme declares — and how to build schemes for it — is in
+[templates/cogita/schematy-AI.md](../templates/cogita/schematy-AI.md).
+- **The due time is not „unknown”.** A card is in one of three bands (`knowness.ts`, fixed for every kind of knowledge):
+  *znane* from 1 (100 %) — not its time yet; *do powtórki* from 0.1 to 1 — known, to repeat now (the interval is the
+  moment knowness falls to 1); *nieznane* below 0.1 (`FORGOTTEN`) — never asked, wrong last time, or forgotten (three
+  intervals late). The level names stay (`unseen` / `learning` / `known`, stored in filters „Tylko stany”); their
+  meaning are the bands.
+- **The stack** (`revision.ts`, mode `temporal`): a card leaves only after a fully right answer (`minCorrectness`, 1);
+  a free place takes *do powtórki* first (the weakest first), then *nieznane* (new, wrong last time, forgotten — in the
+  revision's order), and only when both are used up *znane*, the weakest first („na zapas”, `plan.ahead`) — the run then
+  does not end by itself; „Zakończ” shows its end (summary, statistics). „Kończ, gdy nic nie czeka” (`endWhenDone`)
+  ends instead; the preset „Tylko zaległe” does. Known cards in the stack are asked only when nothing else is there.
+  Each card says its band: „Pora powtórki (znajomość 90 %)”, „Zapomniana …”, „Ostatnio była źle …”, „Nowa karta”,
+  „Na zapas — umiesz (…), tę najsłabiej”.
+- **Conditions name bands** (`logic.ts` `band`: `learned` — poznane: do powtórki or znane; `known`; `due`; `unknown`).
+  The presets gate on „poznane”: what comes before (above) must have been learned — its due time no longer hides what
+  builds on it. The old preset shape `rel: before|up, ≥ 1` reads as `learned`; „znane” is there for 100 %.
+- **Bounded inference** (`propagate`): an entry stands at least at what builds on it × the weight — the best of them,
+  never their sum (four half-known details no longer make an unasked basis „known”; two paths count once).
+- **Cards work together through facts** (`Card.facts`, `answerEvidence`): what an answer says about a fact counts for
+  every card that asks it, in a revision run (flows and live sessions do not share yet). The pairs of a „Połącz w pary”
+  question are facts by themselves: each pair shown counts for the card of its pair; a template names its fact with
+  `asks` ([{"of": "this" | field, "facet"}], editor „O jaki fakt pyta”) — two templates (two directions, a question and
+  its reverse) with the same fact share
+  every answer. A card asking several facts takes an answer when all of them were answered (their mean). The answer of
+  the asked card is the one about its own fact. Items and cards: cards feed items (`tests`), items gate cards
+  (conditions with bands).
+- **Statistics** follow the bands: zapomniane (< 0.1), do powtórki (0.1–1), umiem, pewnie (`knowStats.ts`).
 
 ## 7. Answers and progress
 

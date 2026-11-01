@@ -23,6 +23,8 @@
  * entscheidet, was JETZT zu sehen ist, und wartet auf nichts.
  */
 
+import { levelOfKnowness } from './knowness';
+
 /* -- Werte, Vergleich, Tore — für alle ------------------------------------------- */
 
 export type Value = string | boolean;
@@ -154,6 +156,32 @@ export function relationText(rel: string, each: 'all' | 'any' | undefined, field
   }
 }
 
+/**
+ * 2026-11-01 — DIE BÄNDER DER KENNTNIS in einer Bedingung, statt einer Zahl (`knowness.ts` legt sie fest): `learned`
+ * „poznane" — gewusst, ob gerade zu wiederholen oder nicht (der Termin einer Wiederholung heisst NICHT „unbekannt");
+ * `known` „znane" — ab 1; `due` „do powtórki"; `unknown` „nieznane" — nie gefragt, zuletzt falsch, vergessen.
+ */
+export const KNOWNESS_BANDS = ['learned', 'known', 'due', 'unknown'] as const;
+export type KnownessBand = (typeof KNOWNESS_BANDS)[number];
+
+export const KNOWNESS_BAND_LABEL: Record<KnownessBand, string> = {
+  learned: 'poznane (do powtórki albo znane)',
+  known: 'znane',
+  due: 'do powtórki',
+  unknown: 'nieznane'
+};
+
+/** Liegt eine Kenntnis in dem Band? */
+export function inBand(knowness: number, band: KnownessBand): boolean {
+  const level = levelOfKnowness(knowness);
+  switch (band) {
+    case 'learned': return level !== 'unseen';
+    case 'known': return level === 'known';
+    case 'due': return level === 'learning';
+    default: return level === 'unseen';
+  }
+}
+
 export const NO_FACTS: Facts = {
   values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0)
 };
@@ -175,6 +203,7 @@ export const CONDITION_LABEL: Record<ConditionType, string> = {
  *   { "type": "knowness", "of": "<id>", "op": "ge", "than": 1 }
  *   { "type": "knowness", "rel": "before", "op": "ge", "than": 1 }      (2026-10-30) relativ: self · cards · before · up · <pole>
  *   { "type": "knowness", "rel": "okres", "each": "any", "than": 1 }    — mehrere: alle (Vorgabe) oder einer genügt
+ *   { "type": "knowness", "rel": "before", "band": "learned" }          (2026-11-01) ein Band statt einer Zahl
  *   { "type": "answered", "of": "<pytanie>", "correct": true }
  *   { "type": "visited", "of": "<krok>" }
  *   { "type": "time", "after": "2026-12-24", "before": "2026-12-27", "from": "18:00", "to": "23:00" }
@@ -202,6 +231,8 @@ export interface Condition {
   readonly rel?: string;
   /** Bei mehreren: alle müssen (Vorgabe) — oder einer genügt; über einer leeren Menge gilt „alle", „einer" nicht. */
   readonly each?: 'all' | 'any';
+  /** 2026-11-01 — „Znajomość" als Band (`KNOWNESS_BANDS`) statt `op`/`than`. */
+  readonly band?: KnownessBand;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -218,6 +249,14 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     return { type, items: type === 'not' ? items.slice(0, 1) : items };
   }
   const op = (COMPARE_OPS as readonly string[]).includes(String(raw.op)) ? (raw.op as CompareOp) : undefined;
+  /*
+   * 2026-11-01 — „TO, CO WCZEŚNIEJ / TO, POD CZYM LEŻY ≥ 1" (so legten es die Vorlagen der Powtórki und Widoki an) heisst
+   * jetzt „poznane": was vorher kommt, muss gewusst sein — nicht gerade nicht fällig. Sonst verschwand alles Spätere,
+   * sobald das Frühere an der Reihe war, wiederholt zu werden. Wer wirklich „ab 1" will, wählt das Band „znane".
+   */
+  if (type === 'knowness' && (raw.rel === 'before' || raw.rel === 'up') && raw.band === undefined && (op === undefined || op === 'ge') && num(raw.than) === 1) {
+    return { type, rel: raw.rel, band: 'learned', ...(raw.each === 'any' ? { each: 'any' as const } : {}) };
+  }
   return {
     type,
     ...(str(raw.value) === undefined ? {} : { value: str(raw.value) }),
@@ -233,7 +272,8 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
     ...(num(raw.lon) === undefined ? {} : { lon: num(raw.lon) }),
     ...(num(raw.radius) === undefined ? {} : { radius: num(raw.radius) }),
     ...(type === 'knowness' && str(raw.rel) !== undefined ? { rel: str(raw.rel)!.slice(0, 80) } : {}),
-    ...(type === 'knowness' && (raw.each === 'any' || raw.each === 'all') ? { each: raw.each } : {})
+    ...(type === 'knowness' && (raw.each === 'any' || raw.each === 'all') ? { each: raw.each } : {}),
+    ...(type === 'knowness' && (KNOWNESS_BANDS as readonly string[]).includes(String(raw.band)) ? { band: raw.band as KnownessBand } : {})
   };
 }
 
@@ -257,9 +297,10 @@ export function conditionText(c: Condition, name: (id: string) => string = (id) 
   const op = c.op === undefined ? '≥' : COMPARE_LABEL[c.op];
   switch (c.type) {
     case 'value': return `wartość „${c.value ?? '?'}" ${op} ${c.than ?? 0}`;
-    case 'knowness': return c.rel !== undefined
-      ? `znajomość ${relationText(c.rel, c.each, field)} ${op} ${c.than ?? 1}`
-      : `znajomość „${name(c.of ?? '')}" ${op} ${c.than ?? 1}`;
+    case 'knowness': {
+      const who = c.rel !== undefined ? relationText(c.rel, c.each, field) : `„${name(c.of ?? '')}"`;
+      return c.band !== undefined ? `znajomość ${who}: ${KNOWNESS_BAND_LABEL[c.band]}` : `znajomość ${who} ${op} ${c.than ?? 1}`;
+    }
     case 'answered': return c.correct === true ? `dobrze odpowiedziano na „${name(c.of ?? '')}"` : c.correct === false ? `źle odpowiedziano na „${name(c.of ?? '')}"` : `odpowiedziano na „${name(c.of ?? '')}"`;
     case 'visited': return `widziano krok „${name(c.of ?? '')}"`;
     case 'time': return ['czas', c.after === undefined ? '' : `od ${c.after}`, c.before === undefined ? '' : `do ${c.before}`, c.from === undefined ? '' : `godz. ${c.from}–${c.to ?? '24:00'}`].filter(Boolean).join(' ');
@@ -278,10 +319,12 @@ export function holds(c: Condition | null | undefined, facts: Facts): boolean {
     case 'value': return compare(op, String(facts.values[c.value ?? ''] ?? 0), String(c.than ?? 0));
     case 'knowness': {
       const than = String(c.than ?? 1);
-      if (c.rel === undefined) return compare(op, String(facts.knowness(c.of ?? '')), than);
+      /* 2026-11-01 — ein Band (poznane, znane, do powtórki, nieznane) oder ein Vergleich mit einer Zahl. */
+      const band = c.band;
+      const test = (id: string) => (band !== undefined ? inBand(facts.knowness(id), band) : compare(op, String(facts.knowness(id)), than));
+      if (c.rel === undefined) return test(c.of ?? '');
       /* 2026-10-30 — relativ: über alle (Vorgabe) oder einen von dem, worauf die Beziehung führt. */
       const ids = facts.related?.(c.rel) ?? [];
-      const test = (id: string) => compare(op, String(facts.knowness(id)), than);
       return c.each === 'any' ? ids.some(test) : ids.every(test);
     }
     case 'answered': {

@@ -473,7 +473,7 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       return (
         <div className="wk-field">{label}
           <ConditionEditor value={readCondition(value)} onChange={(c) => onSet(c ?? undefined)} name={(id) => entityName(lib, id)}
-            relations={fieldKeys} fresh={{ type: 'knowness', rel: 'before', op: 'ge', than: 1 }} />
+            relations={fieldKeys} fresh={{ type: 'knowness', rel: 'before', band: 'learned' }} />
         </div>
       );
     case 'view':

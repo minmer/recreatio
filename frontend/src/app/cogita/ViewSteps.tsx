@@ -170,7 +170,7 @@ const STEP_START: Partial<Record<StepType, Readonly<Record<string, unknown>>>> =
   'filter.rule': { rule: { op: 'and', items: [] } },
   structure: { dir: 'down' },
   learning: { dir: 'before' },
-  'filter.when': { when: { type: 'knowness', rel: 'before', op: 'ge', than: 1 } }
+  'filter.when': { when: { type: 'knowness', rel: 'before', band: 'learned' } }
 };
 
 export function ViewSteps({ view, onChange }: { view: ViewDoc; onChange: (next: ViewDoc) => void }) {

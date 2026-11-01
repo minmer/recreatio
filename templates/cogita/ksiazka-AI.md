@@ -12,7 +12,7 @@ Ten przewodnik dostaje Twoja KI (Claude, ChatGPT…) razem z dziełem: książk�
 | pojęcia i to, czego każde wymaga | `podstawy.json` | podręczniku, dokumencie, wykładzie |
 | pytania każdego rodzaju | `pytania.json` | zawsze |
 
-Dzieło zwykle łączy kilka warstw: powieść o prawdziwej osobie — przebieg, elementy i fakty; podręcznik historii — fakty, okresy i pojęcia; mszał albo śpiewnik — zbiór i pojęcia; kodeks — zbiór pozycji (artykuły) i pojęcia. Wszystko, czego tu nie ma, jest w dodatkach — wygenerowanych z aplikacji, więc zawsze zgodnych z tym, co aplikacja przyjmuje.
+Dzieło zwykle łączy kilka warstw: powieść o prawdziwej osobie — przebieg, elementy i fakty; podręcznik historii — fakty, okresy i pojęcia; mszał albo śpiewnik — zbiór i pojęcia; kodeks — zbiór pozycji (artykuły) i pojęcia. Wszystko, czego tu nie ma, jest w dodatkach — wygenerowanych z aplikacji, więc zawsze zgodnych z tym, co aplikacja przyjmuje. Gdy żaden schemat nie pasuje do rodzaju wiedzy, nowy buduje się według `schematy-AI.md` (co aplikacja liczy sama, a co opisuje schemat).
 
 ## 0. Zasady dla KI
 
@@ -996,18 +996,22 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
 
-"templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}, "tests"}
+"templates" — szablony kart: {"name", "kinds": ["@rodzaj"], "direction": "a→b", "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in"}]}, "tests", "asks"}
   szablon może dotyczyć rodzaju z biblioteki ("quote", "work", "person") albo ze skryptorium ("text", "delivery", "project"), z których korzysta ta baza: wtedy karty powstają z ich wpisów, np. {"name": "Miejsce cytatu", "kinds": ["quote"], "direction": "locator", "graph": …}
   "tests" — co sprawdzają karty szablonu i jak mocno: [{"of": "this" (ten wpis) | "klucz pola-odwołania" (wpisy, na które wskazuje), "weight": 0–10}]; bez "tests": ten wpis z wagą 1.
     Znajomość należy do wpisu, a karta jest jego dowodem: dokładne pytanie waży więcej niż ogólne, jedna karta może liczyć się dla kilku wpisów;
     np. karta „Co się wtedy stało?” faktu: "tests": [{"of": "this", "weight": 1}, {"of": "okres", "weight": 0.3}, {"of": "gdzie", "weight": 0.3}]
+  "asks" — o jaki FAKT pytają karty szablonu: [{"of": "this" | "klucz pola-odwołania", "facet": "nazwa faktu"}] albo krótko ["data"]; karty, które pytają o ten sam fakt tego samego wpisu, dzielą każdą odpowiedź
+    — np. „Kiedy było X?” i „Co było w listopadzie 1829?” z "asks": ["data"]: dobra odpowiedź na jedną liczy się dla obu; w pętli „Dla każdej wartości” fakt jest osobny dla każdej wartości; bez "asks": karta liczy się tylko dla siebie;
+    pary pytania „Połącz w pary” są faktami same z siebie: każda pokazana para liczy się dla karty swojej pary
 
 Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w JSON):
   każda odpowiedź zostaje zapisana; karta pamięta tylko kilka wartości: kiedy ostatnio odpowiedziano, ile czasu naprawdę minęło przed tą odpowiedzią, odstęp do następnego razu i najlepszy odstęp przed ostatnim błędem;
   dobrze (od 90%): odstęp = czas, który naprawdę minął × 3 (odpowiedź przed terminem go nie skraca); częściowo: jedna trzecia tego czasu, co najmniej dzień, jeśli minęły dni; źle (poniżej 25%): 5 minut; dobrze zaraz po błędzie: 0,4 × najlepszy odstęp sprzed błędu
     — np. źle po 5 dniach: wraca po 5 minutach; dobrze zaraz potem: za 2 dni; znów dobrze po 2 dniach: za 6 dni;
-  znajomość karty: poprawność ostatniej odpowiedzi × 10^(0,5·(1 − czas od odpowiedzi ÷ odstęp)) — zaraz po dobrej 3,16, w dniu powtórki 1 („umiem” od 1), potem spada; po złej 0;
-  znajomość wpisu: średnia znajomości jego kart Z ODPOWIEDZIĄ, ważona "weight" z "tests" (karta jeszcze nie pytana nie jest dowodem), plus to, co na nim buduje (pola z "prerequisite" — połowa znajomości tego, co od wpisu zależy — i zależności z Ustawień, z ich wagą)
+  znajomość karty: poprawność ostatniej odpowiedzi × 10^(0,5·(1 − czas od odpowiedzi ÷ odstęp)) — zaraz po dobrej 3,16, w dniu powtórki 1, potem spada; po złej 0;
+  trzy pasma (stałe): „znane” od 1 (100 %) — jeszcze nie pora; „do powtórki” od 0,1 do 1 — umiesz, a teraz (albo zaraz) trzeba powtórzyć: termin powtórki NIE znaczy „nie umiem”; „nieznane” poniżej 0,1 — nigdy nie pytane, ostatnio źle albo zapomniane (trzy odstępy po terminie);
+  znajomość wpisu: średnia znajomości jego kart Z ODPOWIEDZIĄ, ważona "weight" z "tests" (karta jeszcze nie pytana nie jest dowodem); to, co na nim buduje (pola z "prerequisite" — połowa — i zależności z Ustawień, z ich wagą), podnosi ją co najmniej do tej części najlepszego z nich — nigdy do ich sumy
 
 "revisions" — powtórki: {"name", "graph"} (źródła → kroki → … → jeden „Sposób pytania")
   także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę; {"type": "structure", "config": {"dir": "down|up", "one": true}} — karty wpisów, które leżą w strukturze pod tymi wpisami (albo nad nimi); "follow" i "structure" z "keep": true zostawiają też karty, od których wyszły
@@ -1015,14 +1019,16 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   źródło „widok”: {"type": "source.view", "config": {"view": "@widok"}} — karty wpisów, które pokazuje zapisany widok: widok decyduje, co wchodzi w grę, powtórka z tego wybiera; zmiana widoku zmienia powtórkę, a jego „Filtry znajomości” na końcu działają w trakcie powtórki
     np. {"name": "Od ogólnego do szczegółu", "graph": {"nodes": [{"id": "w", "type": "source.view", "config": {"view": "@fakty/w-ogolne"}}, {"id": "p", "type": "strategy", "config": {"mode": "temporal", "order": "general"}}], "edges": [{"id": "e1", "from": "w", "out": "cards", "to": "p", "in": "cards"}]}}
   „Filtr znajomości”: {"type": "filter.when", "config": {"when": warunek}} — zostają karty, dla których warunek jest spełniony, sprawdzany W TRAKCIE powtórki przy każdej karcie: co czekało, wchodzi, gdy warunek zacznie obowiązywać; karta już w stosie zostaje
-    warunek to ta sama logika co w przebiegach: {"type": "knowness", "rel": "before", "op": "ge", "than": 1} — znajomość tego, co trzeba znać wcześniej, co najmniej 1;
+    warunek to ta sama logika co w przebiegach: {"type": "knowness", "rel": "before", "band": "learned"} — to, co trzeba znać wcześniej, jest poznane;
+    "band" — pasmo zamiast liczby: "learned" (poznane: do powtórki albo znane — termin powtórki nie zamyka tego, co dalej) | "known" (znane, od 100 %) | "due" (do powtórki) | "unknown" (nieznane); albo liczba: "op": "ge", "than": 0.5 (dawne "rel": "before" / "up" z "than": 1 czyta się jako "learned");
     "rel": "self" (ten wpis) | "cards" (jego karty; w powtórce: ta karta) | "before" (to, co trzeba znać wcześniej — najbliższe wpisy z kartami w kolejności nauki) | "up" (to, pod czym leży w strukturze) | klucz pola-odwołania (to, na co wskazuje, np. "okres");
     "each": "all" (domyślnie — każdy) | "any" (choć jeden); gdy nic takiego nie ma, "all" jest spełnione; "of": "@wpis" zamiast "rel" — znajomość jednego wpisu; warunki łączą "and" / "or" / "not": {"type": "and", "items": [ … ]}
   „Idź po kolejności nauki”: {"type": "learning", "config": {"dir": "before" | "after", "one": true, "keep": true}} — karty tego, co trzeba znać wcześniej (albo, "after", co na tym buduje), aż do podstaw albo ("one") o krok; "keep": true dokłada je do kart wyjściowych
-  „Sposób pytania” ("strategy"): {"mode": "temporal" (według tego, co umiem) | "levels" | "once" | "random", "order", "pick", "stackSize", "count", "levels", "minCorrectness", "rule"}
+  „Sposób pytania” ("strategy"): {"mode": "temporal" (według tego, co umiem) | "levels" | "once" | "random", "order", "pick", "stackSize", "count", "levels", "minCorrectness", "endWhenDone", "rule"}
+    "temporal": stos "stackSize" kart; karta wychodzi ze stosu dopiero po całkiem dobrej odpowiedzi ("minCorrectness", domyślnie 1); wolne miejsce bierze najpierw to, co do powtórki (najsłabsze najpierw), potem nieznane (nowe, ostatnio złe, zapomniane — w "order"), a gdy obu nie ma — znane, które zna się najsłabiej („na zapas”: powtórka sama się nie kończy); "endWhenDone": true — koniec, gdy nic nie czeka i nie ma nic nowego
     "order" — kolejność: "general" (najpierw ogólne — według poziomów kolejności nauki) | "text" (jak w tekście źródła — miejsce w dziele) | "date" (według najwcześniejszej daty wpisu) | "random" | "given" (jak przychodzą) | "due" (najpierw zaległe); bez "order": w stosie "general", w stałej kolejce "random"
     "pick" — wybór ze stosu: "next" (ściśle następna według kolejności) | "weighted" (losowo, częściej to, co słabiej znane i dłużej czeka; domyślnie); przy każdej karcie uczący się widzi, dlaczego przyszła
-  „Najpierw podstawy” to zwykłe kroki: {"type": "learning", "config": {"dir": "before", "keep": true}} → {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "op": "ge", "than": 1}}} → „Sposób pytania” z "order": "general"; dawny krok "gate" import i eksport zamieniają na nie
+  „Najpierw podstawy” to zwykłe kroki: {"type": "learning", "config": {"dir": "before", "keep": true}} → {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "band": "learned"}}} → „Sposób pytania” z "order": "general"; dawny krok "gate" import i eksport zamieniają na nie
 "flows" — przebiegi: {"name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "slots", "goals", "lines", "narrators"}
   "narrators" — kto opowiada, według wartości: [{"character": "@piotr", "condition": {"type": "value", "value": "przewodnik", "op": "eq", "than": 1}}, {"character": "@maria"}] — opowiada pierwszy, którego warunek jest spełniony (bez warunku: zawsze); jego portret i imię stoją nad krokiem i zapowiadają jego tytuł
   krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …

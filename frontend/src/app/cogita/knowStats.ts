@@ -4,7 +4,8 @@
  * nichts davon. Die Kenntnis ist die der Karte (`knowness.ts`): gleich nach einer richtigen Antwort √10, am fälligen
  * Termin 1, danach weniger.
  * <code>
- *   bands      wo jede Karte steht: jeszcze nie · słabo (< 0,5) · zanika (0,5–1: fällig) · umiem (1–2) · pewnie (≥ 2)
+ *   bands      wo jede Karte steht, nach den drei Bändern (`knowness.ts`, 2026-11-01): nieznane = jeszcze nie · zapomniane
+ *              (< 0,1: zuletzt falsch oder vergessen); do powtórki (0,1–1); znane = umiem (1–2) · pewnie (≥ 2)
  *   days       je Tag des Zeitraums: Antworten, davon richtig, und wie viele Karten am Ende des Tages saßen
  *   forecast   je Tag ab heute: wie viele Karten fällig werden (Überfälliges zählt für heute)
  *   topics     je Thema („O czym", sonst der Eintrag der Karte): Karten, beantwortet, sitzen, mittlere Kenntnis
@@ -15,16 +16,16 @@
  */
 
 import type { Card } from './cardBasics';
-import { gradeOf, knownessAt, KNOWN, shareOf, step, type CardState } from './knowness';
+import { FORGOTTEN, gradeOf, knownessAt, KNOWN, shareOf, step, type CardState } from './knowness';
 import type { AnswerRecord } from './learn';
 
 export type Band = 'unseen' | 'weak' | 'fading' | 'known' | 'solid';
 export const BANDS: readonly Band[] = ['unseen', 'weak', 'fading', 'known', 'solid'];
-export const BAND_LABEL: Readonly<Record<Band, string>> = { unseen: 'jeszcze nie', weak: 'słabo', fading: 'zanika', known: 'umiem', solid: 'pewnie' };
+export const BAND_LABEL: Readonly<Record<Band, string>> = { unseen: 'jeszcze nie', weak: 'zapomniane', fading: 'do powtórki', known: 'umiem', solid: 'pewnie' };
 export const BAND_SAYS: Readonly<Record<Band, string>> = {
   unseen: 'nigdy nie pytana',
-  weak: 'ostatnio źle albo dawno zapomniana',
-  fading: 'już do powtórki — znajomość spada',
+  weak: 'nieznana: ostatnio źle albo zapomniana (trzy terminy powtórki minęły)',
+  fading: 'umiesz, a teraz trzeba powtórzyć — termin powtórki nie znaczy „nie umiem”',
   known: 'umiem, przed terminem powtórki',
   solid: 'świeżo utrwalona'
 };
@@ -33,7 +34,7 @@ export const BAND_SAYS: Readonly<Record<Band, string>> = {
 export function bandAt(state: CardState | null, now: number): Band {
   if (state === null) return 'unseen';
   const k = knownessAt(state, now);
-  return k < 0.5 ? 'weak' : k < KNOWN ? 'fading' : k < 2 ? 'known' : 'solid';
+  return k < FORGOTTEN ? 'weak' : k < KNOWN ? 'fading' : k < 2 ? 'known' : 'solid';
 }
 
 export interface DayStat {

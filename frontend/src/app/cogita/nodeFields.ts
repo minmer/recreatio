@@ -148,6 +148,8 @@ const REVISION_FIELDS: Record<string, readonly ConfigField[]> = {
     f('pick', 'Wybór ze stosu', 'select', { options: PICKS.map((p) => ({ value: p, label: PICK_LABEL[p] })), hint: 'puste: losowo, częściej słabsze' }),
     f('count', 'Ile kart (losowo)', 'number'), f('stackSize', 'Ile kart naraz w stosie', 'number'), f('levels', 'Ile poziomów', 'number'),
     f('minCorrectness', 'Od jakiej poprawności dobrze (0–1)', 'number'),
+    /* 2026-11-01 — nach den Bändern: ohne Häkchen lernt der Stapel „na zapas" weiter, wenn nichts mehr fällig und nichts neu ist. */
+    f('endWhenDone', 'Kończ, gdy nic nie czeka na powtórkę i nie ma nic nowego', 'bool', { hint: 'bez zaznaczenia (według tego, co umiem): potem uczy na zapas — to, co znasz najsłabiej' }),
     f('rule', 'Jak ściśle sprawdzać tekst', 'rule')
   ]
 };

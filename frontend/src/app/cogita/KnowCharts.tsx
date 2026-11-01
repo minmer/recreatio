@@ -350,7 +350,7 @@ export function KnowledgeStats({ lib, cards, answers }: {
     <section className="cg-stats" data-know-stats={s.cards}>
       <div className="cg-stats-filters">
         <Range days={days} onDays={setDays} />
-        <span className="cg-muted">Znajomość karty: świeżo po dobrej odpowiedzi „pewnie”, do terminu powtórki „umiem”, potem „zanika”.</span>
+        <span className="cg-muted">Znajomość karty: świeżo po dobrej odpowiedzi „pewnie”, do terminu powtórki „umiem”, potem „do powtórki”, a gdy długo nie powtarzasz — „zapomniane”.</span>
       </div>
       <OwnTiles s={s} />
       <Figure id="bands" title="Gdzie są moje karty" says={`${s.cards} kart`}

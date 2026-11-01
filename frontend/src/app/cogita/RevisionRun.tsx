@@ -11,7 +11,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { answerText, CardFace, givenText } from './CardFace';
 import type { Card } from './cardBasics';
-import { pairEvidence } from './cards';
+import { answerEvidence } from './cards';
 import type { Outcome } from './check';
 import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
@@ -79,6 +79,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   /* Die nächste Stelle des Laufs — erst nach „Dalej", damit das Urteil stehen bleibt. */
   const [pending, setPending] = useState<Session | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  /* 2026-11-01 — „Zakończ”: das Ende des Laufs (Zusammenfassung, Statystyki), auch mitten im Stapel. */
+  const [stopped, setStopped] = useState(false);
   /* 2026-10-31 — die Antwort auf die Karte, die gerade dasteht (für „Zgłoś problem”), und das offene Zgłoszenie. */
   const [last, setLast] = useState<{ readonly outcome: Outcome; readonly given: unknown } | null>(null);
   const [flag, setFlag] = useState<string | null>(null);
@@ -181,6 +183,7 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
     setFailed(null);
     setStats({ answered: 0, correct: 0 });
     setDue(null);
+    setStopped(false);
     void (async () => {
       try {
         let plan = source.plan ?? null;
@@ -210,7 +213,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `arrived`: einmal, wenn der Lernende da ist (oben)
   }, [lib?.libraryId, source.revisionId, source.plan, round, arrived]);
 
-  const finished = state !== null && state.session.current === null;
+  /* 2026-11-01 — ein Lauf nach den Bändern endet oft nicht von selbst („na zapas”): „Zakończ” zeigt dasselbe Ende. */
+  const finished = state !== null && (state.session.current === null || stopped);
   useEffect(() => {
     if (!finished || learner === null || state === null) return;
     void (async () => {
@@ -241,7 +245,7 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   const card = session.current === null ? undefined : state.all.find((c) => c.key === session.current) ?? session.plan.cards.find((c) => c.key === session.current);
   const p = progress(session);
 
-  if (session.current === null || card === undefined) {
+  if (session.current === null || card === undefined || stopped) {
     const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now());
     /* 2026-10-30 — was noch wartet, weil seine Bedingung (noch) nicht gilt: was zuerst sitzen muss, und andere Bedingungen. */
     const held = waiting(session, Date.now());
@@ -314,7 +318,7 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         <span className="cg-row">
           {share !== null && <Bar value={share} label="Postęp powtórki" />}
           <span className="cg-muted">{p.total === null ? `${p.answered} odpowiedzi` : `${p.answered} z ${p.total}`}</span>
-          {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={() => { void learner?.flush(); onClose(); }}>Zakończ</button>}
+          <button type="button" className="wk-link-btn" data-run-stop="" onClick={() => { void learner?.flush(); setStopped(true); }}>Zakończ</button>
         </span>
       </div>
       <CardFace
@@ -334,14 +338,13 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           answeredHere.current += 1;
           setLast({ outcome, given });
           /*
-           * 2026-11-01 — EINE KARTE AUS EINER LANGEN LISTE VON PAAREN: jedes gezeigte Paar zählt für seine eigene Karte
-           * (`pairEvidence`) — die Karte selbst mit ihrem Paar, die anderen mit ihrem. Sonst kamen die eben richtig
-           * verbundenen Paare gleich wieder, auf der nächsten Karte derselben Liste.
+           * 2026-11-01 — KARTEN ARBEITEN ZUSAMMEN (`answerEvidence`): was die Antwort über einen Fakt sagt, zählt für jede
+           * Karte, die ihn fragt — jedes gezeigte Paar einer langen Liste für seine Karte, zwei Vorlagen mit demselben
+           * `asks` füreinander. Die gefragte Karte zählt mit dem, was über IHREN Fakt gesagt wurde.
            */
-          const pairs = pairEvidence(card, given, state.all);
-          const own = pairs.find((p) => p.card.key === card.key);
-          const others = pairs.filter((p) => p.card.key !== card.key);
-          const q = own?.correctness ?? outcome.correctness;
+          const evidence = answerEvidence(card, given, outcome, state.all);
+          const others = evidence.slice(1);
+          const q = evidence[0].correctness;
           const from = via ?? source.revisionId;
           learner?.record(card, q, { given: typeof given === 'string' ? given : JSON.stringify(given), ms, via: from });
           for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from });

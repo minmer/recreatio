@@ -159,7 +159,7 @@ function TemplateForm({ template }: { template: Template }) {
   const save = () => run(async () => {
     /* Was der Editor nicht zeigt (ein bleibender Name aus einem Import), bleibt. */
     const had = lib.docs('template').find((e) => e.id === draft.id)?.data ?? {};
-    await lib.saveDoc('template', { ...had, name: draft.name, kinds: draft.kinds, direction: draft.direction, graph: graphJson(draft.graph), tests: draft.tests.length === 0 ? undefined : draft.tests }, draft.id);
+    await lib.saveDoc('template', { ...had, name: draft.name, kinds: draft.kinds, direction: draft.direction, graph: graphJson(draft.graph), tests: draft.tests.length === 0 ? undefined : draft.tests, asks: draft.asks.length === 0 ? undefined : draft.asks }, draft.id);
     setDirty(false);
   });
   const problems = templateProblems(draft);
@@ -203,6 +203,25 @@ function TemplateForm({ template }: { template: Template }) {
           </div>
         ))}
         {writes && <button type="button" className="wk-link-btn" onClick={() => set({ tests: [...draft.tests, { of: draft.tests.some((t) => t.of === 'this') ? (refFields.find((f) => !draft.tests.some((t) => t.of === f.key))?.key ?? 'this') : 'this', weight: 1 }] })}>+ wpis, który sprawdza</button>}
+      </details>
+      {/* 2026-11-01 — welchen Fakt die Karten fragen: Karten mit demselben Fakt teilen jede Antwort (`answerEvidence`). */}
+      <details className="cg-card" data-template-asks={draft.asks.length}>
+        <summary>O jaki fakt pyta — wspólne odpowiedzi {draft.asks.length > 0 ? `(${draft.asks.length})` : ''}</summary>
+        <p className="cg-muted">Karty, które pytają o ten sam fakt tego samego wpisu, dzielą każdą odpowiedź: dobra odpowiedź na „Kiedy było X?” liczy się też dla „Co było w 1829?”, jeśli oba szablony nazywają fakt tak samo (np. „data”). Bez ustawienia karta liczy się tylko dla siebie.</p>
+        {draft.asks.map((a, i) => (
+          <div key={`${a.of}-${i}`} className="cg-row">
+            <select value={a.of} disabled={!writes} aria-label="Czego fakt" onChange={(e) => set({ asks: draft.asks.map((x, j) => (j === i ? { ...x, of: e.target.value } : x)) })}>
+              <option value="this">tego wpisu</option>
+              {refFields.map((f) => <option key={f.key} value={f.key}>tego, na co wskazuje „{f.label}”</option>)}
+              {a.of !== 'this' && !refFields.some((f) => f.key === a.of) && <option value={a.of}>{a.of}</option>}
+            </select>
+            <label className="wk-field"><span>Nazwa faktu</span>
+              <input value={a.facet} disabled={!writes} maxLength={80} placeholder="np. data" onChange={(e) => set({ asks: draft.asks.map((x, j) => (j === i ? { ...x, facet: e.target.value } : x)) })} />
+            </label>
+            {writes && <button type="button" className="wk-link-btn" aria-label="Usuń" onClick={() => set({ asks: draft.asks.filter((_, j) => j !== i) })}>×</button>}
+          </div>
+        ))}
+        {writes && <button type="button" className="wk-link-btn" onClick={() => set({ asks: [...draft.asks, { of: 'this', facet: '' }] })}>+ fakt</button>}
       </details>
       <div className="cg-card">
         <div className="cg-row"><strong>Podgląd na wpisie:</strong>

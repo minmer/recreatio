@@ -262,6 +262,12 @@ check('right after a wrong answer it is nothing (0), and it comes back in 5 minu
   [K.knownessOf([{ at: 0, correctness: 0 }], 0), K.dueAt([{ at: 0, correctness: 0 }])], [0, 5 * MINUTE]);
 check('never answered is nothing', K.knownessOf([], 0), 0);
 check('unseen, learning, known', [K.levelOf([], 0), K.levelOf(first, 20 * MINUTE), K.levelOf(first, MINUTE)], ['unseen', 'learning', 'known']);
+/* 2026-11-01 — DIE DREI BÄNDER: der Termin heisst „do powtórki", nicht „nieznane"; vergessen erst nach drei Abständen. */
+check('three bands: due time is „do powtórki” (just under 1), three intervals late is forgotten — „nieznane”, as is a wrong last answer',
+  [K.levelOf(first, 15 * MINUTE + 1000), K.levelOf(first, 2 * 15 * MINUTE), K.levelOf(first, 3 * 15 * MINUTE + MINUTE), K.levelOf([{ at: 0, correctness: 0 }], MINUTE), K.FORGOTTEN, K.LEVEL_LABEL],
+  ['learning', 'learning', 'unseen', 'unseen', 0.1, { unseen: 'nieznane', learning: 'do powtórki', known: 'znane' }]);
+check('… the band of a number: below 10 % nieznane, below 100 % do powtórki, from 100 % znane',
+  [0, 0.09, 0.1, 0.9, 1, 3].map((k) => K.levelOfKnowness(k)), ['unseen', 'unseen', 'learning', 'learning', 'known', 'known']);
 check('grades: from 0.9 right, below 0.25 wrong, between partly', [K.gradeOf(1), K.gradeOf(0.9), K.gradeOf(0.5), K.gradeOf(0.2)], ['correct', 'correct', 'partly', 'wrong']);
 /* Bis zu einem Abstand von 5 Tagen: richtig, und 40 Stunden später wieder richtig — 40 h × 3 = 5 Tage. */
 const five = [{ at: 0, correctness: 1 }, { at: 40 * H, correctness: 1 }];
@@ -298,7 +304,15 @@ const deps = [
 ];
 check('the edge that closes a circle is dropped', K.acyclic(deps).length, 2);
 const totals = K.propagate(new Map([['a', 0.2], ['b', 0.4], ['c', 1]]), deps);
-check('knowing what builds on it lifts the foundation, along the chain', [totals.get('c'), totals.get('b'), totals.get('a')].map((v) => Math.round(v * 1e9) / 1e9), [1, 1.4, 0.9]);
+/* 2026-11-01 — begrenzt: das Beste von sich und dem, was darauf aufbaut (× Gewicht), nie die Summe. */
+check('knowing what builds on it lifts the foundation, along the chain — the best of them, never their sum', [totals.get('c'), totals.get('b'), totals.get('a')].map((v) => Math.round(v * 1e9) / 1e9), [1, 1, 0.5]);
+{
+  const fan = ['x1', 'x2', 'x3', 'x4'].map((child) => ({ parent: 'base', child, kind: 'prerequisite', impact: 0.5 }));
+  const lifted = K.propagate(new Map([['x1', 0.5], ['x2', 0.5], ['x3', 0.5], ['x4', 0.5]]), fan);
+  const diamond = K.propagate(new Map([['d', 1]]), [{ parent: 'top', child: 'l', kind: 'prerequisite', impact: 1 }, { parent: 'top', child: 'r', kind: 'prerequisite', impact: 1 }, { parent: 'l', child: 'd', kind: 'prerequisite', impact: 1 }, { parent: 'r', child: 'd', kind: 'prerequisite', impact: 1 }]);
+  check('four half-known entries on an unasked basis do not make it known (0.25, not 1); two ways to the same entry count once',
+    [lifted.get('base'), diamond.get('top')], [0.25, 1]);
+}
 check('a snapshot carries the question and its direction', (({ question, direction, answers }) => [question, direction, answers])(K.snapshotOf('T:v1', 'pl→en', first, 0)), ['T:v1', 'pl→en', 1]);
 
 /*
@@ -319,8 +333,9 @@ check('a snapshot carries the question and its direction', (({ question, directi
   const sq = Math.sqrt(10);
   check('an item weighs its answered cards: precise right (1) and general wrong (0.25) → (1·√10 + 0.25·0) / 1.25',
     KN.ownKnowness(g, 'A'), sq / 1.25);
-  check('… one card feeds several items: the precise one counts for P too (0.5), and P gets half of what builds on it',
-    [KN.ownKnowness(g, 'P'), KN.itemKnowness(g, 'P')].map((v) => Math.round(v * 1e6) / 1e6), [sq, sq + 0.5 * (sq / 1.25)].map((v) => Math.round(v * 1e6) / 1e6));
+  /* 2026-11-01 — begrenzt: P steht mindestens auf der Hälfte dessen, was darauf aufbaut — hier weiss es selbst mehr. */
+  check('… one card feeds several items: the precise one counts for P too (0.5); P stands at least at half of what builds on it (here its own is more)',
+    [KN.ownKnowness(g, 'P'), KN.itemKnowness(g, 'P')].map((v) => Math.round(v * 1e6) / 1e6), [sq, Math.max(sq, 0.5 * (sq / 1.25))].map((v) => Math.round(v * 1e6) / 1e6));
   check('… a card never asked is no evidence: C knows nothing, B fades with its own card',
     [KN.itemKnowness(g, 'C'), KN.itemKnowness(g, 'B') < 1, KN.cardKnowness(g, 'plain') === KN.itemKnowness(g, 'B')], [0, true, true]);
   check('… and every card keeps its own knowness, visible next to the item', [KN.cardKnowness(g, 'precise'), KN.cardKnowness(g, 'general')], [sq, 0]);
@@ -828,6 +843,45 @@ check('temporal: what is not known yet keeps coming back', stubborn.asked.filter
     if (s.current === before && s.active.length > 1) repeatsWithCompany += 1;
   }
   check('temporal: the same card twice in a row only when it is alone in the stack', repeatsWithCompany, 0);
+}
+
+/* 2026-11-01 — DER STAPEL NACH DEN BÄNDERN: do powtórki (das Schwächste zuerst) → nieznane (neu, vergessen, in der Kolejność) → znane („na zapas"). */
+{
+  const T = 10 * DAY;
+  const vk = plan.cards.map((c) => c.key);
+  const right = (minutesAgo) => [{ at: T - minutesAgo * MINUTE, correctness: 1 }];
+  /* Eine erste richtige Antwort hält 15 Minuten: nach 16 Minuten 0,93 (do powtórki), nach 35 0,22, nach 60 0,03 (vergessen), nach 5 2,15 (znane). */
+  const marksOf = { [vk[0]]: right(16), [vk[1]]: right(35), [vk[2]]: right(60), [vk[3]]: right(5) };
+  const at = (p, marks = marksOf) => begin(p, 'bands', { marks: (key) => marks[key] ?? [], now: T });
+  const base = { ...plan, mode: 'temporal', order: 'given', pick: 'next', ahead: false };
+  check('the stack by bands: due first (the weakest first), then unknown — forgotten and new — in the order of the revision; the known only „na zapas”',
+    [at({ ...base, stackSize: 2 }).active, at({ ...base, stackSize: 4 }).active, at({ ...base, stackSize: 5 }).active, at({ ...base, stackSize: 5, ahead: true }).active],
+    [[vk[1], vk[0]], [vk[1], vk[0], vk[2], vk[4]], [vk[1], vk[0], vk[2], vk[4]], [vk[1], vk[0], vk[2], vk[4], vk[3]]]);
+  const reasonOf = (key, marks = marksOf) => at({ ...base, cards: plan.cards.filter((c) => c.key === key), stackSize: 1, ahead: true }, marks).why?.reason;
+  check('… every card says which band it comes from: due, forgotten, wrong last time, known (na zapas), new',
+    [reasonOf(vk[0]), reasonOf(vk[2]), reasonOf(vk[0], { [vk[0]]: [{ at: T - 60 * MINUTE, correctness: 0 }] }), reasonOf(vk[3]), reasonOf(vk[4])],
+    ['weak', 'forgotten', 'missed', 'ahead', 'fresh']);
+  const runFrom = (p, limit = 30) => {
+    let s = at(p);
+    const asked = [];
+    let t = T;
+    while (s.current !== null && asked.length < limit) { asked.push(s.current); t += MINUTE; s = R.answer(s, 1, t).session; }
+    return { asked, s };
+  };
+  const endRun = runFrom({ ...base, stackSize: 3 });
+  const aheadRun = runFrom({ ...base, stackSize: 3, ahead: true }, 12);
+  check('… „Kończ, gdy nic nie czeka”: the run ends when due and unknown are done; otherwise it goes on with the known, weakest first',
+    [endRun.asked.length, endRun.asked.includes(vk[3]), endRun.s.current, aheadRun.asked.length, aheadRun.asked.includes(vk[3]) || aheadRun.s.active.includes(vk[3]), aheadRun.s.current !== null],
+    [4, false, null, 12, true, true]);
+  check('… „na zapas” is the default of „według tego, co umiem”; „endWhenDone” ends; other ways never go on',
+    [R.readPlan([], { mode: 'temporal' }).ahead, R.readPlan([], { mode: 'temporal', endWhenDone: true }).ahead, R.readPlan([], { mode: 'levels' }).ahead, R.readPlan([], { mode: 'once' }).ahead],
+    [true, false, false, false]);
+  check('… why, in words, by band',
+    [{ reason: 'weak', knowness: 0.93 }, { reason: 'forgotten', knowness: 0.03 }, { reason: 'missed', knowness: 0 }, { reason: 'ahead', knowness: 2.15 }]
+      .map((x) => R.whyText({ order: 'given', pick: 'next', level: null, due: null, among: 1, ...x }, T)),
+    ['Pora powtórki (znajomość 93 %)', 'Zapomniana — dawno nie powtarzana (znajomość 3 %)', 'Ostatnio była źle — jeszcze raz', 'Na zapas — umiesz (znajomość 215 %), tę najsłabiej']);
+  const allKnown = { [vk[0]]: right(5), [vk[1]]: right(1), [vk[2]]: right(10), [vk[3]]: right(2), [vk[4]]: right(3) };
+  check('… „na zapas”: the weakest of the known first — not the order of the revision', at({ ...base, stackSize: 5, ahead: true }, allKnown).current, vk[2]);
 }
 
 /* 2026-10-30 — ein „Filtr znajomości" wirkt im Lauf: die Karte trägt ihre Bedingung (und was „to, co wcześniej" für sie heisst). */
@@ -2454,25 +2508,44 @@ check('goals and lines follow the one logic', [
   /* -- 2026-11-01: jedes gezeigte Paar zählt für seine eigene Karte (sonst kam dieselbe Liste gleich wieder) ------------- */
   const truthOf = (c) => c.answer.pairs.map(([l, r]) => [l, r]);
   const firstPair = per[0];
-  const allRight = Cards.pairEvidence(firstPair, truthOf(firstPair), per);
+  const ev = (card, given) => Cards.answerEvidence(card, given, { correctness: 1 }, per);
+  const allRight = ev(firstPair, truthOf(firstPair));
   check('a pairs card answered: every pair shown counts for its own card — the card itself and the 3 others',
     [allRight.length, allRight.some((e) => e.card.key === firstPair.key), allRight.every((e) => e.correctness === 1), new Set(allRight.map((e) => e.card.key)).size, allRight.every((e) => per.includes(e.card))],
     [4, true, true, 4, true]);
   const swapped = truthOf(firstPair).map(([l, r], i, all) => (i === 0 ? [l, all[1][1]] : i === 1 ? [l, all[0][1]] : [l, r]));
   check('… a pair matched wrongly counts wrong for its own card only; what the learner joined is kept in words',
-    [Cards.pairEvidence(firstPair, swapped, per).map((e) => e.correctness).sort(), Cards.pairEvidence(firstPair, swapped, per).every((e) => e.given.includes(' — '))],
+    [ev(firstPair, swapped).map((e) => e.correctness).sort(), ev(firstPair, swapped).every((e) => e.given.includes(' — '))],
     [[0, 0, 1, 1], true]);
-  check('… a whole list on one card, or any other card, gives nothing extra',
-    [Cards.pairEvidence(whole, truthOf(whole), per), Cards.pairEvidence(Cards.questionCard({ id: 'q-t', kinds: ['question'], data: { form: 'text', prompt: 'P', answers: ['x'] } }, ''), 'x', per)], [[], []]);
+  const fromWhole = ev(whole, truthOf(whole));
+  check('… the whole list on one card (a flow, a page) also counts for the cards of the pairs it showed; a card without facts only for itself',
+    [fromWhole.length, fromWhole[0].card.key, fromWhole.slice(1).every((e) => e.card.question.startsWith('q-z:p') && e.correctness === 1), ev(Cards.questionCard({ id: 'q-t', kinds: ['question'], data: { form: 'text', prompt: 'P', answers: ['x'] } }, ''), 'x').length],
+    [5, 'q-z', true, 1]);
+  check('… facts are the question and the pair, not the card: the card of a pair and the whole list name the same fact',
+    [per[0].facts.length, whole.facts.length, whole.facts.includes(per[0].facts[0]), per[0].facts[0] === Cards.pairFact('q-z', elements[0], '1')], [1, 12, true, true]);
+  {
+    /* 2026-11-01 — dasselbe für Vorlagen: `asks` sagt, welchen Fakt ihre Karten fragen. */
+    const ask = (key, facts) => ({ key, question: key, direction: '', entity: 'e1', answer: { form: 'date', values: ['1829-11'], precision: 'month', tolerance: 0 }, facts });
+    const there = ask('kiedy', ['e1#data']);
+    const back = ask('co-wtedy', ['e1#data']);
+    const other = ask('gdzie', ['e1#miejsce']);
+    const both = ask('oba', ['e1#data', 'e1#miejsce']);
+    check('two templates that ask the same fact („asks”) share every answer; a card asking more waits until all its facts were answered',
+      Cards.answerEvidence(there, '1829 11', { correctness: 0.75 }, [there, back, other, both]).map((e) => [e.card.key, e.correctness, e.given]),
+      [['kiedy', 0.75, '1829 11'], ['co-wtedy', 0.75, '1829 11']]);
+    check('… „asks” read from a template: a facet name or {of, facet}; facts per entry (in a loop: per value)',
+      [Cards.readTemplate('t', { asks: ['data', { of: 'okres', facet: 'nazwa' }, 'data', ''] }).asks, Cards.factsOf([{ of: 'this', facet: 'data' }], { id: 'e1', kinds: [], data: {} }, { kind: () => undefined, entity: () => undefined }, 'v2')],
+      [[{ of: 'this', facet: 'data' }, { of: 'okres', facet: 'nazwa' }], ['e1#data:v2']]);
+  }
   const runPairs = (withOthers) => {
-    let s = R.start({ plan: R.readPlan(per, { mode: 'temporal', stackSize: 20 }), all: per, marks: () => [], deps: [], now: 0, seed: 'pary' });
+    let s = R.start({ plan: R.readPlan(per, { mode: 'temporal', stackSize: 20, endWhenDone: true }), all: per, marks: () => [], deps: [], now: 0, seed: 'pary' });
     const asked = [];
     let t = 0;
     while (s.current !== null && asked.length < 50) {
       const c = per.find((x) => x.key === s.current);
       asked.push(c.key);
       t += 60_000;
-      const others = withOthers ? Cards.pairEvidence(c, truthOf(c), per).filter((e) => e.card.key !== c.key).map((e) => ({ key: e.card.key, correctness: e.correctness })) : [];
+      const others = withOthers ? ev(c, truthOf(c)).slice(1).map((e) => ({ key: e.card.key, correctness: e.correctness })) : [];
       s = R.answer(s, 1, t, others).session;
     }
     return { asked, s };
@@ -2485,7 +2558,7 @@ check('goals and lines follow the one logic', [
   const otherQs = ['q-o1', 'q-o2'].map((id) => Cards.questionCard({ id, kinds: ['question'], data: { form: 'truefalse', prompt: id, value: true } }, ''));
   {
     const mixed = [...per, ...otherQs];
-    let s = R.start({ plan: R.readPlan(mixed, { mode: 'temporal', stackSize: 20 }), all: mixed, marks: () => [], deps: [], now: 0, seed: 'rodzina' });
+    let s = R.start({ plan: R.readPlan(mixed, { mode: 'temporal', stackSize: 20, endWhenDone: true }), all: mixed, marks: () => [], deps: [], now: 0, seed: 'rodzina' });
     let repeats = 0;
     let previous = null;
     let t = 0;
@@ -2644,7 +2717,7 @@ check('goals and lines follow the one logic', [
   const opening = R.waiting(session, 0);
   check('the example’s revision is „Najpierw podstawy” from general steps: learning before, a knowness filter, the order „general”',
     [G.readGraph(rev.data.graph).nodes.map((x) => x.type).sort(), aplan.order, Object.keys(aplan.when ?? {}).length === aplan.cards.length], [['filter.when', 'learning', 'source.all', 'strategy'], 'general', true]);
-  check('… every card says why it comes: the first one is new, the general first, from the basics', [session.why?.reason, session.why?.order, session.why?.level, R.whyDetail(session.why, 0).startsWith('Nowa karta — najpierw ogólne')], ['fresh', 'general', 0, true]);
+  check('… every card says why it comes: the first one is new, the general first, from the basics', [session.why?.reason, session.why?.order, session.why?.level, R.whyDetail(session.why, 0).startsWith('Nowa karta (nieznana) — najpierw ogólne')], ['fresh', 'general', 0, true]);
   check('at the start only the basics are asked: the stack holds cards about the atom; the rest waits for it',
     [session.active.map((k) => levelOfCard(acards.find((c) => c.key === k))).every((l) => l === 0), session.active.length > 0, opening.cards, opening.needs.includes(idOf('atom/atom'))],
     [true, true, aplan.cards.length - session.active.length, true]);
@@ -2924,13 +2997,22 @@ check('goals and lines follow the one logic', [
   check('the one logic, relative: all of them (default) or any one; with nothing to check, „all” holds and „any” does not',
     [{ rel: 'pole' }, { rel: 'pole', each: 'any' }, { rel: 'brak' }, { rel: 'brak', each: 'any' }].map((x) => Lg.holds(Lg.readCondition({ type: 'knowness', op: 'ge', than: 1, ...x }), facts)), [false, true, true, false]);
   check('… in words, for the editor and the learner', Lg.conditionText(Lg.readCondition({ type: 'knowness', rel: 'okres', each: 'any', op: 'ge', than: 1 }), (x) => x, (k) => (k === 'okres' ? 'Okres' : k)), 'znajomość czegoś, na co wskazuje pole „Okres” ≥ 1');
+  /* 2026-11-01 — Bänder in Bedingungen: der Termin einer Wiederholung sperrt nicht, was darauf aufbaut. */
+  check('a knowness condition with a band: poznane = due or known, znane from 100 %, do powtórki between, nieznane below 10 %',
+    ['learned', 'known', 'due', 'unknown'].map((band) => [0, 0.05, 0.5, 2].map((k) => Lg.holds({ type: 'knowness', of: 'x', band }, { ...Lg.NO_FACTS, knowness: () => k }))),
+    [[false, false, true, true], [false, false, false, true], [false, false, true, false], [true, true, false, false]]);
+  check('… the presets’ old „what comes before (above) ≥ 1” reads as „poznane”; a field relation keeps its number; in words',
+    [Lg.readCondition({ type: 'knowness', rel: 'before', op: 'ge', than: 1 }), Lg.readCondition({ type: 'knowness', rel: 'up', than: 1, each: 'any' }), Lg.readCondition({ type: 'knowness', rel: 'okres', op: 'ge', than: 1 }).band,
+      Lg.conditionText(Lg.readCondition({ type: 'knowness', rel: 'before', band: 'learned' })), Lg.conditionText(Lg.readCondition({ type: 'knowness', of: 'x', band: 'known' }))],
+    [{ type: 'knowness', rel: 'before', band: 'learned' }, { type: 'knowness', rel: 'up', band: 'learned', each: 'any' }, undefined,
+      'znajomość tego, co trzeba znać wcześniej: poznane (do powtórki albo znane)', 'znajomość „x": znane']);
   check('every choice explained: a card that fades comes back with its knowness and how late it is',
     R.whyDetail({ reason: 'weak', order: 'general', pick: 'weighted', level: 1, knowness: 0.4, due: T0 - 2 * DAY, among: 5 }, T0),
-    'Wraca, bo się zaciera: znajomość 40 %; pora minęła 2 dni temu. Wybrana losowo spośród 5 w stosie — częściej to, co słabiej znasz i co dłużej czeka.');
+    'Do powtórki: znajomość 40 %; pora powtórki minęła 2 dni temu. Najpierw to, co znasz najsłabiej. Wybrana losowo spośród 5 w stosie — częściej to, co słabiej znasz i co dłużej czeka.');
   check('… under the card only a short, human line (the whole explanation as a hint beside it)',
     [{ reason: 'weak', knowness: 0.4 }, { reason: 'fresh', level: 1 }, { reason: 'fresh', level: 0 }, { reason: 'again', level: 2 }, { reason: 'queue', level: null }]
       .map((x) => R.whyText({ order: 'general', pick: 'weighted', level: null, knowness: null, due: null, among: 5, ...x }, T0)),
-    ['Wraca — zaciera się (znajomość 40 %)', 'Nowa karta · poziom 2', 'Nowa karta · poziom 1 (podstawy)', 'Wraca — przed chwilą była źle', 'Kolejna karta']);
+    ['Pora powtórki (znajomość 40 %)', 'Nowa karta · poziom 2', 'Nowa karta · poziom 1 (podstawy)', 'Jeszcze raz — przed chwilą była źle', 'Kolejna karta']);
   const g3 = gaugeAt(T0 + 3 * 60_000);
   check('… knowness belongs to the item (from its cards), every card’s own stays visible', [KN.itemKnowness(g3, id('bosko/turyn')) >= 1, KN.cardKnowness(g3, cardsOf('turyn')[0].key) >= 1, KN.itemKnowness(g3, id('bosko/chieri'))], [true, true, 0]);
   answer('turyn', T0 + 4 * 60_000, 0);
@@ -2949,7 +3031,7 @@ check('goals and lines follow the one logic', [
   const entityOf = (key) => cards.find((c) => c.key === key)?.entity;
   let run = R.start({ plan: bplan, all: cards, deps: lib.dependencies(), now: T0, seed: 'bosko', marks: () => [] });
   check('a new learner’s first stack: only the cards of the whole life', [...new Set(run.active.map(entityOf))].map(name), ['Życie Jana Bosko']);
-  check('… and the card says why it comes', [run.why?.reason, R.whyText(run.why, T0), R.whyDetail(run.why, T0)], ['fresh', 'Nowa karta · poziom 1 (podstawy)', 'Nowa karta — najpierw ogólne, potem szczegóły (poziom 1 — podstawy).']);
+  check('… and the card says why it comes', [run.why?.reason, R.whyText(run.why, T0), R.whyDetail(run.why, T0)], ['fresh', 'Nowa karta · poziom 1 (podstawy)', 'Nowa karta (nieznana) — najpierw ogólne, potem szczegóły (poziom 1 — podstawy). Nowe przychodzą, gdy nic nie czeka na powtórkę.']);
   /* Der Lernende kann das Leben und Turin; die anderen Etappen (und alles darunter) antwortet er falsch. */
   const right = new Set(['zycie', 'turyn', 'r1841', 'r1844', 'f-turyn', 'f-zyl', 'f-urodzony', 'f-swiecenia', 'f-rifugio'].map((r) => id(`bosko/${r}`)));
   const asked = new Set();
@@ -3143,7 +3225,7 @@ check('goals and lines follow the one logic', [
   const mine = { c1: [a('c1', now - MIN, 1)], c2: [a('c2', now - 8 * MIN, 1)], c3: [a('c3', now - 20 * MIN, 1)], c4: [a('c4', now - MIN, 0)], c6: [a('c6', yesterdayNoon, 1)] };
   const s = KS.knowStats(cards, (c) => mine[c.key] ?? [], now, { days: 3, ahead: 3 });
   const r3 = (x) => (x === null ? null : Math.round(x * 1000) / 1000);
-  check('where each card stands: fresh right „pewnie”, before its due „umiem”, past it „zanika”, wrong or long gone „słabo”, never asked „jeszcze nie”',
+  check('where each card stands (by the bands): fresh right „pewnie”, before its due „umiem”, past it „do powtórki”, wrong or forgotten „zapomniane”, never asked „jeszcze nie”',
     [s.bands, s.known, s.answers, s.accuracy, s.streak, s.activeDays, s.fresh],
     [{ unseen: 1, weak: 2, fading: 1, known: 1, solid: 1 }, 2, 5, 0.8, 2, 2, 1]);
   check('… day by day: answers, right ones, and how many cards sat at the end of each day; due ahead (overdue counts for today)',

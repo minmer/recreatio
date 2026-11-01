@@ -119,11 +119,48 @@ export interface Template {
    * zählt mehr als eine allgemeine. Leer: der Eintrag der Karte mit 1.
    */
   readonly tests: readonly TemplateTest[];
+  /**
+   * 2026-11-01 — WELCHEN FAKT IHRE KARTEN FRAGEN (`asks`): `of` wie bei `tests` (`this` oder ein Verweisfeld), `facet` ein
+   * Name für das, was gefragt wird („data", „tłumaczenie"). Zwei Vorlagen mit demselben Fakt über denselben Eintrag
+   * (zwei Richtungen, eine Frage und ihre Umkehrung) teilen jede Antwort. Leer: die Karte fragt nur sich selbst.
+   */
+  readonly asks: readonly TemplateAsk[];
 }
 
 export interface TemplateTest {
   readonly of: string;
   readonly weight: number;
+}
+
+export interface TemplateAsk {
+  readonly of: string;
+  readonly facet: string;
+}
+
+/** `asks`: [{"of": "this", "facet": "data"}] — oder kurz ["data"] (über den Eintrag der Karte). */
+export function readAsks(raw: unknown): TemplateAsk[] {
+  const out: TemplateAsk[] = [];
+  for (const one of Array.isArray(raw) ? raw : []) {
+    const of = isObject(one) ? str(one.of).trim() || 'this' : 'this';
+    const facet = (isObject(one) ? str(one.facet) : str(one)).trim().slice(0, 80);
+    if (facet === '' || out.some((a) => a.of === of && a.facet === facet)) continue;
+    out.push({ of, facet });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+/** Die Fakten einer Karte dieser Vorlage für diesen Eintrag (`<eintrag>#<facette>`; in einer Schleife je Wert eigen). */
+export function factsOf(asks: readonly TemplateAsk[], entity: Entity, look: Lookup, variant?: string): string[] {
+  const out = new Set<string>();
+  const tail = variant === undefined ? '' : `:${variant}`;
+  for (const a of asks) {
+    if (a.of === 'this') { out.add(`${entity.id}#${a.facet}${tail}`); continue; }
+    const field = fieldsOf(entity, look).find((f) => f.key === a.of && f.type === 'ref');
+    if (field === undefined) continue;
+    for (const v of valuesOf(entity, field)) if (typeof v.value === 'string' && v.value !== '') out.add(`${v.value}#${a.facet}${tail}`);
+  }
+  return [...out];
 }
 
 /** Das Gewicht einer Prüfung: 0–10, ohne Angabe 1. */
@@ -152,7 +189,8 @@ export function readTemplate(id: string, raw: unknown): Template {
     kinds: lines(doc.kinds),
     direction: str(doc.direction).trim().slice(0, 40),
     graph: readGraph(doc.graph),
-    tests: readTests(doc.tests)
+    tests: readTests(doc.tests),
+    asks: readAsks(doc.asks)
   };
 }
 
@@ -249,6 +287,7 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
     const direction = template.direction;
     const prefix = `${template.id}:${ctx.entity.id}`;
     const tests = testsOf(template.tests, ctx.entity, ctx.look);
+    const facts = factsOf(template.asks, ctx.entity, ctx.look, run.variant);
     cards.push({
       question,
       direction,
@@ -261,7 +300,8 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
       fingerprint: hashOf(varies ? stable(definitionOf(graph)) : stable(expectedOf(made.draft.answer))),
       varies,
       requires: (run.requires ?? []).map((part) => cardKey(`${prefix}:${part}`, direction)),
-      ...(tests === null ? {} : { tests })
+      ...(tests === null ? {} : { tests }),
+      ...(facts.length === 0 ? {} : { facts })
     });
   }
   return { cards, problems };
@@ -405,6 +445,8 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
   const prompt = plainOf(str(d.prompt));
   /* 2026-10-27 — was die Frage prüft („O czym"): ihre Kenntnis zählt dort mit, und sie wartet auf das, was dort zuerst zu können ist. */
   const about = refIds(d.about).filter((id) => id !== entity.id);
+  /* 2026-11-01 — jedes Paar einer Liste ist ein Fakt: die Karte der ganzen Liste fragt sie alle. */
+  const facts = form === 'match' ? pairsOf(d).map((p) => pairFact(entity.id, p.left, p.right)) : [];
   return {
     question: entity.id,
     direction: '',
@@ -417,37 +459,61 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     /* Ein Bild mit Zufall (ein Ziel jedes Mal woanders) fragt jedes Mal anderes; eine lange Liste von Paaren auch. */
     varies: (answer.form === 'interactive' && Object.keys(answer.fixed).length > 0) || print !== undefined,
     requires: [],
-    ...(about.length > 0 ? { about } : {})
+    ...(about.length > 0 ? { about } : {}),
+    ...(facts.length > 0 ? { facts } : {})
   };
 }
 
-/** Eine Karte eines Paars aus einer langen Liste (`questionCards`): `<frage>:p<hash>`. */
-const isPairCard = (card: Card): boolean => card.answer.form === 'match' && card.entity !== undefined && card.label !== undefined && card.question.startsWith(`${card.entity}:p`);
+/** 2026-11-01 — der Fakt eines Paars einer Frage „Połącz w pary": die Frage und das Paar (nicht die Karte, auf der es steht). */
+export const pairFact = (questionId: string, left: string, right: string): string => `${questionId}#pair:${hashOf(`${left}→${right}`)}`;
+
+/** Ein Fakt mit dem, was die Antwort über ihn sagte. */
+export interface FactAnswer {
+  readonly correctness: number;
+  /** Was dazu gegeben wurde, in Worten (ein Paar: „Morialdo — Przysiółek …"). */
+  readonly given: string;
+}
 
 /**
- * 2026-11-01 — WAS EINE KARTE MIT PAAREN ÜBER JEDES GEZEIGTE PAAR SAGT. Eine Karte aus einer langen Liste
- * (`questionCards`, „Ile par naraz") zeigt ihr Paar und `show − 1` andere — und jedes davon ist die Karte seines
- * Paars. Gezählt wird jedes für seine eigene Karte: richtig verbunden — es sitzt; falsch oder ohne Paar — es kommt
- * wieder. Vorher zählte nur das eine Paar der Karte: die anderen eben richtig verbundenen blieben ungefragt und kamen
- * gleich wieder, in fast derselben Zusammenstellung — so oft hintereinander, wie die Liste Paare hat.
- * Leer: keine Karte eines Paars (eine ganze Liste auf einer Karte zählt als eine Antwort).
+ * 2026-11-01 — WAS EINE ANTWORT ÜBER JEDEN FAKT SAGT. „Połącz w pary": jedes gezeigte Paar für sich (richtig verbunden
+ * 1, sonst 0) — auch die Paare, die nur danebenstanden. Jede andere Form: alle Fakten der Karte mit ihrer Richtigkeit.
  */
-export function pairEvidence(card: Card, given: unknown, all: readonly Card[]): { readonly card: Card; readonly correctness: number; readonly given: string }[] {
+export function answerFacts(card: Card, given: unknown, outcome: Pick<Outcome, 'correctness'>): Map<string, FactAnswer> {
+  const out = new Map<string, FactAnswer>();
   const a = card.answer;
-  if (a.form !== 'match' || !isPairCard(card)) return [];
-  const mine = new Map<number, number>();
-  for (const p of Array.isArray(given) ? given : []) if (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number') mine.set(p[0], p[1]);
-  const siblings = new Map<string, Card>();
-  for (const c of all) if (c.entity === card.entity && c.label !== undefined && isPairCard(c) && !siblings.has(c.label)) siblings.set(c.label, c);
-  const out: { card: Card; correctness: number; given: string }[] = [];
-  const seen = new Set<string>();
-  for (const [l, r] of a.pairs) {
-    const label = `${a.left[l]} — ${a.right[r]}`;
-    const one = label === card.label ? card : siblings.get(label);
-    if (one === undefined || seen.has(one.key)) continue;
-    seen.add(one.key);
-    const chosen = mine.get(l);
-    out.push({ card: one, correctness: chosen === r ? 1 : 0, given: chosen === undefined ? '' : `${a.left[l]} — ${a.right[chosen]}` });
+  if (a.form === 'match' && card.entity !== undefined) {
+    const mine = new Map<number, number>();
+    for (const p of Array.isArray(given) ? given : []) if (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number') mine.set(p[0], p[1]);
+    for (const [l, r] of a.pairs) {
+      const chosen = mine.get(l);
+      out.set(pairFact(card.entity, a.left[l] ?? '', a.right[r] ?? ''), { correctness: chosen === r ? 1 : 0, given: chosen === undefined ? '' : `${a.left[l]} — ${a.right[chosen]}` });
+    }
+    return out;
+  }
+  const said = typeof given === 'string' ? given : '';
+  for (const fact of card.facts ?? []) out.set(fact, { correctness: outcome.correctness, given: said });
+  return out;
+}
+
+/**
+ * 2026-11-01 — KARTEN ARBEITEN ZUSAMMEN: was eine Antwort über einen Fakt sagt, gilt für JEDE Karte, die ihn fragt.
+ * Zurück kommen die gefragte Karte (gezählt mit dem, was über IHREN Fakt gesagt wurde — eine Karte eines Paars mit ihrem
+ * Paar) und jede andere Karte, deren Fakten alle beantwortet wurden (ihre Richtigkeit: der Durchschnitt). So zählt
+ * eine Karte „Połącz w pary" für jedes gezeigte Paar, und zwei Vorlagen, die mit `asks` dasselbe fragen, teilen jede
+ * Antwort. Vorher kamen die eben richtig verbundenen Paare auf der nächsten Karte derselben Liste gleich wieder.
+ */
+export function answerEvidence(card: Card, given: unknown, outcome: Pick<Outcome, 'correctness'>, all: readonly Card[]): { readonly card: Card; readonly correctness: number; readonly given: string }[] {
+  const facts = answerFacts(card, given, outcome);
+  const own = (card.facts ?? []).length === 1 ? facts.get(card.facts![0]) : undefined;
+  const out: { card: Card; correctness: number; given: string }[] = [{ card, correctness: own?.correctness ?? outcome.correctness, given: own?.given ?? '' }];
+  if (facts.size === 0) return out;
+  const seen = new Set<string>([card.key]);
+  for (const other of all) {
+    const asks = other.facts ?? [];
+    if (asks.length === 0 || seen.has(other.key) || !asks.every((f) => facts.has(f))) continue;
+    seen.add(other.key);
+    const said = asks.map((f) => facts.get(f)!);
+    out.push({ card: other, correctness: said.reduce((sum, x) => sum + x.correctness, 0) / said.length, given: said.map((x) => x.given).filter((x) => x !== '').join('; ') });
   }
   return out;
 }
@@ -489,7 +555,8 @@ export function questionCards(entity: Entity, seed = ''): Card[] {
       answer: matchAnswer(shuffle([pair, ...others], rng), heads, rng),
       fingerprint: hashOf(stable({ f: 'pair', l: pair.left, r: pair.right, n: show })),
       varies: true,
-      label: `${pair.left} — ${pair.right}`
+      label: `${pair.left} — ${pair.right}`,
+      facts: [pairFact(entity.id, pair.left, pair.right)]
     };
   });
 }

@@ -163,6 +163,12 @@ export interface Card {
    * und, bei einem Pytanie, was es prüft („O czym") — je mit 1 (`knowing.ts`, `cardTests`).
    */
   readonly tests?: readonly CardTest[];
+  /**
+   * 2026-11-01 — WAS DIE KARTE FRAGT, als Fakten (`<eintrag>#<facette>`): Karten, die denselben Fakt fragen, teilen jede
+   * Antwort (`answerEvidence`). Von selbst: jedes Paar einer Liste „Połącz w pary" ist ein Fakt; eine Vorlage sagt es
+   * mit `asks` („to samo pyta też…" — zwei Richtungen, zwei Vorlagen über dasselbe Feld). Fehlt es: nur die Karte selbst.
+   */
+  readonly facts?: readonly string[];
 }
 
 /** Ein Eintrag, den eine Karte prüft, und wie stark (eine genaue Frage zählt mehr als eine allgemeine). */

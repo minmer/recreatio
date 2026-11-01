@@ -14,7 +14,7 @@ import { parseMarkup } from '../library/libraryMarkup';
 import { Blocks, countNotes, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
-import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType } from './logic';
+import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType, type KnownessBand } from './logic';
 import type { Learner } from './learn';
 import { runPython } from './python';
 import { viewPath } from '../routes';
@@ -378,10 +378,23 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
             {c.type === 'value'
               ? <input value={c.value ?? ''} placeholder="nazwa wartości" onChange={(e) => set({ value: e.target.value })} />
               : c.rel === undefined && <input value={c.of ?? ''} placeholder="wpis albo karta" onChange={(e) => set({ of: e.target.value })} />}
-            <select value={c.op ?? 'ge'} onChange={(e) => set({ op: e.target.value as CompareOp })}>
-              {COMPARE_OPS.filter((o) => o !== 'contains' && o !== 'filled' && o !== 'empty').map((o) => <option key={o} value={o}>{COMPARE_LABEL[o]}</option>)}
-            </select>
-            <input type="number" step="any" value={c.than ?? ''} onChange={(e) => set({ than: e.target.value === '' ? undefined : Number(e.target.value) })} />
+            {/* 2026-11-01 — die Kenntnis als Band (poznane, znane, do powtórki, nieznane) oder als Zahl. */}
+            {c.type === 'knowness' && (
+              <select value={c.band ?? ''} aria-label="Jaka znajomość" data-cond-band="" onChange={(e) => set(e.target.value === ''
+                ? { band: undefined, op: 'ge', than: 0.5 }
+                : { band: e.target.value as KnownessBand, op: undefined, than: undefined })}>
+                {KNOWNESS_BANDS.map((b) => <option key={b} value={b}>{KNOWNESS_BAND_LABEL[b]}</option>)}
+                <option value="">liczba…</option>
+              </select>
+            )}
+            {(c.type === 'value' || c.band === undefined) && (
+              <>
+                <select value={c.op ?? 'ge'} onChange={(e) => set({ op: e.target.value as CompareOp })}>
+                  {COMPARE_OPS.filter((o) => o !== 'contains' && o !== 'filled' && o !== 'empty').map((o) => <option key={o} value={o}>{COMPARE_LABEL[o]}</option>)}
+                </select>
+                <input type="number" step="any" value={c.than ?? ''} onChange={(e) => set({ than: e.target.value === '' ? undefined : Number(e.target.value) })} />
+              </>
+            )}
           </>
         )}
         {(c.type === 'answered' || c.type === 'visited' || c.type === 'zone') && (

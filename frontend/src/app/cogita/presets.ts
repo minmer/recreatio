@@ -535,7 +535,7 @@ const chain = (nodes: GraphNode[]): Record<string, unknown> => graphOf(nodes, no
 const basicsFirst = (source: GraphNode, strategy: Record<string, unknown>) => chain([
   source,
   node('learning', 230, 0, { dir: 'before', keep: true }),
-  node('filter.when', 460, 0, { when: { type: 'knowness', rel: 'before', op: 'ge', than: 1 } }),
+  node('filter.when', 460, 0, { when: { type: 'knowness', rel: 'before', band: 'learned' } }),
   node('strategy', 690, 0, { order: 'general', ...strategy })
 ]);
 
@@ -550,12 +550,12 @@ export const basicsRevision = (ids: readonly string[] | null, name: string): Rec
  */
 const generalToDetail = (source: GraphNode) => chain([
   source,
-  node('filter.when', 230, 0, { when: { type: 'knowness', rel: 'up', op: 'ge', than: 1 } }),
+  node('filter.when', 230, 0, { when: { type: 'knowness', rel: 'up', band: 'learned' } }),
   node('strategy', 460, 0, { mode: 'temporal', stackSize: 20, minCorrectness: 1, order: 'general', pick: 'weighted' })
 ]);
 
 export const REVISION_PRESETS: readonly RevisionPreset[] = [
-  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, co się zaciera, potem nowe — od podstaw do szczegółów; stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
+  { id: 'temporal', label: 'Według tego, co umiem', says: 'Najpierw to, na co przyszła pora (najsłabsze najpierw), potem nowe i zapomniane — od podstaw do szczegółów; gdy nic nie zostało, na zapas to, co umiesz najsłabiej; stos po 20.', make: (from) => ({ name: 'Powtórka codzienna', graph: basicsFirst(sourceOf(from), { mode: 'temporal', stackSize: 20, minCorrectness: 1 }) }) },
   { id: 'random', label: '20 losowych', says: 'Dwadzieścia kart, każda raz.', make: (from) => ({ name: '20 losowych', graph: revisionGraph(sourceOf(from), { mode: 'random', count: 20, order: 'random' }) }) },
   { id: 'once', label: 'Wszystko raz', says: 'Cały zbiór, każda karta raz — sprawdzian.', make: (from) => ({ name: 'Wszystko raz', graph: revisionGraph(sourceOf(from), { mode: 'once', order: 'random' }) }) },
   { id: 'levels', label: 'Poziomy', says: 'Dobra odpowiedź podnosi kartę o poziom, zła wraca na pierwszy; koniec, gdy wszystko na górze.', make: (from) => ({ name: 'Poziomy', graph: revisionGraph(sourceOf(from), { mode: 'levels', levels: 5, stackSize: 10, minCorrectness: 1 }) }) },
@@ -564,7 +564,8 @@ export const REVISION_PRESETS: readonly RevisionPreset[] = [
     make: (from) => {
       const source = sourceOf(from);
       const filter = node('filter', 230, 0, { dueOnly: true });
-      const s = node('strategy', 460, 0, { mode: 'temporal', stackSize: 30 });
+      /* Nur das Fällige — danach ist Schluss, nicht „na zapas". */
+      const s = node('strategy', 460, 0, { mode: 'temporal', stackSize: 30, endWhenDone: true });
       return { name: 'Zaległe', graph: graphOf([source, filter, s], [edge(source, 'cards', filter, 'cards'), edge(filter, 'cards', s, 'cards')]) };
     }
   },
