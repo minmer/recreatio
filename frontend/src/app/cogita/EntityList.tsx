@@ -20,17 +20,21 @@ import ReactFlow, { Background, Controls, type Edge, type Node, type NodeChange 
 import 'reactflow/dist/style.css';
 
 import { MenuButton } from '../ui/Menu';
+import { TexText } from '../ui/tex/Tex';
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { SelectionBar } from './EntitySelection';
 import { RuleEditor } from './RuleEditor';
 import { OriginTag, useAsync, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
 import {
-  AXIS_COLUMN, cellKey, cellText, KNOWING_COLUMNS, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
+  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
   withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
 } from './views';
 import { gaugeFromMarks } from './knowing';
 import { renamer } from './learn';
+import { answerIndex } from './measures';
+import { QuiltView } from './QuiltView';
+import { clipTex } from './texClip';
 import { StructureView } from './StructureView';
 import type { Group } from './selection';
 import { MatrixGrid } from './MatrixGrid';
@@ -86,7 +90,11 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     Reihenfolge daraus): der Lernende dieses Kontos — ein Autor, der eine Tabelle ansieht, sieht seine eigene.
   */
   const wants = needsKnowing(shown);
-  const knowCards = useAsync(wants ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, lib.revision]);
+  /* 2026-11-01 — die Mapa postępów braucht die Karten immer (die Kenntnis jedes Eintrags und seine Fragen). */
+  const quilt = view.mode === 'quilt';
+  const knowCards = useAsync(wants || quilt ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, lib.revision]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ownAnswers = useMemo(() => (learner == null ? () => [] : answerIndex(learner.progress, renamer(lib.merges()))), [learner, learner?.progress, lib]);
   const knowing = useMemo(() => {
     if (!wants || knowCards === null || knowCards === undefined) return null;
     const rename = renamer(lib.merges());
@@ -165,7 +173,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   });
   const layout = (
     <span className="cg-subtabs" role="group" aria-label="Układ">
-      {(['table', 'tree', 'outline', 'matrix', 'canvas'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} aria-pressed={view.mode === m} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{{ table: 'Tabela', tree: 'Drzewo', outline: 'Struktura', matrix: 'Macierz', canvas: 'Płótno' }[m]}</button>)}
+      {(['table', 'tree', 'outline', 'matrix', 'canvas', 'quilt'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} aria-pressed={view.mode === m} data-mode={m} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{LIST_MODE_LABEL[m]}</button>)}
     </span>
   );
   /* „Co pokazać" (die Auswahl) und „Jak pokazać" (die Gestalt) — getrennt gesagt, zusammen gespeichert. */
@@ -193,6 +201,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         <h4 className="cg-adjust-h">Jak pokazać</h4>
         {layout}
         {view.mode === 'outline' && <OutlineSettings value={view.outline} fields={chooserFields.filter((f) => !f.key.startsWith(AXIS_COLUMN))} onChange={(outline) => setV({ outline })} />}
+        {quilt && <p className="cg-muted" data-quilt-hint="">Mapa postępów: każdy wpis to kafelek w kolorze tego, jak dobrze go znasz — pogrupowany jak w „Wybór i grupy” (np. idee według lekcji, lekcje pod rozdziałami). Uczący się widzą ją w Postępach i w module „Widok” na stronie.</p>}
       </div>
     </>
   );
@@ -249,7 +258,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       {failed !== null && <p className="wk-error">{failed}</p>}
       {start !== undefined && viewId !== null && (
         <p className="wk-note cg-start-banner" data-view-start={start.id}>
-          <span>Od wpisu: <strong>{lib.label(start)}</strong> <span className="cg-muted">(wyszukiwanie, rodzaj i filtr — w całym sposobie wyświetlania)</span></span>
+          <span>Od wpisu: <strong><TexText text={lib.labelTex(start)} /></strong> <span className="cg-muted">(wyszukiwanie, rodzaj i filtr — w całym sposobie wyświetlania)</span></span>
           <a className="wk-link-btn" href={href('wpisy', 'widok', viewId)}>Pokaż cały sposób wyświetlania</a>
           <button type="button" className="wk-link-btn" onClick={() => onOpen(start.id)}>Otwórz wpis</button>
         </p>
@@ -267,9 +276,9 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
             onEmpty={writes ? (row, col) => void here(row, col) : undefined} />
           {cell !== null && (
             <section className="cg-card">
-              <h3>{matrix.rows.find((g) => g.key === cell.row)?.label} × {matrix.cols.find((g) => g.key === cell.col)?.label} <span className="cg-muted">({cellIds.length})</span></h3>
+              <h3><GroupName group={matrix.rows.find((g) => g.key === cell.row)} vlib={vlib} /> × <GroupName group={matrix.cols.find((g) => g.key === cell.col)} vlib={vlib} /> <span className="cg-muted">({cellIds.length})</span></h3>
               <ul className="cg-plain-list">
-                {cellIds.map((id) => { const e = lib.entity(id); return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => onOpen(id)}>{lib.label(e)}</button> <span className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</span> <OriginTag id={id} /></li>; })}
+                {cellIds.map((id) => { const e = lib.entity(id); return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => onOpen(id)}><TexText text={lib.labelTex(e)} /></button> <span className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</span> <OriginTag id={id} /></li>; })}
               </ul>
               {writes && (
                 <span className="cg-row">
@@ -290,7 +299,10 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
           )}
         </>
       )}
-      {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} />)}
+      {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} vlib={vlib} />)}
+      {/* 2026-11-01 — die Mapa postępów: wie gut der Betrachter (sein Lernender) jeden Eintrag kann. */}
+      {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
+        : <QuiltView view={shown} list={list} cards={knowCards} answers={ownAnswers} learner={learner ?? null} onOpen={onOpen} />)}
       {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} vlib={vlib} />}
       {view.mode === 'canvas' && <Canvas list={list} positions={view.positions} onOpen={onOpen}
         onMoved={(id, at) => {
@@ -411,12 +423,13 @@ function Table({ list, picked, onPick, columns, sort, onSort, onOpen, onColumns,
                   <input type="checkbox" checked={picked.has(e.id)} tabIndex={-1} aria-label={`Zaznacz: ${lib.label(e)}`}
                     onClick={(ev) => ev.preventDefault()} onChange={() => undefined} />
                 </td>
-                <td>{lib.label(e)}{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>} <OriginTag id={e.id} /></td>
+                <td><TexText text={lib.labelTex(e)} />{lib.tell(e) !== '' && <span className="cg-muted"> · {lib.tell(e)}</span>} <OriginTag id={e.id} /></td>
                 <td className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</td>
                 {columns.map((c) => {
-                  if (c.startsWith('#')) return <td key={c}>{cellText(vlib, e, c).slice(0, 120)}</td>;
+                  /* 2026-11-01 — Zellen setzen ihre Wzory; gekürzt wird nie mitten in einem (`clipTex`). */
+                  if (c.startsWith('#')) return <td key={c}><TexText text={clipTex(cellText(vlib, e, c, true), 120)} /></td>;
                   const f = fieldsOf(e, look).find((x) => x.key === c);
-                  return <td key={c}>{f === undefined ? '' : fieldText(e, f, look).slice(0, 120)}</td>;
+                  return <td key={c}>{f === undefined ? '' : <TexText text={clipTex(fieldText(e, f, look, 0, false, true), 120)} />}</td>;
                 })}
               </tr>
             ))}
@@ -438,7 +451,7 @@ function Tree({ list, onOpen }: { list: readonly Entity[]; onOpen: (id: string) 
   const { lib } = useCtx();
   /* Nach der ersten Art (2026-10-23: Themen als Baum gibt es nicht mehr — Gruppen nach einer Achse gibt der Widok). */
   const branch = (e: Entity): JSX.Element => (
-    <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e)}</button> <OriginTag id={e.id} /></li>
+    <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}><TexText text={lib.labelTex(e)} /></button> <OriginTag id={e.id} /></li>
   );
   return (
     <ul className="cg-tree">
@@ -458,21 +471,26 @@ function Tree({ list, onOpen }: { list: readonly Entity[]; onOpen: (id: string) 
   );
 }
 
+/** 2026-11-01 — der Name einer Gruppe (einer Zeile, Spalte der Macierz) mit seinen Wzory. */
+function GroupName({ group, vlib }: { group: Pick<Group, 'key' | 'label'> | undefined; vlib: ViewLib }) {
+  return group === undefined ? null : <TexText text={groupTitle(vlib, group)} />;
+}
+
 /** 2026-10-22 (Schritt 9) — das Drzewo nach den Gruppen des Widoku: nach einem Feld oder (2026-10-23) einer Achse — mit ihren Überschriften. */
-function GroupTree({ groups, onOpen }: { groups: readonly Group[]; onOpen: (id: string) => void }) {
+function GroupTree({ groups, onOpen, vlib }: { groups: readonly Group[]; onOpen: (id: string) => void; vlib: ViewLib }) {
   const { lib } = useCtx();
   return (
     <ul className="cg-tree">
       {groups.map((g, i) => (
         <Fragment key={g.key || '#reszta'}>
-          {g.head !== undefined && g.head.key !== groups[i - 1]?.head?.key && <li className="cg-tree-head"><span className="cg-muted">{g.head.label}</span></li>}
+          {g.head !== undefined && g.head.key !== groups[i - 1]?.head?.key && <li className="cg-tree-head"><span className="cg-muted"><GroupName group={g.head} vlib={vlib} /></span></li>}
         <li>
           <details open={groups.length < 8}>
-            <summary><strong>{g.label}</strong> <span className="cg-muted">({g.ids.length})</span></summary>
+            <summary><strong><GroupName group={g} vlib={vlib} /></strong> <span className="cg-muted">({g.ids.length})</span></summary>
             <ul className="cg-tree">
               {g.ids.slice(0, 500).map((id) => {
                 const e = lib.entity(id);
-                return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => onOpen(id)}>{lib.label(e)}</button> <OriginTag id={id} /></li>;
+                return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => onOpen(id)}><TexText text={lib.labelTex(e)} /></button> <OriginTag id={id} /></li>;
               })}
             </ul>
           </details>

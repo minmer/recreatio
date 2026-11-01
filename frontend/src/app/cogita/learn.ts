@@ -23,7 +23,7 @@ import { aad, Field, fromBase64Url, open, openText, seal, sealText, toBase64Url,
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import { call, Unreachable, WorkspaceError } from '../core/session';
-import type { Card } from './cardBasics';
+import { readParams, type Card } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot } from './knowness';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
@@ -44,7 +44,12 @@ export interface AnswerRecord {
   readonly ms?: number;
   /** Woher: eine Wiederholung, eine Sitzung, ein Ablauf. */
   readonly via?: string;
+  /** 2026-11-01 — wie viele Podpowiedzi vor der Antwort aufgedeckt waren (die Lehrerin sieht es). */
+  readonly hints?: number;
+  /** 2026-11-01 — eine Frage mit `params`: welche Werte gezogen waren (welche Fassung gefragt wurde). */
+  readonly params?: Readonly<Record<string, number | string>>;
 }
+
 
 /** Wo jemand in einem Ablauf steht [G14] — über Geräte hinweg. */
 export interface FlowPosition {
@@ -97,7 +102,9 @@ function readAnswer(raw: unknown): AnswerRecord | null {
     at, correctness: Math.max(0, Math.min(1, correctness)),
     ...(typeof raw.given === 'string' ? { given: clip(raw.given, 400) } : {}),
     ...(typeof raw.ms === 'number' ? { ms: raw.ms } : {}),
-    ...(typeof raw.via === 'string' ? { via: raw.via } : {})
+    ...(typeof raw.via === 'string' ? { via: raw.via } : {}),
+    ...(typeof raw.hints === 'number' && raw.hints > 0 ? { hints: Math.min(20, Math.floor(raw.hints)) } : {}),
+    ...(readParams(raw.params) === undefined ? {} : { params: readParams(raw.params)! })
   };
 }
 
@@ -520,13 +527,16 @@ export class Learner {
   }
 
   /** Eine Antwort festhalten — sofort im Fortschritt, hinaus mit dem nächsten Stapel. */
-  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
+  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, number | string>> } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
+    const params = readParams(extras.params);
     const answer: AnswerRecord = {
       id: newId(), key: card.key, question: card.question, direction: card.direction, fingerprint: card.fingerprint,
       at, correctness: Math.max(0, Math.min(1, correctness)),
       ...(extras.given === undefined ? {} : { given: clip(extras.given, 400) }),
       ...(extras.ms === undefined ? {} : { ms: Math.round(extras.ms) }),
-      ...(extras.via === undefined ? {} : { via: extras.via })
+      ...(extras.via === undefined ? {} : { via: extras.via }),
+      ...(extras.hints === undefined || extras.hints <= 0 ? {} : { hints: Math.floor(extras.hints) }),
+      ...(params === undefined ? {} : { params })
     };
     const marks = [...this.marks(card.key, card.fingerprint), { at, correctness: answer.correctness }];
     const snapshot = snapshotOf(card.question, card.direction, marks, at);

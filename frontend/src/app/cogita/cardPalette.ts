@@ -9,6 +9,8 @@ import { type DatePrecision, type Entity, type GeoPoint, type MediaRef, dateKey,
 import { blockPlain, thesisOf, type CommentBlock } from '../library/blocks';
 import { entityAbout, entityBlocks } from './statements';
 import { guessKind, kindById } from '../core/quantities';
+import { hasTex } from '../core/tex';
+import { compile, isExprError, newEnv, type Val } from '../pages/motion/expr';
 
 /** Was an einem Eingang ankam — alle Kanten, alle Stücke, in einer Liste. */
 const itemsAt = (inputs: Readonly<Record<string, readonly unknown[]>>, port: string): Item[] =>
@@ -28,6 +30,16 @@ function sourcesOf(ctx: TemplateContext, items: readonly Item[]): Entity[] {
   return items.map((i) => (i.entity === undefined ? undefined : ctx.look.entity(i.entity))).filter((e): e is Entity => e !== undefined);
 }
 
+/**
+ * 2026-11-01 — EIN TEXT MIT WZORY: als `$…$` (gesetzt von KaTeX auf der Karte), wenn wirklich ein Wzór darin steht —
+ * sonst genau wie bisher (eine Zeile ohne LaTeX). Ohne Dollar ist die Fassung mit Wzory dieselbe; steht nur ein Dollar
+ * da, der kein Wzór ist (`\$`), gilt die alte Zeile — sonst müsste man einen Backslash tippen.
+ */
+const texOr = (tex: string, plain: () => string): string => (!tex.includes('$') || hasTex(tex) ? tex : plain());
+
+/** Das Etikett eines Eintrags für eine Karte — mit seinen Wzory, wenn es welche hat. */
+const labelFor = (entity: Entity, look: TemplateContext['look']): string => texOr(labelOf(entity, look, 0, false, true), () => labelOf(entity, look));
+
 function readField(ctx: TemplateContext, entities: readonly Entity[], key: string): Item[] {
   const out: Item[] = [];
   for (const entity of entities) {
@@ -35,10 +47,12 @@ function readField(ctx: TemplateContext, entities: readonly Entity[], key: strin
     if (field === undefined) continue;
     for (const v of valuesOf(entity, field)) {
       if (v.value === null) continue;
-      const text = valueText(field, v.value, ctx.look);
-      if (field.type === 'ref' && typeof v.value === 'string') out.push({ text, entity: v.value, state: v.state });
-      else if (field.type === 'media' && isObject(v.value)) out.push({ text, media: v.value as unknown as MediaRef, state: v.state });
-      else if (field.type === 'markup' && typeof v.value === 'string') out.push({ text: plainOf(v.value), value: v.value, state: v.state });
+      const value = v.value;
+      /* 2026-11-01 — ein Verweis heisst wie sein Ziel, mit dessen Wzory (`valueText` mit `tex`). */
+      const text = field.type === 'ref' ? texOr(valueText(field, value, ctx.look, 0, false, true), () => valueText(field, value, ctx.look)) : valueText(field, value, ctx.look);
+      if (field.type === 'ref' && typeof value === 'string') out.push({ text, entity: value, state: v.state });
+      else if (field.type === 'media' && isObject(value)) out.push({ text, media: value as unknown as MediaRef, state: v.state });
+      else if (field.type === 'markup' && typeof value === 'string') out.push({ text: texOr(plainOf(value, 'inline'), () => plainOf(value)), value, state: v.state });
       /* 2026-10-22 — die Bausteine einer Aussage: einer je Stück (Absatz, Liste, Tabelle). */
       else if (field.type === 'blocks' && Array.isArray(v.value)) for (const block of v.value as readonly CommentBlock[]) out.push({ text: blockPlain(block, refName(ctx)), state: v.state });
       else out.push({ text, value: v.value, state: v.state });
@@ -162,7 +176,7 @@ const SELF: Kind = {
   type: 'entity', label: 'Ten wpis', group: 'Dane',
   says: 'Wpis, dla którego powstaje karta — z jego etykietą.',
   ports: () => ({ inputs: [], outputs: [port('entities', 'Wpis')] }),
-  run: ({ ctx }) => ({ entities: [{ text: labelOf(ctx.entity, ctx.look), entity: ctx.entity.id }] })
+  run: ({ ctx }) => ({ entities: [{ text: labelFor(ctx.entity, ctx.look), entity: ctx.entity.id }] })
 };
 
 /** Zwei Stücke sind dasselbe: derselbe Eintrag — oder, wo einem der Eintrag fehlt, derselbe Text. */
@@ -280,7 +294,7 @@ const ENTRIES: Kind = {
     const count = Math.round(num(config.count, 0));
     /* Der Zufall hängt am Eintrag: jede Karte zieht andere — nicht alle dieselben zwölf. */
     if (count > 0) found = sample(found, count, rngOf(`${ctx.seed}:${node.id}:${ctx.entity.id}:${ctx.variant ?? ''}`));
-    return { entities: found.map((e) => ({ text: labelOf(e, ctx.look), entity: e.id })) };
+    return { entities: found.map((e) => ({ text: labelFor(e, ctx.look), entity: e.id })) };
   }
 };
 
@@ -490,11 +504,12 @@ const FIELD_PAIRS: Kind = {
 
 const RANDOM: Kind = {
   type: 'random', label: 'Losowa wartość', group: 'Liczby',
-  says: 'Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy — dla pytań, które za każdym razem liczą co innego.',
+  says: 'Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy (wpisanej tu albo przychodzącej z lewej) — jeden szablon daje za każdym razem inne pytanie (karta „losowa”: jej historia nie zaczyna się od nowa przy każdym losowaniu).',
   ports: () => ({ inputs: [port('items', 'Z listy', 'items', true)], outputs: [port('value', 'Wartość')] }),
   run: ({ node, config, inputs, ctx }) => {
     const rng = rngFor(ctx, node.id);
-    const list = itemsAt(inputs, 'items');
+    /* 2026-11-01 — auch eine hier getippte Liste (eine Pozycja je Zeile); eine Zahl darin bleibt eine Zahl. */
+    const list = [...itemsAt(inputs, 'items'), ...lines(config.list).map((text): Item => { const n = strictNumber(text); return n === null ? { text } : { text, value: n }; })];
     if (list.length > 0) return { value: [list[Math.floor(rng() * list.length)]] };
     const min = num(config.min, 1);
     const max = Math.max(min, num(config.max, 10));
@@ -552,6 +567,105 @@ const MATH: Kind = {
     const decimals = Math.max(0, Math.min(10, Math.round(num(config.decimals, 6))));
     const value = Number(r.toFixed(decimals));
     return { value: [{ text: String(value).replace('.', ','), value }] };
+  }
+};
+
+/* -- 2026-11-01: Rechnen in Vorlagen (Lemma) -----------------------------------------------------------------------
+ * „Oblicz" rechnet Ausdrücke in der Sprache der Rysunki (`pages/motion/expr.ts` — dieselben Funktionen: mod, round,
+ * fmt, sqrt …), „Zbierz" fasst viele Werte zusammen (die Protonen der Bestandteile einer Verbindung). Zusammen mit
+ * „Losowa wartość" macht eine Vorlage Fragen, die jedes Mal anders rechnen — und mit „Oblicz" Zahlen-Dystraktoren
+ * („p0 + 1; p0 - 1; p0 * 2") für „Odpowiedź: jeden wybór". */
+
+/** Ein Text, der ganz eine Zahl ist („12", „-3,5", „1 000") — sonst `null` (nicht „Rozdział 3"). */
+function strictNumber(text: string): number | null {
+  const t = text.trim().replace(/^[−–]/, '-').replace(/[\s ]/g, '').replace(',', '.');
+  if (!/^-?\d+(?:\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Die Zahl eines Stücks: sein Wert, sonst sein Text — ein Eintrag (sein Etikett) ist keine Zahl. */
+const numberOfItem = (item: Item): number | null =>
+  (typeof item.value === 'number' ? (Number.isFinite(item.value) ? item.value : null) : item.entity !== undefined ? null : readNumber(item.text));
+
+/** Eine gerechnete Zahl als Stück: ohne Rundungsreste (0,1 + 0,2 = 0,3), mit Komma; `decimals` rundet. */
+function numberItem(n: number, decimals: number | null): Item {
+  const value = decimals === null ? Number(n.toPrecision(12)) : Number(n.toFixed(decimals));
+  return { text: String(value).replace('.', ','), value };
+}
+
+/** Wie viele Stellen nach dem Komma eine Einstellung will — `null`: nicht runden. */
+const decimalsOf = (config: Readonly<Record<string, unknown>>): number | null =>
+  (typeof config.decimals === 'number' && Number.isFinite(config.decimals) ? Math.max(0, Math.min(10, Math.round(config.decimals))) : null);
+
+/** Wie viele Eingänge „Oblicz" hat: 1–8. */
+export const CALC_INPUTS = 8;
+const calcInputs = (config: Readonly<Record<string, unknown>>): number => Math.max(1, Math.min(CALC_INPUTS, Math.round(num(config.inputs, 1))));
+
+/** Die Ausdrücke einer Einstellung — einer je Zeile oder nach „;". */
+export const calcExpressions = (config: Readonly<Record<string, unknown>>): string[] =>
+  str(config.expr).split(/[;\n]/).map((x) => x.trim()).filter((x) => x !== '').slice(0, 20);
+
+const CALC: Kind = {
+  type: 'calc', label: 'Oblicz', group: 'Liczby',
+  says: 'Liczy wyrażenia w języku rysunków — np. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — każde w osobnym wierszu albo po „;”, każde daje jedną wartość (np. dystraktory „p0 + 1; p0 - 1; p0 * 2” do „Odpowiedź: jeden wybór”). p0, p1, … to pierwsza liczba z wejścia, n0, n1, … — ile wartości przyszło. Wynik, który nie jest liczbą (dzielenie przez zero), odpada; gdy wejście, z którego wyrażenie korzysta, nie dało liczby, albo żadne wyrażenie nic nie dało — krok się nie udaje i z tego wpisu nie powstaje karta.',
+  ports: (config) => ({
+    inputs: Array.from({ length: calcInputs(config) }, (_, i) => port(`p${i}`, `p${i}`, 'items', true)),
+    outputs: [port('value', 'Wynik')]
+  }),
+  run: ({ config, inputs }) => {
+    const count = calcInputs(config);
+    const sources = calcExpressions(config);
+    if (sources.length === 0) throw new Error('„Oblicz” nie ma wyrażenia — wpisz np. p0 + 1.');
+    const env = newEnv();
+    const empty = new Set<string>();
+    for (let i = 0; i < count; i += 1) {
+      const items = itemsAt(inputs, `p${i}`);
+      const first = items.map(numberOfItem).find((x): x is number => x !== null);
+      env[`p${i}`] = first ?? Number.NaN;
+      env[`n${i}`] = items.length;
+      if (first === undefined) empty.add(`p${i}`);
+    }
+    const known = (name: string) => Object.prototype.hasOwnProperty.call(env, name);
+    const decimals = decimalsOf(config);
+    const out: Item[] = [];
+    for (const source of sources) {
+      const expr = compile(source, known);
+      if (isExprError(expr)) throw new Error(`„${source}”: ${expr.error}.`);
+      const lacking = expr.reads.filter((name) => empty.has(name));
+      if (lacking.length > 0) throw new Error(`Wejście ${lacking.join(', ')} nie dało liczby (puste pole?).`);
+      const v: Val = expr.run(env);
+      if (typeof v === 'number') {
+        if (Number.isFinite(v)) out.push(numberItem(v, decimals));
+        continue;
+      }
+      /* Ein Text (fmt): wie er ist, mit einfachem Minus — eine Zahl darin bleibt eine Zahl (für „Odpowiedź: liczba"). */
+      const text = v.replace(/−/g, '-');
+      if (text.trim() === '') continue;
+      const n = strictNumber(text);
+      out.push(n === null ? { text } : { text, value: n });
+    }
+    if (out.length === 0) throw new Error('Żadne wyrażenie nie dało liczby (np. dzielenie przez zero).');
+    return { value: out };
+  }
+};
+
+export const AGGREGATE_OPS = ['sum', 'count', 'min', 'max', 'avg'] as const;
+type AggregateOp = (typeof AGGREGATE_OPS)[number];
+
+const AGGREGATE: Kind = {
+  type: 'aggregate', label: 'Zbierz', group: 'Liczby',
+  says: 'Zbiera wiele wartości w jedną: suma, ile ich jest, najmniejsza, największa, średnia — np. suma protonów składników związku (pole liczbowe czytane przez odwołanie do wielu wpisów: ten sam składnik dwa razy liczy się dwa razy). „Ile” liczy każdą wartość, także nieliczbową (0, gdy nic nie przyszło); pozostałe tylko liczby — bez żadnej liczby nie dają nic, i z tego wpisu nie powstaje karta.',
+  ports: () => ({ inputs: [port('values', 'Wartości', 'items', true)], outputs: [port('value', 'Wynik')] }),
+  run: ({ config, inputs }) => {
+    const op: AggregateOp = (AGGREGATE_OPS as readonly string[]).includes(str(config.op)) ? (str(config.op) as AggregateOp) : 'sum';
+    const items = itemsAt(inputs, 'values');
+    if (op === 'count') return { value: [numberItem(items.length, null)] };
+    const numbers = items.map(numberOfItem).filter((n): n is number => n !== null);
+    if (numbers.length === 0) return { value: [] };
+    const sum = numbers.reduce((s, n) => s + n, 0);
+    const r = op === 'min' ? Math.min(...numbers) : op === 'max' ? Math.max(...numbers) : op === 'avg' ? sum / numbers.length : sum;
+    return { value: [numberItem(r, decimalsOf(config))] };
   }
 };
 
@@ -832,7 +946,7 @@ export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
   STATEMENT_THESIS, STATEMENT_PART, STATEMENT_TABLE, STATEMENT_SUBJECTS,
   PATTERN, MASK, FRAGMENTS,
   PICK, DISTRACTORS, EACH, PAIRS, FIELD_PAIRS,
-  RANDOM, MATH, COMPARE, WHEN, PYTHON,
+  RANDOM, MATH, CALC, AGGREGATE, COMPARE, WHEN, PYTHON,
   PROMPT, ANSWER_TEXT, ANSWER_GAP, ANSWER_NUMBER, ANSWER_DATE, ANSWER_ONE, ANSWER_MANY, ANSWER_TRUEFALSE, ANSWER_ORDER, ANSWER_MATCH, ANSWER_FLASH, ANSWER_CODE, ANSWER_POINT,
   CARD
 ]);

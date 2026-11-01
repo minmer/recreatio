@@ -30,8 +30,9 @@ import { basicsRevision } from './presets';
 import { cardsAbout, levelLabel, nearestNeeds } from './prerequisites';
 import { planOf } from './revision';
 import { RevisionRun } from './RevisionRun';
-import { entityName, originPath, useAsync, useCtx } from './ui';
+import { entityName, entityNameTex, originPath, useAsync, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
+import { TexText } from '../ui/tex/Tex';
 
 type State = 'known' | 'learning' | 'fresh' | 'waiting' | 'order';
 
@@ -96,6 +97,8 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const placed = new Set([...graph.level.keys()]);
   const outside = new Set(cards.flatMap((c) => [c.entity ?? c.question]).filter((id) => !placed.has(id))).size;
   const name = (id: string) => entityName(lib, id);
+  /* 2026-11-01 — gezeigt mit seinen Wzory; `name` bleibt zum Sortieren und für Titel. */
+  const shown = (id: string) => entityNameTex(lib, id);
 
   return (
     <div className="cg cg-path" data-learning-path={order.length}>
@@ -105,7 +108,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
       </div>
       {graph.circles.length > 0 && (
         <p className="wk-warn" data-path-circles={graph.circles.length}>
-          Koło w kolejności — te zależności nie działają: {graph.circles.slice(0, 4).map((d) => `${name(d.child)} wymaga ${name(d.parent)}`).join('; ')}. Popraw je we wpisach.
+          Koło w kolejności — te zależności nie działają: <TexText text={graph.circles.slice(0, 4).map((d) => `${shown(d.child)} wymaga ${shown(d.parent)}`).join('; ')} />. Popraw je we wpisach.
         </p>
       )}
       {order.map((at) => (
@@ -118,8 +121,8 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
               return (
                 <li key={id} className={`cg-path-item is-${state}`} data-path-entry={id} data-path-state={state}>
                   <span className="cg-path-name">
-                    <a className="cg-ref" href={lib.origin(id) === undefined ? '#' : originPath(lib.origin(id)!, id, 'wpisy')}>{name(id)}</a>
-                    <span className="cg-path-state">{STATE_LABEL[state]}{state === 'waiting' ? `: ${waits.slice(0, 3).map(name).join(', ')}` : ''}</span>
+                    <a className="cg-ref" href={lib.origin(id) === undefined ? '#' : originPath(lib.origin(id)!, id, 'wpisy')}><TexText text={shown(id)} /></a>
+                    <span className="cg-path-state">{STATE_LABEL[state]}{state === 'waiting' ? <>: <TexText text={waits.slice(0, 3).map(shown).join(', ')} /></> : ''}</span>
                   </span>
                   <span className="cg-path-tools">
                     {count > 0 && <span className="cg-muted">{count} {count === 1 ? 'karta' : 'kart'}</span>}
@@ -147,7 +150,7 @@ export function EntityPrerequisites({ id, onOpen }: { id: string; onOpen: (id: s
   const circles = graph.circles.filter((d) => d.parent === id || d.child === id);
   if (needs.length === 0 && builds.length === 0 && circles.length === 0) return null;
   const level = graph.level.get(id);
-  const refs = (ids: readonly string[]) => ids.map((x) => <button key={x} type="button" className="cg-ref" onClick={() => onOpen(x)}>{entityName(lib, x)}</button>);
+  const refs = (ids: readonly string[]) => ids.map((x) => <button key={x} type="button" className="cg-ref" onClick={() => onOpen(x)}><TexText text={entityNameTex(lib, x)} /></button>);
   return (
     <section className="cg-card cg-prereq" data-entity-prerequisites={id}>
       <div className="cg-row-between">
@@ -157,7 +160,7 @@ export function EntityPrerequisites({ id, onOpen }: { id: string; onOpen: (id: s
       {needs.length > 0 && <div className="cg-row"><span className="cg-muted">Najpierw trzeba znać:</span>{refs(needs)}</div>}
       {builds.length > 0 && <div className="cg-row"><span className="cg-muted">Na tym budują:</span>{refs(builds)}</div>}
       {circles.length > 0 && (
-        <p className="wk-warn">Koło: {circles.map((d) => `${entityName(lib, d.child)} wymaga ${entityName(lib, d.parent)}`).join('; ')} — ta zależność nie działa, dopóki koło trwa.</p>
+        <p className="wk-warn">Koło: <TexText text={circles.map((d) => `${entityNameTex(lib, d.child)} wymaga ${entityNameTex(lib, d.parent)}`).join('; ')} /> — ta zależność nie działa, dopóki koło trwa.</p>
       )}
     </section>
   );

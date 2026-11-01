@@ -20,6 +20,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 import { orderMarks, type OrderMark } from './check';
+import { BuildPreview } from './BuildAnswer';
+import { TexText } from '../ui/tex/Tex';
 
 interface Piece {
   readonly id: number;
@@ -98,7 +100,7 @@ function flip(list: HTMLElement | null, before: ReadonlyMap<number, number> | nu
 const tops = (list: HTMLElement | null): Map<number, number> =>
   new Map([...(list?.querySelectorAll<HTMLElement>('[data-order-id]') ?? [])].map((el) => [Number(el.dataset.orderId), el.getBoundingClientRect().top]));
 
-export function OrderAnswer({ start, correct, locked, given, onOrder, action }: {
+export function OrderAnswer({ start, correct, locked, given, onOrder, action, preview, join = ' ' }: {
   /** Die Folge, mit der die Liste beginnt (gemischt). */
   start: readonly string[];
   /** Die richtige Folge — für die Marken danach. */
@@ -109,6 +111,9 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action }: 
   onOrder: (order: string[]) => void;
   /** Der Knopf unter der Liste („Sprawdź”, danach „Dalej”) — vor dem Ergebnis, damit er an seinem Platz bleibt. */
   action?: ReactNode;
+  /** 2026-11-01 — das Gelegte darüber, verbunden mit `join`: als Wzór (`math`) oder Text — wie beim Bauen aus Kacheln. */
+  preview?: 'math' | 'text';
+  join?: string;
 }) {
   const [pieces, setPieces] = useState<readonly Piece[]>(() => start.map((text, id) => ({ id, text })));
   const [picked, setPicked] = useState<number | null>(null);
@@ -320,6 +325,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action }: 
 
   return (
     <div className="cg-order-wrap">
+      {preview !== undefined && <BuildPreview tiles={shown.map((p) => p.text)} preview={preview} join={join} />}
       <ol ref={list} className={`cg-order${dragging !== null ? ' is-dragging' : ''}${marks !== null ? ' is-checked' : ''}`} aria-label="Kolejność — przeciągnij albo użyj strzałek" data-order-list="">
         {shown.map((p, at) => {
           const m = markOf(p.id);
@@ -335,7 +341,7 @@ export function OrderAnswer({ start, correct, locked, given, onOrder, action }: 
               onKeyDown={(e) => onKey(e, at, p.id)}>
               {!locked && <span className="cg-order-grip" aria-hidden>⋮⋮</span>}
               <span className="cg-order-n" aria-hidden>{at + 1}.</span>
-              <span className="cg-order-text">{p.text}</span>
+              <span className="cg-order-text"><TexText text={p.text} /></span>
               {m !== null && (
                 <span className="cg-order-mark" aria-hidden>
                   {m.mark.right ? '✓' : '✗'}

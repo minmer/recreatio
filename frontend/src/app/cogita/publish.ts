@@ -93,5 +93,6 @@ export function publicEntity(lib: CogitaLibrary, entity: Entity): PublicEntity {
       : field.type === 'blocks' ? blocksMarkup(blocksOf(entity.data, field.key)) : text;
     if (text !== '') fields.push({ key: field.key, label: field.label, text: shown, type: field.type });
   }
-  return { id: entity.id, label: labelOf(entity, look), kinds: entity.kinds.map((k) => lib.kind(k)?.name ?? k), kindIds: [...entity.kinds], fields, media };
+  /* 2026-11-01 — das Etikett mit seinen Wzory (`$…$`), gezeigt mit TexText. */
+  return { id: entity.id, label: labelOf(entity, look, 0, false, true), kinds: entity.kinds.map((k) => lib.kind(k)?.name ?? k), kindIds: [...entity.kinds], fields, media };
 }

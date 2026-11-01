@@ -20,6 +20,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { readEntryQuery, withEntryQuery } from '../forms/entryDesk';
 import { PickLibrary } from '../library/LibraryPick';
 import type { SubjectDecl, SubjectKind } from '../pages/pageSubject';
+import { TexText } from '../ui/tex/Tex';
 
 const said = (decl: SubjectDecl, key: string): string => {
   const v = decl[key];
@@ -99,7 +100,7 @@ function EntityBar() {
         <span className="wk-subject-nav">
           <button type="button" className="wk-subject-step" disabled={prev === null} aria-label={prev === null ? 'Poprzedni wpis' : `Poprzedni: ${prev.label}`}
             title={prev?.label} onClick={() => prev !== null && s.choose(prev.id)}>◀</button>
-          {s.list.length === 1 ? <strong className="wk-subject-name">{s.list[0].label}</strong> : (
+          {s.list.length === 1 ? <strong className="wk-subject-name"><TexText text={s.list[0].label} /></strong> : (
             <select className="wk-subject-pick" value={s.chosen ?? ''} aria-label="Wpis" onChange={(e) => s.choose(e.target.value === '' ? null : e.target.value)}>
               <option value="">— wybierz wpis —</option>
               {s.list.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}

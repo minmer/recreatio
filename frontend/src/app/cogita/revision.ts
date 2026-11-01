@@ -967,6 +967,67 @@ export function progress(session: Session): { readonly answered: number; readonl
   };
 }
 
+/**
+ * 2026-11-01 — WIE WEIT EINE LEKTION IST: „x z y kart" für einen Lauf, der von selbst endet — `temporal` mit
+ * „Kończ, gdy nic nie czeka" (`endWhenDone`, also ohne „na zapas") und `levels`. `null`: ein Lauf mit fester Folge
+ * (dort zählt `progress`) oder einer, der nie von selbst endet.
+ *
+ * <code>
+ *   done    nicht im Stapel und erledigt: temporal — im Band „znane" (eine richtige Antwort, in diesem Lauf oder früher;
+ *           der Lauf nimmt sie nicht mehr, bis sie wieder fällig wird); levels — gefragt und auf der höchsten Stufe
+ *   held    nicht im Stapel, nicht erledigt und nicht wählbar: wartet auf eine Bedingung („Filtr znajomości"), die noch
+ *           nicht gilt — gehört NICHT zu y; gilt sie im Lauf, kommt die Karte dazu (y wächst)
+ *   total   alles andere: y = erledigt + was noch kommt (im Stapel oder wählbar)
+ * </code>
+ *
+ * So steht der Balken genau dann am Ende, wenn der Lauf von selbst endet: dann ist der Stapel leer und nichts Wählbares
+ * mehr fällig oder unbekannt — jede Karte ist erledigt oder wartet. Eine Karte, deren Zeit im Lauf wieder kommt
+ * (15 Minuten nach der ersten richtigen Antwort), zählt wieder als offen: der Balken sagt, was jetzt gilt.
+ */
+export interface LessonProgress {
+  readonly done: number;
+  readonly total: number;
+  readonly held: number;
+}
+
+const LESSON_MEMO = new WeakMap<Session, { readonly at: number; readonly value: LessonProgress }>();
+
+export function lessonProgress(session: Session, now: number): LessonProgress | null {
+  const s = session as Internal;
+  const levels = s.plan.mode === 'levels';
+  if (!levels && !(s.plan.mode === 'temporal' && !s.plan.ahead)) return null;
+  /* Die Wählbarkeit rechnet die Kenntnis aller Karten — einmal je Stand und halber Minute genügt. */
+  const had = LESSON_MEMO.get(session);
+  if (had !== undefined && Math.abs(now - had.at) < 30_000) return had.value;
+  const stack = new Set([...s.active, ...(s.current === null ? [] : [s.current])]);
+  const open = new Set(eligible(s, now).map((c) => c.key));
+  let done = 0;
+  let held = 0;
+  let total = 0;
+  for (const card of s.fixed.unique) {
+    const inStack = stack.has(card.key);
+    const settled = !inStack && (levels
+      ? s.asked.has(card.key) && (s.levels.get(card.key) ?? 1) >= s.plan.levels
+      : !s.wrongSinceCorrect.has(card.key) && levelOfState(stateIn(s, card.key), now) === 'known');
+    if (settled) { done += 1; total += 1; continue; }
+    if (!inStack && !open.has(card.key)) { held += 1; continue; }
+    total += 1;
+  }
+  const value = { done, total, held };
+  LESSON_MEMO.set(session, { at: now, value });
+  return value;
+}
+
+/**
+ * 2026-11-01 — ÜBEN, WAS NICHT SASS: ein Plan aus genau diesen Karten (`Ćwicz te jeszcze raz`). Stufen mit zwei
+ * Stufen: eine Karte ist erledigt, wenn sie richtig beantwortet ist — falsch bleibt sie im Stapel, und nach einem Fehler
+ * braucht sie zwei richtige Antworten (`answer`, „levels"). Nicht „nach der Kenntnis": eine Karte, die im Lauf erst
+ * falsch und dann richtig war, ist jetzt „znana" — sie käme dort gar nicht.
+ */
+export function practicePlan(cards: readonly Card[]): Plan {
+  return readPlan(cards, { mode: 'levels', levels: 2, stackSize: Math.max(1, cards.length), order: 'given', pick: 'next', minCorrectness: 1 });
+}
+
 /** Der Stand jeder Karte des Plans — für die Übersicht vor und nach dem Lauf. */
 export function levelsOf(plan: Plan, marks: (key: string) => readonly Mark[], now: number): Record<Level, number> {
   const out: Record<Level, number> = { unseen: 0, learning: 0, known: 0 };

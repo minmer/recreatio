@@ -46,6 +46,8 @@ import { readView, viewOutline, type OutlineDisplay, type OutlineGroup, type Out
 import { anchorsAt } from './anchors';
 import { deepestShown, depthOf, oneDeeper, oneShallower, shownSteps, structKids } from './outlineLevels';
 import { useCtx } from './ui';
+import { clipTex } from './texClip';
+import { TexText } from '../ui/tex/Tex';
 
 type Order = 'tree' | 'text';
 
@@ -169,11 +171,12 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
   const shown = levelMode ? shownSteps(root, inner) : [];
   const deepest = deepestShown(shown);
   const canDeeper = shown.some((s) => s.kids > 0 && !inner.has(s.path));
+  /* 2026-11-01 — Chip und Name mit ihren Wzory als `$…$` (gezeigt mit `TexText`). */
   const chipOf = (e: Entity): string => {
     const field = display?.chip ? fieldsOf(e, lib.look).find((f) => f.key === display.chip) : undefined;
-    return field === undefined ? '' : fieldText(e, field, lib.look);
+    return field === undefined ? '' : fieldText(e, field, lib.look, 0, false, true);
   };
-  const nameOf = (e: Entity): string => (whole ? labelOf(e, lib.look, 0, true) : lib.label(e));
+  const nameOf = (e: Entity): string => labelOf(e, lib.look, 0, whole, true);
   const ctx: NodeCtx = { root: place?.locator ?? '', work: place?.work ?? '', scheme, chipOf, nameOf, deep: depth > 1, onOpen, isOpen, toggle, isShown, fold };
   const kids = structKids(root);
   const side = root.groups.filter((g) => g.structure !== true);
@@ -183,10 +186,10 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
     <article className="cg-wy" data-structure-root={root.id}>
       <header className="cg-wy-head">
         <p className="cg-wy-kicker">
-          <span>{statement?.question === true ? 'Pytanie wiodące' : chipOf(entity) || 'Na górze'}</span>
+          <span>{statement?.question === true ? 'Pytanie wiodące' : <TexText text={chipOf(entity) || 'Na górze'} />}</span>
           {place !== null && scheme !== null && <span className="cg-wy-place">{place.locator === '' ? 'całe dzieło' : placeLabel(place.locator, scheme.scheme, scheme.options)}</span>}
         </p>
-        <h3 className="cg-wy-title"><button type="button" className="cg-ref" onClick={() => onOpen(root.id)}>{nameOf(entity)}</button></h3>
+        <h3 className="cg-wy-title"><button type="button" className="cg-ref" onClick={() => onOpen(root.id)}><TexText text={nameOf(entity)} /></button></h3>
         {/*
           2026-10-25 — „jeszcze bez kroków" nur, wenn nichts abgeschnitten ist. Blieb für diese Wurzel im Mass aller
           Wurzeln zusammen nichts übrig (nur so hat sie keinen Schritt und doch `cut`), sagt sie, wie viel fehlt und
@@ -194,7 +197,7 @@ function WywodRoot({ root, display, onOpen }: { root: OutlineNode; display: Outl
           Abschnitt steht unter ihr, nicht mehr zwischen dem Werk und der Zahl der Schritte.
         */}
         <div className="cg-wy-meta">
-          {work !== undefined ? lib.label(work) : place === null ? '' : loading ? 'Otwieranie źródeł…' : 'dzieło niedostępne'}
+          {work !== undefined ? <TexText text={lib.labelTex(work)} /> : place === null ? '' : loading ? 'Otwieranie źródeł…' : 'dzieło niedostępne'}
           {(steps > 0 || root.cut === undefined) && <>{' · '}{steps === 0 ? 'jeszcze bez kroków' : stepsWord(steps)}</>}
           {root.cut !== undefined && (
             <span className="cg-muted">
@@ -309,8 +312,8 @@ function StepLine({ id, ctx, path, bodyId, before, lead, extra }: { id: string; 
     <div className="cg-wy-line">
       {before}
       {lead}
-      {chip !== '' && <span className="cg-wy-chip">{chip}{number !== null ? ` ${number}` : ''}</span>}
-      <button type="button" className="cg-wy-label" data-wy-label="" aria-expanded={open} aria-controls={bodyId} onClick={() => ctx.toggle(path)}>{ctx.nameOf(entity)}</button>
+      {chip !== '' && <span className="cg-wy-chip"><TexText text={chip} />{number !== null ? ` ${number}` : ''}</span>}
+      <button type="button" className="cg-wy-label" data-wy-label="" aria-expanded={open} aria-controls={bodyId} onClick={() => ctx.toggle(path)}><TexText text={ctx.nameOf(entity)} /></button>
       {rel !== '' && <span className="cg-wy-place">{rel}</span>}
       {loose && <span className="cg-tag" title="Krok bez miejsca w dziele — dopowiedziany przy rekonstrukcji">dopowiedziane</span>}
       {interp && <span className="cg-tag is-interp" title="Opiera się na innej wypowiedzi albo nie wskazuje źródła">Interpretacja</span>}
@@ -344,7 +347,7 @@ function TreeNode({ node, path, ctx }: { node: OutlineNode; path: string; ctx: N
   const bodyId = `wy-${useId().replace(/:/g, '')}`;
   if (node.again === true) {
     const e = lib.entity(node.id);
-    return <li className="cg-wy-node is-again"><span className="cg-muted">↺ {e === undefined ? '' : ctx.nameOf(e)} (już wyżej)</span></li>;
+    return <li className="cg-wy-node is-again"><span className="cg-muted">↺ {e === undefined ? '' : <TexText text={ctx.nameOf(e)} />} (już wyżej)</span></li>;
   }
   const kids = structKids(node);
   const comments = sideCount(node);
@@ -405,7 +408,7 @@ function TextList({ root, struct, ctx }: { root: OutlineNode; struct: StructNode
               {/* 2026-10-25 — die Überschrift für Bildschirmleser am Anfang der Zeile, vor dem Schritt, den sie einleitet (vorher an ihrem Ende). */}
               <StepLine id={row.node.id} ctx={ctx} path={path} bodyId={bodyId} before={heading !== null ? <span className="cg-sr">{heading}</span> : undefined} extra={<>
                 {comments > 0 && <span className="cg-wy-count" title={`${comments} — rozwiń, żeby zobaczyć`}>● {comments}</span>}
-                {parent !== undefined && <span className="cg-muted cg-wy-up">↳ do: {ctx.chipOf(parent) || lib.label(parent).slice(0, 60)}</span>}
+                {parent !== undefined && <span className="cg-muted cg-wy-up">↳ do: <TexText text={ctx.chipOf(parent) || clipTex(lib.labelTex(parent), 60)} /></span>}
               </>} />
               {ctx.isOpen(path) && <StepBody node={outline} ctx={ctx} id={bodyId} />}
             </li>
@@ -439,7 +442,7 @@ function ClassicNode({ node, onOpen, top = false }: { node: OutlineNode; onOpen:
   const { lib } = useCtx();
   const entity = lib.entity(node.id);
   if (entity === undefined) return null;
-  if (node.again === true) return <p className="cg-muted">↺ <button type="button" className="cg-ref" onClick={() => onOpen(node.id)}>{lib.label(entity)}</button> (już wyżej)</p>;
+  if (node.again === true) return <p className="cg-muted">↺ <button type="button" className="cg-ref" onClick={() => onOpen(node.id)}><TexText text={lib.labelTex(entity)} /></button> (już wyżej)</p>;
   const places = fieldsOf(entity, lib.look).filter((f) => f.type === 'ref' && f.locator === true)
     .flatMap((f) => valuesOf(entity, f).filter((v) => typeof v.value === 'string' && v.locator !== undefined).map((v) => ({ f, id: v.value as string, locator: v.locator! })));
   return (
@@ -447,7 +450,7 @@ function ClassicNode({ node, onOpen, top = false }: { node: OutlineNode; onOpen:
       <EntityGlance lib={lib} entity={entity} onEntity={onOpen} />
       {places.map(({ f, id, locator }, i) => {
         const target = lib.entity(id);
-        return <div key={i} className="cg-outline-place">{f.label}: {placeText(target, locator, target === undefined ? '' : lib.label(target))}<TextJump look={workLook(id)} workId={id} locator={locator} /></div>;
+        return <div key={i} className="cg-outline-place">{f.label}: <TexText text={placeText(target, locator, target === undefined ? '' : lib.labelTex(target))} /><TextJump look={workLook(id)} workId={id} locator={locator} /></div>;
       })}
       {node.groups.map((g, i) => (
         <section key={`${g.label}-${i}`} className="cg-outline-group">
@@ -501,7 +504,7 @@ export function EntityStructure({ id, onOpen }: { id: string; onOpen: (id: strin
           <span>W strukturze:</span>
           {path.map((x, i) => {
             const e = lib.entity(x);
-            const name = e === undefined ? '' : lib.label(e).slice(0, 80);
+            const name = e === undefined ? '' : <TexText text={clipTex(lib.labelTex(e), 80)} />;
             return <Fragment key={x}>{i > 0 && <span aria-hidden="true">›</span>}{i === path.length - 1 ? <strong>{name}</strong> : <button type="button" className="cg-ref" onClick={() => onOpen(x)}>{name}</button>}</Fragment>;
           })}
         </nav>

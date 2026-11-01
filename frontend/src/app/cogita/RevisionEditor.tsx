@@ -16,6 +16,7 @@ import { refFieldKeys } from './ViewSteps';
 import { migrateRevision, MODE_LABEL, ORDER_LABEL, PICK_LABEL, REVISION_PALETTE } from './revision';
 import { REVISION_PRESETS } from './presets';
 import { planFor } from './RevisionRun';
+import { nextLesson } from './lessons';
 import { saveTask } from '../calendar/tasks';
 import { ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
@@ -102,6 +103,8 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
   const [name, setName] = useState(typeof entry.data.name === 'string' ? entry.data.name : 'Powtórka');
   const [summary, setSummary] = useState(typeof entry.data.summary === 'string' ? entry.data.summary : '');
   const [storage, setStorage] = useState(typeof entry.data.storageAreaId === 'string' ? entry.data.storageAreaId : '');
+  /* 2026-11-01 — die nächste Lektion (`next`): eine Kennung, oder der bleibende Name aus einem Import (`lessons.ts`). */
+  const [next, setNext] = useState(typeof entry.data.next === 'string' ? entry.data.next : '');
   /* 2026-10-30 — ein alter Knoten „Najpierw podstawy" erscheint als die allgemeinen Schritte, die dasselbe tun; gespeichert wird die neue Gestalt. */
   const stored = readGraph(entry.data.graph);
   const migrated = stored.nodes.some((n) => n.type === 'gate');
@@ -113,6 +116,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
     if (dirty) return;
     setGraph(migrateRevision(readGraph(entry.data.graph)));
     setName(typeof entry.data.name === 'string' ? entry.data.name : 'Powtórka');
+    setNext(typeof entry.data.next === 'string' ? entry.data.next : '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.version]);
 
@@ -122,7 +126,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
   const offline = settings.offline.includes(id);
 
   const save = () => run(async () => {
-    await lib.saveDoc('revision', { ...entry.data, name: name.trim() || 'Powtórka', summary: summary.trim() || undefined, storageAreaId: storage || undefined, graph: graphJson(graph) }, id);
+    await lib.saveDoc('revision', { ...entry.data, name: name.trim() || 'Powtórka', summary: summary.trim() || undefined, storageAreaId: storage || undefined, next: next.trim() || undefined, graph: graphJson(graph) }, id);
     setDirty(false);
   });
 
@@ -136,6 +140,7 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
       {migrated && writes && !dirty && (
         <p className="wk-note" data-revision-migrated="">Ta powtórka miała krok „Najpierw podstawy” — teraz to zwykłe kroki: „Idź po kolejności nauki”, „Filtr znajomości” i kolejność „najpierw ogólne”. Działa tak samo; zapisz, żeby została w nowej postaci.</p>
       )}
+      <NextLesson id={id} value={next} writes={writes} onChange={(v) => { setNext(v); setDirty(true); }} />
       <GraphEditor graph={graph} palette={REVISION_PALETTE} fieldKeys={refFieldKeys(lib)} readOnly={!writes} onChange={(g) => { setGraph(g); setDirty(true); }} />
       <p className="cg-muted">
         {plan === undefined ? 'Liczenie kart…' : plan === null ? 'Podgląd się nie udał.'
@@ -168,6 +173,30 @@ function RevisionForm({ id, onRun }: { id: string; onRun: () => void }) {
       )}
       {me !== null && <CalendarTask id={id} name={name} onSaid={setSaid} />}
     </div>
+  );
+}
+
+/**
+ * 2026-11-01 — DIE NÄCHSTE LEKTION (`next`): am Ende dieser Powtórka bekommt der Lernende „Następna lekcja" — in der
+ * Nauka, auf einer Seite, über einen Link. Gewählt wird eine Powtórka dieser Baza; ein bleibender Name aus einem Import
+ * (`@kurs/lekcja-2`), der hier keine findet, bleibt stehen und wird so genannt.
+ */
+function NextLesson({ id, value, writes, onChange }: { id: string; value: string; writes: boolean; onChange: (v: string) => void }) {
+  const { lib } = useCtx();
+  const docs = lib.docs('revision');
+  /* Was `value` meint: die Kennung, unter der die Powtórka jetzt liegt (auch über ihren bleibenden Namen). */
+  const resolved = value.trim() === '' ? null : nextLesson([...docs.filter((d) => d.id !== id), { id, data: { next: value } }], id);
+  const selected = resolved?.id ?? value;
+  const others = docs.filter((d) => d.id !== id);
+  return (
+    <label className="wk-field" data-revision-next="">
+      <span>Następna lekcja</span>
+      <select value={selected} disabled={!writes || others.length === 0} onChange={(e) => onChange(e.target.value)} aria-label="Następna lekcja">
+        <option value="">— bez następnej —</option>
+        {others.map((d) => <option key={d.id} value={d.id}>{typeof d.data.name === 'string' && d.data.name.trim() !== '' ? d.data.name : 'Powtórka'}</option>)}
+        {value.trim() !== '' && resolved === null && <option value={value}>(nie ma takiej powtórki: {value})</option>}
+      </select>
+    </label>
   );
 }
 

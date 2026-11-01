@@ -252,7 +252,7 @@ Since 2026-10-23 the engine knows one fixed learning kind; everything else is th
 
 | kind | what it is |
 |---|---|
-| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. It stays built in because grading depends on it: cards, sessions, flows, proposals and the page module "Pytanie" ask it. **One kind with a type, not a kind per type** (2026-10-27, `questionTypes.ts`): „Rodzaj pytania” (`form`) chooses one of thirteen types in four groups — *napisz* (Odpowiedź słowami, Liczba, Data, Luka w tekście), *wybierz* (Jedna z kilku, Kilka z kilku, Prawda czy fałsz), *połącz i ułóż* (Połącz w pary, Ułóż w kolejności, Fiszka), *zrób* (Kod, Punkt na mapie, Rysunek do poruszania). Every type shares Pytanie, Wyjaśnienie, „O czym” and „Trzeba znać przed pytaniem” (learning order `up`); the other fields are shown by type (`when`). The editor (`QuestionFields.tsx`) has type chips, options with the right one ticked, pairs (also pasted, „Ile par naraz”, headings of the two sides), a live preview card to answer and a list of what is missing; switching type keeps what fits. Schematy → Rodzaje lists Pytanie with a table of its types. |
+| `question` | A hand-written check: an answer form, expected and accepted answers, linked entities, and right and wrong exits used in flows [C4, D1]. It stays built in because grading depends on it: cards, sessions, flows, proposals and the page module "Pytanie" ask it. **One kind with a type, not a kind per type** (2026-10-27, `questionTypes.ts`): „Rodzaj pytania” (`form`) chooses one of fourteen types in four groups — *napisz* (Odpowiedź słowami, Liczba, Data, Luka w tekście), *wybierz* (Jedna z kilku, Kilka z kilku, Prawda czy fałsz), *połącz i ułóż* (Połącz w pary, Ułóż w kolejności, Zbuduj z kafelków — 2026-11-01), *inne* (Fiszka, Kod, Punkt na mapie, Rysunek do poruszania). Every type shares Pytanie, Podpowiedzi, Wyjaśnienie (text and entries), Parametry, „O czym” and „Trzeba znać przed pytaniem” (learning order `up`); the other fields are shown by type (`when`). The editor (`QuestionFields.tsx`) has type chips, options with the right one ticked, pairs (also pasted, „Ile par naraz”, headings of the two sides), a live preview card to answer and a list of what is missing; switching type keeps what fits. Schematy → Rodzaje lists Pytanie with a table of its types. |
 | **statements** | **Any entry whose kind has a field of type `blocks`** (decision 4; `library/blocks.ts`, `library/statement.ts`, `cogita/statements.ts`) — the ready kind is "Komentarz" from `templates/cogita/komentarz.json`. Computed, never stored: **the thesis** is the first sentence of the first paragraph of the first `blocks` field (`firstSentence` skips abbreviations such as "św.", "np.", initials, and ignores markup and citations); it names the entry and is the front of a card; missing or longer than 200 characters is a warning in the editor and under "Do zrobienia". **A question** is a statement whose thesis ends with "?"; it is answered as soon as another readable statement points at it (2026-10-25: also when a step lies under it in a structure; computed once per state of the base, so Cogita no longer shows every question as „Pytanie otwarte”). **The badge** "Informacja" / "Interpretacja" comes from references only: only Library sources → information; another statement, or no source → interpretation (a table alone no longer makes an interpretation; since 2026-10-25 links through structure fields do not count — a reconstructed step under its question still reports the source). In texts `![@id]` embeds a statement whole (tables included); `[@id]` or `[[words\|@id]]` links to it. |
 | `text` | A text of a Scriptorium: material and a narrative [C2, K1]; it embeds statements the way it embeds quotes. |
 
@@ -367,6 +367,37 @@ A fixed direction is a Filtr with the language typed in, behind a “Warunek” 
 - Explanations are collapsed: one line each (title and the first sentence of a `summary` field, else of the first text field), the question's own topic („O czym”) first with two or three lines; expanded: the text with footnotes and „pokaż w tekście”, dates, sources with places, „Otwórz wpis”. Never shown: numbers, choices, lists, references without a place, map points, files, empty fields, and the fields of a linked question.
 - Before the first question about a topic („O czym”) the learner has not met, a „Nowy temat” panel shows its title and its lead — the summary, or the first paragraph of its text, with its formatting and clickable footnotes, at most four lines on a phone (six wider, two each when several topics come at once), so the question stays in view. „Czytaj dalej” expands the whole text in place (paragraphs, bold subheadings, footnotes as on the entry page; a footnote in the lead opens the text at its note), „Zwiń tekst” brings the question back; „Czytaj tekst” opens the source at the topic's place (its field with a place, else the first cited source whose text this reader has: the reader in the workspace, the passage itself on a page). Lists under a bold heading stay folded until opened (`reading.ts`; a list written right under its line still counts as a list here). Only real questions count as meeting a topic; which cards come is unchanged.
 - Under the card a short line (`whyText`), the full reason as its hint (`whyDetail`). „Zgłoś problem” is an inline form; the report carries the question, the learner's answer, the right one and the score, and „Do zrobienia” shows them.
+
+**Lessons in the style of Lemma** (2026-11-01, IMPLEMENTATION-LOG C11): one idea at a time — read it, practise it,
+finish with a short test, see the progress on a map. All of it is data of the existing kinds; the code only reads it.
+- **Formulas everywhere** (`$…$`, `$$…$$`, `\$` a dollar): prompts, options, pairs, items, tiles, gaps, hints,
+  explanations, „Nowy temat”, entry labels in lists, views, search, Struktura and the teacher's tables. Labels keep
+  their formulas through `labelOf(…, tex)` / `lib.labelTex` and are drawn with `TexText`; the plain `label` stays for
+  search, sorting, `<option>` and aria. A formula KaTeX cannot read shows its source. A typed answer never needs
+  LaTeX: `$x^2$` also accepts „x²” and „x^2”, and the verdict shows the answer as written.
+- **Question keys** (built-in `question`, fields in `kinds.ts`; `json` is a field type for data of its own shape):
+  `hints` (1–3, each revealed one lowers this answer's maximum by ¼ — `withHints`; the answer records how many),
+  `explanation` (shown expanded right after the answer, before the collapsed `explain`/`about` entries), `feedback`
+  (one sentence per option, under the chosen and the right ones, ✓/✗), form **`build`** (`items`, `extra`,
+  `alternatives`, `preview` math|text, `join`; `BuildAnswer.tsx`: tap, 2-D drag, keyboard, live preview as one
+  formula, marks per position, „Pokaż rozwiązanie”; partial credit = the better of the right start and the ordering
+  score), **gaps with choices** (`choices` per `[[…]]` gap: a listbox that can show formulas, the others typed; each
+  gap scores on its own — `GapAnswer.tsx`), `order` with `preview`, **code** `tests` (examples first, then hidden
+  cases, 2 s each, a table per case — `CodeAnswer.tsx`, `python.ts`), **parameters** `params` / `let` / `require`
+  (`questionParams.ts`: drawn per showing with the drawings' expression language, `{a}` placeholders in every text,
+  numbers with a comma, `{,}` inside a formula; the card's fingerprint is the written question, so the history stays;
+  the answer records the drawn values).
+- **Templates compute**: nodes „Oblicz” (`calc`, expressions over `p0…`), „Zbierz” (`aggregate`: sum, count, min,
+  max, avg) next to „Losowa wartość” (`random`, also from a list).
+- **A lesson** is a revision with `endWhenDone`, `pick: next`, `order: general`: a bar „x z y kart”
+  (`lessonProgress`), an end screen (done, right at first try, time, the cards answered wrongly or with a hint,
+  „Ćwicz te jeszcze raz” — a levels run of exactly those cards), and the revision key `next` („Następna lekcja”,
+  resolved by id or lasting name; `lessons.ts`, `LessonEnd.tsx`). Optional daily goal and streak in Ustawienia →
+  Motywacja („Serie dni nauki”, `dailyGoal`; `DailyGoal.tsx`).
+- **The quilt** — view mode `quilt`: a tile per entry, grouped like the view, coloured by band with a mark per band;
+  a tile opens the entry's reading, its questions with the last result, „Ćwicz to” and „Otwórz w źródle”; the teacher
+  sees it per learner and for the class, with per-question statistics (success, attempts, hints, the most frequent
+  wrong answer).
 
 **Card history** is kept unless the expected answer changed [D7]. A learner can suspend a card for themselves and flag it for the authors [D12].
 

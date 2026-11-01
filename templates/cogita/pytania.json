@@ -53,6 +53,10 @@
               "label": "Ułóż w kolejności"
             },
             {
+              "value": "build",
+              "label": "Zbuduj z kafelków"
+            },
+            {
               "value": "flash",
               "label": "Fiszka (sam oceniasz)"
             },
@@ -69,13 +73,25 @@
               "label": "Rysunek do poruszania"
             }
           ],
-          "says": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: text (Odpowiedź słowami), number (Liczba), date (Data), gap (Luka w tekście), one (Jedna z kilku), many (Kilka z kilku), truefalse (Prawda czy fałsz), match (Połącz w pary), order (Ułóż w kolejności), flash (Fiszka (sam oceniasz)), point (Miejsce na mapie), code (Kod (Python)), interactive (Rysunek do poruszania)"
+          "says": "Jak się pyta i odpowiada — od tego zależy, które pola niżej się wypełnia: text (Odpowiedź słowami), number (Liczba), date (Data), gap (Luka w tekście), one (Jedna z kilku), many (Kilka z kilku), truefalse (Prawda czy fałsz), match (Połącz w pary), order (Ułóż w kolejności), build (Zbuduj z kafelków), flash (Fiszka (sam oceniasz)), point (Miejsce na mapie), code (Kod (Python)), interactive (Rysunek do poruszania)"
         },
         {
           "key": "prompt",
           "label": "Pytanie",
           "type": "markup",
-          "says": "Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]]"
+          "says": "Treść pytania; przy „Prawda czy fałsz” — zdanie, przy fiszce — jej przód, przy luce — tekst z luką [[słowo]] (kilka luk: każda osobno). Wzory: $…$ w zdaniu, $$…$$ osobno"
+        },
+        {
+          "key": "hints",
+          "label": "Podpowiedzi",
+          "type": "list",
+          "says": "Podpowiedzi przed odpowiedzią, od łagodnej do konkretnej (1–3, z wzorami $…$); każda odsłonięta obniża najwyższy wynik tej odpowiedzi o ¼"
+        },
+        {
+          "key": "explanation",
+          "label": "Wyjaśnienie (tekst)",
+          "type": "markup",
+          "says": "Wyjaśnienie pokazywane zaraz po odpowiedzi, rozwinięte (2–4 zdania, wzory $…$, źródła [@dzieło, s. 12])"
         },
         {
           "key": "answers",
@@ -90,7 +106,7 @@
               "gap"
             ]
           },
-          "says": "Przyjmowane odpowiedzi (text, number, date, gap) — pierwsza jest wzorcowa"
+          "says": "Przyjmowane odpowiedzi (text, number, date, gap) — pierwsza jest wzorcowa; wpisywanie nigdy nie wymaga LaTeX-a"
         },
         {
           "key": "options",
@@ -103,7 +119,7 @@
               "many"
             ]
           },
-          "says": "Możliwości (one, many)"
+          "says": "Możliwości (one, many) — mogą mieć wzory $…$"
         },
         {
           "key": "correct",
@@ -117,6 +133,19 @@
             ]
           },
           "says": "Numery dobrych możliwości, od 0 (one, many)"
+        },
+        {
+          "key": "feedback",
+          "label": "Zdanie do każdej możliwości",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "one",
+              "many"
+            ]
+          },
+          "says": "Po jednym zdaniu do każdej możliwości, w tej samej kolejności co „Do wyboru” (puste: bez zdania) — po odpowiedzi stoi pod wybraną i pod dobrymi (one, many)"
         },
         {
           "key": "value",
@@ -197,10 +226,84 @@
           "when": {
             "field": "form",
             "values": [
-              "order"
+              "order",
+              "build"
             ]
           },
-          "says": "Elementy w poprawnej kolejności (order)"
+          "says": "Elementy w poprawnej kolejności (order); kafelki dobrej odpowiedzi w kolejności (build)"
+        },
+        {
+          "key": "extra",
+          "label": "Kafelki zbędne",
+          "type": "list",
+          "when": {
+            "field": "form",
+            "values": [
+              "order",
+              "build"
+            ]
+          },
+          "says": "Kafelki, których nie trzeba użyć (build); „Ułóż w kolejności” ich nie pokazuje"
+        },
+        {
+          "key": "alternatives",
+          "label": "Inne dobre kolejności",
+          "type": "json",
+          "when": {
+            "field": "form",
+            "values": [
+              "build"
+            ]
+          },
+          "says": "Inne przyjmowane odpowiedzi z kafelków: lista list, np. [[\"$B$\", \"$=$\", \"$A$\"]] (build)"
+        },
+        {
+          "key": "preview",
+          "label": "Podgląd",
+          "type": "choice",
+          "options": [
+            {
+              "value": "math",
+              "label": "jako wzór"
+            },
+            {
+              "value": "text",
+              "label": "jako tekst"
+            }
+          ],
+          "when": {
+            "field": "form",
+            "values": [
+              "order",
+              "build"
+            ]
+          },
+          "says": "math albo text — jak pokazać to, co ułożone (build: domyślnie wzór; order: bez — bez podglądu)"
+        },
+        {
+          "key": "join",
+          "label": "Między kafelkami",
+          "type": "json",
+          "when": {
+            "field": "form",
+            "values": [
+              "order",
+              "build"
+            ]
+          },
+          "says": "Co stoi między kafelkami w podglądzie — tekst, domyślnie \" \" (build, order)"
+        },
+        {
+          "key": "choices",
+          "label": "Do wyboru w lukach",
+          "type": "json",
+          "when": {
+            "field": "form",
+            "values": [
+              "gap"
+            ]
+          },
+          "says": "Do każdej luki [[…]] po kolei lista ZŁYCH możliwości, np. [[\"Satz 2.1\", \"Lemma 3.4\"], []] — luka z listą jest do wybrania, z pustą — do wpisania (gap)"
         },
         {
           "key": "back",
@@ -484,6 +587,18 @@
           "says": "Na ilu danych sprawdzić (code)"
         },
         {
+          "key": "tests",
+          "label": "Przykłady",
+          "type": "json",
+          "when": {
+            "field": "form",
+            "values": [
+              "code"
+            ]
+          },
+          "says": "Widoczne przykłady: [{\"input\": [3, 1, 2], \"output\": [1, 2, 3], \"note\": \"…\"}] — sprawdzane przed ukrytymi przypadkami (code); może być tekstem JSON"
+        },
+        {
           "key": "place",
           "label": "Miejsce",
           "type": "geo",
@@ -545,10 +660,28 @@
         },
         {
           "key": "explain",
-          "label": "Wyjaśnienie",
+          "label": "Wyjaśnienie (wpisy)",
           "type": "ref",
           "multi": true,
-          "says": "Wpisy pokazywane po odpowiedzi (np. wypowiedź z treścią w blokach)"
+          "says": "Wpisy pokazywane po odpowiedzi, zwinięte (np. wypowiedź z treścią w blokach)"
+        },
+        {
+          "key": "params",
+          "label": "Parametry",
+          "type": "json",
+          "says": "Wartości losowane przy każdym pytaniu: [{\"name\": \"a\", \"random\": [2, 30], \"step\": 1}] albo {\"name\": \"f\", \"values\": [...]}; w tekstach {a}"
+        },
+        {
+          "key": "let",
+          "label": "Wartości liczone",
+          "type": "json",
+          "says": "Liczone z parametrów, po kolei: [{\"name\": \"r\", \"value\": \"mod(a, n)\"}] — język wyrażeń rysunków; w tekstach {r}, {fmt(x, 2)}"
+        },
+        {
+          "key": "require",
+          "label": "Warunki losowania",
+          "type": "list",
+          "says": "Warunki, które losowanie musi spełnić, np. \"a > 2*n\" — losuje się od nowa (do 60 razy)"
         },
         {
           "key": "about",

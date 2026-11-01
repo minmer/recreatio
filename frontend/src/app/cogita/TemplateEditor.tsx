@@ -5,9 +5,10 @@
  * Knoten, der scheiterte.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { answerText } from './CardFace';
+import type { Card } from './cardBasics';
 import { cardsOf, readTemplate, templateProblems, type Template } from './cards';
 import { TEMPLATE_PALETTE } from './cardPalette';
 import { evaluate, graphJson, type Graph } from './graph';
@@ -17,6 +18,17 @@ import { isStatementKind } from './statements';
 import { BOOK_KINDS } from './store';
 import { EntityPicker, ForeignOnly, kindLabel, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
+import { TexText } from '../ui/tex/Tex';
+
+/** 2026-11-01 — bei einer Wahl im Podgląd auch die anderen Möglichkeiten (die Dystraktoren aus „Oblicz" sieht man so gleich). */
+function optionsOf(c: Card): ReactNode {
+  const a = c.answer;
+  if (a.form !== 'one' && a.form !== 'many') return null;
+  const right = new Set(a.form === 'one' ? [a.correct] : a.correct);
+  const wrong = a.options.filter((_o, i) => !right.has(i));
+  if (wrong.length === 0) return null;
+  return <span className="cg-muted"> · obok: {wrong.map((o, i) => <Fragment key={i}>{i > 0 && ', '}<TexText text={o} /></Fragment>)}</span>;
+}
 
 export function TemplateEditor({ chosenId, onChoose }: { chosenId: string | null; onChoose: (id: string | null) => void }) {
   const { lib, writes } = useCtx();
@@ -234,7 +246,11 @@ function TemplateForm({ template }: { template: Template }) {
             <>
               {preview.made.cards.length === 0 && <span className="wk-hint">Z tego wpisu nie powstaje karta (np. puste pole albo warunek niespełniony).</span>}
               <ul>
-                {preview.made.cards.slice(0, 20).map((c) => <li key={c.key}>{c.prompt.map((p) => p.text).join(' ') || '(bez treści)'} → <strong>{answerText(c)}</strong> <span className="cg-muted">({c.answer.form}{c.varies ? ', losowa' : ''})</span></li>)}
+                {/* 2026-11-01 — Wzory gesetzt, wie die Karte sie zeigt (KaTeX lädt erst, wenn einer da ist). */}
+                {preview.made.cards.slice(0, 20).map((c) => {
+                  const asked = c.prompt.map((p) => p.text).join(' ');
+                  return <li key={c.key}>{asked === '' ? '(bez treści)' : <TexText text={asked} />} → <strong><TexText text={answerText(c)} /></strong>{optionsOf(c)} <span className="cg-muted">({c.answer.form}{c.varies ? ', losowa' : ''})</span></li>;
+                })}
               </ul>
               {preview.made.problems.map((p, i) => <p key={i} className="wk-warn">{p}</p>)}
             </>

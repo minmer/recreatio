@@ -18,10 +18,12 @@ import { BASES_CHANGED } from './sources';
 import { BaseVisibility } from './BaseWho';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';
 import { intakeOf } from './learn';
+import { DEFAULT_DAILY_GOAL, readDailyGoal } from './lessons';
 import { LOOK_LABEL, LOOK_TYPES, type LookType } from './flow';
 import { DEFAULT_RULES, describeRules, PRESETS, readRules, type LiveRules } from './rules';
 import { MOTIVATION_LABEL, MOTIVATIONS, type DependencyEdge, type Motivation, type SourceRef } from './store';
-import { EntityPicker, entityName, OriginTag, useAsync, useBusy, useCtx } from './ui';
+import { EntityPicker, entityNameTex, OriginTag, useAsync, useBusy, useCtx } from './ui';
+import { TexText } from '../ui/tex/Tex';
 
 export function CogitaSettings() {
   const { lib, writes } = useCtx();
@@ -65,6 +67,8 @@ export function CogitaSettings() {
         <select value={settings.motivation} disabled={busy} onChange={(e) => void save({ motivation: e.target.value as Motivation })}>
           {MOTIVATIONS.map((m) => <option key={m} value={m}>{MOTIVATION_LABEL[m]}</option>)}
         </select>
+        {/* 2026-11-01 (2.11) — nur mit „Serie dni nauki": ein Tagesziel, die Tage hintereinander, die Woche. */}
+        {settings.motivation === 'streaks' && <DailyGoalSetting value={settings.dailyGoal ?? DEFAULT_DAILY_GOAL} busy={busy} onSave={(n) => void save({ dailyGoal: n })} />}
         <p className="wk-hint">Rankingi są tylko w sesjach na żywo.</p>
       </section>
 
@@ -242,7 +246,7 @@ function Dependencies({ edges, busy, onSave }: { edges: readonly DependencyEdge[
       <ul>
         {edges.map((d, i) => (
           <li key={`${d.parent}>${d.child}`} className="cg-row">
-            <span>{entityName(lib, d.child)} → {entityName(lib, d.parent)} · {DEPENDENCY_LABEL[d.kind]} · waga {d.impact}</span>
+            <span><TexText text={entityNameTex(lib, d.child)} /> → <TexText text={entityNameTex(lib, d.parent)} /> · {DEPENDENCY_LABEL[d.kind]} · waga {d.impact}</span>
             {d.proposed === true && <span className="cg-tag is-warn">propozycja</span>}
             {d.proposed === true && <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onSave(edges.map((e, j) => (j === i ? { parent: e.parent, child: e.child, kind: e.kind, impact: e.impact } : e)))}>potwierdź</button>}
             <button type="button" className="wk-link-btn" disabled={busy} onClick={() => onSave(edges.filter((_, j) => j !== i))}>usuń</button>
@@ -379,5 +383,25 @@ function Looks() {
       <button type="button" className="wk-link-btn" disabled={busy} onClick={() => void run(() => lib.saveDoc('look', { name: 'Nowy wygląd', type: 'reading', kinds: {} }))}>+ wygląd</button>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
+  );
+}
+
+/**
+ * 2026-11-01 (2.11) — DAS TAGESZIEL: wie viele verschiedene Karten am Tag. Die Lernenden sehen dann in der Nauka und am
+ * Ende einer Powtórka den heutigen Stand, die Tage hintereinander und die Woche — jeder nur seine eigenen.
+ */
+function DailyGoalSetting({ value, busy, onSave }: { value: number; busy: boolean; onSave: (n: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => { setDraft(String(value)); }, [value]);
+  const n = readDailyGoal(draft);
+  return (
+    <label className="wk-field" data-daily-goal-setting="">
+      <span>Cel dzienny — ile kart dziennie</span>
+      <span className="cg-row">
+        <input type="number" min={1} max={500} step={1} inputMode="numeric" value={draft} disabled={busy} onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => { if (n !== undefined && n !== value) onSave(n); }} onKeyDown={(e) => { if (e.key === 'Enter' && n !== undefined && n !== value) onSave(n); }} />
+        <span className="cg-muted">Seria to dni z rzędu, w których cel jest osiągnięty. Każdy uczący się widzi tylko swoje dni.</span>
+      </span>
+    </label>
   );
 }

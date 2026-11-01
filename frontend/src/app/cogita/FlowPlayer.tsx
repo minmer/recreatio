@@ -32,6 +32,7 @@ import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
 import { Markup, MediaView } from './ui';
 import { Loading } from '../ui/Loading';
+import { TexText } from '../ui/tex/Tex';
 
 /* 2026-10-22 (Schritt 12) — erst geladen, wenn jemand ein Storyboard spielt (es bringt die Bausteine der Seiten mit). */
 const PresentationInNauka = lazy(() => import('../pages/presentation/PresentationInNauka'));
@@ -155,7 +156,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       return (
         <section className="cg-flow">
           <div className="cg-flow-step">
-            <h2>{flow.name}</h2>
+            <h2><TexText text={flow.name} /></h2>
             <p className="cg-muted">Ten przebieg jest prezentacją.</p>
             <div className="wk-actions"><a className="wk-btn" href={`#/${flow.presentation}`}>Otwórz prezentację</a></div>
           </div>
@@ -174,7 +175,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return (
       <section className={`cg-flow cg-flow-${look}`}>
         <div className="cg-flow-step">
-          <h2>Koniec — {flow.name}</h2>
+          <h2>Koniec — <TexText text={flow.name} /></h2>
           {flow.goals.length > 0 && <Goals flow={flow} reached={reached} />}
           <div className="wk-actions">
             <button type="button" className="wk-btn" onClick={restart}>Od początku</button>
@@ -213,7 +214,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <CardFace card={card}
             onAnswered={(outcome, given) => {
-              learner?.record(card, outcome.correctness, { via: flow.id });
+              /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). */
+              learner?.record(card, outcome.correctness, { via: flow.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
               onAnswer?.(current.id, card, outcome.correctness, given);
               setAnsweredOn({ step: current.id, correct: outcome.correct });
             }}
@@ -223,13 +225,13 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       case 'choice':
         return (
           <div className="cg-choices">
-            {optionsOf(current, facts(state)).map((o) => <button key={o.exit} type="button" className="cg-option" onClick={() => go(o.exit)}>{o.label}</button>)}
+            {optionsOf(current, facts(state)).map((o) => <button key={o.exit} type="button" className="cg-option" onClick={() => go(o.exit)}><TexText text={o.label} /></button>)}
           </div>
         );
       case 'chapters':
         return (
           <div className="cg-choices">
-            {chaptersLeft(current, state).map((ch) => <button key={ch.exit} type="button" className="cg-option" onClick={() => go(ch.exit)}>{ch.title}</button>)}
+            {chaptersLeft(current, state).map((ch) => <button key={ch.exit} type="button" className="cg-option" onClick={() => go(ch.exit)}><TexText text={ch.title} /></button>)}
           </div>
         );
       case 'line': {
@@ -264,7 +266,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   return (
     <section className={`cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`}>
       <div className="cg-row-between">
-        <strong>{flow.name}</strong>
+        <strong><TexText text={flow.name} /></strong>
         <span className="cg-row">
           {flow.goals.length > 0 && <span className="cg-muted">Cele: {reached.length}/{flow.goals.length}</span>}
           <button type="button" className="wk-link-btn" onClick={restart}>od początku</button>
@@ -278,8 +280,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       )}
       {teller !== null && <Narrator who={teller} says={title} />}
       <div className={`cg-flow-step${c.open === 'inline' ? ' cg-flow-inline' : ''}`}>
-        {title !== null && teller === null && <h2>{title}</h2>}
-        {item !== null && <p className="cg-muted">{item.label}</p>}
+        {title !== null && teller === null && <h2><TexText text={title} /></h2>}
+        {item !== null && <p className="cg-muted"><TexText text={item.label} /></p>}
         {body}
       </div>
     </section>
@@ -294,8 +296,8 @@ function Narrator({ who, says }: { who: PublicEntity | null; says: string | null
     <div className="cg-bubble cg-narrator" data-narrator={who.id}>
       <span className="cg-bubble-face" title={who.label}>{portrait !== undefined ? <MediaView media={portrait} /> : who.label.slice(0, 1)}</span>
       <span className="cg-bubble-text">
-        <strong>{who.label}</strong>
-        <span>{says ?? 'opowiada'}</span>
+        <strong><TexText text={who.label} /></strong>
+        <span><TexText text={says ?? 'opowiada'} /></span>
       </span>
     </div>
   );
@@ -308,7 +310,7 @@ function Next({ onNext }: { onNext: () => void }) {
 function Goals({ flow, reached }: { flow: Flow; reached: readonly string[] }) {
   return (
     <div className="cg-goals">
-      {flow.goals.map((g) => <span key={g.id} className={`cg-tag${reached.includes(g.id) ? ' is-ok' : ''}`}>{reached.includes(g.id) ? '✓ ' : ''}{g.title}</span>)}
+      {flow.goals.map((g) => <span key={g.id} className={`cg-tag${reached.includes(g.id) ? ' is-ok' : ''}`}>{reached.includes(g.id) ? '✓ ' : ''}<TexText text={g.title} /></span>)}
     </div>
   );
 }
@@ -321,12 +323,12 @@ export function EntityView({ entity }: { entity: PublicEntity | null }) {
   if (text !== undefined) return <Markup text={text.text} />;
   return (
     <div className="cg">
-      <h3>{entity.label}</h3>
+      <h3><TexText text={entity.label} /></h3>
       {entity.media.slice(0, 3).map((m) => <MediaView key={m.file} media={m} />)}
       {entity.fields.filter((f) => f.text !== '').slice(0, 12).map((f) => (
         <div key={f.key}>
           <span className="cg-muted">{f.label}: </span>
-          {f.type === 'markup' ? <Markup text={f.text} /> : <span>{f.text}</span>}
+          {f.type === 'markup' ? <Markup text={f.text} /> : <span><TexText text={f.text} /></span>}
         </div>
       ))}
     </div>
@@ -342,7 +344,7 @@ function Bubble({ who, text, mood }: { who: PublicEntity | null; text: PublicEnt
         {portrait !== undefined ? <MediaView media={portrait} /> : (who?.label ?? '?').slice(0, 1)}
       </span>
       <span className="cg-bubble-text">
-        <strong>{who?.label ?? 'Postać'}{mood !== null && mood !== '' ? <span className="cg-muted"> ({mood})</span> : null}</strong>
+        <strong><TexText text={who?.label ?? 'Postać'} />{mood !== null && mood !== '' ? <span className="cg-muted"> ({mood})</span> : null}</strong>
         <Markup text={line} />
       </span>
     </div>

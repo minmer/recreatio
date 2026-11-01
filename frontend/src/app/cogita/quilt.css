@@ -1,0 +1,110 @@
+/*
+ * 2026-11-01 — MAPA POSTĘPÓW (QuiltView.tsx). Farben geprüft mit dataviz `validate_palette.js --ordinal`:
+ * die Stufen einer Person drei Schritte der blauen Rampe aus `.cg-stats` — hell #86b6ef → #3987e5 → #0d366b gegen
+ * #ffffff, dunkel #1c5cab → #3987e5 → #cde2fb gegen #1f1c16 (alle Prüfungen bestanden); „nowe" ohne Farbe, gestrichelt.
+ * Die Klasse vier Schritte derselben Rampe (hell #86b6ef → #0d366b, dunkel #1c5cab → #cde2fb — bestanden).
+ * Schrift auf jeder Farbe ≥ 4,5:1; jede Stufe trägt ihr Zeichen (○ ◔ ◑ ●) bzw. ihre Zahl — nie nur die Farbe.
+ */
+.cg-quilt {
+  --cg-q-learning: #86b6ef; --cg-q-learning-on: #0b0b0b;
+  --cg-q-due: #3987e5; --cg-q-due-on: #0b0b0b;
+  --cg-q-known: #0d366b; --cg-q-known-on: #ffffff;
+  --cg-q-c1: #86b6ef; --cg-q-c1-on: #0b0b0b;
+  --cg-q-c2: #3987e5; --cg-q-c2-on: #0b0b0b;
+  --cg-q-c3: #1c5cab; --cg-q-c3-on: #ffffff;
+  --cg-q-c4: #0d366b; --cg-q-c4-on: #ffffff;
+  display: grid; gap: var(--wk-space-3); min-width: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .cg-quilt {
+    --cg-q-learning: #1c5cab; --cg-q-learning-on: #ffffff;
+    --cg-q-due: #3987e5; --cg-q-due-on: #0b0b0b;
+    --cg-q-known: #cde2fb; --cg-q-known-on: #0b0b0b;
+    --cg-q-c1: #1c5cab; --cg-q-c1-on: #ffffff;
+    --cg-q-c2: #3987e5; --cg-q-c2-on: #0b0b0b;
+    --cg-q-c3: #86b6ef; --cg-q-c3-on: #0b0b0b;
+    --cg-q-c4: #cde2fb; --cg-q-c4-on: #0b0b0b;
+  }
+}
+
+.cg-quilt-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--wk-space-2) var(--wk-space-4); }
+.cg-quilt-sum { font-weight: 600; }
+.cg-quilt-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-3); font-size: var(--wk-text-sm); }
+.cg-quilt-legend li { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.cg-quilt-swatch {
+  display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; box-sizing: border-box;
+  border-radius: var(--wk-radius-xs); font-size: var(--wk-text-xs); line-height: 1;
+}
+.cg-quilt-choose select { min-width: 12rem; }
+
+.cg-quilt-group { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.cg-quilt-head { margin: var(--wk-space-2) 0 0; font-size: var(--wk-text-md); }
+.cg-quilt-group-title { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--wk-space-2); font-size: var(--wk-text-sm); font-weight: 600; }
+.cg-quilt-count { font-weight: 400; font-variant-numeric: tabular-nums; }
+
+/* Die Kacheln: dicht nebeneinander (2px Fuge), so breit, dass ein langes Wort ganz in eine Zeile passt; auf dem Telefon zwei je Reihe. */
+.cg-quilt-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: 2px; }
+.cg-quilt-tiles.is-compact { grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); }
+.cg-quilt-cell { display: flex; min-width: 0; }
+.cg-quilt-tile {
+  flex: 1; min-width: 0; min-height: 3.5rem; box-sizing: border-box;
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--wk-space-1);
+  padding: var(--wk-space-2); border: 1px solid transparent; border-radius: var(--wk-radius-sm);
+  font: inherit; font-size: var(--wk-text-sm); line-height: 1.3; text-align: left; cursor: pointer;
+}
+.cg-quilt-tiles.is-compact .cg-quilt-tile { min-height: 2.75rem; font-size: var(--wk-text-xs); }
+.cg-quilt-tile:hover { filter: brightness(1.06); }
+.cg-quilt-tile:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-quilt-tile.is-on { outline: 3px solid var(--wk-ink); outline-offset: 1px; }
+.cg-quilt-mark { font-weight: 700; }
+.cg-quilt-mark.is-count { font-variant-numeric: tabular-nums; }
+.cg-quilt-label { min-width: 0; overflow: hidden; overflow-wrap: break-word; hyphens: auto; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; }
+.cg-quilt-label .tex.is-display { display: inline; }
+
+/* Die Stufen einer Person — auf der Kachel, in der Legende und als Abzeichen. */
+.cg-quilt-tile.is-new, .cg-quilt-swatch.is-new, .cg-quilt-badge.is-new { background: var(--wk-sunk); color: var(--wk-ink-2); border: 1px dashed var(--wk-line-strong); }
+.cg-quilt-tile.is-learning, .cg-quilt-swatch.is-learning, .cg-quilt-badge.is-learning { background: var(--cg-q-learning); color: var(--cg-q-learning-on); }
+.cg-quilt-tile.is-due, .cg-quilt-swatch.is-due, .cg-quilt-badge.is-due { background: var(--cg-q-due); color: var(--cg-q-due-on); }
+.cg-quilt-tile.is-known, .cg-quilt-swatch.is-known, .cg-quilt-badge.is-known { background: var(--cg-q-known); color: var(--cg-q-known-on); }
+/* Ein Eintrag ohne Fragen: lässt sich nicht üben — punktiert umrandet. */
+.cg-quilt-tile.is-bare { border: 1px dotted var(--wk-line-strong); }
+
+/* Die Klasse: wie viele den Eintrag können — vier Schritte, „—" ohne Antwort. */
+.cg-quilt-tile.is-c0, .cg-quilt-swatch.is-c0 { background: var(--wk-sunk); color: var(--wk-muted); border: 1px dashed var(--wk-line-strong); }
+.cg-quilt-tile.is-c1, .cg-quilt-swatch.is-c1 { background: var(--cg-q-c1); color: var(--cg-q-c1-on); }
+.cg-quilt-tile.is-c2, .cg-quilt-swatch.is-c2 { background: var(--cg-q-c2); color: var(--cg-q-c2-on); }
+.cg-quilt-tile.is-c3, .cg-quilt-swatch.is-c3 { background: var(--cg-q-c3); color: var(--cg-q-c3-on); }
+.cg-quilt-tile.is-c4, .cg-quilt-swatch.is-c4 { background: var(--cg-q-c4); color: var(--cg-q-c4-on); }
+
+/* Die Tafel einer Kachel, unter ihrer Gruppe. */
+.cg-quilt-panel {
+  display: grid; gap: var(--wk-space-2); min-width: 0; padding: var(--wk-space-3);
+  border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: var(--wk-surface);
+}
+.cg-quilt-panel:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-quilt-panel-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
+.cg-quilt-panel-title { margin: 0; flex: 1 1 12rem; min-width: 0; font-size: var(--wk-text-md); overflow-wrap: anywhere; }
+.cg-quilt-badge {
+  display: inline-flex; align-items: center; gap: var(--wk-space-1); padding: 0.125rem var(--wk-space-2);
+  border-radius: 999px; font-size: var(--wk-text-xs); font-weight: 600; white-space: nowrap;
+}
+.cg-quilt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-2) var(--wk-space-3); }
+.cg-quilt-sub { margin: var(--wk-space-1) 0 0; font-size: var(--wk-text-sm); }
+.cg-quilt-questions { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-2); }
+.cg-quilt-questions li { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr); gap: 0 var(--wk-space-2); align-items: baseline; font-size: var(--wk-text-sm); }
+.cg-quilt-result { font-weight: 700; text-align: center; }
+.cg-quilt-questions li.is-right .cg-quilt-result { color: var(--wk-free-ink); }
+.cg-quilt-questions li.is-near .cg-quilt-result { color: var(--wk-held-ink); }
+.cg-quilt-questions li.is-wrong .cg-quilt-result { color: var(--wk-shut-ink); }
+.cg-quilt-questions li.is-none .cg-quilt-result { color: var(--wk-muted); }
+.cg-quilt-q { min-width: 0; overflow-wrap: anywhere; }
+.cg-quilt-when { grid-column: 2; font-size: var(--wk-text-xs); }
+.cg-quilt-who { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.cg-source-passage { display: block; flex-basis: 100%; }
+
+@media (max-width: 40rem) {
+  .cg-quilt-tiles.is-compact { grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cg-quilt-tile:hover { filter: none; }
+}

@@ -14,6 +14,7 @@ import { ask } from '../ui/dialogs';
 import { anchorData, anchorPath, anchorPlace, anchorProblems, anchorsAt, anchorsOf, type Anchor } from './anchors';
 import { placeOf } from './structure';
 import { EntityPicker, useBusy, useCtx } from './ui';
+import { TexText } from '../ui/tex/Tex';
 
 type Draft = Omit<Anchor, 'id'>;
 
@@ -80,12 +81,13 @@ function AnchorRow({ anchor, onEdit, showEntry }: { anchor: Anchor; onEdit?: () 
   });
   return (
     <li className="cg-anchor" data-anchor={anchor.id}>
-      <a className="cg-anchor-name" href={anchorPath(lib.libraryId, anchor)}>{anchor.name}</a>
+      {/* 2026-11-01 — Namen (Wejście, Werk, Eintrag, Widok) mit ihren Wzory. */}
+      <a className="cg-anchor-name" href={anchorPath(lib.libraryId, anchor)}><TexText text={anchor.name} /></a>
       <span className="cg-muted">
-        {work === undefined ? 'dzieło niedostępne' : workLibrary === undefined ? lib.label(work) : <a href={containerPath(workLibrary, work.id)}>{lib.label(work)}</a>}
+        {work === undefined ? 'dzieło niedostępne' : workLibrary === undefined ? <TexText text={lib.labelTex(work)} /> : <a href={containerPath(workLibrary, work.id)}><TexText text={lib.labelTex(work)} /></a>}
         {' · '}{anchorPlace(lib, anchor)}
-        {showEntry && entry !== undefined && <> · → {lib.label(entry)}</>}
-        {view !== undefined && <> · {typeof view.data.name === 'string' ? view.data.name : 'Widok'}</>}
+        {showEntry && entry !== undefined && <> · → <TexText text={lib.labelTex(entry)} /></>}
+        {view !== undefined && <> · <TexText text={typeof view.data.name === 'string' ? view.data.name : 'Widok'} /></>}
       </span>
       {writes && (
         <span className="cg-row">

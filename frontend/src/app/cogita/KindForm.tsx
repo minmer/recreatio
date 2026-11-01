@@ -183,7 +183,7 @@ export function KindForm({ draft, writes, busy, targets, fixedKeys = new Set(), 
                     <td className="cg-field-type" data-label="Typ">
                       <select value={typeValue(f)} disabled={!writes || fixed} aria-label="Typ pola"
                         onChange={(e) => setField(i, e.target.value.startsWith(REF_TO) ? { type: 'ref', to: [e.target.value.slice(REF_TO.length)] } : { type: e.target.value as FieldType, ...(e.target.value === 'ref' ? { to: [] } : {}) })}>
-                        {[...types, ...(f.type === 'outline' && !types.includes('outline') ? ['outline' as const] : [])].map((t) => <option key={t} value={t}>{t === 'ref' ? ((f.to ?? []).length > 1 ? 'Odwołanie do kilku rodzajów' : 'Odwołanie do dowolnego rodzaju') : FIELD_TYPE_LABEL[t]}</option>)}
+                        {[...types, ...((f.type === 'outline' || f.type === 'json') && !types.includes(f.type) ? [f.type] : [])].map((t) => <option key={t} value={t}>{t === 'ref' ? ((f.to ?? []).length > 1 ? 'Odwołanie do kilku rodzajów' : 'Odwołanie do dowolnego rodzaju') : FIELD_TYPE_LABEL[t]}</option>)}
                         {types.includes('ref') && (
                           <optgroup label="Odwołanie do rodzaju">
                             {allTargets.map((k) => <option key={k.id} value={`${REF_TO}${k.id}`}>→ {k.name}</option>)}

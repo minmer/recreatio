@@ -32,9 +32,13 @@ import { RevisionRun } from '../../cogita/RevisionRun';
 import { fieldsOf, type Entity } from '../../cogita/schema';
 import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync } from '../../cogita/ui';
-import { cellKey, cellText, needsKnowing, readView, viewColumns, viewGroups, viewList, viewMatrix, withKnowing, type ListMode } from '../../cogita/views';
+import { cellKey, cellText, groupTitle, needsKnowing, readView, viewColumns, viewGroups, viewList, viewMatrix, withKnowing, type ListMode } from '../../cogita/views';
 import { gaugeFromMarks } from '../../cogita/knowing';
-import { usePageLearner } from '../../cogita/pageLearner';
+import { answerIndex } from '../../cogita/measures';
+import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
+import { QuiltView } from '../../cogita/QuiltView';
+import { clipTex } from '../../cogita/texClip';
+import { TexText } from '../../ui/tex/Tex';
 import { StatementCard } from '../../library/markupView';
 import { blocksField } from '../../cogita/statements';
 import { later } from '../../ui/later';
@@ -56,11 +60,13 @@ export function modeOf(asked: string, saved: string): PageMode {
   if (word === 'tabela' || word === 'table') return 'table';
   if (word === 'macierz' || word === 'matrix') return 'matrix';
   if (word === 'mapa' || word === 'map') return 'map';
-  return saved === 'tree' || saved === 'matrix' || saved === 'map' ? saved : 'table';
+  /* 2026-11-01 — die Mapa postępów: Kacheln in der Farbe dessen, wie gut der Besucher jeden Eintrag kann. */
+  if (word === 'postepy' || word === 'postępy' || word === 'mapa postępów' || word === 'mapa postepow' || word === 'kafelki' || word === 'quilt') return 'quilt';
+  return saved === 'tree' || saved === 'matrix' || saved === 'map' || saved === 'quilt' ? saved : 'table';
 }
 
-const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', matrix: 'macierz', map: 'mapa' };
-const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa' };
+const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', matrix: 'macierz', map: 'mapa', quilt: 'postepy' };
+const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa', quilt: 'Postępy' };
 
 /** Ein Eintrag, aufgeklappt: eine Aussage mit ihren Bausteinen, ein Kazanie ganz, alles andere als Karte. */
 function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
@@ -120,7 +126,8 @@ function MapOf({ lib, list, tall, onOpen, onLearn }: { lib: CogitaLibrary; list:
           const state = fog.get(id) ?? 'fog';
           const e = lib.entity(id);
           const label = e === undefined ? '?' : lib.label(e);
-          return { id, label, state, title: state === 'fog' ? 'Jeszcze w mgle' : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
+          /* 2026-11-01 — die Mapa setzt Wzory (FogMap mit `TexText`); der Hinweis bleibt eine Zeile ohne LaTeX. */
+          return { id, label: e === undefined ? '?' : lib.labelTex(e), state, title: state === 'fog' ? 'Jeszcze w mgle' : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
         })} />
       {graph.ids.length > 0 && <button type="button" className="wk-link-btn" onClick={() => onLearn(graph.ids, 'Mapa')}>Ucz się tego</button>}
     </>
@@ -141,8 +148,14 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
     als die Person der Seite (`pageLearner.tsx`) — angemeldet man selbst, sonst dieser Browser.
   */
   const wants = needsKnowing(saved);
-  const visitor = usePageLearner(wants ? lib : null);
-  const knowCards = useAsync(wants && lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [wants, lib, lib?.revision]);
+  /* 2026-11-01 — die Mapa postępów braucht die Kenntnis des Besuchers immer (und seine Antworten je Karte). */
+  const mode = modeOf(state.u ?? config.mode, saved.mode);
+  const learns = wants || mode === 'quilt';
+  const visitor = usePageLearner(learns ? lib : null);
+  const knowCards = useAsync(learns && lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [learns, lib, lib?.revision]);
+  const visitorAnswers = useMemo(() => (visitor.learner === null ? () => [] : answerIndex(visitor.learner.progress)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visitor.learner, visitor.learner?.progress]);
   const knowing = useMemo(() => {
     if (!wants || lib == null || knowCards == null) return null;
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
@@ -153,7 +166,6 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const list = useMemo(() => (vlib == null || doc === undefined ? [] : viewList(vlib, saved)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [vlib, lib?.revision, saved]);
-  const mode = modeOf(state.u ?? config.mode, saved.mode);
   const matrix = useMemo(() => (vlib == null || mode !== 'matrix' ? null : viewMatrix(vlib, saved.matrix === null ? { ...saved, matrix: { rows: saved.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : saved, list)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [vlib, list, mode, saved]);
@@ -183,13 +195,26 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       </CogitaContext.Provider>
     );
   }
+  /* 2026-11-01 — als Block: die Mapa postępów klein (höchstens 60 Kacheln), der Weg zur ganzen darunter. */
+  if (!isTall(ctx) && mode === 'quilt') {
+    return (
+      <CogitaContext.Provider value={cg}>
+        <h2 className="wk-card-title">{title}</h2>
+        {knowCards == null ? <Loading /> : (
+          <QuiltView view={saved} list={list} cards={knowCards} answers={visitorAnswers} learner={visitor.learner} onOpen={open} compact
+            {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cała mapa</button> })} />
+        )}
+        <LearnerLine learner={visitor} lib={lib} />
+      </CogitaContext.Provider>
+    );
+  }
   if (!isTall(ctx)) {
     return (
       <CogitaContext.Provider value={cg}>
         <h2 className="wk-card-title">{title}</h2>
         {/* 2026-10-23 (Schritt 5) — was der Widok nach Tematy tat: ein Hinweis statt einer stillen Lücke. */}
         {saved.retired.length > 0 && <p className="wk-card-muted">{saved.retired.join(' ')}</p>}
-        <ul className="cg-plain-list">{list.slice(0, 8).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => open(e.id)}>{lib.label(e)}</button></li>)}</ul>
+        <ul className="cg-plain-list">{list.slice(0, 8).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => open(e.id)}><TexText text={lib.labelTex(e)} /></button></li>)}</ul>
         {list.length > 8 && <p className="wk-card-muted">i {list.length - 8} więcej{ctx.openWhole !== undefined ? ' — ' : ''}{ctx.openWhole !== undefined && <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały widok</button>}</p>}
         {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
       </CogitaContext.Provider>
@@ -222,13 +247,13 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
         <nav className="cg-crumbs cg-muted" aria-label="Ścieżka w widoku">
           <button type="button" className="wk-link-btn" onClick={() => setState({ c: null, e: null, d: null })}>{title}</button>
           {cellIds !== null && <span>› <button type="button" className="wk-link-btn" onClick={() => setState({ e: null, d: null })}>{cellWords}</button></span>}
-          {openEntity !== undefined && <span>› {lib.label(openEntity)}</span>}
+          {openEntity !== undefined && <span>› <TexText text={lib.labelTex(openEntity)} /></span>}
         </nav>
       )}
       <div className="cg-row">
         <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} />
         <span className="cg-subtabs">
-          {(['table', 'tree', 'matrix', 'map'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
+          {(['table', 'tree', 'matrix', 'map', 'quilt'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
             <button key={m} type="button" className={mode === m ? 'is-on' : ''} onClick={() => setState({ u: MODE_WORD[m], c: null })}>{MODE_LABEL[m]}</button>
           ))}
         </span>
@@ -247,8 +272,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
             <tbody>
               {sorted.slice(0, 500).map((e) => (
                 <tr key={e.id} className={state.e === e.id ? 'is-on' : undefined}>
-                  <td><button type="button" className="cg-ref" onClick={() => open(e.id)}>{lib.label(e)}</button></td>
-                  {columns.map((c) => <td key={c.key}>{cellText(shownLib, e, c.key).slice(0, 160)}</td>)}
+                  <td><button type="button" className="cg-ref" onClick={() => open(e.id)}><TexText text={lib.labelTex(e)} /></button></td>
+                  {columns.map((c) => <td key={c.key}><TexText text={clipTex(cellText(shownLib, e, c.key, true), 160)} /></td>)}
                 </tr>
               ))}
             </tbody>
@@ -260,11 +285,11 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
           {viewGroups(shownLib, saved, sorted).map((g) => (
             <li key={g.key || '#reszta'}>
               <details open={g.ids.length < 30}>
-                <summary><strong>{g.label}</strong> <span className="cg-muted">({g.ids.length})</span></summary>
+                <summary><strong><TexText text={groupTitle(shownLib, g)} /></strong> <span className="cg-muted">({g.ids.length})</span></summary>
                 <ul className="cg-tree">
                   {g.ids.slice(0, 500).map((id) => {
                     const e = lib.entity(id);
-                    return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => open(id)}>{lib.label(e)}</button></li>;
+                    return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" onClick={() => open(id)}><TexText text={lib.labelTex(e)} /></button></li>;
                   })}
                 </ul>
               </details>
@@ -280,13 +305,20 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
             <section className="cg-card" aria-label={cellWords}>
               <h3>{cellWords} <span className="cg-muted">({cellIds.length})</span></h3>
               <ul className="cg-plain-list">
-                {cellIds.map((id) => { const e = lib.entity(id); return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" aria-pressed={state.e === id} onClick={() => open(id)}>{lib.label(e)}</button> <span className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</span></li>; })}
+                {cellIds.map((id) => { const e = lib.entity(id); return e === undefined ? null : <li key={id}><button type="button" className="cg-ref" aria-pressed={state.e === id} onClick={() => open(id)}><TexText text={lib.labelTex(e)} /></button> <span className="cg-muted">{e.kinds.map((k) => lib.kind(k)?.name ?? k).join(', ')}</span></li>; })}
               </ul>
             </section>
           )}
         </>
       )}
       {mode === 'map' && <MapOf lib={lib} list={sorted} tall={isTall(ctx)} onOpen={open} onLearn={(ids, t) => setLearning({ ids, title: t })} />}
+      {/* 2026-11-01 — die Mapa postępów: wie gut der Besucher jeden Eintrag kann; eine Kachel zeigt, was zu lesen ist, die Fragen und „Ćwicz to". */}
+      {mode === 'quilt' && (knowCards == null ? <Loading /> : (
+        <>
+          <QuiltView view={saved} list={sorted} cards={knowCards} answers={visitorAnswers} learner={visitor.learner} onOpen={open} />
+          <LearnerLine learner={visitor} lib={lib} />
+        </>
+      ))}
       {shown.length === 0 && <p className="wk-card-muted">Nic nie pasuje.</p>}
       {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
     </CogitaContext.Provider>

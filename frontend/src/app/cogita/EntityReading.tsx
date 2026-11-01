@@ -26,10 +26,12 @@ import { Passage, readerPath, TextJump } from '../library/SourceJump';
 import { blocksIn, blocksMarkup, blocksTitle, firstSentence, thesisOf } from '../library/blocks';
 import { workBehind } from '../library/libraryCite';
 import { isSource, refTarget, str, type LibEntry, type Lookup } from '../library/libraryKinds';
-import { parseMarkup } from '../library/libraryMarkup';
+import { parseMarkup, type Inline } from '../library/libraryMarkup';
 import { Blocks, countNotes, Inlines, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
 import { placeFor, workLook } from '../library/sourceFind';
 import type { TextLink } from '../library/sourceText';
+import { hasTex } from '../core/tex';
+import { TexText } from '../ui/tex/Tex';
 import { citedPlaces, formatReading, leadAt, leadPlain, leadShape, readingParts, readingPattern, readingSource } from './reading';
 import { fieldsOf, fieldText, kindsOf, labelOf, patternKeys, placeText, plainOf, valuesOf, type Entity, type FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
@@ -58,6 +60,37 @@ function plainLead(entity: Entity, field: FieldDef, whole: boolean): string {
   }
   const text = proseText(entity, field);
   if (field.type === 'markup') return whole ? plainOf(text) : leadPlain(text);
+  return (whole ? text : paragraphsOf(text)[0] ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/** 2026-11-01 — eine Zeile Zapis mit ihren Wzory als `$…$` (ohne Fussnoten, ein Dollar im Text als `\$`) — für `TexText`. */
+function texLine(list: readonly Inline[]): string {
+  const walk = (xs: readonly Inline[]): string => xs.map((x) => {
+    switch (x.t) {
+      case 'text': return x.v.split('$').join('\\$');
+      case 'br': return ' ';
+      case 'cite': return '';
+      case 'note': return '';
+      case 'math': return `$${x.tex.replace(/\s+/g, ' ').trim()}$`;
+      default: return walk(x.c);
+    }
+  }).join('');
+  return walk(list).replace(/\s+/g, ' ').replace(/ +([.,;:!?])/g, '$1').trim();
+}
+
+/** 2026-11-01 — der Anriss eines Textes als eine Zeile mit Wzory (wie `leadPlain`, nur ohne LaTeX zu verlieren). */
+function leadTexOf(text: string): string {
+  const blocks = parseMarkup(readingSource(text));
+  const at = leadAt(blocks);
+  const block = at < 0 ? undefined : blocks[at];
+  return block === undefined || block.t !== 'p' ? '' : texLine(block.c);
+}
+
+/** 2026-11-01 — der Anriss eines Feldes mit seinen Wzory (`plainLead` mit `$…$`); Bausteine bleiben ohne (ihre Teza). */
+function texLead(entity: Entity, field: FieldDef, whole: boolean): string {
+  if (field.type === 'blocks') return '';
+  const text = proseText(entity, field);
+  if (field.type === 'markup') return whole ? plainOf(text, 'inline') : leadTexOf(text);
   return (whole ? text : paragraphsOf(text)[0] ?? '').replace(/\s+/g, ' ').trim();
 }
 
@@ -99,6 +132,8 @@ export function readingOf(lib: CogitaLibrary, entity: Entity, pattern?: string) 
   const shown = wzor === undefined || wzor.trim() === '' ? undefined : formatReading(wzor, entity, look);
   return {
     title: labelOf(entity, look),
+    /** 2026-11-01 — der Titel mit seinen Wzory (`$…$`, gesetzt von `TexText`). */
+    titleTex: labelOf(entity, look, 0, false, true),
     summary,
     prose,
     when,
@@ -106,7 +141,9 @@ export function readingOf(lib: CogitaLibrary, entity: Entity, pattern?: string) 
     /** Der Text nach dem Wzór des Rodzaju — statt Streszczenie, Feldern, Daten und Stellen. */
     shown,
     /** Der Anriss ohne Zeichen: der erste Absatz nach dem Wzór, sonst das Streszczenie, sonst der erste Absatz des ersten Textes. */
-    lead: shown !== undefined ? leadPlain(shown) : leadField === undefined ? '' : plainLead(entity, leadField, leadField === summary)
+    lead: shown !== undefined ? leadPlain(shown) : leadField === undefined ? '' : plainLead(entity, leadField, leadField === summary),
+    /** 2026-11-01 — derselbe Anriss mit seinen Wzory — gezeigt, wenn er welche hat. */
+    leadTex: shown !== undefined ? leadTexOf(shown) : leadField === undefined ? '' : texLead(entity, leadField, leadField === summary)
   };
 }
 
@@ -167,7 +204,8 @@ function ReadingField({ lib, entity, field, onEntity, short = false }: { lib: Co
   const text = proseText(entity, field);
   if (field.type === 'text') {
     const paragraphs = paragraphsOf(text);
-    return <div className="cg-reading-text">{(short ? paragraphs.slice(0, 1) : paragraphs).map((p, i) => <p key={i}>{p}</p>)}</div>;
+    /* 2026-11-01 — auch schlichter Text setzt seine Wzory. */
+    return <div className="cg-reading-text">{(short ? paragraphs.slice(0, 1) : paragraphs).map((p, i) => <p key={i}><TexText text={p} /></p>)}</div>;
   }
   return <ReadingMarkup lib={lib} text={text} onEntity={onEntity} short={short} />;
 }
@@ -179,10 +217,11 @@ function ReadingMeta({ lib, r }: { lib: CogitaLibrary; r: Reading }) {
       {r.when.length > 0 && <p className="cg-reading-meta">{r.when.map((w) => `${w.label}: ${w.text}`).join(' · ')}</p>}
       {r.places.map((p, i) => {
         const target = lib.entity(p.work);
-        const name = target === undefined ? '' : lib.label(target);
+        /* 2026-11-01 — der Name des Werks mit seinen Wzory (ein Lehrbuch heisst oft so). */
+        const name = target === undefined ? '' : lib.labelTex(target);
         return (
           <p key={i} className="cg-reading-meta cg-reading-source">
-            {p.field.label}: {p.locator === '' ? name || '…' : placeText(target, p.locator, name)}
+            {p.field.label}: <TexText text={p.locator === '' ? name || '…' : placeText(target, p.locator, name)} />
             {p.locator !== '' && <TextJump look={workLook(p.work)} workId={p.work} locator={p.locator} />}
           </p>
         );
@@ -199,7 +238,7 @@ function openHref(lib: CogitaLibrary, id: string): string | undefined {
 
 /* -- „Czytaj tekst": die Stelle im Buch ----------------------------------------------------------------------- */
 
-interface SourceLink {
+export interface SourceLink {
   readonly link: TextLink;
   readonly look: Lookup | undefined;
   /** Im Arbeitsbereich: der Czytnik an dieser Stelle. Sonst klappt der Abschnitt hier auf. */
@@ -237,6 +276,26 @@ function sourceOf(lib: CogitaLibrary, entity: Entity, r: Reading): SourceLink | 
   return null;
 }
 
+/**
+ * 2026-11-01 — WO MAN EINEN EINTRAG IM BUCH LIEST (die Tafel einer Kachel, „Otwórz w źródle"): sein Feld mit Stelle,
+ * sonst die erste Quelle seines Textes, deren Text dieser Leser hat — dieselbe Regel wie „Czytaj tekst". `null`: keine.
+ */
+export const entitySource = (lib: CogitaLibrary, entity: Entity): SourceLink | null => sourceOf(lib, entity, readingOf(lib, entity));
+
+/** „Otwórz w źródle": im Arbeitsbereich der Czytnik an der Stelle, sonst klappt der Abschnitt darunter auf. Ohne Quelle nichts. */
+export function SourceOpen({ lib, entity, label = 'Otwórz w źródle' }: { lib: CogitaLibrary; entity: Entity; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const source = useMemo(() => entitySource(lib, entity), [lib, entity]);
+  if (source === null) return null;
+  if (source.href !== undefined) return <a className="wk-link-btn" href={source.href} data-open-source="">{label}</a>;
+  return (
+    <>
+      <button type="button" className="wk-link-btn" aria-expanded={open} data-open-source="" onClick={() => setOpen((x) => !x)}>{open ? 'Ukryj tekst źródła' : label}</button>
+      {open && <div className="cg-source-passage"><Passage look={source.look} link={source.link} /></div>}
+    </>
+  );
+}
+
 /* -- Die Erklärung nach einer Antwort ------------------------------------------------------------------------- */
 
 /**
@@ -259,8 +318,11 @@ export function EntityReading({ lib, entity, onEntity, variant = 'line' }: {
       <button type="button" className="cg-reading-head" aria-expanded={open} aria-controls={bodyId} onClick={() => setOpen((x) => !x)}>
         <span className="cg-reading-chevron" aria-hidden>{open ? '▾' : '▸'}</span>
         <span className="cg-reading-line">
-          <strong className="cg-reading-title">{r.title}</strong>
-          {!open && lead !== '' && lead !== r.title && <span className="cg-reading-lead">{variant === 'line' ? ` — ${lead}` : lead}</span>}
+          {/* 2026-11-01 — Titel und Anriss setzen ihre Wzory; ohne Wzór steht der Text wie bisher. */}
+          <strong className="cg-reading-title"><TexText text={r.titleTex} /></strong>
+          {!open && lead !== '' && lead !== r.title && (
+            <span className="cg-reading-lead">{variant === 'line' ? ' — ' : ''}{hasTex(r.leadTex) ? <TexText text={r.leadTex} /> : lead}</span>
+          )}
         </span>
       </button>
       {open && (
@@ -317,7 +379,15 @@ export function ReadingPreview({ lib, entity, pattern }: { lib: CogitaLibrary; e
  * dalej" klappt den ganzen Text an Ort und Stelle auf, „Czytaj tekst" führt zur Stelle im Buch. Eine Fussnote im
  * Anriss klappt auf und springt zu ihr.
  */
-export function TopicIntro({ lib, entity, pattern }: { lib: CogitaLibrary; entity: Entity; pattern?: string }) {
+export function TopicIntro({ lib, entity, pattern, noTitle = false, noSource = false }: {
+  lib: CogitaLibrary;
+  entity: Entity;
+  pattern?: string;
+  /** 2026-11-01 — ohne eigenen Titel (die Tafel einer Kachel nennt ihn schon). */
+  noTitle?: boolean;
+  /** 2026-11-01 — ohne „Czytaj tekst" (die Tafel einer Kachel hat „Otwórz w źródle"). */
+  noSource?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [passage, setPassage] = useState(false);
   const [clamped, setClamped] = useState(false);
@@ -327,7 +397,8 @@ export function TopicIntro({ lib, entity, pattern }: { lib: CogitaLibrary; entit
   /* Was nach dem Auf- oder Zuklappen geschieht: zur Fussnote springen, den Text fokussieren, das Thema wieder zeigen. */
   const then = useRef<{ jump?: string; focus?: boolean; back?: boolean }>({});
   const r = readingOf(lib, entity, pattern);
-  const source = useMemo(() => sourceOf(lib, entity, readingOf(lib, entity, pattern)), [lib, entity, pattern]);
+  const found = useMemo(() => sourceOf(lib, entity, readingOf(lib, entity, pattern)), [lib, entity, pattern]);
+  const source = noSource ? null : found;
   const leadField = r.summary ?? r.prose[0];
   const more = r.shown !== undefined ? leadShape(r.shown).more
     : (leadField !== undefined && fieldShape(entity, leadField).more) || r.prose.length > (r.summary === undefined ? 1 : 0) || r.when.length > 0 || r.places.length > 0;
@@ -368,7 +439,7 @@ export function TopicIntro({ lib, entity, pattern }: { lib: CogitaLibrary; entit
 
   return (
     <div ref={root} className={`cg-reading is-intro${open ? ' is-open' : ''}`} data-reading={entity.id} onClickCapture={onClickCapture}>
-      <h3 className="cg-reading-title">{r.title}</h3>
+      {!noTitle && <h3 className="cg-reading-title"><TexText text={r.titleTex} /></h3>}
       <div ref={body} id={bodyId} tabIndex={-1} className={open ? 'cg-reading-body' : 'cg-reading-short'} data-read-open={open ? '' : undefined}>
         {r.shown !== undefined ? <ReadingMarkup lib={lib} text={r.shown} short={!open} /> : (
           <>

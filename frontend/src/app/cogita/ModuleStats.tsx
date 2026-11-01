@@ -15,6 +15,7 @@ import { KnowledgeStats } from './KnowCharts';
 import { renamer, type Learner } from './learn';
 import { answerIndex } from './measures';
 import type { CogitaLibrary } from './store';
+import { TexText } from '../ui/tex/Tex';
 
 export function ModuleStats({ lib, learner, cards, title, onBack }: {
   lib: CogitaLibrary;
@@ -32,7 +33,7 @@ export function ModuleStats({ lib, learner, cards, title, onBack }: {
   return (
     <div className="cg" data-module-stats="">
       <div className="cg-run-head">
-        <strong>{title}: moje statystyki</strong>
+        <strong><TexText text={title} />: moje statystyki</strong>
         <button type="button" className="wk-link-btn" onClick={onBack} data-module-stats-back="">Wróć</button>
       </div>
       {learner === null || byCard === null ? <p className="wk-card-muted">Wczytywanie Twoich postępów…</p>

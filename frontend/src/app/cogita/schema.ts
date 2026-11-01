@@ -25,7 +25,8 @@
  * gezeigt, nicht gelöscht.
  */
 
-import { plainText } from '../library/libraryMarkup';
+import { plainText, type TexMode } from '../library/libraryMarkup';
+import { texPieces, texSource } from '../core/tex';
 import { blocksIn, blocksTitle, type CommentBlock } from '../library/blocks';
 import { formatBible, parseBible } from '../library/bible';
 import { findUnit, fromSI, guessKind, kindById, measures, quantityText, siUnitOf, toSI, unitById, type Unit } from '../core/quantities';
@@ -39,8 +40,12 @@ import { findUnit, fromSI, guessKind, kindById, measures, quantityText, siUnitOf
  * etwa der Komentarz aus `templates/cogita/komentarz.json`.
  */
 export const FIELD_TYPES = ['line', 'text', 'markup', 'blocks', 'number', 'date', 'bool', 'choice', 'ref', 'media', 'url', 'list', 'geo', 'range'] as const;
-/** `outline` (Zarys eines Projekts) gehört den Arten des Skryptorium — gelesen, nie angeboten. */
-export type FieldType = (typeof FIELD_TYPES)[number] | 'outline';
+/**
+ * `outline` (Zarys eines Projekts) gehört den Arten des Skryptorium — gelesen, nie angeboten. 2026-11-01 — `json`:
+ * ein Wert in eigener Gestalt (eine Liste von Objekten, Listen in einer Liste — die Tests einer Frage in Code, ihre
+ * Parameter), so gespeichert, wie er kam; nur die eingebaute Pytanie hat solche Felder, angeboten wird er nicht.
+ */
+export type FieldType = (typeof FIELD_TYPES)[number] | 'outline' | 'json';
 
 export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   line: 'Wiersz tekstu',
@@ -57,7 +62,8 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   geo: 'Miejsce na mapie',
   range: 'Zakres z kilku odcinków',
   outline: 'Plan (nagłówki i teksty)',
-  blocks: 'Treść w blokach (akapity, listy, tabele)'
+  blocks: 'Treść w blokach (akapity, listy, tabele)',
+  json: 'Dane w JSON'
 };
 
 /**
@@ -65,7 +71,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
  * Überschriften und Texten). Angeboten wird es nicht — gelesen schon, damit
  * der Plan eines Buches beim Umzug in das Schema nicht verloren geht.
  */
-const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outline']);
+const KNOWN_TYPES: ReadonlySet<string> = new Set<string>([...FIELD_TYPES, 'outline', 'json']);
 
 export const VALUE_STATES = ['known', 'approximate', 'disputed', 'unknown', 'na', 'pending'] as const;
 export type ValueState = (typeof VALUE_STATES)[number];
@@ -720,7 +726,32 @@ export function readTyped(field: FieldDef, raw: unknown): FieldValue | undefined
       }
       return items;
     }
+    /* 2026-11-01 — Daten in eigener Gestalt: als JSON-Text gesehen (so zeigt und vergleicht man sie), gespeichert bleibt, was kam. */
+    case 'json': {
+      const text = jsonText(raw);
+      return text === '' ? undefined : text;
+    }
   }
+}
+
+/** 2026-11-01 — ein Wert eines Feldes `json` als Text: ein Text bleibt, alles andere wird JSON; leer — nichts. */
+export function jsonText(raw: unknown): string {
+  if (raw === undefined || raw === null) return '';
+  if (typeof raw === 'string') return raw;
+  try {
+    const text = JSON.stringify(raw);
+    return text === undefined || text === '[]' || text === '{}' ? '' : text;
+  } catch {
+    return '';
+  }
+}
+
+/** 2026-11-01 — ein Wert eines Feldes `json` als Daten: ein JSON-Text wird gelesen, Daten bleiben; unlesbar — `undefined`. */
+export function jsonValue(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw ?? undefined;
+  const text = raw.trim();
+  if (text === '') return undefined;
+  try { return JSON.parse(text) as unknown; } catch { return undefined; }
 }
 
 /** Ein gespeicherter Wert ist entweder der Wert selbst oder seine Hülle mit Stand, Quelle und Notiz. */
@@ -805,6 +836,8 @@ function readOne(field: FieldDef, raw: unknown): Value | undefined {
 export function valuesOf(entity: Entity, field: FieldDef): Value[] {
   const raw = entity.data[field.key];
   if (raw === undefined || raw === null) return [];
+  /* 2026-11-01 — Daten in eigener Gestalt sind EIN Wert, auch eine Liste von Listen. */
+  if (field.type === 'json') { const text = jsonText(raw); return text === '' ? [] : [{ value: text, state: 'known' }]; }
   const whole = field.type === 'list' || field.type === 'outline' || field.type === 'blocks';
   const many = Array.isArray(raw) && !(whole && !raw.some((one) => Array.isArray(one) || isEnvelope(one)));
   const list: unknown[] = many ? (raw as unknown[]) : [raw];
@@ -863,6 +896,7 @@ export function outsideOf(entity: Entity, look: Pick<Lookup, 'kind'>): Outside[]
     if (raw === undefined || raw === null) continue;
     const field = fields.get(key);
     if (field === undefined) { out.push({ key, raw, reason: 'removed' }); continue; }
+    if (field.type === 'json') continue;
     const whole = field.type === 'list' || field.type === 'outline' || field.type === 'blocks';
     const count = Array.isArray(raw) && !whole ? raw.length : 1;
     if (count > 0 && valuesOf(entity, field).length < Math.min(count, field.multi ? count : 1)) out.push({ key, raw, reason: 'retyped' });
@@ -887,16 +921,18 @@ export function patternKeys(pattern: string): string[] {
  * „Księgi Samuela", Verweise und Fussnoten fallen weg. 2026-10-22 — derselbe
  * Leser wie in der Bibliothek (`plainText`), in einer Zeile.
  */
-export function plainOf(markup: string): string {
-  if (!/[[*_#>^`\\]/.test(markup)) return markup.replace(/\s+/g, ' ').trim();
-  return plainText(markup.replace(/!\[@[^\]]+\]/g, '')).replace(/\s+/g, ' ').replace(/ +([.,;:!?])/g, '$1').trim();
+export function plainOf(markup: string, tex: TexMode = 'plain'): string {
+  /* 2026-11-01 — mit `tex`: Wzory bleiben `$…$` (gesetzt von `TexText`), ein Dollar im Text wird `\$`. */
+  if (!/[[*_#>^`\\]/.test(markup) && (tex === 'plain' || !markup.includes('$'))) return markup.replace(/\s+/g, ' ').trim();
+  return plainText(markup.replace(/!\[@[^\]]+\]/g, ''), true, tex).replace(/\s+/g, ' ').replace(/ +([.,;:!?])/g, '$1').trim();
 }
 
 /** Ein Wert in Worten, wie er in Listen, Etiketten und Karten steht. `whole` (2026-10-26): eine Aussage ungekürzt. */
-export function valueText(field: FieldDef, value: FieldValue | null, look: Lookup, depth = 0, whole = false): string {
+export function valueText(field: FieldDef, value: FieldValue | null, look: Lookup, depth = 0, whole = false, tex = false): string {
   if (value === null) return '';
   switch (field.type) {
-    case 'markup': return typeof value === 'string' ? plainOf(value) : '';
+    /* 2026-11-01 — `tex`: Wzory bleiben `$…$` (für `TexText`), sonst eine Zeile ohne LaTeX. */
+    case 'markup': return typeof value === 'string' ? plainOf(value, tex ? 'inline' : 'plain') : '';
     case 'line':
     case 'text':
     case 'url': return typeof value === 'string' ? value.trim() : '';
@@ -910,7 +946,7 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'ref': {
       if (typeof value !== 'string') return '';
       const target = look.entity(value);
-      return target === undefined ? '…' : depth >= 2 ? '…' : labelOf(target, look, depth + 1);
+      return target === undefined ? '…' : depth >= 2 ? '…' : labelOf(target, look, depth + 1, false, tex);
     }
     case 'media': return isObject(value) && 'file' in value ? str((value as MediaRef).name) || 'plik' : '';
     case 'list': return Array.isArray(value) ? (value as readonly string[]).join(', ') : '';
@@ -919,6 +955,7 @@ export function valueText(field: FieldDef, value: FieldValue | null, look: Looku
     case 'outline': return Array.isArray(value) ? `${value.length} poz.` : '';
     /* Eine Aussage heisst nach ihrer Teza (dem ersten Satz) — sonst nach dem Anfang ihrer Liste oder Tabelle. */
     case 'blocks': return blocksTitle(blocksIn(value), whole);
+    case 'json': return typeof value === 'string' ? (value.length > 60 ? `${value.slice(0, 59)}…` : value) : '';
   }
 }
 
@@ -937,11 +974,11 @@ export function placeText(target: Entity | undefined, locator: string, label: st
   return label === '' || label === '…' ? locator : `${label}, ${locator}`;
 }
 
-export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth = 0, whole = false): string {
+export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth = 0, whole = false, tex = false): string {
   return valuesOf(entity, field)
     .map((v) => {
       /* 2026-10-23 (Schritt 13) — eine Grösse zeigt sich so, wie sie eingegeben wurde. */
-      const plain = v.entered !== undefined ? enteredText(v.entered) : valueText(field, v.value, look, depth, whole);
+      const plain = v.entered !== undefined ? enteredText(v.entered) : valueText(field, v.value, look, depth, whole, tex);
       const text = v.locator === undefined || typeof v.value !== 'string' ? plain : placeText(look.entity(v.value), v.locator, plain);
       if (v.value === null) return `(${VALUE_STATE_LABEL[v.state]})`;
       return v.state === 'approximate' ? `ok. ${text}` : v.state === 'disputed' ? `${text} (?)` : text;
@@ -965,13 +1002,29 @@ function tidy(text: string): string {
     .trim();
 }
 
-/** Ein Muster mit den Werten eines Eintrags gefüllt. */
-export function fill(pattern: string, entity: Entity, look: Lookup, depth = 0, whole = false): string {
+/**
+ * 2026-11-01 — AUFRÄUMEN UM WZORY HERUM: die Regeln von `tidy` gelten nur für den Text — ein Wzór bleibt, wie er ist
+ * (`$x \in [0, -1]$` verlöre sonst sein Minus, `$f()$` seine Klammern).
+ */
+function tidyTex(text: string): string {
+  if (!text.includes('$')) return tidy(text);
+  const kept: string[] = [];
+  const masked = texPieces(text).map((p) => {
+    if (p.t === 'text') return p.v.split('$').join('\\$');
+    kept.push(texSource(p.tex, p.display));
+    return `\u0000${kept.length - 1}\u0000`;
+  }).join('');
+  return tidy(masked).split(/\u0000(\d+)\u0000/).map((part, i) => (i % 2 === 1 ? kept[Number(part)] ?? '' : part)).join('');
+}
+
+/** Ein Muster mit den Werten eines Eintrags gefüllt. `tex` (2026-11-01): Wzory bleiben `$…$`. */
+export function fill(pattern: string, entity: Entity, look: Lookup, depth = 0, whole = false, tex = false): string {
   const fields = new Map(fieldsOf(entity, look).map((f) => [f.key, f]));
-  return tidy(pattern.replace(new RegExp(PLACEHOLDER.source, 'g'), (_whole, key: string) => {
+  const text = pattern.replace(new RegExp(PLACEHOLDER.source, 'g'), (_whole, key: string) => {
     const field = fields.get(key);
-    return field === undefined ? '' : fieldText(entity, field, look, depth, whole);
-  }));
+    return field === undefined ? '' : fieldText(entity, field, look, depth, whole, tex);
+  });
+  return tex ? tidyTex(text) : tidy(text);
 }
 
 /**
@@ -980,11 +1033,11 @@ export function fill(pattern: string, entity: Entity, look: Lookup, depth = 0, w
  * einem Stück seiner Kennung, damit er in keiner Liste leer dasteht.
  * 2026-10-26 — `whole`: eine Aussage darin ungekürzt (die Struktura mit „Całe tezy"); Verweise bleiben kurz.
  */
-export function labelOf(entity: Entity, look: Lookup, depth = 0, whole = false): string {
+export function labelOf(entity: Entity, look: Lookup, depth = 0, whole = false, tex = false): string {
   const kinds = kindsOf(entity, look);
   for (const kind of kinds) {
     if (kind.label === '') continue;
-    const text = fill(kind.label, entity, look, depth, whole);
+    const text = fill(kind.label, entity, look, depth, whole, tex);
     if (text !== '') return text;
   }
   /* Das ENDE der Kennung: der Anfang einer UUIDv7 ist die Zeit und bei Einträgen derselben Stunde gleich. */

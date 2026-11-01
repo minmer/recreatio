@@ -16,8 +16,12 @@ import { BAND_LABEL, BAND_SAYS, BANDS, classStats, knowStats, type Band, type Gr
 import type { AnswerRecord } from './learn';
 import { spanText } from './measures';
 import { QUESTION_TYPES } from './questionTypes';
+import { plainOf } from './schema';
 import type { CogitaLibrary } from './store';
-import { entityName, percent } from './ui';
+import { clipTex } from './texClip';
+import { entityName, entityNameTex, percent } from './ui';
+import { hasTex } from '../core/tex';
+import { TexText } from '../ui/tex/Tex';
 
 /* -- Bausteine ---------------------------------------------------------------------------------------------- */
 
@@ -217,12 +221,13 @@ function Line({ points, name, max }: { points: readonly Point[]; name: string; m
 }
 
 /** WAAGRECHTE BALKEN — Kategorien (Themen, Rodzaje pytań), der Wert an der Spitze; eine Reihe, eine Farbe. */
-function HBars({ rows, name }: { rows: readonly { key: string; label: string; value: number; text: string; title?: string }[]; name: string }) {
+function HBars({ rows, name }: { rows: readonly { key: string; label: string; value: number; text: string; title?: string; tex?: string }[]; name: string }) {
   return (
     <ul className="cg-hbars" aria-label={name}>
       {rows.map((r) => (
         <li key={r.key} className="cg-hbar" data-hbar={r.key}>
-          <span className="cg-hbar-label" title={r.title ?? r.label}>{r.label}</span>
+          {/* 2026-11-01 — `tex`: der Name mit seinen Wzory (der Hinweis bleibt eine Zeile ohne LaTeX). */}
+          <span className="cg-hbar-label" title={r.title ?? r.label}>{r.tex === undefined ? r.label : <TexText text={r.tex} />}</span>
           <svg className="cg-hbar-track" width="100%" height={12} aria-hidden>
             <rect className="cg-hbar-back" x={0} y={2} width="100%" height={8} rx={4} />
             {r.value > 0 && <rect className="cg-hbar-fill" x={0} y={2} width={`${Math.max(1.5, Math.min(100, r.value * 100))}%`} height={8} rx={4} />}
@@ -309,10 +314,11 @@ function Range({ days, onDays }: { days: number; onDays: (d: number) => void }) 
 const FORM_LABEL = new Map<string, string>(QUESTION_TYPES.map((t) => [t.form, t.label]));
 const formLabel = (form: string): string => FORM_LABEL.get(form) ?? ({ flash: 'Fiszka', text: 'Wpisz odpowiedź', choice: 'Wybór' } as Record<string, string>)[form] ?? form;
 
+/** 2026-11-01 — was eine Karte fragt, als eine Zeile MIT Wzory (für `TexText`; wie `cardLine` in AnswerLog.tsx). */
 function cardWords(lib: CogitaLibrary, card: Card): string {
-  const prompt = card.prompt.map((p) => p.text).join(' ').replace(/\s+/g, ' ').trim();
-  const base = prompt !== '' ? prompt : card.entity !== undefined ? entityName(lib, card.entity) : card.question;
-  return (card.label === undefined ? base : `${base}: ${card.label}`).slice(0, 140);
+  const prompt = card.prompt.map((p) => (hasTex(p.text) ? plainOf(p.text, 'inline') : p.text.split('$').join('\\$'))).join(' ').replace(/\s+/g, ' ').trim();
+  const base = prompt !== '' ? prompt : card.entity !== undefined ? entityNameTex(lib, card.entity) : card.question;
+  return clipTex(card.label === undefined ? base : `${base}: ${card.label}`, 140);
 }
 
 const pct = (v: number | null): string => (v === null ? '—' : percent(v));
@@ -323,7 +329,7 @@ function HardList({ lib, hard }: { lib: CogitaLibrary; hard: readonly HardCard[]
     <ol className="cg-hard" data-hardest={hard.length}>
       {hard.map((h) => (
         <li key={h.card.key}>
-          <span className="cg-hard-q">{cardWords(lib, h.card)}</span>
+          <span className="cg-hard-q"><TexText text={cardWords(lib, h.card)} /></span>
           <span className="cg-muted">dobrze {percent(h.accuracy)} · {h.answers} odp. · źle {h.wrong}</span>
         </li>
       ))}
@@ -409,8 +415,8 @@ function TopicFigure({ lib, topics }: { lib: CogitaLibrary; topics: readonly Gro
   const shown = all ? topics : topics.slice(0, 10);
   return (
     <Figure id="topics" title="Tematy — najsłabsze najpierw" says="średnia znajomość kart tematu"
-      table={<GroupTable rows={topics} name={(id) => entityName(lib, id)} />}>
-      <HBars name="Tematy" rows={shown.map((t) => ({ key: t.id, label: entityName(lib, t.id), value: t.share, text: t.answered === 0 ? `jeszcze nie · ${t.cards} kart` : `${percent(t.share)} · umiem ${t.known} z ${t.cards}` }))} />
+      table={<GroupTable rows={topics} name={(id) => <TexText text={entityNameTex(lib, id)} />} />}>
+      <HBars name="Tematy" rows={shown.map((t) => ({ key: t.id, label: entityName(lib, t.id), tex: entityNameTex(lib, t.id), value: t.share, text: t.answered === 0 ? `jeszcze nie · ${t.cards} kart` : `${percent(t.share)} · umiem ${t.known} z ${t.cards}` }))} />
       {topics.length > 10 && <button type="button" className="wk-link-btn" onClick={() => setAll((x) => !x)}>{all ? 'Pokaż 10 najsłabszych' : `Pokaż wszystkie (${topics.length})`}</button>}
     </Figure>
   );
@@ -442,7 +448,7 @@ function ForecastTable({ rows }: { rows: KnowStats['forecast'] }) {
   );
 }
 
-function GroupTable({ rows, name }: { rows: readonly GroupStat[]; name: (id: string) => string }) {
+function GroupTable({ rows, name }: { rows: readonly GroupStat[]; name: (id: string) => ReactNode }) {
   return (
     <table className="cg-table"><thead><tr><th>Nazwa</th><th>Karty</th><th>Z odpowiedzią</th><th>Umiem</th><th>Znajomość</th><th>Odpowiedzi</th><th>Dobrze</th></tr></thead>
       <tbody>{rows.map((g) => <tr key={g.id}><td>{name(g.id)}</td><td>{g.cards}</td><td>{g.answered}</td><td>{g.known}</td><td>{percent(g.share)}</td><td>{g.answers}</td><td>{pct(g.accuracy)}</td></tr>)}</tbody>
@@ -500,7 +506,7 @@ export function ClassKnowledge({ lib, cards, learners }: {
         <Figure id="class-topics" title="Tematy × uczący się" says="średnia znajomość kart tematu; najsłabsze tematy z lewej">
           <div className="cg-table-wrap">
             <table className="cg-heat" data-heat={`${ordered.length}x${topics.length}`}>
-              <thead><tr><th scope="col">Uczący się</th>{topics.map((t) => <th key={t} scope="col" title={entityName(lib, t)}><span>{entityName(lib, t)}</span></th>)}</tr></thead>
+              <thead><tr><th scope="col">Uczący się</th>{topics.map((t) => <th key={t} scope="col" title={entityName(lib, t)}><span><TexText text={entityNameTex(lib, t)} /></span></th>)}</tr></thead>
               <tbody>
                 {ordered.map((l) => (
                   <tr key={l.id}>

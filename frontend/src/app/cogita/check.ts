@@ -32,7 +32,7 @@ import { findUnit, kindById, kindsText, measures, parseQuantity, siUnitOf, toSI,
 
 /* -- Formen ------------------------------------------------------------------------ */
 
-export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive'] as const;
+export const ANSWER_FORMS = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build'] as const;
 export type AnswerForm = (typeof ANSWER_FORMS)[number];
 
 export const ANSWER_FORM_LABEL: Record<AnswerForm, string> = {
@@ -48,7 +48,8 @@ export const ANSWER_FORM_LABEL: Record<AnswerForm, string> = {
   flash: 'Fiszka z samooceną',
   code: 'Kod (Python)',
   point: 'Punkt na obrazie albo mapie',
-  interactive: 'Rysunek do poruszania (np. fizyka)'
+  interactive: 'Rysunek do poruszania (np. fizyka)',
+  build: 'Zbuduj z kafelków'
 };
 
 export type CompareAlgorithm = 'anchors' | 'bidirectional' | 'prefix';
@@ -102,6 +103,17 @@ export interface Outcome {
   readonly dateParts?: readonly DatePartMark[];
   /** 2026-11-01 — nah dran, auch wenn der Anteil nicht über die Hälfte kommt (ein Jahr daneben). */
   readonly near?: boolean;
+  /** 2026-11-01 — je Stelle (eine gebaute Folge) oder je Lücke: stimmt sie. */
+  readonly marks?: readonly boolean[];
+  /** 2026-11-01 — gebaut: die richtige Folge, der die Antwort am nächsten kam (`items` oder eine der `alternatives`). */
+  readonly solution?: readonly string[];
+  /** 2026-11-01 — wie viele Podpowiedzi aufgedeckt waren; jede nahm ein Viertel vom Höchsten (`withHints`). */
+  readonly hints?: number;
+  /**
+   * 2026-11-01 — die richtige Antwort, wie der Autor sie schrieb (mit ihrem Wzór), wo `expected` die Zeile ohne LaTeX
+   * ist, mit der verglichen wurde (`typedAccepted`): gezeigt wird diese, verglichen Zeichen für Zeichen mit jener.
+   */
+  readonly shown?: string;
 }
 
 const NOTHING: Outcome = { correct: false, correctness: 0, answered: false };
@@ -600,6 +612,57 @@ export function checkOrder(correct: readonly string[], given: readonly string[])
   for (let i = 0; i + 1 < given.length; i += 1) if (pairs.delete(`${norm(given[i])}\u0000${norm(given[i + 1])}`)) neighbours += 1;
   const byNeighbours = correct.length > 1 ? neighbours / (Math.max(correct.length, given.length) - 1) : 0;
   return { correct: ok, correctness: ok ? 1 : Math.max(hits / longest, byNeighbours), answered: true };
+}
+
+/**
+ * 2026-11-01 — AUS KACHELN GEBAUT: richtig, wenn die Folge eine der richtigen ist (`items` oder eine der `alternatives`).
+ * Sonst zählt die nächste richtige Folge: der Anteil des richtigen Anfangs — oder, wenn das mehr ist, was `checkOrder`
+ * gäbe (Stellen und Nachbarn) —, je Stelle ✓/✗ gegen sie. Gekachelt wird aus der Bank: Texte werden genau verglichen.
+ */
+export function checkBuild(targets: readonly (readonly string[])[], given: readonly string[]): Outcome {
+  if (given.length === 0) return NOTHING;
+  const norm = (s: string) => s.trim();
+  const wanted = targets.filter((t) => t.length > 0);
+  if (wanted.length === 0) return { correct: false, correctness: 0, answered: true };
+  let best: { share: number; prefix: number; target: readonly string[] } | null = null;
+  for (const t of wanted) {
+    if (t.length === given.length && t.every((x, i) => norm(x) === norm(given[i]!))) {
+      return { correct: true, correctness: 1, answered: true, marks: given.map(() => true), solution: t };
+    }
+    let prefix = 0;
+    while (prefix < t.length && prefix < given.length && norm(t[prefix]!) === norm(given[prefix]!)) prefix += 1;
+    const share = Math.max(prefix / Math.max(t.length, given.length), checkOrder(t, given).correctness);
+    /* Bei Gleichstand die Folge, deren Anfang schon steht — dorthin war der Lernende unterwegs. */
+    if (best === null || share > best.share + 1e-9 || (Math.abs(share - best.share) <= 1e-9 && prefix > best.prefix)) best = { share, prefix, target: t };
+  }
+  const target = best!.target;
+  return { correct: false, correctness: Math.min(best!.share, 0.99), answered: true, marks: given.map((g, i) => target[i] !== undefined && norm(target[i]!) === norm(g)), solution: target };
+}
+
+/**
+ * 2026-11-01 — MEHRERE LÜCKEN: jede für sich — gewählt (genau), getippt (wie eine Lücke, `rule`). Der Anteil ist der
+ * Anteil der richtigen Lücken; richtig ist die Antwort, wenn jede stimmt.
+ */
+export function checkGaps(slots: readonly { readonly accepted: readonly string[]; readonly choices?: readonly string[] }[], given: readonly string[], rule: TextRule): Outcome {
+  if (given.every((g) => (g ?? '').trim() === '')) return NOTHING;
+  const marks = slots.map((slot, i) => {
+    const one = (given[i] ?? '').trim();
+    if (one === '') return false;
+    if (slot.choices !== undefined && slot.choices.length > 0) return slot.accepted.some((a) => a.trim() === one);
+    return checkText(slot.accepted, one, rule).correct;
+  });
+  const right = marks.filter(Boolean).length;
+  return { correct: slots.length > 0 && right === slots.length, correctness: slots.length === 0 ? 0 : right / slots.length, answered: true, marks };
+}
+
+/**
+ * 2026-11-01 — PODPOWIEDZI KOSTEN: jede aufgedeckte nimmt `cost` (ein Viertel) vom Höchsten dieser Antwort — eine
+ * richtige Antwort mit einer Podpowiedź zählt 0,75, mit zweien 0,5; die Kenntnis nimmt sie als teilweise richtig.
+ */
+export function withHints(outcome: Outcome, used: number, cost = 0.25): Outcome {
+  const n = Math.max(0, Math.floor(used));
+  if (n === 0) return outcome;
+  return { ...outcome, correctness: Math.min(outcome.correctness, Math.max(0, 1 - cost * n)), hints: n };
 }
 
 /** Paare als Stellen links und rechts: `[[0, 2], [1, 0], …]`. */

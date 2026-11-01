@@ -550,6 +550,14 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-qpair { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 1.75rem; gap: var(--wk-space-2); align-items: center; }
 .cg-qpair input { min-width: 0; }
 .cg-qpair-head input { font-weight: 600; background: var(--wk-soft); }
+/* 2026-11-01 — ein Satz je Möglichkeit, Lücken mit Auswahl, JSON-Felder, Parametry. */
+.cg-qrow-wrap { display: grid; gap: var(--wk-space-1); }
+.cg-qnote { margin-left: 2.5rem; font-size: var(--wk-text-sm); }
+.cg-qgap-word { flex: none; max-width: 40%; font-weight: 600; overflow-wrap: anywhere; }
+.cg-qjson textarea { width: 100%; box-sizing: border-box; font-family: var(--wk-mono, ui-monospace, monospace); font-size: var(--wk-text-sm); }
+.cg-qparams { display: grid; gap: var(--wk-space-2); border: 1px dashed var(--wk-line); border-radius: var(--wk-radius); padding: var(--wk-space-2) var(--wk-space-3); }
+.cg-qparams > summary { cursor: pointer; font-weight: 600; }
+.cg-qparams[open] > summary { margin-bottom: var(--wk-space-2); }
 .cg-qpaste { display: grid; gap: var(--wk-space-2); }
 .cg-qpaste[open] { border: 1px dashed var(--wk-line); border-radius: var(--wk-radius); padding: var(--wk-space-2); }
 .cg-qpaste summary { cursor: pointer; color: var(--wk-accent); }
@@ -830,7 +838,104 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-flag { display: grid; gap: var(--wk-space-2); }
 .cg-flag textarea { width: 100%; box-sizing: border-box; font: inherit; }
 
+/* -- 2026-11-01 (Lemma): Podpowiedzi, Wyjaśnienie, ein Satz je Möglichkeit, Kacheln, mehrere Lücken -------------------- */
+
+/* Eine Möglichkeit mit ihrem Satz: Zelle des Rasters (die Möglichkeiten bleiben gleich breit, der Satz steht darunter). */
+.cg-option-cell { display: grid; gap: var(--wk-space-1); min-width: 0; }
+.cg-option-said {
+  display: flex; gap: var(--wk-space-2); align-items: baseline; text-align: left; font-size: var(--wk-text-sm);
+  padding: var(--wk-space-1) var(--wk-space-2); border-left: 3px solid var(--wk-line);
+}
+.cg-option-said.is-right { border-left-color: var(--wk-ok); }
+.cg-option-said.is-right .cg-option-mark { color: var(--wk-free-ink); }
+.cg-option-said.is-wrong { border-left-color: var(--wk-danger); }
+.cg-option-said.is-wrong .cg-option-mark { color: var(--wk-shut-ink); }
+.cg-option-said .cg-markup p { margin: 0; }
+/* Wzory in Möglichkeiten dürfen umbrechen; ein breiter Wzór rollt in sich, nicht die Seite. */
+.cg-option-text .tex.is-display, .cg-order-text .tex.is-display { max-width: 100%; }
+
+/* Podpowiedzi (vor der Antwort) — und das Wyjaśnienie (danach, aufgeklappt). */
+.cg-hints { box-sizing: border-box; display: grid; gap: var(--wk-space-2); width: 100%; max-width: 34rem; margin-inline: auto; text-align: left; }
+.cg-hint {
+  display: grid; gap: var(--wk-space-1); padding: var(--wk-space-2) var(--wk-space-3);
+  border: 1px dashed var(--wk-held-line); border-radius: var(--wk-radius-sm); background: var(--wk-held-bg); color: var(--wk-held-ink);
+}
+.cg-hint .cg-markup p { margin: 0; }
+.cg-hint-n { font-size: var(--wk-text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.cg-hint-btn { justify-self: center; }
+.cg-explanation {
+  box-sizing: border-box; width: 100%; max-width: 34rem; margin-inline: auto; text-align: left; padding: var(--wk-space-2) var(--wk-space-3);
+  border-left: 3px solid var(--wk-accent); background: var(--wk-soft); border-radius: var(--wk-radius-xs);
+}
+.cg-explanation .cg-markup > p:first-child { margin-top: 0; }
+.cg-explanation .cg-markup > p:last-child { margin-bottom: 0; }
+
+/* Zbuduj z kafelków (BuildAnswer.tsx): Vorschau, Zeile (ziehen in zwei Richtungen), Bank. */
+.cg-build { display: grid; gap: var(--wk-space-3); }
+.cg-build-preview {
+  min-height: 3rem; display: grid; place-items: center; padding: var(--wk-space-2) var(--wk-space-3); overflow-x: auto;
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-sunk);
+}
+.cg-build-preview .tex.is-display { margin: 0; }
+.cg-build-line {
+  list-style: none; margin: 0; padding: var(--wk-space-2); min-height: 3.25rem; position: relative;
+  display: flex; flex-wrap: wrap; gap: var(--wk-space-2); align-items: center;
+  border: 2px dashed var(--wk-line); border-radius: var(--wk-radius-sm);
+}
+.cg-build.is-checked .cg-build-line { border-style: solid; }
+.cg-build-empty { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-tile {
+  font: inherit; display: inline-flex; gap: var(--wk-space-1); align-items: center; max-width: 100%;
+  min-height: 2.5rem; padding: var(--wk-space-1) var(--wk-space-3); overflow-wrap: anywhere;
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); color: var(--wk-ink);
+  cursor: pointer; user-select: none; -webkit-user-select: none; transition: transform 200ms ease, box-shadow 160ms ease;
+}
+.cg-build-line .cg-tile { touch-action: none; cursor: grab; }
+.cg-build.is-checked .cg-build-line .cg-tile { cursor: default; transition: transform 320ms ease; }
+.cg-tile:hover:not(:disabled) { border-color: var(--wk-accent); }
+.cg-tile:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-tile.is-used { opacity: 0.35; cursor: default; }
+.cg-tile.is-picked { border-color: var(--wk-accent); box-shadow: 0 0 0 2px var(--wk-accent) inset; }
+.cg-tile.is-lifted { transition: none; z-index: 2; position: relative; cursor: grabbing; box-shadow: var(--wk-shadow-pop); border-color: var(--wk-accent); }
+.cg-tile.is-right { border-color: var(--wk-ok); background: var(--wk-free-bg); }
+.cg-tile.is-wrong { border-color: var(--wk-danger); background: var(--wk-shut-bg); }
+.cg-tile-mark { font-weight: 700; }
+.cg-tile.is-right .cg-tile-mark { color: var(--wk-free-ink); }
+.cg-tile.is-wrong .cg-tile-mark { color: var(--wk-shut-ink); }
+.cg-build-bank { display: flex; flex-wrap: wrap; gap: var(--wk-space-2); justify-content: center; }
+.cg-order-wrap > .cg-build-preview { margin-bottom: var(--wk-space-1); }
+
+/* Mehrere Lücken (GapAnswer.tsx): Felder und Listen im Text. */
+.cg-gap-text { line-height: 2.4; text-align: left; }
+.cg-gap { display: inline-flex; gap: var(--wk-space-1); align-items: center; flex-wrap: wrap; margin: 0 var(--wk-space-1); vertical-align: middle; }
+.cg-gap-input { font: inherit; padding: var(--wk-space-1) var(--wk-space-2); border: 1px solid var(--wk-line); border-bottom: 2px solid var(--wk-accent); border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); min-width: 4ch; }
+.cg-gap-input.is-right, .cg-gap-choice.is-right .cg-gap-button { border-color: var(--wk-ok); background: var(--wk-free-bg); }
+.cg-gap-input.is-wrong, .cg-gap-choice.is-wrong .cg-gap-button { border-color: var(--wk-danger); background: var(--wk-shut-bg); }
+.cg-gap .cg-option-mark { font-weight: 700; }
+.cg-gap[data-gap-state="right"] .cg-option-mark { color: var(--wk-free-ink); }
+.cg-gap[data-gap-state="wrong"] .cg-option-mark { color: var(--wk-shut-ink); }
+.cg-gap-fix { font-size: var(--wk-text-sm); }
+.cg-gap-choice { position: relative; display: inline-block; }
+.cg-gap-button {
+  font: inherit; display: inline-flex; gap: var(--wk-space-2); align-items: center; min-height: 2.25rem; max-width: 100%;
+  padding: var(--wk-space-1) var(--wk-space-2); border: 1px solid var(--wk-line); border-bottom: 2px solid var(--wk-accent);
+  border-radius: var(--wk-radius-xs); background: var(--wk-surface); color: var(--wk-ink); cursor: pointer; text-align: left;
+}
+.cg-gap-button:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: 2px; }
+.cg-gap-caret { color: var(--wk-muted); font-size: var(--wk-text-xs); }
+.cg-gap-list {
+  position: absolute; left: 0; top: calc(100% + 2px); z-index: var(--wk-z-pop); min-width: 100%; width: max-content; max-width: min(90vw, 28rem);
+  list-style: none; margin: 0; padding: var(--wk-space-1); display: grid; gap: 2px; line-height: 1.4;
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); box-shadow: var(--wk-shadow-pop);
+}
+.cg-gap-list.is-left { left: auto; right: 0; }
+.cg-gap-list { max-height: min(60vh, 20rem); overflow-y: auto; }
+.cg-gap-option { padding: var(--wk-space-1) var(--wk-space-2); border-radius: var(--wk-radius-xs); cursor: pointer; }
+.cg-gap-option.is-active, .cg-gap-option:hover { background: var(--wk-soft); }
+.cg-gap-option[aria-selected="true"] { font-weight: 600; }
+
 @media (prefers-reduced-motion: reduce) {
   .cg-order-item, .cg-order.is-checked .cg-order-item { transition: none; }
   .cg-fold > summary::before { transition: none; }
+  .cg-tile, .cg-build.is-checked .cg-build-line .cg-tile { transition: none; }
 }

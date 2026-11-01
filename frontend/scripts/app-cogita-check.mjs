@@ -2478,7 +2478,7 @@ check('goals and lines follow the one logic', [
   check('what a question still lacks, in words — per type',
     [QTY.questionProblems({ form: 'one', prompt: 'Ile?', options: ['a', 'b'], correct: [0, 1] }).length, QTY.questionProblems({ form: 'match', prompt: 'P', left: ['a'], right: ['b'] }), QTY.questionProblems({ form: 'truefalse', prompt: 'Z' }), QTY.questionProblems({ form: 'gap', prompt: 'Litwo! [[Ojczyzno]] moja!' })],
     [1, ['Dodaj co najmniej dwie pary.'], ['Wybierz, czy zdanie jest prawdziwe.'], []]);
-  check('an empty option in the middle drops out and the right one moves with it', QTY.choicesOf({ options: ['A', '', 'C'], correct: [2] }), { options: ['A', 'C'], correct: [1] });
+  check('an empty option in the middle drops out and the right one moves with it', QTY.choicesOf({ options: ['A', '', 'C'], correct: [2], feedback: ['a', 'b', 'c'] }), { options: ['A', 'C'], correct: [1], feedback: ['a', 'c'] });
   check('no right option chosen yet is none — not the first one (an empty value is no 0)', [QTY.choicesOf({ options: ['A', 'B'] }).correct, QTY.choicesOf({ options: ['A', 'B'], correct: '' }).correct, QTY.questionProblems({ form: 'one', prompt: 'P', options: ['A', 'B'] })], [[], [], ['Zaznacz dobrą możliwość.']]);
   check('before saving: empty rows go, a half pair stays, a question without a type is „słowami”',
     (({ form, options, correct, answers, left, right }) => [form, options, correct, answers, left, right])(QTY.tidyQuestion({ options: ['A', ' ', 'C'], correct: [2], answers: ['', 'x'], left: ['1410', '', ''], right: ['Grunwald', 'sam prawy', ''] })),

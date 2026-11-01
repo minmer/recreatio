@@ -2885,3 +2885,46 @@ be built." As built — COGITA.md §6 („Three bands, the stack, cards that wor
   DB-free browser harness (session scratchpad `cardrun/drive-bands.mjs`, 8): due → forgotten → new → „na zapas”,
   the band of each card in words, „Zakończ” → summary with the three bands, the condition editor (old ≥ 1 → poznane,
   znane, liczba…).
+
+## C11 — Cogita: what Lemma-style courses need (2026-11-01)
+
+Owner's spec „Cogita: what the app still needs for Lemma-style courses" (one idea at a time, idea card, varied
+exercises, a short test, a clickable progress map; first course: the LAAG1 lecture script). Everything a course is stays
+data; this is only what the app had to do. As built — COGITA.md §5 „Lessons in the style of Lemma".
+
+- 2.1 Formulas: `plainText(…, tex)` / `plainOf(…, 'keep'|'inline')` keep `$…$`; `labelOf(…, tex)`, `lib.labelTex`,
+  `entityNameTex`, `EntityTitle`; `TexText` in cards (options, pairs, items, tiles, gaps, expected answers), lists,
+  views, Struktura, search hits (`display`), flows, sessions, the teacher's tables (`texClip.ts` shortens without
+  cutting a formula). A question prompt with a formula keeps it (`card.prompt`); without one it is the old line.
+  Typed answers: `typedVariants` (also the line without LaTeX and the source without dollars), the verdict shows the
+  answer as written (`Outcome.shown`).
+- 2.2/2.3: `hints`, `explanation`, `feedback` on the card (`cards.ts`; feedback follows its option through `choicesOf`,
+  `tidyQuestion` and the shuffle); `withHints` caps (¼ each), `AnswerRecord.hints`; Verdict: explanation expanded, then
+  the collapsed entries; a sentence under the chosen and the right options.
+- 2.4 `build` (`check.ts` `checkBuild`, `BuildAnswer.tsx`); `order` with `preview` (`BuildPreview`).
+- 2.5 Gaps: `GapSlot`, `pieces`, `checkGaps`, `GapAnswer.tsx` (listbox with formulas, keyboard); old multi-gap questions
+  keep their fingerprint (only `choices` change it).
+- 2.6 Python: `python.ts` `runCode` case by case (load first, then 2 s per case, restart after a timeout, at most two),
+  `pythonCode.ts` (the worker's Python, testable under Pyodide in node), `CodeAnswer.tsx` (examples, table per case).
+- 2.7 `questionParams.ts`: draw, `let`, `require` (60 tries), `{…}` placeholders that read a parameter (LaTeX groups
+  stay), numbers with a comma / `{,}` in formulas; `redrawCard` per showing in a run; `AnswerRecord.params`.
+- 2.8 Template nodes `calc` „Oblicz", `aggregate` „Zbierz", `random` with a list (`cardPalette.ts`, `nodeFields.ts`).
+- 2.9 `lessonProgress`, `LessonEnd.tsx`, `practicePlan` (levels, two right after a mistake), revision `next`
+  (`lessons.ts` `nextLesson`, editor select, `PREFER.next` in the import), `onOpenRevision`.
+- 2.10 View mode `quilt` (`quilt.ts`, `QuiltView.tsx`): tiles by band with marks, panel, „Ćwicz to", „Otwórz w źródle";
+  Postępy per learner, the class map and per-question statistics.
+- 2.11 Motywacja „Serie dni nauki" + `dailyGoal` (`DailyGoal.tsx`, in Nauka and at the end of a run).
+- Found on the way: a choice or pair answer was stored as positions in that run's shuffled card, so the teacher's log
+  and „most frequent wrong answer" could name the wrong option; `storedGiven` now stores the option texts (old answers
+  are read as before). „Ćwicz to" lists the entry and its questions as the source (`practiseGraph`) — the spec's
+  `source.list [entry] → follow` gives nothing for an entry without cards of its own.
+- Data: question kind fields (`hints`, `explanation`, `feedback`, `extra`, `preview`, `alternatives`, `join`,
+  `choices`, `tests`, `params`, `let`, `require`); field type `json` (one value of its own shape, never „poza
+  schematem"); `pytania.json`, `ksiazka-AI.md`, the JSON description and ImportFormats.json regenerated.
+- Checks: app-lemma-check (55: formulas in labels, old fingerprints, hints, feedback, build, gaps, params, code
+  examples, export → import of every new key and `next`), app-lemma-templates-check, app-lemma-code-check,
+  app-lemma-lessons-check, app-lemma-quilt-check; app-cogita-check 742. Browser: DB-free card harness (session
+  scratchpad `lemma/drive.mjs`, 42: formulas, hints, feedback, build by tap/mouse/keyboard, gaps with listboxes,
+  params, order preview, phone dark) and the real app on LocalDB (`lemma/course-api.mjs` → `course-browser.mjs`: three
+  lessons with `next`, the end screen, „Ćwicz te jeszcze raz", Python with examples, hidden cases and timeouts, the
+  daily goal, the quilt).

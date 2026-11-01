@@ -17,7 +17,9 @@ import { useMemo, useState } from 'react';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadReports, type Report } from './learn';
 import { linkedOf } from './store';
-import { EntityPicker, entityName, originPath, useAsync, useBusy, useCtx } from './ui';
+import { EntityPicker, entityNameTex, originPath, useAsync, useBusy, useCtx } from './ui';
+import { clipTex } from './texClip';
+import { TexText } from '../ui/tex/Tex';
 import { isQuestion, thesisProblem, THESIS_LIMIT } from '../library/blocks';
 import { blocksField, entityBlocks, isStatementKind } from './statements';
 import { Loading } from '../ui/Loading';
@@ -81,14 +83,14 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
       <section className="cg-card">
         <h3>Pytania bez odpowiedzi ({openQuestions.length})</h3>
         {openQuestions.length === 0 ? <span className="cg-muted">Na każde pytanie odpowiada jakaś wypowiedź.</span>
-          : <ul>{openQuestions.slice(0, 60).map((e) => <li key={e.id}><a className="cg-ref" href={pathOf(e.id)}>{lib.label(e).slice(0, 160)}</a></li>)}</ul>}
+          : <ul>{openQuestions.slice(0, 60).map((e) => <li key={e.id}><a className="cg-ref" href={pathOf(e.id)}><TexText text={clipTex(lib.labelTex(e), 160)} /></a></li>)}</ul>}
       </section>
       <section className="cg-card">
         <h3>Wypowiedzi bez dobrej tezy ({thesisTodo.length})</h3>
         {thesisTodo.length === 0 ? <span className="cg-muted">Każda wypowiedź (treść w blokach) zaczyna się od krótkiego zdania — tezy.</span>
           : <ul>{thesisTodo.slice(0, 60).map((e) => (
             <li key={e.id}>
-              <a className="cg-ref" href={pathOf(e.id)}>{lib.label(e).slice(0, 120)}</a>
+              <a className="cg-ref" href={pathOf(e.id)}><TexText text={clipTex(lib.labelTex(e), 120)} /></a>
               <span className="cg-muted"> — {thesisProblem(entityBlocks(e, look)) === 'missing' ? 'nie zaczyna się od zdania' : `pierwsze zdanie ma ponad ${THESIS_LIMIT} znaków`}</span>
             </li>
           ))}</ul>}
@@ -99,14 +101,14 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
           <span className="cg-muted">Wpis wymaga czegoś, co (przez inne wpisy) wymaga jego samego. Taka zależność nie działa — popraw „Najpierw trzeba znać” w jednym z nich.</span>
           <ul>{circles.slice(0, 60).map((d) => (
             <li key={`${d.parent}>${d.child}`}>
-              <button type="button" className="cg-ref" onClick={() => onOpen(d.child)}>{entityName(lib, d.child)}</button> wymaga <button type="button" className="cg-ref" onClick={() => onOpen(d.parent)}>{entityName(lib, d.parent)}</button>
+              <button type="button" className="cg-ref" onClick={() => onOpen(d.child)}><TexText text={entityNameTex(lib, d.child)} /></button> wymaga <button type="button" className="cg-ref" onClick={() => onOpen(d.parent)}><TexText text={entityNameTex(lib, d.parent)} /></button>
             </li>
           ))}</ul>
         </section>
       )}
       <section className="cg-card">
         <h3>Do sprawdzenia — coś, na co wskazuje wypowiedź, zmieniło się ({stale.length})</h3>
-        {stale.length === 0 ? <span className="wk-hint">Wszystko aktualne.</span> : <ul>{stale.slice(0, 60).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}>{lib.label(e).slice(0, 120)}</button></li>)}</ul>}
+        {stale.length === 0 ? <span className="wk-hint">Wszystko aktualne.</span> : <ul>{stale.slice(0, 60).map((e) => <li key={e.id}><button type="button" className="cg-ref" onClick={() => onOpen(e.id)}><TexText text={clipTex(lib.labelTex(e), 120)} /></button></li>)}</ul>}
       </section>
       {writes && (
         <section className="cg-card">
@@ -121,14 +123,18 @@ export function Pending({ onOpen }: { onOpen: (id: string) => void }) {
                 const parts = question.split(':');
                 const entity = lib.entity(parts[1] ?? '') !== undefined ? parts[1] : parts[0];
                 /* 2026-10-31 — die Meldung trägt die Frage, die Antwort des Lernenden und die richtige: der Autor sieht, was geschah. */
-                const said = (key: string) => (typeof body[key] === 'string' && (body[key] as string).trim() !== '' ? (body[key] as string).trim().slice(0, 300) : null);
+                /* 2026-11-01 — Frage und richtige Antwort mit ihren Wzory (gekürzt, ohne einen Wzór zu zerschneiden); die Antwort, wie getippt. */
+                const said = (key: string) => (typeof body[key] === 'string' && (body[key] as string).trim() !== '' ? (body[key] as string).trim() : null);
                 const share = typeof body.correctness === 'number' ? ` (${Math.round(body.correctness * 100)} %)` : '';
+                const prompt = said('prompt');
+                const given = said('given');
+                const expected = said('expected');
                 return (
                   <li key={i} data-report-flag>
-                    {new Date(f.createdAt).toLocaleDateString('pl-PL')} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}>{entityName(lib, entity)}</button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}
-                    {said('prompt') !== null && <div className="cg-muted">Pytanie: {said('prompt')}</div>}
-                    {said('given') !== null && <div className="cg-muted">Odpowiedź: {said('given')}{share}</div>}
-                    {said('expected') !== null && <div className="cg-muted">Poprawnie: {said('expected')}</div>}
+                    {new Date(f.createdAt).toLocaleDateString('pl-PL')} · {lib.entity(entity) !== undefined ? <button type="button" className="cg-ref" onClick={() => onOpen(entity)}><TexText text={entityNameTex(lib, entity)} /></button> : <code>{question.slice(0, 30)}</code>} — {String(body.text ?? '')}
+                    {prompt !== null && <div className="cg-muted">Pytanie: <TexText text={clipTex(prompt, 300)} /></div>}
+                    {given !== null && <div className="cg-muted">Odpowiedź: {given.slice(0, 300)}{share}</div>}
+                    {expected !== null && <div className="cg-muted">Poprawnie: <TexText text={clipTex(expected, 300)} /></div>}
                   </li>
                 );
               })}</ul>}
@@ -162,7 +168,8 @@ function Parallel() {
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const { busy, failed, run } = useBusy();
   const target = about === null ? undefined : lib.entity(about);
-  const proposals = lib.ofKind(kind).slice(0, 40).map((e) => ({ id: e.id, text: pattern.replace('{e}', lib.label(e)).replace('{t}', target === undefined ? '…' : lib.label(target)) }));
+  /* 2026-11-01 — die Namen mit ihren Wzory (`$…$`): so stehen sie auch in der Teza der neuen Wypowiedź. Ersetzt wird mit einer Funktion — ein `$` im Namen bleibt so, wie er ist. */
+  const proposals = lib.ofKind(kind).slice(0, 40).map((e) => ({ id: e.id, text: pattern.replace('{e}', () => lib.labelTex(e)).replace('{t}', () => (target === undefined ? '…' : lib.labelTex(target))) }));
   return (
     <section className="cg-card">
       <h3>Pytania równoległe</h3>
@@ -181,7 +188,7 @@ function Parallel() {
       </div>
       <ul className="cg-options">
         {proposals.map((p) => (
-          <li key={p.id}><label className="pe-check"><input type="checkbox" checked={chosen.has(p.id)} onChange={(e) => setChosen((was) => { const n = new Set(was); if (e.target.checked) n.add(p.id); else n.delete(p.id); return n; })} /><span>{p.text}</span></label></li>
+          <li key={p.id}><label className="pe-check"><input type="checkbox" checked={chosen.has(p.id)} onChange={(e) => setChosen((was) => { const n = new Set(was); if (e.target.checked) n.add(p.id); else n.delete(p.id); return n; })} /><span><TexText text={p.text} /></span></label></li>
         ))}
       </ul>
       <button type="button" className="wk-btn" disabled={busy || chosen.size === 0 || statementKind === undefined} onClick={() => void run(async () => {

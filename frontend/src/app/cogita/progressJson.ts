@@ -15,6 +15,7 @@
 import { describe, keyLines, pretty, textNode, type JsonNode } from '../core/jsonTree';
 import { newId } from '../core/ids';
 import { plural } from '../core/plural';
+import { readParams } from './cardBasics';
 import type { AnswerRecord } from './learn';
 
 export const PROGRESS_FORMAT = 'recreatio/learn-progress';
@@ -56,6 +57,8 @@ const ANSWER_KEYS: Readonly<Record<string, string>> = {
   ms: 'ile trwała odpowiedź, w milisekundach (najwyżej doba)',
   given: `co zostało podane, krótko (do ${MAX_GIVEN} znaków — dłuższe jest ucinane)`,
   via: 'skąd: powtórka, sesja albo przebieg (np. "revision:<id>") — tylko informacja przy analizie',
+  hints: 'ile podpowiedzi uczący się odsłonił przed odpowiedzią (każda obniża najwyższy wynik o 0,25) — tylko informacja',
+  params: 'pytanie z parametrami: wylosowane wartości, np. {"a": 37, "n": 5} — która wersja padła; tylko informacja',
   text: 'tylko informacja z eksportu: o co pytała karta, słowami — import tego nie czyta'
 };
 
@@ -150,6 +153,8 @@ export function exportProgress(source: ProgressSource): Record<string, unknown> 
         ...(a.ms === undefined ? {} : { ms: a.ms }),
         ...(a.given === undefined ? {} : { given: a.given }),
         ...(a.via === undefined ? {} : { via: a.via }),
+        ...(a.hints === undefined ? {} : { hints: a.hints }),
+        ...(a.params === undefined ? {} : { params: a.params }),
         ...(text === undefined || text === '' ? {} : { text })
       };
     })
@@ -263,7 +268,9 @@ export function planProgress(doc: unknown, ctx: ProgressContext): ProgressPlan |
       at, correctness: Math.max(0, Math.min(1, right)),
       ...(typeof raw.given === 'string' ? { given: clip(raw.given, MAX_GIVEN) } : {}),
       ...(ms === undefined ? {} : { ms }),
-      ...(typeof raw.via === 'string' && raw.via.trim() !== '' ? { via: raw.via.trim().slice(0, 200) } : {})
+      ...(typeof raw.via === 'string' && raw.via.trim() !== '' ? { via: raw.via.trim().slice(0, 200) } : {}),
+      ...(typeof raw.hints === 'number' && Number.isFinite(raw.hints) && raw.hints >= 1 ? { hints: Math.min(20, Math.floor(raw.hints)) } : {}),
+      ...(readParams(raw.params) === undefined ? {} : { params: readParams(raw.params)! })
     };
     if (ctx.cardKeys !== null && !ctx.cardKeys.has(ctx.rename?.(key) ?? key)) strange += 1;
     out.push(answer);

@@ -21,8 +21,9 @@ import { blocksIn, blocksMarkup } from '../library/blocks';
 import { entityOf } from './kinds';
 import type { KindDef } from './schema';
 import { isStatementKind } from './statements';
-import { EntityPicker, Markup, entityName, useBusy, useCtx } from './ui';
+import { EntityPicker, Markup, entityNameTex, useBusy, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
+import { TexText } from '../ui/tex/Tex';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -114,9 +115,10 @@ export function Contributions() {
         const about = Array.isArray(first) ? String(first[0] ?? '') : typeof first === 'string' ? first : '';
         return (
           <div key={p.id} className="cg-card">
-            <span className="cg-muted">{kind === undefined ? 'Wiedza (dawny rodzaj — tylko do odrzucenia)' : kind.name}{about !== '' ? ` · do „${entityName(lib, about)}"` : ''} · {typeof p.data._proposedAt === 'string' ? new Date(p.data._proposedAt).toLocaleDateString('pl-PL') : ''}</span>
+            {/* 2026-11-01 — Name des Eintrags und Antworten mit ihren Wzory. */}
+            <span className="cg-muted">{kind === undefined ? 'Wiedza (dawny rodzaj — tylko do odrzucenia)' : kind.name}{about !== '' ? <> · do „<TexText text={entityNameTex(lib, about)} />”</> : ''} · {typeof p.data._proposedAt === 'string' ? new Date(p.data._proposedAt).toLocaleDateString('pl-PL') : ''}</span>
             <Markup text={blocks === undefined ? String(p.data.text ?? p.data.prompt ?? '') : blocksMarkup(blocksIn(p.data[blocks.key]))} />
-            {Array.isArray(p.data.answers) && <span className="cg-muted">Odpowiedzi: {(p.data.answers as unknown[]).join(', ')}</span>}
+            {Array.isArray(p.data.answers) && <span className="cg-muted">Odpowiedzi: <TexText text={(p.data.answers as unknown[]).join(', ')} /></span>}
             <div className="cg-row">
               <button type="button" className="wk-btn" disabled={busy || kind === undefined || entity === null} onClick={() => void run(async () => {
                 if (kind === undefined || entity === null) return;

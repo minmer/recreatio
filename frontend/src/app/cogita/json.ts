@@ -210,7 +210,7 @@ export interface KnowledgeSetup {
 export const PRIVATE_KEYS: ReadonlySet<string> = new Set(['marks', 'correctness', 'knowness', 'dueAt', 'progress', 'learners', 'accountId', 'answeredAt']);
 
 /** Die Einstellungen einer Baza, die zu ihrem Bau gehören (nicht: wohin Antworten gehen, wohin Vorschläge). */
-const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'offline', 'joinPage'] as const;
+const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'offline', 'joinPage'] as const;
 
 /** Die Schlüssel eines Objekts unter „fields" sind Feldnamen eines Rodzaju (ein Formularz: „answers") — Bau, sie bleiben. */
 const withoutPrivate = (v: unknown, named = false): unknown => {
@@ -387,7 +387,9 @@ function docKindsOf(kind: DocKind, data: Readonly<Record<string, unknown>>, map:
  */
 const PREFER: Readonly<Record<string, DocKind>> = {
   collection: 'collection', collections: 'collection', view: 'view', views: 'view', revision: 'revision', flow: 'flow',
-  template: 'template', templates: 'template', look: 'look', rules: 'rules', form: 'addform', addform: 'addform'
+  template: 'template', templates: 'template', look: 'look', rules: 'rules', form: 'addform', addform: 'addform',
+  /* 2026-11-01 — die nächste Lektion einer Powtórka („Następna lekcja"). */
+  next: 'revision'
 };
 /** Wo in einem Dokument freier Text steht — ein „@a/b" dort ist Text, kein Verweis. */
 const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint']);
@@ -399,6 +401,9 @@ const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'ti
 export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { error: string } {
   if (!isObject(doc)) return { error: 'To nie jest dokument JSON.' };
   const format = str(doc.format);
+  if (format === 'recreatio/source-text') {
+    return { error: 'To jest tekst źródła ("recreatio/source-text") — importuje się go w Bibliotece, nie w Cogicie: z nowym dziełem w Źródłach „Dzieło z tekstem (JSON)”; do dzieła, które już jest — na jego stronie, w ramce „Tekst źródła”.' };
+  }
   if (![COURSE_FORMAT, SCHEMA_FORMAT, ENTITIES_FORMAT, FLOW_FORMAT].includes(format)) {
     return { error: `Nieznany format „${format || '—'}". Oczekiwany: ${COURSE_FORMAT}, ${SCHEMA_FORMAT}, ${ENTITIES_FORMAT} albo ${FLOW_FORMAT}.` };
   }
@@ -1027,7 +1032,11 @@ const QUESTION_EXAMPLE: Readonly<Record<string, string>> = {
   left: '["1410", "1569", "1791"]', right: '["Bitwa pod Grunwaldem", "Unia lubelska", "Konstytucja 3 maja"]', leftLabel: '"Rok"', rightLabel: '"Wydarzenie"', show: '4',
   items: '["1s", "2s", "2p", "3s"]', back: '["Najmniejsza część pierwiastka"]', tolerance: '0.5', relative: 'false', unit: '"N·m"', quantity: '"Torque"', precision: '"year"',
   task: '"…"', starter: '"def transform(x): …"', createInput: '"def create_input(seed): …"', reference: '"def reference(x): …"', cases: '5',
-  place: '{"lat": 53.49, "lon": 20.1}', radius: '20000', drawing: '"{… JSON rysunku …}"', goal: '"abs(x - cel) < 0.5"', solution: '"v0 = 12"'
+  place: '{"lat": 53.49, "lon": 20.1}', radius: '20000', drawing: '"{… JSON rysunku …}"', goal: '"abs(x - cel) < 0.5"', solution: '"v0 = 12"',
+  /* 2026-11-01 (Lemma) */
+  feedback: '["Za mało — policz też zbiór pusty.", "", "Tak: 2^3 = 8.", "Za dużo."]', 'gap.choices': '[["Satz 2.1", "Lemma 3.4"], []]', choices: '[["…"]]',
+  'build.items': '["$\\\\exists a\\\\in A$", "$:$", "$\\\\neg P(a)$"]', extra: '["$\\\\forall a\\\\in A$", "$P(a)$"]', alternatives: '[["…", "…"]]', preview: '"math"', 'order.preview': '"math"', join: '" "',
+  tests: '[{"input": [3, 1, 2], "output": [1, 2, 3], "note": "rosnąco"}]'
 };
 
 /**
@@ -1048,7 +1057,20 @@ ${types}
     np. {"ref": "@q-lata", "kinds": ["question"], "data": {"form": "match", "prompt": "Połącz rok z wydarzeniem", "left": ["1410", "1569", "1791", "1918"], "right": ["Bitwa pod Grunwaldem", "Unia lubelska", "Konstytucja 3 maja", "Odzyskanie niepodległości"], "leftLabel": "Rok", "rightLabel": "Wydarzenie", "show": 3}}
     np. {"ref": "@q-atom", "kinds": ["question"], "data": {"form": "one", "prompt": "Co jest w jądrze atomu?", "options": ["Elektrony", "Protony i neutrony", "Tylko neutrony"], "correct": [1], "about": ["@atom"]}}
     np. {"ref": "@q-orbital", "kinds": ["question"], "data": {"form": "truefalse", "prompt": "Na jednym orbitalu mogą być najwyżej dwa elektrony.", "value": true, "about": ["@orbital"], "needs": ["@q-atom"]}}
-    "gap" — w treści [[słowo]] to luka (uczący się widzi „…”), a bez "answers" dobrą odpowiedzią jest to słowo`;
+    "gap" — w treści [[słowo]] to luka (uczący się widzi „…”), a bez "answers" dobrą odpowiedzią jest to słowo; kilka luk — każda osobno (wynik: część dobrych luk);
+      "choices" — do każdej luki po kolei lista ZŁYCH możliwości: luka z listą jest do wybrania (dobre słowo dochodzi samo, mogą być wzory), z pustą [] — do wpisania
+    WZORY: $…$ w zdaniu, $$…$$ osobno — w pytaniu, możliwościach, parach, elementach, kafelkach, podpowiedziach, wyjaśnieniu; \\$ to zwykły dolar; wpisywanie odpowiedzi nigdy nie wymaga LaTeX-a
+    "hints" — podpowiedzi przed odpowiedzią (1–3, od łagodnej do konkretnej): każda odsłonięta obniża najwyższy wynik tej odpowiedzi o 0,25 (jedna — najwyżej 0,75);
+    "explanation" — wyjaśnienie (zapis, 2–4 zdania, wzory, źródła [@dzieło, s. 12]) zaraz po odpowiedzi, rozwinięte; "explain" — wpisy po nim, zwinięte;
+    "feedback" (one, many) — po jednym zdaniu do każdej możliwości, w kolejności "options" ("" — bez zdania): po odpowiedzi stoi pod wybraną i pod dobrymi
+    "build" — kafelki dobrej odpowiedzi po kolei w "items", zbędne w "extra", inne dobre kolejności w "alternatives" (lista list), "preview": "math" (całość jako jeden wzór; kafelek $…$ wchodzi bez dolarów) albo "text", "join" — co stoi między kafelkami (domyślnie spacja);
+      np. {"form": "build", "prompt": "Bilden Sie die Negation von $\\\\forall a\\\\in A: P(a)$.", "items": ["$\\\\exists a\\\\in A$", "$:$", "$\\\\neg P(a)$"], "extra": ["$\\\\forall a\\\\in A$", "$P(a)$"], "preview": "math"}
+      "order" z "preview" pokazuje nad listą ułożone razem (jak "build"); "extra" przy "order" nic nie zmienia — zmiana "form" na "build" je włącza
+    "code" — "tests": widoczne przykłady [{"input": …, "output": …, "note": "…"}] (wartości JSON albo tekst JSON), sprawdzane przed ukrytymi przypadkami z "createInput"/"reference"; każdy przypadek ma 2 s; wynik: część zdanych
+    PARAMETRY (każdy rodzaj): "params": [{"name": "a", "random": [20, 99], "step": 1}, {"name": "f", "values": ["sin", "cos"]}] — losowane przy każdym pytaniu; "let": [{"name": "r", "value": "mod(a, n)"}] — liczone z nich (język wyrażeń rysunków: mod, round, sqrt, fmt(x, 2) …);
+      "require": ["a > 2*n"] — losuje się od nowa (do 60 razy), aż warunki są spełnione; w tekstach (prompt, options, answers, items, left, right, hints, explanation, feedback, extra, choices) {a}, {r}, {fmt(x, 2)} to wartości — liczby z przecinkiem, we wzorze {,};
+      {…} z nazwą spoza parametrów to zwykły tekst (LaTeX: \\mathbb{N}, x^{2}); odpowiedź zapisuje wylosowane wartości
+      np. {"form": "number", "prompt": "Bestimmen Sie $r$ mit $0\\\\le r<{n}$ und \${a} = q\\\\cdot {n} + r$.", "params": [{"name": "a", "random": [20, 99]}, {"name": "n", "random": [3, 9]}], "let": [{"name": "r", "value": "mod(a, n)"}], "answers": ["{r}"]}`;
 }
 
 /** Was ein Formularz dodawania im JSON ist — im Kurs, im Schema und für sich. */
@@ -1183,6 +1205,7 @@ ${questionSection()}
   "asks" — o jaki FAKT pytają karty szablonu: [{"of": "this" | "klucz pola-odwołania", "facet": "nazwa faktu"}] albo krótko ["data"]; karty, które pytają o ten sam fakt tego samego wpisu, dzielą każdą odpowiedź
     — np. „Kiedy było X?” i „Co było w listopadzie 1829?” z "asks": ["data"]: dobra odpowiedź na jedną liczy się dla obu; w pętli „Dla każdej wartości” fakt jest osobny dla każdej wartości; bez "asks": karta liczy się tylko dla siebie;
     pary pytania „Połącz w pary” są faktami same z siebie: każda pokazana para liczy się dla karty swojej pary
+  węzły liczące: "random" ({"min", "max", "step"} albo {"list": ["3", "5"]}, albo lista z wejścia "items") — losuje przy każdej karcie; "calc" („Oblicz”): {"expr": "p0 * p1; p0 + 1", "inputs": 2, "decimals": 2} — wyrażenia językiem rysunków (mod, round, fmt, sqrt …), jedno w wierszu albo po „;”, każde daje wartość; p0…p7 — pierwsza liczba z wejścia, n0…n7 — ile wartości przyszło; "aggregate" („Zbierz”): {"op": "sum"|"count"|"min"|"max"|"avg", "decimals"} — wejście "values" (np. "follow" → "field" liczbowe); wyjście "value" łączy się z "pattern", "answer.number" ("expected") i "answer.one" ("expected" albo "distractors", np. "p0 + 1; p0 - 1; p0 * 2")
 
 Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w JSON):
   każda odpowiedź zostaje zapisana; karta pamięta tylko kilka wartości: kiedy ostatnio odpowiedziano, ile czasu naprawdę minęło przed tą odpowiedzią, odstęp do następnego razu i najlepszy odstęp przed ostatnim błędem;
@@ -1192,7 +1215,9 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   trzy pasma (stałe): „znane” od 1 (100 %) — jeszcze nie pora; „do powtórki” od 0,1 do 1 — umiesz, a teraz (albo zaraz) trzeba powtórzyć: termin powtórki NIE znaczy „nie umiem”; „nieznane” poniżej 0,1 — nigdy nie pytane, ostatnio źle albo zapomniane (trzy odstępy po terminie);
   znajomość wpisu: średnia znajomości jego kart Z ODPOWIEDZIĄ, ważona "weight" z "tests" (karta jeszcze nie pytana nie jest dowodem); to, co na nim buduje (pola z "prerequisite" — połowa — i zależności z Ustawień, z ich wagą), podnosi ją co najmniej do tej części najlepszego z nich — nigdy do ich sumy
 
-"revisions" — powtórki: {"name", "graph"} (źródła → kroki → … → jeden „Sposób pytania")
+"revisions" — powtórki: {"name", "graph", "next"} (źródła → kroki → … → jeden „Sposób pytania")
+  LEKCJA — zwykła powtórka z "endWhenDone": true, "pick": "next", "order": "general": w trakcie pasek „x z y kart”, na końcu podsumowanie (zrobione, dobrze za pierwszym razem, czas, karty ze złą odpowiedzią i „Ćwicz te jeszcze raz”);
+    "next": "@kurs/lekcja-2" — trwała nazwa (albo identyfikator) powtórki, która idzie po tej: na końcu przycisk „Następna lekcja”
   także kroki wspólne z widokami: {"type": "follow", "config": {"field": "authors", "back": false}} — karty wpisów, do których prowadzi odwołanie (albo, "back": true, które wskazują na te wpisy); {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field", "cmp", "value"}]}}} — karty wpisów spełniających regułę; {"type": "structure", "config": {"dir": "down|up", "one": true}} — karty wpisów, które leżą w strukturze pod tymi wpisami (albo nad nimi); "follow" i "structure" z "keep": true zostawiają też karty, od których wyszły
   źródło „rodzaj z biblioteki": {"type": "source.kind", "config": {"kind": "quote", "from": "<identyfikator biblioteki>"}} — "from" puste: z tej bazy i ze wszystkich źródeł
   źródło „widok”: {"type": "source.view", "config": {"view": "@widok"}} — karty wpisów, które pokazuje zapisany widok: widok decyduje, co wchodzi w grę, powtórka z tego wybiera; zmiana widoku zmienia powtórkę, a jego „Filtry znajomości” na końcu działają w trakcie powtórki
@@ -1213,13 +1238,14 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …
   przebieg z prezentacji (jedna opowieść, nie kopia): {"name": "Droga", "look": "scenes", "presentation": "parafia/droga", "narrators": […]} — bez własnego "graph": jego mapą jest storyboard strony (sceny, przejścia, pytania, warunki, wartości — "story" w JSON strony); w Nauce gra tę prezentację, a odpowiedzi, wartości i miejsce, w którym ktoś skończył, liczą się w tej bazie (to samo miejsce co na stronie); zobaczy ją tylko ten, kto może zobaczyć stronę
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
-"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}}
+"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas|outline|quilt", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}}
   na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text" ze skryptorium, "from"} | "source.collection" {"collection": "@zbiór"} | "source.list" {"ids": ["@wpis"]};
   także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, wypowiedzi, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"}, "structure" {"dir": "down|up", "one": true} (po polach struktury — bez "one": do samego końca; "one": true — jeden poziom) i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
   także "filter.when" {"when": warunek} i "learning" {"dir", "one", "keep"} — te same co w powtórce; w widoku liczy się znajomość tego, kto patrzy (uczącego się na tym koncie; na stronie — osoby strony albo tej przeglądarki),
     np. fakty okresu dopiero, gdy okres jest znany: {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "okres", "op": "ge", "than": 1}}}; tylko wpisy, których podstawy są znane: "rel": "before";
   kolumny i "sort" ze znajomości: "#knowness" (znajomość wpisu), "#due" (kiedy powtórzyć), "#level" (poziom w kolejności nauki), np. "sort": {"key": "#knowness", "dir": 1} — najpierw najsłabsze;
+  "mode": "quilt" (Mapa postępów) — kafelek na wpis w kolorze tego, jak dobrze uczący się go zna (nowe, uczę się, do powtórki, umiem), pogrupowany jak "group" (np. idee według lekcji pod rozdziałami: {"by": "axis", "kind": "@lekcja", "via": ["lekcja"], "sort": {"field": "nr"}, "group": "rozdzial"}); klik: tekst, pytania, „Ćwicz to”, „Otwórz w źródle”; widać go w Nauka → Postępy (też nauczycielowi) i w module „Widok”
   "mode": "outline" (Struktura) rysuje źródła jako korzenie, a pod nimi to, do czego prowadzą kroki; "outline": {"chip": "klucz pola nad każdym krokiem (np. rola)", "order": "tree|text" (bez "order": ostatni wybór czytelnika, a na początek kolejność tekstu u Tomasza i drzewo w innych dziełach), "by": "klucz pola, według którego najpierw układają się kroki jednego poziomu (np. czas — czas opowieści; bez \"by\": według miejsca w dziele)", "tie": "klucz pola przy tym samym miejscu (np. nr)"};
     widok otwarty od wpisu (wejście z Biblioteki) zastępuje tym wpisem wszystko przed pierwszym „Idź po…”; np. {"name": "Wywód", "mode": "outline", "steps": [{"type": "source.kind", "config": {"kind": "@krok"}}, {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field": "nalezy", "cmp": "empty"}]}}}, {"type": "structure", "config": {"dir": "down"}}], "outline": {"chip": "rola", "order": "tree", "tie": "nr"}}
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "axis", "kind": "@rodzaj", "via", "through", "sort", "group"} — OŚ: jej wartości to wpisy rodzaju
@@ -1230,7 +1256,7 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   np. {"name": "Postacie według okresu", "mode": "tree", "steps": [{"type": "source.kind", "config": {"kind": "@postac"}}], "group": {"by": "axis", "kind": "@okres", "via": ["okres"], "sort": {"field": "od"}}}
   np. macierz 20 × 12 — Tajemnica × Obszar: {"name": "Tajemnica × Obszar", "mode": "matrix", "steps": [{"type": "source.kind", "config": {"kind": "text"}}, {"type": "source.kind", "config": {"kind": "@komentarz"}}], "matrix": {"rows": {"by": "axis", "kind": "@tajemnica", "sort": {"field": "numer"}, "group": "czesc"}, "cols": {"by": "axis", "kind": "@obszar", "group": "grupa"}}}
     — 20 tajemnic różańca (w czterech częściach) × 12 maryjnych obszarów (w grupach); w polu: kazania ze skryptorium (rodzaj tekstu „Kazanie maryjne” z polami "tajemnica" i "obszar") i komentarze, których "about" wskazuje tajemnicę i obszar; puste pola też są widoczne
-  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa"} — pole macierzy (klik) i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu
+  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa|postepy"} — pole macierzy (klik) i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu
 "anchors" — wejścia z Biblioteki: {"ref", "name", "work": "@klucz dzieła albo identyfikator", "locator": "s. 45–60" | "s. 1–3; 27–30" | "I q. 2 a. 3; a. 4" | "" (całe dzieło), "entry": "@wpis tej bazy (nie dzieło)", "view": "@widok albo jego nazwa", "note"}
   przy dziele w Bibliotece pojawia się przycisk z nazwą wejścia — tylko dla tych, którzy mogą czytać tę bazę (Biblioteka niczego nie zapisuje); kilka wejść jednego dzieła może dotyczyć całości, początku, końca, także kilku części naraz
   części oddziela „;”; część, która zaczyna się niżej niż poprzednia, należy do jej ramy („I q. 2 a. 3; a. 4” — artykuł 4 tej samej kwestii; „t. 2, rozdz. 1; rozdz. 9” — rozdział 9 tego samego tomu)

@@ -1,11 +1,11 @@
 {
   "css: font-size in px/rem/em": 13,
-  "css: border-radius in px/rem": 262,
+  "css: border-radius in px/rem": 261,
   "css: z-index ≥ 10 as a number": 18,
   "css: @media in px": 18,
   "code: window.confirm()": 1,
   "code: loading text outside <Loading>": 12,
   "code: DisplaySwitch / useDisplay": 0,
-  "code: wk-hint": 550,
+  "code: wk-hint": 548,
   "code: inline style={{…}}": 90
 }

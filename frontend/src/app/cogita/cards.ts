@@ -31,14 +31,16 @@
  * und das Thema als Frage, dessen Wissen sich aufdecken lässt [C4].
  */
 
-import { checkCode, checkDate, checkFlash, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
+import { checkBuild, checkCode, checkDate, checkFlash, checkGaps, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
 import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './graph';
 import { dateKey, fieldsOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
-import { type AnswerSpec, type Card, type CardTest, type Fragment, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, rngOf, shuffle, shuffleAway, shuffledPairs, stable, str } from './cardBasics';
+import { type AnswerSpec, type Card, type CardTest, type CodeTest, type Fragment, type GapSlot, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, readParams, rngOf, shuffle, shuffleAway, shuffledPairs, stable, str } from './cardBasics';
 import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
-import { choicesOf, GAP, pairsOf, showOf } from './questionTypes';
+import { hasTex, plainWithTex } from '../core/tex';
+import { choicesOf, GAP, pairsOf, rawList, showOf } from './questionTypes';
+import { drawParams, readParamsSpec, withParams } from './questionParams';
 
 /** Was als richtig gilt, ohne die Reihenfolge, in der es gezeigt wird — gemischte Wahlmöglichkeiten ändern nichts. */
 function expectedOf(answer: AnswerSpec): unknown {
@@ -53,10 +55,36 @@ function expectedOf(answer: AnswerSpec): unknown {
     case 'order': return { f: 'order', i: answer.items };
     case 'match': return { f: 'match', p: answer.pairs.map(([l, r]) => `${answer.left[l]}→${answer.right[r]}`).sort() };
     case 'flash': return { f: 'flash', b: answer.back };
-    case 'code': return { f: 'code', r: answer.reference, c: answer.createInput, n: answer.cases };
+    case 'code': return { f: 'code', r: answer.reference, c: answer.createInput, n: answer.cases, ...(answer.tests === undefined ? {} : { t: answer.tests }) };
     case 'point': return { f: 'point', t: answer.target };
     case 'interactive': return interactiveExpected(answer);
+    case 'build': return { f: 'build', i: answer.items, a: answer.alternatives, x: answer.extra.slice().sort() };
   }
+}
+
+/**
+ * 2026-11-01 — EINE GETIPPTE ANTWORT BRAUCHT NIE LaTeX: steht in einer richtigen Antwort ein Wzór, gilt auch seine
+ * Zeile ohne LaTeX (`$x^2$` → „x²") und das LaTeX ohne Dollar („x^2").
+ */
+export function typedVariants(accepted: readonly string[]): { readonly text: string; readonly original: string }[] {
+  const out: { text: string; original: string }[] = [];
+  const put = (text: string, original: string) => { if (text.trim() !== '' && !out.some((x) => x.text === text)) out.push({ text, original }); };
+  for (const a of accepted) {
+    put(a, a);
+    if (!hasTex(a)) continue;
+    put(plainWithTex(a), a);
+    put(a.replace(/(?<!\\)\$+/g, '').replace(/\s+/g, ' ').trim(), a);
+  }
+  return out;
+}
+
+export const typedAccepted = (accepted: readonly string[]): string[] => typedVariants(accepted).map((v) => v.text);
+
+/** Verglichen wurde mit einer Zeile ohne LaTeX: gezeigt wird die Antwort, wie sie geschrieben steht (`Outcome.shown`). */
+function asWritten(outcome: Outcome, accepted: readonly string[]): Outcome {
+  if (outcome.expected === undefined || accepted.includes(outcome.expected)) return outcome;
+  const original = typedVariants(accepted).find((v) => v.text === outcome.expected)?.original;
+  return original === undefined ? outcome : { ...outcome, shown: original };
 }
 
 /**
@@ -78,8 +106,11 @@ function expectedOf(answer: AnswerSpec): unknown {
 export function checkCard(card: Card, given: unknown, rule?: Partial<TextRule>): Outcome {
   const a = card.answer;
   switch (a.form) {
-    case 'text': return checkText(a.accepted, typeof given === 'string' ? given : '', { ...a.rule, ...rule });
-    case 'gap': return checkText(a.accepted, typeof given === 'string' ? given : '', { ...a.rule, ...rule });
+    case 'text': return asWritten(checkText(typedAccepted(a.accepted), typeof given === 'string' ? given : '', { ...a.rule, ...rule }), a.accepted);
+    /* 2026-11-01 — mehrere Lücken: eine Antwort je Lücke, jede für sich. */
+    case 'gap': return a.gaps !== undefined
+      ? checkGaps(a.gaps.map((g) => (g.choices !== undefined ? g : { accepted: typedAccepted(g.accepted) })), Array.isArray(given) ? given.map((x) => (typeof x === 'string' ? x : '')) : [], { ...a.rule, ...rule })
+      : asWritten(checkText(typedAccepted(a.accepted), typeof given === 'string' ? given : '', { ...a.rule, ...rule }), a.accepted);
     case 'number': return checkNumber(a, given);
     case 'date': return checkDate(a, typeof given === 'string' ? given : '');
     case 'one': return checkOne(a.correct, typeof given === 'number' ? given : null);
@@ -91,6 +122,7 @@ export function checkCard(card: Card, given: unknown, rule?: Partial<TextRule>):
     case 'code': return checkCode(isObject(given) && typeof given.passed === 'number' && typeof given.total === 'number' ? { passed: given.passed, total: given.total } : null);
     case 'point': return checkPoint(a.target, isObject(given) ? (given as unknown as PointGiven) : null);
     case 'interactive': return checkInteractive(a, given);
+    case 'build': return checkBuild([a.items, ...a.alternatives], Array.isArray(given) ? given.map(String) : []);
   }
 }
 
@@ -313,7 +345,57 @@ export const templatesFor = (entity: Entity, templates: readonly Template[]): Te
 
 /* -- Von Hand geschriebene Fragen und das Thema als Frage ---------------------------- */
 
-const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive'];
+const FORMS: readonly AnswerForm[] = ['text', 'number', 'date', 'one', 'many', 'truefalse', 'order', 'match', 'gap', 'flash', 'code', 'point', 'interactive', 'build'];
+
+/* -- 2026-11-01: was nach Lemma dazukam -------------------------------------------------------------------- */
+
+/** Ein JSON-Feld, auch als Text gekommen. */
+function jsonOf(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  const text = raw.trim();
+  if (text === '') return undefined;
+  try { return JSON.parse(text) as unknown; } catch { return undefined; }
+}
+
+/** `alternatives`: andere richtige Folgen von Kacheln — eine Liste von Listen (oder Zeilen „a | b | c"). */
+export function readAlternatives(raw: unknown): string[][] {
+  const v = jsonOf(raw);
+  const list = Array.isArray(v) ? v : typeof raw === 'string' ? raw.split('\n') : [];
+  const out: string[][] = [];
+  for (const one of list.slice(0, 20)) {
+    const tiles = Array.isArray(one) ? one.map((x) => str(x).trim()).filter((x) => x !== '') : typeof one === 'string' ? one.split('|').map((x) => x.trim()).filter((x) => x !== '') : [];
+    if (tiles.length > 0) out.push(tiles);
+  }
+  return out;
+}
+
+/** `choices`: je Lücke (in ihrer Folge im Text) die falschen Möglichkeiten — leer: getippt. */
+export function readChoices(raw: unknown): string[][] {
+  const v = jsonOf(raw);
+  return (Array.isArray(v) ? v : []).slice(0, 40).map((one) => (Array.isArray(one) ? one : typeof one === 'string' && one.trim() !== '' ? [one] : []).map((x) => str(x).trim()).filter((x) => x !== '').slice(0, 12));
+}
+
+/** `tests`: sichtbare Beispiele {input, output, note} einer Frage in Code — als Liste oder als JSON-Text. */
+export function readCodeTests(raw: unknown): CodeTest[] {
+  const v = jsonOf(raw);
+  const out: CodeTest[] = [];
+  for (const one of Array.isArray(v) ? v.slice(0, 40) : []) {
+    if (!isObject(one) || !('input' in one) || !('output' in one)) continue;
+    const note = str(one.note).trim();
+    out.push({ input: one.input, output: one.output, ...(note === '' ? {} : { note: note.slice(0, 300) }) });
+  }
+  return out;
+}
+
+/** Ein Stück Text zwischen Lücken, als eine Zeile mit Wzory — ein Leerzeichen am Rand bleibt (sonst klebt das Wort an der Lücke). */
+function pieceOf(raw: string): string {
+  const inner = plainOf(raw, 'keep');
+  if (inner === '') return /\s/.test(raw) ? ' ' : '';
+  return `${/^\s/.test(raw) ? ' ' : ''}${inner}${/\s$/.test(raw) ? ' ' : ''}`;
+}
+
+/** Die Podpowiedzi einer Frage — höchstens fünf, in ihrer Folge. */
+const hintsOf = (d: Readonly<Record<string, unknown>>): string[] => rawList(d.hints).map((x) => x.trim()).filter((x) => x !== '').slice(0, 5);
 
 /**
  * EINE VON HAND GESCHRIEBENE FRAGE (Systemart `question`, [C4, D1]). Ihre
@@ -368,13 +450,24 @@ function matchAnswer(pairs: readonly { left: string; right: string }[], heads: r
  * `questionCards` jedem Paar seine eigene Karte.
  */
 export function questionCard(entity: Entity, seed = ''): Card | null {
-  const d = entity.data;
-  const form = FORMS.find((f) => f === d.form) ?? 'text';
   const rng = rngOf(`${seed}:${entity.id}`);
+  /*
+   * 2026-11-01 — EINE FRAGE MIT PARAMETERN (`questionParams.ts`): je Versuch neue Werte, eingesetzt in jeden Text der
+   * Frage; die Karte trägt sie (`params`), und die Antwort nimmt sie mit. Der Fingerabdruck ist der der Frage, wie sie
+   * geschrieben ist — die Geschichte endet nicht bei jedem Würfeln.
+   */
+  const spec = readParamsSpec(entity.data);
+  const drawn = spec === null ? null : drawParams(spec, rng).values;
+  const d: Readonly<Record<string, unknown>> = drawn === null ? entity.data : withParams(entity.data, drawn);
+  const form = FORMS.find((f) => f === d.form) ?? 'text';
   const answers = lines(d.answers);
   let answer: AnswerSpec | null = null;
   /* Ein Fingerabdruck, der nicht vom Würfeln abhängt (eine lange Liste: alle Paare). */
   let print: unknown;
+  /* 2026-11-01 — ein Satz je Möglichkeit, in der gezeigten Folge. */
+  let feedback: string[] | undefined;
+  /* Fragt jedes Mal anderes (eine lange Liste von Paaren, gezogene Parameter). */
+  let varied = false;
   switch (form) {
     case 'text': answer = answers.length === 0 ? null : { form, accepted: answers, rule: readRule(d.rule, TEXT_RULE) }; break;
     case 'gap': {
@@ -382,7 +475,26 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       const raw = str(d.prompt);
       const gaps = [...raw.matchAll(GAP)].map((m) => m[1].trim()).filter((x) => x !== '');
       const accepted = answers.length > 0 ? answers : gaps.length > 0 ? [gaps.join(' ')] : [];
-      answer = accepted.length === 0 ? null : { form, shown: plainOf(raw.replace(GAP, '…')), accepted, rule: readRule(d.rule, GAP_RULE) };
+      const rule = readRule(d.rule, GAP_RULE);
+      /* Der Fingerabdruck wie bisher (Text ohne LaTeX) — eine Lücke mit Wzór im Text behält ihre Geschichte. */
+      const plain = plainOf(raw.replace(GAP, '…'));
+      const shown = plainOf(raw.replace(GAP, '…'), 'keep');
+      if (shown !== plain) print = { f: 'gap', a: accepted.map((a) => a.toLowerCase()).sort(), s: plain };
+      /*
+       * 2026-11-01 — MEHRERE LÜCKEN (oder Lücken zum Wählen, `choices`): jede Lücke an ihrer Stelle im Text, jede für
+       * sich geprüft — getippt oder gewählt. Mit eigenen „answers" bleibt es eine Antwort für alles (wie bisher).
+       */
+      const choices = readChoices(d.choices);
+      const words = raw.split(GAP);
+      if (answers.length === 0 && gaps.length > 0 && (gaps.length >= 2 || choices.some((c) => c.length > 0)) && words.length === gaps.length * 2 + 1) {
+        const slots: GapSlot[] = gaps.map((word, i) => (choices[i] !== undefined && choices[i]!.length > 0 ? { accepted: [word], choices: choices[i]! } : { accepted: [word] }));
+        const pieces = words.filter((_w, i) => i % 2 === 0).map(pieceOf);
+        answer = { form, shown, accepted, rule, pieces, gaps: slots };
+        /* Ohne Wahl bleibt der Fingerabdruck der alte (dieselben Wörter, derselbe Text) — mit Wahl gehören die Möglichkeiten dazu. */
+        if (choices.some((c) => c.length > 0)) print = { f: 'gap', a: accepted.map((a) => a.toLowerCase()).sort(), s: plain, g: slots.map((g) => g.choices ?? []) };
+        break;
+      }
+      answer = accepted.length === 0 ? null : { form, shown, accepted, rule };
       break;
     }
     case 'number': {
@@ -400,21 +512,23 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     }
     case 'one':
     case 'many': {
-      /* 2026-10-27 — leere Möglichkeiten fallen weg, die Nummern der richtigen rücken mit (`choicesOf`). */
-      const { options, correct } = choicesOf(d);
+      /* 2026-10-27 — leere Möglichkeiten fallen weg, die Nummern der richtigen rücken mit (`choicesOf`) — 2026-11-01 ihre Sätze auch. */
+      const { options, correct, feedback: said } = choicesOf(d);
       if (options.length < 2 || correct.length === 0) break;
       const order = shuffle(options.map((_o, i) => i), rng);
       const shown = order.map((i) => options[i]);
       answer = form === 'one'
         ? { form, options: shown, correct: order.indexOf(correct[0]) }
         : { form, options: shown, correct: correct.map((c) => order.indexOf(c)).sort((a, b) => a - b) };
+      if (said.some((x) => x !== '')) feedback = order.map((i) => said[i] ?? '');
       break;
     }
     case 'truefalse': answer = typeof d.value === 'boolean' ? { form, value: d.value } : null; break;
     case 'order': {
       const items = lines(d.items);
-      /* 2026-10-31 — nie so, wie gespeichert: sonst wäre Ordnen Abschreiben. */
-      answer = items.length < 2 ? null : { form, items, shown: shuffleAway(items, rng, sameText) };
+      /* 2026-10-31 — nie so, wie gespeichert: sonst wäre Ordnen Abschreiben. 2026-11-01 — mit `preview` das Gelegte als Wzór. */
+      const preview = d.preview === 'math' || d.preview === 'text' ? { preview: d.preview as 'math' | 'text', join: typeof d.join === 'string' ? d.join : ' ' } : {};
+      answer = items.length < 2 ? null : { form, items, shown: shuffleAway(items, rng, sameText), ...preview };
       break;
     }
     case 'match': {
@@ -422,7 +536,7 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       if (pairs.length < 2) break;
       const show = showOf(d, pairs.length);
       /* 2026-10-27 — eine lange Liste: je Versuch `show` Paare, gewürfelt; die Geschichte gilt der ganzen Liste. */
-      if (show !== null) print = { f: 'match-all', p: pairs.map((p) => `${p.left}→${p.right}`).sort(), n: show };
+      if (show !== null) { print = { f: 'match-all', p: pairs.map((p) => `${p.left}→${p.right}`).sort(), n: show }; varied = true; }
       answer = matchAnswer(show === null ? pairs : shuffle(pairs, rng).slice(0, show), headsOf(d), rng);
       break;
     }
@@ -431,7 +545,20 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
       answer = back.length === 0 ? null : { form, back };
       break;
     }
-    case 'code': answer = { form, task: str(d.task), starter: str(d.starter), createInput: str(d.createInput), reference: str(d.reference), cases: Math.max(1, Math.round(num(d.cases, 5))) }; break;
+    case 'code': {
+      /* 2026-11-01 — sichtbare Beispiele (`tests`): mit ihnen allein ist eine Frage in Code auch ohne verdeckte Fälle vollständig. */
+      const tests = readCodeTests(d.tests);
+      answer = { form, task: str(d.task), starter: str(d.starter), createInput: str(d.createInput), reference: str(d.reference), cases: Math.max(1, Math.round(num(d.cases, 5))), ...(tests.length === 0 ? {} : { tests }) };
+      break;
+    }
+    case 'build': {
+      /* 2026-11-01 — aus Kacheln bauen: die richtigen in ihrer Folge, falsche dazu, andere richtige Folgen. */
+      const items = lines(d.items);
+      const extra = lines(d.extra);
+      answer = items.length === 0 || items.length + extra.length < 2 ? null
+        : { form, items, extra, alternatives: readAlternatives(d.alternatives), preview: d.preview === 'text' ? 'text' : 'math', join: typeof d.join === 'string' ? d.join : ' ' };
+      break;
+    }
     case 'point': {
       const geo = isObject(d.place) ? d.place : null;
       const lat = geo === null ? null : readNumber(geo.lat);
@@ -442,11 +569,22 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     case 'interactive': answer = interactiveSpec(d, rng); break;
   }
   if (answer === null) return null;
-  const prompt = plainOf(str(d.prompt));
+  /* 2026-11-01 — eine Frage mit Wzór behält ihn (`$…$`, gesetzt von KaTeX); ohne Wzór eine Zeile wie bisher. */
+  const rawPrompt = str(d.prompt);
+  const prompt = hasTex(rawPrompt) ? plainOf(rawPrompt, 'keep') : plainOf(rawPrompt);
   /* 2026-10-27 — was die Frage prüft („O czym"): ihre Kenntnis zählt dort mit, und sie wartet auf das, was dort zuerst zu können ist. */
   const about = refIds(d.about).filter((id) => id !== entity.id);
   /* 2026-11-01 — jedes Paar einer Liste ist ein Fakt: die Karte der ganzen Liste fragt sie alle. */
   const facts = form === 'match' ? pairsOf(d).map((p) => pairFact(entity.id, p.left, p.right)) : [];
+  const hints = hintsOf(d);
+  const explanation = str(d.explanation).trim();
+  const params = drawn === null ? undefined : readParams(drawn);
+  /* Mit Parametern: der Fingerabdruck der Frage, wie sie geschrieben ist (nicht der gezogenen Zahlen). */
+  if (drawn !== null) {
+    const raw = entity.data;
+    print = { f: 'params', d: Object.fromEntries(['form', 'answers', 'options', 'correct', 'items', 'extra', 'alternatives', 'left', 'right', 'value', 'back', 'choices', 'params', 'let', 'require', 'tolerance', 'relative', 'unit', 'precision'].filter((k) => raw[k] !== undefined).map((k) => [k, raw[k]])) };
+    varied = true;
+  }
   return {
     question: entity.id,
     direction: '',
@@ -456,12 +594,25 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     answer,
     explain: lines(d.explain),
     fingerprint: hashOf(stable(print ?? expectedOf(answer))),
-    /* Ein Bild mit Zufall (ein Ziel jedes Mal woanders) fragt jedes Mal anderes; eine lange Liste von Paaren auch. */
-    varies: (answer.form === 'interactive' && Object.keys(answer.fixed).length > 0) || print !== undefined,
+    /* Ein Bild mit Zufall (ein Ziel jedes Mal woanders) fragt jedes Mal anderes; eine lange Liste von Paaren auch; eine Frage mit Parametern auch. */
+    varies: (answer.form === 'interactive' && Object.keys(answer.fixed).length > 0) || varied,
     requires: [],
     ...(about.length > 0 ? { about } : {}),
-    ...(facts.length > 0 ? { facts } : {})
+    ...(facts.length > 0 ? { facts } : {}),
+    ...(hints.length > 0 ? { hints } : {}),
+    ...(explanation === '' ? {} : { explanation }),
+    ...(feedback === undefined ? {} : { feedback }),
+    ...(params === undefined ? {} : { params })
   };
+}
+
+/**
+ * 2026-11-01 — EINE FRAGE MIT PARAMETERN NEU GEZOGEN: dieselbe Karte (Schlüssel, Fingerabdruck), andere Zahlen — für
+ * jedes neue Zeigen in einem Lauf (kommt sie wieder, rechnet man neu, statt sich die Zahl von eben zu merken).
+ */
+export function redrawCard(card: Card, entity: Entity | undefined, seed: string): Card {
+  if (card.params === undefined || entity === undefined || !entity.kinds.includes('question')) return card;
+  return questionCards(entity, seed).find((c) => c.key === card.key) ?? card;
 }
 
 /** 2026-11-01 — der Fakt eines Paars einer Frage „Połącz w pary": die Frage und das Paar (nicht die Karte, auf der es steht). */

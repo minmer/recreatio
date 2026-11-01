@@ -7,11 +7,11 @@
  * die nächste fällig ist. Ohne Netz läuft er aus der Abschrift des Geräts.
  */
 
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
-import { answerText, CardFace, givenText } from './CardFace';
+import { answerText, CardFace, givenText, storedGiven } from './CardFace';
 import type { Card } from './cardBasics';
-import { answerEvidence } from './cards';
+import { answerEvidence, redrawCard } from './cards';
 import type { Outcome } from './check';
 import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
@@ -24,10 +24,14 @@ import { answersFor, keepOffline, needsFiles, offlineList, type OfflineRevision 
 import { AWAY_HERE } from '../core/away';
 import { keepsKey, type Who } from '../core/session';
 import { toast } from '../ui/dialogs';
-import { answer, levelsOf, planOf, progress, start, waiting, whyDetail, whyText, type Plan, type Session } from './revision';
+import { answer, lessonProgress, levelsOf, planOf, practicePlan, progress, start, waiting, whyDetail, whyText, type Plan, type Session } from './revision';
 import { conditionText } from './logic';
 import type { CogitaLibrary } from './store';
-import { Bar, CogitaContext, entityName } from './ui';
+import { Bar, CogitaContext, entityNameTex } from './ui';
+import { TexText } from '../ui/tex/Tex';
+import { DailyGoal } from './DailyGoal';
+import { LessonSummary, MissedCards } from './LessonEnd';
+import { EMPTY_LOG, logAnswer, logSummary, logTick, nextLesson, type Missed, type RunLog } from './lessons';
 
 /* 2026-10-31 — die Statystyki am Ende einer Powtórka: erst geladen, wenn man sie aufklappt. */
 const RunStats = later(() => import('./KnowCharts').then((m) => m.KnowledgeStats));
@@ -54,7 +58,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source, learner, onClose, keep = false, via, onAnswer }: {
+export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -68,8 +72,28 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   via?: string;
   /** 0109 — jede Antwort auch nach aussen (eine Sitzung im eigenen Tempo zeigt sie dem Gastgeber). */
   onAnswer?: (card: Card, correctness: number, given: unknown) => void;
+  /**
+   * 2026-11-01 — „Następna lekcja": die Powtórka, die diese nennt (`next`), öffnen — der Baustein einer Seite stellt sich
+   * auf sie um, die Nauka geht zu ihrer Adresse. Fehlt es: im Arbeitsbereich zur Adresse der Powtórka, sonst läuft sie
+   * hier weiter.
+   */
+  onOpenRevision?: (revisionId: string, title: string) => void;
+  /** 2026-11-01 — den Fortschritt „x z y kart" auch bei Stufen zeigen (das Üben am Ende einer Lektion). */
+  lesson?: boolean;
 }) {
   const ctx = useContext(CogitaContext);
+  /*
+   * 2026-11-01 — DIE NÄCHSTE LEKTION AN ORT UND STELLE: ohne `onOpenRevision` und ausserhalb des Arbeitsbereichs (eine
+   * Seite, ein Link) läuft sie in diesem Lauf weiter. Kommt von aussen eine andere Quelle, gilt wieder sie.
+   */
+  const [chain, setChain] = useState<{ readonly revisionId: string; readonly title: string } | null>(null);
+  useEffect(() => { setChain(null); }, [outer.revisionId, outer.plan]);
+  const source: RunSource = chain === null ? outer : { revisionId: chain.revisionId, title: chain.title, ...(outer.deps === undefined ? {} : { deps: outer.deps }) };
+  /* Die Abschrift ohne Netz: was der Aufrufer für seine Powtórka sagt — für eine weitere Lektion, was die Baza sagt. */
+  const keepThis = chain === null ? keep : ctx?.who != null && lib !== null && lib.settings().offline.includes(chain.revisionId);
+  /* 2026-11-01 — was dieser Lauf über sich weiss (Zeit, erste Antworten, was nicht sass) und das Üben danach. */
+  const [log, setLog] = useState<RunLog>(EMPTY_LOG);
+  const [practice, setPractice] = useState<{ readonly plan: Plan; readonly title: string } | null>(null);
   const [round, setRound] = useState(0);
   const seed = useMemo(() => `${Date.now().toString(36)}:${round}`, [round]);
   const [state, setState] = useState<{ session: Session; all: readonly Card[] } | null>(null);
@@ -88,7 +112,10 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   const [introduced, setIntroduced] = useState<ReadonlySet<string>>(new Set());
   /* Gerechnet, wenn die Karte kommt — nach der Antwort hat das Thema Antworten, und die Vorstellung bliebe doch stehen. */
   const intro = useRef<{ at: string; ids: readonly string[] }>({ at: '', ids: [] });
-  const saved = useRef(false);
+  /* 2026-11-01 — eine Frage mit Parametern: bei jedem Zeigen neue Zahlen (`redrawCard`), gemerkt für dieses Zeigen. */
+  const drawn = useRef<{ at: string; card: Card } | null>(null);
+  /* Für welche Powtórka die Abschrift schon gemacht ist (eine weitere Lektion im selben Lauf bekommt ihre eigene). */
+  const saved = useRef<string | null>(null);
   /*
    * 2026-10-28 — die Abschrift für die Zeit ohne Netz, wie sie abgelegt wurde: am Ende des Laufs (und beim
    * Verlassen) kommt auch hinein, was JETZT beantwortet wurde — sonst finge die erste Runde ohne Netz bei dem an,
@@ -134,8 +161,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
    */
   const keepCopy = (plan: Plan, made: Learner): void => {
     const keeper = ctx?.who ?? null;
-    if (!keep || saved.current || lib === null || source.revisionId === undefined || keeper === null || made.holder.kind !== 'role') return;
-    saved.current = true;
+    if (!keepThis || saved.current === (source.revisionId ?? null) || lib === null || source.revisionId === undefined || keeper === null || made.holder.kind !== 'role') return;
+    saved.current = source.revisionId;
     if (!keepsKey(keeper)) {
       if (AWAY_HERE) {
         setKept('no-key');
@@ -184,6 +211,8 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
     setStats({ answered: 0, correct: 0 });
     setDue(null);
     setStopped(false);
+    setLog(EMPTY_LOG);
+    setPractice(null);
     void (async () => {
       try {
         let plan = source.plan ?? null;
@@ -204,7 +233,11 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
           plan, all: all.length > 0 ? all : plan.cards, deps: source.deps ?? lib?.dependencies() ?? [], now: Date.now(), seed,
           marks: (key) => learner?.marks(key, fp.get(key), rename) ?? []
         });
-        if (alive) setState({ session, all: all.length > 0 ? all : plan.cards });
+        if (alive) {
+          setState({ session, all: all.length > 0 ? all : plan.cards });
+          /* Die erste Karte ist da: von hier an zählt die Zeit. */
+          setLog(logTick(EMPTY_LOG, Date.now()));
+        }
       } catch (e) {
         if (alive) setFailed(e instanceof Error ? e.message : 'Nie udało się przygotować powtórki.');
       }
@@ -238,28 +271,60 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
     void sendReport(lib.libraryId, lib.areaId, 'counts', { cards }, ctx?.seat).catch(() => undefined);
   }, [finished, lib, ctx?.seat]);
 
+  /**
+   * 2026-11-01 — „NASTĘPNA LEKCJA" öffnen: der Aufrufer weiss wie (ein Baustein stellt sich um, die Nauka geht zur
+   * Adresse); sonst im Arbeitsbereich zur Adresse der Powtórka; sonst (eine Seite, ein Link) läuft sie hier weiter.
+   */
+  const openRevision = (id: string, name: string) => {
+    refreshKept();
+    if (onOpenRevision !== undefined) { onOpenRevision(id, name); return; }
+    const to = ctx?.href('nauka', id) ?? '#';
+    if (to !== '#' && typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace')) { window.location.hash = to; return; }
+    setChain({ revisionId: id, title: name });
+  };
+
   if (failed !== null) return <div className="cg"><p className="wk-error">{failed}</p>{onClose !== undefined && <button type="button" className="wk-btn" onClick={onClose}>Wróć</button>}</div>;
   if (state === null) return <p className="wk-lede">Przygotowywanie kart…</p>;
+
+  /* 2026-11-01 — „Ćwicz te jeszcze raz": genau diese Karten, bis jede sitzt; „Wróć" führt zurück zum Ende dieses Laufs. */
+  if (practice !== null) {
+    return (
+      <RevisionRun lib={lib} learner={learner} source={{ plan: practice.plan, cards: state.all, ...(source.deps === undefined ? {} : { deps: source.deps }), title: practice.title }}
+        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={() => setPractice(null)} lesson />
+    );
+  }
 
   const session = state.session;
   const card = session.current === null ? undefined : state.all.find((c) => c.key === session.current) ?? session.plan.cards.find((c) => c.key === session.current);
   const p = progress(session);
+  /* 2026-11-01 — eine Lektion (endet von selbst, wenn nichts mehr wartet) zeigt „x z y kart"; Stufen nur beim Üben. */
+  const lessonNow = session.plan.mode === 'temporal' || lesson ? lessonProgress(session, Date.now()) : null;
 
   if (session.current === null || card === undefined || stopped) {
     const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now());
     /* 2026-10-30 — was noch wartet, weil seine Bedingung (noch) nicht gilt: was zuerst sitzen muss, und andere Bedingungen. */
     const held = waiting(session, Date.now());
+    /* 2026-11-01 — was nicht sass (falsch, oder nur mit Podpowiedź), in der Folge, in der es geschah. */
+    const missed = [...log.missed.entries()]
+      .map(([key, why]) => ({ card: state.all.find((c) => c.key === key) ?? session.plan.cards.find((c) => c.key === key), why }))
+      .filter((x): x is { card: Card; why: Missed } => x.card !== undefined);
+    const summary = logSummary(log);
+    /* In einer Sitzung entscheidet die Leitung, was als Nächstes kommt — dort keine „Następna lekcja". */
+    const next = lib === null || source.revisionId === undefined || onAnswer !== undefined ? null : nextLesson(lib.docs('revision'), source.revisionId);
     return (
-      <section className="cg-face">
+      <section className="cg-face" data-run-end="">
         <h2>Koniec powtórki</h2>
         <p>Odpowiedzi: {stats.answered}, dobrze: {stats.correct}{stats.answered > 0 ? ` (${Math.round((stats.correct / stats.answered) * 100)}%)` : ''}.</p>
+        <LessonSummary answers={log.answers} cards={summary.cards} firstTry={summary.firstTry} activeMs={log.activeMs} done={lessonNow} />
         <p className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
         {due !== null && <p className="cg-muted">{due.next === null ? 'Nic nie czeka.' : `Następna powtórka: ${new Date(due.next).toLocaleString('pl-PL', { dateStyle: 'medium', timeStyle: 'short' })}.`}</p>}
         {held.cards > 0 && (
           <p className="wk-note" data-held-back={held.cards}>
-            {held.cards} {held.cards === 1 ? 'karta czeka' : 'kart czeka'}{held.needs.length > 0
-              ? ` na to, co trzeba znać wcześniej${lib !== null ? ` — najpierw: ${held.needs.slice(0, 4).map((id) => entityName(lib, id)).join(', ')}` : ''}`
-              : ''}{held.conditions.length > 0 ? `${held.needs.length > 0 ? '; ' : ' — '}warunek: ${held.conditions.slice(0, 2).map((c) => conditionText(c, (id) => (lib === null ? id : entityName(lib, id)))).join('; ')}` : ''}. Wejdą same, gdy warunek zacznie obowiązywać.
+            {held.cards} {held.cards === 1 ? 'karta czeka' : 'kart czeka'}
+            {/* 2026-11-01 — die Namen mit ihren Wzory (`entityNameTex`). */}
+            {held.needs.length > 0 && <> na to, co trzeba znać wcześniej{lib !== null && <> — najpierw: {held.needs.slice(0, 4).map((id, i) => <Fragment key={id}>{i > 0 && ', '}<TexText text={entityNameTex(lib, id)} /></Fragment>)}</>}</>}
+            {held.conditions.length > 0 && <>{held.needs.length > 0 ? '; ' : ' — '}warunek: <TexText text={held.conditions.slice(0, 2).map((c) => conditionText(c, (id) => (lib === null ? id : entityNameTex(lib, id)))).join('; ')} /></>}
+            . Wejdą same, gdy warunek zacznie obowiązywać.
           </p>
         )}
         {learner !== null && learner.waiting > 0 && <p className="wk-note">{learner.waiting} pakietów odpowiedzi czeka na internet — wyślą się same.</p>}
@@ -267,8 +332,20 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         {kept === 'no-key' && <p className="wk-note" data-offline-kept="no-key">Bez internetu jej tu nie ma: klucz nie jest zachowany na tym urządzeniu (Konto → Bezpieczeństwo i klucze).</p>}
         {kept === 'failed' && <p className="wk-note" data-offline-kept="failed">Nie udało się zapisać tej powtórki na tym urządzeniu do nauki bez internetu.</p>}
         {learner === null && <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce.</p>}
+        <MissedCards lib={lib} missed={missed}
+          onPractice={() => setPractice({ plan: practicePlan(missed.map((m) => m.card)), title: `Ćwiczenie: ${source.title ?? 'Powtórka'}` })} />
+        {/* 2026-11-01 — die Powtórka nennt die nächste (`next`): dorthin, in der Nauka, auf der Seite, über den Link. */}
+        {next !== null && (
+          <div className="cg-lesson-next" data-lesson-next={next.id}>
+            <span className="cg-muted">Następna lekcja</span>
+            <strong><TexText text={next.name} /></strong>
+            <button type="button" className="wk-btn" data-lesson-next-open="" onClick={() => openRevision(next.id, next.name)}>Następna lekcja</button>
+          </div>
+        )}
+        {/* 2026-11-01 (2.11) — nur mit „Serie dni nauki" in den Ustawienia der Baza. */}
+        {lib !== null && <DailyGoal lib={lib} learner={learner} compact />}
         <div className="wk-actions">
-          <button type="button" className="wk-btn" onClick={() => setRound((n) => n + 1)}>Jeszcze raz</button>
+          <button type="button" className={next === null ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => setRound((n) => n + 1)}>Jeszcze raz</button>
           {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button>}
         </div>
         {/* 2026-10-31 — was ich in dieser Powtórka kann, als Diagramme (auch auf einer Seite, für die mit dem Link). */}
@@ -300,13 +377,15 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
     };
   }
   const fresh = intro.current.ids;
-  const promptText = (card.answer.form === 'gap' ? card.answer.shown : card.prompt.map((x) => x.text).join(' ')).replace(/\s+/g, ' ').trim().slice(0, 500);
+  if (card.params !== undefined && lib !== null && drawn.current?.at !== at) drawn.current = { at, card: redrawCard(card, card.entity === undefined ? undefined : lib.entity(card.entity), `${seed}#${session.step}`) };
+  const asked: Card = card.params !== undefined && drawn.current?.at === at ? drawn.current.card : card;
+  const promptText = (asked.answer.form === 'gap' ? asked.answer.shown : asked.prompt.map((x) => x.text).join(' ')).replace(/\s+/g, ' ').trim().slice(0, 500);
   const sendFlag = (text: string) => {
     if (lib === null) return;
     setFlag(null);
     void sendReport(lib.libraryId, lib.areaId, 'flags', {
       card: card.key, question: card.question, text: text.trim().slice(0, 1000),
-      prompt: promptText, given: last === null ? '' : givenText(card, last.given).slice(0, 500), expected: answerText(card).slice(0, 500),
+      prompt: promptText, given: last === null ? '' : givenText(asked, last.given).slice(0, 500), expected: answerText(asked).slice(0, 500),
       correctness: last === null ? null : last.outcome.correctness
     }, ctx?.seat)
       .then((ok) => setNote(ok ? 'Dziękujemy — autorzy dostaną zgłoszenie z tą kartą i Twoją odpowiedzią (bez Twojego imienia).' : 'Ta baza wiedzy nie przyjmuje jeszcze zgłoszeń.'), () => setNote('Nie udało się wysłać zgłoszenia.'));
@@ -314,17 +393,27 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
   return (
     <div className="cg">
       <div className="cg-run-head">
-        <strong>{source.title ?? 'Powtórka'}</strong>
+        <strong><TexText text={source.title ?? 'Powtórka'} /></strong>
         <span className="cg-row">
-          {share !== null && <Bar value={share} label="Postęp powtórki" />}
-          <span className="cg-muted">{p.total === null ? `${p.answered} odpowiedzi` : `${p.answered} z ${p.total}`}</span>
-          <button type="button" className="wk-link-btn" data-run-stop="" onClick={() => { void learner?.flush(); setStopped(true); }}>Zakończ</button>
+          {/* 2026-11-01 — eine Lektion: wie viele Karten erledigt sind, von allen, die jetzt dazugehören (`lessonProgress`). */}
+          {lessonNow !== null ? (
+            <span className="cg-lesson-progress" data-lesson-progress={`${lessonNow.done}/${lessonNow.total}`}>
+              <Bar value={lessonNow.total === 0 ? 1 : lessonNow.done / lessonNow.total} label="Postęp lekcji" />
+              <span className="cg-muted">{lessonNow.done} z {lessonNow.total} kart{lessonNow.held > 0 ? ` · ${lessonNow.held} czeka` : ''}</span>
+            </span>
+          ) : (
+            <>
+              {share !== null && <Bar value={share} label="Postęp powtórki" />}
+              <span className="cg-muted">{p.total === null ? `${p.answered} odpowiedzi` : `${p.answered} z ${p.total}`}</span>
+            </>
+          )}
+          <button type="button" className="wk-link-btn" data-run-stop="" onClick={() => { void learner?.flush(); setLog((l) => logTick(l, Date.now())); setStopped(true); }}>Zakończ</button>
         </span>
       </div>
       <CardFace
         /* 2026-10-30 — jede Frage neu: kommt dieselbe Karte gleich wieder (allein im Stapel), steht sonst noch die alte Antwort da. */
         key={`${card.key}#${session.step}`}
-        card={card}
+        card={asked}
         rule={session.plan.rule}
         lib={lib ?? undefined}
         head={lib === null || fresh.length === 0 ? undefined : (
@@ -342,21 +431,25 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
            * Karte, die ihn fragt — jedes gezeigte Paar einer langen Liste für seine Karte, zwei Vorlagen mit demselben
            * `asks` füreinander. Die gefragte Karte zählt mit dem, was über IHREN Fakt gesagt wurde.
            */
-          const evidence = answerEvidence(card, given, outcome, state.all);
+          const evidence = answerEvidence(asked, given, outcome, state.all);
           const others = evidence.slice(1);
           const q = evidence[0].correctness;
           const from = via ?? source.revisionId;
-          learner?.record(card, q, { given: typeof given === 'string' ? given : JSON.stringify(given), ms, via: from });
+          /* 2026-11-01 — mit der Antwort: wie viele Podpowiedzi, welche Zahlen gezogen waren. */
+          learner?.record(asked, q, { given: storedGiven(asked, given), ms, via: from, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(asked.params === undefined ? {} : { params: asked.params }) });
           for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from });
           const had = tally.current.get(card.key) ?? { asked: 0, wrong: 0 };
           tally.current.set(card.key, { asked: had.asked + 1, wrong: had.wrong + (outcome.correct ? 0 : 1) });
           onAnswer?.(card, outcome.correctness, given);
           setStats((s) => ({ answered: s.answered + 1, correct: s.correct + (outcome.correct ? 1 : 0) }));
+          /* 2026-11-01 — für das Ende: die erste Antwort je Karte, was nicht sass, die Zeit. */
+          setLog((l) => logAnswer(l, card.key, outcome, Date.now()));
           setPending(answer(session, q, Date.now(), others.map((p) => ({ key: p.card.key, correctness: p.correctness }))).session);
         }}
         onNext={() => {
           if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending }));
           setPending(null); setNote(null); setLast(null); setFlag(null);
+          setLog((l) => logTick(l, Date.now()));
           if (fresh.length > 0) setIntroduced((was) => new Set([...was, ...fresh]));
         }}
         foot={(

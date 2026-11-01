@@ -34,6 +34,7 @@ import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
 import { DEPENDENCY_KINDS } from './knowness';
+import { readDailyGoal } from './lessons';
 import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
 import { readRule, ruleMatches, type RuleGroup, type SelectContext } from './selection';
@@ -62,6 +63,11 @@ export interface CogitaSettings {
   /** Die Bibliothek, in die Lesende Vorschläge schreiben, bevor ein Autor sie annimmt [K2]. */
   readonly contributionLibraryId?: string;
   readonly motivation: Motivation;
+  /**
+   * 2026-11-01 (Lemma, 2.11) — mit „Serie dni nauki" (`streaks`): wie viele verschiedene Karten am Tag das Ziel sind
+   * (fehlt es: `DEFAULT_DAILY_GOAL`). Ohne `streaks` wird nichts davon gezeigt.
+   */
+  readonly dailyGoal?: number;
   /** Die Perspektiven der Bibliothek [C8]. */
   readonly tags: readonly string[];
   /** Voraussetzungen, Vertiefungen, Zusammenhänge zwischen Einträgen [E3]. */
@@ -94,6 +100,7 @@ export function readSettings(raw: unknown): CogitaSettings {
     storageAreaId: str(d.storageAreaId) || undefined,
     contributionLibraryId: str(d.contributionLibraryId) || undefined,
     motivation: (MOTIVATIONS as readonly string[]).includes(str(d.motivation)) ? (d.motivation as Motivation) : 'progress',
+    ...(readDailyGoal(d.dailyGoal) === undefined ? {} : { dailyGoal: readDailyGoal(d.dailyGoal) }),
     tags: strings(d.tags),
     dependencies,
     offline: strings(d.offline),
@@ -457,6 +464,8 @@ export class CogitaLibrary {
   ofKind(kindId: string): readonly Entity[] { return this.fresh().byKind.get(kindId) ?? []; }
   docs(kind: DocKind): readonly Entry[] { return this.fresh().docs.get(kind) ?? []; }
   label(entity: Entity): string { return labelOf(entity, this.look); }
+  /** 2026-11-01 — das Etikett mit seinen Wzory als `$…$` — gezeigt mit `TexText` (Listen, Widoki, Postępy); `label` bleibt eine Zeile ohne LaTeX. */
+  labelTex(entity: Entity): string { return labelOf(entity, this.look, 0, false, true); }
 
   /**
    * 2026-10-22 — DER ZAPIS EINES WISSENS liest mit denselben Bausteinen wie ein

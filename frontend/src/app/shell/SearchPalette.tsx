@@ -8,7 +8,7 @@
  * sie sind.
  */
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { areaPath } from '../areas/area';
 import { loadDesk } from '../workspace/desk';
@@ -19,6 +19,13 @@ import { searchHits, type SearchEntry } from './search';
 import { areasNow, chatsNow, modulesNow } from '../workspace/viewData';
 import { chatName } from '../workspace/ViewParts';
 import { usePhoneShown } from '../phone/here';
+
+/*
+ * 2026-11-01 — EIN NAME MIT WZORY (ein Eintrag einer Baza wiedzy, ein Dokument): gesetzt mit `TexText` — erst geladen,
+ * wenn ein Treffer ein Dollarzeichen hat; bis dahin steht er als Text da. So trägt die Leiste des Warsztatu nichts davon mit.
+ */
+const TexText = lazy(() => import('../ui/tex/Tex').then((m) => ({ default: m.TexText })));
+const HitLabel = ({ text }: { text: string }) => (text.includes('$') ? <Suspense fallback={text}><TexText text={text} /></Suspense> : <>{text}</>);
 
 export const SEARCH_EVENT = 'recreatio:search';
 
@@ -119,7 +126,12 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
           {hits.map((one, i) => (
             <li key={one.id} id={`${listId}-${i}`} role="option" aria-selected={i === at} data-search-hit={one.id}>
               <a href={one.href} className={i === at ? 'is-active' : undefined} onMouseEnter={() => setActive(i)} onClick={onClose}>
-                <span className="wk-search-label">{one.label}</span>
+                {/*
+                  2026-11-01 — Einträge und Dokumente der Bibliotheken und Bazy wiedzy: ihre Wzory gesetzt (KaTeX lädt erst,
+                  wenn einer da ist). Bringt ein Treffer neben `label` (gesucht wird darin) ein `display` mit — das Etikett
+                  mit seinen Wzory als `$…$` —, steht dieses da.
+                */}
+                <span className="wk-search-label">{one.id.startsWith('entry:') || one.id.startsWith('doc:') ? <HitLabel text={one.display ?? one.label} /> : one.label}</span>
                 <span className="wk-search-kind">{one.kind}{one.hint !== undefined && one.hint !== '' && one.hint !== one.label ? ` · ${one.hint}` : ''}</span>
               </a>
             </li>

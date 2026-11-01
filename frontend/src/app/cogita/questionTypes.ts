@@ -52,30 +52,35 @@ export const QUESTION_TYPES: readonly QuestionType[] = [
     says: 'Uczący się wpisuje liczbę, może z jednostką; tolerancja mówi, ile wolno się pomylić.' },
   { form: 'date', label: 'Data', group: 'write', prompt: 'Pytanie', fields: ['answers', 'precision', 'tolerance'],
     says: 'Uczący się wpisuje datę — z dokładnością do roku, miesiąca albo dnia.' },
-  { form: 'gap', label: 'Luka w tekście', group: 'write', prompt: 'Tekst z luką', fields: ['answers'],
-    says: 'Tekst z zakrytym słowem — w treści [[słowo]] (albo „…” i dobre odpowiedzi niżej); uczący się wpisuje, czego brakuje.' },
-  { form: 'one', label: 'Jedna z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct'],
-    says: 'Kilka możliwości, dobra jest jedna; kolejność miesza się przy każdym pytaniu.' },
-  { form: 'many', label: 'Kilka z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct'],
-    says: 'Kilka możliwości, dobrych może być kilka — trzeba zaznaczyć wszystkie.' },
+  { form: 'gap', label: 'Luka w tekście', group: 'write', prompt: 'Tekst z luką', fields: ['answers', 'choices'],
+    says: 'Tekst z zakrytym słowem — w treści [[słowo]] (albo „…” i dobre odpowiedzi niżej); uczący się wpisuje, czego brakuje. Kilka luk: każda osobno; luka z „Do wyboru” jest listą do wybrania (może mieć wzory), bez — polem do wpisania.' },
+  { form: 'one', label: 'Jedna z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback'],
+    says: 'Kilka możliwości, dobra jest jedna; kolejność miesza się przy każdym pytaniu. Do każdej możliwości można dopisać zdanie, które uczący się zobaczy po odpowiedzi.' },
+  { form: 'many', label: 'Kilka z kilku', group: 'choose', prompt: 'Pytanie', fields: ['options', 'correct', 'feedback'],
+    says: 'Kilka możliwości, dobrych może być kilka — trzeba zaznaczyć wszystkie. Do każdej możliwości można dopisać zdanie na po odpowiedzi.' },
   { form: 'truefalse', label: 'Prawda czy fałsz', group: 'choose', prompt: 'Zdanie', fields: ['value'],
     says: 'Jedno zdanie; uczący się mówi, czy jest prawdziwe.' },
   { form: 'match', label: 'Połącz w pary', group: 'connect', prompt: 'Polecenie', fields: ['left', 'right', 'leftLabel', 'rightLabel', 'show'],
     says: 'Dwie kolumny (np. rok — wydarzenie); uczący się łączy je w pary. Długa lista pokazuje się po kilka par naraz.' },
-  { form: 'order', label: 'Ułóż w kolejności', group: 'connect', prompt: 'Polecenie', fields: ['items'],
-    says: 'Elementy pomieszane; uczący się układa je po kolei.' },
+  { form: 'order', label: 'Ułóż w kolejności', group: 'connect', prompt: 'Polecenie', fields: ['items', 'extra', 'preview', 'join'],
+    says: 'Elementy pomieszane; uczący się układa je po kolei (przeciąga). Z „Podglądem” nad listą widać ułożone razem — jako wzór albo tekst.' },
+  { form: 'build', label: 'Zbuduj z kafelków', group: 'connect', prompt: 'Polecenie', fields: ['items', 'extra', 'alternatives', 'preview', 'join'],
+    says: 'Uczący się składa odpowiedź z kafelków (wzór, zaprzeczenie, wyrażenie, linijkę dowodu) i od razu widzi ją złożoną; są kafelki zbędne, może być kilka dobrych kolejności.' },
   { form: 'flash', label: 'Fiszka (sam oceniasz)', group: 'other', prompt: 'Przód fiszki', fields: ['back'],
     says: 'Przód i odwrotna strona; uczący się odwraca kartę i sam mówi, czy umiał.' },
   { form: 'point', label: 'Miejsce na mapie', group: 'other', prompt: 'Pytanie', fields: ['place', 'radius'],
     says: 'Uczący się wskazuje punkt na mapie; liczy się, czy trafił w promień.' },
-  { form: 'code', label: 'Kod (Python)', group: 'other', prompt: 'Pytanie', fields: ['task', 'starter', 'createInput', 'reference', 'cases'],
-    says: 'Uczący się pisze funkcję w Pythonie; sprawdza ją porównanie z rozwiązaniem wzorcowym na danych testowych.' },
+  { form: 'code', label: 'Kod (Python)', group: 'other', prompt: 'Pytanie', fields: ['task', 'starter', 'tests', 'createInput', 'reference', 'cases'],
+    says: 'Uczący się pisze funkcję transform(x) w Pythonie; sprawdzają ją widoczne przykłady (wejście → wynik), potem ukryte przypadki porównane z rozwiązaniem wzorcowym. Każdy przypadek ma 2 sekundy.' },
   { form: 'interactive', label: 'Rysunek do poruszania', group: 'other', prompt: 'Pytanie', fields: ['drawing', 'goal', 'solution'],
     says: 'Uczący się ustawia rysunek (suwaki, przeciąganie) i sprawdza; dobrze, gdy symulacja osiąga cel.' }
 ];
 
-/** Was jede Frage hat, gleich welcher Art. */
-export const QUESTION_SHARED = ['form', 'prompt', 'explain', 'about', 'needs'] as const;
+/**
+ * Was jede Frage hat, gleich welcher Art. 2026-11-01 — dazu Podpowiedzi (vor der Antwort), das Wyjaśnienie als Text
+ * (nach ihr) und Parameter (neue Zahlen je Versuch).
+ */
+export const QUESTION_SHARED = ['form', 'prompt', 'hints', 'explanation', 'explain', 'about', 'needs', 'params', 'let', 'require'] as const;
 
 export const questionType = (form: unknown): QuestionType =>
   QUESTION_TYPES.find((t) => t.form === form) ?? QUESTION_TYPES[0];
@@ -105,19 +110,23 @@ export const filledList = (v: unknown): string[] => rawList(v).map((x) => x.trim
  * DIE MÖGLICHKEITEN einer Wahl, mit den richtigen — leere fallen weg und die Nummern der
  * richtigen rücken mit (eine leere Zeile mitten in der Liste verschiebt sonst, was richtig ist).
  */
-export function choicesOf(d: Readonly<Record<string, unknown>>): { options: string[]; correct: number[] } {
+export function choicesOf(d: Readonly<Record<string, unknown>>): { options: string[]; correct: number[]; feedback: string[] } {
   const raw = rawList(d.options);
+  /* 2026-11-01 — ein Satz je Möglichkeit, an derselben Stelle wie sie: er rückt mit, wenn eine leere wegfällt. */
+  const said = rawList(d.feedback);
   /* Leer ist keine Null: `Number('')` wäre 0 — und die erste Möglichkeit plötzlich richtig. */
   const marked = new Set((Array.isArray(d.correct) ? d.correct : [d.correct]).map((c) => (typeof c === 'number' ? c : str(c).trim() === '' ? Number.NaN : Number(str(c)))).filter((n) => Number.isInteger(n) && n >= 0));
   const options: string[] = [];
   const correct: number[] = [];
+  const feedback: string[] = [];
   raw.forEach((text, i) => {
     const t = text.trim();
     if (t === '') return;
     if (marked.has(i)) correct.push(options.length);
     options.push(t);
+    feedback.push((said[i] ?? '').trim());
   });
-  return { options, correct };
+  return { options, correct, feedback };
 }
 
 /** DIE PAARE (match): Stelle für Stelle aus beiden Seiten; ein Paar, dem eine Seite fehlt, fällt weg. */
@@ -198,13 +207,38 @@ export function questionProblems(d: Readonly<Record<string, unknown>>): string[]
     }
     case 'truefalse': if (typeof d.value !== 'boolean') out.push('Wybierz, czy zdanie jest prawdziwe.'); break;
     case 'order': if (filledList(d.items).length < 2) out.push('Dodaj co najmniej dwa elementy, w dobrej kolejności.'); break;
+    case 'build': {
+      const items = filledList(d.items).length;
+      if (items === 0) out.push('Dodaj kafelki dobrej odpowiedzi, w dobrej kolejności.');
+      else if (items + filledList(d.extra).length < 2) out.push('Dodaj drugi kafelek — dobry albo zbędny.');
+      break;
+    }
     case 'match': if (pairsOf(d).length < 2) out.push('Dodaj co najmniej dwie pary.'); break;
     case 'flash': if (filledList(d.back).length === 0 && answers.length === 0) out.push('Wpisz, co jest na odwrocie.'); break;
     case 'point': if (!isObject(d.place)) out.push('Wskaż szukany punkt na mapie.'); break;
-    case 'code': if (str(d.reference).trim() === '' || str(d.createInput).trim() === '') out.push('Wpisz rozwiązanie wzorcowe i dane testowe.'); break;
+    case 'code': {
+      /* 2026-11-01 — sichtbare Beispiele genügen; verdeckte Fälle brauchen Rozwiązanie wzorcowe UND Dane testowe. */
+      const hidden = str(d.reference).trim() !== '' && str(d.createInput).trim() !== '';
+      const half = !hidden && (str(d.reference).trim() !== '' || str(d.createInput).trim() !== '');
+      if (!hidden && jsonCount(d.tests) === 0) out.push('Dodaj przykłady (wejście → wynik) albo rozwiązanie wzorcowe z danymi testowymi.');
+      else if (half) out.push('Ukryte przypadki potrzebują obu: rozwiązania wzorcowego i danych testowych.');
+      break;
+    }
     case 'interactive': if (str(d.drawing).trim() === '') out.push('Wklej rysunek (JSON).'); break;
   }
+  if (type.form === 'gap') {
+    const gaps = [...str(d.prompt).matchAll(GAP)].length;
+    const lists = jsonCount(d.choices);
+    if (lists > gaps) out.push(`„Do wyboru” ma ${lists} list, a w tekście ${gaps === 1 ? 'jest 1 luka' : `są ${gaps} luk`} — lista idzie do luki o tym samym numerze.`);
+  }
   return out;
+}
+
+/** 2026-11-01 — wie viele Einträge ein JSON-Feld hat (eine Liste oder ein JSON-Text mit einer Liste). */
+function jsonCount(raw: unknown): number {
+  if (Array.isArray(raw)) return raw.length;
+  if (typeof raw !== 'string' || raw.trim() === '') return 0;
+  try { const v = JSON.parse(raw) as unknown; return Array.isArray(v) ? v.length : 0; } catch { return 0; }
 }
 
 /**
@@ -218,11 +252,13 @@ export function tidyQuestion(data: Readonly<Record<string, unknown>>): Record<st
   /* Ohne gewählten Rodzaj pytania ist es eines „słowami" — so steht es dann auch da. */
   if (typeof out.form !== 'string' || out.form === '') out.form = 'text';
   if (Array.isArray(data.options)) {
-    const { options, correct } = choicesOf(data);
+    const { options, correct, feedback } = choicesOf(data);
     set('options', options);
     set('correct', correct);
+    /* 2026-11-01 — die Sätze bleiben bei ihren Möglichkeiten (leere Stellen als ''); keiner — das Feld fällt weg. */
+    if (Array.isArray(data.feedback)) set('feedback', feedback.some((x) => x !== '') ? feedback : []);
   }
-  for (const key of ['answers', 'items', 'back']) if (Array.isArray(data[key])) set(key, filledList(data[key]));
+  for (const key of ['answers', 'items', 'back', 'hints', 'extra']) if (Array.isArray(data[key])) set(key, filledList(data[key]));
   if (Array.isArray(data.left) || Array.isArray(data.right)) {
     /* Ein halbes Paar bleibt (die andere Seite kommt später) — nur ganz leere Zeilen fallen weg. */
     const left = rawList(data.left);

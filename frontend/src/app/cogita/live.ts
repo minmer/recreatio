@@ -93,7 +93,8 @@ export function stripCard(card: Card): Card {
   const answer: AnswerSpec = (() => {
     switch (a.form) {
       case 'text': return { ...a, accepted: [] };
-      case 'gap': return { ...a, accepted: [] };
+      /* 2026-11-01 — Lücken zum Wählen: die Möglichkeiten (die richtige darunter, sortiert), ohne zu sagen, welche. */
+      case 'gap': return { ...a, accepted: [], ...(a.gaps === undefined ? {} : { gaps: a.gaps.map((g) => ({ accepted: [], ...(g.choices === undefined ? {} : { choices: [...new Set([...g.accepted.slice(0, 1), ...g.choices])].sort() }) })) }) };
       case 'number': return { ...a, values: [] };
       case 'date': return { ...a, values: [] };
       case 'one': return { ...a, correct: -1 };
@@ -105,9 +106,12 @@ export function stripCard(card: Card): Card {
       case 'code': return { ...a, reference: '', createInput: '' };
       case 'point': return a.on === 'map' ? { ...a, target: { lat: 0, lon: 0, r: 0 } } : { ...a, target: { x: 0, y: 0, r: 0 } };
       case 'interactive': return stripInteractive(a);
+      /* 2026-11-01 — die Kacheln ohne ihre Folge. */
+      case 'build': return { ...a, items: [...a.items].sort(), alternatives: [] };
     }
   })();
-  return { ...card, answer, explain: [], fingerprint: '' };
+  const { hints: _hints, explanation: _explanation, feedback: _feedback, ...rest } = card;
+  return { ...rest, answer, explain: [], fingerprint: '' };
 }
 
 /** Der Schlüssel der Sitzung in dieser Epoche — aus dem des Bereichs, nur in eine Richtung. */

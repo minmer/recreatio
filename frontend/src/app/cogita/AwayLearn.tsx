@@ -30,6 +30,7 @@ import { holderOfMe } from './holders';
 import { Learner, targetOf } from './learn';
 import { holderOfCopy, keepAnswers, offlineList, offlineSource, openOffline, type CopyKey, type OfflineRevision } from './offline';
 import { RevisionRun } from './RevisionRun';
+import { TexText } from '../ui/tex/Tex';
 import './cogita.css';
 
 const HOME = viewPath('learn', 'bez-sieci');
@@ -204,7 +205,7 @@ function AwayCopies({ by, who }: { by: CopyKey; who: Who | null }) {
             <a key={`${r.libraryId}:${r.revisionId}`} className="wk-line" href={viewPath('learn', 'bez-sieci', `${r.libraryId}:${r.revisionId}`)}>
               <span className="wk-line-ic"><Icon name="cap" /></span>
               <span className="wk-line-text">
-                <span className="wk-line-title">{r.copy?.name ?? 'Powtórka (nie otwiera się)'}</span>
+                <span className="wk-line-title"><TexText text={r.copy?.name ?? 'Powtórka (nie otwiera się)'} /></span>
                 <span className="wk-line-sub">
                   {r.copy === null ? '' : `${r.copy.cards.length} ${plural(r.copy.cards.length, 'karta', 'karty', 'kart')} · `}
                   zapisana {new Date(r.savedAt).toLocaleDateString('pl-PL')}

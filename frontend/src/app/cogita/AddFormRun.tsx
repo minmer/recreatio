@@ -26,7 +26,8 @@ import { EditRows, planCtx } from './AddFormRows';
 import { describeForm, parsePaste } from './addFormText';
 import type { FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
-import { creatorFor, EntityPicker, entityName, useCtx } from './ui';
+import { creatorFor, EntityPicker, entityName, entityNameTex, useCtx } from './ui';
+import { TexText } from '../ui/tex/Tex';
 
 /* -- Gemeinsam mit dem Editor ---------------------------------------------------------------- */
 
@@ -453,7 +454,7 @@ function LogLine({ item, onOpen, onRetry, onUndo }: { item: LogItem; onOpen: (id
             ].filter(Boolean).join(' · ')}
           </span>
           {!many && item.created.slice(0, 6).map((id) => lib.entity(id) === undefined ? null : (
-            <button key={id} type="button" className="cg-ref" onClick={() => onOpen(id)}>{entityName(lib, id)}</button>
+            <button key={id} type="button" className="cg-ref" onClick={() => onOpen(id)}><TexText text={entityNameTex(lib, id)} /></button>
           ))}
           {item.created.length > 0 && <button type="button" className="wk-link-btn" onClick={() => void onUndo()}>Cofnij</button>}
           {item.problems.length > 0 && (
@@ -476,9 +477,10 @@ function GroupContext({ form, node, label, choice }: { form: AddForm; node: stri
     if (from?.type !== 'pick') return [];
     return choice.picks[from.id] ?? (Array.isArray(from.config.value) ? from.config.value.filter((x): x is string => typeof x === 'string') : []);
   });
-  const names = [...new Set(ids)].map((id) => entityName(lib, id)).filter((name) => name.toLowerCase() !== label.toLowerCase());
+  /* 2026-11-01 — verglichen wird die Zeile ohne LaTeX, gezeigt der Name mit seinen Wzory. */
+  const names = [...new Set(ids)].filter((id) => entityName(lib, id).toLowerCase() !== label.toLowerCase()).map((id) => entityNameTex(lib, id));
   if (names.length === 0) return null;
-  return <span className="cg-muted"> · {names.join(' · ')}</span>;
+  return <span className="cg-muted"> · <TexText text={names.join(' · ')} /></span>;
 }
 
 function RowField({ field, value, label, placeholder, last, register, onChange, onKey }: {
@@ -528,7 +530,7 @@ function PickChoice({ item, chosen, onChange }: { item: Extract<TopItem, { type:
       {item.config.many ? (
         <span className="cg-row">
           {shown.map((id) => (
-            <span key={id} className="cg-tag">{entityName(lib, id)} <button type="button" className="wk-link-btn" aria-label={`Usuń: ${entityName(lib, id)}`} onClick={() => onChange(shown.filter((x) => x !== id))}>×</button></span>
+            <span key={id} className="cg-tag"><TexText text={entityNameTex(lib, id)} /> <button type="button" className="wk-link-btn" aria-label={`Usuń: ${entityName(lib, id)}`} onClick={() => onChange(shown.filter((x) => x !== id))}>×</button></span>
           ))}
           <EntityPicker key={round} lib={lib} kinds={kinds} refs {...make} value={null} placeholder="dodaj…" onPick={(id) => { if (id !== null) onChange([...shown.filter((x) => x !== id), id]); setRound((n) => n + 1); }} />
         </span>

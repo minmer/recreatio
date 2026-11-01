@@ -85,10 +85,24 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
     f('from', 'Skąd', 'lines', { hint: 'field · scope · list · near — jedno w wierszu' }), f('list', 'Własna lista', 'lines')
   ],
   each: [],
-  random: [f('min', 'Od', 'number'), f('max', 'Do', 'number'), f('step', 'Co ile', 'number')],
+  random: [
+    f('min', 'Od', 'number'), f('max', 'Do', 'number'), f('step', 'Co ile', 'number'),
+    /* 2026-11-01 — oder eine Pozycja aus einer hier getippten Liste. */
+    f('list', 'albo jedna z listy', 'lines', { hint: 'jedna pozycja w wierszu; lista z lewej też się liczy' })
+  ],
   math: [
     f('op', 'Działanie', 'select', { options: opts([['add', '+'], ['sub', '−'], ['mul', '×'], ['div', '÷'], ['pow', 'potęga'], ['exp', 'e^x'], ['log', 'log'], ['abs', '|x|'], ['min', 'min'], ['max', 'max'], ['floor', 'w dół'], ['ceil', 'w górę'], ['round', 'zaokrąglij'], ['mod', 'reszta']]) }),
     f('decimals', 'Miejsca po przecinku', 'number')
+  ],
+  /* 2026-11-01 (Lemma) — Rechnen in der Sprache der Rysunki, und Zusammenfassen vieler Werte. */
+  calc: [
+    f('expr', 'Wyrażenia', 'longtext', { hint: 'jedno w wierszu albo po „;”: p0 + 1 · mod(p0, p1) · round(p0 / 3, 2) · fmt(p0, 2); p0, p1 … — liczba z wejścia, n0, n1 … — ile wartości przyszło' }),
+    f('inputs', 'Ile wejść', 'number', { hint: '1–8' }),
+    f('decimals', 'Miejsca po przecinku', 'number', { hint: 'puste: bez zaokrąglania' })
+  ],
+  aggregate: [
+    f('op', 'Jak zebrać', 'select', { options: opts([['sum', 'suma'], ['count', 'ile ich jest'], ['min', 'najmniejsza'], ['max', 'największa'], ['avg', 'średnia']]), hint: 'puste: suma' }),
+    f('decimals', 'Miejsca po przecinku', 'number', { hint: 'puste: bez zaokrąglania' })
   ],
   compare: [f('op', 'Porównanie', 'select', { options: opts([['lt', 'a < b'], ['le', 'a ≤ b'], ['gt', 'a > b'], ['ge', 'a ≥ b'], ['eq', 'a = b'], ['ne', 'a ≠ b']]) })],
   when: [f('test', 'Warunek', 'select', { options: opts([['filled', 'jest wartość'], ['empty', 'brak wartości'], ['equals', 'równa się'], ['differs', 'różna od']]) }), f('value', 'Wartość', 'text')],

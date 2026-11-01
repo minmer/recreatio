@@ -22,6 +22,7 @@ import { RevisionRun } from './RevisionRun';
 import { fieldsOf, valuesOf } from './schema';
 import { useCtx } from './ui';
 import { cardsAbout } from './prerequisites';
+import { TexText } from '../ui/tex/Tex';
 
 export function ExploreMap({ learner, cards }: { learner: Learner | null; cards: readonly Card[] }) {
   const { lib } = useCtx();
@@ -107,7 +108,8 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
             <button key={n.id} type="button" className={`cg-explore-node is-${state}`} style={{ left: `${at.x * 100}%`, top: `${at.y * 100}%` }}
               disabled={state === 'fog'} title={state === 'fog' ? 'Jeszcze w mgle' : `${lib.label(e)} · ${Math.round(shareOf(knowness(n.id)) * 100)}%`}
               onClick={() => setChosen(n.id)}>
-              {lib.label(e)}
+              {/* 2026-11-01 — der Name mit seinen Wzory; im Titel (Hinweis) bleibt er eine Zeile ohne LaTeX. */}
+              <TexText text={lib.labelTex(e)} />
             </button>
           );
         })}

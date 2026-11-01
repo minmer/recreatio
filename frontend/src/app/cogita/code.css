@@ -1,0 +1,43 @@
+/* 2026-11-01 — Eine Frage in Code: Beispiele vorher, Fälle danach (CodeAnswer.tsx). Farben aus den Massen der App (hell und dunkel). */
+
+.cg-code-answer { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.cg-code-answer > .wk-btn { justify-self: start; }
+
+.cg-code-examples { display: grid; gap: var(--wk-space-1); padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-soft); min-width: 0; }
+.cg-code-examples-head { font-size: var(--wk-text-sm); font-weight: 600; }
+.cg-code-examples ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.cg-code-example { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem var(--wk-space-2); min-width: 0; }
+.cg-code-example code, .cg-code-examples-head code, .cg-code-plan code { font-family: var(--wk-mono); font-size: var(--wk-text-sm); overflow-wrap: anywhere; }
+.cg-code-arrow { color: var(--wk-muted); }
+.cg-code-note { font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-code-example .cg-code-note { flex-basis: 100%; }
+.cg-code-plan { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+
+.cg-code-result { justify-self: stretch; width: 100%; min-width: 0; display: grid; gap: var(--wk-space-2); text-align: left; }
+.cg-code-sum { font-weight: 600; }
+.cg-code-detail { display: grid; gap: 0.125rem; min-width: 0; }
+.cg-code-label { font-size: var(--wk-text-xs); font-weight: 600; }
+.cg-code-result pre, .cg-code-more pre {
+  margin: 0; padding: var(--wk-space-1) var(--wk-space-2); max-height: 12rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--wk-mono); font-size: var(--wk-text-xs); color: var(--wk-ink); background: var(--wk-surface); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-xs);
+}
+
+.cg-code-cases-wrap { overflow-x: auto; min-width: 0; }
+.cg-code-cases { border-collapse: collapse; width: 100%; font-size: var(--wk-text-sm); color: var(--wk-ink); background: var(--wk-surface); }
+.cg-code-cases th, .cg-code-cases td { text-align: left; vertical-align: top; padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--wk-line); }
+.cg-code-cases thead th { font-size: var(--wk-text-xs); color: var(--wk-muted); font-weight: 600; white-space: nowrap; }
+.cg-code-cases tbody th { font-weight: 600; white-space: nowrap; }
+.cg-code-cases code { font-family: var(--wk-mono); font-size: var(--wk-text-xs); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cg-code-cases td:nth-child(2), .cg-code-cases td:nth-child(3), .cg-code-cases td:nth-child(4) { min-width: 6rem; max-width: 18rem; }
+.cg-code-verdict { white-space: nowrap; font-weight: 600; }
+.cg-code-case.is-right .cg-code-verdict { color: var(--wk-free-ink); }
+.cg-code-case.is-wrong .cg-code-verdict { color: var(--wk-shut-ink); }
+.cg-code-case.is-skipped { color: var(--wk-muted); }
+.cg-code-case:has(+ .cg-code-more) th, .cg-code-case:has(+ .cg-code-more) td { border-bottom: 0; }
+.cg-code-more td { padding-top: 0; }
+.cg-code-more-body { display: grid; gap: var(--wk-space-1); min-width: 0; }
+.cg-code-more .cg-code-note { font-style: italic; }
+
+@media (max-width: 40rem) {
+  .cg-code-cases td:nth-child(2), .cg-code-cases td:nth-child(3), .cg-code-cases td:nth-child(4) { max-width: 12rem; }
+}

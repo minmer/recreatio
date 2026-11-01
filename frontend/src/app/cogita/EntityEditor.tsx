@@ -15,13 +15,14 @@ import { WhoSees } from './BaseWho';
 import {
   dateText, FIELD_TYPE_LABEL, fieldsOf, labelOf, outsideOf, parseRange, rangeText, readDate, readRange, VALUE_STATE_LABEL, VALUE_STATES,
   type Entity, type FieldDef, type GeoPoint, type MediaRef, type RangeValue, type ValueState, placeText,
-  enteredText, fieldKind, fieldShown, fieldUnit, quantityEnvelope } from './schema';
+  enteredText, fieldKind, fieldShown, fieldUnit, plainOf, quantityEnvelope } from './schema';
 import { QUESTION } from './kinds';
+import { TexText } from '../ui/tex/Tex';
 import { QuestionFields, QuestionPreview } from './QuestionFields';
 import { tidyQuestion } from './questionTypes';
 import { kindById, parseQuantity, unitById } from '../core/quantities';
 import { linkedOf } from './store';
-import { creatorFor, EntityPicker, Markup, MediaView, entityName, useAsync, useBusy, useCtx } from './ui';
+import { creatorFor, EntityPicker, Markup, MediaView, entityName, entityNameTex, useAsync, useBusy, useCtx } from './ui';
 import { loadVersions, openVersion } from './versions';
 import { askText } from '../ui/dialogs';
 import { loadedStores } from '../library/libraryStore';
@@ -103,7 +104,8 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
     <div className="cg-split">
       <form className="wk-form cg" onSubmit={(e) => { e.preventDefault(); if (writes) void save(); }}>
         <div className="cg-row-between">
-          <h2 className="wk-h2">{entityId === null ? 'Nowy wpis' : labelOf(draft, look)}</h2>
+          {/* 2026-11-01 — das Etikett mit seinen Wzory gesetzt. */}
+          <h2 className="wk-h2">{entityId === null ? 'Nowy wpis' : <TexText text={labelOf(draft, look, 0, false, true)} />}</h2>
           <span className="cg-row">
             {dirty && <span className="cg-tag is-warn">niezapisane</span>}
           </span>
@@ -151,7 +153,7 @@ export function EntityEditor({ entityId, newKinds, onDone, onOpen }: {
         {existing !== undefined && knowledgeLike && changedLinks.length > 0 && (
           <div className="cg-card">
             <strong>Zmieniło się, o czym jest ten wpis</strong>
-            <span className="cg-muted">{changedLinks.map((id) => entityName(lib, id)).join(', ')}</span>
+            <span className="cg-muted"><TexText text={changedLinks.map((id) => entityNameTex(lib, id)).join(', ')} /></span>
             {writes && <button type="button" className="wk-btn" disabled={busy} onClick={() => void run(() => lib.markChecked(existing.id))}>Sprawdzone</button>}
           </div>
         )}
@@ -245,7 +247,7 @@ function PlaceInput({ field, target, locator, writes, onChange }: { field: Field
   return (
     <span className="cg-row">
       <input value={locator} disabled={!writes} aria-label={`Miejsce: ${field.label}`} placeholder={bible ? 'Ps 110, Łk 1,46-55' : 's. 23, rozdz. 4'} onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)} />
-      {locator !== '' && <span className="cg-muted">{placeText(entity, locator, entity === undefined ? '' : lib.label(entity))}</span>}
+      {locator !== '' && <span className="cg-muted"><TexText text={placeText(entity, locator, entity === undefined ? '' : lib.labelTex(entity))} /></span>}
       {/* 2026-10-24 — hat das Werk einen Text: die Stelle darin (`library/SourceJump.tsx`). */}
       {/* 2026-10-25 — mit dem Speicher des Werks: lädt die Bibliothek mit dem Text später, erscheint der Link dann (wie in der Struktura). */}
       {entity?.kinds.includes('work') === true && <TextJump look={workLook(entity.id)} workId={entity.id} locator={locator} />}
@@ -345,7 +347,7 @@ function SourceRow({ source, writes, onChange }: { source: Record<string, unknow
     <div className="cg-row">
       <span className="cg-muted">Źródło:</span>
       {writes ? <EntityPicker lib={lib} kinds={['work']} refs value={work} placeholder="dzieło z biblioteki (źródła tej bazy)" onPick={(id) => onChange(id === null ? undefined : { ...source, work: id })} />
-        : <span>{work === null ? '—' : entityName(lib, work)}</span>}
+        : <span>{work === null ? '—' : <TexText text={entityNameTex(lib, work)} />}</span>}
       {work !== null && <input value={typeof source.locator === 'string' ? source.locator : ''} placeholder="s. 23, J 3,16" disabled={!writes} onChange={(e) => onChange({ ...source, locator: e.target.value || undefined })} />}
     </div>
   );
@@ -394,7 +396,7 @@ function PlainValue({ field, value, writes, onChange, onOpen }: { field: FieldDe
       return (
         <span className="cg-row">
           {writes ? <EntityPicker lib={lib} kinds={field.to} refs {...creatorFor(lib, field.to, writes)} value={id} onPick={(next) => onChange(next ?? undefined)} />
-            : <span>{id === null ? '—' : entityName(lib, id)}</span>}
+            : <span>{id === null ? '—' : <TexText text={entityNameTex(lib, id)} />}</span>}
           {id !== null && lib.entity(id) !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>otwórz</button>}
         </span>
       );
@@ -467,7 +469,10 @@ function MarkupInput({ value, writes, onChange, onOpen }: { value: string; write
             setLinking(false);
             if (id === null) return;
             const entity = lib.entity(id);
-            onChange(`${value}${value.endsWith(' ') || value === '' ? '' : ' '}[[${entity === undefined ? 'wpis' : lib.label(entity)}|@${id}]]`);
+            /* 2026-11-01 — der Wortlaut des Verweises mit seinen Wzory (`$…$`), wenn er die Klammern des Verweises nicht stört. */
+            const tex = entity === undefined ? '' : lib.labelTex(entity);
+            const name = entity === undefined ? 'wpis' : tex.includes(']]') || tex.includes('|@') ? lib.label(entity) : tex;
+            onChange(`${value}${value.endsWith(' ') || value === '' ? '' : ' '}[[${name}|@${id}]]`);
           }} />
         : <button type="button" className="wk-link-btn" onClick={() => setLinking(true)}>+ odwołanie do wpisu</button>)}
       {value.trim() !== '' && <div className="cg-card"><Markup text={value} onEntity={onOpen} lib={lib} /></div>}
@@ -506,7 +511,7 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
       {[...by.entries()].map(([label, ids]) => (
         <div key={label}>
           <span className="cg-muted">{label}:</span>{' '}
-          {ids.map((id, i) => <span key={id}>{i > 0 && ', '}<button type="button" className="cg-ref" onClick={() => onOpen(id)}>{entityName(lib, id)}</button></span>)}
+          {ids.map((id, i) => <span key={id}>{i > 0 && ', '}<button type="button" className="cg-ref" onClick={() => onOpen(id)}><TexText text={entityNameTex(lib, id)} /></button></span>)}
         </div>
       ))}
       {more.size > 0 && (
@@ -516,7 +521,7 @@ function Backlinks({ entity, onOpen }: { entity: Entity; onOpen: (id: string) =>
             <span key={hit.from.id}>
               {i > 0 && ', '}
               {lib.entity(hit.from.id) !== undefined
-                ? <button type="button" className="cg-ref" onClick={() => onOpen(hit.from.id)}>{entityName(lib, hit.from.id)}</button>
+                ? <button type="button" className="cg-ref" onClick={() => onOpen(hit.from.id)}><TexText text={entityNameTex(lib, hit.from.id)} /></button>
                 : <a className="cg-ref" href={hitHref(hit.from, hit.store)}>{hitTitle(hit.from, hit.store)}</a>}
               {places.length > 0 && <span className="cg-muted"> ({places.join('; ')})</span>}
             </span>
@@ -538,7 +543,11 @@ function EntityCards({ entity }: { entity: Entity }) {
   return (
     <Section title={`Karty (${cards.length})`}>
       <ul className="cg-muted">
-        {cards.slice(0, 12).map((c) => <li key={c.key}>{c.prompt.map((p) => p.text).join(' ') || '(obraz/dźwięk)'} → <strong>{answerText(c)}</strong></li>)}
+        {/* 2026-11-01 — Frage und Antwort je eine Zeile, ihre Wzory gesetzt. */}
+        {cards.slice(0, 12).map((c) => {
+          const prompt = plainOf(c.prompt.map((p) => p.text).join(' '), 'inline');
+          return <li key={c.key}>{prompt === '' ? '(obraz/dźwięk)' : <TexText text={prompt} />} → <strong><TexText text={answerText(c)} /></strong></li>;
+        })}
       </ul>
     </Section>
   );
@@ -614,7 +623,7 @@ function BlocksField({ field, raw, writes, onChange, label }: { field: FieldDef;
         onChange={(next) => onChange(next.length === 0 ? undefined : next.map(blockData))}
         shown={(ref) => { const e = lib.entity(ref); return { text: e === undefined ? '[odwołanie niedostępne]' : entityName(lib, ref), readable: e !== undefined }; }}
         Picker={({ onPick }) => <EntityPicker lib={lib} refs value={null} placeholder="Szukaj wpisu (Pismo, cytat, inna wypowiedź…)" onPick={(id) => { if (id !== null) onPick(id); }} />} />
-      <p className="lib-cm-lede">Teza (pierwsze zdanie): {thesis === '' ? '—' : `„${thesis}”`}{isQuestion(blocks) ? ' — to pytanie; odpowiedzią będzie wypowiedź, która się do niego odwoła.' : ''}</p>
+      <p className="lib-cm-lede">Teza (pierwsze zdanie): {thesis === '' ? '—' : <>„<TexText text={thesis} />”</>}{isQuestion(blocks) ? ' — to pytanie; odpowiedzią będzie wypowiedź, która się do niego odwoła.' : ''}</p>
       {problem === 'missing' && blocks.length > 0 && <p className="wk-warn">Zacznij od zdania, które mówi najważniejsze — to teza (nazwa wpisu, pierwsza strona karty w nauce).</p>}
       {problem === 'long' && <p className="wk-warn">Pierwsze zdanie ma ponad {THESIS_LIMIT} znaków — skróć tezę, rozwinięcie zostaw na dalsze zdania.</p>}
       <Says field={field} />

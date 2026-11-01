@@ -114,19 +114,46 @@ export interface PromptPart {
   readonly media?: MediaRef;
 }
 
+/**
+ * 2026-11-01 — EINE LÜCKE in einem Text mit mehreren: was hineingehört (das Wort aus `[[…]]`) und, mit `choices`, die
+ * falschen Möglichkeiten — dann wird gewählt (das richtige kommt dazu, gemischt), sonst getippt.
+ */
+export interface GapSlot {
+  readonly accepted: readonly string[];
+  readonly choices?: readonly string[];
+}
+
+/** 2026-11-01 — ein sichtbares Beispiel einer Frage in Code: `transform(input)` soll `output` geben. */
+export interface CodeTest {
+  readonly input: unknown;
+  readonly output: unknown;
+  readonly note?: string;
+}
+
 export type AnswerSpec =
   | { readonly form: 'text'; readonly accepted: readonly string[]; readonly rule: TextRule }
-  | { readonly form: 'gap'; readonly shown: string; readonly accepted: readonly string[]; readonly rule: TextRule }
+  /*
+   * 2026-11-01 — mehrere Lücken (oder Lücken zum Wählen): `pieces` ist der Text zwischen den Lücken (eins mehr als
+   * `gaps`), jede Lücke für sich geprüft; die Antwort ist eine Liste, ein Text je Lücke. Ohne `gaps` wie bisher: ein Feld.
+   */
+  | { readonly form: 'gap'; readonly shown: string; readonly accepted: readonly string[]; readonly rule: TextRule; readonly pieces?: readonly string[]; readonly gaps?: readonly GapSlot[] }
+  /*
+   * 2026-11-01 — AUS KACHELN BAUEN (Lemma): die Kacheln der richtigen Antwort in ihrer Folge, falsche dazu, andere
+   * richtige Folgen; die Vorschau setzt das Gebaute als Wzór (`math`) oder als Text, `join` steht zwischen den Kacheln.
+   */
+  | { readonly form: 'build'; readonly items: readonly string[]; readonly extra: readonly string[]; readonly alternatives: readonly (readonly string[])[]; readonly preview: 'math' | 'text'; readonly join: string }
   | { readonly form: 'number'; readonly values: readonly number[]; readonly tolerance: number; readonly relative: boolean; readonly unit: string; readonly quantity?: string }
   | { readonly form: 'date'; readonly values: readonly string[]; readonly precision: DatePrecision; readonly tolerance: number }
   | { readonly form: 'one'; readonly options: readonly string[]; readonly correct: number }
   | { readonly form: 'many'; readonly options: readonly string[]; readonly correct: readonly number[] }
   | { readonly form: 'truefalse'; readonly value: boolean }
-  | { readonly form: 'order'; readonly items: readonly string[]; readonly shown: readonly string[] }
+  /* 2026-11-01 — `preview`: das Gelegte darüber als Wzór (`math`) oder Text, `join` zwischen den Stücken. */
+  | { readonly form: 'order'; readonly items: readonly string[]; readonly shown: readonly string[]; readonly preview?: 'math' | 'text'; readonly join?: string }
   /* 2026-10-27 — `heads`: was über den beiden Spalten steht („Rok” — „Wydarzenie”). */
   | { readonly form: 'match'; readonly left: readonly string[]; readonly right: readonly string[]; readonly pairs: readonly (readonly [number, number])[]; readonly heads?: readonly [string, string] }
   | { readonly form: 'flash'; readonly back: readonly string[] }
-  | { readonly form: 'code'; readonly task: string; readonly starter: string; readonly createInput: string; readonly reference: string; readonly cases: number }
+  /* 2026-11-01 — `tests`: sichtbare Beispiele, vor den verdeckten Fällen aus `create_input`/`reference` geprüft. */
+  | { readonly form: 'code'; readonly task: string; readonly starter: string; readonly createInput: string; readonly reference: string; readonly cases: number; readonly tests?: readonly CodeTest[] }
   | { readonly form: 'point'; readonly on: 'map' | 'image'; readonly target: PointExpected }
   /* 2026-10-17 — ein Bild zum Anfassen (interactive.ts): die Antwort sind die eingestellten Werte. */
   | InteractiveSpec;
@@ -169,7 +196,21 @@ export interface Card {
    * mit `asks` („to samo pyta też…" — zwei Richtungen, zwei Vorlagen über dasselbe Feld). Fehlt es: nur die Karte selbst.
    */
   readonly facts?: readonly string[];
+  /**
+   * 2026-11-01 — PODPOWIEDZI vor der Antwort (Zapis, von sanft bis konkret): jede aufgedeckte senkt, was diese Antwort
+   * höchstens zählt, um ein Viertel (`HINT_COST`).
+   */
+  readonly hints?: readonly string[];
+  /** 2026-11-01 — DAS WYJAŚNIENIE nach der Antwort (Zapis, mit Wzory und Quellen), aufgeklappt vor den Einträgen. */
+  readonly explanation?: string;
+  /** 2026-11-01 — ein Satz je Möglichkeit (`one`, `many`), in der Folge von `answer.options` — '' wo keiner ist. */
+  readonly feedback?: readonly string[];
+  /** 2026-11-01 — die für diesen Versuch gezogenen Werte einer Frage mit `params` — sie gehen mit der Antwort. */
+  readonly params?: Readonly<Record<string, number | string>>;
 }
+
+/** 2026-11-01 — wie viel jede aufgedeckte Podpowiedź vom Höchsten einer Antwort nimmt. */
+export const HINT_COST = 0.25;
 
 /** Ein Eintrag, den eine Karte prüft, und wie stark (eine genaue Frage zählt mehr als eine allgemeine). */
 export interface CardTest {
@@ -186,6 +227,18 @@ export const isObject = (v: unknown): v is Record<string, unknown> => typeof v =
 export const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
 
 export const num = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
+/** 2026-11-01 — gezogene Werte, wie sie mit einer Antwort gehen: höchstens 24 Namen, Zahlen und Texte bis 80 Zeichen. */
+export function readParams(raw: unknown): Record<string, number | string> | undefined {
+  if (!isObject(raw)) return undefined;
+  const out: Record<string, number | string> = {};
+  for (const [k, v] of Object.entries(raw).slice(0, 24)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,39}$/.test(k)) continue;
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === 'string') out[k] = v.length <= 80 ? v : `${v.slice(0, 79)}…`;
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
+}
 
 export const lines = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => str(x).trim()).filter((x) => x !== '') : typeof v === 'string' ? v.split('\n').map((x) => x.trim()).filter((x) => x !== '') : []);
 

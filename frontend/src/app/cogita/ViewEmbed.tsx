@@ -14,6 +14,7 @@ import { UNREADABLE } from '../library/libraryMarkup';
 import { usePageBase } from './pageBase';
 import { readView, viewList } from './views';
 import { Loading } from '../ui/Loading';
+import { TexText } from '../ui/tex/Tex';
 
 export function ViewEmbed({ viewId, libraryId }: { viewId: string; libraryId: string }) {
   const { lib } = usePageBase(libraryId);
@@ -33,7 +34,7 @@ export function ViewEmbed({ viewId, libraryId }: { viewId: string; libraryId: st
     <figure className="lib-embed lib-view-embed">
       <figcaption>{view.name} <span className="cg-muted">({list.length})</span></figcaption>
       {list.length === 0 ? <p className="cg-muted">(nic)</p> : (
-        <ul>{list.slice(0, 80).map((e) => <li key={e.id}>{lib.label(e)}</li>)}</ul>
+        <ul>{list.slice(0, 80).map((e) => <li key={e.id}><TexText text={lib.labelTex(e)} /></li>)}</ul>
       )}
     </figure>
   );

@@ -5,6 +5,9 @@
  * Baustein „Mapa wiedzy" und für den Widok als Mapa.
  */
 
+import { TexText } from '../ui/tex/Tex';
+import { clipTex } from './texClip';
+
 export interface FogNode {
   readonly id: string;
   readonly label: string;
@@ -34,7 +37,8 @@ export function FogMap({ nodes, edges, place, tall, onOpen }: {
         return (
           <button key={n.id} type="button" className={`cg-explore-node is-${n.state}`} style={{ left: `${at.x * 100}%`, top: `${at.y * 100}%` }}
             disabled={n.state === 'fog'} title={n.title} onClick={() => onOpen(n.id)}>
-            {tall ? n.label : n.label.slice(0, 14)}
+            {/* 2026-11-01 — der Name mit seinen Wzory (gekürzt, ohne einen Wzór zu zerschneiden). */}
+            <TexText text={tall ? n.label : clipTex(n.label, 14)} />
           </button>
         );
       })}

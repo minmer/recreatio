@@ -12,6 +12,7 @@ import type { LibraryStore } from '../library/libraryStore';
 import type { LibEntry, Lookup as MarkupLookup } from '../library/libraryKinds';
 import { parseMarkup } from '../library/libraryMarkup';
 import { Blocks, countNotes, MarkupLinks, NoteList, type MarkupLinkTo } from '../library/markupView';
+import { TexText } from '../ui/tex/Tex';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
 import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType, type KnownessBand } from './logic';
@@ -487,3 +488,17 @@ export const entityName = (lib: CogitaLibrary, id: string): string => {
   const e: Entity | undefined = lib.entity(id);
   return e === undefined ? id.slice(-6) : lib.label(e);
 };
+
+/** 2026-11-01 — der Name eines Eintrags mit seinen Wzory als `$…$` (für `TexText`). */
+export const entityNameTex = (lib: CogitaLibrary, id: string): string => {
+  const e: Entity | undefined = lib.entity(id);
+  return e === undefined ? id.slice(-6) : lib.labelTex(e);
+};
+
+/**
+ * 2026-11-01 — EIN NAME, EINE ZEILE MIT WZORY: der Name eines Eintrags (oder ein Text wie die Frage einer Karte) mit
+ * gesetzten Wzory — KaTeX lädt erst, wenn einer da ist; ohne Wzór steht der Text wie bisher.
+ */
+export function EntityTitle({ lib, id }: { lib: CogitaLibrary; id: string }) {
+  return <TexText text={entityNameTex(lib, id)} />;
+}

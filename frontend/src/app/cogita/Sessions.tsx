@@ -44,6 +44,10 @@ import { usePageBase } from './pageBase';
 import { CogitaContext, useAsync, useBusy, useCtx } from './ui';
 import { askText } from '../ui/dialogs';
 import { Loading } from '../ui/Loading';
+import { TexText } from '../ui/tex/Tex';
+
+/** 2026-11-01 — die Frage einer Karte als eine Zeile, ihre Wzory gesetzt (`$…$` bleibt in `prompt` stehen, `cards.ts`). */
+const PromptLine = ({ card }: { card: Card | undefined }) => <TexText text={card === undefined ? '' : card.prompt.map((p) => p.text).join(' ')} />;
 
 /* -- Was in den Ereignissen steht ----------------------------------------------------------- */
 
@@ -524,8 +528,8 @@ function LiveHost({ session, config, opened, post, screen }: { session: SessionR
           ) : (
             <div className="cg-card">
               <div className="cg-row-between"><strong>Pytanie {current.index + 1} z {current.total}</strong>{left !== null && <span className="cg-timer">{left}</span>}</div>
-              <p className="cg-prompt">{cards[current.index]?.prompt.map((p) => p.text).join(' ')}</p>
-              <p className="cg-muted">Odpowiedzi: {firstPer.size} z {joins.size}{revealed ? ` · poprawnie: ${answerText(cards[current.index])}` : ''}</p>
+              <p className="cg-prompt"><PromptLine card={cards[current.index]} /></p>
+              <p className="cg-muted">Odpowiedzi: {firstPer.size} z {joins.size}{revealed && cards[current.index] !== undefined ? <> · poprawnie: <TexText text={answerText(cards[current.index]!)} /></> : ''}</p>
               <div className="cg-row">
                 {!revealed && <button type="button" className="wk-btn" disabled={busy} onClick={() => void reveal(false)}>Pokaż wynik</button>}
                 {revealed && <button type="button" className="wk-btn" disabled={busy} onClick={() => void ask(current.index + 1)}>{current.index + 1 >= cards.length ? 'Zakończ' : 'Następne pytanie'}</button>}
@@ -584,14 +588,14 @@ function Screen({ config, current, reveal, answered, joined, left, finished, sco
   return (
     <div className="cg-live-screen">
       <span className="cg-muted">Pytanie {current.index + 1} z {current.total}</span>
-      <div className="cg-prompt">{current.card.prompt.map((p) => p.text).join(' ')}</div>
+      <div className="cg-prompt"><PromptLine card={current.card} /></div>
       {(a.form === 'one' || a.form === 'many') && (
-        <div className="cg-live-buttons">{a.options.map((o, i) => <button key={i} type="button" className={reveal !== null && reveal.card.answer.form === a.form && (reveal.card.answer.form === 'one' ? reveal.card.answer.correct === i : reveal.card.answer.form === 'many' && reveal.card.answer.correct.includes(i)) ? 'is-on' : ''}>{o}</button>)}</div>
+        <div className="cg-live-buttons">{a.options.map((o, i) => <button key={i} type="button" className={reveal !== null && reveal.card.answer.form === a.form && (reveal.card.answer.form === 'one' ? reveal.card.answer.correct === i : reveal.card.answer.form === 'many' && reveal.card.answer.correct.includes(i)) ? 'is-on' : ''}><TexText text={o} /></button>)}</div>
       )}
       {reveal === null ? <span className="cg-timer">{left === null ? `${answered}/${joined}` : `${left} s · ${answered}/${joined}`}</span>
         : (
           <>
-            <strong>Poprawnie: {answerText(reveal.card)} · dobrze {reveal.correct} z {reveal.answered}</strong>
+            <strong>Poprawnie: <TexText text={answerText(reveal.card)} /> · dobrze {reveal.correct} z {reveal.answered}</strong>
             <ol className="cg-scores">{reveal.scores.slice(0, 8).map((s) => <li key={s.participant}><span>{s.name}</span><strong>{s.total}</strong></li>)}</ol>
           </>
         )}
@@ -734,7 +738,7 @@ export function SessionPlay({ session, title, cred, keys, participant, name: giv
       <span className="cg-muted">Pytanie {index + 1}{current !== null ? ` z ${current.total}` : ''}{mine !== null ? ` · ${mine.total} pkt` : ''}</span>
       {current !== null && reveal === null && !answered && (
         <section className="cg-face">
-          <div className="cg-prompt">{current.card.prompt.map((p) => p.text).join(' ')}</div>
+          <div className="cg-prompt"><PromptLine card={current.card} /></div>
           <AnswerInput card={current.card} onSubmit={(given2) => { setSent((m) => new Map(m).set(index, given2)); void send('answer', { participant, device, index, given: given2, at: Date.now() } satisfies Answer); }} />
         </section>
       )}

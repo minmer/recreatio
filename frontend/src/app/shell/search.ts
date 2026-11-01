@@ -19,6 +19,8 @@ export interface SearchEntry {
   readonly href: string;
   /** Wird mit durchsucht, steht klein daneben (der Bereich eines Formulars). */
   readonly hint?: string;
+  /** 2026-11-01 — so steht der Treffer da, wenn es anders ist als `label` (ein Etikett mit Wzory als `$…$`); gesucht wird in `label`. */
+  readonly display?: string;
 }
 
 /** Klein, ohne diakritische Zeichen, ł → l. */

@@ -33,6 +33,8 @@ import { AnchorsTab, EntityAnchors } from './AnchorList';
 import { EntityStructure } from './StructureView';
 import { CogitaJson } from './CogitaJson';
 import { CogitaSettings } from './CogitaSettings';
+import { DailyGoal } from './DailyGoal';
+import { LearnQuilt } from './QuiltView';
 import { Contributions, Propose } from './Contribute';
 import { EntityEditor } from './EntityEditor';
 import { EntityList } from './EntityList';
@@ -61,6 +63,7 @@ import type { Card } from './cardBasics';
 import { MenuButton } from '../ui/Menu';
 import { Icon } from '../ui/icons';
 import { Loading } from '../ui/Loading';
+import { TexText } from '../ui/tex/Tex';
 import { OldEntries, oldEntriesOf } from '../library/OldEntries';
 import { isOldInBase, oldInBaseLabel } from './oldInBase';
 
@@ -184,7 +187,8 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
     /* 2026-10-31 — der eigene Lernende dieser Powtórka lädt erst: solange warten, sonst finge der Lauf ohne ihn an. */
     if (storage !== null && holder !== null && own.learner === null && own.failed === null) return <Loading label="Wczytywanie postępów…" />;
     /* Ob das Konto den Schlüssel hier behält, prüft der Lauf selbst — und sagt es, statt still nichts abzulegen. */
-    return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who !== null && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')} />;
+    return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who !== null && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')}
+      onOpenRevision={(id) => go('nauka', id)} />;
   }
   const now = Date.now();
   const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m); return d !== null && d <= now; }).length;
@@ -195,6 +199,10 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
         <strong>{cards === null ? 'Liczenie kart…' : `${cards.length} kart w kursie`}</strong>
         {due !== null && <span className="cg-muted">Na teraz: {due} · nowe: {fresh}</span>}
       </div>
+      {/* 2026-11-01 — Serie dni nauki (Ustawienia → Motywacja): der Tagesziel, die Woche — sonst nichts. */}
+      <DailyGoal lib={lib} learner={learner} />
+      {/* 2026-11-01 — die Mapa postępów (Widoki im Modus „quilt"): Kacheln nach Lektionen, klick → lesen, üben. */}
+      <LearnQuilt cards={cards} learner={learner} />
       {revisions.length === 0 ? (
         <div className="cg-card">
           <p className="wk-hint">Nie ma jeszcze powtórek.</p>
@@ -204,8 +212,9 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
         <div className="cg-grid">
           {revisions.map((e) => (
             <div key={e.id} className="cg-card">
-              <strong>{String(e.data.name ?? 'Powtórka')}</strong>
-              {typeof e.data.summary === 'string' && <span className="cg-muted">{e.data.summary}</span>}
+              {/* 2026-11-01 — Namen mit ihren Wzory. */}
+              <strong><TexText text={String(e.data.name ?? 'Powtórka')} /></strong>
+              {typeof e.data.summary === 'string' && <span className="cg-muted"><TexText text={e.data.summary} /></span>}
               <button type="button" className="wk-btn" onClick={() => go('nauka', e.id)}>Powtarzaj</button>
             </div>
           ))}
@@ -215,7 +224,7 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
         <div className="cg-grid">
           {lib.docs('flow').map((e) => (
             <div key={e.id} className="cg-card">
-              <strong>{String(e.data.name ?? 'Przebieg')}</strong>
+              <strong><TexText text={String(e.data.name ?? 'Przebieg')} /></strong>
               <span className="cg-muted">{learner?.progress.positions.has(e.id) ? 'w trakcie' : 'przebieg'}</span>
               <button type="button" className="wk-link-btn" onClick={() => go('przebiegi', e.id, 'graj')}>{learner?.progress.positions.has(e.id) ? 'Wróć do miejsca' : 'Zacznij'}</button>
             </div>
@@ -288,7 +297,7 @@ function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   if (!writes) {
     return (
       <div className="cg-grid">
-        {lib.docs('flow').map((e) => <div key={e.id} className="cg-card"><strong>{String(e.data.name ?? 'Przebieg')}</strong><button type="button" className="wk-btn" onClick={() => go('przebiegi', e.id, 'graj')}>Zacznij</button></div>)}
+        {lib.docs('flow').map((e) => <div key={e.id} className="cg-card"><strong><TexText text={String(e.data.name ?? 'Przebieg')} /></strong><button type="button" className="wk-btn" onClick={() => go('przebiegi', e.id, 'graj')}>Zacznij</button></div>)}
         {lib.docs('flow').length === 0 && <p className="wk-empty">Nie ma jeszcze przebiegów.</p>}
       </div>
     );

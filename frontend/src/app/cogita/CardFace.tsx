@@ -7,11 +7,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { checkCard } from './cards';
-import { shuffleAway, type Card, type PromptPart } from './cardBasics';
-import { DATE_UNREAD, dateAsked, PRECISION_ASK, readDateAnswer, spansOf, type DatePartMark, type Outcome, type TextRule } from './check';
+import { HINT_COST, shuffleAway, type Card, type PromptPart } from './cardBasics';
+import { DATE_UNREAD, dateAsked, PRECISION_ASK, readDateAnswer, spansOf, withHints, type DatePartMark, type Outcome, type TextRule } from './check';
+import { BuildAnswer } from './BuildAnswer';
+import { CodeAnswer, CodeResult, storedCodeGiven } from './CodeAnswer';
 import { ExplainList } from './EntityReading';
+import { GapAnswer } from './GapAnswer';
 import { OrderAnswer } from './OrderAnswer';
-import { evaluateCode } from './python';
 import { GeoMap } from './GeoMap';
 import { InteractiveAnswer, InteractiveReplay } from './InteractiveAnswer';
 import { givenValuesText, solutionText } from './interactive';
@@ -20,6 +22,7 @@ import type { CogitaLibrary } from './store';
 import { Markup, MediaView, percent } from './ui';
 import { StatementCard } from '../library/markupView';
 import { blocksField } from './statements';
+import { TexText } from '../ui/tex/Tex';
 
 /* -- Die Frage ----------------------------------------------------------------------- */
 
@@ -41,8 +44,8 @@ export function CardPrompt({ parts }: { parts: readonly PromptPart[] }) {
 export function answerText(card: Card): string {
   const a = card.answer;
   switch (a.form) {
-    case 'text':
-    case 'gap': return a.accepted[0] ?? '';
+    case 'text': return a.accepted[0] ?? '';
+    case 'gap': return gapWords(card) ?? a.accepted[0] ?? '';
     case 'number': return `${String(a.values[0] ?? '').replace('.', ',')}${a.unit === '' ? '' : ` ${a.unit}`}`;
     /* 2026-11-01 — wie man ein Datum sagt („listopad 1829"), nicht wie es gespeichert ist („1829-11"). */
     case 'date': { const d = readDate(a.values[0]); return d === null ? a.values[0] ?? '' : dateText(d); }
@@ -55,7 +58,25 @@ export function answerText(card: Card): string {
     case 'code': return 'kod, który przechodzi wszystkie przypadki';
     case 'point': return 'lat' in a.target ? `${a.target.lat.toFixed(4)}, ${a.target.lon.toFixed(4)}` : 'zaznaczony punkt';
     case 'interactive': return solutionText(a) ?? 'cel rysunku osiągnięty';
+    case 'build': return a.items.join(a.join);
   }
+}
+
+/** 2026-11-01 — was zu einer Lücke gehört: bei mehreren Lücken jede mit ihrem Wort. */
+const gapWords = (card: Card): string | null => (card.answer.form === 'gap' && card.answer.gaps !== undefined ? card.answer.gaps.map((g) => g.accepted[0] ?? '').join(' · ') : null);
+
+/**
+ * 2026-11-01 — WAS GESPEICHERT WIRD. Eine Wahl und Paare als TEXT: die Stellen gelten nur für die Karte dieses Laufs (die
+ * Möglichkeiten sind gemischt) — das Protokoll der Lehrerin und „die häufigste falsche Antwort" lesen sie später mit
+ * einer anders gemischten Karte. Eine Antwort in Code ohne ihre Fälle (die sind nur zum Anschauen).
+ */
+export function storedGiven(card: Card, given: unknown): string {
+  if (typeof given === 'string') return given;
+  const a = card.answer;
+  if (a.form === 'one' && typeof given === 'number') return JSON.stringify(a.options[given] ?? given);
+  if (a.form === 'many' && Array.isArray(given)) return JSON.stringify(given.map((i) => (typeof i === 'number' ? a.options[i] ?? i : i)));
+  if (a.form === 'match' && Array.isArray(given)) return JSON.stringify(given.map((p) => (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number' ? [a.left[p[0]] ?? p[0], a.right[p[1]] ?? p[1]] : p)));
+  return JSON.stringify(a.form === 'code' ? storedCodeGiven(given) : given) ?? '';
 }
 
 /** Was gegeben wurde, kurz — für die Antwort, die gespeichert wird. */
@@ -63,13 +84,17 @@ export function givenText(card: Card, given: unknown): string {
   const a = card.answer;
   if (typeof given === 'string') return given;
   if (a.form === 'one' && typeof given === 'number') return a.options[given] ?? '';
-  if (a.form === 'many' && Array.isArray(given)) return given.map((i) => a.options[Number(i)] ?? '').join(', ');
+  /* 2026-11-01 — gespeichert wird der Text der Wahl (`storedGiven`); alte Antworten tragen noch die Stelle. */
+  if (a.form === 'many' && Array.isArray(given)) return given.map((i) => (typeof i === 'number' ? a.options[i] ?? '' : String(i))).join(', ');
   if (a.form === 'truefalse') return given === true ? 'prawda' : given === false ? 'fałsz' : '';
   if (a.form === 'order' && Array.isArray(given)) return given.join(' → ');
-  if (a.form === 'match' && Array.isArray(given)) return given.map((p) => (Array.isArray(p) ? `${a.left[p[0]]}—${a.right[p[1]]}` : '')).join('; ');
+  if (a.form === 'match' && Array.isArray(given)) return given.map((p) => (!Array.isArray(p) ? '' : typeof p[0] === 'number' ? `${a.left[p[0]]}—${a.right[p[1]]}` : `${String(p[0])}—${String(p[1])}`)).join('; ');
   if (a.form === 'code' && typeof given === 'object' && given !== null) return `${(given as { passed?: number }).passed ?? 0}/${(given as { total?: number }).total ?? 0}`;
   if (a.form === 'point' && typeof given === 'object' && given !== null) return JSON.stringify(given);
   if (a.form === 'interactive') return givenValuesText(a, given);
+  /* 2026-11-01 — gebaut: die Kacheln in ihrer Folge; mehrere Lücken: je Lücke, was dort stand. */
+  if (a.form === 'build' && Array.isArray(given)) return given.map(String).join(a.join);
+  if (a.form === 'gap' && Array.isArray(given)) return given.map((g) => (typeof g === 'string' && g.trim() !== '' ? g : '—')).join(' · ');
   return given === undefined || given === null ? '' : String(given);
 }
 
@@ -162,8 +187,6 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   const [order, setOrder] = useState<readonly string[]>([]);
   const [pairing, setPairing] = useState<Pairing>(NO_PAIRS);
   const [flipped, setFlipped] = useState(false);
-  const [code, setCode] = useState(a.form === 'code' ? a.starter : '');
-  const [running, setRunning] = useState(false);
   const [point, setPoint] = useState<{ lat: number; lon: number } | null>(null);
   const field = useRef<HTMLInputElement | null>(null);
   /*
@@ -182,10 +205,21 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
 
   useEffect(() => {
     setText(''); setUnread(false); setMany(new Set()); setOrder(view.start); setPairing(NO_PAIRS); setFlipped(false);
-    setCode(a.form === 'code' ? a.starter : ''); setPoint(null);
+    setPoint(null);
     if (autoFocus) window.setTimeout(() => field.current?.focus(), 30);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.key, card.fingerprint]);
+  /* 2026-11-01 — nach der Antwort: der Satz zu einer Möglichkeit, unter der gewählten und unter jeder richtigen (✓/✗, nie nur Farbe). */
+  const said = (i: number, right: boolean, chosen: boolean): ReactNode => {
+    const text = reveal === undefined ? '' : (card.feedback?.[i] ?? '').trim();
+    if (text === '' || (!right && !chosen)) return null;
+    return (
+      <div className={`cg-option-said ${right ? 'is-right' : 'is-wrong'}`} data-option-said={right ? 'right' : 'wrong'}>
+        <span className="cg-option-mark" aria-label={right ? 'dobra odpowiedź' : 'zła odpowiedź'}>{right ? '✓' : '✗'}</span>
+        <Markup text={text} />
+      </div>
+    );
+  };
 
   const submit = (given: unknown) => { if (!shut) onSubmit(given); };
   const tap = (side: 'l' | 'r', at: number) => setPairing((was) => tapPair(was, side, at));
@@ -201,6 +235,14 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     case 'number':
     case 'date':
     case 'gap': {
+      /* 2026-11-01 — mehrere Lücken (oder Lücken zum Wählen): jede an ihrer Stelle im Text. */
+      if (a.form === 'gap' && a.gaps !== undefined && a.pieces !== undefined) {
+        return (
+          <GapAnswer key={`${card.key}:${card.fingerprint}`} pieces={a.pieces} gaps={a.gaps} locked={shut} autoFocus={autoFocus}
+            {...(reveal === undefined ? {} : { given: Array.isArray(reveal.given) ? reveal.given.map((g) => (typeof g === 'string' ? g : '')) : [], marks: reveal.outcome.marks ?? [] })}
+            onSubmit={submit} action={next} />
+        );
+      }
       /* 2026-11-01 — ein Datum, wie es gelesen wird: steht etwas da, das sich nicht lesen lässt, zählt es nicht als Antwort. */
       const asked = a.form === 'date' ? dateAsked(a) : null;
       const reading = a.form === 'date' && text.trim() !== '' ? readDateAnswer(text) : null;
@@ -211,7 +253,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           if (a.form === 'date' && text.trim() !== '' && reading === null) { setUnread(true); return; }
           submit(text);
         }}>
-          {a.form === 'gap' && <div className="cg-prompt">{a.shown}</div>}
+          {a.form === 'gap' && <div className="cg-prompt"><TexText text={a.shown} /></div>}
           {/* 2026-10-31 — jede Datumsfrage sagt, wie genau: das Jahr genügt, oder der Tag. */}
           {asked !== null && <p className="cg-precision" data-precision={asked}>{PRECISION_ASK[asked]}</p>}
           <div className="cg-row">
@@ -234,12 +276,15 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           <div className="cg-options" role="radiogroup">
             {view.options.map((i) => {
               const g = reveal === undefined ? '' : glyph(i === a.correct, reveal.given === i);
-              return (
+              const button = (
                 <button key={i} type="button" role="radio" aria-checked={reveal?.given === i} className={`cg-option${mark(i === a.correct, reveal?.given === i)}`} disabled={shut} onClick={() => submit(i)}>
-                  <span className="cg-option-text">{a.options[i]}</span>
+                  <span className="cg-option-text"><TexText text={a.options[i] ?? ''} /></span>
                   {g !== '' && <span className="cg-option-mark" aria-label={g === '✓' ? 'dobra odpowiedź' : 'zła odpowiedź'}>{g}</span>}
                 </button>
               );
+              /* 2026-11-01 — der Satz zur Möglichkeit steht unter ihr (in derselben Zelle — die Möglichkeiten bleiben gleich breit). */
+              const note = said(i, i === a.correct, reveal?.given === i);
+              return note === null ? button : <div key={i} className="cg-option-cell">{button}{note}</div>;
             })}
           </div>
           {nextRow}
@@ -251,14 +296,16 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
           <div className="cg-options">
             {view.options.map((i) => {
               const g = reveal === undefined ? '' : glyph(a.correct.includes(i), many.has(i));
-              return (
+              const button = (
                 <button key={i} type="button" className={`cg-option${reveal === undefined ? (many.has(i) ? ' is-on' : '') : mark(a.correct.includes(i), many.has(i))}`} aria-pressed={many.has(i)} disabled={shut}
                   onClick={() => setMany((was) => { const next2 = new Set(was); if (next2.has(i)) next2.delete(i); else next2.add(i); return next2; })}>
                   <span aria-hidden>{many.has(i) ? '☑' : '☐'}</span>
-                  <span className="cg-option-text">{a.options[i]}</span>
+                  <span className="cg-option-text"><TexText text={a.options[i] ?? ''} /></span>
                   {g !== '' && <span className="cg-option-mark" aria-label={g === '✓' ? (many.has(i) ? 'dobrze zaznaczone' : 'trzeba było zaznaczyć') : 'źle zaznaczone'}>{g}</span>}
                 </button>
               );
+              const note = said(i, a.correct.includes(i), many.has(i));
+              return note === null ? button : <div key={i} className="cg-option-cell">{button}{note}</div>;
             })}
           </div>
           {next ?? <button key="check" type="button" className="wk-btn" disabled={shut} onClick={() => submit([...many].sort((x, y) => x - y))}>Sprawdź</button>}
@@ -285,6 +332,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         <div className="cg-answer">
           {/* Der Knopf steht zwischen der Liste und ihrem Ergebnis: „Dalej” bleibt genau dort, wo „Sprawdź” war. */}
           <OrderAnswer key={`${card.key}:${card.fingerprint}`} start={view.start} correct={a.items} locked={shut}
+            {...(a.preview === undefined ? {} : { preview: a.preview, join: a.join ?? ' ' })}
             {...(reveal === undefined ? {} : { given: Array.isArray(reveal.given) ? reveal.given.map(String) : [] })} onOrder={setOrder}
             action={next ?? <button key="check" type="button" className="wk-btn" disabled={shut} onClick={() => submit(order)}>Sprawdź</button>} />
         </div>
@@ -301,7 +349,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         return (
           <button key={at} type="button" className={`cg-option${on ? ' is-on' : ''}${n > 0 ? ' is-paired' : ''}`} aria-pressed={on} disabled={shut}
             aria-label={n > 0 ? `${label} — para ${n}` : label} onClick={() => tap(side, at)}>
-            {n > 0 && <span className="cg-match-n" aria-hidden>{n}</span>}<span className="cg-option-text">{label}</span>
+            {n > 0 && <span className="cg-match-n" aria-hidden>{n}</span>}<span className="cg-option-text"><TexText text={label} /></span>
           </button>
         );
       };
@@ -335,16 +383,15 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         <button type="button" className="wk-btn" disabled={shut} onClick={() => setFlipped(true)}>Pokaż odpowiedź</button>
       );
     case 'code':
+      /* 2026-11-01 — eigene Datei: Beispiele vorher, die Fälle danach als Tabelle (`CodeAnswer.tsx`). */
+      return <div className="cg-answer"><CodeAnswer key={`${card.key}:${card.fingerprint}`} card={card} locked={shut} onSubmit={submit} next={next} /></div>;
+    case 'build':
+      /* 2026-11-01 — aus Kacheln bauen, mit der Vorschau darüber (`BuildAnswer.tsx`). */
       return (
         <div className="cg-answer">
-          {a.task !== '' && <Markup text={a.task} />}
-          <textarea className="cg-code" spellCheck={false} value={code} disabled={shut || running} onChange={(e) => setCode(e.target.value)} aria-label="Kod" />
-          {next ?? <button key="check" type="button" className="wk-btn" disabled={shut || running} onClick={() => {
-            setRunning(true);
-            void evaluateCode({ createInput: a.createInput, reference: a.reference, learner: code, cases: a.cases, seed: Date.now() % 100000 })
-              .then((v) => submit({ passed: v.passed, total: v.total, status: v.status, error: v.error ?? null }))
-              .finally(() => setRunning(false));
-          }}>{running ? 'Python liczy… (za pierwszym razem ładuje się ok. 10 MB)' : 'Sprawdź kod'}</button>}
+          <BuildAnswer key={`${card.key}:${card.fingerprint}`} card={card} locked={shut} autoFocus={autoFocus}
+            {...(reveal === undefined ? {} : { given: Array.isArray(reveal.given) ? reveal.given.map(String) : [], outcome: reveal.outcome })}
+            onSubmit={submit} action={next} />
         </div>
       );
     case 'point':
@@ -384,10 +431,10 @@ function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unkn
           return (
             <li key={l} className={`cg-match-row ${ok ? 'is-right' : 'is-wrong'}`} data-match-pair={ok ? 'right' : chosen === undefined ? 'missing' : 'wrong'}>
               <span className="cg-option-mark" aria-label={ok ? 'dobrze' : 'źle'}>{ok ? '✓' : '✗'}</span>
-              <span className="cg-match-left">{a.left[l]}</span>
+              <span className="cg-match-left"><TexText text={a.left[l] ?? ''} /></span>
               <span className="cg-match-right">
-                {chosen === undefined ? <em className="cg-muted">bez pary</em> : <span className={ok ? undefined : 'cg-struck'}>{a.right[chosen]}</span>}
-                {!ok && want !== undefined && <span className="cg-match-fix">dobrze: <strong>{a.right[want]}</strong></span>}
+                {chosen === undefined ? <em className="cg-muted">bez pary</em> : <span className={ok ? undefined : 'cg-struck'}><TexText text={a.right[chosen] ?? ''} /></span>}
+                {!ok && want !== undefined && <span className="cg-match-fix">dobrze: <strong><TexText text={a.right[want] ?? ''} /></strong></span>}
               </span>
             </li>
           );
@@ -401,7 +448,7 @@ function MatchResult({ card, given, leftOrder, next }: { card: Card; given: unkn
 /* -- Was richtig war ------------------------------------------------------------------------- */
 
 /** Formen, deren Antwort nach der Prüfung mit ihren Marken stehen bleibt — dort steht das Ergebnis, nicht in einem langen Satz. */
-const MARKED_FORMS: ReadonlySet<string> = new Set(['one', 'many', 'truefalse', 'order', 'match']);
+const MARKED_FORMS: ReadonlySet<string> = new Set(['one', 'many', 'truefalse', 'order', 'match', 'build', 'code']);
 
 export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven = true, marked = false }: {
   card: Card;
@@ -419,20 +466,25 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   const close = outcome.near === true || outcome.correctness > 0.5;
   const level = outcome.correct ? 'is-right' : close ? 'is-near' : 'is-wrong';
   const expected = outcome.expected ?? answerText(card);
+  /* 2026-11-01 — verglichen mit einer Zeile ohne LaTeX, gezeigt, wie die Antwort geschrieben steht (mit Wzór). */
+  const written = outcome.shown ?? expected;
   const a = card.answer;
-  const others = a.form === 'text' || a.form === 'gap' ? a.accepted.filter((x) => x.trim().toLowerCase() !== expected.trim().toLowerCase()) : [];
-  const onAnswer = marked && MARKED_FORMS.has(a.form);
+  const others = a.form === 'text' || (a.form === 'gap' && a.gaps === undefined) ? a.accepted.filter((x) => x !== written && x.trim().toLowerCase() !== expected.trim().toLowerCase()) : [];
+  /* 2026-11-01 — mehrere Lücken stehen mit ihren Marken im Text — dort das Ergebnis. */
+  const onAnswer = marked && (MARKED_FORMS.has(a.form) || (a.form === 'gap' && a.gaps !== undefined));
   /* 2026-10-31 — zuerst das Thema der Frage („O czym”), dann, was sie zur Erklärung nennt; alles zugeklappt. */
   const explainIds = lib === undefined ? [] : [...(card.about ?? []), ...card.explain];
+  /* 2026-11-01 — richtig, aber mit Podpowiedź: das zählt weniger — und es steht da. */
+  const hinted = outcome.correct && (outcome.hints ?? 0) > 0;
   const box = (
-    <div className={`cg-verdict ${level}`} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'}>
-      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{outcome.correct ? 'Dobrze!' : close ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? (outcome.correctness > 0 ? `Niestety nie (${percent(outcome.correctness)}).` : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
+    <div className={`cg-verdict ${hinted ? 'is-near' : level}`} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'} data-hints={outcome.hints}>
+      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{hinted ? `Dobrze — z podpowiedzią (${percent(outcome.correctness)})` : outcome.correct ? 'Dobrze!' : close ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? (outcome.correctness > 0 ? `Niestety nie (${percent(outcome.correctness)}).` : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
       {/* 2026-11-01 — ein Datum Teil für Teil: was stimmt, was nah ist, was nicht. */}
       {outcome.dateParts !== undefined && !outcome.correct && <DateParts parts={outcome.dateParts} />}
       {/* Die richtige Antwort steht da, grün — auch nach einem Treffer, samt der anderen, die auch gelten; bei markierten Antworten auf ihnen selbst. */}
       {!onAnswer && (
-        <span>Poprawnie: <strong className="cg-expected">{expected}</strong>
-          {others.length > 0 && <> · także: <span className="cg-expected">{others.join(', ')}</span></>}
+        <span>Poprawnie: <strong className="cg-expected"><TexText text={written} /></strong>
+          {others.length > 0 && <> · także: <span className="cg-expected"><TexText text={others.join(', ')} /></span></>}
           {showGiven && !outcome.correct && givenText(card, given) !== '' ? <> · Twoja odpowiedź: {givenText(card, given)}</> : null}
         </span>
       )}
@@ -443,12 +495,18 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
           {spansOf(expected, outcome.mask).map((s, i) => <span key={i} className={`is-${s.level}`}>{s.text}</span>)}
         </span>
       )}
-      {card.answer.form === 'code' && typeof given === 'object' && given !== null && typeof (given as { error?: unknown }).error === 'string' && <code>{(given as { error: string }).error}</code>}
+      {card.answer.form === 'code' && <CodeResult card={card} given={given} />}
       {card.answer.form === 'interactive' && <InteractiveReplay card={card} given={given} />}
       {extra}
     </div>
   );
-  return lib === undefined ? box : <>{box}<ExplainList lib={lib} ids={explainIds} onEntity={onEntity} /></>;
+  /* 2026-11-01 — das Wyjaśnienie der Frage zuerst, aufgeklappt; dann die Einträge (zugeklappt). */
+  const explanation = card.explanation === undefined || card.explanation.trim() === '' ? null : (
+    <section className="cg-explanation" data-explanation="" aria-label="Wyjaśnienie">
+      <Markup text={card.explanation} lib={lib} onEntity={onEntity} />
+    </section>
+  );
+  return <>{box}{explanation}{lib !== undefined && <ExplainList lib={lib} ids={explainIds} onEntity={onEntity} />}</>;
 }
 
 /** Ein Eintrag in Kürze: sein Etikett und, was er sagt — eine Aussage ganz, andere Felder in Worten. */
@@ -460,7 +518,8 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
   if (statement !== undefined) return <div className="cg-card"><StatementCard entry={statement} look={lib.markupLook} prefix={`cg${entity.id.slice(0, 8)}-`} about /></div>;
   return (
     <div className="cg-card">
-      <strong>{onEntity === undefined ? labelOf(entity, look) : <button type="button" className="cg-ref" onClick={() => onEntity(entity.id)}>{labelOf(entity, look)}</button>}</strong>
+      {/* 2026-11-01 — der Name mit seinen Wzory gesetzt. */}
+      <strong>{onEntity === undefined ? <TexText text={labelOf(entity, look, 0, false, true)} /> : <button type="button" className="cg-ref" aria-label={labelOf(entity, look)} onClick={() => onEntity(entity.id)}><TexText text={labelOf(entity, look, 0, false, true)} /></button>}</strong>
       {fields.map((f) => {
         const text = fieldText(entity, f, look);
         return text === '' ? null : <span key={f.key} className="cg-muted">{f.label}: {f.type === 'markup' ? <Markup text={String(entity.data[f.key] ?? '')} lib={lib} /> : text}</span>;
@@ -487,16 +546,39 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
   autoFocus?: boolean;
 }) {
   const [done, setDone] = useState<{ outcome: Outcome; given: unknown } | null>(null);
+  /* 2026-11-01 — wie viele Podpowiedzi schon aufgedeckt sind (eine nach der anderen, nur vor der Antwort). */
+  const [hinted, setHinted] = useState(0);
   const started = useMemo(() => Date.now(), [card.key, card.fingerprint]);
-  useEffect(() => { setDone(null); }, [card.key, card.fingerprint]);
+  useEffect(() => { setDone(null); setHinted(0); }, [card.key, card.fingerprint]);
+  const hints = card.hints ?? [];
 
   return (
     <section className="cg-face" aria-live="polite" data-card={card.key} data-form={card.answer.form}>
       {head}
       <CardPrompt parts={card.prompt} />
+      {/*
+        2026-11-01 — PODPOWIEDZI: eine nach der anderen, vor der Antwort; jede nimmt ein Viertel vom Höchsten dieser Antwort
+        (die Kenntnis nimmt sie als teilweise richtig), und die Antwort sagt der Lehrerin, wie viele es waren.
+      */}
+      {hints.length > 0 && (hinted > 0 || done === null) && (
+        <div className="cg-hints" data-hints={hints.length} data-hints-shown={hinted}>
+          {hints.slice(0, hinted).map((h, i) => (
+            <div key={i} className="cg-hint" data-hint={i + 1}>
+              <span className="cg-hint-n">Podpowiedź {i + 1}</span>
+              <Markup text={h} lib={lib} />
+            </div>
+          ))}
+          {done === null && hinted < hints.length && (
+            <button type="button" className="wk-link-btn cg-hint-btn" data-hint-next="" title={`Każda podpowiedź obniża wynik tej odpowiedzi o ${Math.round(HINT_COST * 100)}%.`}
+              onClick={() => setHinted((n) => Math.min(hints.length, n + 1))}>
+              Podpowiedź {hinted + 1}/{hints.length}
+            </button>
+          )}
+        </div>
+      )}
       {/* Die Antwort bleibt, wo sie war — gesperrt, mit ihren Marken; „Sprawdź” wird an seiner Stelle „Dalej” (2026-10-31). */}
       <AnswerInput card={card} autoFocus={autoFocus} {...(done === null ? {} : { reveal: done })} onNext={onNext} nextLabel={nextLabel} onSubmit={(given) => {
-        const outcome = checkCard(card, given, rule);
+        const outcome = withHints(checkCard(card, given, rule), hinted, HINT_COST);
         setDone({ outcome, given });
         onAnswered(outcome, given, Date.now() - started);
       }} />

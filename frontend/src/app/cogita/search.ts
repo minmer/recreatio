@@ -56,6 +56,8 @@ export function libraryHits(): SearchEntry[] {
       out.push({
         id: `entry:${entity.id}`,
         label: lib.label(entity),
+        /* 2026-11-01 — mit Wzory (gesetzt in der Suche); gesucht wird in der Zeile ohne LaTeX. */
+        ...(lib.labelTex(entity) === lib.label(entity) ? {} : { display: lib.labelTex(entity) }),
         kind: lib.kind(entity.kinds[0] ?? '')?.name ?? builtIn?.label ?? 'Wpis',
         href: base ? cogitaPath(store.libraryId, 'wpisy', entity.id) : containerPath(store.libraryId, entity.id),
         hint: where

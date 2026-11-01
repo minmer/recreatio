@@ -24,6 +24,7 @@ import { SchemaEditor } from './SchemaEditor';
 import { SCHEMA_PARTS, type SchemaPart } from './parts';
 import { STEP_WORDS } from './selection';
 import { OriginTag, useBusy, useCtx } from './ui';
+import { TexText } from '../ui/tex/Tex';
 
 type Go = (...tail: string[]) => void;
 
@@ -161,7 +162,7 @@ function ViewMethods({ go }: { go: Go }) {
           {read.map(({ e, v }) => (
             <li key={e.id} className="cg-method">
               <button type="button" className="lib-row" onClick={() => go('schematy', 'wyswietlanie', e.id)}>
-                <span className="lib-row-title">{v.name} <OriginTag id={e.id} /></span>
+                <span className="lib-row-title"><TexText text={v.name} /> <OriginTag id={e.id} /></span>
                 <span className="lib-row-meta">{viewWords(v, (id) => lib.kind(id)?.name)}</span>
               </button>
               <button type="button" className="wk-link-btn" onClick={() => go('wpisy', 'widok', e.id)}>Pokaż</button>

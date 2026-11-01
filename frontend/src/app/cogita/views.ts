@@ -5,7 +5,7 @@
  * Plätze auf der Leinwand — und wie er sich zeigt.
  *
  * <code>
- *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map" | "outline",
+ *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map" | "outline" | "quilt",
  *     steps: [{ type: "source.kind", config: { kind } }, { type: "follow", config: { field, back } },
  *             { type: "filter.rule", config: { rule } }],
  *     query, group: { by: "kind" } | { by: "field", field } | { by: "axis", kind, via, through?, sort?, group? },
@@ -40,8 +40,17 @@ import {
 } from './selection';
 import { childrenOf, orderByPlace, parentsOf, placeOf } from './structure';
 
-/** 2026-10-24 — `outline` (Struktura): die Einträge mit dem, wohin ihre „Idź po odwołaniu"-Schritte führen, als ein lesbares Ganzes (`viewOutline`). */
-export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline';
+/**
+ * 2026-10-24 — `outline` (Struktura): die Einträge mit dem, wohin ihre „Idź po odwołaniu"-Schritte führen, als ein lesbares Ganzes (`viewOutline`).
+ * 2026-11-01 — `quilt` (Postępy, Lemma): je Eintrag eine Kachel in der Farbe dessen, wie gut der Betrachter ihn kann — in den
+ * Gruppen des Widoku; ein Klick zeigt, was zu lesen ist, die Fragen und „Ćwicz to" (`quilt.ts`, `QuiltView.tsx`).
+ */
+export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline' | 'quilt';
+
+/** 2026-11-01 — die Gestalten in Worten (Wpisy, der Baustein „Widok", die Beschreibung des JSON). */
+export const LIST_MODE_LABEL: Readonly<Record<ListMode, string>> = {
+  table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno', matrix: 'Macierz', map: 'Mapa', outline: 'Struktura', quilt: 'Mapa postępów'
+};
 
 /** Zeilen und Spalten einer Macierz. */
 export interface MatrixDef {
@@ -112,7 +121,7 @@ export function readView(raw: unknown): ViewDoc {
   ];
   return {
     name: typeof d.name === 'string' ? d.name : 'Widok',
-    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' || d.mode === 'outline' ? d.mode : 'table',
+    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' || d.mode === 'outline' || d.mode === 'quilt' ? d.mode : 'table',
     steps,
     query: typeof d.query === 'string' ? d.query : '',
     group: readGrouping(d.group),
@@ -295,18 +304,27 @@ export interface ViewColumn {
 
 export const AXIS_COLUMN = '#axis:';
 
-/** Was in einer Zelle steht: ein Feld in Worten — oder die Werte einer Achse (eines Rodzaj), auf die der Eintrag zeigt. */
-export function cellText(lib: ViewLib, e: Entity, key: string): string {
-  if (key === '_label') return lib.label(e);
+/**
+ * Was in einer Zelle steht: ein Feld in Worten — oder die Werte einer Achse (eines Rodzaj), auf die der Eintrag zeigt.
+ * 2026-11-01 — `tex`: Wzory bleiben `$…$` (gezeigt mit `TexText`); ohne — eine Zeile ohne LaTeX (Suche, Reihenfolge).
+ */
+export function cellText(lib: ViewLib, e: Entity, key: string, tex = false): string {
+  if (key === '_label') return tex ? labelOf(e, lib.look, 0, false, true) : lib.label(e);
   if (key.startsWith('#') && !key.startsWith(AXIS_COLUMN)) return knowingValue(lib, e, key)?.text ?? '';
   if (key.startsWith(AXIS_COLUMN)) {
     const ctx = lib.selectContext();
     const kind = key.slice(AXIS_COLUMN.length);
     const values = new Set(lib.material(kind).map((v) => v.id));
-    return axisMembers(ctx, e, { kind, via: [] }, values).map((id) => { const v = ctx.entity(id); return v === undefined ? '' : labelOf(v, lib.look); }).filter(Boolean).join(', ');
+    return axisMembers(ctx, e, { kind, via: [] }, values).map((id) => { const v = ctx.entity(id); return v === undefined ? '' : labelOf(v, lib.look, 0, false, tex); }).filter(Boolean).join(', ');
   }
   const f = fieldsOf(e, lib.look).find((x) => x.key === key);
-  return f === undefined ? '' : fieldText(e, f, lib.look);
+  return f === undefined ? '' : fieldText(e, f, lib.look, 0, false, tex);
+}
+
+/** 2026-11-01 — der Name einer Gruppe mit seinen Wzory: eine Gruppe nach einem Eintrag (Achse, Verweis) heisst wie er. */
+export function groupTitle(lib: Pick<ViewLib, 'selectContext' | 'look'>, group: Pick<Group, 'key' | 'label'>): string {
+  const e = group.key === '' ? undefined : lib.selectContext().entity(group.key);
+  return e === undefined ? group.label : labelOf(e, lib.look, 0, false, true);
 }
 
 /** Die Spalten: die gewählten (Felder und Achsen) — sonst die ersten vier Felder (ohne Fliesstext) der Einträge. */

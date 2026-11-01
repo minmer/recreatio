@@ -35,7 +35,8 @@ import { ValueInput } from './AddFormRun';
 import { connect, problemsOf as graphProblems, wouldCycle, type Graph, type GraphNode } from './graph';
 import { FitWhenMeasured, Remeasure } from './GraphEditor';
 import { FIELD_TYPE_LABEL, type FieldDef, type KindDef, type Lookup } from './schema';
-import { creatorFor, EntityPicker, entityName, useBusy, useCtx } from './ui';
+import { creatorFor, EntityPicker, entityName, entityNameTex, useBusy, useCtx } from './ui';
+import { TexText } from '../ui/tex/Tex';
 
 /* -- Die Liste und ein neues Formular ------------------------------------------------------------- */
 
@@ -790,7 +791,7 @@ function PickPanel({ form, node, readOnly, onConfig }: {
         <span>Wybrane od razu</span>
         {c.value.map((id) => (
           <span key={id} className="cg-row">
-            <span>{entityName(lib, id)}</span>
+            <span><TexText text={entityNameTex(lib, id)} /></span>
             {!readOnly && <button type="button" className="wk-link-btn" aria-label="Usuń" onClick={() => onConfig({ value: c.value.filter((x) => x !== id) })}>×</button>}
           </span>
         ))}

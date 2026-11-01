@@ -33,6 +33,7 @@ import { levelsOf, readPlan } from '../../cogita/revision';
 import { planFor, RevisionRun } from '../../cogita/RevisionRun';
 import { seatCtx, useSeatLearner, useSeatLibrary } from '../../cogita/seatLearn';
 import { SessionPlay } from '../../cogita/Sessions';
+import { DailyGoal } from '../../cogita/DailyGoal';
 import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync, useBusy, type CogitaCtx } from '../../cogita/ui';
 import { OnSeat } from './seat';
@@ -90,7 +91,14 @@ function TeacherLink({ library, area }: { library: string; area: string | null }
  */
 export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: PartContext }) {
   const { lib, ctx: cg } = usePageBase(config.library);
-  const doc = lib == null ? undefined : lib.docs('revision').find((e) => e.id === config.revision);
+  /*
+   * 2026-11-01 — „NASTĘPNA LEKCJA": der Baustein stellt sich auf die Powtórka um, die die gelaufene nennt (`next`) — mit
+   * ihrem Bereich für die Antworten, ihren Karten, ihrem Namen; die Seite neu geladen, gilt wieder die eingestellte.
+   */
+  const [current, setCurrent] = useState<string | null>(null);
+  useEffect(() => { setCurrent(null); }, [config.revision]);
+  const revisionId = current ?? config.revision;
+  const doc = lib == null ? undefined : lib.docs('revision').find((e) => e.id === revisionId);
   /*
    * 2026-10-27 — als wer: die Person der Seite, ein Platz aus dem Link, sonst der Browser (`pageLearner.tsx`).
    * 2026-11-01 — und wohin: der Bereich, den dieser Baustein nennt, sonst die Powtórka (`answersTo.ts`).
@@ -99,7 +107,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
   const learner = who.learner;
   const [view, setView] = useState<'run' | 'stats' | null>(null);
   const name = typeof doc?.data.name === 'string' ? doc.data.name : '';
-  const title = config.title || name || 'Powtórka';
+  const title = current === null ? config.title || name || 'Powtórka' : name || 'Powtórka';
   const planned = useAsync(lib == null || doc === undefined ? null : () => planFor(lib, doc.id, null, 'page'), [lib, lib?.revision, doc?.id]);
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
   if (doc === undefined) return <><Head title={title} /><p className="wk-card-muted">Tej powtórki nie ma w bazie wiedzy.</p></>;
@@ -117,7 +125,8 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
       <CogitaContext.Provider value={cg}>
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
         {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
-        <RevisionRun key={who.as ?? ''} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setView(null)} />
+        <RevisionRun key={`${who.as ?? ''}:${doc.id}`} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setView(null)}
+          onOpenRevision={(id) => { setCurrent(id); setView('run'); }} />
       </CogitaContext.Provider>
     );
   }
@@ -419,7 +428,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
     if (learning === null || lib == null) return null;
     const of = cards.filter((c) => c.entity === learning);
     const e = lib.entity(learning);
-    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, deps, title: e === undefined ? 'Powtórka' : lib.label(e) };
+    return { plan: readPlan(of, { mode: 'once', order: 'random' }), cards: of, deps, title: e === undefined ? 'Powtórka' : lib.labelTex(e) };
   }, [learning, lib, cards, deps]);
 
   const title = config.title || 'Mapa wiedzy';
@@ -465,8 +474,10 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
         nodes={graph.ids.map((id) => {
           const state = fog.get(id) ?? 'fog';
           const e = lib.entity(id);
-          const label = e === undefined ? '?' : lib.label(e);
-          return { id, label, state, title: state === 'fog' ? 'Jeszcze w mgle' : `${label} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
+          /* 2026-11-01 — die Karte setzt Wzory im Etikett (`labelTex`); der Hinweis bleibt eine Zeile ohne LaTeX. */
+          const label = e === undefined ? '?' : lib.labelTex(e);
+          const plain = e === undefined ? '?' : lib.label(e);
+          return { id, label, state, title: state === 'fog' ? 'Jeszcze w mgle' : `${plain} · ${Math.round(shareOf(knowness(id)) * 100)}%` };
         })} />
       {entity !== undefined && chosen !== null && (
         <div className="cg-card">
@@ -492,8 +503,9 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   if (lib === undefined) return <p className="wk-card-muted">Otwieranie bazy wiedzy…</p>;
   if (lib === null || ctx === null) return <p className="wk-card-muted">Ta baza wiedzy nie jest dostępna z tego linku.</p>;
   const revisions = lib.docs('revision').filter((r) => config.revision === '' || r.id === config.revision);
+  /* 2026-11-01 — auch die nächste Lektion (`next`), die nicht unter den Powtórki dieses Bausteins steht. */
   const nameOf = (id: string) => {
-    const doc = revisions.find((r) => r.id === id);
+    const doc = lib.docs('revision').find((r) => r.id === id);
     return typeof doc?.data.name === 'string' ? doc.data.name : 'Powtórka';
   };
 
@@ -507,7 +519,8 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   if (running !== null) {
     return (
       <CogitaContext.Provider value={ctx}>
-        <RevisionRun lib={lib} learner={learner} source={{ revisionId: running, title: nameOf(running) }} onClose={() => setRunning(null)} />
+        <RevisionRun key={running} lib={lib} learner={learner} source={{ revisionId: running, title: nameOf(running) }} onClose={() => setRunning(null)}
+          onOpenRevision={(id) => setRunning(id)} />
       </CogitaContext.Provider>
     );
   }
@@ -529,6 +542,8 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
           <p className="wk-card-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
         </>
       )}
+      {/* 2026-11-01 (2.11) — wer über den Link lernt, hat keine Nauka: das Tagesziel steht hier (nur mit „Serie dni nauki"). */}
+      {tall && <DailyGoal lib={lib} learner={learner} compact />}
       {revisions.length === 0 ? <p className="wk-card-muted">W tej bazie wiedzy nie ma jeszcze powtórki.</p> : (
         <div className="wk-actions">
           {revisions.map((r) => <button key={r.id} type="button" className="wk-btn" disabled={learner === null} onClick={() => setRunning(r.id)}>{nameOf(r.id)}</button>)}

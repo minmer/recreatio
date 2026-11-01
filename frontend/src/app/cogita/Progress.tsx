@@ -18,9 +18,11 @@ import { gaugeFromMarks, itemDue, itemKnowness, ownKnowness } from './knowing';
 import { adoptLocal, areaProgress, loadAnswerAreas, localProgress, marksOf, renamer, type AnswerArea, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
 import { answerIndex, answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
 import { ClassKnowledge, KnowledgeStats } from './KnowCharts';
-import { AnswerLog, cardText } from './AnswerLog';
+import { AnswerLog, cardLine } from './AnswerLog';
 import { planFor } from './RevisionRun';
-import { entityName } from './ui';
+import { ClassMaps, ClassQuestions, QuiltMaps, useQuiltViews } from './QuiltView';
+import { EntityTitle, entityNameTex } from './ui';
+import { TexText } from '../ui/tex/Tex';
 import { offlineList, dropOffline } from './offline';
 import { ProgressJsonPanel } from './ProgressJsonPanel';
 import { Bar, percent, useAsync, useBusy, useCtx } from './ui';
@@ -50,6 +52,8 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
   const answered = learner?.progress.answers.size ?? 0;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const byCard = useMemo(() => (learner === null ? null : answerIndex(learner.progress, rename)), [learner, rename, answered]);
+  /* 2026-11-01 — die Mapy postępów: die Widoki der Baza im Modus „Mapa postępów" (ohne solchen Widok nichts). */
+  const quilts = useQuiltViews();
   if (cards === null) return <p className="wk-hint">Liczenie kart…</p>;
   if (learner === null) return <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce — zaloguj się, żeby je zachować.</p>;
   const marks = (card: Card) => learner.marks(card.key, card.fingerprint, rename);
@@ -64,6 +68,13 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
         <span className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${all.levels[l]}`).join(' · ')} · odpowiedzi: {learner.progress.answers.size}</span>
         {learner.waiting > 0 && <span className="wk-note">{learner.waiting} pakietów czeka na internet.</span>}
       </div>
+      {/* 2026-11-01 — die Mapa postępów: jede Idee eine Kachel; ein Klick — lesen, die Fragen, „Ćwicz to". */}
+      {quilts.length > 0 && byCard !== null && (
+        <details className="cg-card" open data-own-quilt="">
+          <summary>Mapa postępów</summary>
+          <QuiltMaps cards={cards} answers={byCard} learner={learner} />
+        </details>
+      )}
       {/* 2026-10-31 — Statystyki: wo die Karten stehen, Tag für Tag, was fällig wird, Themen, Rodzaje pytań, das Schwerste. */}
       {byCard !== null && (
         <details className="cg-card" open data-own-stats="">
@@ -224,6 +235,8 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
   /* 2026-10-31 — jeder Uczący się mit seinen Antworten nach Karte geordnet: für die Diagramme aller und jedes Einzelnen. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const learners = useMemo(() => (rows ?? []).map((r) => ({ id: r.holder, name: nameOf(r), answers: answerIndex(r.progress, rename) })), [rows, names, rename]);
+  /* 2026-11-01 — die Mapy postępów der Baza (Widoki im Modus „Mapa postępów"): die Klasse zusammen und jeder für sich. */
+  const quilts = useQuiltViews();
   if (failed !== null) return <p className="wk-hint">{failed}</p>;
   if (rows === null || cards === null) return <p className="wk-hint">Otwieranie postępów…</p>;
   if (rows.length === 0) return <p className="wk-empty">Nikt jeszcze nie odpowiadał w tym obszarze.</p>;
@@ -235,6 +248,18 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
       <StatsControls scope={scope} model={model} onModel={setModel} />
       {/* 2026-10-31 — alle zusammen als Diagramme: Kacheln, jeder als Balken, Tematy × uczący się, Antworten je Tag, das Schwerste. */}
       <ClassKnowledge lib={lib} cards={shown} learners={learners} />
+      {/* 2026-11-01 — wer was kann, auf der Karte des Kurses (Ideen unter Lektionen): alle zusammen, oder eine Person. */}
+      {quilts.length > 0 && (
+        <details className="cg-card" open data-class-quilt-fold="">
+          <summary>Mapa postępów klasy — kto co umie</summary>
+          <ClassMaps cards={cards} learners={learners} />
+        </details>
+      )}
+      {/* 2026-11-01 — je Frage über alle: wo die Klasse scheitert, wie viele Versuche, Podpowiedzi, die häufigste falsche Antwort. */}
+      <details className="cg-card" data-class-questions-fold="">
+        <summary>Pytania — gdzie klasa się myli</summary>
+        <ClassQuestions cards={shown} learners={learners} />
+      </details>
       <span className="cg-muted">Kliknij imię — zobaczysz odpowiedzi tej osoby, pytanie po pytaniu, i jej wykresy.</span>
       <div className="cg-table-wrap">
         <table className="cg-table cg-stats-table">
@@ -260,6 +285,13 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
                       <td colSpan={8}>
                         {/* 2026-10-31 — dieselben Diagramme, die der Uczący się selbst sieht. */}
                         <KnowledgeStats lib={lib} cards={shown} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} />
+                        {/* 2026-11-01 — und seine Mapa postępów (ohne „Ćwicz to" — üben kann nur er selbst). */}
+                        {quilts.length > 0 && (
+                          <details className="cg-card" open data-learner-quilt={r.holder}>
+                            <summary>Mapa postępów — {nameOf(r)}</summary>
+                            <QuiltMaps cards={cards} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} />
+                          </details>
+                        )}
                         {/* 2026-11-01 — was er geantwortet hat, Antwort für Antwort. */}
                         <details className="cg-card" open data-learner-answers={r.holder}>
                           <summary>Odpowiedzi — co odpowiedział(a)</summary>
@@ -369,7 +401,7 @@ function ItemTable({ cards, learner, rename }: { cards: readonly Card[]; learner
         <tbody>
           {rows.slice(0, 300).map((r) => (
             <tr key={r.id} className={r.total >= KNOWN ? 'is-known' : r.answered > 0 ? 'is-learning' : 'is-unseen'}>
-              <td className="cg-stats-q">{entityName(lib, r.id).slice(0, 140)}</td>
+              <td className="cg-stats-q"><EntityTitle lib={lib} id={r.id} /></td>
               <td>{r.answered === 0 ? '—' : percent(shareOf(r.own))}</td>
               <td>{r.total === 0 && r.answered === 0 ? '—' : percent(shareOf(r.total))}</td>
               <td>{r.answered} z {r.all}</td>
@@ -389,7 +421,8 @@ function ItemTable({ cards, learner, rename }: { cards: readonly Card[]; learner
  */
 function QuestionTable({ stats }: { stats: readonly CardStat[] }) {
   const { lib } = useCtx();
-  const name = (id: string) => entityName(lib, id);
+  /* 2026-11-01 — die Frage mit ihren Wzory (der Name eines Eintrags ebenso). */
+  const name = (id: string) => entityNameTex(lib, id);
   const ordered = [...stats].sort((a, b) => Number(a.known) - Number(b.known) || a.now - b.now);
   if (ordered.length === 0) return <span className="cg-muted">Brak kart w tym zakresie.</span>;
   return (
@@ -399,7 +432,7 @@ function QuestionTable({ stats }: { stats: readonly CardStat[] }) {
         <tbody>
           {ordered.slice(0, 300).map((s) => (
             <tr key={s.card.key} className={s.known ? 'is-known' : s.seen ? 'is-learning' : 'is-unseen'}>
-              <td className="cg-stats-q">{cardText(s.card, name).slice(0, 140)}</td>
+              <td className="cg-stats-q"><TexText text={cardLine(s.card, name)} /></td>
               <td>{s.answers}</td>
               <td>{s.answers === 0 ? '—' : `${s.right} (${percent(s.share ?? 0)})`}</td>
               <td>{s.msAvg === null ? '—' : spanText(s.msAvg)}</td>

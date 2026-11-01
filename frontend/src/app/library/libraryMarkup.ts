@@ -364,11 +364,21 @@ export function mapRefTokens(source: string, map: (token: string) => string): st
   return out;
 }
 
+/**
+ * 2026-11-01 — WAS AUS EINEM WZÓR IM SCHLICHTEN TEXT WIRD: `plain` eine Zeile ohne LaTeX (Suche, Auszüge, Etiketten
+ * ohne KaTeX); `keep` der Wzór, wie er war (`$…$`, `$$…$$`), und ein Dollar im Text als `\$` — so setzt ihn `TexText`
+ * später; `inline` dasselbe, aber jeder Wzór im Satz (`$…$`) — für Zeilen in Listen.
+ */
+export type TexMode = 'plain' | 'keep' | 'inline';
+
 /** Der Text ohne Zeichen — für Auszüge und die Suche. `headings: false` — nur, was man liest (für den Anfang eines Textes). */
-export function plainText(source: string, headings = true): string {
+export function plainText(source: string, headings = true, tex: TexMode = 'plain'): string {
   const parts: string[] = [];
+  const mathOf = (one: { readonly tex: string; readonly display: boolean }): string =>
+    tex === 'plain' ? texPlain(one.tex) : one.display && tex === 'keep' ? `$$${one.tex}$$` : `$${one.tex.replace(/\s+/g, ' ').trim()}$`;
+  const textOf = (v: string): string => (tex === 'plain' ? v : v.replace(/\$/g, '\\$'));
   const inline = (list: readonly Inline[]): string => list.map((one) =>
-    one.t === 'text' ? one.v : one.t === 'br' ? ' ' : one.t === 'cite' || one.t === 'note' ? '' : one.t === 'math' ? texPlain(one.tex) : inline(one.c)).join('');
+    one.t === 'text' ? textOf(one.v) : one.t === 'br' ? ' ' : one.t === 'cite' || one.t === 'note' ? '' : one.t === 'math' ? mathOf(one) : inline(one.c)).join('');
   const blocks = (list: readonly Block[]) => {
     for (const b of list) {
       if (b.t === 'p' || (b.t === 'h' && headings)) parts.push(inline(b.c));

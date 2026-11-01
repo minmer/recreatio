@@ -13,6 +13,7 @@ import { planImport, type ImportPlan } from './json';
 import { changesOf, decidedPlan, defaultDecisions, editedValue, editText, type Decisions, type ImportChange } from './importReview';
 import type { CogitaLibrary } from './store';
 import { useCtx } from './ui';
+import { TexText } from '../ui/tex/Tex';
 
 /**
  * Die Durchsicht für ein JSON-Fach: `options` zeichnet sie unter den Plan, `decide` gibt beim Speichern
@@ -82,7 +83,7 @@ function ImportReview({ doc, decisions, onDecisions }: { doc: unknown; decisions
           </div>
           {[...groups.values()].map((list) => (
             <div key={`${list[0]!.target}:${list[0]!.targetId}`} className="cg-review-item" data-review-target={list[0]!.targetId}>
-              <p className="cg-review-title">{list[0]!.title}</p>
+              <p className="cg-review-title"><TexText text={list[0]!.title} /></p>
               <ul className="cg-review-fields">
                 {list.map((c) => <ChangeRow key={c.id} change={c} on={now.accepted.has(c.id)} edited={now.edited.get(c.id)} onToggle={(on) => set([c.id], on)} onEdit={(text) => edit(c.id, text)} />)}
               </ul>
@@ -105,7 +106,7 @@ function ImportReview({ doc, decisions, onDecisions }: { doc: unknown; decisions
                 <li key={c.id}>
                   <label className="pe-check">
                     <input type="checkbox" checked={now.accepted.has(c.id)} onChange={(e) => set([c.id], e.target.checked)} data-review-new={c.targetId} />
-                    <span>{c.title}{c.afterText !== '' && <span className="cg-muted"> — {c.afterText}</span>}</span>
+                    <span><TexText text={c.title} />{c.afterText !== '' && <span className="cg-muted"> — {c.afterText}</span>}</span>
                   </label>
                 </li>
               ))}
