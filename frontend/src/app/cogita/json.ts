@@ -1211,8 +1211,8 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   każda odpowiedź zostaje zapisana; karta pamięta tylko kilka wartości: kiedy ostatnio odpowiedziano, ile czasu naprawdę minęło przed tą odpowiedzią, odstęp do następnego razu i najlepszy odstęp przed ostatnim błędem;
   dobrze (od 90%): odstęp = czas, który naprawdę minął × 3 (odpowiedź przed terminem go nie skraca); częściowo: jedna trzecia tego czasu, co najmniej dzień, jeśli minęły dni; źle (poniżej 25%): 5 minut; dobrze zaraz po błędzie: 0,4 × najlepszy odstęp sprzed błędu
     — np. źle po 5 dniach: wraca po 5 minutach; dobrze zaraz potem: za 2 dni; znów dobrze po 2 dniach: za 6 dni;
-  znajomość karty: poprawność ostatniej odpowiedzi × 10^(0,5·(1 − czas od odpowiedzi ÷ odstęp)) — zaraz po dobrej 3,16, w dniu powtórki 1, potem spada; po złej 0;
-  trzy pasma (stałe): „znane” od 1 (100 %) — jeszcze nie pora; „do powtórki” od 0,1 do 1 — umiesz, a teraz (albo zaraz) trzeba powtórzyć: termin powtórki NIE znaczy „nie umiem”; „nieznane” poniżej 0,1 — nigdy nie pytane, ostatnio źle albo zapomniane (trzy odstępy po terminie);
+  znajomość karty: poprawność ostatniej odpowiedzi × √(10 ÷ (1 + 9 · czas od odpowiedzi ÷ odstęp)) — zaraz po dobrej 3,16, w dniu powtórki 1, potem spada coraz wolniej (10 % dopiero po 111 odstępach, nigdy 0); po złej 0;
+  trzy pasma (stałe): „znane” od 1 (100 %) — jeszcze nie pora; „do powtórki” od 0,1 do 1 — umiesz, a teraz (albo zaraz) trzeba powtórzyć: termin powtórki NIE znaczy „nie umiem”; „nieznane” poniżej 0,1 — nigdy nie pytane, ostatnio źle albo zapomniane (111 odstępów po terminie);
   znajomość wpisu: średnia znajomości jego kart Z ODPOWIEDZIĄ, ważona "weight" z "tests" (karta jeszcze nie pytana nie jest dowodem); to, co na nim buduje (pola z "prerequisite" — połowa — i zależności z Ustawień, z ich wagą), podnosi ją co najmniej do tej części najlepszego z nich — nigdy do ich sumy
 
 "revisions" — powtórki: {"name", "graph", "next"} (źródła → kroki → … → jeden „Sposób pytania")

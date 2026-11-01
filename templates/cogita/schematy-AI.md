@@ -14,7 +14,7 @@ Przewodnik mówi, **co aplikacja liczy sama** (tego schemat nie opisuje) i **co 
 
 ## 1. Co aplikacja liczy sama — tego nie deklarujesz
 
-**Pamięć jednej karty.** Każda odpowiedź zostaje zapisana; karta pamięta kilka wartości i z nich liczy następny odstęp: dobrze (od 90 %) — czas, który naprawdę minął, × 3; częściowo — jedna trzecia; źle (poniżej 25 %) — 5 minut. Znajomość karty: 3,16 zaraz po dobrej odpowiedzi, **dokładnie 1 w chwili, gdy przychodzi pora powtórki**, potem spada.
+**Pamięć jednej karty.** Każda odpowiedź zostaje zapisana; karta pamięta kilka wartości i z nich liczy następny odstęp: dobrze (od 90 %) — czas, który naprawdę minął, × 3; częściowo — jedna trzecia; źle (poniżej 25 %) — 5 minut. Znajomość karty: 3,16 zaraz po dobrej odpowiedzi, **dokładnie 1 w chwili, gdy przychodzi pora powtórki**, potem spada coraz wolniej (nigdy do zera; poniżej 10 % dopiero po 111 odstępach).
 
 **Trzy pasma** — te same dla każdego rodzaju wiedzy:
 

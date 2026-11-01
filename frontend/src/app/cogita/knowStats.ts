@@ -306,9 +306,8 @@ export interface HistoryAnswer {
 
 export interface CardHistory {
   /**
-   * Die Kurve bis jetzt als Ecken. Zwischen zwei Antworten fällt die Kenntnis wie 10^(−t) — auf der logarithmischen
-   * Achse eine Gerade: es reichen ihre Enden (und die Stelle, wo sie unter `HISTORY_FLOOR` fällt). Eine Antwort ist ein
-   * senkrechter Sprung: zwei Ecken zur selben Zeit.
+   * Die Kurve bis jetzt als Punkte. Zwischen zwei Antworten fällt die Kenntnis immer langsamer (`knownessAt`), darum
+   * je Stück `PIECE_POINTS` Punkte. Eine Antwort ist ein senkrechter Sprung: zwei Punkte zur selben Zeit.
    */
   readonly past: readonly { readonly at: number; readonly k: number }[];
   /** Wie es ohne Antwort weiterginge, von jetzt bis `until` (gestrichelt). */
@@ -325,21 +324,30 @@ export interface CardHistory {
   readonly forgottenAt: number | null;
 }
 
-/** Wann die Kenntnis eines Zustands auf `level` fällt: q·10^(½(1−t/I)) = level. */
+/** Wann die Kenntnis eines Zustands auf `level` fällt: q·√(10 / (1 + 9·t/I)) = level. */
 function fallsTo(state: CardState, level: number): number | null {
   if (!(state.q > 0) || state.q * Math.sqrt(10) < level) return null;
-  return state.at + Math.max(1, state.interval) * (1 - 2 * Math.log10(level / state.q));
+  return state.at + (Math.max(1, state.interval) * ((10 * state.q * state.q) / (level * level) - 1)) / 9;
 }
 
-/** Ein Stück der Kurve von `t0` bis `t1` ohne Antwort dazwischen — mit der Stelle, wo es den Boden erreicht. */
+/** Wie viele Punkte ein Stück der Kurve bekommt — sie biegt sich, am stärksten gleich nach der Antwort. */
+const PIECE_POINTS = 24;
+
+/**
+ * Ein Stück der Kurve von `t0` bis `t1` ohne Antwort dazwischen. Die Punkte liegen gleichmässig in log(1 + 9·t/I) —
+ * dicht, wo die Kenntnis schnell fällt (gleich nach der Antwort), weit, wo sie nur noch langsam sinkt.
+ */
 function piece(state: CardState, t0: number, t1: number): { at: number; k: number }[] {
-  const k0 = knownessAt(state, t0);
-  const k1 = knownessAt(state, t1);
-  if (k0 <= HISTORY_FLOOR || k1 >= HISTORY_FLOOR) return [{ at: t0, k: k0 }, { at: t1, k: k1 }];
-  const floorAt = fallsTo(state, HISTORY_FLOOR);
-  return floorAt === null || floorAt <= t0 || floorAt >= t1
-    ? [{ at: t0, k: k0 }, { at: t1, k: k1 }]
-    : [{ at: t0, k: k0 }, { at: floorAt, k: HISTORY_FLOOR }, { at: t1, k: k1 }];
+  if (!(state.q > 0) || t1 <= t0) return [{ at: t0, k: knownessAt(state, t0) }, { at: t1, k: knownessAt(state, t1) }];
+  const scale = Math.max(1, state.interval) / 9;
+  const u0 = Math.log1p(Math.max(0, t0 - state.at) / scale);
+  const u1 = Math.log1p(Math.max(0, t1 - state.at) / scale);
+  const out: { at: number; k: number }[] = [];
+  for (let j = 0; j <= PIECE_POINTS; j++) {
+    const at = j === 0 ? t0 : j === PIECE_POINTS ? t1 : state.at + scale * Math.expm1(u0 + ((u1 - u0) * j) / PIECE_POINTS);
+    out.push({ at, k: knownessAt(state, at) });
+  }
+  return out;
 }
 
 /**

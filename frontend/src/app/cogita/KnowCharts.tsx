@@ -589,9 +589,9 @@ const MONTH_YEAR = new Intl.DateTimeFormat('pl-PL', { month: 'numeric', year: 'n
 const WHEN = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 
 /**
- * WIE SICH DIE KENNTNIS DIESER KARTE ENTWICKELT HAT — nach jeder Antwort im Lauf. Die Achse ist logarithmisch: das
- * Vergessen (10^(−t)) wird eine Gerade, und 10 % (darunter: nieznane) und 100 % (die Pora powtórki) liegen beide gut
- * sichtbar. Jeder Punkt ist der Wert gleich nach einer Antwort; gestrichelt, wie es ohne Antwort weiterginge.
+ * WIE SICH DIE KENNTNIS DIESER KARTE ENTWICKELT HAT — nach jeder Antwort im Lauf. Die Achse ist logarithmisch: 10 %
+ * (darunter: nieznane) und 100 % (die Pora powtórki) liegen beide gut sichtbar, und das immer langsamere Sinken bleibt
+ * lesbar. Jeder Punkt ist der Wert gleich nach einer Antwort; gestrichelt, wie es ohne Antwort weiterginge.
  */
 export function CardHistoryChart({ marks, now: given }: { marks: readonly Mark[]; now?: number }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `marks`: eine neue Antwort ist ein neues Jetzt

@@ -2948,3 +2948,20 @@ Owner: "after answering a card there should be a view of how the knowness of thi
   `cardrun/drive-history.mjs`, 7, light and dark): no chart before the answer, auto range, 316 % after a right answer,
   7 days with the note, the tip „0% → 316%”, a new card answered wrong.
 
+## C13 — Cogita: knowness falls ever more slowly (2026-11-01)
+
+Owner, on the C12 chart (one right answer, then a plunge to 0 within a day): "the knowness shouldn't fall linear but
+limited". The old curve q·10^(½(1 − t/I)) is exponential — after a first right answer (I = 15 min) one day is 96
+intervals and knowness 10^−47.
+
+- `knowness.ts` `knownessAt`: q·√(10 / (1 + 9·t/I)). Same at 0 (√10 = 316 %) and at the due time (exactly 1), so the
+  intervals, the due times and the order of the stack are unchanged; after that the fall slows down (a day after one
+  right answer ~11 %, a month ~2 %), 10 % only after 111 intervals, never 0. „Zapomniana” therefore comes much later;
+  until then a card stands in „do powtórki”, weakest first.
+- `knowStats.ts`: `fallsTo` inverted for the new curve; `piece` samples 24 points per stretch, evenly in
+  log(1 + 9·t/I) (dense right after an answer). Topic shares in the statistics are higher accordingly.
+- Texts: the JSON description (`json.ts`), COGITA.md, `schematy-AI.md`; guides and ImportFormats.json regenerated.
+- Checks: app-cogita-check 754 (bands at 111 intervals, the stack fixture's forgotten card at 2000 min, the slowing
+  fall, the history's due/forgotten times and bent future), full app:check. Browser harness: `drive-bands.mjs` 8,
+  `drive-history.mjs` 8 (new: one right answer 44 h ago still ~8 % before the next answer, the bent curve).
+

@@ -455,8 +455,10 @@ to the view and the schema; the computation of knowness is fixed in code and the
   (< 0.25) — back to 5 minutes (`MIN_INTERVAL`), never at once; right just after a mistake — 0.4 × the best interval
   before it (`RELEARN`). Checked as ranges: wrong after 5 days → ~5 min; right then → 1–3 days; partly → 1–2 days;
   right 2 days later → 6–10 days.
-- **A card's knowness**: last correctness × 10^(0.5·(1 − t/interval)) — √10 right after a right answer, exactly 1 at
-  the due time (the line „known”), then down; 0 after a wrong one.
+- **A card's knowness**: last correctness × √(10 / (1 + 9·t/interval)) — √10 right after a right answer, exactly 1 at
+  the due time (the line „known”), then down ever more slowly (10 % only after 111 intervals, never 0); 0 after a wrong
+  one. Until 2026-11-01 it was 10^(0.5·(1 − t/interval)): the same at 0 and at the due time, but then a plunge (a card
+  answered right once stood at 10^−47 a day later) — the owner: „not linear but limited”.
 - **Knowness belongs to the item** — a card is evidence. A card template declares in the schema what its cards test
   and how strongly (`tests`: `this` or a reference field, with a weight; a precise question counts more, one card may
   feed several items); without it, its entry (and a question's „O czym”) with 1. The item's own knowness is the
@@ -507,7 +509,7 @@ fixed in the app and what a scheme declares — and how to build schemes for it 
 - **The history of a card after each answer** (2026-11-01, `KnowCharts.tsx` `CardHistoryChart`, `knowStats.ts`
   `cardHistory`): under the verdict in a run with a learner, the knowness of this card over 1 day / 7 / 30 / 90 days /
   a year / from the start (the smallest range showing every answer unless the viewer chose one, remembered per
-  browser). Log axis — forgetting is a straight line, 10 % and 100 % are both visible lines with the three bands
+  browser). Log axis — 10 % and 100 % are both visible lines with the three bands
   behind them; a point is the value right after an answer (filled right, ring partly, grey ring wrong), dashed what
   comes without an answer; the head says the value now and when it falls under 100 % (or 10 %). Same computation as
   everywhere (`step`, `knownessAt`).

@@ -262,9 +262,9 @@ check('right after a wrong answer it is nothing (0), and it comes back in 5 minu
   [K.knownessOf([{ at: 0, correctness: 0 }], 0), K.dueAt([{ at: 0, correctness: 0 }])], [0, 5 * MINUTE]);
 check('never answered is nothing', K.knownessOf([], 0), 0);
 check('unseen, learning, known', [K.levelOf([], 0), K.levelOf(first, 20 * MINUTE), K.levelOf(first, MINUTE)], ['unseen', 'learning', 'known']);
-/* 2026-11-01 — DIE DREI BÄNDER: der Termin heisst „do powtórki", nicht „nieznane"; vergessen erst nach drei Abständen. */
-check('three bands: due time is „do powtórki” (just under 1), three intervals late is forgotten — „nieznane”, as is a wrong last answer',
-  [K.levelOf(first, 15 * MINUTE + 1000), K.levelOf(first, 2 * 15 * MINUTE), K.levelOf(first, 3 * 15 * MINUTE + MINUTE), K.levelOf([{ at: 0, correctness: 0 }], MINUTE), K.FORGOTTEN, K.LEVEL_LABEL],
+/* 2026-11-01 — DIE DREI BÄNDER: der Termin heisst „do powtórki", nicht „nieznane"; vergessen erst nach 111 Abständen. */
+check('three bands: due time is „do powtórki” (just under 1), 111 intervals late is forgotten (the fall slows down) — „nieznane”, as is a wrong last answer',
+  [K.levelOf(first, 15 * MINUTE + 1000), K.levelOf(first, 3 * 15 * MINUTE), K.levelOf(first, 112 * 15 * MINUTE), K.levelOf([{ at: 0, correctness: 0 }], MINUTE), K.FORGOTTEN, K.LEVEL_LABEL],
   ['learning', 'learning', 'unseen', 'unseen', 0.1, { unseen: 'nieznane', learning: 'do powtórki', known: 'znane' }]);
 check('… the band of a number: below 10 % nieznane, below 100 % do powtórki, from 100 % znane',
   [0, 0.09, 0.1, 0.9, 1, 3].map((k) => K.levelOfKnowness(k)), ['unseen', 'unseen', 'learning', 'learning', 'known', 'known']);
@@ -850,8 +850,8 @@ check('temporal: what is not known yet keeps coming back', stubborn.asked.filter
   const T = 10 * DAY;
   const vk = plan.cards.map((c) => c.key);
   const right = (minutesAgo) => [{ at: T - minutesAgo * MINUTE, correctness: 1 }];
-  /* Eine erste richtige Antwort hält 15 Minuten: nach 16 Minuten 0,93 (do powtórki), nach 35 0,22, nach 60 0,03 (vergessen), nach 5 2,15 (znane). */
-  const marksOf = { [vk[0]]: right(16), [vk[1]]: right(35), [vk[2]]: right(60), [vk[3]]: right(5) };
+  /* Eine erste richtige Antwort hält 15 Minuten: nach 16 Minuten 0,97 (do powtórki), nach 35 0,67, nach 2000 (111 Abstände vorbei) 0,09 (vergessen), nach 5 1,58 (znane). */
+  const marksOf = { [vk[0]]: right(16), [vk[1]]: right(35), [vk[2]]: right(2000), [vk[3]]: right(5) };
   const at = (p, marks = marksOf) => begin(p, 'bands', { marks: (key) => marks[key] ?? [], now: T });
   const base = { ...plan, mode: 'temporal', order: 'given', pick: 'next', ahead: false };
   check('the stack by bands: due first (the weakest first), then unknown — forgotten and new — in the order of the revision; the known only „na zapas”',
@@ -3232,12 +3232,12 @@ check('goals and lines follow the one logic', [
     [s.days.map((d) => [d.answers, d.right, d.known]), s.forecast.map((f) => f.due)], [[[0, 0, 0], [1, 1, 0], [4, 3, 2]], [5, 0, 0]]);
   check('… topics weakest first (never-asked last), question types by accuracy, the hardest cards',
     [s.topics.map((t) => [t.id, t.cards, t.answered, t.known, r3(t.share)]), s.forms.map((f) => [f.id, f.answers, r3(f.accuracy)]), s.hardest.map((h) => h.card.key)],
-    [[['t2', 3, 3, 0, 0.227], ['t1', 2, 2, 2, 1], ['e5', 1, 0, 0, 0]], [['order', 2, 0.5], ['one', 2, 1], ['text', 1, 1], ['date', 0, null]], ['c4']]);
+    [[['t2', 3, 3, 0, 0.324], ['t1', 2, 2, 2, 1], ['e5', 1, 0, 0, 0]], [['order', 2, 0.5], ['one', 2, 1], ['text', 1, 1], ['date', 0, null]], ['c4']]);
   const theirs = { c1: [a('c1', now - MIN, 1)] };
   const cls = KS.classStats(cards, [{ id: 'a', answers: (c) => mine[c.key] ?? [] }, { id: 'b', answers: (c) => theirs[c.key] ?? [] }], now, { days: 3 });
   check('the class: learners, active this week, answers and accuracy of all, answers per day, topics weakest first, each one’s share per topic (— where nothing was answered), the hardest card',
     [cls.all.learners, cls.all.active, cls.all.answers, r3(cls.all.accuracy), cls.all.days.map((d) => d.answers), cls.all.topics, [...cls.all.grid.get('t1')].map(([k, v]) => [k, r3(v)]), [...cls.all.grid.get('t2')].map(([k, v]) => [k, r3(v)]), cls.all.hardest.map((h) => h.card.key)],
-    [2, 2, 6, 0.833, [0, 1, 5], ['t2', 't1', 'e5'], [['a', 1], ['b', 0.5]], [['a', 0.227], ['b', null]], ['c4']]);
+    [2, 2, 6, 0.833, [0, 1, 5], ['t2', 't1', 'e5'], [['a', 1], ['b', 0.5]], [['a', 0.324], ['b', null]], ['c4']]);
   const progress = { answers: new Map([['x1', { ...a('k', 5, 1), id: 'x1' }], ['x2', { ...a('k', 2, 0), id: 'x2' }], ['x3', { ...a('k', 3, 1), id: 'x3', fingerprint: 'old' }], ['x4', { ...a('old-k', 4, 1), id: 'x4' }]]) };
   const byCard = ME.answerIndex(progress, (key) => (key === 'old-k' ? 'k' : key));
   check('answers per card in one pass: in time order, renamed keys follow, an answer to another wording does not count',
@@ -3324,7 +3324,7 @@ check('goals and lines follow the one logic', [
   check('history: the value now is the same knowness as everywhere', h.k, K.knownessOf(marks, now));
   check('… one point per answer: first without a before, the value right after = q·√10 (0 after a wrong one)',
     h.answers.map((a) => [a.before === null, Math.round(a.after * 1000) / 1000, a.grade]), [[true, 3.162, 'correct'], [false, 3.162, 'correct'], [false, 0, 'wrong'], [false, 1.581, 'partly']]);
-  check('… before the second answer: the first decayed for 20 min of its 15', Math.round(h.answers[1].before * 1000) / 1000, Math.round(Math.pow(10, 0.5 * (1 - 20 / 15)) * 1000) / 1000);
+  check('… before the second answer: the first decayed for 20 min of its 15', Math.round(h.answers[1].before * 1000) / 1000, Math.round(Math.sqrt(10 / (1 + 9 * 20 / 15)) * 1000) / 1000);
   check('… the curve starts at the first answer, not before it, and never goes back in time',
     [h.past[0].at === t0, h.past.every((p, i) => i === 0 || p.at >= h.past[i - 1].at)], [true, true]);
   check('… an answer is a vertical jump (two corners at its time)', h.past.filter((p) => p.at === t0 + 20 * M).length, 2);
@@ -3333,11 +3333,15 @@ check('goals and lines follow the one logic', [
   check('… a shorter range: only its answers, the curve starts at the range with the value from before',
     [later.answers.length, later.total, later.past[0].at, Math.round(later.past[0].k * 1e6) / 1e6], [2, 4, t0 + H, Math.round(K.knownessOf(marks.slice(0, 2), t0 + H) * 1e6) / 1e6]);
   const one = KS.cardHistory([{ at: t0, correctness: 1 }], t0 - H, t0 + M, t0 + 2 * H);
-  check('… right after a good answer: due at the interval (15 min), forgotten (10 %) at three intervals',
-    [one.dueAt - t0, one.forgottenAt - t0], [15 * M, 45 * M]);
-  check('… the dashed future reaches the floor and stays there (log axis: 0 is the floor)',
-    one.future.map((p) => Math.round(p.k * 1e4) / 1e4).slice(-2), [KS.HISTORY_FLOOR, Math.round(K.knownessOf([{ at: t0, correctness: 1 }], t0 + 2 * H) * 1e4) / 1e4]);
-  check('… past the due time and the 10 %: neither is announced any more', [h.dueAt, KS.cardHistory([{ at: t0, correctness: 1 }], t0, t0 + 4 * H, t0 + 5 * H).forgottenAt], [null, null]);
+  check('… right after a good answer: due at the interval (15 min), forgotten (10 %) at 111 intervals',
+    [one.dueAt - t0, one.forgottenAt - t0], [15 * M, 111 * 15 * M]);
+  /* 2026-11-01 — der Eigentümer: „nicht linear, sondern begrenzt”: das Sinken wird immer langsamer, nie 0. */
+  const slope = (a, b) => Math.log10(K.knownessOf([{ at: t0, correctness: 1 }], t0 + a)) - Math.log10(K.knownessOf([{ at: t0, correctness: 1 }], t0 + b));
+  check('… the fall slows down: the first hour after the due time loses more than an hour a day later; a day after one right answer still ~11 %, a month ~2 %',
+    [slope(15 * M, 75 * M) > 5 * slope(24 * H, 25 * H), Math.round(K.knownessOf([{ at: t0, correctness: 1 }], t0 + 24 * H) * 100), Math.round(K.knownessOf([{ at: t0, correctness: 1 }], t0 + 30 * 24 * H) * 100)], [true, 11, 2]);
+  check('… the dashed future ends at the knowness of its end, and the curve has points in between (it bends)',
+    [Math.round(one.future.at(-1).k * 1e4) / 1e4, one.future.length > 2], [Math.round(K.knownessOf([{ at: t0, correctness: 1 }], t0 + 2 * H) * 1e4) / 1e4, true]);
+  check('… past the due time and the 10 %: neither is announced any more', [h.dueAt, KS.cardHistory([{ at: t0, correctness: 1 }], t0, t0 + 30 * H, t0 + 31 * H).forgottenAt], [null, null]);
   check('… never asked: no curve, nothing due', [KS.cardHistory([], t0, now, now + H).past.length, KS.cardHistory([], t0, now, now + H).dueAt, KS.cardHistory([], t0, now, now + H).k], [0, null, 0]);
 }
 

@@ -17,9 +17,12 @@
  * Immer zählt die WIRKLICH vergangene Zeit: eine späte richtige Antwort zählt mehr. Richtig heisst ab 0,9
  * (`CORRECT_FROM`), falsch unter 0,25 (`WRONG_BELOW`), dazwischen teilweise.
  *
- * <b>Die Kenntnis einer Karte</b>: die Richtigkeit der letzten Antwort × 10^(0,5 · (1 − t / Abstand)) — gleich nach
- * einer richtigen 3,16, am fälligen Termin genau 1 (die Grenze „sitzt", `KNOWN`), danach weiter gegen 0; nach einer
- * falschen 0. Ein langer Abstand (viele gute Antworten in grossen Abständen) lässt sie langsam fallen.
+ * <b>Die Kenntnis einer Karte</b>: die Richtigkeit der letzten Antwort × √(10 / (1 + 9 · t / Abstand)) — gleich nach
+ * einer richtigen 3,16, am fälligen Termin genau 1 (die Grenze „sitzt", `KNOWN`), danach IMMER LANGSAMER (2026-11-01,
+ * der Eigentümer: „nicht linear, sondern begrenzt"): 10 % erst nach 111 Abständen, nie 0; nach einer falschen 0. Ein
+ * langer Abstand (viele gute Antworten in grossen Abständen) lässt sie langsam fallen. Vorher 10^(½(1 − t/Abstand)):
+ * dieselben Punkte bei 0 und beim Termin, danach aber ein Absturz — eine Karte, einmal richtig, stand nach einem Tag bei
+ * 10^−47.
  *
  * <b>Die Kenntnis eines Eintrags</b> setzt sich aus seinen Karten zusammen (`knowing.ts`, gewogen, wie stark jede ihn
  * prüft); was auf ihm aufbaut, gibt etwas dazu (A.3, `propagate`). <b>Gerechnet wird im Browser</b> [E7] — der Dienst
@@ -52,7 +55,7 @@ export const KNOWN = 1;
 
 /**
  * 2026-11-01 — DARUNTER IST ES NICHT (MEHR) GEWUSST: nie beantwortet, zuletzt falsch oder vergessen (eine richtige
- * Antwort, deren Abstand dreimal verstrichen ist). Der Termin einer Wiederholung sagt NICHT „unbekannt", sondern „jetzt
+ * Antwort, deren Abstand 111-mal verstrichen ist). Der Termin einer Wiederholung sagt NICHT „unbekannt", sondern „jetzt
  * wiederholen": dann steht die Kenntnis knapp unter 1 — im Band „do powtórki", nicht „nieznane".
  */
 export const FORGOTTEN = 0.1;
@@ -124,7 +127,7 @@ export function stateOf(marks: readonly Mark[]): CardState | null {
 export function knownessAt(state: CardState | null, now: number): number {
   if (state === null) return 0;
   const t = Math.max(0, now - state.at);
-  return state.q * Math.pow(10, 0.5 * (1 - t / Math.max(1, state.interval)));
+  return state.q * Math.sqrt(10 / (1 + (9 * t) / Math.max(1, state.interval)));
 }
 
 /** Die Kenntnis zum Zeitpunkt `now` — 0, solange nie geantwortet wurde. */
