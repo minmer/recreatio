@@ -504,6 +504,13 @@ fixed in the app and what a scheme declares — and how to build schemes for it 
   the asked card is the one about its own fact. Items and cards: cards feed items (`tests`), items gate cards
   (conditions with bands).
 - **Statistics** follow the bands: zapomniane (< 0.1), do powtórki (0.1–1), umiem, pewnie (`knowStats.ts`).
+- **The history of a card after each answer** (2026-11-01, `KnowCharts.tsx` `CardHistoryChart`, `knowStats.ts`
+  `cardHistory`): under the verdict in a run with a learner, the knowness of this card over 1 day / 7 / 30 / 90 days /
+  a year / from the start (the smallest range showing every answer unless the viewer chose one, remembered per
+  browser). Log axis — forgetting is a straight line, 10 % and 100 % are both visible lines with the three bands
+  behind them; a point is the value right after an answer (filled right, ring partly, grey ring wrong), dashed what
+  comes without an answer; the head says the value now and when it falls under 100 % (or 10 %). Same computation as
+  everywhere (`step`, `knownessAt`).
 
 ## 7. Answers and progress
 

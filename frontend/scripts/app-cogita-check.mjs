@@ -3311,6 +3311,36 @@ check('goals and lines follow the one logic', [
   check('… the refusal word of the service („area”) is recognised, nothing else', [LRN.refusedArea(new SE.WorkspaceError('x', 'area')), LRN.refusedArea(new SE.WorkspaceError('x')), LRN.refusedArea(new Error('x'))], [true, false, false]);
 }
 
+/*
+ * ══ 2026-11-01 — DER VERLAUF EINER KARTE (knowStats.ts cardHistory): nach jeder Antwort im Lauf ein Diagramm — die
+ * Kurve ist dieselbe Rechnung wie überall, die Punkte stehen gleich nach den Antworten, 10 % und 100 % sind Grenzen.
+ */
+{
+  const M = 60_000, H = 60 * M;
+  const t0 = 1_700_000_000_000;
+  const marks = [{ at: t0, correctness: 1 }, { at: t0 + 20 * M, correctness: 1 }, { at: t0 + 2 * H, correctness: 0 }, { at: t0 + 2 * H + 6 * M, correctness: 0.5 }];
+  const now = t0 + 3 * H;
+  const h = KS.cardHistory(marks, t0 - H, now, now + H);
+  check('history: the value now is the same knowness as everywhere', h.k, K.knownessOf(marks, now));
+  check('… one point per answer: first without a before, the value right after = q·√10 (0 after a wrong one)',
+    h.answers.map((a) => [a.before === null, Math.round(a.after * 1000) / 1000, a.grade]), [[true, 3.162, 'correct'], [false, 3.162, 'correct'], [false, 0, 'wrong'], [false, 1.581, 'partly']]);
+  check('… before the second answer: the first decayed for 20 min of its 15', Math.round(h.answers[1].before * 1000) / 1000, Math.round(Math.pow(10, 0.5 * (1 - 20 / 15)) * 1000) / 1000);
+  check('… the curve starts at the first answer, not before it, and never goes back in time',
+    [h.past[0].at === t0, h.past.every((p, i) => i === 0 || p.at >= h.past[i - 1].at)], [true, true]);
+  check('… an answer is a vertical jump (two corners at its time)', h.past.filter((p) => p.at === t0 + 20 * M).length, 2);
+  check('… total and first count every answer', [h.total, h.first], [4, t0]);
+  const later = KS.cardHistory(marks, t0 + H, now, now + H);
+  check('… a shorter range: only its answers, the curve starts at the range with the value from before',
+    [later.answers.length, later.total, later.past[0].at, Math.round(later.past[0].k * 1e6) / 1e6], [2, 4, t0 + H, Math.round(K.knownessOf(marks.slice(0, 2), t0 + H) * 1e6) / 1e6]);
+  const one = KS.cardHistory([{ at: t0, correctness: 1 }], t0 - H, t0 + M, t0 + 2 * H);
+  check('… right after a good answer: due at the interval (15 min), forgotten (10 %) at three intervals',
+    [one.dueAt - t0, one.forgottenAt - t0], [15 * M, 45 * M]);
+  check('… the dashed future reaches the floor and stays there (log axis: 0 is the floor)',
+    one.future.map((p) => Math.round(p.k * 1e4) / 1e4).slice(-2), [KS.HISTORY_FLOOR, Math.round(K.knownessOf([{ at: t0, correctness: 1 }], t0 + 2 * H) * 1e4) / 1e4]);
+  check('… past the due time and the 10 %: neither is announced any more', [h.dueAt, KS.cardHistory([{ at: t0, correctness: 1 }], t0, t0 + 4 * H, t0 + 5 * H).forgottenAt], [null, null]);
+  check('… never asked: no curve, nothing due', [KS.cardHistory([], t0, now, now + H).past.length, KS.cardHistory([], t0, now, now + H).dueAt, KS.cardHistory([], t0, now, now + H).k], [0, null, 0]);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

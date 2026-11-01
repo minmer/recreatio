@@ -16,7 +16,7 @@
  */
 
 import type { Card } from './cardBasics';
-import { FORGOTTEN, gradeOf, knownessAt, KNOWN, shareOf, step, type CardState } from './knowness';
+import { FORGOTTEN, gradeOf, knownessAt, KNOWN, shareOf, step, type CardState, type Grade, type Mark } from './knowness';
 import type { AnswerRecord } from './learn';
 
 export type Band = 'unseen' | 'weak' | 'fading' | 'known' | 'solid';
@@ -286,5 +286,99 @@ export function classStats(cards: readonly Card[], learners: readonly { readonly
       hardest: [...byCard.values()].map((x) => ({ card: x.card, answers: x.marks.length, wrong: x.marks.filter((m) => gradeOf(m) === 'wrong').length, accuracy: mean(x.marks) ?? 0, share: 0 }))
         .filter((h) => h.wrong > 0 || h.accuracy < 0.9).sort((a, b) => a.accuracy - b.accuracy || b.wrong - a.wrong).slice(0, hardest)
     }
+  };
+}
+
+/* -- 2026-11-01 — WIE SICH DIE KENNTNIS EINER KARTE ENTWICKELT HAT (nach jeder Antwort im Lauf) -------------- */
+
+/** Die unterste Kenntnis, die das Diagramm zeigt (logarithmisch: 0 liegt unendlich tief — darunter heisst „0"). */
+export const HISTORY_FLOOR = 0.01;
+
+/** Eine Antwort im Verlauf: wie richtig, und die Kenntnis gleich davor und gleich danach. */
+export interface HistoryAnswer {
+  readonly at: number;
+  readonly correctness: number;
+  readonly grade: Grade;
+  /** `null`: die erste Antwort — vorher gab es keine Kenntnis. */
+  readonly before: number | null;
+  readonly after: number;
+}
+
+export interface CardHistory {
+  /**
+   * Die Kurve bis jetzt als Ecken. Zwischen zwei Antworten fällt die Kenntnis wie 10^(−t) — auf der logarithmischen
+   * Achse eine Gerade: es reichen ihre Enden (und die Stelle, wo sie unter `HISTORY_FLOOR` fällt). Eine Antwort ist ein
+   * senkrechter Sprung: zwei Ecken zur selben Zeit.
+   */
+  readonly past: readonly { readonly at: number; readonly k: number }[];
+  /** Wie es ohne Antwort weiterginge, von jetzt bis `until` (gestrichelt). */
+  readonly future: readonly { readonly at: number; readonly k: number }[];
+  /** Die Antworten im Zeitraum. */
+  readonly answers: readonly HistoryAnswer[];
+  /** Alle Antworten überhaupt (auch vor dem Zeitraum). */
+  readonly total: number;
+  readonly first: number | null;
+  readonly now: number;
+  readonly k: number;
+  /** Wann sie unter 100 % fällt (die Pora powtórki) und unter 10 % (zapomniana) — `null`: schon darunter oder nie gefragt. */
+  readonly dueAt: number | null;
+  readonly forgottenAt: number | null;
+}
+
+/** Wann die Kenntnis eines Zustands auf `level` fällt: q·10^(½(1−t/I)) = level. */
+function fallsTo(state: CardState, level: number): number | null {
+  if (!(state.q > 0) || state.q * Math.sqrt(10) < level) return null;
+  return state.at + Math.max(1, state.interval) * (1 - 2 * Math.log10(level / state.q));
+}
+
+/** Ein Stück der Kurve von `t0` bis `t1` ohne Antwort dazwischen — mit der Stelle, wo es den Boden erreicht. */
+function piece(state: CardState, t0: number, t1: number): { at: number; k: number }[] {
+  const k0 = knownessAt(state, t0);
+  const k1 = knownessAt(state, t1);
+  if (k0 <= HISTORY_FLOOR || k1 >= HISTORY_FLOOR) return [{ at: t0, k: k0 }, { at: t1, k: k1 }];
+  const floorAt = fallsTo(state, HISTORY_FLOOR);
+  return floorAt === null || floorAt <= t0 || floorAt >= t1
+    ? [{ at: t0, k: k0 }, { at: t1, k: k1 }]
+    : [{ at: t0, k: k0 }, { at: floorAt, k: HISTORY_FLOOR }, { at: t1, k: k1 }];
+}
+
+/**
+ * DER VERLAUF EINER KARTE im Zeitraum `from`–`now`, und was ohne Antwort bis `until` käme. Dieselbe Rechnung wie
+ * überall (`step`, `knownessAt`) — keine zweite.
+ */
+export function cardHistory(marks: readonly Mark[], from: number, now: number, until: number): CardHistory {
+  const sorted = marks.filter((m) => Number.isFinite(m.at) && m.at <= now).slice().sort((a, b) => a.at - b.at);
+  let state: CardState | null = null;
+  let i = 0;
+  for (; i < sorted.length && sorted[i]!.at < from; i++) state = step(state, sorted[i]!);
+  const past: { at: number; k: number }[] = [];
+  const answers: HistoryAnswer[] = [];
+  let t = from;
+  for (; i < sorted.length; i++) {
+    const m = sorted[i]!;
+    if (state !== null) past.push(...piece(state, t, m.at));
+    const before = state === null ? null : knownessAt(state, m.at);
+    state = step(state, m);
+    const after = knownessAt(state, m.at);
+    past.push({ at: m.at, k: after });
+    answers.push({ at: m.at, correctness: state.q, grade: gradeOf(state.q), before, after });
+    t = m.at;
+  }
+  if (state !== null) past.push(...piece(state, t, now));
+  /* Gleiche Ecken nacheinander (der Sprung beginnt, wo das Stück endete) — einmal reicht. */
+  const clean = past.filter((p, j) => j === 0 || p.at !== past[j - 1]!.at || p.k !== past[j - 1]!.k);
+  const k = knownessAt(state, now);
+  const due = state === null ? null : fallsTo(state, KNOWN);
+  const gone = state === null ? null : fallsTo(state, FORGOTTEN);
+  return {
+    past: clean,
+    future: state === null || until <= now ? [] : piece(state, now, until),
+    answers,
+    total: sorted.length,
+    first: sorted[0]?.at ?? null,
+    now,
+    k,
+    dueAt: due !== null && due > now ? due : null,
+    forgottenAt: gone !== null && gone > now ? gone : null
   };
 }

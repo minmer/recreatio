@@ -12,7 +12,8 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
 import type { Card } from './cardBasics';
-import { BAND_LABEL, BAND_SAYS, BANDS, classStats, knowStats, type Band, type GroupStat, type HardCard, type KnowStats } from './knowStats';
+import { BAND_LABEL, BAND_SAYS, BANDS, cardHistory, classStats, HISTORY_FLOOR, knowStats, type Band, type GroupStat, type HardCard, type KnowStats } from './knowStats';
+import { FORGOTTEN, KNOWN, LEVEL_LABEL, levelOfKnowness, type Mark } from './knowness';
 import type { AnswerRecord } from './learn';
 import { spanText } from './measures';
 import { QUESTION_TYPES } from './questionTypes';
@@ -551,4 +552,154 @@ function sumBands(list: readonly KnowStats[]): Record<Band, number> {
   const out: Record<Band, number> = { unseen: 0, weak: 0, fading: 0, known: 0, solid: 0 };
   for (const s of list) for (const b of BANDS) out[b] += s.bands[b];
   return out;
+}
+
+/* -- 2026-11-01 — DIE KENNTNIS EINER KARTE ÜBER DIE ZEIT (nach jeder Antwort im Lauf) --------------------------- */
+
+const HISTORY_RANGES = [
+  { key: '1', days: 1, label: 'dzień' },
+  { key: '7', days: 7, label: '7 dni' },
+  { key: '30', days: 30, label: '30 dni' },
+  { key: '90', days: 90, label: '90 dni' },
+  { key: '365', days: 365, label: 'rok' },
+  { key: 'all', days: null, label: 'od początku' }
+] as const;
+type HistoryRange = (typeof HISTORY_RANGES)[number]['key'];
+const RANGE_KEY = 'cg-card-history-range';
+const H_DAY = 86_400_000;
+
+function storedRange(): HistoryRange | null {
+  try {
+    const v = window.localStorage.getItem(RANGE_KEY);
+    return HISTORY_RANGES.some((r) => r.key === v) ? (v as HistoryRange) : null;
+  } catch { return null; }
+}
+
+/** Wie viel Kenntnis — über 100 % auch (frisch nach einer guten Antwort bis 316 %). */
+const kText = (k: number): string => (k < 0.005 ? '0%' : `${Math.round(k * 100)}%`);
+
+const H_PLOT = 150;
+const H_PAD_L = 40;
+const H_PAD_R = 12;
+const H_TOP = Math.log10(4);
+const H_LOW = Math.log10(HISTORY_FLOOR);
+
+const TIME = new Intl.DateTimeFormat('pl-PL', { hour: '2-digit', minute: '2-digit' });
+const MONTH_YEAR = new Intl.DateTimeFormat('pl-PL', { month: 'numeric', year: 'numeric' });
+const WHEN = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
+/**
+ * WIE SICH DIE KENNTNIS DIESER KARTE ENTWICKELT HAT — nach jeder Antwort im Lauf. Die Achse ist logarithmisch: das
+ * Vergessen (10^(−t)) wird eine Gerade, und 10 % (darunter: nieznane) und 100 % (die Pora powtórki) liegen beide gut
+ * sichtbar. Jeder Punkt ist der Wert gleich nach einer Antwort; gestrichelt, wie es ohne Antwort weiterginge.
+ */
+export function CardHistoryChart({ marks, now: given }: { marks: readonly Mark[]; now?: number }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `marks`: eine neue Antwort ist ein neues Jetzt
+  const now = useMemo(() => given ?? Date.now(), [given, marks]);
+  const first = useMemo(() => marks.reduce<number | null>((m, x) => (Number.isFinite(x.at) && (m === null || x.at < m) ? x.at : m), null), [marks]);
+  /* Ohne eigene Wahl: der kleinste Zeitraum, der alle Antworten zeigt. */
+  const auto: HistoryRange = first === null ? '7' : HISTORY_RANGES.find((r) => r.days !== null && now - r.days * H_DAY <= first)?.key ?? 'all';
+  const [chosen, setChosen] = useState<HistoryRange | null>(storedRange);
+  const range = chosen ?? auto;
+  const choose = (r: HistoryRange) => {
+    setChosen(r);
+    try { window.localStorage.setItem(RANGE_KEY, r); } catch { /* nur eine Bequemlichkeit */ }
+  };
+  const days = HISTORY_RANGES.find((r) => r.key === range)?.days ?? null;
+  const from = days !== null ? now - days * H_DAY : Math.min(now - 3_600_000, (first ?? now) - Math.max(60_000, (now - (first ?? now)) * 0.04));
+  const until = now + (now - from) * 0.25;
+  const h = useMemo(() => cardHistory(marks, from, now, until), [marks, from, now, until]);
+
+  const [ref, width] = useWidth();
+  const [hover, setAt] = useState<number | null>(null);
+  const n = h.answers.length;
+  const at = hover !== null && hover < n ? hover : null;
+  const plotW = Math.max(0, width - H_PAD_L - H_PAD_R);
+  const span = until - from;
+  const x = (t: number) => H_PAD_L + (plotW * (t - from)) / Math.max(1, span);
+  const y = (k: number) => PAD_T + ((H_PLOT - PAD_T) * (H_TOP - Math.log10(Math.max(HISTORY_FLOOR, Math.min(4, k))))) / (H_TOP - H_LOW);
+  const path = (pts: readonly { at: number; k: number }[]) => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.at).toFixed(1)},${y(p.k).toFixed(1)}`).join(' ');
+  const tickText = (t: number) => (span <= 2.5 * H_DAY ? TIME.format(new Date(t)) : span <= 500 * H_DAY ? DATE.format(new Date(t)) : MONTH_YEAR.format(new Date(t)));
+  /* Die Daten unter der Achse: vom Anfang des Zeitraums bis „teraz” (das hat seine eigene Beschriftung). */
+  const tickCount = plotW < 260 ? 1 : 3;
+  const ticks: number[] = plotW <= 0 ? [] : Array.from({ length: tickCount }, (_, i) => from + ((now - from) * i) / tickCount);
+  const pick = (e: PointerEvent<SVGSVGElement>) => {
+    if (n === 0) return;
+    const t = from + ((e.clientX - e.currentTarget.getBoundingClientRect().left - H_PAD_L) / Math.max(1, plotW)) * span;
+    let best = 0;
+    h.answers.forEach((a, i) => { if (Math.abs(a.at - t) < Math.abs(h.answers[best]!.at - t)) best = i; });
+    setAt(best);
+  };
+  const level = h.total === 0 ? 'unseen' : levelOfKnowness(h.k);
+  const says = [
+    `teraz ${kText(h.k)} — ${LEVEL_LABEL[level]}`,
+    h.dueAt !== null ? `powtórka za ${spanText(h.dueAt - now)}` : h.forgottenAt !== null ? `zapomniana za ${spanText(h.forgottenAt - now)}` : null
+  ].filter((s): s is string => s !== null).join(' · ');
+  const answer = at === null ? null : h.answers[at]!;
+  const bands = [
+    { key: 'known', top: 4, bottom: KNOWN, label: LEVEL_LABEL.known },
+    { key: 'fading', top: KNOWN, bottom: FORGOTTEN, label: LEVEL_LABEL.learning },
+    { key: 'unseen', top: FORGOTTEN, bottom: HISTORY_FLOOR, label: LEVEL_LABEL.unseen }
+  ] as const;
+  return (
+    <Figure id="card-history" title="Znajomość tej karty" says={says}
+      table={(
+        <table className="cg-table">
+          <thead><tr><th>Kiedy</th><th>Odpowiedź</th><th>Znajomość przed</th><th>po</th></tr></thead>
+          <tbody>
+            {[...h.answers].reverse().map((a, i) => (
+              <tr key={`${a.at}-${i}`}><td>{WHEN.format(new Date(a.at))}</td><td>{percent(a.correctness)}</td><td>{a.before === null ? '—' : kText(a.before)}</td><td>{kText(a.after)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}>
+      <div className="cg-chips cg-hist-ranges" role="radiogroup" aria-label="Okres">
+        {HISTORY_RANGES.map((r) => (
+          <button key={r.key} type="button" role="radio" aria-checked={r.key === range} className={`cg-chip${r.key === range ? ' is-on' : ''}`} data-history-range={r.key} onClick={() => choose(r.key)}>{r.label}</button>
+        ))}
+      </div>
+      <div className="cg-viz-plot" ref={ref} data-history-answers={n}>
+        {width > 0 && (
+          <svg width={width} height={H_PLOT + AXIS_H} role="img" tabIndex={0} className="cg-viz-svg cg-hist"
+            aria-label={`Znajomość tej karty: ${says}; ${n} odpowiedzi w tym okresie`}
+            onPointerMove={pick} onPointerLeave={() => setAt(null)} onBlur={() => setAt(null)}
+            onKeyDown={(e) => { const next = stepKey(e, at, n); if (next !== undefined) { e.preventDefault(); setAt(next); } }}>
+            {bands.map((b) => (
+              <g key={b.key} aria-hidden>
+                <rect className={`cg-hist-band is-${b.key}`} x={H_PAD_L} width={plotW} y={y(b.top)} height={Math.max(0, y(b.bottom) - y(b.top))} />
+                <text className="cg-hist-band-name" x={H_PAD_L + 4} y={y(b.bottom) - 4}>{b.label}</text>
+              </g>
+            ))}
+            {[KNOWN, FORGOTTEN].map((k) => (
+              <g key={k} aria-hidden>
+                <line className={`cg-hist-limit${k === KNOWN ? ' is-known' : ''}`} x1={H_PAD_L} x2={H_PAD_L + plotW} y1={y(k)} y2={y(k)} />
+                <text className="cg-viz-tick" x={H_PAD_L - 6} y={y(k) + 4} textAnchor="end">{kText(k)}</text>
+              </g>
+            ))}
+            <text className="cg-viz-tick" x={H_PAD_L - 6} y={y(HISTORY_FLOOR) + 4} textAnchor="end" aria-hidden>0</text>
+            <line className="cg-hist-now" x1={x(now)} x2={x(now)} y1={PAD_T} y2={H_PLOT} aria-hidden />
+            {h.future.length > 1 && <path className="cg-hist-future" d={path(h.future)} />}
+            {h.past.length > 1 && <path className="cg-viz-line" d={path(h.past)} />}
+            {answer !== null && <line className="cg-viz-cross" x1={x(answer.at)} x2={x(answer.at)} y1={PAD_T} y2={H_PLOT} />}
+            {h.answers.map((a, i) => (
+              <circle key={`${a.at}-${i}`} className={`cg-hist-dot is-${a.grade}${i === at ? ' is-at' : ''}`} cx={x(a.at)} cy={y(a.after)} r={i === at ? 5 : 3.5} data-history-dot={a.grade} />
+            ))}
+            {h.total > 0 && (
+              <text className="cg-viz-end" x={x(now) + 6} y={Math.max(PAD_T + 10, y(h.k) - 8)} data-history-now={Math.round(h.k * 100)}>{kText(h.k)}</text>
+            )}
+            {ticks.map((t, i) => <text key={t} className="cg-viz-tick" x={x(t)} y={H_PLOT + 15} textAnchor={i === 0 ? 'start' : 'middle'}>{tickText(t)}</text>)}
+            <text className="cg-viz-tick" x={x(now)} y={H_PLOT + 15} textAnchor="middle">teraz</text>
+          </svg>
+        )}
+        {answer !== null && (
+          <Tip x={x(answer.at)} y={y(answer.after)} width={width} lines={[
+            [WHEN.format(new Date(answer.at)), ''],
+            [percent(answer.correctness), answer.grade === 'correct' ? 'dobrze' : answer.grade === 'partly' ? 'częściowo' : 'źle'],
+            [`${answer.before === null ? 'pierwsza' : kText(answer.before)} → ${kText(answer.after)}`, 'znajomość']
+          ]} />
+        )}
+      </div>
+      {h.total > n && <span className="cg-muted cg-hist-note">{n === 0 ? 'W tym okresie bez odpowiedzi' : `W tym okresie ${n} z ${h.total} odpowiedzi`} — dłuższy okres pokaże wcześniejsze.</span>}
+    </Figure>
+  );
 }

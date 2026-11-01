@@ -35,6 +35,8 @@ import { EMPTY_LOG, logAnswer, logSummary, logTick, nextLesson, type Missed, typ
 
 /* 2026-10-31 — die Statystyki am Ende einer Powtórka: erst geladen, wenn man sie aufklappt. */
 const RunStats = later(() => import('./KnowCharts').then((m) => m.KnowledgeStats));
+/* 2026-11-01 — nach jeder Antwort: wie sich die Kenntnis DIESER Karte entwickelt hat (dieselbe Datei, erst nach der ersten Antwort geladen). */
+const CardHistory = later(() => import('./KnowCharts').then((m) => m.CardHistoryChart));
 
 export interface RunSource {
   /** Aus der Bibliothek: die Wiederholung (ihr Graph wählt). */
@@ -475,6 +477,8 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
               </form>
             )}
             {note !== null && <p className="wk-note" role="status" data-flag-note="">{note}</p>}
+            {/* 2026-11-01 — nach der Antwort: die Kenntnis dieser Karte über die Zeit, mit der eben gegebenen Antwort. */}
+            {last !== null && learner !== null && (<div className="cg-card-history" data-card-history=""><CardHistory marks={learner.marks(card.key, card.fingerprint, rename)} /></div>)}
           </div>
         )}
       />

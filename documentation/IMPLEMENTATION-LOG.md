@@ -2928,3 +2928,23 @@ data; this is only what the app had to do. As built — COGITA.md §5 „Lessons
   params, order preview, phone dark) and the real app on LocalDB (`lemma/course-api.mjs` → `course-browser.mjs`: three
   lessons with `next`, the end screen, „Ćwicz te jeszcze raz", Python with examples, hidden cases and timeouts, the
   daily goal, the quilt).
+
+## C12 — Cogita: the history of a card after each answer (2026-11-01)
+
+Owner: "after answering a card there should be a view of how the knowness of this card developed — a chart with the
+10 % line, the 100 % line and the value directly after the answers — over the last 7 days, 30 days, 90 days etc."
+
+- `knowStats.ts` `cardHistory(marks, from, now, until)`: the curve as corners (between answers knowness falls as
+  10^(−t), a straight line on a log axis, so the ends suffice; the floor crossing at `HISTORY_FLOOR` 1 %), the answers
+  with knowness before/after, due (falls under 100 %) and forgotten (under 10 %) times; the state before the range is
+  replayed, so a shorter range starts at the right value.
+- `KnowCharts.tsx` `CardHistoryChart`: ranges dzień / 7 / 30 / 90 dni / rok / od początku (auto: the smallest showing
+  every answer; a choice is kept in localStorage), the three bands behind, 10 % and 100 % lines, a point per answer
+  (by grade), dashed future, „teraz”, a tip per answer (arrow keys too), the table, a note when earlier answers lie
+  outside the range. `RevisionRun` shows it under the verdict when there is a learner (lazy, same chunk as the
+  statistics). Colours: the statistics tokens (`.cg-stats, .cg-card-history`).
+- Checks: app-cogita-check 753 (+11: same value as `knownessOf`, points right after answers, the jump, range clipping,
+  due/forgotten times, floor, never asked), full app:check. DB-free browser harness (session scratchpad
+  `cardrun/drive-history.mjs`, 7, light and dark): no chart before the answer, auto range, 316 % after a right answer,
+  7 days with the note, the tip „0% → 316%”, a new card answered wrong.
+
