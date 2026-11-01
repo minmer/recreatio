@@ -1,0 +1,22 @@
+/* 2026-11-01 — Wzory (`Tex.tsx`, KaTeX). Ein Wzór für sich rollt seitwärts, wenn er breiter ist als die Spalte — die Seite nie. */
+
+.tex.is-display { display: block; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: var(--wk-space-1) 0; text-align: center; }
+.tex.is-display > .katex-display { margin: 0; }
+.tex.is-display > .katex-display > .katex { padding: 0 var(--wk-space-1); }
+
+/*
+ * Die Nummer eines Wzór („(3.1)"): KaTeX heftet sie an den rechten Rand — ist der Wzór breiter als die Spalte (ein
+ * Telefon), läge sie auf ihm. Hier steht sie in einer Reihe: Raum | Wzór | Nummer. Ist Platz, steht der Wzór in der
+ * Mitte und die Nummer rechts; ist keiner, folgt sie ihm mit Abstand, und beides rollt zusammen.
+ */
+.tex.is-display .katex-display > .katex > .katex-html:has(> .katex-tag) { display: flex; align-items: baseline; min-width: max-content; }
+.tex.is-display .katex-display > .katex > .katex-html:has(> .katex-tag)::before { content: ""; flex: 1 1 0; }
+.tex.is-display .katex-display > .katex > .katex-html > .katex-tag { position: static; flex: 1 1 0; text-align: right; padding-left: 1em; }
+
+/* Ein Satzzeichen nach einem Wzór im Satz bricht nicht von ihm ab („ℝⁿ," nicht „ℝⁿ" ⏎ „,"). */
+.tex-glue { white-space: nowrap; }
+
+/* Bevor KaTeX da ist, ohne KaTeX, und wenn ein Wzór sich nicht setzen lässt: sein LaTeX. */
+.tex-src { font-family: var(--wk-mono, ui-monospace, Consolas, monospace); font-size: var(--wk-text-sm); color: var(--wk-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.tex-src.is-display { text-align: center; }
+.tex-src.is-error { color: var(--wk-danger); text-decoration: underline wavy var(--wk-danger); text-underline-offset: 0.2em; cursor: help; }

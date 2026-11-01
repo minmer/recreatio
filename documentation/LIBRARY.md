@@ -206,8 +206,8 @@ embeds or pages). The AI link and MCP read a text only through the collection it
 | `sourcetext` | the directory of one text of one work: `work`, `scheme`, `edition` (PDF page offset, language, psalm numbering, note), its parts with key, label, order, first / last place, pages, block and word counts | whole, like every entry |
 | `sourcepart` | one portion (a book of the Bible, a chapter) with its blocks in the original order | **heavy**: the sync (`?light=1`) brings only its row; the reader fetches it by id (`?ids=`, at most 50) when it is read |
 
-A block is a `heading` (level 1–4), `paragraph`, `quote`, `list`, `table`, `note` (a footnote with its id) or
-`page` (a printed page starts here, with the PDF page). Blocks carry `loc` where they have their own structural place;
+A block is a `heading` (level 1–4), `paragraph`, `quote`, `list`, `table`, `note` (a footnote with its id),
+`page` (a printed page starts here, with the PDF page), or — for textbooks, below — `statement`, `figure`, `code`. Blocks carry `loc` where they have their own structural place;
 a block without one belongs to the place before it. Inside text: `{{page 46 pdf 52}}` (a page break exactly where it
 falls, also mid-paragraph), `{{note 3}}`, `{{? word}}` (uncertain reading), `{{gap}}`; `"uncertain": true` marks a
 whole block.
@@ -257,6 +257,50 @@ places.
   that work and the place is in it: the passage opens right there (also on a page), and in the workspace "czytnik"
   opens the reader at the place. A place that falls into several parts is flagged as ambiguous instead of guessed.
   Texts are found in what the reader has open: the drawing store and its neighbours, and the libraries of this tab.
+
+### Textbooks: formulas, theorems, proofs (2026-11-01)
+
+Any text may carry **formulas in LaTeX**: `$…$` in a sentence, `$$…$$` on its own line (also mid-paragraph),
+numbered as printed with `\tag{2.4}`; `\$` is a dollar. Pandoc's rule decides what a `$` is (no space inside the
+dollars, no digit after the closing one) plus one for Polish prices: a `$` right after a digit or letter (`10$`,
+`US$`) opens nothing (`core/tex.ts`). Three blocks more: `statement` (`kind` definition, theorem, lemma,
+proposition, corollary, axiom, conjecture, fact, property, example, remark, exercise, problem, solution, answer,
+proof, notation, algorithm, other; `label` as printed, `title`, content as `text` or nested `blocks`, statements
+inside statements), `figure` (`label`, caption `text`, `alt` — what it shows, by the transcriber) and `code` (kept
+character for character, only page marks count); a `table` may have `label` and a caption `text`. `{{ref
+twierdzenia 2.3}}`, `{{ref (2.4)}}`, `{{ref Rys. 1.2}}` refer to them in the words of the book. The edition may name
+the book's own macros (`edition.macros`, `"\\R": "\\mathbb{R}"`); `\newcommand` and `\DeclareMathOperator` inside a
+formula are moved there.
+
+- **Stored flat:** a statement is a head block with `id` (`s1`, `s2` … in order), its content blocks carry `in`; the
+  export nests them again, so export → import changes nothing. The directory counts `formulas` per part and keeps
+  its `labels` as keys (`theorem 2.3`, `eq 2.4`, `figure 1.2` — `library/textLabels.ts`: „twierdzenia”, „tw.”,
+  „Theorem” are the same theorem), so a label finds its part without opening one.
+- **Import** (`planSourceImport`, `core/jsonText.ts`): repairs what an AI spoils when it writes LaTeX into JSON —
+  backslashes not escaped at all (`\\` stays a row break), `\f` `\t` `\n` `\r` `\b` read as control characters in
+  `\frac` `\theta` `\nabla` `\rho` `\beta` (also in the book's own macros), `\( \)` and `\[ \]`, bare `\begin{align}`,
+  doubled backslashes, `\tag` in a sentence, a page break inside a formula, a fenced answer — and says each repair.
+  Every formula is set by KaTeX in the preview (loaded when the dialog opens); one that does not set is named with
+  KaTeX's words and stays visible as LaTeX. Further warnings: a single `$`, missing pages (a gap in the numbering),
+  references without a target, a label twice, unknown kinds, empty statements.
+- **Reader:** KaTeX (`ui/tex/`, a lazy chunk of ~300 kB with woff2 fonts only — `vite.config.ts` drops woff/ttf) is
+  fetched with the part when the text has formulas. KaTeX's gaps are bridged: `\label`, `\eqref`, `\ref`, `\qed`,
+  `\intertext`, `\hdots`, `\mathbbm`, `multline`, `eqnarray`, `\DeclareMathOperator`; numbered environments never
+  count by themselves (the book's number is the `\tag`). Statements stand in boxes (claims, definitions, examples,
+  proofs ending with ∎ unless the text already ends with one); references are buttons (in this part: marked; in
+  another: opened there); „Przejdź” and the address take labels (`…/tekst/Twierdzenie 2.3`, `(2.4)`); search finds
+  formulas by symbol (`∑`, `ε`) and by LaTeX (`\frac`, `x^2`); a wide formula scrolls in its own strip, its number
+  follows it on a phone; punctuation stays with its formula. A selection or copy with formulas gives their LaTeX
+  (`$…$`), whole even when the selection starts inside one — so quotes keep them, and a quote shows them set.
+- **Everywhere else:** the shared markup (knowledge bases, Scriptorium, Cogita, page „Tekst”, presentations) sets
+  `$…$` and `$$…$$` too (`libraryMarkup.ts` `math`); LaTeX export passes formulas through (`amsmath`, `amssymb`);
+  plain text and search use `texPlain` (`∫₀¹ f(x) dx`).
+- **AI link / MCP:** formulas stay LaTeX; a statement's blocks carry `within` (its kinds), numbered blocks `labels`,
+  a statement head its `end`; `read_text` takes a label as printed and returns the whole statement; `search_text`
+  matches symbols through each block's `search` line.
+- Checks: `scripts/app-tex-check.mjs` (108 textbook formulas across fields, every repair, the textbook fixture
+  `scripts/fixtures/podrecznik-wzory.json` clean and spoiled four ways → the same blocks), `Api.Tests` (labels,
+  statement ranges, rendering, symbol search).
 
 ## Reading on pages
 

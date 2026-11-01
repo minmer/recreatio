@@ -27,7 +27,7 @@
  * hier kommt nur sein Ergebnis an [D10].
  */
 
-import { coarsen, dateKey, readDate, readNumber, type DatePrecision, type DateValue } from './schema';
+import { coarsen, dateKey, dateText, precisionOf, readDate, readNumber, type DatePrecision, type DateValue } from './schema';
 import { findUnit, kindById, kindsText, measures, parseQuantity, siUnitOf, toSI, type QuantityKind } from '../core/quantities';
 
 /* -- Formen ------------------------------------------------------------------------ */
@@ -98,6 +98,10 @@ export interface Outcome {
   readonly expected?: string;
   /** 2026-10-23 (Schritt 13) — warum nicht, wenn es nicht an der Zahl lag (eine Einheit einer anderen Grösse). */
   readonly note?: string;
+  /** 2026-11-01 — ein Datum: jeder gefragte Teil (Tag, Monat, Jahr) mit seinem eigenen Ergebnis. */
+  readonly dateParts?: readonly DatePartMark[];
+  /** 2026-11-01 — nah dran, auch wenn der Anteil nicht über die Hälfte kommt (ein Jahr daneben). */
+  readonly near?: boolean;
 }
 
 const NOTHING: Outcome = { correct: false, correctness: 0, answered: false };
@@ -335,24 +339,89 @@ function checkQuantity(expected: NumberExpected, kind: QuantityKind, given: stri
   return { correct, correctness: correct ? 1 : 0, answered: true };
 }
 
+/* 2026-11-01 — Monate als Wort: die ersten drei Buchstaben (ohne Polnische Zeichen) jeder Form — listopad, listopada,
+   w listopadzie, lis., November. */
+const MONTH_STEM: Readonly<Record<string, number>> = {
+  sty: 1, lut: 2, mar: 3, kwi: 4, maj: 5, cze: 6, lip: 7, sie: 8, wrz: 9, paz: 10, lis: 11, gru: 12,
+  jan: 1, feb: 2, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12
+};
+const ROMAN_MONTH = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x', 'xi', 'xii'];
+/** Wörter, die um ein Datum stehen dürfen, ohne etwas zu sagen: „3-go listopada 1829 r.", „w roku 1829", „ok. 1829". */
+const DATE_FILLER: ReadonlySet<string> = new Set(['r', 'rok', 'roku', 'w', 'we', 'dnia', 'dn', 'dzien', 'dniu', 'ok', 'okolo', 'ca', 'circa', 'go', 'ego', 'the', 'of', 'in', 'on', 'year', 'st', 'nd', 'rd', 'th']);
+const BCE_END = /(?<=^|[\s\d.])(p\.?\s?n\.?\s?e\.?|przed\s+chr(?:ystusem|\.)?|bce?|b\.\s?c\.)$/i;
+const CE_END = /(?<=^|[\s\d.])(n\.?\s?e\.?|po\s+chr(?:ystusie|\.)?|ad|a\.\s?d\.)$/i;
+const plainWord = (w: string): string => w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+
 /**
- * Ein Datum, wie man es eintippt: „1999", „1999-05-03", „3.05.1999", „5.1999",
- * „1000 p.n.e.", „-1000".
+ * EIN DATUM, WIE MAN ES EINTIPPT — 2026-11-01 in jeder üblichen Form: „1829", „1829-11", „1829 11", „11 1829",
+ * „11.1829", „3.11.1829", „1829/11/3", „listopad 1829", „3 listopada 1829 r.", „w listopadzie 1829", „3 XI 1829",
+ * „November 1829", „1000 p.n.e.", „-1000". Die Zahl mit drei Stellen (oder über 31) ist das Jahr; steht der Monat als
+ * Wort, ist die andere Zahl der Tag. Ein Wort, das kein Monat ist und nicht zu einem Datum gehört, macht es unlesbar
+ * (`null`) — lieber nachfragen als falsch lesen.
  */
 export function readDateAnswer(text: string): DateValue | null {
-  let t = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  let raw = text.trim().replace(/\s+/g, ' ');
+  if (raw === '') return null;
   let sign = 1;
-  const bce = /\s*(p\.?\s?n\.?\s?e\.?|przed chr(ystusem|\.)?|bce?|b\.c\.)$/;
-  const ce = /\s*(n\.?\s?e\.?|po chr(ystusie|\.)?|ad|a\.d\.)$/;
-  if (bce.test(t)) { sign = -1; t = t.replace(bce, ''); } else if (ce.test(t)) t = t.replace(ce, '');
+  if (BCE_END.test(raw)) { sign = -1; raw = raw.replace(BCE_END, '').trim(); } else if (CE_END.test(raw)) raw = raw.replace(CE_END, '').trim();
   const flip = (d: DateValue | null): DateValue | null => (d === null || sign === 1 ? d : readDate(dateKey({ ...d, y: -Math.abs(d.y) })));
-  const direct = readDate(t);
+  const direct = readDate(raw);
   if (direct !== null) return flip(direct);
-  const dmy = /^(\d{1,2})[./](\d{1,2})[./](-?\d{1,6})$/.exec(t);
-  if (dmy) return flip(readDate(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`));
-  const my = /^(\d{1,2})[./](-?\d{1,6})$/.exec(t);
-  if (my) return flip(readDate(`${my[2]}-${my[1].padStart(2, '0')}`));
-  return null;
+
+  const numbers: { value: number; digits: number; at: number }[] = [];
+  let month: { value: number; at: number } | null = null;
+  const tokens = [...raw.matchAll(/\d+|\p{L}+/gu)].map((m) => m[0]);
+  for (let at = 0; at < tokens.length; at += 1) {
+    const token = tokens[at];
+    if (/^\d+$/.test(token)) { numbers.push({ value: Number(token), digits: token.length, at }); continue; }
+    const word = plainWord(token);
+    if (DATE_FILLER.has(word)) continue;
+    /* Römisch nur ab zwei Zeichen — oder gross geschrieben (I, V, X): ein kleines „i" ist „und". */
+    const roman = ROMAN_MONTH.indexOf(word);
+    const stem = word.length >= 3 ? MONTH_STEM[word.slice(0, 3)] : undefined;
+    const named = roman >= 0 && (token.length > 1 || token === token.toUpperCase()) ? roman + 1 : stem;
+    if (named === undefined || month !== null) return null;
+    month = { value: named, at };
+  }
+  const yearLike = (n: { value: number; digits: number }) => n.digits >= 3 || n.value > 31;
+  let y: number | undefined;
+  let m: number | undefined;
+  let d: number | undefined;
+  if (month !== null) {
+    m = month.value;
+    if (numbers.length === 1) {
+      /* „3 listopada" — ein Tag ohne Jahr: unlesbar (nicht das Jahr 3). */
+      const [n] = numbers;
+      if (!yearLike(n) && n.at < month.at) return null;
+      y = n.value;
+    } else if (numbers.length === 2) {
+      const [a, b] = numbers;
+      /* Das Jahr: die Zahl, die eines sein muss — sind beide klein, die nach dem Monat („3 listopada 29"). */
+      let year: typeof a | null;
+      if (yearLike(a) !== yearLike(b)) year = yearLike(a) ? a : b;
+      else if (!yearLike(a)) year = b.at > month.at ? b : null;
+      else year = null;
+      if (year === null) return null;
+      y = year.value;
+      d = (year === a ? b : a).value;
+    } else return null;
+  } else if (numbers.length === 1) y = numbers[0].value;
+  else if (numbers.length === 2) {
+    const [a, b] = numbers;
+    if (yearLike(a) && yearLike(b)) return null;
+    if (yearLike(a)) { y = a.value; m = b.value; } else { m = a.value; y = b.value; }
+  } else if (numbers.length === 3) {
+    const [a, b, c] = numbers;
+    if (yearLike(a)) { y = a.value; m = b.value; d = c.value; }
+    else if (yearLike(c)) {
+      y = c.value;
+      /* Gewöhnlich Tag, Monat, Jahr; steht im zweiten Feld etwas über 12, war es Monat, Tag, Jahr. */
+      if (b.value > 12 && a.value <= 12) { m = a.value; d = b.value; } else { d = a.value; m = b.value; }
+    } else return null;
+  } else return null;
+  if (y === undefined) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return flip(readDate(m === undefined ? String(y) : d === undefined ? `${y}-${pad(m)}` : `${y}-${pad(m)}-${pad(d)}`));
 }
 
 /** Wie viele Einheiten der Genauigkeit zwei Daten auseinander liegen. Jahr 0 gibt es nicht. */
@@ -373,31 +442,85 @@ export interface DateExpected {
 
 const RANK: Record<DatePrecision, number> = { year: 0, month: 1, day: 2 };
 
-/** 2026-10-31 — was ein Teil der Antwort wert ist, wo der Tag (oder Monat) gefragt war: das Jahr die Hälfte, Jahr und Monat drei Viertel. */
-const DATE_PART: Readonly<Record<DatePrecision, number>> = { year: 0.5, month: 0.75, day: 1 };
+/** 2026-11-01 — die Teile, die eine Frage nach dieser Genauigkeit prüft, in der Folge, in der man ein Datum liest. */
+export const DATE_PARTS: Readonly<Record<DatePrecision, readonly DatePrecision[]>> = { year: ['year'], month: ['month', 'year'], day: ['day', 'month', 'year'] };
+
+/** Was jeder Teil wert ist: das Jahr die Hälfte (gefragt nur das Jahr: alles), Monat und Tag teilen sich den Rest. */
+const PART_WEIGHT: Readonly<Record<DatePrecision, Readonly<Partial<Record<DatePrecision, number>>>>> = {
+  year: { year: 1 },
+  month: { year: 0.5, month: 0.5 },
+  day: { year: 0.5, month: 0.25, day: 0.25 }
+};
+
+/** Ein Teil um eins daneben (ein Jahr, ein Monat, ein Tag) ist nah: die Hälfte. */
+export const DATE_NEAR = 0.5;
+
+/** Ein Teil eines Datums nach der Prüfung: was gegeben war (`null`: fehlt), was richtig ist, wie viel es wert ist (1, ½, 0). */
+export interface DatePartMark {
+  readonly part: DatePrecision;
+  readonly given: number | null;
+  readonly expected: number;
+  readonly score: number;
+}
+
+/** Wie genau eine Datumsfrage fragt: nie genauer, als die richtige Antwort bekannt ist (nur ein Jahr: nur das Jahr). */
+export function dateAsked(expected: Pick<DateExpected, 'values' | 'precision'>): DatePrecision {
+  let finest = -1;
+  for (const raw of expected.values) {
+    const want = readDate(raw);
+    if (want !== null) finest = Math.max(finest, RANK[precisionOf(want)]);
+  }
+  return finest < 0 || finest >= RANK[expected.precision] ? expected.precision : (['year', 'month', 'day'] as const)[finest];
+}
 
 /**
- * Ein Datum, so genau wie gefragt. 2026-10-31 — TEILPUNKTE: ein richtiges Jahr (bei der Frage nach dem Tag auch Jahr und
- * Monat) zählt zum Teil — auch wenn nur das Jahr genannt wurde, wo der Tag gefragt war. Richtig ist es erst ganz.
+ * Jeder Teil für sich: gleich — ganz; um eins daneben — halb; sonst nichts. Um eins daneben ist ein Monat (ein Tag)
+ * auch, wenn er im Kalender gleich daneben liegt: Dezember 1829 und Januar 1830, der 31. und der 1.
+ */
+function partMark(part: DatePrecision, want: DateValue, got: DateValue): DatePartMark {
+  const year = (y: number) => (y < 0 ? y + 1 : y);
+  const score = (gap: number, span: number) => (gap === 0 ? 1 : gap === 1 || span === 1 ? DATE_NEAR : 0);
+  if (part === 'year') { const gap = Math.abs(year(want.y) - year(got.y)); return { part, given: got.y, expected: want.y, score: score(gap, gap) }; }
+  if (part === 'month') {
+    const expected = want.m ?? 1;
+    if (got.m === undefined) return { part, given: null, expected, score: 0 };
+    return { part, given: got.m, expected, score: score(Math.abs(expected - got.m), distance(coarsen(want, 'month'), coarsen(got, 'month'), 'month')) };
+  }
+  const expected = want.d ?? 1;
+  if (got.d === undefined) return { part, given: null, expected, score: 0 };
+  return { part, given: got.d, expected, score: score(Math.abs(expected - got.d), distance(want, got, 'day')) };
+}
+
+/** Was unter einer Datumsfrage steht, wenn die Antwort sich nicht lesen lässt. */
+export const DATE_UNREAD = 'Nie rozumiem tej daty — wpisz np. 11.1829, 1829-11 albo „listopad 1829”.';
+
+/**
+ * EIN DATUM, so genau wie gefragt. 2026-11-01 — JEDER TEIL FÜR SICH: Jahr, Monat und Tag werden einzeln verglichen;
+ * gleich zählt ganz, um eins daneben halb („nah"), sonst nichts. Das Jahr ist die Hälfte wert (wird nur das Jahr
+ * gefragt, alles), Monat und Tag teilen sich die andere Hälfte. Richtig ist es, wenn jeder Teil stimmt — oder die
+ * Antwort innerhalb der Toleranz der Frage liegt. Mehrere richtige Antworten: die, der die Antwort am nächsten kommt.
  */
 export function checkDate(expected: DateExpected, given: string): Outcome {
   if (given.trim() === '') return NOTHING;
   const answer = readDateAnswer(given);
-  if (answer === null) return { correct: false, correctness: 0, answered: true };
-  const precision = expected.precision;
-  const have: DatePrecision = answer.d !== undefined ? 'day' : answer.m !== undefined ? 'month' : 'year';
-  const wants = expected.values.map((raw) => readDate(raw)).filter((w): w is DateValue => w !== null);
-  const rankOf = (d: DateValue): number => RANK[d.d !== undefined ? 'day' : d.m !== undefined ? 'month' : 'year'];
-  const correct = RANK[have] >= RANK[precision] && wants.some((want) => rankOf(want) >= RANK[precision]
-    && distance(coarsen(want, precision), coarsen(answer, precision), precision) <= Math.max(0, expected.tolerance));
-  if (correct) return { correct, correctness: 1, answered: true };
-  /* Wie genau stimmt es, höchstens bis eine Stufe unter der gefragten — und nie genauer, als geantwortet wurde. */
-  let part = 0;
-  for (const level of ['month', 'year'] as const) {
-    if (RANK[level] >= RANK[precision] || RANK[level] > RANK[have]) continue;
-    if (wants.some((want) => rankOf(want) >= RANK[level] && distance(coarsen(want, level), coarsen(answer, level), level) === 0)) { part = DATE_PART[level]; break; }
+  if (answer === null) return { correct: false, correctness: 0, answered: true, note: DATE_UNREAD };
+  let best: Outcome | null = null;
+  for (const raw of expected.values) {
+    const want = readDate(raw);
+    if (want === null) continue;
+    const asked = RANK[precisionOf(want)] < RANK[expected.precision] ? precisionOf(want) : expected.precision;
+    const marks = DATE_PARTS[asked].map((part) => partMark(part, want, answer));
+    const exact = marks.every((m) => m.score === 1);
+    const within = expected.tolerance > 0 && RANK[precisionOf(answer)] >= RANK[asked]
+      && distance(coarsen(want, asked), coarsen(answer, asked), asked) <= expected.tolerance;
+    const correct = exact || within;
+    const correctness = correct ? 1 : marks.reduce((sum, m) => sum + (PART_WEIGHT[asked][m.part] ?? 0) * m.score, 0);
+    /* „Nah": kein Teil ganz daneben — auch wenn die Hälfte nicht über der Grenze für „prawie" liegt (ein Jahr daneben). */
+    const near = !correct && marks.every((m) => m.score > 0);
+    const outcome: Outcome = { correct, correctness, answered: true, expected: dateText(want), dateParts: marks, ...(near ? { near } : {}) };
+    if (best === null || outcome.correctness > best.correctness) best = outcome;
   }
-  return { correct: false, correctness: part, answered: true };
+  return best ?? { correct: false, correctness: 0, answered: true };
 }
 
 /* -- Wahl, Reihenfolge, Paare ----------------------------------------------------- */

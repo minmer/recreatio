@@ -8,14 +8,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { checkCard } from './cards';
 import { shuffleAway, type Card, type PromptPart } from './cardBasics';
-import { PRECISION_ASK, spansOf, type Outcome, type TextRule } from './check';
+import { DATE_UNREAD, dateAsked, PRECISION_ASK, readDateAnswer, spansOf, type DatePartMark, type Outcome, type TextRule } from './check';
 import { ExplainList } from './EntityReading';
 import { OrderAnswer } from './OrderAnswer';
 import { evaluateCode } from './python';
 import { GeoMap } from './GeoMap';
 import { InteractiveAnswer, InteractiveReplay } from './InteractiveAnswer';
 import { givenValuesText, solutionText } from './interactive';
-import { fieldText, fieldsOf, labelOf, type Entity } from './schema';
+import { datePartText, dateText, fieldText, fieldsOf, labelOf, readDate, type Entity } from './schema';
 import type { CogitaLibrary } from './store';
 import { Markup, MediaView, percent } from './ui';
 import { StatementCard } from '../library/markupView';
@@ -44,7 +44,8 @@ export function answerText(card: Card): string {
     case 'text':
     case 'gap': return a.accepted[0] ?? '';
     case 'number': return `${String(a.values[0] ?? '').replace('.', ',')}${a.unit === '' ? '' : ` ${a.unit}`}`;
-    case 'date': return a.values[0] ?? '';
+    /* 2026-11-01 — wie man ein Datum sagt („listopad 1829"), nicht wie es gespeichert ist („1829-11"). */
+    case 'date': { const d = readDate(a.values[0]); return d === null ? a.values[0] ?? '' : dateText(d); }
     case 'one': return a.options[a.correct] ?? '';
     case 'many': return a.correct.map((i) => a.options[i]).join(', ');
     case 'truefalse': return a.value ? 'prawda' : 'fałsz';
@@ -110,9 +111,34 @@ const glyph = (right: boolean, chosen: boolean): string => (right ? '✓' : chos
 /** Was der Lernende bei einer Datumsfrage eintippt — zur verlangten Genauigkeit. */
 const DATE_HINT: Readonly<Record<'year' | 'month' | 'day', string>> = {
   year: 'rok, np. 1410',
-  month: 'np. 7.1410 albo 1410-07',
-  day: 'np. 15.07.1410 albo 1410-07-15'
+  month: 'np. 7.1410 albo lipiec 1410',
+  day: 'np. 15.07.1410 albo 15 lipca 1410'
 };
+
+/** 2026-11-01 — so nennt die Karte die Teile eines Datums. */
+const PART_NAME: Readonly<Record<'year' | 'month' | 'day', string>> = { year: 'rok', month: 'miesiąc', day: 'dzień' };
+
+/**
+ * 2026-11-01 — DAS DATUM TEIL FÜR TEIL nach der Prüfung: je Tag, Monat, Jahr, was gegeben war und ob es stimmt (✓),
+ * nah ist (≈, um eins daneben) oder nicht (✗) — mit dem richtigen Wert daneben. Die Farbe ist nie das einzige Zeichen.
+ */
+function DateParts({ parts }: { parts: readonly DatePartMark[] }) {
+  return (
+    <ul className="cg-date-parts" data-date-parts="">
+      {parts.map((p) => {
+        const level = p.score === 1 ? 'is-right' : p.score > 0 ? 'is-near' : 'is-wrong';
+        return (
+          <li key={p.part} className={level} data-date-part={p.part} data-score={p.score}>
+            <span className="cg-option-mark" aria-hidden>{p.score === 1 ? '✓' : p.score > 0 ? '≈' : '✗'}</span>
+            <span className="cg-date-part-name">{PART_NAME[p.part]}</span>
+            {p.given === null ? <em className="cg-muted">brak</em> : <strong className={p.score === 1 ? undefined : 'cg-struck'}>{datePartText(p.part, p.given)}</strong>}
+            {p.score < 1 && <span className="cg-date-part-fix">{p.score > 0 ? 'blisko · ' : ''}dobrze: <strong>{datePartText(p.part, p.expected)}</strong></span>}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel = 'Dalej' }: {
   card: Card;
@@ -130,6 +156,8 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   /* Grün, was richtig ist; rot, was gewählt und falsch ist. */
   const mark = (right: boolean, chosen: boolean): string => (reveal === undefined ? '' : right ? ' is-right' : chosen ? ' is-wrong' : '');
   const [text, setText] = useState('');
+  /* 2026-11-01 — eine Datumsantwort, die sich nicht lesen liess: gesagt, nicht gezählt. */
+  const [unread, setUnread] = useState(false);
   const [many, setMany] = useState<ReadonlySet<number>>(new Set());
   const [order, setOrder] = useState<readonly string[]>([]);
   const [pairing, setPairing] = useState<Pairing>(NO_PAIRS);
@@ -153,7 +181,7 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
   }), [card.key, card.fingerprint]);
 
   useEffect(() => {
-    setText(''); setMany(new Set()); setOrder(view.start); setPairing(NO_PAIRS); setFlipped(false);
+    setText(''); setUnread(false); setMany(new Set()); setOrder(view.start); setPairing(NO_PAIRS); setFlipped(false);
     setCode(a.form === 'code' ? a.starter : ''); setPoint(null);
     if (autoFocus) window.setTimeout(() => field.current?.focus(), 30);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,21 +200,34 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     case 'text':
     case 'number':
     case 'date':
-    case 'gap':
+    case 'gap': {
+      /* 2026-11-01 — ein Datum, wie es gelesen wird: steht etwas da, das sich nicht lesen lässt, zählt es nicht als Antwort. */
+      const asked = a.form === 'date' ? dateAsked(a) : null;
+      const reading = a.form === 'date' && text.trim() !== '' ? readDateAnswer(text) : null;
+      const readText = reading === null ? '' : dateText(reading);
       return (
-        <form className="cg-answer" onSubmit={(e) => { e.preventDefault(); submit(text); }}>
+        <form className="cg-answer" onSubmit={(e) => {
+          e.preventDefault();
+          if (a.form === 'date' && text.trim() !== '' && reading === null) { setUnread(true); return; }
+          submit(text);
+        }}>
           {a.form === 'gap' && <div className="cg-prompt">{a.shown}</div>}
           {/* 2026-10-31 — jede Datumsfrage sagt, wie genau: das Jahr genügt, oder der Tag. */}
-          {a.form === 'date' && <p className="cg-precision" data-precision={a.precision}>{PRECISION_ASK[a.precision]}</p>}
+          {asked !== null && <p className="cg-precision" data-precision={asked}>{PRECISION_ASK[asked]}</p>}
           <div className="cg-row">
-            <input ref={field} type="text" className={reveal === undefined ? undefined : reveal.outcome.correct ? 'is-right' : reveal.outcome.correctness > 0.5 ? 'is-near' : 'is-wrong'} inputMode={a.form === 'number' ? 'decimal' : undefined} value={text} disabled={shut}
-              placeholder={a.form === 'date' ? DATE_HINT[a.precision] : a.form === 'number' ? (a.quantity === undefined ? 'liczba' : 'liczba, może z jednostką') : 'odpowiedź'}
-              aria-label={a.form === 'date' ? `Odpowiedź — ${PRECISION_ASK[a.precision].toLowerCase()}` : 'Odpowiedź'} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} />
+            <input ref={field} type="text" className={reveal === undefined ? undefined : reveal.outcome.correct ? 'is-right' : reveal.outcome.near === true || reveal.outcome.correctness > 0.5 ? 'is-near' : 'is-wrong'} inputMode={a.form === 'number' ? 'decimal' : undefined} value={text} disabled={shut}
+              placeholder={asked !== null ? DATE_HINT[asked] : a.form === 'number' ? (a.quantity === undefined ? 'liczba' : 'liczba, może z jednostką') : 'odpowiedź'}
+              aria-label={asked !== null ? `Odpowiedź — ${PRECISION_ASK[asked].toLowerCase()}` : 'Odpowiedź'} aria-invalid={unread || undefined}
+              onChange={(e) => { setText(e.target.value); setUnread(false); }} autoComplete="off" autoCapitalize="off" spellCheck={false} />
             {a.form === 'number' && a.unit !== '' && <span>{a.unit}</span>}
             {next ?? <button key="check" type="submit" className="wk-btn" disabled={shut}>Sprawdź</button>}
           </div>
+          {/* Wie das Datum gelesen wird — nur, wenn es anders aussieht als getippt („1829 11" → listopad 1829). */}
+          {a.form === 'date' && reveal === undefined && readText !== '' && readText !== text.trim() && <p className="cg-date-read" data-date-read="">= {readText}</p>}
+          {unread && reveal === undefined && <p className="cg-date-problem" role="alert" data-date-unread="">{DATE_UNREAD}</p>}
         </form>
       );
+    }
     case 'one':
       return (
         <div className="cg-answer">
@@ -374,7 +415,9 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   onEntity?: (id: string) => void;
   extra?: ReactNode;
 }) {
-  const level = outcome.correct ? 'is-right' : outcome.correctness > 0.5 ? 'is-near' : 'is-wrong';
+  /* 2026-11-01 — „nah" auch, wo die Prüfung es sagt (ein Datum, jeder Teil höchstens um eins daneben). */
+  const close = outcome.near === true || outcome.correctness > 0.5;
+  const level = outcome.correct ? 'is-right' : close ? 'is-near' : 'is-wrong';
   const expected = outcome.expected ?? answerText(card);
   const a = card.answer;
   const others = a.form === 'text' || a.form === 'gap' ? a.accepted.filter((x) => x.trim().toLowerCase() !== expected.trim().toLowerCase()) : [];
@@ -382,8 +425,10 @@ export function Verdict({ card, outcome, given, lib, onEntity, extra, showGiven 
   /* 2026-10-31 — zuerst das Thema der Frage („O czym”), dann, was sie zur Erklärung nennt; alles zugeklappt. */
   const explainIds = lib === undefined ? [] : [...(card.about ?? []), ...card.explain];
   const box = (
-    <div className={`cg-verdict ${level}`} role="status" data-verdict={outcome.correct ? 'right' : outcome.correctness > 0.5 ? 'near' : 'wrong'}>
-      <strong><span aria-hidden>{outcome.correct ? '✓ ' : outcome.correctness > 0.5 ? '≈ ' : '✗ '}</span>{outcome.correct ? 'Dobrze!' : outcome.correctness > 0.5 ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? (outcome.correctness > 0 ? `Niestety nie (${percent(outcome.correctness)}).` : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
+    <div className={`cg-verdict ${level}`} role="status" data-verdict={outcome.correct ? 'right' : close ? 'near' : 'wrong'}>
+      <strong><span aria-hidden>{outcome.correct ? '✓ ' : close ? '≈ ' : '✗ '}</span>{outcome.correct ? 'Dobrze!' : close ? `Prawie (${percent(outcome.correctness)})` : outcome.answered ? (outcome.correctness > 0 ? `Niestety nie (${percent(outcome.correctness)}).` : 'Niestety nie.') : 'Bez odpowiedzi.'}</strong>
+      {/* 2026-11-01 — ein Datum Teil für Teil: was stimmt, was nah ist, was nicht. */}
+      {outcome.dateParts !== undefined && !outcome.correct && <DateParts parts={outcome.dateParts} />}
       {/* Die richtige Antwort steht da, grün — auch nach einem Treffer, samt der anderen, die auch gelten; bei markierten Antworten auf ihnen selbst. */}
       {!onAnswer && (
         <span>Poprawnie: <strong className="cg-expected">{expected}</strong>

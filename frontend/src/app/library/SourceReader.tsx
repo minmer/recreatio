@@ -18,19 +18,32 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
+import type { TexMacros } from '../core/tex';
 import { Loading } from '../ui/Loading';
+import { selectedText, TexMacrosContext, useTexApi } from '../ui/tex/Tex';
 import { viewPath } from '../routes';
 import { containerPath, type OpenLibrary } from './library';
 import { kindOf, type LibEntry } from './libraryKinds';
 import { loadedStores, type Entry, type LibraryStore } from './libraryStore';
 import { overlap, parsePlace, type Span } from './locations';
-import { SourceBlockView } from './SourceBlocks';
+import { SourceFlow, TextRefsContext, type TextRefs } from './SourceBlocks';
 import { ReaderAnchors } from './LibraryKnowledge';
 import { finderOf, openPart } from './sourceFind';
 import {
-  alignEditions, editionsOf, findBlocks, pageRangeLabel, placeInManifest, placeOptions, readPart, searchParts, selectionLocator, textsOfWork,
+  alignEditions, editionsOf, findBlocks, labelBlocks, labelPart, pageRangeLabel, placeInManifest, placeOptions, readPart, searchParts, selectionLocator, textsOfWork,
   type ManifestPart, type PartData, type SourceBlock, type TextHit, type TextManifest, type WorkText
 } from './sourceText';
+import { looksLikeLabel } from './textLabels';
+
+const NO_MACROS: TexMacros = {};
+
+/** Die Blöcke, die eine Stelle meint: ein Label („Twierdzenie 2.3", „(2.4)") oder eine Stelle der Struktur, sonst Seiten. */
+function blocksAt(blocks: readonly SourceBlock[], at: string, manifest: TextManifest): number[] {
+  const byLabel = looksLikeLabel(at) ? labelBlocks(blocks, at) : [];
+  if (byLabel.length > 0) return byLabel;
+  const found = findBlocks(blocks, parsePlace(at, manifest.scheme, placeOptions(manifest.edition)), manifest.scheme, manifest.edition);
+  return found.length > 0 ? found : labelBlocks(blocks, at);
+}
 
 export function SourceReader({ store, library, workId, at, writable }: {
   store: LibraryStore;
@@ -91,7 +104,7 @@ function Reading({ store, library, work, text, at, writable }: {
   const here = (locator?: string) => viewPath('library', textLibrary, work.id, 'tekst', ...(locator === undefined || locator === '' ? [] : [locator]));
   const atPlace = useMemo(() => (at === '' ? null : placeInManifest(manifest, at)), [manifest, at]);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [focus, setFocus] = useState<number | null>(null);
+  const [focus, setFocus] = useState<readonly number[] | null>(null);
   useEffect(() => { setChosen(null); setFocus(null); }, [at]);
   const part = manifest.parts.find((p) => p.id === chosen) ?? atPlace?.part ?? manifest.parts[0];
 
@@ -104,12 +117,26 @@ function Reading({ store, library, work, text, at, writable }: {
     return () => { alive = false; };
   }, [store, part?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* 2026-11-01 — ein Text mit Wzory: KaTeX gleich mit dem Teil holen, und erst zeichnen, wenn es da ist (sonst blitzte LaTeX auf). */
+  const withTex = manifest.parts.some((p) => (p.formulas ?? 0) > 0);
+  const katex = useTexApi(withTex);
+
   const hits = useMemo(() => {
     if (data === null || data === undefined) return new Set<number>();
-    if (focus !== null) return new Set([focus]);
+    if (focus !== null) return new Set(focus);
     if (at === '' || chosen !== null) return new Set<number>();
-    return new Set(findBlocks(data.blocks, parsePlace(at, manifest.scheme, placeOptions(manifest.edition)), manifest.scheme, manifest.edition));
+    return new Set(blocksAt(data.blocks, at, manifest));
   }, [data, at, chosen, focus, manifest]);
+
+  /* 2026-11-01 — ein Verweis {{ref …}}: in diesem Teil springt er hin, in einem anderen öffnet er ihn an der Stelle. */
+  const refs = useMemo<TextRefs>(() => ({
+    where: (label) => (data != null && labelBlocks(data.blocks, label).length > 0 ? 'here' : labelPart(manifest, label) !== undefined ? 'there' : null),
+    open: (label) => {
+      const inPart = data == null ? [] : labelBlocks(data.blocks, label);
+      if (inPart.length > 0) { setFocus(inPart); return; }
+      window.location.hash = here(label);
+    }
+  }), [data, manifest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Zur ersten getroffenen Stelle rollen, sobald der Teil da ist. */
   const prefix = `src-${part?.id ?? 'x'}-`;
@@ -130,7 +157,14 @@ function Reading({ store, library, work, text, at, writable }: {
   const beside = editions.find((e) => e.work.id === besideId);
 
   if (part === undefined) return <p className="wk-empty">Ten tekst nie ma jeszcze żadnej części.</p>;
+  const at0 = manifest.parts.indexOf(part);
+  const before = at0 > 0 ? manifest.parts[at0 - 1] : undefined;
+  const after = at0 >= 0 ? manifest.parts[at0 + 1] : undefined;
+  const pick = (p: ManifestPart) => { setChosen(p.id); setFocus(null); window.scrollTo({ top: 0 }); };
+  const labelled = manifest.parts.some((p) => (p.labels ?? []).length > 0);
   return (
+    <TexMacrosContext.Provider value={manifest.edition.macros ?? NO_MACROS}>
+    <TextRefsContext.Provider value={refs}>
     <div className="src-layout">
       <nav className="src-toc" aria-label="Części tekstu">
         <h2 className="lib-box-h">Części</h2>
@@ -150,10 +184,10 @@ function Reading({ store, library, work, text, at, writable }: {
       <div className="src-main">
         <div className="src-tools">
           <form className="src-go" onSubmit={submitGo}>
-            <input value={go} onChange={(e) => setGo(e.target.value)} placeholder={manifest.scheme === 'bible' ? 'J 21,15' : manifest.scheme === 'pages' ? 's. 45' : 'miejsce'} aria-label="Przejdź do miejsca" />
+            <input value={go} onChange={(e) => setGo(e.target.value)} placeholder={manifest.scheme === 'bible' ? 'J 21,15' : labelled ? 's. 45 · Twierdzenie 2.3' : manifest.scheme === 'pages' ? 's. 45' : 'miejsce'} aria-label="Przejdź do miejsca" />
             <button type="submit" className="wk-btn wk-btn-quiet">Przejdź</button>
           </form>
-          <TextSearch store={store} manifest={manifest} onPick={(hit) => { setChosen(hit.part.id); setFocus(hit.index); }} />
+          <TextSearch store={store} manifest={manifest} onPick={(hit) => { setChosen(hit.part.id); setFocus([hit.index]); }} />
           {editions.length > 0 && (
             <label className="src-beside">
               <span>Obok</span>
@@ -169,15 +203,25 @@ function Reading({ store, library, work, text, at, writable }: {
         {/* 2026-10-25 (Wywód) — die Wejścia z Biblioteki, die diesen Teil berühren (aus lesbaren Bazy wiedzy, nichts gespeichert). */}
         <ReaderAnchors store={store} work={work} part={part} scheme={manifest.scheme} />
         <h2 className="src-part-h">{part.label}</h2>
-        {data === undefined ? <Loading lines={4} label="Otwieranie tekstu…" />
+        {data === undefined || (withTex && katex === undefined) ? <Loading lines={4} label={data === undefined ? 'Otwieranie tekstu…' : 'Składanie wzorów…'} />
           : data === null ? <p className="wk-empty">Tej części nie da się teraz otworzyć.</p>
           : beside === undefined
             ? <Picked store={store} work={work} manifest={manifest} blocks={data.blocks} writable={writable}>
-              <div className="src-flow">{data.blocks.map((b, i) => <SourceBlockView key={i} block={b} index={i} prefix={prefix} hit={hits.has(i)} />)}</div>
+              <div className="src-flow"><SourceFlow blocks={data.blocks} prefix={prefix} hits={hits} /></div>
             </Picked>
             : <Parallel store={store} work={work} manifest={manifest} part={part} blocks={data.blocks} prefix={prefix} hits={hits} other={beside.texts[0]!} writable={writable} />}
+        {withTex && katex === null && <p className="wk-note">Wzory pokazane jako kod LaTeX — moduł do ich składania nie wczytał się (brak sieci?).</p>}
+        {/* 2026-11-01 — weiterlesen wie im Buch: die Teile davor und danach. */}
+        {data != null && (before !== undefined || after !== undefined) && (
+          <nav className="src-partnav" aria-label="Sąsiednie części">
+            {before !== undefined ? <button type="button" className="wk-btn wk-btn-quiet" onClick={() => pick(before)}>← {before.label}</button> : <span />}
+            {after !== undefined && <button type="button" className="wk-btn wk-btn-quiet" onClick={() => pick(after)}>{after.label} →</button>}
+          </nav>
+        )}
       </div>
     </div>
+    </TextRefsContext.Provider>
+    </TexMacrosContext.Provider>
   );
 }
 
@@ -188,7 +232,8 @@ function TextSearch({ store, manifest, onPick }: { store: LibraryStore; manifest
   const [state, setState] = useState<{ busy: string | null; hits: TextHit[] | null }>({ busy: null, hits: null });
   const run = async (e: FormEvent) => {
     e.preventDefault();
-    if (query.trim().length < 2) return;
+    /* Ein Zeichen allein nur als Symbol („∫", „ε") — ein Buchstabe fände alles. */
+    if (query.trim().length < 2 && !/^[^A-Za-z0-9]$/.test(query.trim())) return;
     setState({ busy: 'Otwieranie tekstu…', hits: null });
     const loaded: { part: ManifestPart; data: PartData }[] = [];
     let done = 0;
@@ -248,7 +293,8 @@ function Picked({ store, work, manifest, blocks, writable, children }: {
     if (sel === null || sel.isCollapsed) { setPick(null); return; }
     const a = indexOf(sel.anchorNode);
     const b = indexOf(sel.focusNode);
-    const text = sel.toString().replace(/\s+/g, ' ').trim();
+    /* 2026-11-01 — ein Wzór in der Auswahl kommt als sein LaTeX ($…$) ins Zitat, ganz — nicht als Glyphen. */
+    const text = selectedText(sel).replace(/\s+/g, ' ').trim();
     /* Nur aus diesem Text (die Spalte daneben ist eine andere Ausgabe, mit eigenen Stellen). */
     if (a === null || b === null || a < 0 || b < 0 || text === '') { setPick(null); return; }
     setCopied(false);
@@ -318,19 +364,22 @@ function Parallel({ store, work, manifest, part, blocks, prefix, hits, other, wr
   /* Zeilen an den Stellen der Struktur (`alignEditions`): jeder Block mit eigener Stelle beginnt eine. */
   const { rows, rest } = alignEditions(blocks, theirs, manifest, other.manifest);
   const otherPrefix = `${prefix}o-`;
+  /* Die andere Ausgabe mit ihren eigenen Makra; ihre Blöcke zählen negativ (keine Auswahl, kein Zitat aus ihr). */
+  const otherMacros = other.manifest.edition.macros ?? NO_MACROS;
+  const otherIndex = (j: number) => -1 - j;
   return (
     <Picked store={store} work={work} manifest={manifest} blocks={blocks} writable={writable}>
       <div className="src-parallel">
         {rows.map((row, r) => (
           <div key={r} className="src-row">
-            <div className="src-col">{row.mine.map((i) => <SourceBlockView key={i} block={blocks[i]!} index={i} prefix={prefix} hit={hits.has(i)} />)}</div>
-            <div className="src-col is-other">{row.theirs.map((j) => <SourceBlockView key={j} block={theirs[j]!} index={-1 - j} prefix={otherPrefix} />)}</div>
+            <div className="src-col"><SourceFlow blocks={blocks} shown={row.mine} prefix={prefix} hits={hits} /></div>
+            <div className="src-col is-other"><TexMacrosContext.Provider value={otherMacros}><SourceFlow blocks={theirs} shown={row.theirs} prefix={otherPrefix} indexOf={otherIndex} /></TexMacrosContext.Provider></div>
           </div>
         ))}
         {rest.length > 0 && (
           <div className="src-row">
             <div className="src-col" />
-            <div className="src-col is-other">{rest.map((j) => <SourceBlockView key={j} block={theirs[j]!} index={-1 - j} prefix={otherPrefix} />)}</div>
+            <div className="src-col is-other"><TexMacrosContext.Provider value={otherMacros}><SourceFlow blocks={theirs} shown={rest} prefix={otherPrefix} indexOf={otherIndex} /></TexMacrosContext.Provider></div>
           </div>
         )}
       </div>

@@ -421,6 +421,37 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
   };
 }
 
+/** Eine Karte eines Paars aus einer langen Liste (`questionCards`): `<frage>:p<hash>`. */
+const isPairCard = (card: Card): boolean => card.answer.form === 'match' && card.entity !== undefined && card.label !== undefined && card.question.startsWith(`${card.entity}:p`);
+
+/**
+ * 2026-11-01 — WAS EINE KARTE MIT PAAREN ÜBER JEDES GEZEIGTE PAAR SAGT. Eine Karte aus einer langen Liste
+ * (`questionCards`, „Ile par naraz") zeigt ihr Paar und `show − 1` andere — und jedes davon ist die Karte seines
+ * Paars. Gezählt wird jedes für seine eigene Karte: richtig verbunden — es sitzt; falsch oder ohne Paar — es kommt
+ * wieder. Vorher zählte nur das eine Paar der Karte: die anderen eben richtig verbundenen blieben ungefragt und kamen
+ * gleich wieder, in fast derselben Zusammenstellung — so oft hintereinander, wie die Liste Paare hat.
+ * Leer: keine Karte eines Paars (eine ganze Liste auf einer Karte zählt als eine Antwort).
+ */
+export function pairEvidence(card: Card, given: unknown, all: readonly Card[]): { readonly card: Card; readonly correctness: number; readonly given: string }[] {
+  const a = card.answer;
+  if (a.form !== 'match' || !isPairCard(card)) return [];
+  const mine = new Map<number, number>();
+  for (const p of Array.isArray(given) ? given : []) if (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number') mine.set(p[0], p[1]);
+  const siblings = new Map<string, Card>();
+  for (const c of all) if (c.entity === card.entity && c.label !== undefined && isPairCard(c) && !siblings.has(c.label)) siblings.set(c.label, c);
+  const out: { card: Card; correctness: number; given: string }[] = [];
+  const seen = new Set<string>();
+  for (const [l, r] of a.pairs) {
+    const label = `${a.left[l]} — ${a.right[r]}`;
+    const one = label === card.label ? card : siblings.get(label);
+    if (one === undefined || seen.has(one.key)) continue;
+    seen.add(one.key);
+    const chosen = mine.get(l);
+    out.push({ card: one, correctness: chosen === r ? 1 : 0, given: chosen === undefined ? '' : `${a.left[l]} — ${a.right[chosen]}` });
+  }
+  return out;
+}
+
 /**
  * 2026-10-27 — DIE KARTEN EINER FRAGE ZUM LERNEN. Gewöhnlich eine. „Połącz w pary" mit „Ile par
  * naraz" kleiner als die Liste: JEDES PAAR SEINE KARTE (`frage:p<hash der linken Seite>`) — mit

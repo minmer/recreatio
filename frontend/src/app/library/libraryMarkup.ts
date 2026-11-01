@@ -13,6 +13,7 @@
  *   > eingerücktes Zitat
  *   - Punkt   ·   1. Punkt
  *   ---                        Trennlinie
+ *   $x^2$   $$\int_0^1 f$$     2026-11-01: ein Wzór (LaTeX) im Satz, für sich
  * </code>
  *
  * Die Verweise sind die von Pandoc (`[@schlüssel, Stelle]`) — wer seinen
@@ -22,6 +23,8 @@
  * Hier wird nur gelesen; gezeichnet wird in `LibraryText.tsx`, formatiert in
  * `libraryCite.ts`. So lässt sich der Zapis ohne Browser prüfen.
  */
+
+import { mathAt, texPlain } from '../core/tex';
 
 export interface CiteItem {
   readonly key: string;
@@ -36,6 +39,8 @@ export type Inline =
   | { readonly t: 'link'; readonly href: string; readonly c: readonly Inline[] }
   /** 2026-10-22 — `[[Wort|@token]]`: ein Verweis mit eigenem Wortlaut (aus den Bazy wiedzy) — ein Link, nie eine Fussnote. */
   | { readonly t: 'ref'; readonly key: string; readonly c: readonly Inline[] }
+  /** 2026-11-01 — ein Wzór: `$x^2$` im Satz, `$$…$$` für sich (LaTeX, Pandocs Regel — `core/tex.ts`). */
+  | { readonly t: 'math'; readonly tex: string; readonly display: boolean }
   | { readonly t: 'br' };
 
 export type Block =
@@ -114,6 +119,11 @@ export function parseInline(text: string): Inline[] {
     const c = text[i];
 
     if (c === '\\' && i + 1 < text.length) { buffer += text[i + 1]; i += 1; continue; }
+    /* 2026-11-01 — ein Wzór: was zwischen den Dollarzeichen steht, ist LaTeX, kein Zapis (auch über Zeilen, `$$…$$`). */
+    if (c === '$') {
+      const m = mathAt(text, i);
+      if (m !== null) { flush(); out.push({ t: 'math', tex: m.tex, display: m.display }); i = m.end - 1; continue; }
+    }
     if (c === '\n') { flush(); out.push({ t: 'br' }); continue; }
 
     /* Ein Verweis mit eigenem Wortlaut: [[Wort|@token]] */
@@ -358,7 +368,7 @@ export function mapRefTokens(source: string, map: (token: string) => string): st
 export function plainText(source: string, headings = true): string {
   const parts: string[] = [];
   const inline = (list: readonly Inline[]): string => list.map((one) =>
-    one.t === 'text' ? one.v : one.t === 'br' ? ' ' : one.t === 'cite' || one.t === 'note' ? '' : inline(one.c)).join('');
+    one.t === 'text' ? one.v : one.t === 'br' ? ' ' : one.t === 'cite' || one.t === 'note' ? '' : one.t === 'math' ? texPlain(one.tex) : inline(one.c)).join('');
   const blocks = (list: readonly Block[]) => {
     for (const b of list) {
       if (b.t === 'p' || (b.t === 'h' && headings)) parts.push(inline(b.c));

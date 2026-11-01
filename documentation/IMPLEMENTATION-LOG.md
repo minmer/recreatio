@@ -2789,3 +2789,36 @@ EVENTS.md (the course's bases).
   the modules Powtórka, Przebieg and Nauka (osoba z linkiem) — `ModuleStats.tsx` (lazy) with `KnowledgeStats` for the
   module's cards and „Moje odpowiedzi” (`AnswerLog.tsx`, moved out of `Progress.tsx` so a page does not load the
   teacher's screen); a button beside „Zacznij”, above the run in a tall module; „Wróć” back. Drive `many-browser.mjs` 30.
+
+## L4 — Textbooks in the Library: formulas in LaTeX, theorems and proofs, labels (2026-11-01)
+
+Owner: the full-text import (a PDF turned into JSON by one's own AI) must keep mathematical and scientific books
+whole — formulas, matrices, symbols, proofs — readable, searchable, usable for studying, with chapters and pages.
+The AI stays outside the app; the work is in the format, the import and the reader. As built (LIBRARY.md „Textbooks”):
+
+- Format `recreatio/source-text` v1, compatible: formulas `$…$` / `$$…$$` in every text (Pandoc's rule, and no `$`
+  after a digit or letter — Polish prices); blocks `statement` (19 kinds, label, title, `text` or nested `blocks`),
+  `figure`, `code`; table label and caption; `{{ref …}}`; `edition.macros`. The description and both prompts say how
+  (LaTeX for every formula, read from the page image, `\tag` as printed, doubled backslashes in JSON, what KaTeX lacks)
+  with a validated textbook example; ImportFormats.json and the AI guides regenerated.
+- `core/tex.ts`: reading, repairs (control characters from single backslashes — known KaTeX words and the text's own
+  macros —, `\( \)`, `\[ \]`, bare environments, doubling, definitions → macros, `\tag` in a sentence, page marks in
+  formulas), `texPlain`, `prepareTex` (KaTeX's gaps). `core/jsonText.ts`: JsonPanel reads JSON as an AI writes it
+  (invalid escapes, no escaping at all with `\\` kept as a row break, fences, raw line breaks) and says it repaired.
+- `ui/tex/`: KaTeX 0.19.1 + mhchem, lazy (woff2 only), `Tex`, `TexText`, punctuation glued to a formula, copying and
+  selections give LaTeX; a numbered equation's number never covers a wide formula.
+- Source texts: statements stored flat (`id`/`in`), nested in export; directory `formulas` and `labels`; labels in
+  `placeInManifest` (also other places: „pokaż w tekście” for `Twierdzenie 2.3`), `labelBlocks`, the reader's
+  boxes with ∎, references as buttons (into other parts too), labels in „Przejdź”, search by symbol and LaTeX,
+  next/previous part, KaTeX preloaded when a text has formulas; preview sets every formula and names the broken ones,
+  gaps in pages, references without target, double labels.
+- The shared markup sets formulas (knowledge bases, Scriptorium, Cogita, page texts, presentations, quotes); LaTeX
+  export with amsmath/amssymb.
+- MCP (API deploy): snapshot blocks with `labels`, `end`, `within`, `search`; `read_text` by label; statements quoted
+  in the rendering; a symbol term matches inside formulas (`Has`).
+- Checks: `app-tex-check.mjs` (new, in `app:check`): 108 formulas, repairs, lenient JSON, the textbook fixture (two
+  chapters, 84 formulas, 14 boxes) clean and spoiled four ways → identical blocks, warnings, drawing, snapshot, markup;
+  Api.Tests 569 (textbook snapshot); library, json, style, preview, slides, presentation, cogita 714 (before a parallel
+  session's change). Browser drive on LocalDB (session scratchpad `tex/tex-browser.mjs`, 28): the textbook pasted
+  unescaped → preview repaired, every formula set → import → reader (KaTeX, numbers, boxes, ∎, figure, code),
+  references and labels, search, selection → quote with LaTeX, copy, phone 375 px, dark.

@@ -318,8 +318,12 @@ public static partial class AiAccess
     }
 
     /// <summary>Ein Wort im gefalteten Text: kurze (1–2 Zeichen) nur als ganzes Wort, längere auch als Teil.</summary>
+    /// <summary>
+    /// Kommt der Begriff vor? Kurze Wörter nur als ganze Wörter („j" nicht in „jan"); 2026-11-01 — ein Zeichen ohne
+    /// Buchstaben und Ziffern (∑, ≤, ∫) überall: in einem Wzór hängt an ihm, was folgt (∑ⱼ).
+    /// </summary>
     public static bool Has(string hay, string term) =>
-        term.Length <= 2 ? HasWords(hay, term) : hay.Contains(term, StringComparison.Ordinal);
+        term.Length <= 2 && term.Any(char.IsLetterOrDigit) ? HasWords(hay, term) : hay.Contains(term, StringComparison.Ordinal);
 
     /// <summary>Eine Folge von Wörtern, an Wortgrenzen: „j 21" in „j 21,15", nicht in „j 210".</summary>
     public static bool HasWords(string hay, string words) => WordsAt(hay, words) >= 0;

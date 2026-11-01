@@ -35,9 +35,17 @@ public static partial class AiAccess
         public int? PageFrom { get; init; }
         public int? PageTo { get; init; }
         public required string Text { get; init; }
+        /// <summary>2026-11-01 — was der Block nummeriert, wie gedruckt („Twierdzenie 2.3", „(2.4)", „Rys. 1").</summary>
+        public List<string> Labels { get; init; } = [];
+        /// <summary>2026-11-01 — bei einer Aussage (Twierdzenie, Dowód …): ihr letzter Block.</summary>
+        public int? End { get; init; }
+        /// <summary>2026-11-01 — in welchen Aussagen der Block steht (ihre Art), von aussen nach innen.</summary>
+        public List<string> Within { get; init; } = [];
+        /// <summary>2026-11-01 — seine Wzory als Zeile Text (α, ∫, ℝ): die Suche findet sie auch so.</summary>
+        public string? Search { get; init; }
 
         private string? folded;
-        public string Folded => folded ??= Fold(Text);
+        public string Folded => folded ??= Fold(Search is null ? Text : Text + " " + Search);
     }
 
     public sealed class TextPart
@@ -63,6 +71,11 @@ public static partial class AiAccess
         public JsonElement Edition { get; init; }
         public List<TextPart> Parts { get; } = [];
     }
+
+    private static List<string> Strings(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Take(40).ToList()
+            : [];
 
     private static int? IntAt(JsonElement e, int index) =>
         e.ValueKind == JsonValueKind.Array && e.GetArrayLength() > index && e[index].ValueKind == JsonValueKind.Number && e[index].TryGetInt32(out var n) ? n : null;
@@ -117,7 +130,11 @@ public static partial class AiAccess
                                 At = Str(bl, "at"),
                                 PageFrom = IntAt(pages, 0),
                                 PageTo = IntAt(pages, 1),
-                                Text = Str(bl, "text") ?? ""
+                                Text = Str(bl, "text") ?? "",
+                                Labels = Strings(bl, "labels"),
+                                End = bl.TryGetProperty("end", out var end) && end.ValueKind == JsonValueKind.Number && end.TryGetInt32(out var last) ? last : null,
+                                Within = Strings(bl, "within"),
+                                Search = Str(bl, "search")
                             });
                         }
                     }
@@ -285,6 +302,9 @@ public static partial class AiAccess
         var q = query.Trim();
         if (q.Length == 0 || part.Blocks.Count == 0) return null;
 
+        /* 2026-11-01 — ein Label, wie gedruckt: „Twierdzenie 2.3", „(2.4)", „Rys. 1" — eine Aussage ganz, bis zu ihrem letzten Block. */
+        if (LabelAt(part, q) is TextBlock labelled) return (labelled.Index, Math.Max(labelled.Index, labelled.End ?? labelled.Index));
+
         var pages = PagesQuery.Match(q);
         if (pages.Success && PageValue(pages.Groups[1].Value) is int from)
         {
@@ -316,19 +336,35 @@ public static partial class AiAccess
         return end is null || end.Value.Last < start.Value.First ? start : (start.Value.First, end.Value.Last);
     }
 
-    /// <summary>Blöcke lesbar: Überschriften als Überschriften, jede Stelle davor in Klammern.</summary>
+    /// <summary>Ein Label, wie gedruckt, an einem Block dieses Teils — Gross- und Kleinschreibung, Leerzeichen, Punkte und Klammern um eine Nummer zählen nicht.</summary>
+    private static TextBlock? LabelAt(TextPart part, string query)
+    {
+        static string Norm(string s) => Fold(s).Replace(" ", "").Replace(".", "").Trim('(', ')');
+        var q = Norm(query);
+        if (q.Length == 0) return null;
+        return part.Blocks.FirstOrDefault(b => b.Labels.Any(l => Norm(l) == q));
+    }
+
+    /// <summary>
+    /// Blöcke lesbar: Überschriften als Überschriften, jede Stelle davor in Klammern. 2026-11-01 — eine Aussage
+    /// (Twierdzenie, Definicja, Dowód …) und was in ihr steht als Zitat (<c>&gt; </c>, tiefer <c>&gt; &gt; </c>), ihr Kopf
+    /// fett; Wzory bleiben LaTeX in <c>$…$</c> und <c>$$…$$</c>.
+    /// </summary>
     public static string RenderBlocks(IEnumerable<TextBlock> blocks)
     {
         var sb = new StringBuilder();
         foreach (var b in blocks)
         {
             var place = b.Loc is null ? "" : $"[{b.Loc}] ";
+            var inside = string.Concat(Enumerable.Repeat("> ", b.Within.Count));
+            var text = inside.Length == 0 ? b.Text : b.Text.Replace("\n", "\n" + inside);
             switch (b.Type)
             {
                 case "heading": sb.Append('#', Math.Clamp((b.Level ?? 1) + 1, 2, 6)).Append(' ').Append(place).AppendLine(b.Text); break;
-                case "quote": sb.Append("> ").Append(place).AppendLine(b.Text.Replace("\n", "\n> ")); break;
-                case "page": sb.AppendLine(b.Text); break;
-                default: sb.Append(place).AppendLine(b.Text); break;
+                case "quote": sb.Append(inside).Append("> ").Append(place).AppendLine(text.Replace("\n", "\n> ")); break;
+                case "page": sb.Append(inside).AppendLine(b.Text); break;
+                case "statement": sb.Append(inside).Append(place).Append("**").Append(b.Text).AppendLine("**"); break;
+                default: sb.Append(inside).Append(place).AppendLine(text); break;
             }
             sb.AppendLine();
         }

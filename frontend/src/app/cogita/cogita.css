@@ -654,6 +654,24 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-match-fix { display: block; font-size: var(--wk-text-sm); }
 .cg-struck { text-decoration: line-through; }
 
+/* 2026-11-01 — ein Datum Teil für Teil (CardFace `DateParts`): je Teil eine Zeile im Urteil, ✓ ≈ ✗ mit dem richtigen Wert. */
+.cg-date-parts { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--wk-space-2); }
+.cg-date-parts li {
+  display: inline-flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); align-items: baseline;
+  border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); padding: var(--wk-space-1) var(--wk-space-2); background: var(--wk-surface); color: var(--wk-ink);
+}
+.cg-date-parts li.is-right { border-color: var(--wk-ok); }
+.cg-date-parts li.is-near { border-color: var(--wk-held-line); }
+.cg-date-parts li.is-wrong { border-color: var(--wk-danger); }
+.cg-date-parts li.is-right .cg-option-mark { color: var(--wk-free-ink); }
+.cg-date-parts li.is-near .cg-option-mark { color: var(--wk-held-ink); }
+.cg-date-parts li.is-wrong .cg-option-mark { color: var(--wk-shut-ink); }
+.cg-date-part-name { color: var(--wk-muted); font-size: var(--wk-text-sm); }
+.cg-date-part-fix { font-size: var(--wk-text-sm); }
+/* Wie die getippte Antwort gelesen wird, und was, wenn sie sich nicht lesen lässt. */
+.cg-date-read { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); }
+.cg-date-problem { margin: 0; font-size: var(--wk-text-sm); color: var(--wk-shut-ink); }
+
 /* Erklärungen und Themen (EntityReading.tsx): zugeklappt eine Zeile, der erste Eintrag zwei, drei Zeilen. */
 .cg-explain .cg-reading, .cg-topic-intro .cg-reading { text-align: left; }
 .cg-reading { border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); min-width: 0; }

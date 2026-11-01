@@ -1,0 +1,87 @@
+{
+  "format": "recreatio/source-text",
+  "version": 1,
+  "work": "@algebra-analiza",
+  "scheme": "pages",
+  "edition": {
+    "language": "pl",
+    "pdfPageOffset": 10,
+    "macros": {
+      "\\R": "\\mathbb{R}",
+      "\\rank": "\\operatorname{rank}",
+      "\\tr": "\\operatorname{tr}",
+      "\\T": "^{\\mathsf{T}}",
+      "\\norm": "\\left\\lVert #1 \\right\\rVert",
+      "\\abs": "\\left\\lvert #1 \\right\\rvert"
+    }
+  },
+  "portions": [
+    {
+      "portion": { "key": "rozdz-3", "label": "Rozdział 3. Macierze i wyznaczniki", "order": 3 },
+      "blocks": [
+        { "type": "page", "page": "57", "pdf": 67 },
+        { "type": "heading", "level": 1, "text": "Rozdział 3. Macierze i wyznaczniki" },
+        { "type": "heading", "level": 2, "text": "3.1. Działania na macierzach" },
+        { "type": "paragraph", "text": "Macierzą o $m$ wierszach i $n$ kolumnach nazywamy prostokątną tablicę $A = [a_{ij}]$, gdzie $a_{ij} \\in \\R$ dla $1 \\le i \\le m$, $1 \\le j \\le n$. Zbiór takich macierzy oznaczamy $\\R^{m \\times n}$, a macierz transponowaną — $A\\T$." },
+        { "type": "statement", "kind": "definition", "label": "Definicja 3.1", "title": "iloczyn macierzy", "text": "Iloczynem macierzy $A \\in \\R^{m \\times n}$ i $B \\in \\R^{n \\times p}$ nazywamy macierz $AB \\in \\R^{m \\times p}$ o wyrazach $$(AB)_{ik} = \\sum_{j=1}^{n} a_{ij}\\, b_{jk}, \\qquad 1 \\le i \\le m,\\; 1 \\le k \\le p. \\tag{3.1}$$" },
+        { "type": "statement", "kind": "theorem", "label": "Twierdzenie 3.2", "title": "Cauchy'ego", "text": "Dla dowolnych macierzy kwadratowych $A, B \\in \\R^{n \\times n}$ zachodzi $$\\det(AB) = \\det A \\cdot \\det B. \\tag{3.2}$$" },
+        {
+          "type": "statement", "kind": "proof", "label": "Dowód", "blocks": [
+            { "type": "paragraph", "text": "Rozważmy macierz blokową stopnia $2n$: $$M = \\left[\\begin{array}{c|c} A & 0 \\\\ \\hline -I & B \\end{array}\\right].$$ Rozwijając wyznacznik względem pierwszych $n$ wierszy, otrzymujemy $\\det M = \\det A \\cdot \\det B$." },
+            { "type": "paragraph", "text": "Z drugiej strony, dodając do pierwszych $n$ kolumn odpowiednie kombinacje {{page 58 pdf 68}} pozostałych kolumn, sprowadzamy $M$ do postaci $$\\begin{aligned} \\det M &= \\det \\begin{bmatrix} 0 & AB \\\\ -I & B \\end{bmatrix} \\\\ &= (-1)^{n} \\det(-I) \\det(AB) \\\\ &= \\det(AB), \\end{aligned}$$ co wraz z poprzednią równością daje {{ref (3.2)}}." }
+          ]
+        },
+        {
+          "type": "statement", "kind": "example", "label": "Przykład 3.3", "blocks": [
+            { "type": "paragraph", "text": "Dla $A = \\begin{pmatrix} 2 & 1 \\\\ 1 & 3 \\end{pmatrix}$ mamy $$\\det A = \\begin{vmatrix} 2 & 1 \\\\ 1 & 3 \\end{vmatrix} = 2 \\cdot 3 - 1 \\cdot 1 = 5 \\neq 0,$$ więc $A$ jest odwracalna i $A^{-1} = \\frac{1}{5}\\begin{pmatrix} 3 & -1 \\\\ -1 & 2 \\end{pmatrix}$." },
+            { "type": "paragraph", "text": "Funkcja $f(x) = \\begin{cases} \\det(xI - A), & x \\neq 0, \\\\ 5, & x = 0 \\end{cases}$ jest wielomianem stopnia $2$ — por. {{ref wzór (3.1)}}." }
+          ]
+        },
+        {
+          "type": "list", "ordered": true, "items": [
+            "$\\det A\\T = \\det A$;",
+            "zamiana dwóch wierszy zmienia znak wyznacznika;",
+            "$\\det(\\lambda A) = \\lambda^n \\det A$ dla $A \\in \\R^{n \\times n}$, $\\lambda \\in \\R$;",
+            "jeżeli $\\rank A < n$, to $\\det A = 0$."
+          ]
+        },
+        {
+          "type": "statement", "kind": "theorem", "label": "Twierdzenie 3.4", "title": "wzory Cramera", "blocks": [
+            { "type": "paragraph", "text": "Jeżeli $\\det A \\neq 0$, to układ $$\\left\\{\\begin{aligned} a_{11}x_1 + \\dots + a_{1n}x_n &= b_1, \\\\ &\\;\\;\\vdots \\\\ a_{n1}x_1 + \\dots + a_{nn}x_n &= b_n \\end{aligned}\\right. \\tag{3.3}$$ ma dokładnie jedno rozwiązanie, dane wzorami $$x_i = \\frac{\\det A_i}{\\det A}, \\qquad i = 1, \\dots, n, \\tag{3.4}$$ gdzie $A_i$ powstaje z $A$ przez zastąpienie $i$-tej kolumny kolumną wyrazów wolnych." }
+          ]
+        },
+        {
+          "type": "statement", "kind": "proof", "label": "Dowód", "blocks": [
+            { "type": "paragraph", "text": "Z {{ref twierdzenia 3.2}} wynika, że $\\det A^{-1} = (\\det A)^{-1}$. Wykażemy najpierw pomocniczy fakt." },
+            { "type": "statement", "kind": "lemma", "label": "Lemat 3.5", "text": "Dla każdej macierzy kwadratowej $A$ zachodzi $A \\cdot \\operatorname{adj} A = (\\det A)\\, I$." },
+            { "type": "statement", "kind": "proof", "label": "Dowód lematu", "text": "Wyraz $(i,k)$ iloczynu to rozwinięcie Laplace'a: $\\sum_{j} a_{ij} C_{kj} = \\delta_{ik} \\det A$." },
+            { "type": "paragraph", "text": "Stąd $x = A^{-1} b = \\frac{1}{\\det A} \\operatorname{adj}(A)\\, b$, a $i$-ta współrzędna to {{ref (3.4)}}." }
+          ]
+        },
+        { "type": "page", "page": "59", "pdf": 69 },
+        { "type": "table", "label": "Tabela 3.1", "text": "Koszt obliczania wyznacznika macierzy $n \\times n$.", "columns": ["Metoda", "Liczba działań"], "rows": [["z definicji (permutacje)", "$O(n \\cdot n!)$"], ["eliminacja Gaussa", "$O(n^3)$"], ["rozwinięcie Laplace'a", "$O(n!)$"]] },
+        { "type": "figure", "label": "Rys. 3.1", "text": "Pole równoległoboku rozpiętego na wektorach $u, v \\in \\R^2$ jest równe $\\abs{\\det[u\\; v]}$.", "alt": "Równoległobok o bokach u i v zaczepionych w początku układu współrzędnych; zacieniowane pole." },
+        { "type": "code", "lang": "pseudokod", "text": "funkcja WYZNACZNIK(A):\n    d := 1\n    dla k := 1 … n:\n        p := wiersz z największym |a[i][k]|, i ≥ k\n        jeśli a[p][k] = 0: zwróć 0\n        jeśli p ≠ k: zamień wiersze p i k; d := −d\n        d := d · a[k][k]\n        dla i := k+1 … n: w_i := w_i − (a[i][k] / a[k][k]) · w_k\n    zwróć d" },
+        { "type": "statement", "kind": "exercise", "label": "Ćwiczenie 3.6*", "text": "Udowodnij, że dla macierzy Vandermonde'a $$\\det\\begin{pmatrix} 1 & x_1 & \\cdots & x_1^{n-1} \\\\ \\vdots & \\vdots & \\ddots & \\vdots \\\\ 1 & x_n & \\cdots & x_n^{n-1} \\end{pmatrix} = \\prod_{1 \\le i < j \\le n} (x_j - x_i).$$ Wskazówka: indukcja względem $n$.{{note 1}}" },
+        { "type": "paragraph", "text": "Normę macierzy definiujemy wzorem $\\norm{A} = \\max_{\\norm{x} = 1} \\norm{Ax}$; dla niej $\\norm{AB} \\le \\norm{A}\\,\\norm{B}$, a także $\\abs{\\det A} \\le \\norm{A}^n$ {{page 60 pdf 70}} (nierówność Hadamarda w słabszej postaci)." },
+        { "type": "note", "id": "1", "text": "Por. też wzór $\\tr(AB) = \\tr(BA)$, prawdziwy dla $A \\in \\R^{m \\times n}$, $B \\in \\R^{n \\times m}$." }
+      ]
+    },
+    {
+      "portion": { "key": "rozdz-4", "label": "Rozdział 4. Szeregi liczbowe", "order": 4 },
+      "blocks": [
+        { "type": "page", "page": "61", "pdf": 71 },
+        { "type": "heading", "level": 1, "text": "Rozdział 4. Szeregi liczbowe" },
+        { "type": "statement", "kind": "definition", "label": "Definicja 4.1", "text": "Szereg $\\sum_{n=1}^{\\infty} a_n$ jest zbieżny, gdy ciąg sum częściowych $S_N = \\sum_{n=1}^{N} a_n$ ma granicę skończoną: $$\\sum_{n=1}^{\\infty} a_n := \\lim_{N \\to \\infty} S_N. \\tag{4.1}$$" },
+        { "type": "statement", "kind": "theorem", "label": "Twierdzenie 4.2", "title": "kryterium d'Alemberta", "text": "Jeżeli $a_n > 0$ i $$\\limsup_{n\\to\\infty} \\frac{a_{n+1}}{a_n} < 1, \\tag{4.2}$$ to szereg $\\sum a_n$ jest zbieżny." },
+        { "type": "statement", "kind": "proof", "label": "Dowód", "text": "Istnieją $q < 1$ i $N$, że $a_{n+1} \\le q\\, a_n$ dla $n \\ge N$; stąd $a_{N+k} \\le q^k a_N$ i szereg jest majoryzowany przez szereg geometryczny $\\sum_k q^k = \\frac{1}{1-q}$." },
+        { "type": "statement", "kind": "example", "label": "Przykład 4.3", "text": "Znane są sumy $$\\sum_{n=1}^{\\infty} \\frac{1}{n^2} = \\frac{\\pi^2}{6}, \\qquad \\sum_{n=0}^{\\infty} \\frac{(-1)^n}{2n+1} = \\frac{\\pi}{4} \\tag{4.3}$$ oraz rozwinięcie $$e^{x} = \\sum_{n=0}^{\\infty} \\frac{x^n}{n!} = 1 + x + \\frac{x^2}{2!} + \\cdots, \\quad x \\in \\R. \\tag{4.4}$$" },
+        { "type": "statement", "kind": "remark", "label": "Uwaga 4.4", "text": "Szeregi macierzowe $e^{A} = \\sum_{n \\ge 0} \\frac{A^n}{n!}$ zbiegają dla każdej $A \\in \\R^{n \\times n}$, a $\\det e^{A} = e^{\\tr A}$ — korzystając z {{ref twierdzenia 3.2}} i z rozkładu Jordana." },
+        { "type": "paragraph", "text": "W fizyce szereg (4.4) opisuje np. rozpad promieniotwórczy $N(t) = N_0 e^{-\\lambda t}$, a w chemii — kinetykę reakcji $\\ce{2H2 + O2 -> 2H2O}$ o stałej szybkości $k = \\pu{1.2e-3 s^-1}$." },
+        { "type": "paragraph", "text": "Przemienność diagramu $$\\begin{CD} V @>{A}>> W \\\\ @V{P}VV @VV{Q}V \\\\ V' @>{B}>> W' \\end{CD}$$ oznacza, że $QA = BP$; całka $\\displaystyle\\int_{0}^{\\infty} e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}$ wróci przy {{ref Rys. 3.1}}." },
+        { "type": "page", "page": "62", "pdf": 72 },
+        { "type": "paragraph", "text": "Na koniec — nierówność Cauchy'ego–Schwarza dla szeregów: $$\\Bigl( \\sum_{n} a_n b_n \\Bigr)^2 \\leqslant \\sum_{n} a_n^2 \\cdot \\sum_{n} b_n^2. \\tag{4.5}$$" }
+      ]
+    }
+  ]
+}

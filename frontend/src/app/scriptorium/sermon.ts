@@ -27,6 +27,7 @@ import {
   COVERAGE_STATES, ids, isSource, itemsOf, kindOf, num, ownTitle, POINT_KINDS, refTarget, str,
   type EntryData, type LibEntry, type Lookup
 } from '../library/libraryKinds';
+import { texPlain } from '../core/tex';
 import { parseMarkup, plainText, type Inline } from '../library/libraryMarkup';
 
 export type PointKind = (typeof POINT_KINDS)[number]['value'];
@@ -133,6 +134,7 @@ export function pointLine(text: string, look?: Lookup, length = 400): string {
       case 'text': return one.v;
       case 'br': return ' ';
       case 'note': return '';
+      case 'math': return texPlain(one.tex);
       case 'cite': {
         if (look === undefined) return '';
         /* 2026-10-22 — ein eigener Eintrag mit seinem Namen, Quellen in Klammern. */

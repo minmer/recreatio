@@ -509,6 +509,13 @@ export function dateText(date: DateValue): string {
   return `${date.d} ${MONTHS_OF[date.m - 1]} ${year}`;
 }
 
+/** 2026-11-01 — ein Teil eines Datums in Worten: das Jahr (vor Christus so gesagt), der Monat als Name, der Tag als Zahl. */
+export function datePartText(part: DatePrecision, value: number): string {
+  if (part === 'year') return value < 0 ? `${-value} przed Chr.` : String(value);
+  if (part === 'month') return MONTHS[value - 1] ?? String(value);
+  return String(value);
+}
+
 /* -- Spannen ---------------------------------------------------------------------- */
 
 const FROM_STATES = ['inclusive', 'exclusive', 'approximate', 'unknown'] as const;

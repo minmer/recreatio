@@ -2450,6 +2450,54 @@ check('goals and lines follow the one logic', [
     [true, true, true, true, false]);
   const whole = Cards.questionCard(longQ, 's1');
   check('the question as ONE card (a flow, a page): 4 pairs drawn per attempt, history kept for the whole list', [whole.answer.left.length, whole.varies, whole.key, Cards.questionCard(longQ, 's9').fingerprint === whole.fingerprint], [4, true, 'q-z', true]);
+
+  /* -- 2026-11-01: jedes gezeigte Paar zählt für seine eigene Karte (sonst kam dieselbe Liste gleich wieder) ------------- */
+  const truthOf = (c) => c.answer.pairs.map(([l, r]) => [l, r]);
+  const firstPair = per[0];
+  const allRight = Cards.pairEvidence(firstPair, truthOf(firstPair), per);
+  check('a pairs card answered: every pair shown counts for its own card — the card itself and the 3 others',
+    [allRight.length, allRight.some((e) => e.card.key === firstPair.key), allRight.every((e) => e.correctness === 1), new Set(allRight.map((e) => e.card.key)).size, allRight.every((e) => per.includes(e.card))],
+    [4, true, true, 4, true]);
+  const swapped = truthOf(firstPair).map(([l, r], i, all) => (i === 0 ? [l, all[1][1]] : i === 1 ? [l, all[0][1]] : [l, r]));
+  check('… a pair matched wrongly counts wrong for its own card only; what the learner joined is kept in words',
+    [Cards.pairEvidence(firstPair, swapped, per).map((e) => e.correctness).sort(), Cards.pairEvidence(firstPair, swapped, per).every((e) => e.given.includes(' — '))],
+    [[0, 0, 1, 1], true]);
+  check('… a whole list on one card, or any other card, gives nothing extra',
+    [Cards.pairEvidence(whole, truthOf(whole), per), Cards.pairEvidence(Cards.questionCard({ id: 'q-t', kinds: ['question'], data: { form: 'text', prompt: 'P', answers: ['x'] } }, ''), 'x', per)], [[], []]);
+  const runPairs = (withOthers) => {
+    let s = R.start({ plan: R.readPlan(per, { mode: 'temporal', stackSize: 20 }), all: per, marks: () => [], deps: [], now: 0, seed: 'pary' });
+    const asked = [];
+    let t = 0;
+    while (s.current !== null && asked.length < 50) {
+      const c = per.find((x) => x.key === s.current);
+      asked.push(c.key);
+      t += 60_000;
+      const others = withOthers ? Cards.pairEvidence(c, truthOf(c), per).filter((e) => e.card.key !== c.key).map((e) => ({ key: e.card.key, correctness: e.correctness })) : [];
+      s = R.answer(s, 1, t, others).session;
+    }
+    return { asked, s };
+  };
+  const pairsBefore = runPairs(false);
+  const pairsAfter = runPairs(true);
+  check('a long list learnt with every shown pair counting: fewer cards until all 12 pairs sit, none asked twice, every pair with its state',
+    [pairsBefore.asked.length, pairsAfter.asked.length < 12, new Set(pairsAfter.asked).size === pairsAfter.asked.length, per.every((c) => pairsAfter.s.states.has(c.key))],
+    [12, true, true, true]);
+  const otherQs = ['q-o1', 'q-o2'].map((id) => Cards.questionCard({ id, kinds: ['question'], data: { form: 'truefalse', prompt: id, value: true } }, ''));
+  {
+    const mixed = [...per, ...otherQs];
+    let s = R.start({ plan: R.readPlan(mixed, { mode: 'temporal', stackSize: 20 }), all: mixed, marks: () => [], deps: [], now: 0, seed: 'rodzina' });
+    let repeats = 0;
+    let previous = null;
+    let t = 0;
+    for (let i = 0; i < 40 && s.current !== null; i += 1) {
+      const c = mixed.find((x) => x.key === s.current);
+      if (previous !== null && c.entity === previous && s.active.some((k) => mixed.find((x) => x.key === k)?.entity !== previous)) repeats += 1;
+      previous = c.entity;
+      t += 60_000;
+      s = R.answer(s, 1, t).session;
+    }
+    check('the cards of one question (its pairs) never come twice in a row while another question waits in the stack', repeats, 0);
+  }
   const short = Cards.questionCards({ id: 'q-s', kinds: ['question'], data: { form: 'match', prompt: 'P', left: ['a', 'b', 'c'], right: ['1', '2', '3'], show: 6 } }, 's');
   check('a short list (fewer pairs than „Ile par naraz”): one card with all of them (the left column shuffled, never as stored)',
     [short.length, [...short[0].answer.left].sort(), short[0].answer.left.join() === 'a,b,c', short[0].varies], [1, ['a', 'b', 'c'], false, false]);
@@ -2970,9 +3018,36 @@ check('goals and lines follow the one logic', [
     [C.checkOrder(['a', 'b', 'c', 'd', 'e'], ['a', 'c', 'b', 'd', 'e']).correctness, C.checkOrder(['a', 'b', 'c', 'd', 'e'], ['b', 'c', 'd', 'e', 'a']).correctness, C.checkOrder(['a', 'b', 'c'], ['c', 'b', 'a']).correctness, C.checkOrder(['a', 'b', 'c'], ['a', 'b', 'c']).correct],
     [0.6, 0.75, 1 / 3, true]);
   const day = { values: ['1841-06-05'], precision: 'day', tolerance: 0 };
-  check('date: a right year earns part on a day question (also when only the year is given), year and month more — right only when whole',
+  /* 2026-11-01 — jeder Teil für sich: das Jahr die Hälfte, Monat und Tag je ein Viertel; um eins daneben halb. */
+  check('date: every part on its own — the year half (a year off: half of it), month and day a quarter each, one off: half — right only when whole',
     [['1841', '1841-06', '1841-06-07', '1841-07-05', '1842-06-05', '5.06.1841'].map((g) => C.checkDate(day, g).correctness), C.checkDate(day, '1841').correct, C.checkDate({ values: ['1841-06'], precision: 'month', tolerance: 0 }, '1841-07').correctness, C.checkDate({ values: ['1841'], precision: 'year', tolerance: 0 }, '1842').correctness],
-    [[0.5, 0.75, 0.75, 0.5, 0, 1], false, 0.5, 0]);
+    [[0.5, 0.75, 0.75, 0.875, 0.75, 1], false, 0.75, 0.5]);
+  check('date: a year one off is near (50 %) — said part by part, with the right value',
+    (({ correct, correctness, near, dateParts }) => [correct, correctness, near, dateParts])(C.checkDate({ values: ['1829'], precision: 'year', tolerance: 0 }, '1830')),
+    [false, 0.5, true, [{ part: 'year', given: 1830, expected: 1829, score: 0.5 }]]);
+  check('date: parts in reading order (day, month, year), each with its own score; a part not given is missing, not near',
+    C.checkDate(day, '1842-06').dateParts,
+    [{ part: 'day', given: null, expected: 5, score: 0 }, { part: 'month', given: 6, expected: 6, score: 1 }, { part: 'year', given: 1842, expected: 1841, score: 0.5 }]);
+  check('date: neighbours across a boundary are near too — December 1829 and January 1830, the 31st and the 1st; not December and January of one year',
+    [C.checkDate({ values: ['1829-12'], precision: 'month', tolerance: 0 }, '1830-01').correctness, C.checkDate({ values: ['1829-12'], precision: 'month', tolerance: 0 }, '1830-01').near, C.checkDate({ values: ['1829-12'], precision: 'month', tolerance: 0 }, '1829-01').correctness, C.checkDate({ values: ['1841-01-31'], precision: 'day', tolerance: 0 }, '1841-02-01').correctness],
+    [0.5, true, 0.5, 0.75]);
+  check('date: the answer from the learning screen — „1829 11” is November 1829, right; the right answer said in words',
+    (({ correct, correctness, expected }) => [correct, correctness, expected])(C.checkDate({ values: ['1829-11'], precision: 'month', tolerance: 0 }, '1829 11')),
+    [true, 1, 'listopad 1829']);
+  check('date: several right answers — the closest one counts; the tolerance of the question still makes it right',
+    [C.checkDate({ values: ['1820', '1829'], precision: 'year', tolerance: 0 }, '1830').correctness, C.checkDate({ values: ['1829'], precision: 'year', tolerance: 1 }, '1830').correct],
+    [0.5, true]);
+  const readKey = (t) => { const d = C.readDateAnswer(t); return d === null ? null : S.dateKey(d); };
+  check('date: read the way people write it — numbers in any usual order, months as words in any form (also without Polish letters), Roman months, BC',
+    ['1829 11', '11 1829', '11.1829', '1829.11', '1829/11/3', '03-11-1829', '3.11.1829', 'listopad 1829', 'listopada 1829', 'w listopadzie 1829 r.', '3 listopada 1829 roku', '3-go listopada 1829', 'XI 1829', '3 XI 1829', 'November 1829', 'pazdziernik 1829', '1829, październik', '1000 p.n.e.', 'ok. 1829'].map(readKey),
+    ['1829-11', '1829-11', '1829-11', '1829-11', '1829-11-03', '1829-11-03', '1829-11-03', '1829-11', '1829-11', '1829-11', '1829-11-03', '1829-11-03', '1829-11', '1829-11-03', '1829-11', '1829-10', '1829-10', '-1000', '1829']);
+  check('date: what cannot be read is not guessed — a day without a year, a word that is no month, a month alone, two years',
+    ['3 listopada', 'rozdział 6', 'listopad', '1829 albo 1830', '1829 1830', ''].map(readKey), [null, null, null, null, null, null]);
+  check('date: an unreadable answer says how to write it (the card does not count it)',
+    (({ correct, correctness, note }) => [correct, correctness, note])(C.checkDate({ values: ['1829'], precision: 'year', tolerance: 0 }, 'kiedyś')), [false, 0, C.DATE_UNREAD]);
+  check('date: never asked more precisely than the right answer is known (only a year: the year)',
+    [C.dateAsked({ values: ['1829'], precision: 'month' }), C.dateAsked({ values: ['1829', '1829-11'], precision: 'month' }), C.dateAsked({ values: ['1829-11-03'], precision: 'month' }), C.checkDate({ values: ['1829'], precision: 'month', tolerance: 0 }, '1829').correct],
+    ['year', 'month', 'month', true]);
   check('date: every date question says the precision it expects', [C.PRECISION_ASK.year, C.PRECISION_ASK.day], ['Podaj rok.', 'Podaj dzień, miesiąc i rok.']);
   check('marks on one’s own order: right or not, and where each belongs — twins each in their own place',
     [C.orderMarks(['a', 'b', 'c'], ['b', 'a', 'c']), C.orderMarks(['x', 'x', 'y'], ['x', 'y', 'x'])],

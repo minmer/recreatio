@@ -25,8 +25,10 @@
  * bleiben. Erfunden wird nichts — was fehlt, bleibt leer.
  */
 
+import { macroWords, mathAt, readMacros, repairTexText, TEX_FIX_SAYS, texPlain, texSource, texTags, type TexFix, type TexMacros } from '../core/tex';
 import { contains, formatPlace, overlap, pagesOverlap, parsePlace, placeSortKey, rememberSeries, SCHEMES, schemeOf, seriesKeyOf, TEXT_SCHEMES, workScheme, type PageSpan, type Place, type PlaceOptions, type SchemeId, type Span } from './locations';
 import { ids, type EntryData, type LibEntry, type Lookup } from './libraryKinds';
+import { keyText, kindOfWord, labelKey, labelMatches, looksLikeLabel, NOT_A_TARGET, readKeyText, STATEMENT_KINDS, statementKind, type LabelKey } from './textLabels';
 
 export const SOURCE_FORMAT = 'recreatio/source-text';
 export const SOURCE_VERSION = 1;
@@ -40,10 +42,31 @@ export const TEXT_KINDS: ReadonlySet<string> = new Set([TEXT_KIND, PART_KIND]);
 /** Wie gross ein Teil höchstens sein darf (die Blöcke als JSON in UTF-8) — eine Hülle fasst 4 MB, mit Rand für ihre Hülle. */
 export const MAX_PART_BYTES = 3_500_000;
 
-export type BlockType = 'heading' | 'paragraph' | 'quote' | 'list' | 'table' | 'note' | 'page';
-export const BLOCK_TYPES: readonly BlockType[] = ['heading', 'paragraph', 'quote', 'list', 'table', 'note', 'page'];
+/*
+ * 2026-11-01 — WZORY UND AUSSAGEN (Lehrbücher der Mathematik und der Naturwissenschaften): jeder Text kann
+ * Wzory tragen (`$…$`, `$$…$$`, LaTeX — `core/tex.ts`), dazu drei Blöcke:
+ *   statement   Definicja, Twierdzenie, Lemat, Dowód … mit Label („Twierdzenie 2.3"), Namen und Inhalt —
+ *               im JSON verschachtelt (`blocks`), gespeichert flach: der Kopf mit `id`, sein Inhalt mit `in`
+ *   figure      ein Rysunek: Label, Podpis, was er zeigt (`alt`)
+ *   code        Kod oder Pseudokod, Zeichen für Zeichen
+ * und einen Verweis im Text: `{{ref twierdzenia 2.3}}`, `{{ref (2.4)}}` (`textLabels.ts`).
+ */
+export type BlockType = 'heading' | 'paragraph' | 'quote' | 'list' | 'table' | 'note' | 'page' | 'statement' | 'figure' | 'code';
+export const BLOCK_TYPES: readonly BlockType[] = ['heading', 'paragraph', 'quote', 'list', 'table', 'note', 'page', 'statement', 'figure', 'code'];
 
 export interface SourceBlock {
+  /** Bei `statement`: was für eine Aussage (`textLabels.ts`: theorem, definition, proof …). */
+  readonly kind?: string;
+  /** Bei `statement`, `figure`, `table`: die Bezeichnung, wie gedruckt („Twierdzenie 2.3", „Rys. 4.1", „Tabela 2"). */
+  readonly label?: string;
+  /** Bei `statement`: ihr Name („Bolzano–Weierstrassa"). */
+  readonly title?: string;
+  /** Bei `figure`: was das Bild zeigt — vom Abschreibenden, nicht aus dem Buch. */
+  readonly alt?: string;
+  /** Bei `code`: die Sprache. */
+  readonly lang?: string;
+  /** In welcher Aussage der Block steht (deren `id`). */
+  readonly in?: string;
   readonly type: BlockType;
   /** Die Stelle in der Struktur des Werks, in seiner Schreibweise („J 21,15", „nr 24", „2.0121"). */
   readonly loc?: string;
@@ -53,7 +76,7 @@ export interface SourceBlock {
   readonly items?: readonly string[];
   readonly columns?: readonly string[];
   readonly rows?: readonly (readonly string[])[];
-  /** Bei `note`: ihre Kennung, auf die `{{note …}}` zeigt. */
+  /** Bei `note`: ihre Kennung, auf die `{{note …}}` zeigt; bei `statement`: seine, auf die `in` zeigt. */
   readonly id?: string;
   /** Bei `page`: die gedruckte Seite, die hier beginnt, und die Seite der PDF-Datei. */
   readonly page?: string;
@@ -69,6 +92,8 @@ export interface Edition {
   /** Zählung der Psalmen in diesem Text (nur Pismo Święte). */
   readonly psalms?: 'hebrew' | 'greek';
   readonly note?: string;
+  /** 2026-11-01 — die Makra des Buches für seine Wzory (`\R` → `\mathbb{R}`). */
+  readonly macros?: TexMacros;
 }
 
 /** Ein Teil im Verzeichnis: wo er beginnt und endet. */
@@ -84,6 +109,9 @@ export interface ManifestPart {
   readonly series?: readonly string[];
   readonly blocks: number;
   readonly words: number;
+  /** 2026-11-01 — wie viele Wzory (der Czytnik lädt KaTeX gleich mit) und die Labels darin („theorem 2.3", „eq 2.4"). */
+  readonly formulas?: number;
+  readonly labels?: readonly string[];
 }
 
 export interface TextManifest {
@@ -104,6 +132,11 @@ export interface PartData {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const s = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+/** `{ macros }`, wenn es welche gibt — sonst nichts (ein Text ohne Wzory bleibt, wie er war). */
+const macrosOf = (raw: unknown): { macros?: TexMacros } => {
+  const { macros } = readMacros(raw);
+  return Object.keys(macros).length === 0 ? {} : { macros };
+};
 
 /* -- Lesen des gespeicherten -------------------------------------------------------------------- */
 
@@ -117,14 +150,17 @@ export function readManifest(data: EntryData): TextManifest {
       ...(typeof edition.pdfPageOffset === 'number' ? { pdfPageOffset: edition.pdfPageOffset } : {}),
       ...(s(edition.language) === '' ? {} : { language: s(edition.language) }),
       ...(edition.psalms === 'greek' || edition.psalms === 'hebrew' ? { psalms: edition.psalms } : {}),
-      ...(s(edition.note) === '' ? {} : { note: s(edition.note) })
+      ...(s(edition.note) === '' ? {} : { note: s(edition.note) }),
+      ...macrosOf(edition.macros)
     },
     parts: (Array.isArray(data.parts) ? data.parts : []).filter(isObject).map((p) => ({
       id: s(p.id), key: s(p.key), label: s(p.label) || s(p.key), order: typeof p.order === 'number' ? p.order : 0,
       ...(s(p.first) === '' ? {} : { first: s(p.first) }), ...(s(p.last) === '' ? {} : { last: s(p.last) }),
       ...(Array.isArray(p.pages) && p.pages.length === 2 && p.pages.every((x) => typeof x === 'number') ? { pages: [p.pages[0] as number, p.pages[1] as number] as const } : {}),
       ...(seriesOf(p.series).length === 0 ? {} : { series: seriesOf(p.series) }),
-      blocks: typeof p.blocks === 'number' ? p.blocks : 0, words: typeof p.words === 'number' ? p.words : 0
+      blocks: typeof p.blocks === 'number' ? p.blocks : 0, words: typeof p.words === 'number' ? p.words : 0,
+      ...(typeof p.formulas === 'number' && p.formulas > 0 ? { formulas: p.formulas } : {}),
+      ...(Array.isArray(p.labels) && p.labels.length > 0 ? { labels: p.labels.filter((x): x is string => typeof x === 'string').slice(0, 5000) } : {})
     })).filter((p) => p.id !== '').sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl'))
   };
   /* Die Serien der Seiten bekannt — dann schreibt das Verzeichnis „s. 12*–20*", auch bevor ein Teil geladen ist. */
@@ -145,34 +181,150 @@ export type Piece =
   | { readonly t: 'page'; readonly page: string; readonly pdf?: number }
   | { readonly t: 'note'; readonly id: string }
   | { readonly t: 'unsure'; readonly v: string }
-  | { readonly t: 'gap' };
+  | { readonly t: 'gap' }
+  /** 2026-11-01 — ein Wzór (LaTeX) im Satz oder für sich. */
+  | { readonly t: 'math'; readonly tex: string; readonly display: boolean }
+  /** 2026-11-01 — ein Verweis auf ein Twierdzenie, einen Wzór, einen Rysunek desselben Textes, so geschrieben wie im Buch. */
+  | { readonly t: 'ref'; readonly label: string };
 
-const MARK = /\{\{\s*(page\b|note\b|gap\b|\?)([^}]*)\}\}/g;
+const MARK = /\{\{\s*(page\b|note\b|gap\b|ref\b|\?)([^}]*)\}\}/y;
 
-/** Ein Text mit seinen Zeichen: `{{page 46}}`, `{{page 46 pdf 52}}`, `{{note 3}}`, `{{? wyraz}}`, `{{gap}}`. */
+/**
+ * Ein Text mit seinen Zeichen: `{{page 46}}`, `{{page 46 pdf 52}}`, `{{note 3}}`, `{{? wyraz}}`, `{{gap}}`,
+ * `{{ref twierdzenia 2.3}}` — und seinen Wzory (`$…$`, `$$…$$`; in ihnen gilt kein Zeichen). `\$` ist ein Dollar.
+ */
 export function pieces(text: string): Piece[] {
+  if (!text.includes('{{') && !text.includes('$')) return text === '' ? [] : [{ t: 'text', v: text }];
   const out: Piece[] = [];
-  let at = 0;
-  for (const m of text.matchAll(MARK)) {
-    if (m.index! > at) out.push({ t: 'text', v: text.slice(at, m.index) });
-    const arg = (m[2] ?? '').trim();
-    if (m[1] === 'page') {
-      const pm = /^(\S+)(?:\s+pdf\s+(\d+))?$/i.exec(arg);
-      if (pm !== null) out.push({ t: 'page', page: pm[1]!, ...(pm[2] === undefined ? {} : { pdf: Number(pm[2]) }) });
-    } else if (m[1] === 'note') out.push({ t: 'note', id: arg });
-    else if (m[1] === '?') out.push({ t: 'unsure', v: arg });
-    else out.push({ t: 'gap' });
-    at = m.index! + m[0].length;
+  let buffer = '';
+  const flush = () => { if (buffer !== '') { out.push({ t: 'text', v: buffer }); buffer = ''; } };
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i]!;
+    if (c === '\\' && text[i + 1] === '$') { buffer += '$'; i += 1; continue; }
+    if (c === '$') {
+      const m = mathAt(text, i);
+      if (m !== null) { flush(); out.push({ t: 'math', tex: m.tex, display: m.display }); i = m.end - 1; continue; }
+    }
+    if (c === '{' && text[i + 1] === '{') {
+      MARK.lastIndex = i;
+      const m = MARK.exec(text);
+      if (m !== null) {
+        const arg = (m[2] ?? '').trim();
+        if (m[1] === 'page') {
+          const pm = /^(\S+)(?:\s+pdf\s+(\d+))?$/i.exec(arg);
+          flush();
+          if (pm !== null) out.push({ t: 'page', page: pm[1]!, ...(pm[2] === undefined ? {} : { pdf: Number(pm[2]) }) });
+        } else if (m[1] === 'note') { flush(); out.push({ t: 'note', id: arg }); }
+        else if (m[1] === '?') { flush(); out.push({ t: 'unsure', v: arg }); }
+        else if (m[1] === 'ref') { flush(); if (arg !== '') out.push({ t: 'ref', label: arg }); }
+        else { flush(); out.push({ t: 'gap' }); }
+        i += m[0].length - 1;
+        continue;
+      }
+    }
+    buffer += c;
   }
-  if (at < text.length) out.push({ t: 'text', v: text.slice(at) });
+  flush();
   return out;
 }
 
-/** Was man liest — ohne Zeichen (für Suche, Zählung, Zitat aus der Auswahl). */
+/** Was man liest — ohne Zeichen (für Suche, Zählung, Zitat aus der Auswahl); ein Wzór als Zeile Text (`texPlain`). */
 export const plainOfText = (text: string): string =>
-  pieces(text).map((p) => (p.t === 'text' ? p.v : p.t === 'unsure' ? p.v : p.t === 'gap' ? '…' : '')).join('').replace(/\s+/g, ' ').trim();
+  pieces(text).map((p) => (p.t === 'text' ? p.v : p.t === 'unsure' ? p.v : p.t === 'gap' ? '…' : p.t === 'ref' ? p.label : p.t === 'math' ? ` ${texPlain(p.tex)} ` : '')).join('').replace(/\s+/g, ' ').trim();
 
-const blockTexts = (b: SourceBlock): string[] => [b.text ?? '', ...(b.items ?? []), ...(b.columns ?? []), ...(b.rows ?? []).flat()];
+/** Die Wzory eines Textes als LaTeX (für die Suche nach einem Befehl, `\frac`). */
+const texOfText = (text: string): string =>
+  text.includes('$') ? pieces(text).flatMap((p) => (p.t === 'math' ? [p.tex] : [])).join(' ') : '';
+
+/** Alles, was ein Block an Text trägt — auch Kopf und Podpis einer Aussage, eines Rysunek, einer Tabela. */
+const blockTexts = (b: SourceBlock): string[] => (b.type === 'code' ? [codeAsText(b.text ?? '')] : [
+  ...(b.type === 'statement' ? [statementHead(b)] : b.label !== undefined ? [b.label] : []),
+  b.text ?? '', ...(b.alt === undefined ? [] : [b.alt]), ...(b.items ?? []), ...(b.columns ?? []), ...(b.rows ?? []).flat()
+]);
+
+/** Die Wzory eines Blocks als Zeile Text (α, ∫, ℝ) — für Suchen ausserhalb (die Abschrift für den Dostęp dla AI). Leer: keine Wzory. */
+export const texSearchText = (b: SourceBlock): string =>
+  blockTexts(b).filter((t) => t.includes('$')).map((t) => pieces(t).flatMap((p) => (p.t === 'math' ? [texPlain(p.tex)] : [])).join(' ')).join(' ').trim();
+
+/** Der Kopf einer Aussage, wie er dasteht: „Twierdzenie 2.3 (Bolzano–Weierstrassa)". */
+export const statementHead = (b: SourceBlock): string => {
+  const label = b.label ?? statementKind(b.kind).label;
+  return `${label}${b.title === undefined || b.title === '' ? '' : ` (${b.title})`}`;
+};
+
+/* -- Aussagen: der Kopf und was in ihm steht ---------------------------------------------------- */
+
+/**
+ * JE BLOCK DIE AUSSAGEN, IN DENEN ER STEHT — von aussen nach innen (ihre `id`). Der Kopf einer
+ * Aussage steht in ihr selbst. Ein `in`, das auf nichts davor zeigt, zählt nicht.
+ */
+export function boxesOf(blocks: readonly SourceBlock[]): string[][] {
+  const chains = new Map<string, string[]>();
+  return blocks.map((b) => {
+    const outer = b.in === undefined ? [] : chains.get(b.in) ?? [];
+    if (b.type === 'statement' && b.id !== undefined && b.id !== '') {
+      const own = [...outer, b.id];
+      chains.set(b.id, own);
+      return own;
+    }
+    return outer;
+  });
+}
+
+/** Die Blöcke einer Aussage: ihr Kopf und alles, was in ihr steht (auch tiefer). */
+export function boxBlocks(blocks: readonly SourceBlock[], head: number): number[] {
+  const id = blocks[head]?.id;
+  if (id === undefined || blocks[head]!.type !== 'statement') return [head];
+  const chains = boxesOf(blocks);
+  return chains.map((chain, i) => (chain.includes(id) ? i : -1)).filter((i) => i >= 0);
+}
+
+/* -- Labels: Twierdzenia, Wzory, Rysunki, Tabele ------------------------------------------------- */
+
+/** Was an einem Block nummeriert ist, wie es dasteht — mit seinem Schlüssel (`textLabels.ts`). */
+export function blockLabels(b: SourceBlock): { label: string; key: LabelKey }[] {
+  const out: { label: string; key: LabelKey }[] = [];
+  if (b.type === 'statement' && b.label !== undefined && !NOT_A_TARGET.has(b.kind ?? '')) {
+    const key = labelKey(b.label, b.kind ?? null);
+    if (key !== null) out.push({ label: b.label, key });
+  }
+  if ((b.type === 'figure' || b.type === 'table') && b.label !== undefined) {
+    const key = labelKey(b.label, b.type);
+    if (key !== null) out.push({ label: b.label, key });
+  }
+  for (const text of [b.text ?? '', ...(b.items ?? []), ...(b.rows ?? []).flat()]) {
+    if (!text.includes('\\tag')) continue;
+    for (const p of pieces(text)) {
+      if (p.t !== 'math' || !p.display) continue;
+      for (const tag of texTags(p.tex)) { const key = labelKey(tag, 'eq'); if (key !== null) out.push({ label: tag, key }); }
+    }
+  }
+  return out;
+}
+
+/** Die Schlüssel der Labels eines Teils, in der Reihenfolge des Textes (fürs Verzeichnis). */
+export const partLabels = (blocks: readonly SourceBlock[]): string[] =>
+  [...new Set(blocks.flatMap((b) => blockLabels(b).map((l) => keyText(l.key))))];
+
+/**
+ * WO STEHT „Twierdzenie 2.3", „(2.4)", „Rys. 1"? Die Blöcke, die das Label tragen — bei einer Aussage
+ * sie ganz (Kopf und Inhalt). Leer: nichts davon in diesem Teil.
+ */
+export function labelBlocks(blocks: readonly SourceBlock[], wanted: string): number[] {
+  const ref = labelKey(wanted);
+  if (ref === null) return [];
+  for (let i = 0; i < blocks.length; i += 1) {
+    if (blockLabels(blocks[i]!).some((l) => labelMatches(ref, l.key))) return blocks[i]!.type === 'statement' ? boxBlocks(blocks, i) : [i];
+  }
+  return [];
+}
+
+/** Welcher Teil trägt das Label (aus dem Verzeichnis, ohne einen Teil zu laden)? */
+export function labelPart(manifest: TextManifest, wanted: string): ManifestPart | undefined {
+  const ref = labelKey(wanted);
+  if (ref === null) return undefined;
+  return manifest.parts.find((p) => (p.labels ?? []).some((k) => { const key = readKeyText(k); return key !== null && labelMatches(ref, key); }));
+}
 
 const pageValue = (page: string): number | null => {
   const p = parsePlace(`s. ${page}`, 'pages').pages[0];
@@ -267,18 +419,26 @@ export function pageSeriesIn(blocks: readonly SourceBlock[]): string[] {
   return [...out];
 }
 
-/** Erste und letzte Stelle, Seiten, Blöcke und Wörter eines Teils — für das Verzeichnis. */
-export function partSummary(blocks: readonly SourceBlock[]): { first?: string; last?: string; pages?: readonly [number, number]; series?: readonly string[]; blocks: number; words: number } {
+/** Wie viele Wzory ein Teil trägt. */
+export const formulaCount = (blocks: readonly SourceBlock[]): number =>
+  blocks.reduce((n, b) => n + blockTexts(b).reduce((m, t) => m + (t.includes('$') ? pieces(t).filter((p) => p.t === 'math').length : 0), 0), 0);
+
+/** Erste und letzte Stelle, Seiten, Blöcke, Wörter, Wzory und Labels eines Teils — für das Verzeichnis. */
+export function partSummary(blocks: readonly SourceBlock[]): { first?: string; last?: string; pages?: readonly [number, number]; series?: readonly string[]; blocks: number; words: number; formulas?: number; labels?: readonly string[] } {
   const locs = blocks.map((b) => b.loc?.trim() ?? '').filter((l) => l !== '');
   const pages = blockPages(blocks).filter((p): p is { from: number; to: number } => p !== null);
   const series = pageSeriesIn(blocks);
   const words = blocks.reduce((n, b) => n + blockTexts(b).reduce((m, t) => m + (plainOfText(t).match(/\S+/g)?.length ?? 0), 0), 0);
+  const formulas = formulaCount(blocks);
+  const labels = partLabels(blocks);
   return {
     ...(locs.length === 0 ? {} : { first: locs[0], last: locs[locs.length - 1] }),
     ...(pages.length === 0 ? {} : { pages: [Math.min(...pages.map((p) => p.from)), Math.max(...pages.map((p) => p.to))] as const }),
     ...(series.length === 0 ? {} : { series }),
     blocks: blocks.length,
-    words
+    words,
+    ...(formulas === 0 ? {} : { formulas }),
+    ...(labels.length === 0 ? {} : { labels })
   };
 }
 
@@ -300,8 +460,14 @@ export interface TextPlace {
  * eine Stelle, die der Text nicht tragen kann (Seiten, aber der Text hat keine) — nichts.
  */
 export function placeInManifest(manifest: TextManifest, locator: string): TextPlace {
+  /* 2026-11-01 — ein Label („Twierdzenie 2.3", „(2.4)", „Rys. 1") zuerst, wenn es wie eines aussieht; sonst nach den Stellen. */
+  const labelled = looksLikeLabel(locator) ? labelPart(manifest, locator) : undefined;
+  if (labelled !== undefined) return { status: 'found', part: labelled, why: '' };
   const place = parsePlace(locator, manifest.scheme, placeOptions(manifest.edition));
-  if (place.spans.length === 0 && place.pages.length === 0) return { status: 'none', why: 'Tego miejsca nie da się odczytać w układzie tego dzieła.' };
+  if (place.spans.length === 0 && place.pages.length === 0) {
+    const part = labelPart(manifest, locator);
+    return part !== undefined ? { status: 'found', part, why: '' } : { status: 'none', why: 'Tego miejsca nie da się odczytać w układzie tego dzieła.' };
+  }
   const parts = manifest.parts;
   if (place.spans.length > 0) {
     const hits = parts.filter((p) => {
@@ -330,7 +496,12 @@ export interface ImportContext {
   readonly work: LibEntry;
   /** Was es schon gibt — ein Teil mit demselben Schlüssel wird ersetzt. */
   readonly manifest?: TextManifest;
+  /** 2026-11-01 — der Prüfer der Wzory (KaTeX, `ui/tex/`); ohne ihn werden sie nicht gesetzt, nur gelesen. */
+  readonly tex?: TexCheck;
 }
+
+/** Lässt sich der Wzór setzen? Die Meldung, wenn nicht. */
+export type TexCheck = (tex: string, display: boolean, macros: TexMacros) => string | null;
 
 export interface SourcePlan {
   readonly portion: { readonly key: string; readonly label: string; readonly order: number };
@@ -340,11 +511,39 @@ export interface SourcePlan {
   readonly edition: Edition;
   readonly blocks: readonly SourceBlock[];
   readonly replaces: boolean;
-  readonly summary: ReturnType<typeof partSummary> & { readonly notes: number; readonly located: number };
+  readonly summary: ReturnType<typeof partSummary> & {
+    readonly notes: number;
+    readonly located: number;
+    /** 2026-11-01 — Aussagen (Twierdzenia, Dowody …), ob die Wzory gesetzt wurden, wie viele nicht gingen. */
+    readonly statements: number;
+    readonly checked: boolean;
+    readonly texErrors: number;
+  };
   readonly warnings: readonly string[];
 }
 
 const KEY = /^[\p{L}\p{N} _.:()\-]{1,60}$/u;
+/** Wie tief Aussagen ineinander stehen dürfen (ein Lemat im Beweis im Twierdzenie …). */
+const MAX_DEPTH = 4;
+/** Wie viele Hinweise einer Sorte genannt werden — der Rest als Zahl. */
+const SHOWN_WARNINGS = 25;
+
+/** Ein Dollarzeichen, das keinen Wzór beginnt und nicht als `\$` geschrieben ist? */
+function strayDollar(text: string): boolean {
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === '\\' && text[i + 1] === '$') { i += 1; continue; }
+    if (text[i] !== '$') continue;
+    const m = mathAt(text, i);
+    if (m === null) return true;
+    i = m.end - 1;
+  }
+  return false;
+}
+
+/** Kod bleibt Zeichen für Zeichen — nur ein Seitenwechsel darf in ihm stehen. Für die Zeichen der Texte entwertet. */
+export const codeAsText = (text: string): string => text.replace(/\$/g, '\\$').replace(/\{\{(?!\s*page\b)/g, '{​{');
+
+const short = (tex: string): string => { const t = tex.replace(/\s+/g, ' ').trim(); return t.length > 60 ? `${t.slice(0, 59)}…` : t; };
 
 /** Einen Teil prüfen und ordnen — `{ error }`, wenn nichts davon gespeichert werden kann. */
 export function planSourceImport(raw: unknown, ctx: ImportContext): SourcePlan | { error: string } {
@@ -372,14 +571,22 @@ export function planSourceImport(raw: unknown, ctx: ImportContext): SourcePlan |
   }
 
   const ed = isObject(raw.edition) ? raw.edition : {};
-  const edition: Edition = {
-    ...(ctx.manifest?.edition ?? {}),
+  const { macros: ownMacros, warnings: macroWarnings } = readMacros(ed.macros);
+  warnings.push(...macroWarnings);
+  /* Die Makra des Textes wachsen mit jedem Teil: was ein neuer Teil nennt, kommt dazu oder ersetzt. */
+  const macros: Record<string, string> = { ...(ctx.manifest?.edition.macros ?? {}), ...ownMacros };
+  const prior = ctx.manifest?.edition ?? {};
+  const edition0: Edition = {
+    ...(prior.pdfPageOffset === undefined ? {} : { pdfPageOffset: prior.pdfPageOffset }),
+    ...(prior.language === undefined ? {} : { language: prior.language }),
+    ...(prior.psalms === undefined ? {} : { psalms: prior.psalms }),
+    ...(prior.note === undefined ? {} : { note: prior.note }),
     ...(typeof ed.pdfPageOffset === 'number' && Number.isInteger(ed.pdfPageOffset) ? { pdfPageOffset: ed.pdfPageOffset } : {}),
     ...(s(ed.language) === '' ? {} : { language: s(ed.language).slice(0, 20) }),
     ...(ed.psalms === 'greek' || ed.psalms === 'hebrew' ? { psalms: ed.psalms } : {}),
     ...(s(ed.note) === '' ? {} : { note: s(ed.note).slice(0, 500) })
   };
-  if (scheme !== 'bible' && edition.psalms !== undefined) warnings.push('"edition.psalms" dotyczy tylko Pisma Świętego — pominięte.');
+  if (scheme !== 'bible' && edition0.psalms !== undefined) warnings.push('"edition.psalms" dotyczy tylko Pisma Świętego — pominięte.');
 
   const portion = isObject(raw.portion) ? raw.portion : {};
   const key = s(portion.key).trim();
@@ -391,98 +598,204 @@ export function planSourceImport(raw: unknown, ctx: ImportContext): SourcePlan |
   const blocks: SourceBlock[] = [];
   const noteIds = new Set<string>();
   const noteRefs = new Set<string>();
-  const seenLocs = new Map<string, number>();
+  const seenLocs = new Map<string, string>();
+  const refs: { label: string; where: string }[] = [];
+  const formulas: { tex: string; display: boolean; where: string }[] = [];
+  const pageRun: { v: number; where: string }[] = [];
+  const fixes: Partial<Record<TexFix, number>> = {};
+  const hoisted = new Set<string>();
+  const strays: string[] = [];
   let lastPage: number | null = null;
   let lastPdf: number | null = null;
-  const where = (i: number) => `blok ${i + 1}`;
+  let boxes = 0;
 
-  raw.blocks.forEach((one, i) => {
-    if (!isObject(one)) { warnings.push(`${where(i)}: to nie obiekt — pominięty.`); return; }
-    const type = s(one.type) as BlockType;
-    if (!BLOCK_TYPES.includes(type)) { warnings.push(`${where(i)}: nieznany typ "${s(one.type)}" — pominięty.`); return; }
+  /* Was eine KI an Wzory typischerweise verdirbt, wird ausgebessert (`repairTexText`) — und gesagt. Die Makra des Textes zählen als Befehle. */
+  const words = macroWords(macros);
+  const fix = (text: string): string => {
+    const r = repairTexText(text, words);
+    for (const [k, n] of Object.entries(r.fixes)) fixes[k as TexFix] = (fixes[k as TexFix] ?? 0) + (n ?? 0);
+    for (const [name, body] of Object.entries(r.macros)) { macros[name] = body; hoisted.add(name); }
+    return r.text;
+  };
+  const seePage = (page: string, pdf: number | undefined, where: string, label: string) => {
+    const v = pageValue(page);
+    if (v === null) { warnings.push(`${where}: nieczytelna strona „${page}" w ${label}.`); return; }
+    if (lastPage !== null && v < lastPage) warnings.push(`${where}: strona ${page} po stronie wyższej — sprawdź kolejność.`);
+    lastPage = v;
+    pageRun.push({ v, where });
+    if (pdf !== undefined) { if (lastPdf !== null && pdf < lastPdf) warnings.push(`${where}: strona PDF ${pdf} po wyższej.`); lastPdf = pdf; }
+  };
+  const checkText = (text: string, where: string, label: string) => {
+    if (strayDollar(text)) strays.push(where);
+    for (const p of pieces(text)) {
+      if (p.t === 'note') noteRefs.add(p.id);
+      else if (p.t === 'ref') refs.push({ label: p.label, where });
+      else if (p.t === 'math') formulas.push({ tex: p.tex, display: p.display, where });
+      else if (p.t === 'page') seePage(p.page, p.pdf, where, label);
+    }
+  };
+
+  let nextBox = 0;
+  const take = (one: unknown, where: string, inside: string | undefined, depth: number): void => {
+    if (!isObject(one)) { warnings.push(`${where}: to nie obiekt — pominięty.`); return; }
+    let type = s(one.type) as BlockType;
+    /* Eine Aussage auch unter dem Namen ihrer Art: {"type": "theorem"} wie {"type": "statement", "kind": "theorem"}. */
+    let kindOfType: string | undefined;
+    if (!BLOCK_TYPES.includes(type) && STATEMENT_KINDS.some((k) => k.id === s(one.type) && k.id !== 'other')) { kindOfType = s(one.type); type = 'statement'; }
+    if (!BLOCK_TYPES.includes(type)) { warnings.push(`${where}: nieznany typ "${s(one.type)}" — pominięty.`); return; }
     const loc = s(one.loc).trim();
     const block: Record<string, unknown> = { type };
     if (loc !== '') {
-      const place = parsePlace(loc, scheme, placeOptions(edition));
-      if (place.spans.length === 0 && place.pages.length === 0) warnings.push(`${where(i)}: miejsca „${loc}" nie da się odczytać w układzie „${schemeOf(scheme).label}" — zostaje, ale cytaty go nie znajdą.`);
-      else if (place.rest !== '') warnings.push(`${where(i)}: w miejscu „${loc}" nieodczytana część „${place.rest}".`);
+      const place = parsePlace(loc, scheme, placeOptions(edition0));
+      if (place.spans.length === 0 && place.pages.length === 0) warnings.push(`${where}: miejsca „${loc}" nie da się odczytać w układzie „${schemeOf(scheme).label}" — zostaje, ale cytaty go nie znajdą.`);
+      else if (place.rest !== '') warnings.push(`${where}: w miejscu „${loc}" nieodczytana część „${place.rest}".`);
       const seen = seenLocs.get(loc);
-      if (seen !== undefined && type !== 'heading') warnings.push(`${where(i)}: miejsce „${loc}" było już w bloku ${seen + 1}.`);
-      seenLocs.set(loc, i);
+      if (seen !== undefined && type !== 'heading' && type !== 'statement') warnings.push(`${where}: miejsce „${loc}" było już w: ${seen}.`);
+      seenLocs.set(loc, where);
       block.loc = loc;
     }
     if (one.uncertain === true) block.uncertain = true;
-    const checkText = (text: string, label: string) => {
-      for (const p of pieces(text)) {
-        if (p.t === 'note') noteRefs.add(p.id);
-        if (p.t === 'page') {
-          const v = pageValue(p.page);
-          if (v === null) warnings.push(`${where(i)}: nieczytelna strona „${p.page}" w ${label}.`);
-          else { if (lastPage !== null && v < lastPage) warnings.push(`${where(i)}: strona ${p.page} po stronie wyższej — sprawdź kolejność.`); lastPage = v; }
-          if (p.pdf !== undefined) { if (lastPdf !== null && p.pdf < lastPdf) warnings.push(`${where(i)}: strona PDF ${p.pdf} po wyższej.`); lastPdf = p.pdf; }
-        }
-      }
-    };
+    if (inside !== undefined) block.in = inside;
     switch (type) {
       case 'page': {
         const page = s(one.page).trim();
         const v = pageValue(page);
-        if (v === null) { warnings.push(`${where(i)}: "page" bez czytelnej strony — pominięty.`); return; }
-        if (lastPage !== null && v < lastPage) warnings.push(`${where(i)}: strona ${page} po stronie wyższej — sprawdź kolejność.`);
-        lastPage = v;
+        if (v === null) { warnings.push(`${where}: "page" bez czytelnej strony — pominięty.`); return; }
+        seePage(page, typeof one.pdf === 'number' && Number.isInteger(one.pdf) ? one.pdf : undefined, where, 'bloku');
         block.page = page;
-        if (typeof one.pdf === 'number' && Number.isInteger(one.pdf)) {
-          if (lastPdf !== null && one.pdf < lastPdf) warnings.push(`${where(i)}: strona PDF ${one.pdf} po wyższej.`);
-          lastPdf = one.pdf;
-          block.pdf = one.pdf;
-        }
+        if (typeof one.pdf === 'number' && Number.isInteger(one.pdf)) block.pdf = one.pdf;
         delete block.loc;
         break;
       }
       case 'list': {
-        const items = Array.isArray(one.items) ? one.items.map(s).filter((x) => x.trim() !== '') : [];
-        if (items.length === 0) { warnings.push(`${where(i)}: lista bez "items" — pominięta.`); return; }
-        items.forEach((t) => checkText(t, 'liście'));
+        const items = Array.isArray(one.items) ? one.items.map(s).filter((x) => x.trim() !== '').map(fix) : [];
+        if (items.length === 0) { warnings.push(`${where}: lista bez "items" — pominięta.`); return; }
+        items.forEach((t) => checkText(t, where, 'liście'));
         block.items = items;
         if (one.ordered === true) block.ordered = true;
         break;
       }
       case 'table': {
-        const rows = Array.isArray(one.rows) ? one.rows.filter(Array.isArray).map((r) => (r as unknown[]).map(s)) : [];
-        if (rows.length === 0) { warnings.push(`${where(i)}: tabela bez "rows" — pominięta.`); return; }
-        rows.flat().forEach((t) => checkText(t, 'tabeli'));
+        const rows = Array.isArray(one.rows) ? one.rows.filter(Array.isArray).map((r) => (r as unknown[]).map(s).map(fix)) : [];
+        if (rows.length === 0) { warnings.push(`${where}: tabela bez "rows" — pominięta.`); return; }
+        rows.flat().forEach((t) => checkText(t, where, 'tabeli'));
         block.rows = rows;
-        if (Array.isArray(one.columns)) block.columns = one.columns.map(s);
+        if (Array.isArray(one.columns)) { block.columns = one.columns.map(s).map(fix); (block.columns as string[]).forEach((t) => checkText(t, where, 'tabeli')); }
+        if (s(one.label).trim() !== '') block.label = s(one.label).trim().slice(0, 120);
+        if (s(one.text).trim() !== '') { block.text = fix(s(one.text).trim()); checkText(block.text as string, where, 'podpisie tabeli'); }
         break;
       }
       case 'note': {
         const id = s(one.id).trim();
-        if (id === '') { warnings.push(`${where(i)}: przypis bez "id" — pominięty.`); return; }
-        if (noteIds.has(id)) warnings.push(`${where(i)}: przypis "${id}" powtórzony.`);
+        if (id === '') { warnings.push(`${where}: przypis bez "id" — pominięty.`); return; }
+        if (noteIds.has(id)) warnings.push(`${where}: przypis "${id}" powtórzony.`);
         noteIds.add(id);
         block.id = id;
-        const text = s(one.text).trim();
-        if (text === '') { warnings.push(`${where(i)}: pusty przypis "${id}".`); return; }
-        checkText(text, 'przypisie');
+        const text = fix(s(one.text).trim());
+        if (text === '') { warnings.push(`${where}: pusty przypis "${id}".`); return; }
+        checkText(text, where, 'przypisie');
         block.text = text;
         break;
       }
-      default: {
+      case 'statement': {
+        const said = (kindOfType ?? s(one.kind)).trim().toLowerCase();
+        const head = s(one.label).trim().slice(0, 120);
+        const fromLabel = head === '' ? null : kindOfWord(head);
+        const kind = STATEMENT_KINDS.some((k) => k.id === said) ? said
+          : STATEMENT_KINDS.some((k) => k.id === fromLabel) ? fromLabel! : 'other';
+        if (said !== '' && kind !== said) warnings.push(`${where}: nieznany rodzaj "${said}" — ${kind === 'other' ? 'zapisany z samą etykietą' : `przyjęty „${statementKind(kind).label}” (z etykiety)`}.`);
+        if (head === '' && kind === 'other') { warnings.push(`${where}: "statement" bez "kind" i "label" — pominięty (treść wpisz jako zwykłe bloki).`); return; }
+        if (depth >= MAX_DEPTH) { warnings.push(`${where}: twierdzenie zagnieżdżone głębiej niż ${MAX_DEPTH} poziomy — pominięte.`); return; }
+        nextBox += 1;
+        const id = `s${nextBox}`;
+        block.kind = kind;
+        if (head !== '') block.label = head;
+        const title = s(one.title).trim().slice(0, 200);
+        if (title !== '') block.title = fix(title);
+        block.id = id;
+        blocks.push(block as unknown as SourceBlock);
+        boxes += 1;
         const text = s(one.text).replace(/\r\n/g, '\n').trim();
-        if (text === '') { warnings.push(`${where(i)}: pusty tekst — pominięty.`); return; }
-        checkText(text, 'tekście');
+        const children = Array.isArray(one.blocks) ? one.blocks : [];
+        if (text !== '') take({ type: 'paragraph', text }, where, id, depth + 1);
+        children.forEach((child, j) => take(child, `${where}.${j + 1}`, id, depth + 1));
+        if (text === '' && children.length === 0) warnings.push(`${where}: „${statementHead(block as unknown as SourceBlock)}” bez treści ("text" albo "blocks").`);
+        return;
+      }
+      case 'figure': {
+        const head = s(one.label).trim().slice(0, 120);
+        const caption = fix(s(one.text).trim());
+        const alt = fix(s(one.alt).trim().slice(0, 4000));
+        if (head === '' && caption === '' && alt === '') { warnings.push(`${where}: rysunek bez "label", "text" i "alt" — pominięty.`); return; }
+        if (head !== '') block.label = head;
+        if (caption !== '') { block.text = caption; checkText(caption, where, 'podpisie'); }
+        if (alt !== '') { block.alt = alt; checkText(alt, where, 'opisie rysunku'); }
+        break;
+      }
+      case 'code': {
+        const text = s(one.text).replace(/\r\n/g, '\n').replace(/^\n+/, '').replace(/\s+$/, '');
+        if (text.trim() === '') { warnings.push(`${where}: pusty kod — pominięty.`); return; }
+        block.text = text;
+        if (s(one.lang).trim() !== '') block.lang = s(one.lang).trim().slice(0, 30);
+        for (const p of pieces(codeAsText(text))) if (p.t === 'page') seePage(p.page, p.pdf, where, 'kodzie');
+        break;
+      }
+      default: {
+        const text = fix(s(one.text).replace(/\r\n/g, '\n').trim());
+        if (text === '') { warnings.push(`${where}: pusty tekst — pominięty.`); return; }
+        checkText(text, where, 'tekście');
         block.text = text;
         if (type === 'heading') block.level = typeof one.level === 'number' ? Math.min(4, Math.max(1, Math.round(one.level))) : 1;
       }
     }
     blocks.push(block as unknown as SourceBlock);
-  });
+  };
+  raw.blocks.forEach((one, i) => take(one, `blok ${i + 1}`, undefined, 0));
 
   for (const ref of noteRefs) if (!noteIds.has(ref)) warnings.push(`Odwołanie {{note ${ref}}} nie ma przypisu o "id": "${ref}".`);
   for (const id of noteIds) if (!noteRefs.has(id)) warnings.push(`Przypis "${id}" nie ma odwołania {{note ${id}}} w tekście.`);
   if (blocks.length === 0) return { error: 'Żaden blok nie nadaje się do zapisania.' };
   if (new TextEncoder().encode(JSON.stringify(blocks)).length > MAX_PART_BYTES) return { error: 'Ta część jest za duża (ponad 3,5 MB tekstu) — podziel ją na mniejsze (np. rozdziały) i importuj po kolei.' };
 
+  /* -- 2026-11-01: Wzory, Labels, Verweise, Seiten — was beim Lesen auffiele, schon jetzt -- */
+  for (const kind of Object.keys(fixes) as TexFix[]) warnings.push(`Poprawione we wzorach (${fixes[kind]}×): ${TEX_FIX_SAYS[kind]}.`);
+  if (hoisted.size > 0) warnings.push(`Makra z definicji we wzorach (${[...hoisted].join(', ')}) dopisane do makr tekstu — działają w całym tekście.`);
+  if (strays.length > 0) warnings.push(`Pojedynczy znak $ (${strays.slice(0, 5).join(', ')}${strays.length > 5 ? ` i ${strays.length - 5} innych` : ''}) — dolar zapisz jako \\$, wzór jako $…$ bez spacji tuż przy znakach $.`);
+  let texErrors = 0;
+  if (ctx.tex !== undefined) {
+    const said: string[] = [];
+    for (const f of formulas) {
+      const error = ctx.tex(f.tex, f.display, macros);
+      if (error === null) continue;
+      texErrors += 1;
+      if (said.length < SHOWN_WARNINGS) said.push(`${f.where}: wzór ${texSource(short(f.tex), f.display)} — ${error}`);
+    }
+    warnings.push(...said);
+    if (texErrors > said.length) warnings.push(`…i jeszcze ${texErrors - said.length} wzorów, których nie da się złożyć — w czytniku pokażą się jako kod LaTeX.`);
+  }
+  const labelsHere = blocks.flatMap((b, i) => blockLabels(b).map((l) => ({ ...l, i })));
+  const twice = new Map<string, number>();
+  for (const l of labelsHere) twice.set(keyText(l.key), (twice.get(keyText(l.key)) ?? 0) + 1);
+  const doubles = [...twice.entries()].filter(([, n]) => n > 1).map(([k]) => labelsHere.find((l) => keyText(l.key) === k)!.label);
+  if (doubles.length > 0) warnings.push(`Ta sama etykieta kilka razy: ${doubles.slice(0, 8).join(', ')}${doubles.length > 8 ? ' …' : ''} — odwołania trafią w pierwszą.`);
+  const others = (ctx.manifest?.parts ?? []).filter((p) => p.key !== key).flatMap((p) => (p.labels ?? []).map(readKeyText)).filter((k): k is LabelKey => k !== null);
+  const missing: string[] = [];
+  for (const ref of refs) {
+    const want = labelKey(ref.label);
+    if (want === null) { missing.push(`„${ref.label}” (${ref.where}, bez numeru)`); continue; }
+    if (!labelsHere.some((l) => labelMatches(want, l.key)) && !others.some((k) => labelMatches(want, k))) missing.push(`„${ref.label}” (${ref.where})`);
+  }
+  if (missing.length > 0) warnings.push(`Odwołania {{ref …}} bez celu w zapisanym tekście: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ` i ${missing.length - 8} innych` : ''} — cel może być w części, której jeszcze nie ma.`);
+  /* Fehlende Seiten: eine Lücke zwischen zwei Seiten derselben Zählung (leere Seiten, Bilder — oder Ausgelassenes). */
+  const gaps: string[] = [];
+  for (let i = 1; i < pageRun.length; i += 1) {
+    const a = pageRun[i - 1]!.v;
+    const b = pageRun[i]!.v;
+    if (b - a >= 2 && b - a <= 40) gaps.push(`${pageRangeLabel([a + 1, b - 1])} (przed: ${pageRun[i]!.where})`);
+  }
+  if (gaps.length > 0) warnings.push(`Brak stron: ${gaps.slice(0, 6).join('; ')}${gaps.length > 6 ? ` i ${gaps.length - 6} innych luk` : ''} — puste strony i całostronicowe rysunki też oznacz ({{page …}} albo blok "page"), żeby było widać, że nic nie zginęło.`);
+
+  const edition: Edition = { ...edition0, ...(Object.keys(macros).length === 0 ? {} : { macros }) };
   return {
     portion: { key, label, order },
     scheme,
@@ -490,7 +803,7 @@ export function planSourceImport(raw: unknown, ctx: ImportContext): SourcePlan |
     edition,
     blocks,
     replaces: ctx.manifest?.parts.some((p) => p.key === key) ?? false,
-    summary: { ...partSummary(blocks), notes: noteIds.size, located: locate(blocks, scheme, edition).length },
+    summary: { ...partSummary(blocks), notes: noteIds.size, located: locate(blocks, scheme, edition).length, statements: boxes, checked: ctx.tex !== undefined, texErrors },
     warnings
   };
 }
@@ -520,6 +833,26 @@ export function portionDocs(raw: unknown): unknown[] {
 
 /* -- JSON hinaus ------------------------------------------------------------------------------------ */
 
+/**
+ * 2026-11-01 — DIE AUSSAGEN WIEDER VERSCHACHTELT, wie man sie schreibt: der Kopf mit `blocks`, darin, was
+ * `in` ihm stand. Ihre Kennungen fallen weg — der Import vergibt sie in derselben Reihenfolge wieder.
+ */
+export function nestBlocks(blocks: readonly SourceBlock[]): Record<string, unknown>[] {
+  const top: Record<string, unknown>[] = [];
+  const open = new Map<string, Record<string, unknown>[]>();
+  for (const b of blocks) {
+    const { in: inside, ...rest } = b;
+    const into = inside === undefined ? top : open.get(inside) ?? top;
+    if (b.type === 'statement' && b.id !== undefined) {
+      const { id, ...head } = rest;
+      const children: Record<string, unknown>[] = [];
+      into.push({ ...head, blocks: children });
+      open.set(id!, children);
+    } else into.push({ ...rest });
+  }
+  return top;
+}
+
 export function exportSourcePart(work: LibEntry, manifest: TextManifest, part: PartData): Record<string, unknown> {
   return {
     format: SOURCE_FORMAT,
@@ -528,7 +861,7 @@ export function exportSourcePart(work: LibEntry, manifest: TextManifest, part: P
     scheme: manifest.scheme,
     ...(Object.keys(manifest.edition).length === 0 ? {} : { edition: manifest.edition }),
     portion: { key: part.key, label: part.label, order: part.order },
-    blocks: part.blocks
+    blocks: nestBlocks(part.blocks)
   };
 }
 
@@ -611,6 +944,40 @@ export const SOURCE_EXAMPLES: Readonly<Record<Exclude<SchemeId, 'time'>, Record<
 };
 
 /**
+ * 2026-11-01 — EIN LEHRBUCH MIT WZORY: Definicja, Twierdzenie mit Namen, Beweis mit Herleitung über einen
+ * Seitenwechsel, Macierze, Fallunterscheidung, Makra des Buches, Verweise, Rysunek, Tabela, Pseudokod. Wird in
+ * der Prüfung mit KaTeX importiert (`app-library-check.mjs`) — muss ohne Hinweis durchgehen.
+ */
+export const SOURCE_MATH_EXAMPLE: Readonly<Record<string, unknown>> = {
+  format: SOURCE_FORMAT, version: SOURCE_VERSION, work: '@analiza1', scheme: 'pages',
+  edition: { language: 'pl', pdfPageOffset: 10, macros: { '\\R': '\\mathbb{R}', '\\norm': '\\left\\lVert #1 \\right\\rVert' } },
+  portion: { key: 'rozdz-2', label: 'Rozdział 2. Ciągi liczbowe', order: 2 },
+  blocks: [
+    { type: 'page', page: '41', pdf: 51 },
+    { type: 'heading', level: 1, text: 'Rozdział 2. Ciągi liczbowe' },
+    { type: 'heading', level: 2, text: '2.1. Granica ciągu' },
+    { type: 'statement', kind: 'definition', label: 'Definicja 2.1', text: 'Ciąg $(a_n)$ liczb rzeczywistych jest zbieżny do $g \\in \\R$, gdy $$\\forall_{\\varepsilon > 0}\\; \\exists_{N \\in \\mathbb{N}}\\; \\forall_{n \\geq N} \\quad |a_n - g| < \\varepsilon. \\tag{2.1}$$ Piszemy wtedy $\\lim_{n \\to \\infty} a_n = g$.' },
+    { type: 'statement', kind: 'theorem', label: 'Twierdzenie 2.2', title: 'o trzech ciągach', text: 'Jeżeli $a_n \\leq b_n \\leq c_n$ dla $n \\geq n_0$ oraz $\\lim a_n = \\lim c_n = g$, to $\\lim b_n = g$.' },
+    {
+      type: 'statement', kind: 'proof', label: 'Dowód', blocks: [
+        { type: 'paragraph', text: 'Niech $\\varepsilon > 0$. Z {{ref (2.1)}} dla ciągów $(a_n)$ i $(c_n)$ istnieje $N$ takie, że dla $n \\geq N$ {{page 42 pdf 52}} mamy $$\\begin{aligned} g - \\varepsilon &< a_n \\leq b_n \\\\ &\\leq c_n < g + \\varepsilon. \\end{aligned}$$' },
+        { type: 'paragraph', text: 'Stąd $|b_n - g| < \\varepsilon$ dla $n \\geq N$.{{note 1}}' }
+      ]
+    },
+    {
+      type: 'statement', kind: 'example', label: 'Przykład 2.3', blocks: [
+        { type: 'paragraph', text: 'Dla macierzy $$A = \\begin{pmatrix} 1 & 2 \\\\ 0 & 1 \\end{pmatrix}, \\qquad A^n = \\begin{pmatrix} 1 & 2n \\\\ 0 & 1 \\end{pmatrix}$$ ciąg $\\norm{A^n}$ nie jest zbieżny — por. {{ref twierdzenie 2.2}}.' },
+        { type: 'paragraph', text: 'Funkcja $f(x) = \\begin{cases} x^2, & x \\geq 0, \\\\ -x, & x < 0 \\end{cases}$ jest ciągła.' }
+      ]
+    },
+    { type: 'figure', label: 'Rys. 2.1', text: 'Wykres ciągu $a_n = \\frac{(-1)^n}{n}$.', alt: 'Punkty na przemian nad i pod osią poziomą, coraz bliżej zera.' },
+    { type: 'table', label: 'Tabela 2.1', text: 'Wyrazy ciągu $a_n = \\left(1 + \\frac{1}{n}\\right)^n$.', columns: ['$n$', '$a_n$'], rows: [['1', '$2$'], ['10', '$2{,}5937\\ldots$']] },
+    { type: 'code', lang: 'pseudokod', text: 'dla n := 1, 2, …\n    jeśli |a(n) − g| < ε: zwróć n' },
+    { type: 'note', id: '1', text: 'Tak samo dowodzi się wersji dla funkcji: jeśli $f \\leq g \\leq h$ w otoczeniu punktu $x_0$, to granice też są uporządkowane.' }
+  ]
+};
+
+/**
  * 2026-10-30 — WAS DIE APP MIT EINEM TEXT TUT („Jak aplikacja używa tych danych"): Czytnik, „pokaż w tekście",
  * andere Ausgaben, „W Wiedzy", wer ihn sieht, der Dostęp dla AI. Steht am Ende dieser Beschreibung und — mit dem
  * Werk davor — am Ende von „Dzieło z tekstem" (`sourceImport.ts`, dort ohne den eigenen Abschnitt hier).
@@ -623,7 +990,11 @@ export const SOURCE_TEXT_USE = `- Na stronie dzieła ramka „Tekst źródła”
 - „W Wiedzy” przy dziele i w czytniku: wejścia z baz wiedzy, które czytający może otworzyć, wskazujące to dzieło albo jego miejsca.
 - Tekst jest zapieczętowany kluczem obszaru biblioteki, w której go zapisano — może to być inna (np. prywatna) biblioteka niż ta z dziełem. Kto jej nie czyta, nie widzi tekstu: ani w czytniku, ani w szukaniu, ani na stronie.
 - „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje bibliotekę z tekstem, daje go asystentowi do czytania: list_texts, read_text (według miejsca), search_text.
-- Tekstu nie ma w JSON biblioteki ("recreatio/library"); oddaje go eksport w ramce „Tekst źródła” — w tym formacie.`;
+- Tekstu nie ma w JSON biblioteki ("recreatio/library"); oddaje go eksport w ramce „Tekst źródła” — w tym formacie.
+- Wzory ($…$, $$…$$) czytnik składa jak w druku (KaTeX), także macierze, układy i numery wzorów; wzór, którego nie da się złożyć, zostaje widoczny jako kod LaTeX. Import sprawdza każdy wzór i mówi, które nie przechodzą.
+- Twierdzenia, definicje, dowody, przykłady stoją w ramkach z etykietą; dowód kończy ∎. „Przejdź” przyjmuje też etykiety („Twierdzenie 2.3”, „(2.4)”, „Rys. 1.2”), a odwołanie {{ref …}} w tekście prowadzi do celu — także w innej części.
+- Szukanie w tekście znajduje też wzory: po słowach i znakach („α”, „∫”, „sin”) i po LaTeX („\\frac”, „x^2”). Zaznaczony fragment ze wzorem trafia do cytatu i schowka jako LaTeX ($…$).
+- „Dostęp dla AI” oddaje wzory jako LaTeX w $…$ i $$…$$; read_text przyjmuje też etykietę („Twierdzenie 2.3”, „(2.4)”).`;
 
 /**
  * Die Beschreibung des Formats — vollständig und ohne Wissen über die App zu schreiben. `usage: false` lässt
@@ -644,7 +1015,8 @@ Tekst dzieła składa się z CZĘŚCI (np. księga Biblii, rozdział książki, 
   "edition": {                       — opcjonalnie
     "pdfPageOffset": 12,            — strona drukowana = strona PDF − 12 (gdy stały)
     "language": "pl",
-    "psalms": "hebrew" | "greek"    — tylko Pismo Święte: numeracja psalmów (BT: hebrew; Wulgata: greek)
+    "psalms": "hebrew" | "greek",   — tylko Pismo Święte: numeracja psalmów (BT: hebrew; Wulgata: greek)
+    "macros": { "\\\\R": "\\\\mathbb{R}" }  — własne makra autora we wzorach (niżej: Wzory)
   },
   "portion": { "key": "rozdz-1", "label": "Rozdział 1", "order": 1 },
   "blocks": [ … ]                    — bloki w kolejności oryginału
@@ -665,6 +1037,12 @@ Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" 
   {"type": "note", "id": "1", "text": "…"}                     przypis (tekst przypisu); w tekście odwołanie {{note 1}}
   {"type": "page", "page": "46", "pdf": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF;
                                                               strona tak, jak jest wydrukowana — także ze znakami serii: "12*", "3'", "(7)", "A12", "xii"
+  {"type": "statement", "kind": "theorem", "label": "Twierdzenie 2.3", "title": "…", "text": "…"}
+                                                              definicja, twierdzenie, lemat, dowód, przykład… (niżej); dłuższa treść: "blocks": [ … ] zamiast "text"
+  {"type": "figure", "label": "Rys. 2.1", "text": "podpis", "alt": "co pokazuje rysunek"}
+                                                              rysunek, wykres, schemat — podpis z książki, a w "alt" krótki opis tego, co widać
+  {"type": "code", "lang": "python", "text": "…"}             kod albo pseudokod — znak w znak, z wcięciami i podziałem wierszy
+  {"type": "table", "label": "Tabela 2.1", "text": "podpis", "columns": […], "rows": […]}   tabela z etykietą i podpisem (oba opcjonalne)
   "uncertain": true                                           przy dowolnym bloku: odczyt niepewny
 
 ## Znaki w tekście
@@ -672,7 +1050,34 @@ Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" 
   {{note 3}}                               odwołanie do przypisu "3"
   {{? słowo}}                              niepewny odczyt tego słowa;  {{?}} — nieczytelne
   {{gap}}                                  pominięty / brakujący fragment
+  {{ref twierdzenia 2.3}}  {{ref (2.4)}}   odwołanie do twierdzenia, wzoru, rysunku, tabeli tego samego dzieła — napisane tak, jak w tekście
+  $x^2$   $$\\\\int_0^1 f(x)\\\\,dx$$         wzór w zdaniu i wzór wystawiony (osobno) — LaTeX (niżej)
 Wszystko inne jest zwykłym tekstem. Zachowaj dokładne brzmienie, kolejność, akapity i interpunkcję oryginału. Nie poprawiaj, nie streszczaj, nie tłumacz.
+
+## Wzory (LaTeX)
+- Każdy wzór, symbol i oznaczenie matematyczne (także pojedyncza litera-zmienna, indeks, jednostka w wyrażeniu) zapisz w LaTeX: w zdaniu między $ … $, wzór wystawiony (w osobnym wierszu) między $$ … $$ — w akapicie dokładnie tam, gdzie stoi w źródle; akapit może mieć kilka wzorów wystawionych i ciągnąć się dalej po nich.
+- Po otwierającym $ i przed zamykającym $ nie ma spacji. Dosłowny znak dolara w tekście: \\\\$.
+- W JSON każdy ukośnik LaTeX jest podwójny: "$\\\\frac{a}{b}$", "$$\\\\sum_{k=1}^{n} k = \\\\frac{n(n+1)}{2}$$". Pojedynczy ukośnik psuje wzór (w JSON "\\f", "\\t", "\\n" to znaki sterujące).
+- Numer wzoru tak, jak wydrukowany: $$ … \\\\tag{2.4}$$ (w układzie wielu wierszy \\\\tag przy wierszu). Wzór bez numeru — bez \\\\tag. Nie numeruj sam.
+- Wyprowadzenia krok po kroku i układy: \\\\begin{aligned} … \\\\end{aligned} (albo align*, gather*), przypadki: cases; macierze: pmatrix, bmatrix, vmatrix, array (z kreskami: {cc|c}, \\\\hline); diagramy przemienne: \\\\begin{CD}; chemia: \\\\ce{H2O}, jednostki: \\\\pu{9,81 m/s^2}.
+- Nie zamieniaj wzorów na zwykły tekst ani znaki Unicode (x², α, √) — zawsze LaTeX ($x^2$, $\\\\alpha$, $\\\\sqrt{x}$). Nie upraszczaj, nie przekształcaj, nie poprawiaj — przepisz to, co jest wydrukowane, w tej samej postaci.
+- Własne makra autora (np. \\\\R, \\\\norm{x}) podaj raz w "edition.macros" ({"\\\\norm": "\\\\left\\\\lVert #1 \\\\right\\\\rVert"}) i używaj ich we wzorach; zwykłe \\\\newcommand we wzorze też zadziała.
+- Wzory czyta KaTeX. Nie ma w nim: \\\\label i \\\\ref (do odwołań służy {{ref …}}), tabular i \\\\multicolumn (tabela to blok "table"), tikz, \\\\includegraphics (rysunek to blok "figure"), \\\\sideset.
+- Granica strony nigdy w środku wzoru — {{page …}} przed wzorem albo po nim.
+- Wzory odczytuj z obrazu strony, nie z warstwy tekstowej PDF: warstwa tekstowa zwykle gubi indeksy, ułamki i znaki.
+
+## Twierdzenia, definicje, dowody ("statement")
+  {"type": "statement", "kind": "definition", "label": "Definicja 2.1", "text": "Ciąg $(a_n)$ jest zbieżny, gdy …"}
+  {"type": "statement", "kind": "theorem", "label": "Twierdzenie 2.2", "title": "o trzech ciągach", "text": "…"}
+  {"type": "statement", "kind": "proof", "label": "Dowód", "blocks": [ {"type": "paragraph", "text": "…"}, … ]}
+- "kind": ${STATEMENT_KINDS.filter((k) => k.id !== 'other').map((k) => `${k.id} (${k.label})`).join(', ')}, other (inne — wtedy liczy się "label").
+- "label" — dokładnie tak, jak wydrukowane, z numerem ("Lemat 4.1", "Ćwiczenie 7*"); "title" — nazwa w nawiasie po etykiecie, jeśli jest (bez nawiasów).
+- Treść jednym akapitem: "text". Dłuższa (kilka akapitów, wzory wystawione, listy, przypadki, granice stron): "blocks" — zwykłe bloki, także zagnieżdżone twierdzenia (np. lemat wewnątrz dowodu).
+- Dowód, rozwiązanie, odpowiedź — osobny "statement" zaraz po tym, czego dotyczy. Znaku końca dowodu (□, ∎, c.n.d.) nie przepisuj: aplikacja stawia go sama.
+
+## Odwołania i etykiety
+- W tekście odwołanie do twierdzenia, wzoru, rysunku albo tabeli tego samego dzieła zapisz {{ref …}} — tymi słowami, co w źródle: "z {{ref twierdzenia 2.3}}", "na mocy {{ref (2.4)}}", "por. {{ref Rys. 1.2}}". Czytnik zrobi z nich odnośniki.
+- Etykiety (label, \\\\tag) muszą być jednoznaczne w całym dziele — tak, jak w książce.
 
 ## "loc" — miejsce w strukturze dzieła
 Podawaj "loc" przy każdym bloku, który ma własny numer w strukturze dzieła (werset, punkt, artykuł, twierdzenie, paragraf, rozdział). Bloki bez własnego numeru (np. akapit w środku rozdziału) nie mają "loc" — należą do miejsca podanego wcześniej. Strony NIE wpisuje się do "loc": strony to bloki "page" i znaki {{page …}}, bo należą do tego jednego wydania.
@@ -683,6 +1088,7 @@ ${schemes.map((x) => `- "${x.id}" — ${x.label}: ${x.says} Przykłady: ${x.exam
 - Numery stron: drukowane, tak jak w książce (także rzymskie: "xii"); numer strony pliku PDF w "pdf", jeśli się różni.
 - Przypisy dolne i końcowe: blok "note" (po akapicie albo na końcu części) i {{note …}} w miejscu odsyłacza.
 - Jedna część — najwyżej ok. 2 mln znaków.
+- Każda strona ma swoją granicę — także pusta albo zajęta w całości przez rysunek ({{page …}} albo blok "page"); import sprawdza, czy żadnej nie brakuje.
 
 ## Cały tekst
 - Podziel tekst według jego własnego podziału: księgi Biblii (klucz: skrót księgi, np. "J"), rozdziały książki ("rozdz-1", "rozdz-2"), kwestie Sumy ("I-q2"), rozdziały dokumentu; krótki artykuł albo dokument może być jedną częścią.
@@ -695,6 +1101,9 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 
 ## Przykłady
 ${schemes.map((x) => `### ${x.label} ("${x.id}")\n${JSON.stringify(SOURCE_EXAMPLES[x.id as Exclude<SchemeId, 'time'>], null, 2)}`).join('\n\n')}
+
+### Podręcznik ze wzorami (twierdzenia, dowód, macierze, rysunek, tabela, kod)
+${JSON.stringify(SOURCE_MATH_EXAMPLE, null, 2)}
 ${usage ? `\n## Jak aplikacja używa tych danych\n${SOURCE_TEXT_USE}\n` : ''}`;
 }
 
@@ -706,9 +1115,13 @@ Dzieło: ${title}${work.key === undefined ? '' : ` — w polu "work" wpisz "@${w
 Układ miejsc tego dzieła: "${scheme}" (${schemeOf(scheme).label}).${portionHint === '' ? '' : `\nCzęść do przepisania: ${portionHint}.`}
 
 Przepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz.
+${MATH_ASK}
 
 ${sourceTextDescription(scheme)}`;
 }
+
+/** 2026-11-01 — was eine KI bei Wzory, Aussagen und Rysunki tun soll, in drei Sätzen (vor der Beschreibung). */
+export const MATH_ASK = 'Wzory, macierze i symbole matematyczne przepisz w LaTeX ($…$ w zdaniu, $$…$$ osobno, z numerem \\tag{…} tak jak w druku), odczytując je z obrazu strony; definicje, twierdzenia, lematy, dowody i przykłady — jako bloki "statement" z etykietą; odwołania do nich i do wzorów — {{ref …}}; rysunki — blok "figure" z podpisem i opisem. W JSON każdy ukośnik LaTeX podwój ("\\\\frac").';
 
 /** Eine Stelle schön (für Kopf und Liste der Teile). */
 export const placeLabel = (loc: string | undefined, scheme: SchemeId, edition: Edition = {}): string =>
@@ -835,11 +1248,12 @@ export function overlapsWith(manifest: TextManifest | undefined, plan: SourcePla
 
 /** Das neue Verzeichnis nach einem Teil: ersetzt (gleicher Schlüssel) oder dazu, geordnet. */
 export function nextManifest(before: TextManifest | undefined, work: string, plan: SourcePlan, partId: string): EntryData {
-  const { first, last, pages, series, blocks, words } = plan.summary;
+  const { first, last, pages, series, blocks, words, formulas, labels } = plan.summary;
   const part: ManifestPart = {
     id: partId, key: plan.portion.key, label: plan.portion.label, order: plan.portion.order,
     ...(first === undefined ? {} : { first }), ...(last === undefined ? {} : { last }), ...(pages === undefined ? {} : { pages }),
-    ...(series === undefined ? {} : { series }), blocks, words
+    ...(series === undefined ? {} : { series }), blocks, words,
+    ...(formulas === undefined ? {} : { formulas }), ...(labels === undefined ? {} : { labels })
   };
   const parts = [...(before?.parts ?? []).filter((p) => p.key !== plan.portion.key && p.id !== partId), part]
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'pl'));
@@ -948,20 +1362,33 @@ export interface TextHit {
   readonly snippet: string;
 }
 
-/** Ein Wort oder eine Wendung in den geladenen Teilen — nur in dem, was dieser Leser geöffnet hat. */
+/** LaTeX zum Vergleichen: ohne Leerraum (`x^2 + 1` wie `x^2+1`). */
+const texKey = (tex: string): string => tex.replace(/\s+/g, '');
+
+/**
+ * Ein Wort oder eine Wendung in den geladenen Teilen — nur in dem, was dieser Leser geöffnet hat. 2026-11-01:
+ * auch in den Wzory — als Zeile Text („α", „∫", „sin") und im LaTeX (`\frac`, `x^2`, „alpha").
+ */
 export function searchParts(parts: readonly { part: ManifestPart; data: PartData }[], query: string, limit = 60): TextHit[] {
   const q = fold(query.trim()).replace(/\s+/g, ' ');
-  if (q.length < 2) return [];
+  /* Ein Zeichen allein nur, wenn es kein lateinischer Buchstabe und keine Ziffer ist — „∫", „ε", „ℝ" sucht man so. */
+  if (q.length < 2 && !(q.length === 1 && /[^a-z0-9]/.test(q))) return [];
+  const asTex = /[\\^_{}]/.test(query) ? texKey(query.trim().replace(/^\$+|\$+$/g, '')) : '';
   const out: TextHit[] = [];
   for (const { part, data } of parts) {
     let loc = '';
     data.blocks.forEach((b, index) => {
       if (b.loc !== undefined && b.loc !== '') loc = b.loc;
       if (out.length >= limit || b.type === 'page') return;
-      const plain = blockTexts(b).map(plainOfText).join(' ');
+      const texts = blockTexts(b);
+      const plain = texts.map(plainOfText).join(' ');
       /* `fold` ändert die Länge nicht (ein Zeichen bleibt ein Zeichen) — die Stelle gilt im Klartext. */
-      const at = fold(plain).indexOf(q);
-      if (at < 0) return;
+      let at = fold(plain).indexOf(q);
+      if (at < 0) {
+        const tex = texts.map(texOfText).join(' ');
+        if (tex === '' || !(fold(tex).includes(q) || (asTex !== '' && texKey(tex).includes(asTex)))) return;
+        at = 0;
+      }
       const from = Math.max(0, at - 60);
       const to = at + q.length + 80;
       out.push({ part, index, loc: b.loc ?? loc, snippet: `${from > 0 ? '…' : ''}${plain.slice(from, to).trim()}${to < plain.length ? '…' : ''}` });

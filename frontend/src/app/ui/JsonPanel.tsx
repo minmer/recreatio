@@ -16,11 +16,16 @@
  * <b>2026-10-24 — ein Format als Baum</b> (`format`, `core/jsonTree.ts`): über
  * der Beschreibung steht, welche Formate darin stecken (ein Klick springt zum
  * Abschnitt), und ganze Beispiele lassen sich in den Import einsetzen.
+ *
+ * <b>2026-11-01 — JSON, wie eine KI es schreibt</b> (`core/jsonText.ts`): liest
+ * `JSON.parse` ein Dokument nicht, weil ein Wzór einfache Backslashes trägt
+ * (`"$\alpha$"`) oder die Antwort im Zaun ```json steht, wird das ausgebessert —
+ * und über dem Plan gesagt, wie oft.
  */
 
 import { Fragment, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { parseDocument } from '../pages/pageJson';
+import { readJsonText } from '../core/jsonText';
 import { WorkspaceError } from '../core/session';
 import { samplesOf, sectionsOf, sectionText, type JsonNode, type JsonSection } from '../core/jsonTree';
 import { plural } from '../core/plural';
@@ -113,8 +118,11 @@ export function JsonPanel({
   const docBox = useRef<HTMLDivElement>(null);
   const anchor = useId();
 
-  const parsed = useMemo(() => parseDocument(text), [text]);
+  const parsed = useMemo(() => readJsonText(text), [text]);
   const plan = parsed !== null && 'value' in parsed ? preview(parsed.value) : null;
+  const repaired = parsed !== null && 'value' in parsed && parsed.repaired > 0
+    ? `JSON poprawiony przed odczytaniem (${parsed.repaired} ${plural(parsed.repaired, 'miejsce', 'miejsca', 'miejsc')}): pojedyncze ukośniki (np. we wzorach LaTeX), znaki końca wiersza w tekście albo otoczka wokół JSON. Sprawdź podgląd.`
+    : null;
   /* Der Baum einmal gelesen — nicht bei jedem Tastendruck im Import. Der Text zum Kopieren ist derselbe (`describe`). */
   const sections = useMemo(() => (format === undefined ? [] : sectionsOf(format)), [format]);
   const texts = useMemo(() => sections.map(sectionText), [sections]);
@@ -247,8 +255,8 @@ export function JsonPanel({
                 <div className="wk-json-plan" role="status">
                   <p className="wk-json-h">Co się zmieni</p>
                   <ul>{plan.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
-                  {plan.warnings.length > 0 && (
-                    <ul className="wk-json-warn">{plan.warnings.map((line, i) => <li key={i}>{line}</li>)}</ul>
+                  {(plan.warnings.length > 0 || repaired !== null) && (
+                    <ul className="wk-json-warn">{[...(repaired === null ? [] : [repaired]), ...plan.warnings].map((line, i) => <li key={i}>{line}</li>)}</ul>
                   )}
                   {options?.(parsed.value)}
                   {note !== undefined && note !== null && <p className="wk-hint">{note}</p>}

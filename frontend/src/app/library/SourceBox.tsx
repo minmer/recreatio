@@ -22,6 +22,7 @@ import { WorkspaceError } from '../core/session';
 import { ask } from '../ui/dialogs';
 import { JsonPanel, type JsonPreview } from '../ui/JsonPanel';
 import { Modal } from '../ui/Modal';
+import { useTexApi } from '../ui/tex/Tex';
 import { viewPath } from '../routes';
 import { libraryKindOf, type OpenLibrary } from './library';
 import { kindOf } from './libraryKinds';
@@ -57,10 +58,11 @@ export function SourceBox({ store, library, work, targets }: { store: LibrarySto
             {texts.map(({ entry, manifest }) => {
               const lib = (entry as Entry).libraryId;
               const words = manifest.parts.reduce((n, p) => n + p.words, 0);
+              const formulas = manifest.parts.reduce((n, p) => n + (p.formulas ?? 0), 0);
               return (
                 <li key={entry.id}>
                   <a className="wk-btn" href={viewPath('library', lib, work.id, 'tekst')}>Czytaj</a>{' '}
-                  <span>{count(manifest.parts.length, 'część', 'części', 'części')}, {count(words, 'słowo', 'słowa', 'słów')}</span>
+                  <span>{count(manifest.parts.length, 'część', 'części', 'części')}, {count(words, 'słowo', 'słowa', 'słów')}{formulas > 0 ? `, ${count(formulas, 'wzór', 'wzory', 'wzorów')}` : ''}</span>
                   <span className="lib-row-meta"> · w bibliotece „{nameOf(lib)}”{lib !== library.libraryId ? ' (osobno od dzieła)' : ''}</span>
                 </li>
               );
@@ -129,11 +131,13 @@ function SourceImport({ store, library, work, writable, storeFor }: {
   const manifest: TextManifest | undefined = manifestEntry === undefined ? undefined : readManifest(manifestEntry.data);
   const title = kindOf('work')!.title(work.data, store);
   const scheme = manifest?.scheme ?? workScheme(work.data);
+  /* 2026-11-01 — KaTeX gleich beim Öffnen: bis jemand ein Dokument einfügt, ist es da, und die Vorschau setzt jeden Wzór. */
+  const tex = useTexApi()?.checkTex;
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
     const meta = metaOf(doc, work);
     if (meta.error !== undefined) return { error: meta.error };
-    const said = previewPortions(work, manifest, portionDocs(doc));
+    const said = previewPortions(work, manifest, portionDocs(doc), tex);
     if ('error' in said) return said;
     return { lines: said.lines, warnings: [...(meta.warning === undefined ? [] : [meta.warning]), ...said.warnings] };
   };
@@ -143,7 +147,7 @@ function SourceImport({ store, library, work, writable, storeFor }: {
     const meta = metaOf(doc, work);
     if (meta.error !== undefined) throw new WorkspaceError(meta.error);
     if (!(await publicOk(target))) return { lines: ['Nic nie zapisano.'], warnings: [] };
-    return writePortions({ target: targetStore, work, docs: portionDocs(doc), stage, ...(library.writes ? { workStore: store } : {}) });
+    return writePortions({ target: targetStore, work, docs: portionDocs(doc), stage, ...(library.writes ? { workStore: store } : {}), ...(tex === undefined ? {} : { tex }) });
   };
 
   const exportDoc = async (): Promise<unknown> => {
@@ -222,14 +226,15 @@ function WorkWithTextImport({ store, library, writable, storeFor }: {
     const one = targetStore.ownTexts(workId)[0];
     return one === undefined ? undefined : readManifest(one.data);
   };
+  const tex = useTexApi()?.checkTex;
 
   const preview = (doc: unknown): JsonPreview | { error: string } => {
-    const plan = planWorkWithText(doc, store, manifestOf);
+    const plan = planWorkWithText(doc, store, manifestOf, tex);
     return 'error' in plan ? plan : { lines: [...plan.lines], warnings: [...plan.warnings] };
   };
 
   const onImport = async (doc: unknown, stage: (what: string) => void): Promise<JsonPreview> => {
-    const plan = planWorkWithText(doc, store, manifestOf);
+    const plan = planWorkWithText(doc, store, manifestOf, tex);
     if ('error' in plan) throw new WorkspaceError(plan.error);
     if (plan.docs.length > 0 && !(await publicOk(target))) return { lines: ['Nic nie zapisano.'], warnings: [] };
     /* Erst das Werk und wen es nennt (wie der Import der Bibliothek), dann sein Text. */
@@ -241,7 +246,7 @@ function WorkWithTextImport({ store, library, writable, storeFor }: {
     }
     work ??= store.get(plan.work.id);
     if (work === undefined) throw new WorkspaceError('Dzieło jest w innej bibliotece — tekst dodasz na jego stronie.');
-    const text = plan.docs.length === 0 ? { lines: [], warnings: [] } : await writePortions({ target: targetStore, work, docs: plan.docs, stage, workStore: store });
+    const text = plan.docs.length === 0 ? { lines: [], warnings: [] } : await writePortions({ target: targetStore, work, docs: plan.docs, stage, workStore: store, ...(tex === undefined ? {} : { tex }) });
     const opened = work.id;
     window.setTimeout(() => { window.location.hash = viewPath('library', library.libraryId, opened); }, 1200);
     return { lines: [...plan.lines.slice(0, 1), ...text.lines, 'Otwieram stronę dzieła…'], warnings: [...plan.library.warnings, ...text.warnings] };

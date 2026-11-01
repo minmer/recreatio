@@ -276,7 +276,8 @@ Tekst dzieła składa się z CZĘŚCI (np. księga Biblii, rozdział książki, 
   "edition": {                       — opcjonalnie
     "pdfPageOffset": 12,            — strona drukowana = strona PDF − 12 (gdy stały)
     "language": "pl",
-    "psalms": "hebrew" | "greek"    — tylko Pismo Święte: numeracja psalmów (BT: hebrew; Wulgata: greek)
+    "psalms": "hebrew" | "greek",   — tylko Pismo Święte: numeracja psalmów (BT: hebrew; Wulgata: greek)
+    "macros": { "\\R": "\\mathbb{R}" }  — własne makra autora we wzorach (niżej: Wzory)
   },
   "portion": { "key": "rozdz-1", "label": "Rozdział 1", "order": 1 },
   "blocks": [ … ]                    — bloki w kolejności oryginału
@@ -297,6 +298,12 @@ Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" 
   {"type": "note", "id": "1", "text": "…"}                     przypis (tekst przypisu); w tekście odwołanie {{note 1}}
   {"type": "page", "page": "46", "pdf": 52}                   tu zaczyna się strona 46 (drukowana) = strona 52 pliku PDF;
                                                               strona tak, jak jest wydrukowana — także ze znakami serii: "12*", "3'", "(7)", "A12", "xii"
+  {"type": "statement", "kind": "theorem", "label": "Twierdzenie 2.3", "title": "…", "text": "…"}
+                                                              definicja, twierdzenie, lemat, dowód, przykład… (niżej); dłuższa treść: "blocks": [ … ] zamiast "text"
+  {"type": "figure", "label": "Rys. 2.1", "text": "podpis", "alt": "co pokazuje rysunek"}
+                                                              rysunek, wykres, schemat — podpis z książki, a w "alt" krótki opis tego, co widać
+  {"type": "code", "lang": "python", "text": "…"}             kod albo pseudokod — znak w znak, z wcięciami i podziałem wierszy
+  {"type": "table", "label": "Tabela 2.1", "text": "podpis", "columns": […], "rows": […]}   tabela z etykietą i podpisem (oba opcjonalne)
   "uncertain": true                                           przy dowolnym bloku: odczyt niepewny
 
 ## Znaki w tekście
@@ -304,7 +311,34 @@ Albo kilka części (np. cały tekst) w jednym dokumencie — zamiast "portion" 
   {{note 3}}                               odwołanie do przypisu "3"
   {{? słowo}}                              niepewny odczyt tego słowa;  {{?}} — nieczytelne
   {{gap}}                                  pominięty / brakujący fragment
+  {{ref twierdzenia 2.3}}  {{ref (2.4)}}   odwołanie do twierdzenia, wzoru, rysunku, tabeli tego samego dzieła — napisane tak, jak w tekście
+  $x^2$   $$\\int_0^1 f(x)\\,dx$$         wzór w zdaniu i wzór wystawiony (osobno) — LaTeX (niżej)
 Wszystko inne jest zwykłym tekstem. Zachowaj dokładne brzmienie, kolejność, akapity i interpunkcję oryginału. Nie poprawiaj, nie streszczaj, nie tłumacz.
+
+## Wzory (LaTeX)
+- Każdy wzór, symbol i oznaczenie matematyczne (także pojedyncza litera-zmienna, indeks, jednostka w wyrażeniu) zapisz w LaTeX: w zdaniu między $ … $, wzór wystawiony (w osobnym wierszu) między $$ … $$ — w akapicie dokładnie tam, gdzie stoi w źródle; akapit może mieć kilka wzorów wystawionych i ciągnąć się dalej po nich.
+- Po otwierającym $ i przed zamykającym $ nie ma spacji. Dosłowny znak dolara w tekście: \\$.
+- W JSON każdy ukośnik LaTeX jest podwójny: "$\\frac{a}{b}$", "$$\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}$$". Pojedynczy ukośnik psuje wzór (w JSON "\f", "\t", "\n" to znaki sterujące).
+- Numer wzoru tak, jak wydrukowany: $$ … \\tag{2.4}$$ (w układzie wielu wierszy \\tag przy wierszu). Wzór bez numeru — bez \\tag. Nie numeruj sam.
+- Wyprowadzenia krok po kroku i układy: \\begin{aligned} … \\end{aligned} (albo align*, gather*), przypadki: cases; macierze: pmatrix, bmatrix, vmatrix, array (z kreskami: {cc|c}, \\hline); diagramy przemienne: \\begin{CD}; chemia: \\ce{H2O}, jednostki: \\pu{9,81 m/s^2}.
+- Nie zamieniaj wzorów na zwykły tekst ani znaki Unicode (x², α, √) — zawsze LaTeX ($x^2$, $\\alpha$, $\\sqrt{x}$). Nie upraszczaj, nie przekształcaj, nie poprawiaj — przepisz to, co jest wydrukowane, w tej samej postaci.
+- Własne makra autora (np. \\R, \\norm{x}) podaj raz w "edition.macros" ({"\\norm": "\\left\\lVert #1 \\right\\rVert"}) i używaj ich we wzorach; zwykłe \\newcommand we wzorze też zadziała.
+- Wzory czyta KaTeX. Nie ma w nim: \\label i \\ref (do odwołań służy {{ref …}}), tabular i \\multicolumn (tabela to blok "table"), tikz, \\includegraphics (rysunek to blok "figure"), \\sideset.
+- Granica strony nigdy w środku wzoru — {{page …}} przed wzorem albo po nim.
+- Wzory odczytuj z obrazu strony, nie z warstwy tekstowej PDF: warstwa tekstowa zwykle gubi indeksy, ułamki i znaki.
+
+## Twierdzenia, definicje, dowody ("statement")
+  {"type": "statement", "kind": "definition", "label": "Definicja 2.1", "text": "Ciąg $(a_n)$ jest zbieżny, gdy …"}
+  {"type": "statement", "kind": "theorem", "label": "Twierdzenie 2.2", "title": "o trzech ciągach", "text": "…"}
+  {"type": "statement", "kind": "proof", "label": "Dowód", "blocks": [ {"type": "paragraph", "text": "…"}, … ]}
+- "kind": definition (Definicja), theorem (Twierdzenie), lemma (Lemat), proposition (Stwierdzenie), corollary (Wniosek), axiom (Aksjomat), conjecture (Hipoteza), fact (Fakt), property (Własność), example (Przykład), remark (Uwaga), exercise (Ćwiczenie), problem (Zadanie), solution (Rozwiązanie), answer (Odpowiedź), proof (Dowód), notation (Oznaczenie), algorithm (Algorytm), other (inne — wtedy liczy się "label").
+- "label" — dokładnie tak, jak wydrukowane, z numerem ("Lemat 4.1", "Ćwiczenie 7*"); "title" — nazwa w nawiasie po etykiecie, jeśli jest (bez nawiasów).
+- Treść jednym akapitem: "text". Dłuższa (kilka akapitów, wzory wystawione, listy, przypadki, granice stron): "blocks" — zwykłe bloki, także zagnieżdżone twierdzenia (np. lemat wewnątrz dowodu).
+- Dowód, rozwiązanie, odpowiedź — osobny "statement" zaraz po tym, czego dotyczy. Znaku końca dowodu (□, ∎, c.n.d.) nie przepisuj: aplikacja stawia go sama.
+
+## Odwołania i etykiety
+- W tekście odwołanie do twierdzenia, wzoru, rysunku albo tabeli tego samego dzieła zapisz {{ref …}} — tymi słowami, co w źródle: "z {{ref twierdzenia 2.3}}", "na mocy {{ref (2.4)}}", "por. {{ref Rys. 1.2}}". Czytnik zrobi z nich odnośniki.
+- Etykiety (label, \\tag) muszą być jednoznaczne w całym dziele — tak, jak w książce.
 
 ## "loc" — miejsce w strukturze dzieła
 Podawaj "loc" przy każdym bloku, który ma własny numer w strukturze dzieła (werset, punkt, artykuł, twierdzenie, paragraf, rozdział). Bloki bez własnego numeru (np. akapit w środku rozdziału) nie mają "loc" — należą do miejsca podanego wcześniej. Strony NIE wpisuje się do "loc": strony to bloki "page" i znaki {{page …}}, bo należą do tego jednego wydania.
@@ -321,6 +355,7 @@ Podawaj "loc" przy każdym bloku, który ma własny numer w strukturze dzieła (
 - Numery stron: drukowane, tak jak w książce (także rzymskie: "xii"); numer strony pliku PDF w "pdf", jeśli się różni.
 - Przypisy dolne i końcowe: blok "note" (po akapicie albo na końcu części) i {{note …}} w miejscu odsyłacza.
 - Jedna część — najwyżej ok. 2 mln znaków.
+- Każda strona ma swoją granicę — także pusta albo zajęta w całości przez rysunek ({{page …}} albo blok "page"); import sprawdza, czy żadnej nie brakuje.
 
 ## Cały tekst
 - Podziel tekst według jego własnego podziału: księgi Biblii (klucz: skrót księgi, np. "J"), rozdziały książki ("rozdz-1", "rozdz-2"), kwestie Sumy ("I-q2"), rozdziały dokumentu; krótki artykuł albo dokument może być jedną częścią.
@@ -620,6 +655,122 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
   ]
 }
 
+### Podręcznik ze wzorami (twierdzenia, dowód, macierze, rysunek, tabela, kod)
+{
+  "format": "recreatio/source-text",
+  "version": 1,
+  "work": "@analiza1",
+  "scheme": "pages",
+  "edition": {
+    "language": "pl",
+    "pdfPageOffset": 10,
+    "macros": {
+      "\\R": "\\mathbb{R}",
+      "\\norm": "\\left\\lVert #1 \\right\\rVert"
+    }
+  },
+  "portion": {
+    "key": "rozdz-2",
+    "label": "Rozdział 2. Ciągi liczbowe",
+    "order": 2
+  },
+  "blocks": [
+    {
+      "type": "page",
+      "page": "41",
+      "pdf": 51
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "Rozdział 2. Ciągi liczbowe"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2.1. Granica ciągu"
+    },
+    {
+      "type": "statement",
+      "kind": "definition",
+      "label": "Definicja 2.1",
+      "text": "Ciąg $(a_n)$ liczb rzeczywistych jest zbieżny do $g \\in \\R$, gdy $$\\forall_{\\varepsilon > 0}\\; \\exists_{N \\in \\mathbb{N}}\\; \\forall_{n \\geq N} \\quad |a_n - g| < \\varepsilon. \\tag{2.1}$$ Piszemy wtedy $\\lim_{n \\to \\infty} a_n = g$."
+    },
+    {
+      "type": "statement",
+      "kind": "theorem",
+      "label": "Twierdzenie 2.2",
+      "title": "o trzech ciągach",
+      "text": "Jeżeli $a_n \\leq b_n \\leq c_n$ dla $n \\geq n_0$ oraz $\\lim a_n = \\lim c_n = g$, to $\\lim b_n = g$."
+    },
+    {
+      "type": "statement",
+      "kind": "proof",
+      "label": "Dowód",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Niech $\\varepsilon > 0$. Z {{ref (2.1)}} dla ciągów $(a_n)$ i $(c_n)$ istnieje $N$ takie, że dla $n \\geq N$ {{page 42 pdf 52}} mamy $$\\begin{aligned} g - \\varepsilon &< a_n \\leq b_n \\\\ &\\leq c_n < g + \\varepsilon. \\end{aligned}$$"
+        },
+        {
+          "type": "paragraph",
+          "text": "Stąd $|b_n - g| < \\varepsilon$ dla $n \\geq N$.{{note 1}}"
+        }
+      ]
+    },
+    {
+      "type": "statement",
+      "kind": "example",
+      "label": "Przykład 2.3",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Dla macierzy $$A = \\begin{pmatrix} 1 & 2 \\\\ 0 & 1 \\end{pmatrix}, \\qquad A^n = \\begin{pmatrix} 1 & 2n \\\\ 0 & 1 \\end{pmatrix}$$ ciąg $\\norm{A^n}$ nie jest zbieżny — por. {{ref twierdzenie 2.2}}."
+        },
+        {
+          "type": "paragraph",
+          "text": "Funkcja $f(x) = \\begin{cases} x^2, & x \\geq 0, \\\\ -x, & x < 0 \\end{cases}$ jest ciągła."
+        }
+      ]
+    },
+    {
+      "type": "figure",
+      "label": "Rys. 2.1",
+      "text": "Wykres ciągu $a_n = \\frac{(-1)^n}{n}$.",
+      "alt": "Punkty na przemian nad i pod osią poziomą, coraz bliżej zera."
+    },
+    {
+      "type": "table",
+      "label": "Tabela 2.1",
+      "text": "Wyrazy ciągu $a_n = \\left(1 + \\frac{1}{n}\\right)^n$.",
+      "columns": [
+        "$n$",
+        "$a_n$"
+      ],
+      "rows": [
+        [
+          "1",
+          "$2$"
+        ],
+        [
+          "10",
+          "$2{,}5937\\ldots$"
+        ]
+      ]
+    },
+    {
+      "type": "code",
+      "lang": "pseudokod",
+      "text": "dla n := 1, 2, …\n    jeśli |a(n) − g| < ε: zwróć n"
+    },
+    {
+      "type": "note",
+      "id": "1",
+      "text": "Tak samo dowodzi się wersji dla funkcji: jeśli $f \\leq g \\leq h$ w otoczeniu punktu $x_0$, to granice też są uporządkowane."
+    }
+  ]
+}
+
 ## Pełny przykład (artykuł w czasopiśmie, tekst w dwóch częściach)
 {
   "format": "recreatio/source-text",
@@ -727,6 +878,10 @@ Zwróć JEDEN obiekt JSON, bez komentarzy.
 - Tekst jest zapieczętowany kluczem obszaru biblioteki, w której go zapisano — może to być inna (np. prywatna) biblioteka niż ta z dziełem. Kto jej nie czyta, nie widzi tekstu: ani w czytniku, ani w szukaniu, ani na stronie.
 - „Dostęp dla AI” (link obszaru, serwer MCP), jeśli obejmuje bibliotekę z tekstem, daje go asystentowi do czytania: list_texts, read_text (według miejsca), search_text.
 - Tekstu nie ma w JSON biblioteki ("recreatio/library"); oddaje go eksport w ramce „Tekst źródła” — w tym formacie.
+- Wzory ($…$, $$…$$) czytnik składa jak w druku (KaTeX), także macierze, układy i numery wzorów; wzór, którego nie da się złożyć, zostaje widoczny jako kod LaTeX. Import sprawdza każdy wzór i mówi, które nie przechodzą.
+- Twierdzenia, definicje, dowody, przykłady stoją w ramkach z etykietą; dowód kończy ∎. „Przejdź” przyjmuje też etykiety („Twierdzenie 2.3”, „(2.4)”, „Rys. 1.2”), a odwołanie {{ref …}} w tekście prowadzi do celu — także w innej części.
+- Szukanie w tekście znajduje też wzory: po słowach i znakach („α”, „∫”, „sin”) i po LaTeX („\frac”, „x^2”). Zaznaczony fragment ze wzorem trafia do cytatu i schowka jako LaTeX ($…$).
+- „Dostęp dla AI” oddaje wzory jako LaTeX w $…$ i $$…$$; read_text przyjmuje też etykietę („Twierdzenie 2.3”, „(2.4)”).
 ```
 <!-- app:work-with-text:end -->
 

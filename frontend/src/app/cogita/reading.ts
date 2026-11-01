@@ -16,6 +16,7 @@
  */
 
 import { blocksIn, blocksMarkup } from '../library/blocks';
+import { texPlain } from '../core/tex';
 import { parseMarkup, type Block, type CiteItem, type Inline } from '../library/libraryMarkup';
 import { fieldsOf, fieldText, kindsOf, labelOf, valuesOf, type Entity, type FieldDef, type Lookup } from './schema';
 
@@ -77,7 +78,7 @@ export function readingSource(text: string): string {
 /** Der Text ohne Zeichen und ohne Fussnoten, in einer Zeile. */
 export function plainInlines(list: readonly Inline[]): string {
   const walk = (xs: readonly Inline[]): string => xs.map((x) =>
-    x.t === 'text' ? x.v : x.t === 'br' ? ' ' : x.t === 'cite' || x.t === 'note' ? '' : walk(x.c)).join('');
+    x.t === 'text' ? x.v : x.t === 'br' ? ' ' : x.t === 'cite' || x.t === 'note' ? '' : x.t === 'math' ? texPlain(x.tex) : walk(x.c)).join('');
   return walk(list).replace(/\s+/g, ' ').replace(/ +([.,;:!?])/g, '$1').trim();
 }
 

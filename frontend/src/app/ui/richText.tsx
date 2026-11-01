@@ -28,6 +28,7 @@
 import { Fragment, type ReactNode } from 'react';
 
 import { parseInline, safeHref, UNREADABLE, type Inline } from '../library/libraryMarkup';
+import { Glue, glue, Tex } from './tex/Tex';
 
 const LINK = /\[([^\]\n]{1,200})\]\(([^)\s]{1,600})\)/g;
 const ONLY_LINKS = /^(\s*\[[^\]\n]{1,200}\]\([^)\s]{1,600}\)\s*[·|,•]?\s*)+$/;
@@ -44,10 +45,12 @@ function Link({ href, children }: { href: string; children: ReactNode }) {
 
 /** Das Gelesene ohne Bibliothek: Fett, Kursiv, Verweise; von `[[Wort|@…]]` das Wort. */
 function inlines(list: readonly Inline[]): ReactNode[] {
-  return list.map((one, i) => {
+  /* 2026-11-01 — Satzzeichen nach einem Wzór im Satz bleiben bei ihm. */
+  return glue(list, (x) => x.t === 'math' && !x.display, (x) => (x.t === 'text' ? x.v : null), (_x, v): Inline => ({ t: 'text', v })).map(({ item: one, punct }, i) => {
     switch (one.t) {
       case 'text': return <Fragment key={i}>{one.v}</Fragment>;
       case 'br': return <br key={i} />;
+      case 'math': return <Glue key={i} punct={punct}><Tex tex={one.tex} display={one.display} /></Glue>;
       case 'b': return <strong key={i}>{inlines(one.c)}</strong>;
       case 'i': return <em key={i}>{inlines(one.c)}</em>;
       case 'link': return <Link key={i} href={one.href}>{inlines(one.c)}</Link>;

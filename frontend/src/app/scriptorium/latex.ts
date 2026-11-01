@@ -58,6 +58,8 @@ function inlines(list: readonly Inline[], ctx: Ctx, inNote = false): string {
     switch (one.t) {
       case 'text': return latexEscape(one.v);
       case 'br': return inNote ? ' ' : '\\\\\n';
+      /* 2026-11-01 — ein Wzór geht, wie er ist (amsmath/amssymb in der Präambel). */
+      case 'math': return one.display && !inNote ? `\\[${one.tex}\\]` : `$${one.tex}$`;
       case 'b': return `\\textbf{${inlines(one.c, ctx, inNote)}}`;
       case 'i': return `\\emph{${inlines(one.c, ctx, inNote)}}`;
       case 'link': return `\\href{${hrefEscape(one.href)}}{${inlines(one.c, ctx, inNote)}}`;
@@ -165,6 +167,7 @@ const PREAMBLE = (kind: 'article' | 'book') => [
   '\\usepackage[T1]{fontenc}',
   '\\usepackage[polish]{babel}',
   '\\usepackage{lmodern}',
+  '\\usepackage{amsmath,amssymb}',
   '\\usepackage{microtype}',
   '\\usepackage[hidelinks]{hyperref}',
   '\\usepackage{enumitem}',

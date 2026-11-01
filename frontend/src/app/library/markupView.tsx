@@ -15,6 +15,8 @@ import { citeSegs, newCiteState, originOf, refLabel, workBehind, type CiteState,
 import { isSource, ownTitle, refTarget, str, type LibEntry, type Lookup } from './libraryKinds';
 import { parseInline, parseMarkup, UNREADABLE, walkBlocks, walkInline, type Block, type Inline } from './libraryMarkup';
 import { later } from '../ui/later';
+import { Glue, glue, Tex } from '../ui/tex/Tex';
+import { texPieces } from '../core/tex';
 import { TextJump } from './SourceJump';
 
 /* 2026-10-22 (Schritt 11) — ein Widok im Text: der Rechner (Cogita) kommt erst, wenn einer gezeigt wird. */
@@ -276,13 +278,19 @@ export function jump(e: MouseEvent, id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
+/** 2026-11-01 — Satzzeichen nach einem Wzór im Satz bleiben bei ihm (`glue`, ui/tex/Tex.tsx). */
+export const gluedInlines = (list: readonly Inline[]) =>
+  glue(list, (x) => x.t === 'math' && !x.display, (x) => (x.t === 'text' ? x.v : null), (_x, v): Inline => ({ t: 'text', v }));
+
 export function Inlines({ list, notes, prefix = '', look }: { list: readonly Inline[]; notes: Notes | null; prefix?: string; look?: Lookup }) {
   return (
     <>
-      {list.map((one, i) => {
+      {gluedInlines(list).map(({ item: one, punct }, i) => {
         switch (one.t) {
           case 'text': return <Fragment key={i}>{one.v}</Fragment>;
           case 'br': return <br key={i} />;
+          /* 2026-11-01 — ein Wzór (KaTeX, erst geladen, wenn einer zu sehen ist). */
+          case 'math': return <Glue key={i} punct={punct}><Tex tex={one.tex} display={one.display} /></Glue>;
           case 'b': return <strong key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></strong>;
           case 'i': return <em key={i}><Inlines list={one.c} notes={notes} prefix={prefix} look={look} /></em>;
           case 'link':
@@ -316,10 +324,17 @@ export function Inlines({ list, notes, prefix = '', look }: { list: readonly Inl
   );
 }
 
+/** Der Wortlaut eines Zitats: Absätze, Zeilen — 2026-11-01 und seine Wzory (`$…$`, aus dem Czytnik eines Lehrbuchs). */
 export function QuoteBody({ text }: { text: string }) {
   return (
     <>
-      {text.split(/\n\s*\n/).map((p, i) => <p key={i}>{p.split('\n').map((line, j) => <Fragment key={j}>{j > 0 && <br />}{line}</Fragment>)}</p>)}
+      {text.split(/\n\s*\n/).map((p, i) => (
+        <p key={i}>
+          {texPieces(p).map((piece, k) => (piece.t === 'math'
+            ? <Tex key={k} tex={piece.tex} display={piece.display} />
+            : <Fragment key={k}>{piece.v.split('\n').map((line, j) => <Fragment key={j}>{j > 0 && <br />}{line}</Fragment>)}</Fragment>))}
+        </p>
+      ))}
     </>
   );
 }

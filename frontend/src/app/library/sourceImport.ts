@@ -21,8 +21,8 @@ import { kindOf, MUSIC_TYPES, WORK_TYPES, workTitle, type LibEntry, type LibKind
 import type { LibraryStore } from './libraryStore';
 import { SCHEMES, schemeOf, workScheme, type SchemeId } from './locations';
 import {
-  nextManifest, overlapsWith, PART_KIND, pageRangeLabel, partData, planSourceImport, portionDocs, readManifest, readPart, samePart,
-  SOURCE_FORMAT, SOURCE_TEXT_USE, SOURCE_VERSION, sourceTextDescription, TEXT_KIND, type TextManifest
+  MATH_ASK, nextManifest, overlapsWith, PART_KIND, pageRangeLabel, partData, planSourceImport, portionDocs, readManifest, readPart, samePart,
+  SOURCE_FORMAT, SOURCE_TEXT_USE, SOURCE_VERSION, sourceTextDescription, TEXT_KIND, type TexCheck, type TextManifest
 } from './sourceText';
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -35,19 +35,26 @@ export interface ImportSay {
 
 /* -- Die Teile zu einem Werk ------------------------------------------------------------------- */
 
-/** Was die Teile ändern würden — vor dem Speichern, ohne etwas zu speichern. */
-export function previewPortions(work: LibEntry, manifest: TextManifest | undefined, docs: readonly unknown[]): ImportSay | { error: string } {
+/**
+ * Was die Teile ändern würden — vor dem Speichern, ohne etwas zu speichern. 2026-11-01 — `tex`: der Prüfer der
+ * Wzory (KaTeX), sobald er geladen ist; bis dahin sagt die Vorschau, dass sie die Wzory noch nicht gesetzt hat.
+ */
+export function previewPortions(work: LibEntry, manifest: TextManifest | undefined, docs: readonly unknown[], tex?: TexCheck): ImportSay | { error: string } {
   const lines: string[] = [];
   const warnings: string[] = [];
   let running = manifest;
+  let unchecked = 0;
   for (const [i, raw] of docs.entries()) {
-    const plan = planSourceImport(raw, { work, ...(running === undefined ? {} : { manifest: running }) });
+    const plan = planSourceImport(raw, { work, ...(running === undefined ? {} : { manifest: running }), ...(tex === undefined ? {} : { tex }) });
     const label = docs.length > 1 ? `Część ${i + 1}: ` : '';
     if ('error' in plan) { if (docs.length === 1) return plan; warnings.push(`${label}${plan.error}`); continue; }
     const s = plan.summary;
     const range = s.first === undefined ? '' : `, miejsca ${s.first}${s.last !== s.first ? ` – ${s.last}` : ''}`;
     const pages = s.pages === undefined ? '' : `, ${pageRangeLabel(s.pages)}`;
-    lines.push(`${plan.replaces ? 'Zastąpi' : 'Doda'} część „${plan.portion.label}” (${plan.portion.key}): ${count(s.blocks, 'blok', 'bloki', 'bloków')}, ${count(s.words, 'słowo', 'słowa', 'słów')}${range}${pages}${s.notes > 0 ? `, ${count(s.notes, 'przypis', 'przypisy', 'przypisów')}` : ''}.`);
+    const formulas = s.formulas === undefined ? '' : `, ${count(s.formulas, 'wzór', 'wzory', 'wzorów')}${s.checked ? (s.texErrors === 0 ? ' (wszystkie się składają)' : ` (${s.texErrors} z błędem)`) : ''}`;
+    const statements = s.statements === 0 ? '' : `, ${count(s.statements, 'ramka', 'ramki', 'ramek')} (twierdzenia, definicje, dowody…)`;
+    if (s.formulas !== undefined && !s.checked) unchecked += s.formulas;
+    lines.push(`${plan.replaces ? 'Zastąpi' : 'Doda'} część „${plan.portion.label}” (${plan.portion.key}): ${count(s.blocks, 'blok', 'bloki', 'bloków')}, ${count(s.words, 'słowo', 'słowa', 'słów')}${range}${pages}${s.notes > 0 ? `, ${count(s.notes, 'przypis', 'przypisy', 'przypisów')}` : ''}${formulas}${statements}.`);
     if (plan.setScheme !== undefined) lines.push(`${label}Układ miejsc dzieła: ${schemeOf(plan.setScheme).label} („${plan.setScheme}”).`);
     for (const other of overlapsWith(running, plan)) warnings.push(`${label}część „${other}” obejmuje te same miejsca — czy to nie ten sam fragment pod innym kluczem?`);
     warnings.push(...plan.warnings.map((w) => `${label}${w}`));
@@ -55,6 +62,7 @@ export function previewPortions(work: LibEntry, manifest: TextManifest | undefin
     running = readManifest(nextManifest(running, work.id, plan, `preview-${i}`));
   }
   if (lines.length === 0) return { error: warnings[0] ?? 'Nic do zaimportowania.' };
+  if (unchecked > 0) lines.push(`Składanie wzorów (${unchecked}) jeszcze trwa — za chwilę podgląd powie, czy wszystkie przechodzą.`);
   return { lines, warnings };
 }
 
@@ -69,15 +77,16 @@ export async function writePortions(opts: {
   readonly docs: readonly unknown[];
   readonly stage: (what: string) => void;
   readonly workStore?: LibraryStore;
+  readonly tex?: TexCheck;
 }): Promise<ImportSay> {
-  const { target, work, docs, stage, workStore } = opts;
+  const { target, work, docs, stage, workStore, tex } = opts;
   const lines: string[] = [];
   const warnings: string[] = [];
   let current = target.ownTexts(work.id)[0];
   let read = current === undefined ? undefined : readManifest(current.data);
   const textId = current?.id ?? newId();
   for (const [i, raw] of docs.entries()) {
-    const plan = planSourceImport(raw, { work, ...(read === undefined ? {} : { manifest: read }) });
+    const plan = planSourceImport(raw, { work, ...(read === undefined ? {} : { manifest: read }), ...(tex === undefined ? {} : { tex }) });
     if ('error' in plan) { warnings.push(`Część ${i + 1}: ${plan.error}`); continue; }
     const had = read?.parts.find((p) => p.key === plan.portion.key);
     if (had !== undefined) {
@@ -131,7 +140,7 @@ function workEntryOf(raw: Record<string, unknown>): Record<string, unknown> {
  * des Textes zu diesem Werk schon hat (ein bekanntes Werk kann schon Teile haben).
  */
 export function planWorkWithText(
-  raw: unknown, base: ImportBase, textManifest: (workId: string) => TextManifest | undefined = () => undefined
+  raw: unknown, base: ImportBase, textManifest: (workId: string) => TextManifest | undefined = () => undefined, tex?: TexCheck
 ): WorkWithTextPlan | { error: string } {
   if (!isObject(raw) || raw.format !== SOURCE_FORMAT) return { error: `Oczekiwano dokumentu "${SOURCE_FORMAT}" z dziełem ("work") i jego tekstem ("portions" albo "portion" i "blocks").` };
   if (raw.version !== SOURCE_VERSION) return { error: `Nieznana wersja ${String(raw.version)} — ta aplikacja czyta wersję ${SOURCE_VERSION}.` };
@@ -169,7 +178,7 @@ export function planWorkWithText(
 
   const docs = portionDocs(raw);
   const hasText = docs.some((d) => isObject(d) && (Array.isArray(d.blocks) || isObject(d.portion)));
-  const text = hasText ? previewPortions(work, textManifest(work.id), docs) : { lines: [], warnings: ['Dokument nie ma tekstu ("portions" albo "portion" i "blocks") — zapisze się tylko dzieło.'] };
+  const text = hasText ? previewPortions(work, textManifest(work.id), docs, tex) : { lines: [], warnings: ['Dokument nie ma tekstu ("portions" albo "portion" i "blocks") — zapisze się tylko dzieło.'] };
   if ('error' in text) return text;
 
   const title = workTitle(work.data);
@@ -275,6 +284,7 @@ export function workWithTextPrompt(): string {
   return `Przekształć załączone źródło (PDF, skan albo plik z książką lub artykułem) w JEDEN dokument JSON do importu w Bibliotece Recreatio: opis dzieła (dane bibliograficzne ze strony tytułowej albo nagłówka artykułu), jego autorów i — jeśli to artykuł albo rozdział — czasopismo lub książkę, w której jest, oraz cały tekst podzielony na części.
 
 Przepisz tekst wiernie — słowo w słowo, w kolejności oryginału, z podziałem na akapity, nagłówkami, listami, tabelami i przypisami, z granicami stron dokładnie tam, gdzie wypadają (także w środku akapitu). Nie poprawiaj, nie streszczaj, nie dopisuj niczego, czego nie ma w źródle. Co nieczytelne albo niepewne — oznacz. Jeśli całość nie zmieści się w jednej odpowiedzi, w pierwszej daj "work", "entries" i pierwsze części, a w następnych — "work": "@klucz-dzieła" i kolejne części.
+${MATH_ASK}
 
 ${workWithTextDescription()}`;
 }

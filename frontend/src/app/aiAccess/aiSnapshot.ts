@@ -45,7 +45,8 @@ import {
   type LibEntry, type LibField, type LibKind, type Lookup
 } from '../library/libraryKinds';
 import { citedKeys } from '../library/libraryMarkup';
-import { blockPages, pageSeriesIn, pieces, placeLabel, readManifest, readPart, type SourceBlock } from '../library/sourceText';
+import { texSource } from '../core/tex';
+import { blockLabels, blockPages, boxesOf, pageSeriesIn, pieces, placeLabel, readManifest, readPart, statementHead, texSearchText, type SourceBlock } from '../library/sourceText';
 import type { LibraryStore } from '../library/libraryStore';
 
 export const SNAPSHOT_VERSION = 1;
@@ -83,6 +84,14 @@ export interface SnapshotBlock {
   readonly at?: string;
   readonly pages?: readonly [number, number];
   readonly text: string;
+  /** 2026-11-01 — was der Block nummeriert, wie gedruckt („Twierdzenie 2.3", „(2.4)", „Rys. 1") — `read_text` findet ihn daran. */
+  readonly labels?: readonly string[];
+  /** 2026-11-01 — bei einer Aussage: ihr letzter Block (Kopf bis hier ist sie ganz). */
+  readonly end?: number;
+  /** 2026-11-01 — bei einer Aussage und ihrem Inhalt: ihre Art (theorem, proof …), von aussen nach innen. */
+  readonly within?: readonly string[];
+  /** 2026-11-01 — die Wzory als Zeile Text (α, ∫, ℝ) — damit `search_text` sie auch so findet. */
+  readonly search?: string;
 }
 
 export interface SnapshotText {
@@ -306,17 +315,36 @@ function baseEntries(part: ScopePart, lib: CogitaLibrary, look: Lookup): Snapsho
 
 /* -- 2026-10-24: die vollständigen Texte der Werke ----------------------------------------------------- */
 
-/** Ein Text mit seinen Zeichen, lesbar: [s. 46] ein Seitenwechsel, [^3] ein Przypis, wyraz[?] unsicher, […] eine Lücke. */
+/**
+ * Ein Text mit seinen Zeichen, lesbar: [s. 46] ein Seitenwechsel, [^3] ein Przypis, wyraz[?] unsicher, […] eine Lücke.
+ * 2026-11-01 — ein Wzór bleibt LaTeX in `$…$` / `$$…$$` (so liest ihn ein Sprachmodell am besten), ein Verweis {{ref …}} sein Wortlaut.
+ */
 function readable(text: string): string {
-  return pieces(text).map((p) => (p.t === 'text' ? p.v : p.t === 'page' ? `[s. ${p.page}]` : p.t === 'note' ? `[^${p.id}]` : p.t === 'unsure' ? `${p.v}[?]` : '[…]')).join('');
+  return pieces(text).map((p) => {
+    switch (p.t) {
+      case 'text': return p.v.replace(/\$/g, '\\$');
+      case 'math': return texSource(p.tex, p.display);
+      case 'ref': return p.label;
+      case 'page': return `[s. ${p.page}]`;
+      case 'note': return `[^${p.id}]`;
+      case 'unsure': return `${p.v}[?]`;
+      default: return '[…]';
+    }
+  }).join('');
 }
 
 function blockText(b: SourceBlock): string {
   switch (b.type) {
     case 'list': return (b.items ?? []).map((item, i) => `${b.ordered === true ? `${i + 1}.` : '-'} ${readable(item)}`).join('\n');
-    case 'table': return [...((b.columns ?? []).length > 0 ? [(b.columns ?? []).map(readable).join(' | ')] : []), ...(b.rows ?? []).map((row) => row.map(readable).join(' | '))].join('\n');
+    case 'table': return [
+      ...(b.label !== undefined || b.text !== undefined ? [`${b.label ?? ''}${b.label !== undefined && b.text !== undefined ? '. ' : ''}${readable(b.text ?? '')}`] : []),
+      ...((b.columns ?? []).length > 0 ? [(b.columns ?? []).map(readable).join(' | ')] : []), ...(b.rows ?? []).map((row) => row.map(readable).join(' | '))
+    ].join('\n');
     case 'note': return `[^${b.id ?? ''}] ${readable(b.text ?? '')}`;
     case 'page': return `[s. ${b.page ?? ''}${b.pdf === undefined ? '' : ` · PDF ${b.pdf}`}]`;
+    case 'statement': return `${readable(statementHead(b))}.`;
+    case 'figure': return `[${b.label ?? 'Rysunek'}${b.text === undefined ? '' : `: ${readable(b.text)}`}${b.alt === undefined ? '' : ` — opis rysunku: ${readable(b.alt)}`}]`;
+    case 'code': return `\`\`\`${b.lang ?? ''}\n${b.text ?? ''}\n\`\`\``;
     default: return readable(b.text ?? '');
   }
 }
@@ -337,6 +365,12 @@ export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): Snapsh
       const blocks = found === undefined ? [] : readPart(found.data).blocks;
       const pages = blockPages(blocks);
       for (const key of pageSeriesIn(blocks)) series.add(key);
+      /* 2026-11-01 — Aussagen: in welchen ein Block steht (ihre Art), wo eine endet. */
+      const chains = boxesOf(blocks);
+      const boxKind = new Map<string, string>();
+      const lastOf = new Map<string, number>();
+      blocks.forEach((b) => { if (b.type === 'statement' && b.id !== undefined) boxKind.set(b.id, b.kind ?? 'other'); });
+      chains.forEach((chain, i) => { for (const id of chain) lastOf.set(id, i); });
       let current = '';
       return {
         key: p.key, label: p.label, order: p.order,
@@ -346,13 +380,21 @@ export function snapshotTexts(texts: readonly ScopeText[], look: Lookup): Snapsh
           if (own !== undefined && b.type !== 'note' && b.type !== 'page') current = own;
           const at = own ?? (b.type === 'note' || b.type === 'page' ? '' : current);
           const range = pages[i];
+          const labels = blockLabels(b).map((l) => l.label);
+          const within = (chains[i] ?? []).map((id) => boxKind.get(id) ?? 'other');
+          const end = b.type === 'statement' && b.id !== undefined ? lastOf.get(b.id) : undefined;
+          const search = texSearchText(b);
           return {
             type: b.type,
             ...(b.type === 'heading' ? { level: b.level ?? 1 } : {}),
             ...(own === undefined ? {} : { loc: own }),
             ...(at === '' ? {} : { at: placeLabel(at, manifest.scheme, manifest.edition) || at }),
             ...(range === null ? {} : { pages: [range.from, range.to] as const }),
-            text: blockText(b)
+            text: blockText(b),
+            ...(labels.length === 0 ? {} : { labels }),
+            ...(end === undefined ? {} : { end }),
+            ...(within.length === 0 ? {} : { within }),
+            ...(search === '' ? {} : { search })
           };
         })
       };

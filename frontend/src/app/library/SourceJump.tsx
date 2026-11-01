@@ -9,13 +9,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import type { TexMacros } from '../core/tex';
 import { Loading } from '../ui/Loading';
+import { TexMacrosContext } from '../ui/tex/Tex';
 import { viewPath } from '../routes';
 import { workTitle, type Lookup } from './libraryKinds';
 import { parsePlace } from './locations';
-import { SourceBlockView } from './SourceBlocks';
+import { SourceFlow } from './SourceBlocks';
 import { openPart, placeFor } from './sourceFind';
-import { findBlocks, placeOptions, readPart, type SourceBlock, type TextLink } from './sourceText';
+import { findBlocks, labelBlocks, placeOptions, readPart, type SourceBlock, type TextLink } from './sourceText';
+import { looksLikeLabel } from './textLabels';
+
+const NO_MACROS: TexMacros = {};
 
 const SHOWN = 12;
 
@@ -63,15 +68,19 @@ export function Passage({ look, link }: { look: Lookup | undefined; link: TextLi
   if (blocks === undefined) return <Loading lines={2} label="Otwieranie tekstu…" />;
   if (blocks === null) return <p className="wk-empty">Tego fragmentu nie da się teraz otworzyć.</p>;
   const manifest = link.text!.manifest;
-  const hit = link.locator === ''
-    ? blocks.map((_, i) => i).slice(0, SHOWN)
-    : findBlocks(blocks, parsePlace(link.locator, manifest.scheme, placeOptions(manifest.edition)), manifest.scheme, manifest.edition);
+  /* 2026-11-01 — auch ein Label („Twierdzenie 2.3", „(2.4)"): dann die ganze Aussage. */
+  const byLabel = link.locator !== '' && looksLikeLabel(link.locator) ? labelBlocks(blocks, link.locator) : [];
+  const byPlace = link.locator === '' || byLabel.length > 0 ? [] : findBlocks(blocks, parsePlace(link.locator, manifest.scheme, placeOptions(manifest.edition)), manifest.scheme, manifest.edition);
+  const hit = link.locator === '' ? blocks.map((_, i) => i).slice(0, SHOWN)
+    : byLabel.length > 0 ? byLabel : byPlace.length > 0 ? byPlace : labelBlocks(blocks, link.locator);
   if (hit.length === 0) return <p className="wk-empty">W tej części tekstu nie widać tego miejsca.</p>;
   const shown = hit.slice(0, SHOWN);
   const prefix = `jp-${partId}-`;
   return (
     <div className="src-passage">
-      {shown.map((i) => <SourceBlockView key={i} block={blocks[i]!} index={i} prefix={prefix} />)}
+      <TexMacrosContext.Provider value={manifest.edition.macros ?? NO_MACROS}>
+        <SourceFlow blocks={blocks} shown={shown} prefix={prefix} />
+      </TexMacrosContext.Provider>
       {hit.length > SHOWN && <p className="src-more">… i dalej ({hit.length - SHOWN} bloków) — w czytniku.</p>}
     </div>
   );

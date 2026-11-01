@@ -275,6 +275,39 @@ internal static class AiAccessChecks
                 "texts: rendered with headings and each block's own place");
         }
 
+        /* 2026-11-01 — ein Lehrbuch: Aussagen (labels, end, within), Wzory als LaTeX, die Zeile für die Suche (search). */
+        var mathSnap = """
+            { "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab6918d", "name": "Podręczniki", "entries": [],
+              "texts": [ { "id": "T2", "work": "W2", "workTitle": "Algebra", "scheme": "pages",
+                "parts": [ { "key": "rozdz-3", "label": "Rozdział 3", "order": 3, "pages": [57, 58],
+                  "blocks": [
+                    { "type": "page", "pages": [57, 57], "text": "[s. 57]" },
+                    { "type": "statement", "pages": [57, 57], "text": "Definicja 3.1 (iloczyn macierzy).", "labels": ["Definicja 3.1"], "end": 2, "within": ["definition"] },
+                    { "type": "paragraph", "pages": [57, 57], "text": "Iloczyn: $$(AB)_{ik} = \\sum_{j} a_{ij} b_{jk}. \\tag{3.1}$$", "labels": ["(3.1)"], "within": ["definition"], "search": "(AB)ᵢₖ = ∑ⱼ aᵢⱼ bⱼₖ. (3.1)" },
+                    { "type": "statement", "pages": [57, 57], "text": "Twierdzenie 3.2 (Cauchy'ego).", "labels": ["Twierdzenie 3.2"], "end": 6, "within": ["theorem"] },
+                    { "type": "paragraph", "pages": [57, 58], "text": "Zachodzi $\\det(AB) = \\det A \\det B$ [s. 58].", "within": ["theorem"], "search": "det(AB) = det A det B" },
+                    { "type": "statement", "pages": [58, 58], "text": "Dowód.", "end": 6, "within": ["theorem", "proof"] },
+                    { "type": "paragraph", "pages": [58, 58], "text": "Z (3.1) wynika teza.", "within": ["theorem", "proof"] },
+                    { "type": "paragraph", "pages": [58, 58], "text": "Dalej: koszt 5\\$." }
+                  ] } ] } ] }
+            """;
+        using (var mathDoc = JsonDocument.Parse(mathSnap))
+        {
+            var msnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab6918d"), "books", mathDoc.RootElement)!;
+            var book = msnap.Texts.Single().Parts.Single();
+            check(book.Blocks[3].Labels.SequenceEqual(["Twierdzenie 3.2"]) && book.Blocks[3].End == 6 && book.Blocks[5].Within.SequenceEqual(["theorem", "proof"]) && book.Blocks[2].Search!.Contains('∑'),
+                "texts (2026-11-01): labels, the end of a statement, where a block stands and the search line are read");
+            check(AiAccess.Locate(book, "Twierdzenie 3.2", "pages") == (3, 6) && AiAccess.Locate(book, "twierdzenie  3.2", "pages") == (3, 6) && AiAccess.Locate(book, "Definicja 3.1", "pages") == (1, 2),
+                "texts: a statement by its label as printed — the whole statement with its proof");
+            check(AiAccess.Locate(book, "(3.1)", "pages") == (2, 2) && AiAccess.Locate(book, "3.1", "pages") == (2, 2) && AiAccess.Locate(book, "Twierdzenie 9.9", "pages") is null && AiAccess.Locate(book, "s. 58", "pages") == (4, 7),
+                "texts: an equation by its number, with or without brackets; a label that is not there is not guessed; pages still work");
+            var rendered = AiAccess.RenderBlocks(book.Blocks.Skip(3).Take(4));
+            check(rendered.StartsWith("> **Twierdzenie 3.2 (Cauchy'ego).**") && rendered.Contains("> Zachodzi $\\det(AB) = \\det A \\det B$") && rendered.Contains("> > **Dowód.**") && rendered.Contains("> > Z (3.1) wynika teza."),
+                "texts: a statement and its proof as quotes (deeper: deeper), its head in bold, formulas as LaTeX");
+            check(AiAccess.SearchTexts(msnap.Texts, "∑").Single().Block.Index == 2 && AiAccess.SearchTexts(msnap.Texts, "\\det").Count == 1 && AiAccess.SearchTexts(msnap.Texts, "Cauchy").Count == 1,
+                "texts: a formula is found by its symbol (search line) and by its LaTeX");
+        }
+
         /* Entpacken mit Obergrenze. */
         var packed = Gzip(new byte[1_000_000]);
         check(AiAccess.Gunzip(Gzip("{\"v\":1}"u8.ToArray())).Length == 7 && Fails(() => AiAccess.Gunzip(packed, 10_000)), "unpacking stops at its limit (no gzip bomb)");

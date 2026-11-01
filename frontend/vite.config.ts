@@ -1,8 +1,25 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
+/*
+ * 2026-11-01 — KaTeX (Wzory, `ui/tex/`) bringt jede seiner 20 Schriften dreimal: woff2, woff, ttf. Jeder
+ * Browser, der die App trägt (auch die WebView der Android-App), liest woff2 — die anderen beiden lägen nur
+ * als 900 kB totes Gewicht in `docs/`. Hier fallen sie aus dem CSS, bevor Vite ihre Dateien sucht.
+ */
+const katexWoff2: Plugin = {
+  name: 'katex-woff2',
+  enforce: 'pre',
+  transform(code, id) {
+    if (!/[\\/]katex[\\/]dist[\\/]katex(?:\.min)?\.css$/.test(id.split('?')[0] ?? '')) return null;
+    return {
+      code: code.replace(/,\s*url\([^)]*\.woff\)\s*format\("woff"\)/g, '').replace(/,\s*url\([^)]*\.ttf\)\s*format\("truetype"\)/g, ''),
+      map: null
+    };
+  }
+};
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [katexWoff2, react()],
   base: '/',
   server: {
     proxy: {

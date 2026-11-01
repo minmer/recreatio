@@ -11,6 +11,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { answerText, CardFace, givenText } from './CardFace';
 import type { Card } from './cardBasics';
+import { pairEvidence } from './cards';
 import type { Outcome } from './check';
 import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
@@ -332,12 +333,23 @@ export function RevisionRun({ lib, source, learner, onClose, keep = false, via, 
         onAnswered={(outcome, given, ms) => {
           answeredHere.current += 1;
           setLast({ outcome, given });
-          learner?.record(card, outcome.correctness, { given: typeof given === 'string' ? given : JSON.stringify(given), ms, via: via ?? source.revisionId });
+          /*
+           * 2026-11-01 — EINE KARTE AUS EINER LANGEN LISTE VON PAAREN: jedes gezeigte Paar zählt für seine eigene Karte
+           * (`pairEvidence`) — die Karte selbst mit ihrem Paar, die anderen mit ihrem. Sonst kamen die eben richtig
+           * verbundenen Paare gleich wieder, auf der nächsten Karte derselben Liste.
+           */
+          const pairs = pairEvidence(card, given, state.all);
+          const own = pairs.find((p) => p.card.key === card.key);
+          const others = pairs.filter((p) => p.card.key !== card.key);
+          const q = own?.correctness ?? outcome.correctness;
+          const from = via ?? source.revisionId;
+          learner?.record(card, q, { given: typeof given === 'string' ? given : JSON.stringify(given), ms, via: from });
+          for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from });
           const had = tally.current.get(card.key) ?? { asked: 0, wrong: 0 };
           tally.current.set(card.key, { asked: had.asked + 1, wrong: had.wrong + (outcome.correct ? 0 : 1) });
           onAnswer?.(card, outcome.correctness, given);
           setStats((s) => ({ answered: s.answered + 1, correct: s.correct + (outcome.correct ? 1 : 0) }));
-          setPending(answer(session, outcome.correctness, Date.now()).session);
+          setPending(answer(session, q, Date.now(), others.map((p) => ({ key: p.card.key, correctness: p.correctness }))).session);
         }}
         onNext={() => {
           if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending }));

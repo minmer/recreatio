@@ -42,6 +42,7 @@ public static class AiMcp
         "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
         "What steers learning in a knowledge base — card templates with their weights (tests), revisions, views, flows, collections, anchors, forms, settings, how many cards each template makes and who reads it — comes from get_knowledge_setup, in the shape of the export \"recreatio.cogita.course\" (without entries, without learner progress). " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
+        "In textbooks, formulas are LaTeX between $…$ (inline) and $$…$$ (displayed, numbered with \\tag{…}); definitions, theorems, lemmas, proofs and examples are blocks of type \"statement\" (their head in bold, their content quoted with \"> \"); read_text also takes such a label as printed (\"Twierdzenie 2.3\", \"(2.4)\", \"Rys. 1.2\"). " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish. " +
         "To prepare data the user will import into any part (Library entries, a work with its full text, a knowledge base with questions, a page, a calendar, masses and intentions, tasks, contacts…), first read the format: list_import_formats, then get_import_format part by part — the specification is generated from the app itself. Nothing is written from here: the user imports the JSON in the app and reviews the changes.";
 
@@ -150,7 +151,7 @@ public sealed class AiMcpTools
     public sealed record TextPartInfo(string Key, string Label, double Order, string? First, string? Last, string? Pages, int Blocks, int Words);
     public sealed record TextInfo(string TextId, string WorkId, string WorkTitle, string? WorkKey, string Collection, string CollectionId, string Area, string Scheme, int Words, IReadOnlyList<TextPartInfo> Parts, string Url);
     public sealed record TextsResult(IReadOnlyList<TextInfo> Texts, string? Note);
-    public sealed record TextBlockInfo(int Index, string Type, string? Loc, string? Place, string? Pages, string Text);
+    public sealed record TextBlockInfo(int Index, string Type, string? Loc, string? Place, string? Pages, string Text, List<string>? Labels = null, List<string>? Within = null);
     public sealed record TextReadResult(
         string TextId, string WorkId, string WorkTitle, string Part, string PartLabel, string? Locator, bool Found,
         int? FirstBlock, int? LastBlock, int? NextStart, IReadOnlyList<TextBlockInfo> Blocks, string Text, string? Note, string Url);
@@ -370,7 +371,8 @@ public sealed class AiMcpTools
     private static AiAccess.TextDoc FindText(AiAccess.Opened o, string text) =>
         o.Text(text) ?? throw new McpException($"not_found: w udostępnionych zbiorach nie ma pełnego tekstu „{text}” (podaj id tekstu albo id / klucz dzieła). Zobacz list_texts.");
 
-    private static TextBlockInfo BlockOf(AiAccess.TextBlock b) => new(b.Index, b.Type, b.Loc, b.At, b.PageFrom is null ? null : PagesText(b.PageFrom, b.PageTo), b.Text);
+    private static TextBlockInfo BlockOf(AiAccess.TextBlock b) => new(b.Index, b.Type, b.Loc, b.At, b.PageFrom is null ? null : PagesText(b.PageFrom, b.PageTo), b.Text,
+        b.Labels.Count == 0 ? null : b.Labels, b.Within.Count == 0 ? null : b.Within);
 
     [McpServerTool(Name = "list_texts", Title = "Pełne teksty", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("List the full texts of works in the authorized collections (a book, an article, the Bible, a Church document…): the work, how places are written in it (scheme: pages, bible, numbered, aquinas, decimal, sections, outline), and its parts with their first and last place and pages. A work entry (get_entry) also names its full texts. Filter by collection or work (id or citation key).")]
@@ -394,7 +396,7 @@ public sealed class AiMcpTools
     }
 
     [McpServerTool(Name = "read_text", Title = "Czytaj tekst", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Read a full text exactly as transcribed. Either by place (locator) — written as in the work: \"J 21,15\", a whole unit \"J 21\", a range \"J 21,15-17\" or \"I, q. 2, a. 3 - I, q. 2, a. 3, ad 1\", \"nr 24\", \"2.0121\", \"§ 43\", or pages \"s. 45-47\" (also pages of a separately numbered part, written as printed: \"s. 12*\", \"s. 3'\", \"s. (7)\", \"s. A12\") — or part by part (part key from list_texts, start block, limit). Each block carries its place (place), its own number (loc) and pages; [s. 46] marks a page break, [^3] a footnote reference, word[?] an uncertain reading, […] a gap. Page with nextStart.")]
+    [Description("Read a full text exactly as transcribed. Either by place (locator) — written as in the work: \"J 21,15\", a whole unit \"J 21\", a range \"J 21,15-17\" or \"I, q. 2, a. 3 - I, q. 2, a. 3, ad 1\", \"nr 24\", \"2.0121\", \"§ 43\", or pages \"s. 45-47\" (also pages of a separately numbered part, written as printed: \"s. 12*\", \"s. 3'\", \"s. (7)\", \"s. A12\") — or part by part (part key from list_texts, start block, limit). Each block carries its place (place), its own number (loc) and pages; [s. 46] marks a page break, [^3] a footnote reference, word[?] an uncertain reading, […] a gap; formulas are LaTeX in $…$ and $$…$$ (a literal dollar is \\$). In textbooks the locator may also be a label as printed — \"Twierdzenie 2.3\", \"Lemat 4.1\", \"(2.4)\" for an equation, \"Rys. 1.2\" — which returns the whole statement with its content; blocks of a statement carry \"within\" (definition, theorem, proof …), numbered blocks carry \"labels\". Page with nextStart.")]
     public static async Task<TextReadResult> ReadText(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Text id, or the work's id or citation key.")] string text,
@@ -437,7 +439,7 @@ public sealed class AiMcpTools
     }
 
     [McpServerTool(Name = "search_text", Title = "Szukaj w tekstach", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Search the words of full texts (all words must occur in one block; case and Polish letters do not matter; blocks where the words stand together come first). Returns the place, pages and a snippet of each block; read around it with read_text (locator = place). Optionally only one text (text id or work id / key) or one collection.")]
+    [Description("Search the words of full texts (all words must occur in one block; case and Polish letters do not matter; blocks where the words stand together come first; formulas match by LaTeX command or by symbol: \"\\\\frac\", \"alpha\", \"∫\"). Returns the place, pages and a snippet of each block; read around it with read_text (locator = place). Optionally only one text (text id or work id / key) or one collection.")]
     public static async Task<TextSearchResult> SearchText(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Words to find.")] string query,

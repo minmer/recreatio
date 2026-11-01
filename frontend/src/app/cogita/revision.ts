@@ -666,6 +666,18 @@ function pickFrom(s: Internal, active: readonly string[], previous: string | nul
       from = from.filter((k) => stateIn(s, k) !== null || s.fixed.level(k) === low);
     }
   }
+  /*
+   * 2026-11-01 — NICHT ZWEIMAL DIESELBE FRAGE HINTEREINANDER: die Karten eines Eintrags (die Paare einer langen Liste,
+   * die Fragen einer Vorlage zu einem Eintrag) kommen nicht gleich nacheinander, wenn etwas anderes bereitliegt. Eine
+   * bewusst gesetzte Folge (wie gegeben, nach Text, nach Datum — streng die nächste) bleibt, wie sie ist.
+   */
+  const sequence = s.plan.pick === 'next' && (s.plan.order === 'given' || s.plan.order === 'text' || s.plan.order === 'date');
+  if (previous !== null && !sequence) {
+    const familyOf = (k: string): string => s.fixed.byKey.get(k)?.entity ?? k;
+    const was = familyOf(previous);
+    const apart = from.filter((k) => familyOf(k) !== was);
+    if (apart.length > 0) from = apart;
+  }
   if (s.plan.pick === 'next') return { key: s.plan.order === 'random' ? from[0] : ordered(s, from, now)[0], among: from.length };
   const weights = from.map((k) => weightOf(s, k, now));
   let r = rng() * weights.reduce((sum, w) => sum + w, 0);
@@ -740,11 +752,20 @@ export interface Answered {
   readonly snapshot: Snapshot | null;
 }
 
+/** 2026-11-01 — eine Antwort, die auf derselben Karte für eine andere Karte mitgegeben wurde (ein Paar einer langen Liste). */
+export interface AlsoAnswered {
+  readonly key: string;
+  readonly correctness: number;
+}
+
 /**
  * EINE ANTWORT auf die aktuelle Karte. `correctness` ist die Teilrichtigkeit der Prüfung (0–1); als „richtig" für die
  * Stufen und den Stapel gilt sie ab `plan.minCorrectness`. Der Zustand der Karte geht EINEN Schritt weiter.
+ * 2026-11-01 — `also`: was dieselbe Antwort über andere Karten sagt (die anderen gezeigten Paare, `pairEvidence`) —
+ * jede geht ebenfalls einen Schritt weiter; was dabei richtig war, verlässt den Stapel (und die Folge), was falsch war,
+ * kommt wie jede schwache Karte wieder. Gezählt wird im Lauf nur die gefragte Karte.
  */
-export function answer(session: Session, correctness: number, at: number): Answered {
+export function answer(session: Session, correctness: number, at: number, also: readonly AlsoAnswered[] = []): Answered {
   const s = session as Internal;
   const key = s.current;
   if (key === null) return { session, snapshot: null };
@@ -761,28 +782,46 @@ export function answer(session: Session, correctness: number, at: number): Answe
   const good = q >= s.plan.minCorrectness - 1e-9;
   const wrong = new Set(s.wrongSinceCorrect);
   if (good) wrong.delete(key); else wrong.add(key);
+  const levels = new Map(s.levels);
+  const raise = (k: string, right: boolean) => {
+    const level = levels.get(k) ?? 1;
+    levels.set(k, right ? (s.wrongSinceCorrect.has(k) ? 1 : Math.min(level + 1, s.plan.levels)) : 1);
+  };
+  raise(key, good);
+  /* Was dieselbe Karte über andere sagte: jede ihren eigenen Schritt. */
+  const settled = new Set<string>();
+  const handled = new Set<string>([key]);
+  for (const one of also) {
+    if (handled.has(one.key) || !s.fixed.byKey.has(one.key)) continue;
+    handled.add(one.key);
+    const oq = Math.max(0, Math.min(1, one.correctness));
+    states.set(one.key, step(stateIn(s, one.key), { at, correctness: oq }));
+    asked.add(one.key);
+    const right = oq >= s.plan.minCorrectness - 1e-9;
+    if (right) { wrong.delete(one.key); settled.add(one.key); } else wrong.add(one.key);
+    raise(one.key, right);
+  }
   const next: Internal = { ...s, step: stepNo, states, asked, wrongSinceCorrect: wrong };
 
   if (s.plan.mode === 'random') {
-    const first = s.queue[0] ?? null;
-    return { session: seal({ ...next, current: first, queue: s.queue.slice(1), why: whyOf(next, first, s.queue.length, at, true) }), snapshot };
+    const queue = s.queue.filter((k) => !settled.has(k));
+    const first = queue[0] ?? null;
+    return { session: seal({ ...next, current: first, queue: queue.slice(1), why: whyOf(next, first, queue.length, at, true) }), snapshot };
   }
   if (s.plan.mode === 'once') {
     /* Was inzwischen in Frage kommt (eine Bedingung gilt jetzt), reiht sich nach der Kolejność ein. */
-    const queued = new Set(s.queue);
+    const waitingNow = s.queue.filter((k) => !settled.has(k));
+    const queued = new Set(waitingNow);
     const fresh = s.plan.when === undefined ? [] : eligible(next, at).map((c) => c.key).filter((k) => !asked.has(k) && !queued.has(k));
-    const queue = fresh.length === 0 ? s.queue : ordered(next, [...s.queue, ...fresh], at);
+    const queue = fresh.length === 0 ? waitingNow : ordered(next, [...waitingNow, ...fresh], at);
     const first = queue[0] ?? null;
     return { session: seal({ ...next, current: first, queue: queue.slice(1), why: whyOf(next, first, queue.length, at, true) }), snapshot };
   }
 
   if (s.plan.mode === 'levels') {
-    const levels = new Map(s.levels);
-    const level = levels.get(key) ?? 1;
-    levels.set(key, good ? (s.wrongSinceCorrect.has(key) ? 1 : Math.min(level + 1, s.plan.levels)) : 1);
-    const kept = good ? s.active.filter((k) => k !== key) : s.active.slice();
+    const kept = s.active.filter((k) => !(good && k === key) && !settled.has(k));
     const done: Internal = { ...next, levels };
-    const active = good ? fillLevels(done, kept, levels, asked, at) : kept;
+    const active = good || kept.length < s.active.length ? fillLevels(done, kept, levels, asked, at) : kept;
     const chosen = pickFrom(done, active, key, at, rng);
     return { session: seal({ ...done, active, current: chosen.key, why: whyOf(done, chosen.key, chosen.among, at, false) }), snapshot };
   }
@@ -791,7 +830,7 @@ export function answer(session: Session, correctness: number, at: number): Answe
    * Nach dem Lauf entscheidet die Antwort selbst: was falsch war, bleibt im Stapel und kommt wieder; was richtig war,
    * geht und kommt zurück, wenn seine Kenntnis unter 1 gefallen ist. Neu Freigegebenes füllt den Platz.
    */
-  const kept = good ? s.active.filter((k) => k !== key) : s.active.slice();
+  const kept = s.active.filter((k) => !(good && k === key) && !settled.has(k));
   const active = fillTemporal(next, kept, at);
   const chosen = pickFrom(next, active, key, at, rng);
   return { session: seal({ ...next, active, current: chosen.key, why: whyOf(next, chosen.key, chosen.among, at, false) }), snapshot };
