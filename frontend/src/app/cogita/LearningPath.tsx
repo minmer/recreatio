@@ -30,6 +30,7 @@ import { basicsRevision } from './presets';
 import { cardsAbout, levelLabel, nearestNeeds } from './prerequisites';
 import { planOf } from './revision';
 import { RevisionRun } from './RevisionRun';
+import { useRunRewards } from './RewardsEditor';
 import { entityName, entityNameTex, originPath, useAsync, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
@@ -46,6 +47,8 @@ const STATE_LABEL: Record<State, string> = {
 
 export function LearningPath({ learner, cards, go }: { learner: Learner | null; cards: readonly Card[] | null; go: (...tail: string[]) => void }) {
   const { lib, writes } = useCtx();
+  /* 2026-11-02 — zählt die Nauka Punkte: auch im Lauf „Najpierw podstawy" (`RewardsEditor.tsx`). */
+  const rewards = useRunRewards();
   const graph = lib.prerequisites();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const [run, setRun] = useState<{ title: string; ids: readonly string[] | null } | null>(null);
@@ -62,7 +65,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
 
   if (cards === null) return <Loading label="Liczenie kart…" />;
   if (run !== null && source === undefined) return <Loading label="Przygotowywanie kart…" />;
-  if (run !== null && source !== null && source !== undefined) return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setRun(null)} />;
+  if (run !== null && source !== null && source !== undefined) return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setRun(null)} rewards={rewards} />;
 
   if (graph.edges.length === 0) {
     return (

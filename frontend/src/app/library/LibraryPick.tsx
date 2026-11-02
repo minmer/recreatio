@@ -213,6 +213,8 @@ interface EntryPickProps {
   value: string;
   busy: boolean;
   optional?: boolean;
+  /** 2026-11-02 — was „leer" an dieser Stelle heisst (sonst „wszystkie"). */
+  none?: string;
   onPick: (id: string) => void;
 }
 
@@ -247,7 +249,7 @@ function PickBooksEntry({ library, kinds, value, busy, optional, onPick }: Entry
   );
 }
 
-function PickBaseEntry({ library, kinds, value, busy, optional, onPick }: EntryPickProps) {
+function PickBaseEntry({ library, kinds, value, busy, optional, none, onPick }: EntryPickProps) {
   const [items, setItems] = useState<readonly { id: string; label: string }[] | 'closed' | null>(null);
   useEffect(() => {
     if (library === '') { setItems([]); return undefined; }
@@ -266,7 +268,7 @@ function PickBaseEntry({ library, kinds, value, busy, optional, onPick }: EntryP
   return (
     <>
       <select value={value} disabled={busy} onChange={(e) => onPick(e.target.value)}>
-        <option value="">{optional === true ? '— wszystkie —' : '— wybierz —'}</option>
+        <option value="">{optional === true ? `— ${none ?? 'wszystkie'} —` : '— wybierz —'}</option>
         {items.map((item) => <option key={item.id} value={item.id}>{item.label.slice(0, 80)}</option>)}
         {value !== '' && !items.some((item) => item.id === value) && <option value={value}>(nie ma go w tej bazie) {value}</option>}
       </select>

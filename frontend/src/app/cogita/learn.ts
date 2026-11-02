@@ -48,6 +48,11 @@ export interface AnswerRecord {
   readonly hints?: number;
   /** 2026-11-01 — eine Frage mit `params`: welche Werte gezogen waren (welche Fassung gefragt wurde). */
   readonly params?: Readonly<Record<string, number | string>>;
+  /**
+   * 2026-11-02 — MITGEZÄHLT: diese Antwort kam mit einer anderen (ein Paar einer langen Liste, `answerEvidence`) — ihre
+   * Kennung. Für die Kenntnis zählt sie wie jede; Punkte für „eine Antwort" gibt es nur einmal (`rewards.ts`).
+   */
+  readonly lead?: string;
 }
 
 
@@ -104,7 +109,8 @@ function readAnswer(raw: unknown): AnswerRecord | null {
     ...(typeof raw.ms === 'number' ? { ms: raw.ms } : {}),
     ...(typeof raw.via === 'string' ? { via: raw.via } : {}),
     ...(typeof raw.hints === 'number' && raw.hints > 0 ? { hints: Math.min(20, Math.floor(raw.hints)) } : {}),
-    ...(readParams(raw.params) === undefined ? {} : { params: readParams(raw.params)! })
+    ...(readParams(raw.params) === undefined ? {} : { params: readParams(raw.params)! }),
+    ...(typeof raw.lead === 'string' && raw.lead !== '' ? { lead: raw.lead } : {})
   };
 }
 
@@ -410,6 +416,36 @@ export async function flushWaiting(): Promise<number> {
   return sent;
 }
 
+/* -- 2026-11-02: dieselbe Person, mehrere Bausteine — live ----------------------------------------- */
+
+/*
+ * AUF EINER SEITE HAT JEDER BAUSTEIN SEINEN EIGENEN LERNENDEN (`useLearner`): die Powtórka, die Punkte, die Statystyki.
+ * Was einer festhält, hören die anderen derselben Person in derselben Baza sofort — in diesem Fenster direkt, in anderen
+ * Tabs dieses Browsers über einen BroadcastChannel. Sie nehmen es nur in ihren Fortschritt auf (nie noch einmal
+ * gesendet). Ohne das hätten zwei Bausteine ohne Konto einander beim Ablegen auch die Antworten überschrieben.
+ */
+const LIVE = new Map<string, Set<Learner>>();
+const LIVE_CHANNEL = 'recreatio-cogita-learn';
+let channel: BroadcastChannel | null | undefined;
+
+function liveChannel(): BroadcastChannel | null {
+  if (channel !== undefined) return channel;
+  try {
+    channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel(LIVE_CHANNEL) : null;
+  } catch {
+    channel = null;
+  }
+  channel?.addEventListener('message', (e: MessageEvent) => {
+    const d: unknown = e.data;
+    if (!isObject(d) || typeof d.who !== 'string' || !Array.isArray(d.answers)) return;
+    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : []);
+  });
+  return channel;
+}
+
+/** Wie lange frische Antworten höchstens warten, bis sie hinausgehen (die Lehrerin, ein anderes Gerät sehen sie dann). */
+const IDLE_FLUSH = 20_000;
+
 /* -- Ein Lernender in einer Bibliothek ------------------------------------------------------------ */
 
 /**
@@ -459,12 +495,53 @@ export class Learner {
     return true;
   }
 
+  /** Wer zuhört, gehört zu den Lernenden dieser Person in dieser Baza, die einander live hören. */
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    if (this.listeners.size === 1) {
+      const key = this.liveKey();
+      const set = LIVE.get(key) ?? new Set<Learner>();
+      set.add(this);
+      LIVE.set(key, set);
+      liveChannel();
+    }
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size > 0) return;
+      const set = LIVE.get(this.liveKey());
+      set?.delete(this);
+      if (set !== undefined && set.size === 0) LIVE.delete(this.liveKey());
+    };
   }
 
   private changed(): void { for (const one of this.listeners) one(); }
+
+  private liveKey(): string { return `${this.libraryId}|${holderKey(this.holder)}`; }
+
+  /** 2026-11-02 — den anderen Lernenden derselben Person sagen, was eben dazukam. */
+  private tell(answers: readonly AnswerRecord[], snapshots: readonly Snapshot[]): void {
+    if (answers.length === 0) return;
+    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots);
+    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
+  }
+
+  /** 2026-11-02 — was ein anderer Lernender derselben Person festhielt: nur aufnehmen, nicht senden. */
+  hear(answers: readonly unknown[], snapshots: readonly unknown[]): void {
+    const fresh = answers.filter((a) => isObject(a) && typeof a.id === 'string' && !this.progress.answers.has(a.id));
+    if (fresh.length === 0) return;
+    this.progress = absorb(this.progress, { kind: 'answers', answers: fresh, snapshots });
+    this.changed();
+  }
+
+  private idle: ReturnType<typeof setTimeout> | null = null;
+
+  /** 2026-11-02 — frische Antworten gehen spätestens nach `IDLE_FLUSH` hinaus, nicht erst nach zwanzig. */
+  private flushSoon(): void {
+    if (this.idle !== null) return;
+    const timer = setTimeout(() => { this.idle = null; void this.flush().catch(() => undefined); }, IDLE_FLUSH);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    this.idle = timer;
+  }
 
   private localKey(): string { return `local:${this.libraryId}:${holderKey(this.holder)}`; }
 
@@ -500,6 +577,15 @@ export class Learner {
   }
 
   /**
+   * 2026-11-02 — WAS ANDERE GERÄTE INZWISCHEN SANDTEN (eine Anzeige auf dem Fernseher, gelernt wird am Telefon): nur
+   * mit Konto oder Platz — im Browser ohne Konto gibt es nichts anderswo, und `load` ersetzte dort den Stand.
+   */
+  async refresh(): Promise<void> {
+    if (this.holder.kind === 'local') return;
+    await this.load();
+  }
+
+  /**
    * 2026-10-27 — OHNE NETZ: die Antworten, die eine Abschrift für die Zeit ohne Netz mitbrachte (`offline.ts`). Sie
    * liegen schon beim Dienst — hier nur zum Rechnen (Sperre, Kenntnis), nie noch einmal gesendet; dieselbe Kennung
    * aus dem Dienst ersetzt sie später.
@@ -519,6 +605,7 @@ export class Learner {
     if (answers.length === 0) return;
     this.progress = absorb(this.progress, { kind: 'answers', answers, snapshots: [] });
     this.changed();
+    this.tell(answers, []);
     await this.send({ v: 1, kind: 'answers', answers, snapshots: [] });
   }
 
@@ -527,7 +614,7 @@ export class Learner {
   }
 
   /** Eine Antwort festhalten — sofort im Fortschritt, hinaus mit dem nächsten Stapel. */
-  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, number | string>> } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
+  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, number | string>>; lead?: string } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
     const params = readParams(extras.params);
     const answer: AnswerRecord = {
       id: newId(), key: card.key, question: card.question, direction: card.direction, fingerprint: card.fingerprint,
@@ -536,7 +623,8 @@ export class Learner {
       ...(extras.ms === undefined ? {} : { ms: Math.round(extras.ms) }),
       ...(extras.via === undefined ? {} : { via: extras.via }),
       ...(extras.hints === undefined || extras.hints <= 0 ? {} : { hints: Math.floor(extras.hints) }),
-      ...(params === undefined ? {} : { params })
+      ...(params === undefined ? {} : { params }),
+      ...(extras.lead === undefined || extras.lead === '' ? {} : { lead: extras.lead })
     };
     const marks = [...this.marks(card.key, card.fingerprint), { at, correctness: answer.correctness }];
     const snapshot = snapshotOf(card.question, card.direction, marks, at);
@@ -544,7 +632,9 @@ export class Learner {
     this.fresh.push(answer);
     this.freshSnapshots.set(card.key, snapshot);
     this.changed();
+    this.tell([answer], [snapshot]);
     if (this.fresh.length >= 20) void this.flush().catch(() => undefined);
+    else this.flushSoon();
     return { answer, snapshot };
   }
 
@@ -595,6 +685,7 @@ export class Learner {
 
   /** Die gesammelten Antworten als Stapel hinaus (und was noch wartete). */
   async flush(): Promise<void> {
+    if (this.idle !== null) { clearTimeout(this.idle); this.idle = null; }
     const answers = this.fresh;
     const snapshots = [...this.freshSnapshots.values()];
     this.fresh = [];

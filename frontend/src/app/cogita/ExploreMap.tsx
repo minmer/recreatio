@@ -19,6 +19,7 @@ import { average, knownessOf, shareOf } from './knowness';
 import type { Learner } from './learn';
 import { readPlan } from './revision';
 import { RevisionRun } from './RevisionRun';
+import { useRunRewards } from './RewardsEditor';
 import { fieldsOf, valuesOf } from './schema';
 import { useCtx } from './ui';
 import { cardsAbout } from './prerequisites';
@@ -26,6 +27,8 @@ import { TexText } from '../ui/tex/Tex';
 
 export function ExploreMap({ learner, cards }: { learner: Learner | null; cards: readonly Card[] }) {
   const { lib } = useCtx();
+  /* 2026-11-02 — zählt die Nauka Punkte: auch im Lauf aus der Mapa (`RewardsEditor.tsx`). */
+  const rewards = useRunRewards();
   const look = lib.look;
   const [chosen, setChosen] = useState<string | null>(null);
   const [learning, setLearning] = useState<string | null>(null);
@@ -77,7 +80,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
   }, [learning, cards, lib]);
 
   if (source !== null) {
-    return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setLearning(null)} />;
+    return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setLearning(null)} rewards={rewards} />;
   }
 
   const entity = chosen === null ? undefined : lib.entity(chosen);

@@ -3004,3 +3004,27 @@ match the new format."
 - Checks: app-cogita-check 771 (+8: share across pair lists, true/false = the many sentence, `fact` across forms,
   `#data` = the template fact, gap words each on its own and shared, the guide's example parses and shares what it
   says), full app:check; pytania.json, guides and ImportFormats.json regenerated.
+
+## C16 — Cogita: Nagrody — points, streak, goal, levels, badges, live charts (2026-11-02)
+
+Owner: gamification in Cogita as a first step — an animated streak („another day of learning”), points for every
+answer, „selectable for every scenario, not hard-coded”, modules on a page like the Bosco learning page that animate
+the earning live, and a module with live charts and statistics; generalized.
+
+- Engine `cogita/rewards.ts` (pure): `readRewards`/`rewardsData` (tolerant), `REWARD_PRESETS` (5), `rewardsFor`
+  (chosen > settings > first > built-in), `rewardState` (events with stable ids: `a:/f:/s:/c:<answer>`, `k:<card>`,
+  `g:/d:<day>`, `l:<n>`, `b:<badge>`), `lastDays`, `todayLine`, `freshEvents`. Doc kind `reward`, JSON `rewards`.
+- Live: `learn.ts` — learners of one person in one base hear each other (`tell`/`hear`, BroadcastChannel), idle flush
+  20 s, `refresh()`; `AnswerRecord.lead` on evidence answers (RevisionRun).
+- UI: `RewardViews.tsx` (`useRewards`, `RewardBoard` strip/compact/block/full, `RewardHud`), `LiveStats.tsx`
+  (tiles, points today, points and goal per day with a goal line — `KnowCharts` `Columns`/`Line` got `rule`/`pulse`),
+  `rewards.css`; page modules `cogita-rewards`, `cogita-stats` (`pages/parts/cogita.tsx`, views in `cogitaViews.tsx`);
+  field `rewards` on `cogita-revision` and `seat-learn`; `pageRewards.ts` (a page's rules reach its revision run);
+  FieldDef `none` (what an empty optional picker means). Workspace: Nauka → Nagrody (`RewardsEditor.tsx`: own board,
+  documents, presets, editor, JSON, live preview), Ustawienia → Motywacja „Punkty i nagrody”, board in „Ucz się”,
+  points bar in Nauka runs.
+- Checks: `app-rewards-check.mjs` (80, in app:check), app-cogita-check 776 (+5 JSON round trip), json/style checks.
+  Drives (session scratchpad `rewards/`): `drive.mjs` DB-free harness (31: live across learners and tabs, floaters,
+  flame, ring, effects end, 1100 and 390 px); `page-api.mjs` → `page-browser.mjs` on LocalDB rcd8 (17: a real page
+  with revision + both modules, points after the idle flush and reload, Nauka → Nagrody total, editor preview).
+- Needs: frontend build + deploy; API deploy only for the MCP format text (ImportFormats.json). No migration.

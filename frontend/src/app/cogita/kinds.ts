@@ -60,7 +60,7 @@ export const ENTITY = 'entity';
 export const LEGACY_KNOWLEDGE = 'knowledge';
 
 /** Was das Schema, die Karten, die Abläufe und die Einstellungen beschreibt — kein Eintrag, den man lernt. */
-export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor'] as const;
+export const DOC_KINDS = ['kind', 'template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'view', 'settings', 'merge', 'contribution', 'addform', 'anchor', 'reward'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const DOC_LABEL: Record<DocKind, string> = {
@@ -78,7 +78,9 @@ export const DOC_LABEL: Record<DocKind, string> = {
   view: 'Widok',
   settings: 'Ustawienia',
   merge: 'Połączenie',
-  contribution: 'Propozycja'
+  contribution: 'Propozycja',
+  /* 2026-11-02 — punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
+  reward: 'Nagrody'
 };
 
 export const isDocKind = (kind: string): kind is DocKind => (DOC_KINDS as readonly string[]).includes(kind);

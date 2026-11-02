@@ -37,10 +37,10 @@ export function entryLine(entry: LibEntry, store: LibraryStore): string {
 export const DOC_LABEL: Readonly<Record<string, string>> = {
   template: 'Szablon karty', revision: 'Powtórka', flow: 'Przebieg', view: 'Widok', collection: 'Zbiór',
   addform: 'Formularz dodawania', kind: 'Rodzaj', rules: 'Zasady', values: 'Wartości', look: 'Wygląd', contribution: 'Propozycja',
-  anchor: 'Wejście z Biblioteki'
+  anchor: 'Wejście z Biblioteki', reward: 'Nagrody'
 };
 const DOC_TAB: Readonly<Record<string, readonly string[]>> = {
-  template: ['karty'], revision: ['powtorki'], flow: ['przebiegi'], view: ['wpisy', 'widok'], addform: ['schemat', 'formularz']
+  template: ['karty'], revision: ['powtorki'], flow: ['przebiegi'], view: ['wpisy', 'widok'], addform: ['schemat', 'formularz'], reward: ['nagrody']
 };
 
 const clip = (text: string, length: number) => (text.length > length ? `${text.slice(0, length - 1).trimEnd()}…` : text);

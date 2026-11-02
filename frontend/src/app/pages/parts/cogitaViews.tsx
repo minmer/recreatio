@@ -37,10 +37,41 @@ import { DailyGoal } from '../../cogita/DailyGoal';
 import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync, useBusy, type CogitaCtx } from '../../cogita/ui';
 import { OnSeat } from './seat';
-import type { EntityConfig, FlowConfig, LiveConfig, MapConfig, RevisionConfig, SeatLearnConfig, TableConfig, TopicsConfig } from './cogita';
+import type { EntityConfig, FlowConfig, LiveConfig, LiveStatsConfig, MapConfig, RevisionConfig, RewardsConfig, SeatLearnConfig, TableConfig, TopicsConfig } from './cogita';
 import { Loading } from '../../ui/Loading';
 import { later } from '../../ui/later';
 import { FogMap } from '../../cogita/FogMap';
+import { renamer } from '../../cogita/learn';
+import { DEFAULT_REWARDS, rewardsFor, type RewardRules } from '../../cogita/rewards';
+import { RewardBoard } from '../../cogita/RewardViews';
+import { usePageRewards, usePlaceRewards } from '../../cogita/pageRewards';
+
+/* 2026-11-02 — die Diagramme der Statystyki na żywo: erst, wenn der Baustein steht. */
+const LiveStats = later(() => import('../../cogita/LiveStats').then((m) => m.LiveStats));
+
+/**
+ * 2026-11-02 — DIE NAGRODY EINES ORTES: die genannte Regel, sonst die der Ustawienia der Baza, sonst die erste, sonst
+ * die eingebaute (`rewardsFor`). Dieselbe Regel (dasselbe Objekt), solange sich die Baza nicht ändert.
+ */
+function usePlaceRules(lib: CogitaLibrary | null | undefined, chosen: string): RewardRules {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `lib.revision`: neu, wenn sich die Baza ändert
+  return useMemo(() => (lib == null ? DEFAULT_REWARDS : rewardsFor(lib.docs('reward'), chosen, lib.settings().rewards).rules), [lib, lib?.revision, chosen]);
+}
+
+/** Im Lernbaustein: die genannte Regel — leer: die eines Bausteins „Punkty i seria" dieser Seite, sonst keine. */
+function useRunRules(lib: CogitaLibrary | null | undefined, chosen: string): RewardRules | null {
+  const fromPage = usePageRewards(lib?.libraryId ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const named = useMemo(() => (lib == null || chosen === '' ? null : rewardsFor(lib.docs('reward'), chosen, null).rules), [lib, lib?.revision, chosen]);
+  return named ?? fromPage;
+}
+
+/** Nur die Karten einer Powtórka zählen — `undefined`: die ganze Baza (oder noch nicht gerechnet: `loading`). */
+function useScope(lib: CogitaLibrary | null | undefined, revision: string, rename: ((key: string) => string) | undefined): { readonly keys: ReadonlySet<string> | undefined; readonly cards: readonly Card[] | null; readonly loading: boolean } {
+  const planned = useAsync(lib == null || revision === '' ? null : () => planFor(lib, revision, null, 'page').then((r) => r.plan?.cards ?? []), [lib, lib?.revision, revision]);
+  const keys = useMemo(() => (planned == null ? undefined : new Set(planned.map((c) => (rename === undefined ? c.key : rename(c.key))))), [planned, rename]);
+  return { keys, cards: planned ?? null, loading: revision !== '' && planned === undefined };
+}
 
 /** Hoch oder im ganzen Fenster: das Ganze. */
 const isTall = (ctx: PartContext): boolean => ctx.whole === true || ctx.size.height === 'tall';
@@ -109,6 +140,10 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
   const name = typeof doc?.data.name === 'string' ? doc.data.name : '';
   const title = current === null ? config.title || name || 'Powtórka' : name || 'Powtórka';
   const planned = useAsync(lib == null || doc === undefined ? null : () => planFor(lib, doc.id, null, 'page'), [lib, lib?.revision, doc?.id]);
+  /* 2026-11-02 — Punkte und Serie im Lauf: die genannte Regel, sonst die eines Bausteins „Punkty i seria" der Seite. */
+  const rewards = useRunRules(lib, config.rewards);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
   if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
   if (doc === undefined) return <><Head title={title} /><p className="wk-card-muted">Tej powtórki nie ma w bazie wiedzy.</p></>;
 
@@ -126,7 +161,7 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
         {isTall(ctx) && who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
         {isTall(ctx) && who.ready && <p className="cg-module-tools"><StatsButton line onOpen={() => setView('stats')} /></p>}
         <RevisionRun key={`${who.as ?? ''}:${doc.id}`} lib={lib} learner={learner} source={{ revisionId: doc.id, title }} onClose={isTall(ctx) ? undefined : () => setView(null)}
-          onOpenRevision={(id) => { setCurrent(id); setView('run'); }} />
+          onOpenRevision={(id) => { setCurrent(id); setView('run'); }} rewards={rewards} />
       </CogitaContext.Provider>
     );
   }
@@ -138,6 +173,8 @@ export function RevisionView({ config, ctx }: { config: RevisionConfig; ctx: Par
       <Head title={title} />
       <p className="wk-card-muted">{planned === undefined ? 'Liczenie kart…' : `${total} kart`}{levels !== null && levels.known + levels.learning > 0 ? ` · ${LEVEL_LABEL.known}: ${levels.known} · ${LEVEL_LABEL.learning}: ${levels.learning}` : ''}</p>
       {levels !== null && levels.known > 0 && <Bar value={levels.known / Math.max(1, total)} label="Ile już umiesz" />}
+      {/* 2026-11-02 — eigens genannte Nagrody: die Zeile schon vor dem Start. */}
+      {config.rewards !== '' && rewards !== null && learner !== null && <RewardBoard learner={learner} rules={rewards} {...(rename === undefined ? {} : { rename })} shape="compact" hidden={NO_FEED} />}
       {who.as === 'local' && who.link !== null && <IntroduceToLearn link={who.link} onDone={who.introduced} />}
       <div className="wk-actions">
         <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => setView('run')}>{levels !== null && levels.known + levels.learning > 0 ? 'Powtórz' : 'Zacznij'}</button>
@@ -499,6 +536,10 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   /* 2026-11-01 — die Statistik gilt den Karten, die dieser Baustein lernt: der einen Powtórka, sonst der ganzen Baza. */
   const scoped = useAsync(lib == null || config.revision === '' ? null : () => planFor(lib, config.revision, null, 'page').then((r) => r.plan?.cards ?? []), [lib, lib?.revision, config.revision]);
   const ctx = useMemo<CogitaCtx | null>(() => (lib == null ? null : seatCtx(lib, opened, seat.token)), [lib, opened, seat.token]);
+  /* 2026-11-02 — Punkte und Serie: die genannte Regel, sonst die eines Bausteins „Punkty i seria" der Seite. */
+  const rewards = useRunRules(lib, config.rewards);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
 
   if (lib === undefined) return <p className="wk-card-muted">Otwieranie bazy wiedzy…</p>;
   if (lib === null || ctx === null) return <p className="wk-card-muted">Ta baza wiedzy nie jest dostępna z tego linku.</p>;
@@ -520,7 +561,7 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
     return (
       <CogitaContext.Provider value={ctx}>
         <RevisionRun key={running} lib={lib} learner={learner} source={{ revisionId: running, title: nameOf(running) }} onClose={() => setRunning(null)}
-          onOpenRevision={(id) => setRunning(id)} />
+          onOpenRevision={(id) => setRunning(id)} rewards={rewards} />
       </CogitaContext.Provider>
     );
   }
@@ -543,7 +584,9 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
         </>
       )}
       {/* 2026-11-01 (2.11) — wer über den Link lernt, hat keine Nauka: das Tagesziel steht hier (nur mit „Serie dni nauki"). */}
-      {tall && <DailyGoal lib={lib} learner={learner} compact />}
+      {/* 2026-11-02 — mit eigens genannten Nagrody deren Zeile statt des Tagesziels. */}
+      {config.rewards !== '' && rewards !== null && learner !== null ? <RewardBoard learner={learner} rules={rewards} {...(rename === undefined ? {} : { rename })} shape={tall ? 'block' : 'compact'} hidden={NO_FEED} />
+        : tall && <DailyGoal lib={lib} learner={learner} compact />}
       {revisions.length === 0 ? <p className="wk-card-muted">W tej bazie wiedzy nie ma jeszcze powtórki.</p> : (
         <div className="wk-actions">
           {revisions.map((r) => <button key={r.id} type="button" className="wk-btn" disabled={learner === null} onClick={() => setRunning(r.id)}>{nameOf(r.id)}</button>)}
@@ -566,5 +609,63 @@ export function SeatLearnView({ config, ctx }: { config: SeatLearnConfig; ctx: P
       {/* 2026-11-01 — wer den Bereich der Antworten führt, kommt von hier zu ihnen. */}
       <TeacherLink library={config.library} area={answersArea(config.answers)} />
     </>
+  );
+}
+
+/* -- 2026-11-02: Nagrody und Statystyki na żywo ------------------------------------------------------------------------ */
+
+const NO_FEED: ReadonlySet<string> = new Set(['feed']);
+
+/**
+ * PUNKTY I SERIA — die Tafel der Nagrody der Person, die hier lernt (dieselbe Wahl wie die Lernbausteine der Seite:
+ * `usePageLearner`). Live: jede Antwort, die ein Baustein derselben Person festhält, kommt sofort an (`learn.ts`). Der
+ * Baustein meldet seine Regel der Seite (`pageRewards.ts`) — die Powtórka daneben zeigt dann im Lauf dieselben Punkte.
+ */
+export function RewardsView({ config, ctx }: { config: RewardsConfig; ctx: PartContext }) {
+  const { lib, ctx: cg } = usePageBase(config.library);
+  const who = usePageLearner(lib);
+  const rules = usePlaceRules(lib, config.rewards);
+  usePlaceRewards(lib?.libraryId ?? null, lib == null ? null : rules);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
+  const scope = useScope(lib, config.revision, rename);
+  const title = config.title || 'Twoje punkty';
+  if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
+  const strip = ctx.size.height === 'strip' && ctx.whole !== true;
+  const shape = strip ? 'strip' : isTall(ctx) ? 'full' : 'block';
+  return (
+    <CogitaContext.Provider value={cg}>
+      {!strip && <Head title={title} />}
+      {!who.ready || scope.loading ? <Loading lines={2} />
+        : who.learner === null ? <p className="wk-card-muted">Punkty pojawią się tutaj, gdy zaczniesz się uczyć.</p>
+          : <RewardBoard learner={who.learner} rules={rules} {...(rename === undefined ? {} : { rename })} {...(scope.keys === undefined ? {} : { keys: scope.keys })} hidden={config.hidden} shape={shape} />}
+      {shape === 'full' && who.as === 'local' && <p className="wk-card-muted">Bez konta punkty liczą się w tej przeglądarce.</p>}
+    </CogitaContext.Provider>
+  );
+}
+
+/** STATYSTYKI NA ŻYWO — Zahlen und Diagramme des Lernens dieser Person, die mit jeder Antwort wachsen (`LiveStats.tsx`). */
+export function LiveStatsView({ config, ctx }: { config: LiveStatsConfig; ctx: PartContext }) {
+  const { lib, ctx: cg } = usePageBase(config.library);
+  const who = usePageLearner(lib);
+  const rules = usePlaceRules(lib, config.rewards);
+  usePlaceRewards(lib?.libraryId ?? null, lib == null ? null : rules);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const rename = useMemo(() => (lib == null ? undefined : renamer(lib.merges())), [lib, lib?.revision]);
+  const scope = useScope(lib, config.revision, rename);
+  const tall = isTall(ctx);
+  /* „Gdzie są karty" nur im Ganzen — die Karten der ganzen Baza erst dann. */
+  const all = useAsync(lib == null || !tall || config.revision !== '' || config.hidden.has('knowledge') ? null : () => lib.cards('learn').then((r) => r.cards), [lib, lib?.revision, tall, config.revision, config.hidden.has('knowledge')]);
+  const title = config.title || 'Na żywo';
+  if (lib == null || cg === null) return <Closed title={title} lib={lib} />;
+  const strip = ctx.size.height === 'strip' && ctx.whole !== true;
+  return (
+    <CogitaContext.Provider value={cg}>
+      {!strip && <Head title={title} />}
+      {!who.ready || scope.loading ? <Loading lines={2} />
+        : who.learner === null ? <p className="wk-card-muted">Statystyki pojawią się tutaj, gdy zaczniesz się uczyć.</p>
+          : <LiveStats lib={lib} learner={who.learner} rules={rules} cards={config.revision !== '' ? scope.cards : all ?? null}
+            {...(rename === undefined ? {} : { rename })} {...(scope.keys === undefined ? {} : { keys: scope.keys })} hidden={config.hidden} shape={strip ? 'strip' : tall ? 'full' : 'block'} />}
+    </CogitaContext.Provider>
   );
 }

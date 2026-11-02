@@ -758,6 +758,27 @@ Phones stay awake.
 - **Exploration** is a separate game-like map: fog, frontier, decay, landmarks [K5].
 - **Motivation** is chosen by the author per course [K6]. There are no leaderboards outside live sessions [K7].
 
+### Nagrody — points, streak, daily goal, levels, badges (2026-11-02)
+
+- **Rules are data**: a document of kind `reward` („Nagrody”) in the base — points per event (good, partly good,
+  wrong, new card, utrwalona card = next review at least `known.days` away, fast answer, every N good in a row, daily
+  goal, each streak day × day up to `max`), the daily goal (cards / answers / points / minutes), what makes a streak
+  day (goal or any learning) and how many free days it forgives, levels (from N points), badges (a measure from a
+  number). A base may hold several; five presets (Nauka → Nagrody). JSON key `rewards` in the course format.
+- **Nothing is stored**: points are a pure function of the learner's answers (`rewards.ts` `rewardState`), so the
+  same answers and rules give the same numbers everywhere — page, Nauka, offline, link holders. Changing the rules
+  changes everyone's points. Evidence answers of a pair list (`lead`) count for cards, never twice for an answer.
+- **Each place chooses**: page modules „Punkty i seria” (`cogita-rewards`) and „Statystyki na żywo”
+  (`cogita-stats`) name a reward document (empty: the base's Ustawienia choice, else the first, else built-in) and
+  optionally one revision whose cards count; „Co pokazuje” hides pieces. A revision / link-learning module shows a
+  points bar in the run when it names rules or when such a module stands on the same page (`pageRewards.ts`). Nauka
+  uses the rules chosen under Ustawienia → Motywacja „Punkty i nagrody”.
+- **Live**: every page module has its own `Learner`; learners of the same person in the same base hear each other at
+  once (in the page and in other tabs via BroadcastChannel), fresh answers leave after at most 20 s, and the modules
+  fetch other devices' answers every 30 s. Only events whose stable id is new are animated („+15”, flame ignites,
+  ring fills, level burst, badge pop); `prefers-reduced-motion` turns motion off.
+- No leaderboards (K7 stands).
+
 ## 13. Access
 
 - **A course in areas** [L1, E10]:

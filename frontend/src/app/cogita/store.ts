@@ -42,14 +42,16 @@ import { readView } from './views';
 
 /* -- Einstellungen einer Bibliothek als Kurs -------------------------------------------- */
 
-export const MOTIVATIONS = ['none', 'progress', 'streaks', 'exploration'] as const;
+export const MOTIVATIONS = ['none', 'progress', 'streaks', 'exploration', 'rewards'] as const;
 export type Motivation = (typeof MOTIVATIONS)[number];
 
 export const MOTIVATION_LABEL: Record<Motivation, string> = {
   none: 'Bez dodatków',
   progress: 'Paski postępu',
   streaks: 'Serie dni nauki',
-  exploration: 'Mapa odkrywania'
+  exploration: 'Mapa odkrywania',
+  /* 2026-11-02 — Punkte, Serie, Tagesziel, Stufen, Abzeichen nach einem Dokument „Nagrody" (`rewards.ts`). */
+  rewards: 'Punkty i nagrody'
 };
 
 export interface DependencyEdge extends Dependency {
@@ -68,6 +70,11 @@ export interface CogitaSettings {
    * (fehlt es: `DEFAULT_DAILY_GOAL`). Ohne `streaks` wird nichts davon gezeigt.
    */
   readonly dailyGoal?: number;
+  /**
+   * 2026-11-02 — mit „Punkty i nagrody" (`rewards`): welches Dokument „Nagrody" dieser Baza in der Nauka gilt (fehlt
+   * es: das erste, ohne eines die eingebaute Regel). Bausteine auf Seiten wählen ihr eigenes.
+   */
+  readonly rewards?: string;
   /** Die Perspektiven der Bibliothek [C8]. */
   readonly tags: readonly string[];
   /** Voraussetzungen, Vertiefungen, Zusammenhänge zwischen Einträgen [E3]. */
@@ -101,6 +108,7 @@ export function readSettings(raw: unknown): CogitaSettings {
     contributionLibraryId: str(d.contributionLibraryId) || undefined,
     motivation: (MOTIVATIONS as readonly string[]).includes(str(d.motivation)) ? (d.motivation as Motivation) : 'progress',
     ...(readDailyGoal(d.dailyGoal) === undefined ? {} : { dailyGoal: readDailyGoal(d.dailyGoal) }),
+    ...(str(d.rewards).trim() === '' ? {} : { rewards: str(d.rewards).trim() }),
     tags: strings(d.tags),
     dependencies,
     offline: strings(d.offline),
@@ -160,7 +168,7 @@ export function readSources(raw: unknown): SourceRef[] {
 export const BOOK_KINDS: ReadonlySet<string> = new Set(LIBRARY_KINDS.map((k) => k.kind));
 
 /** Was eine wiederverwendete Baza wiedzy mitbringt — Einstellungen, Widoki, Vorschläge und Arten (die kommen über das Schema) bleiben ihre. */
-const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform']);
+const SHARED_DOCS: ReadonlySet<string> = new Set<DocKind>(['template', 'revision', 'flow', 'look', 'rules', 'values', 'collection', 'merge', 'addform', 'reward']);
 
 /* -- Zbiory: gespeicherte Filter und Listen [F1, F19] -------------------------------------- */
 

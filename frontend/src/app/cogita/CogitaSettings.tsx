@@ -26,7 +26,7 @@ import { EntityPicker, entityNameTex, OriginTag, useAsync, useBusy, useCtx } fro
 import { TexText } from '../ui/tex/Tex';
 
 export function CogitaSettings() {
-  const { lib, writes } = useCtx();
+  const { lib, writes, href } = useCtx();
   const settings = lib.settings();
   const { busy, failed, run } = useBusy();
   const [areas, setAreas] = useState<readonly AreaRow[]>([]);
@@ -69,6 +69,19 @@ export function CogitaSettings() {
         </select>
         {/* 2026-11-01 (2.11) — nur mit „Serie dni nauki": ein Tagesziel, die Tage hintereinander, die Woche. */}
         {settings.motivation === 'streaks' && <DailyGoalSetting value={settings.dailyGoal ?? DEFAULT_DAILY_GOAL} busy={busy} onSave={(n) => void save({ dailyGoal: n })} />}
+        {/* 2026-11-02 — „Punkty i nagrody": welche Zasady nagród in der Nauka gelten (Bausteine auf Seiten wählen ihre eigenen). */}
+        {settings.motivation === 'rewards' && (
+          <div className="cg-row" data-settings-rewards="">
+            <label className="wk-field">
+              <span>Zasady nagród w Nauce</span>
+              <select value={settings.rewards ?? ''} disabled={busy} onChange={(e) => void save({ rewards: e.target.value || undefined })}>
+                <option value="">— domyślne: pierwsze zasady bazy, a bez nich wbudowane —</option>
+                {lib.docs('reward').map((e) => <option key={e.id} value={e.id}>{typeof e.data.name === 'string' ? e.data.name : 'Nagrody'}{lib.isOwn(e.id) ? '' : ` · z: ${lib.origin(e.id)?.name ?? '?'}`}</option>)}
+              </select>
+            </label>
+            <a className="wk-link" href={href('nagrody')}>Nagrody: zasady i Twoje punkty →</a>
+          </div>
+        )}
         <p className="wk-hint">Rankingi są tylko w sesjach na żywo.</p>
       </section>
 

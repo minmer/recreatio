@@ -31,7 +31,7 @@ import type { PartModule } from '../part';
 import { animationPart } from './animation';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
-import { cogitaFlowPart, cogitaLivePart, cogitaRevisionPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
+import { cogitaFlowPart, cogitaLivePart, cogitaLiveStatsPart, cogitaRevisionPart, cogitaRewardsPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
 import { contactPart } from './contact';
 import { costsPart } from './costs';
 import { entryListPart, entryPanelPart } from './entries';
@@ -118,6 +118,9 @@ export const PARTS: readonly PartModule[] = [
   /* 0109 — Cogita: was eine Bibliothek zum Lernen veröffentlicht — ohne Konto, Fortschritt im Browser. */
   cogitaRevisionPart,
   cogitaFlowPart,
+  /* 2026-11-02 — Nagrody: punkty, seria, cel dnia, poziomy, odznaki — i statystyki na żywo (`cogita/rewards.ts`). */
+  cogitaRewardsPart,
+  cogitaLiveStatsPart,
   knowledgeMapPart,
   entityCardPart,
   entityTablePart,

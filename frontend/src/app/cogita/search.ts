@@ -32,7 +32,9 @@ const DOC_TAB: Partial<Record<DocKind, readonly string[]>> = {
   /* 2026-10-17 — ein Formularz dodawania führt zum Ausfüllen, nicht zum Bauen. */
   addform: ['wpisy', 'dodaj'],
   /* 2026-10-25 (Wywód) — ein Wejście z Biblioteki: in seiner Liste. */
-  anchor: ['wejscia']
+  anchor: ['wejscia'],
+  /* 2026-11-02 — Nagrody (punkty, seria, odznaki): ihr Reiter in der Nauka. */
+  reward: ['nagrody']
 };
 
 export function libraryHits(): SearchEntry[] {

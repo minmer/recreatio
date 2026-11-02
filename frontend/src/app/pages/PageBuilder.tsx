@@ -644,7 +644,7 @@ function Fields({ part, size, busy, onSet, path }: {
             ) : field.kind === 'library' || field.kind === 'knowledge' || field.kind === 'scriptorium' ? (
               <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : field.kind === 'scriptorium' ? 'writing' : 'books'} value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'libraryEntry' ? (
-              <PickLibraryEntry library={part.config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => onSet({ [field.key]: id })} />
+              <PickLibraryEntry library={part.config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} none={field.none} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'resource' ? (
               <PickResource value={value} busy={busy} onPick={(id) => onSet({ [field.key]: id })} />
             ) : field.kind === 'page' ? (

@@ -27,6 +27,7 @@ import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
 import { migrateRevision } from './revision';
+import { readRewards, rewardsData } from './rewards';
 import { DOC_KINDS, DOC_LABEL, isBaseKind, kindDoc, QUESTION, type DocKind } from './kinds';
 import { QUESTION_SHARED, QUESTION_TYPES, SHOW_MAX } from './questionTypes';
 import { anchorData, readAnchor } from './anchors';
@@ -48,7 +49,9 @@ const LIST_OF: Record<DocKind, string> = {
   values: 'values', collection: 'collections', view: 'views', settings: 'settings', merge: 'merges', contribution: 'contributions',
   addform: 'forms',
   /* 2026-10-25 (Wywód) — die Wejścia z Biblioteki: Werk und Stellen → Eintrag und Widok. */
-  anchor: 'anchors'
+  anchor: 'anchors',
+  /* 2026-11-02 — Nagrody: punkty, seria, cel dnia, poziomy, odznaki (`rewards.ts`). */
+  reward: 'rewards'
 };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -210,7 +213,7 @@ export interface KnowledgeSetup {
 export const PRIVATE_KEYS: ReadonlySet<string> = new Set(['marks', 'correctness', 'knowness', 'dueAt', 'progress', 'learners', 'accountId', 'answeredAt']);
 
 /** Die Einstellungen einer Baza, die zu ihrem Bau gehören (nicht: wohin Antworten gehen, wohin Vorschläge). */
-const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'offline', 'joinPage'] as const;
+const SETUP_SETTINGS = ['sources', 'dependencies', 'tags', 'motivation', 'dailyGoal', 'rewards', 'offline', 'joinPage'] as const;
 
 /** Die Schlüssel eines Objekts unter „fields" sind Feldnamen eines Rodzaju (ein Formularz: „answers") — Bau, sie bleiben. */
 const withoutPrivate = (v: unknown, named = false): unknown => {
@@ -311,7 +314,7 @@ export function exportForms(lib: CogitaLibrary, forms: readonly { readonly id: s
 export function planFormImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { error: string } {
   if (!isObject(doc)) return { error: 'To nie jest dokument JSON.' };
   if (!Array.isArray(doc.forms) || doc.forms.length === 0) return { error: 'W dokumencie nie ma formularza — brak listy „forms".' };
-  const extra = ['entities', 'revisions', 'flows', 'collections', 'looks', 'rules', 'values', 'views', 'settings'].filter((k) => doc[k] !== undefined);
+  const extra = ['entities', 'revisions', 'flows', 'collections', 'looks', 'rules', 'values', 'views', 'settings', 'rewards'].filter((k) => doc[k] !== undefined);
   const plan = planImport(lib, { format: doc.format, version: doc.version, name: doc.name, kinds: doc.kinds, templates: doc.templates, forms: doc.forms });
   if ('error' in plan || extra.length === 0) return plan;
   return { ...plan, warnings: [...plan.warnings, `Pominięte (to importuje się w Schematach albo w Ustawieniach): ${extra.join(', ')}.`] };
@@ -389,7 +392,9 @@ const PREFER: Readonly<Record<string, DocKind>> = {
   collection: 'collection', collections: 'collection', view: 'view', views: 'view', revision: 'revision', flow: 'flow',
   template: 'template', templates: 'template', look: 'look', rules: 'rules', form: 'addform', addform: 'addform',
   /* 2026-11-01 — die nächste Lektion einer Powtórka („Następna lekcja"). */
-  next: 'revision'
+  next: 'revision',
+  /* 2026-11-02 — die Nagrody der Nauka (Ustawienia `rewards`). */
+  reward: 'reward', rewards: 'reward'
 };
 /** Wo in einem Dokument freier Text steht — ein „@a/b" dort ist Text, kein Verweis. */
 const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'title', 'summary', 'description', 'prompt', 'direction', 'hint']);
@@ -660,7 +665,9 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     ['look', doc.looks], ['rules', doc.rules], ['values', doc.values], ['collection', doc.collections], ['view', doc.views], ['settings', doc.settings],
     ['addform', doc.forms],
     /* 2026-10-25 (Wywód) — nach den Widokach: ein Wejście nennt seinen Widok auch beim Namen. */
-    ['anchor', doc.anchors]
+    ['anchor', doc.anchors],
+    /* 2026-11-02 — Nagrody: Punkte, Serie, Tagesziel, Stufen, Abzeichen (`rewards.ts`). */
+    ['reward', doc.rewards]
   ];
   type Incoming = { kind: DocKind; raw: Record<string, unknown>; r: string | null; lastingRef?: string; id?: string; isNew?: boolean; byName?: true };
   const incoming: Incoming[] = [];
@@ -757,6 +764,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     /* 2026-10-30 — der alte Knoten „Najpierw podstawy" kommt als die allgemeinen Schritte an, die dasselbe tun (in einem Ablauf: ein „Warunek"). */
     if (kind === 'revision') data = { ...data, graph: graphJson(migrateRevision(readGraph(data.graph))) };
     if (kind === 'flow' && isObject(data.graph)) data = { ...data, graph: graphJson(migratePrerequisites(readGraph(data.graph, true))) };
+    /* 2026-11-02 — Nagrody in der Gestalt, die `readRewards` liest: was fehlt, aus der eingebauten Regel. */
+    if (kind === 'reward') data = rewardsData(readRewards(data));
     if (kind === 'addform') {
       /* Ein Rodzaj darf auch beim Namen stehen; einer aus demselben Dokument hat schon seine neue Kennung. */
       const kindOf = (k: string) => (kinds.some((x) => x.id === k) ? k : kindId(k));
@@ -1258,13 +1267,29 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   np. macierz 20 × 12 — Tajemnica × Obszar: {"name": "Tajemnica × Obszar", "mode": "matrix", "steps": [{"type": "source.kind", "config": {"kind": "text"}}, {"type": "source.kind", "config": {"kind": "@komentarz"}}], "matrix": {"rows": {"by": "axis", "kind": "@tajemnica", "sort": {"field": "numer"}, "group": "czesc"}, "cols": {"by": "axis", "kind": "@obszar", "group": "grupa"}}}
     — 20 tajemnic różańca (w czterech częściach) × 12 maryjnych obszarów (w grupach); w polu: kazania ze skryptorium (rodzaj tekstu „Kazanie maryjne” z polami "tajemnica" i "obszar") i komentarze, których "about" wskazuje tajemnicę i obszar; puste pola też są widoczne
   na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa|postepy"} — pole macierzy (klik) i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu
-"anchors" — wejścia z Biblioteki: {"ref", "name", "work": "@klucz dzieła albo identyfikator", "locator": "s. 45–60" | "s. 1–3; 27–30" | "I q. 2 a. 3; a. 4" | "" (całe dzieło), "entry": "@wpis tej bazy (nie dzieło)", "view": "@widok albo jego nazwa", "note"}
+${REWARDS_SECTION}
+"anchors" —wejścia z Biblioteki: {"ref", "name", "work": "@klucz dzieła albo identyfikator", "locator": "s. 45–60" | "s. 1–3; 27–30" | "I q. 2 a. 3; a. 4" | "" (całe dzieło), "entry": "@wpis tej bazy (nie dzieło)", "view": "@widok albo jego nazwa", "note"}
   przy dziele w Bibliotece pojawia się przycisk z nazwą wejścia — tylko dla tych, którzy mogą czytać tę bazę (Biblioteka niczego nie zapisuje); kilka wejść jednego dzieła może dotyczyć całości, początku, końca, także kilku części naraz
   części oddziela „;”; część, która zaczyna się niżej niż poprzednia, należy do jej ramy („I q. 2 a. 3; a. 4” — artykuł 4 tej samej kwestii; „t. 2, rozdz. 1; rozdz. 9” — rozdział 9 tego samego tomu)
 ${formsSection()}
 ${COURSE_USAGE}
 ${kinds}`;
 }
+
+/**
+ * 2026-11-02 — NAGRODY (`rewards.ts`): Punkte, Serie, Tagesziel, Stufen, Abzeichen — eine Regel als Dokument; was
+ * fehlt, nimmt die eingebaute Regel („Punkty, seria i poziomy").
+ */
+const REWARDS_SECTION = `"rewards" — nagrody (punkty, seria dni, cel dnia, poziomy, odznaki); kilka w bazie, każde miejsce wybiera swoje (moduł „Punkty i seria” / „Statystyki na żywo” na stronie, Ustawienia → Motywacja → „Punkty i nagrody” w Nauce):
+  {"ref": "@kurs/punkty", "name": "Punkty i seria",
+   "points": {"correct": 10, "partial": 5, "wrong": 1, "first": 5, "known": 20, "fast": 0, "combo": 15, "goal": 50, "streak": 5},
+   "known": {"days": 1}, "fast": {"seconds": 8}, "combo": {"every": 5}, "goal": {"amount": 20, "unit": "cards|answers|points|minutes"},
+   "streak": {"counts": "goal|any", "grace": 0, "max": 10},
+   "levels": [{"at": 0, "name": "Początkujący"}, {"at": 100, "name": "Uczeń"}],
+   "badges": [{"id": "tydzien", "name": "Tydzień z rzędu", "icon": "star|flame|target|book|bolt|crown|medal|leaf|check|rocket", "measure": "points|streak|best|known|cards|answers|correct|days|combo|goals|level", "atLeast": 7, "points": 0, "says": "…"}]}
+  "points": "correct" × poprawność za dobrą odpowiedź (od 90%), "partial" × poprawność za częściowo dobrą, "wrong" za złą (za próbę), "first" za pierwszą odpowiedź na kartę, "known" za kartę utrwaloną (następna powtórka co najmniej "known.days" dni dalej), "fast" za dobrą w "fast.seconds" s, "combo" co "combo.every" dobrych z rzędu (przerwa ponad 30 min zaczyna od nowa), "goal" za cel dnia, "streak" × dzień serii (do "streak.max")
+  "goal": cel dnia — "cards" różnych kart, "answers" odpowiedzi, "points" punktów (bez premii za cel i serię), "minutes" minut nauki; "streak": dzień serii to dzień z celem ("goal") albo z jakąkolwiek nauką ("any"), "grace" — tyle dni przerwy nie przerywa serii
+  punkty nie są zapisywane: liczy je aplikacja z odpowiedzi uczącego się — zmiana zasad zmienia punkty wszystkich; czego brakuje, bierze się z zasad wbudowanych; rankingów nie ma (tylko w sesjach na żywo)`;
 
 /**
  * 2026-10-30 — WAS AUS DEM IMPORTIERTEN WIRD, im ganzen System (der Wunsch des Besitzers: neben jedem Import, wie die
@@ -1276,6 +1301,7 @@ const COURSE_USAGE = `## Jak aplikacja używa tych danych
   Czytanie w Nauce: przed pierwszym pytaniem o wpis z "about" stoi „Nowy temat” (tytuł i zapowiedź, „Czytaj dalej”, „Czytaj tekst” do miejsca w źródle), po odpowiedzi — wyjaśnienie; oba według "reading" jego rodzaju, a bez niego — streszczenie albo pierwszy akapit, potem pola z tekstem.
   Odpowiedzi: każda zapisuje się zaszyfrowana w przeglądarce — dla uczącego się i dla obszaru przyjęć kursu (Ustawienia), gdzie nauczyciel widzi „Postępy”; z nich liczy się znajomość kart i wpisów. Serwis nie czyta odpowiedzi; widzi tylko, kiedy następna powtórka i ile kart czeka — na osobę i bazę (do przypomnienia).
   Strony: moduły „Widok” (tabela, drzewo, macierz, mapa), „Powtórka”, „Kurs / opowieść”, „Karta wpisu” czytają bazę tak, jak widzi ją czytelnik strony; uczy się osoba strony (zalogowana — ona sama, bez konta — ta przeglądarka).
+  Nagrody ("rewards"): moduły „Punkty i seria” i „Statystyki na żywo” na stronie oraz Nauka (Motywacja „Punkty i nagrody”, zakładka „Nagrody”) liczą z odpowiedzi punkty, serię, cel dnia, poziom i odznaki — na żywo, przy każdej odpowiedzi; nic z tego nie jest zapisywane.
   Inne bazy wiedzy, które korzystają z tej jako źródła, widzą jej rodzaje, wpisy, szablony, powtórki i przebiegi tylko do odczytu; link dla AI i MCP czytają ją bez zmian.
   Kto czyta: ten, kto czyta jej obszar (w obszarze jawnym — każdy); wpisy są szyfrowane kluczem obszaru.
   Import niczego nie usuwa i nie dotyka odpowiedzi ani postępów: nowa karta zaczyna bez historii, a karta, której poprawna odpowiedź się zmieniła, zaczyna historię od nowa (zmiana wag "tests" historii nie zmienia).

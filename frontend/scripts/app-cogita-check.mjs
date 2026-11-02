@@ -1785,8 +1785,8 @@ check('goals and lines follow the one logic', [
 {
   const T = (tail, prefer) => { const r = PARTS.cogitaTrail(tail, prefer); return [r.part, r.tail.join('/')]; };
   check('Wiedza: three activities first, the rest under „Więcej" (2026-10-25: Wejścia z Biblioteki)', [PARTS.KNOWLEDGE_TABS.map((t) => t[0]), PARTS.KNOWLEDGE_MORE.map((t) => t[0])], [['wpisy', 'dodaj', 'schematy'], ['ustawienia', 'json', 'do-zrobienia', 'propozycje', 'wejscia']]);
-  /* 2026-10-27 — dazu die Ścieżka: die Reihenfolge des Lernens (`LearningPath.tsx`). */
-  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka')], [['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'ustawienia'], 'learn']);
+  /* 2026-10-27 — dazu die Ścieżka: die Reihenfolge des Lernens (`LearningPath.tsx`); 2026-11-02 unter „Więcej" die Nagrody. */
+  check('Nauka: learning only — no entries, no schema; the path of learning next to „Ucz się”', [PARTS.LEARN_TABS.map((t) => t[0]), PARTS.LEARN_MORE.map((t) => t[0]), PARTS.partOfTab('sciezka')], [['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy'], ['karty', 'mapa', 'nagrody', 'ustawienia'], 'learn']);
   check('Schematy: three independent categories', PARTS.SCHEMA_PARTS.map((p) => [p.slug, p.label]), [['rodzaje', 'Rodzaje wpisów'], ['dodawanie', 'Sposoby dodawania'], ['wyswietlanie', 'Sposoby wyświetlania']]);
   check('old addresses lead on: schemat, schemat/<kind>, schemat/formularz/<id>, wpisy/dodaj/<id>, wpisy/nowy/<kind>', [
     T(['schemat']), T(['schemat', 'k1']), T(['schemat', 'formularz']), T(['schemat', 'formularz', 'f1']), T(['wpisy', 'dodaj', 'f1']), T(['wpisy', 'nowy', 'k1'])
@@ -3444,6 +3444,33 @@ check('goals and lines follow the one logic', [
       fact225(sentence('@logik/q-aussagen-a')) !== undefined && fact225(sentence('@logik/q-aussagen-a')) === fact225(sentence('@logik/q-tf-225')),
       ofQ('@hist/q-grunwald-kiedy')[0].facts[0] === ofQ('@hist/q-grunwald-co')[0].facts[0]],
     ['recreatio.cogita.course', 6, 1, true, true]);
+}
+
+/* ══ 2026-11-02 — Nagrody (`rewards.ts`) im JSON einer Baza: ein Dokument „rewards" kommt an, ergänzt aus der Regel, und geht wieder hinaus ══ */
+{
+  const map = new Map();
+  let n = 0;
+  const store = {
+    libraryId: 'R', areaId: 'area-r', revision: 1, loaded: true,
+    all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
+    save: async (input) => { const entry = { ...input, id: input.id ?? `R-neu-${n += 1}`, libraryId: 'R' }; map.set(entry.id, entry); store.revision += 1; return entry; },
+    saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
+    remove: async (id) => { map.delete(id); store.revision += 1; },
+    subscribe: () => () => undefined
+  };
+  const lib = new So.CogitaLibrary(store, true);
+  const doc = { format: 'recreatio.cogita.course', version: 1, name: 'R', rewards: [{ ref: '@kurs/punkty', name: 'X', points: { correct: 7 } }], settings: [{ motivation: 'rewards', rewards: '@kurs/punkty' }] };
+  const plan = Js.planImport(lib, doc);
+  check('rewards: a course JSON plans one new „Nagrody” document', [!('error' in plan), plan.docs.filter((d) => d.kind === 'reward').map((d) => d.isNew)], [true, [true]]);
+  await Js.applyImport(lib, plan, () => undefined);
+  const saved = lib.docs('reward');
+  const data = saved[0]?.data ?? {};
+  check('… stored in the shape readRewards reads: the given number, the rest from the built-in rule', [saved.length, data.name, data.points?.correct, data.points?.goal, data.goal?.unit], [1, 'X', 7, 50, 'cards']);
+  check('… the setting names that document (motivation „Punkty i nagrody”)', [lib.settings().motivation, lib.settings().rewards === saved[0]?.id], ['rewards', true]);
+  const out = Js.exportCourse(lib, 'R');
+  check('… and the export carries it back with the same values and its lasting name', [out.rewards.length, out.rewards[0].ref, out.rewards[0].name, out.rewards[0].points.correct, out.settings[0].rewards], [1, '@kurs/punkty', 'X', 7, '@kurs/punkty']);
+  const again = Js.planImport(lib, out);
+  check('… importing the export again changes the same document', again.docs.filter((d) => d.kind === 'reward').map((d) => [d.isNew, d.id === saved[0]?.id]), [[false, true]]);
 }
 
 await rm(workspace, { recursive: true, force: true });

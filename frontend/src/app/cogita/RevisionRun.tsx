@@ -32,6 +32,8 @@ import { TexText } from '../ui/tex/Tex';
 import { DailyGoal } from './DailyGoal';
 import { LessonSummary, MissedCards } from './LessonEnd';
 import { EMPTY_LOG, logAnswer, logSummary, logTick, nextLesson, type Missed, type RunLog } from './lessons';
+import type { RewardRules } from './rewards';
+import { RewardBoard, RewardHud } from './RewardViews';
 
 /* 2026-10-31 — die Statystyki am Ende einer Powtórka: erst geladen, wenn man sie aufklappt. */
 const RunStats = later(() => import('./KnowCharts').then((m) => m.KnowledgeStats));
@@ -60,7 +62,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false }: {
+export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -82,6 +84,11 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   onOpenRevision?: (revisionId: string, title: string) => void;
   /** 2026-11-01 — den Fortschritt „x z y kart" auch bei Stufen zeigen (das Üben am Ende einer Lektion). */
   lesson?: boolean;
+  /**
+   * 2026-11-02 — NAGRODY IM LAUF (`rewards.ts`): über den Karten Punkte, Serie und Tagesziel, nach jeder Antwort „+10";
+   * am Ende die ganze Tafel. Welche Regel, sagt der Ort (der Baustein, die Ustawienia der Baza); `null`: keine.
+   */
+  rewards?: RewardRules | null;
 }) {
   const ctx = useContext(CogitaContext);
   /*
@@ -292,7 +299,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   if (practice !== null) {
     return (
       <RevisionRun lib={lib} learner={learner} source={{ plan: practice.plan, cards: state.all, ...(source.deps === undefined ? {} : { deps: source.deps }), title: practice.title }}
-        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={() => setPractice(null)} lesson />
+        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={() => setPractice(null)} lesson rewards={rewards} />
     );
   }
 
@@ -344,8 +351,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
             <button type="button" className="wk-btn" data-lesson-next-open="" onClick={() => openRevision(next.id, next.name)}>Następna lekcja</button>
           </div>
         )}
-        {/* 2026-11-01 (2.11) — nur mit „Serie dni nauki" in den Ustawienia der Baza. */}
-        {lib !== null && <DailyGoal lib={lib} learner={learner} compact />}
+        {/* 2026-11-01 (2.11) — nur mit „Serie dni nauki" in den Ustawienia der Baza; 2026-11-02 mit Nagrody statt dessen die Tafel. */}
+        {rewards !== null && learner !== null ? <RewardBoard learner={learner} rules={rewards} rename={rename} shape="block" live={false} />
+          : lib !== null && <DailyGoal lib={lib} learner={learner} compact />}
         <div className="wk-actions">
           <button type="button" className={next === null ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => setRound((n) => n + 1)}>Jeszcze raz</button>
           {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button>}
@@ -394,6 +402,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   };
   return (
     <div className="cg">
+      {rewards !== null && learner !== null && <RewardHud learner={learner} rules={rewards} rename={rename} />}
       <div className="cg-run-head">
         <strong><TexText text={source.title ?? 'Powtórka'} /></strong>
         <span className="cg-row">
@@ -438,8 +447,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           const q = evidence[0].correctness;
           const from = via ?? source.revisionId;
           /* 2026-11-01 — mit der Antwort: wie viele Podpowiedzi, welche Zahlen gezogen waren. */
-          learner?.record(asked, q, { given: storedGiven(asked, given), ms, via: from, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(asked.params === undefined ? {} : { params: asked.params }) });
-          for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from });
+          const main = learner?.record(asked, q, { given: storedGiven(asked, given), ms, via: from, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(asked.params === undefined ? {} : { params: asked.params }) });
+          /* 2026-11-02 — mitgezählt mit dieser Antwort (`lead`): Punkte für „eine Antwort" gibt es nur einmal (`rewards.ts`). */
+          for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from, ...(main === undefined ? {} : { lead: main.answer.id }) });
           const had = tally.current.get(card.key) ?? { asked: 0, wrong: 0 };
           tally.current.set(card.key, { asked: had.asked + 1, wrong: had.wrong + (outcome.correct ? 0 : 1) });
           onAnswer?.(card, outcome.correctness, given);

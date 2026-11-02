@@ -69,6 +69,10 @@ What each import may do, in short (the descriptions say it in full):
 - **persons** — only the account's own persons, by id, field by field; an empty value never deletes (that would
   withdraw the field's releases too).
 - **learn-progress** — only into one's own progress, as a new sealed batch; answers already there are skipped.
+- **knowledge-base `rewards`** (2026-11-02) — Nagrody documents (points, streak, daily goal, levels, badges; `cogita/rewards.ts`),
+  also edited one by one as JSON in Nauka → „Nagrody”; what a document leaves out comes from the built-in rule; the
+  settings key `rewards` names the one the Nauka uses. Points themselves are never stored or imported — they are
+  computed from the answers.
 - **lamps** — lamps, signals, timers and the button pace; deletes only with `"remove": true`.
 - **addresses** — aliases and domains the app can set; the preview lists what remains outside (DNS, hosting, the
   service's origins).

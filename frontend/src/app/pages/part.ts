@@ -172,6 +172,9 @@ export interface FieldDef {
   /** Darf leer bleiben (dann: alle) — der Wähler bietet „wszystkie" an. */
   readonly optional?: boolean;
 
+  /** 2026-11-02 — bei `optional`: was „leer" hier heisst, wenn nicht „wszystkie" (etwa „domyślne"). */
+  readonly none?: string;
+
   /** 0104 — bei `questions`: auch die Fragen der Unterformulare (die Spalten der „Lista osób"). */
   readonly subforms?: boolean;
 

@@ -34,6 +34,8 @@ import { EntityStructure } from './StructureView';
 import { CogitaJson } from './CogitaJson';
 import { CogitaSettings } from './CogitaSettings';
 import { DailyGoal } from './DailyGoal';
+import { RewardsTab, useBaseRewards } from './RewardsEditor';
+import { RewardBoard } from './RewardViews';
 import { LearnQuilt } from './QuiltView';
 import { Contributions, Propose } from './Contribute';
 import { EntityEditor } from './EntityEditor';
@@ -98,7 +100,10 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   const known = useCallback((_kind: string, entry: Parameters<typeof isOldInBase>[0]) => !isOldInBase(entry, (id) => lib.kind(id)), [lib]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const old = useMemo(() => (writes && part === 'knowledge' ? oldEntriesOf(lib.store, known).length : 0), [writes, part, lib.store, lib.revision, known]);
-  const tabs: readonly (readonly [string, string])[] = part === 'knowledge' ? (writes ? KNOWLEDGE_TABS : KNOWLEDGE_READER_TABS) : (writes ? LEARN_TABS : LEARN_READER_TABS);
+  /* 2026-11-02 — wer nur liest, sieht „Nagrody" nur, wenn die Nauka Punkte zählt (Motywacja „Punkty i nagrody"). */
+  const rewardsOn = lib.settings().motivation === 'rewards';
+  const readerLearn = rewardsOn ? LEARN_READER_TABS : LEARN_READER_TABS.filter(([slug]) => slug !== 'nagrody');
+  const tabs: readonly (readonly [string, string])[] = part === 'knowledge' ? (writes ? KNOWLEDGE_TABS : KNOWLEDGE_READER_TABS) : (writes ? LEARN_TABS : readerLearn);
   const more: readonly (readonly [string, string])[] = !writes ? [] : part === 'knowledge'
     ? (old > 0 || trail[0] === 'stare' ? [...KNOWLEDGE_MORE, ['stare', `Stare wpisy (${old})`]] : KNOWLEDGE_MORE)
     : LEARN_MORE;
@@ -159,6 +164,8 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
         </div>
       )}
       {tab === 'mapa' && (cards === undefined ? <p className="wk-hint">Liczenie kart…</p> : <ExploreMap learner={learner} cards={cards ?? []} />)}
+      {/* 2026-11-02 — Nagrody: die eigene Tafel; für Autoren die Zasady nagród (`RewardsEditor.tsx`). */}
+      {tab === 'nagrody' && <RewardsTab learner={learner} chosen={trail[1] ?? null} go={go} />}
       {/* -- in beiden -- */}
       {tab === 'ustawienia' && <CogitaSettings />}
     </div>
@@ -183,12 +190,14 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
   const storage = answersArea(revisions.find((e) => e.id === chosen)?.data.storageAreaId);
   const holder = useMemo(() => (storage === null || me === null ? null : holderOfMe(me)), [storage, me]);
   const own = useLearner(storage === null ? null : lib, holder, storage);
+  /* 2026-11-02 — zählt die Nauka Punkte (Motywacja „Punkty i nagrody"): die Tafel oben und im Lauf. */
+  const rewards = useBaseRewards();
   if (source !== null) {
     /* 2026-10-31 — der eigene Lernende dieser Powtórka lädt erst: solange warten, sonst finge der Lauf ohne ihn an. */
     if (storage !== null && holder !== null && own.learner === null && own.failed === null) return <Loading label="Wczytywanie postępów…" />;
     /* Ob das Konto den Schlüssel hier behält, prüft der Lauf selbst — und sagt es, statt still nichts abzulegen. */
     return <RevisionRun lib={lib} learner={storage === null ? learner : own.learner} source={source} keep={who !== null && lib.settings().offline.includes(source.revisionId!)} onClose={() => go('nauka')}
-      onOpenRevision={(id) => go('nauka', id)} />;
+      onOpenRevision={(id) => go('nauka', id)} rewards={rewards.on ? rewards.rules : null} />;
   }
   const now = Date.now();
   const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m); return d !== null && d <= now; }).length;
@@ -199,8 +208,8 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
         <strong>{cards === null ? 'Liczenie kart…' : `${cards.length} kart w kursie`}</strong>
         {due !== null && <span className="cg-muted">Na teraz: {due} · nowe: {fresh}</span>}
       </div>
-      {/* 2026-11-01 — Serie dni nauki (Ustawienia → Motywacja): der Tagesziel, die Woche — sonst nichts. */}
-      <DailyGoal lib={lib} learner={learner} />
+      {/* 2026-11-01 — Serie dni nauki (Ustawienia → Motywacja): der Tagesziel, die Woche; 2026-11-02 mit „Punkty i nagrody" die Tafel. */}
+      {rewards.on ? <RewardBoard learner={learner} rules={rewards.rules} rename={rename} shape="compact" /> : <DailyGoal lib={lib} learner={learner} />}
       {/* 2026-11-01 — die Mapa postępów (Widoki im Modus „quilt"): Kacheln nach Lektionen, klick → lesen, üben. */}
       <LearnQuilt cards={cards} learner={learner} />
       {revisions.length === 0 ? (

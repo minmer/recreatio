@@ -15,7 +15,7 @@
  *       nauka                         was jetzt dran ist: Powtórki, Przebiegi
  *       sciezka                       (2026-10-27) die Reihenfolge des Lernens: Ebenen von den Grundlagen her (`LearningPath.tsx`)
  *       powtorki, przebiegi, sesje, postepy
- *       (Więcej) karty (Szablony kart), mapa, ustawienia
+ *       (Więcej) karty (Szablony kart), mapa, nagrody (2026-11-02: punkty, seria, odznaki), ustawienia
  * </code>
  *
  * Die drei Kategorien der Schematy sind unabhängig: ein Sposób dodawania darf Einträge
@@ -46,11 +46,12 @@ export const KNOWLEDGE_MORE = [
 export const LEARN_TABS = [
   ['nauka', 'Ucz się'], ['sciezka', 'Ścieżka'], ['powtorki', 'Powtórki'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy']
 ] as const;
-export const LEARN_MORE = [['karty', 'Szablony kart'], ['mapa', 'Mapa'], ['ustawienia', 'Ustawienia']] as const;
+/** 2026-11-02 — „Nagrody": punkty, seria, cel dnia, poziomy, odznaki (`RewardsEditor.tsx`); auch für wer nur liest. */
+export const LEARN_MORE = [['karty', 'Szablony kart'], ['mapa', 'Mapa'], ['nagrody', 'Nagrody'], ['ustawienia', 'Ustawienia']] as const;
 
 /** Wer nur liest (ein Lernender): Wiedza zum Nachlesen und Vorschlagen, Nauka zum Lernen. */
 export const KNOWLEDGE_READER_TABS = [['wpisy', 'Wpisy'], ['zaproponuj', 'Zaproponuj']] as const;
-export const LEARN_READER_TABS = [['nauka', 'Ucz się'], ['sciezka', 'Ścieżka'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy'], ['mapa', 'Mapa']] as const;
+export const LEARN_READER_TABS = [['nauka', 'Ucz się'], ['sciezka', 'Ścieżka'], ['przebiegi', 'Przebiegi'], ['sesje', 'Sesje'], ['postepy', 'Postępy'], ['mapa', 'Mapa'], ['nagrody', 'Nagrody']] as const;
 
 /** Die drei Kategorien der Schematy — Wort in der Adresse, Name, ein Satz. */
 export const SCHEMA_PARTS = [
@@ -61,7 +62,7 @@ export const SCHEMA_PARTS = [
 export type SchemaPart = (typeof SCHEMA_PARTS)[number]['slug'];
 
 const KNOWLEDGE: ReadonlySet<string> = new Set(['wpisy', 'dodaj', 'schematy', 'schemat', 'json', 'do-zrobienia', 'propozycje', 'zaproponuj', 'stare', 'ustawienia', 'wejscia']);
-const LEARN: ReadonlySet<string> = new Set(['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty']);
+const LEARN: ReadonlySet<string> = new Set(['nauka', 'sciezka', 'powtorki', 'przebiegi', 'sesje', 'postepy', 'mapa', 'karty', 'nagrody']);
 
 /** Zu welchem Teil ein Reiter gehört — `ustawienia` zu beiden (die Wiedza zuerst). */
 export const partOfTab = (tab: string | undefined): CogitaPart | null =>

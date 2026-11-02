@@ -48,6 +48,14 @@ function later<C>(load: () => Promise<{ default: ComponentType<{ config: C; ctx:
  */
 const ANSWERS: FieldDef = { key: 'answers', label: 'Odpowiedzi uczących się do', kind: 'area', hint: 'puste: jak w bazie wiedzy; bez tego zostają u uczącego się' };
 
+/**
+ * 2026-11-02 — NAGRODY (`cogita/rewards.ts`): welche Regel ein Ort nimmt — ein Dokument „Nagrody" der Baza. In einem
+ * Lernbaustein: Punkte und Serie im Lauf; leer — wie ein Baustein „Punkty i seria" auf derselben Seite, sonst keine.
+ */
+const REWARDS_IN_RUN: FieldDef = { key: 'rewards', label: 'Punkty i seria w trakcie nauki', kind: 'libraryEntry', of: 'library', entryKinds: ['reward'], optional: true, none: 'jak moduł „Punkty i seria” na tej stronie' };
+const REWARDS_RULES: FieldDef = { key: 'rewards', label: 'Zasady nagród', kind: 'libraryEntry', of: 'library', entryKinds: ['reward'], optional: true, none: 'wybrane w bazie wiedzy (albo wbudowane)' };
+const SCOPE: FieldDef = { key: 'revision', label: 'Liczy tylko karty powtórki', kind: 'libraryEntry', of: 'library', entryKinds: ['revision'], optional: true, none: 'cała baza wiedzy' };
+
 /* == Powtórka ==================================================================================== */
 
 export interface RevisionConfig {
@@ -56,11 +64,13 @@ export interface RevisionConfig {
   readonly revision: string;
   /** 2026-11-01 — der Bereich für die Antworten (leer: wie die Powtórka oder die Baza). */
   readonly answers: string;
+  /** 2026-11-02 — die Nagrody im Lauf (leer: wie ein Baustein „Punkty i seria" der Seite, sonst keine). */
+  readonly rewards: string;
 }
 
 export const cogitaRevisionPart = definePart<RevisionConfig>({
   kind: 'cogita-revision',
-  example: { title: 'Powtórka przed bierzmowaniem', library: '<id-biblioteki>', revision: '<id-powtórki>', answers: '<id-obszaru-kursu>' },
+  example: { title: 'Powtórka przed bierzmowaniem', library: '<id-biblioteki>', revision: '<id-powtórki>', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>' },
   label: 'Powtórka',
   use: 'Powtórka z bazy wiedzy (Cogita). Widzą ją ci, którzy mogą czytać bazę — w jawnym obszarze (baza otwarta) każdy, bez konta; postępy bez konta zostają w przeglądarce. Odpowiedzi idą do obszaru, który wskażesz (np. kursu) — jego prowadzący widzi postępy.',
   box: { colSpan: 4, rowSpan: 3 },
@@ -68,9 +78,10 @@ export const cogitaRevisionPart = definePart<RevisionConfig>({
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa powtórki' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
     { key: 'revision', label: 'Która powtórka', kind: 'libraryEntry', of: 'library', entryKinds: ['revision'] },
-    ANSWERS
+    ANSWERS,
+    REWARDS_IN_RUN
   ],
-  read: (raw: RawConfig): RevisionConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision'), answers: text(raw, 'answers') }),
+  read: (raw: RawConfig): RevisionConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards') }),
   hasContent: (c) => c.library !== '' && c.revision !== '',
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : c.revision === '' ? 'Wybierz powtórkę z tej bazy wiedzy.' : null),
   strip: { title: 'Powtórka', open: 'Zacznij' },
@@ -268,11 +279,12 @@ export interface SeatLearnConfig {
   readonly library: string;
   readonly revision: string;
   readonly answers: string;
+  readonly rewards: string;
 }
 
 export const seatLearnPart = definePart<SeatLearnConfig>({
   kind: 'seat-learn',
-  example: { title: 'Twoja nauka', library: '<id-biblioteki>', revision: '<id-powtórki albo puste>', answers: '<id-obszaru-kursu>' },
+  example: { title: 'Twoja nauka', library: '<id-biblioteki>', revision: '<id-powtórki albo puste>', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>' },
   label: 'Nauka (osoba z linkiem)',
   use: 'Powtórki z bazy wiedzy kursu dla osoby z linkiem — jej postępy idą do kursu (prowadzący widzą je w Postępach).',
   box: { colSpan: 3, rowSpan: 3 },
@@ -280,9 +292,10 @@ export const seatLearnPart = definePart<SeatLearnConfig>({
     { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoja nauka' },
     { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
     { key: 'revision', label: 'Tylko powtórka', kind: 'line', hint: 'identyfikator powtórki — puste: wszystkie powtórki bazy wiedzy' },
-    ANSWERS
+    ANSWERS,
+    REWARDS_IN_RUN
   ],
-  read: (raw: RawConfig): SeatLearnConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision'), answers: text(raw, 'answers') }),
+  read: (raw: RawConfig): SeatLearnConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), revision: text(raw, 'revision'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards') }),
   hasContent: () => true,
   missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy kursu — osoba z linkiem musi czytać jej obszar (rola formularza albo udostępnienie).' : null),
   strip: { title: 'Twoja nauka', open: 'Otwórz' },
@@ -291,4 +304,77 @@ export const seatLearnPart = definePart<SeatLearnConfig>({
     : size.height === 'tall' ? 'Ile czeka, ile już umie, i powtórki do wyboru.'
     : 'Ile czeka na teraz i powtórki do wyboru.',
   View: later(() => import('./cogitaViews').then((m) => ({ default: m.SeatLearnView })))
+});
+
+/* == 2026-11-02: Nagrody — punkty, seria, cel dnia, poziomy, odznaki ============================= */
+
+/** „Co pokazuje" — was die Tafel weglassen darf (dieselben Wörter wie `REWARD_PIECES` in `cogita/RewardViews.tsx`). */
+const REWARD_BITS = [
+  { value: 'points', label: 'Punkty' }, { value: 'level', label: 'Poziom' }, { value: 'streak', label: 'Seria dni' },
+  { value: 'goal', label: 'Cel dnia' }, { value: 'badges', label: 'Odznaki' }, { value: 'feed', label: 'Ostatnie nagrody' }
+] as const;
+
+export interface RewardsConfig {
+  readonly title: string;
+  readonly library: string;
+  /** Welche Nagrody (leer: die der Ustawienia der Baza, sonst die erste, sonst die eingebauten). */
+  readonly rewards: string;
+  /** Nur die Karten dieser Powtórka zählen (leer: die ganze Baza). */
+  readonly revision: string;
+  readonly hidden: ReadonlySet<string>;
+}
+
+const hiddenSet = (raw: RawConfig): ReadonlySet<string> => new Set(text(raw, 'hide').split(',').map((one) => one.trim()).filter((one) => one !== ''));
+
+export const cogitaRewardsPart = definePart<RewardsConfig>({
+  kind: 'cogita-rewards',
+  example: { title: 'Twoje punkty', library: '<id-bazy-wiedzy>', rewards: '<id-nagród albo puste>', revision: '<id-powtórki albo puste>', hide: 'feed' },
+  label: 'Punkty i seria',
+  use: 'Punkty, seria dni nauki, cel dnia, poziom i odznaki osoby, która się tu uczy — na żywo: każda odpowiedź w module nauki na tej stronie od razu dodaje punkty („+10”), zapala płomień serii, wypełnia cel dnia. Zasady (ile punktów za co, cel, poziomy, odznaki) to „Nagrody” w bazie wiedzy (Nauka → Nagrody) — każda strona wybiera swoje.',
+  box: { colSpan: 2, rowSpan: 3 },
+  fields: [
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Twoje punkty' },
+    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
+    REWARDS_RULES,
+    SCOPE,
+    { key: 'hide', label: 'Co pokazuje', kind: 'hide', options: REWARD_BITS }
+  ],
+  read: (raw: RawConfig): RewardsConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), rewards: text(raw, 'rewards'), revision: text(raw, 'revision'), hidden: hiddenSet(raw) }),
+  hasContent: (c) => c.library !== '',
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy — tę samą, z której uczy się moduł nauki na stronie.' : null),
+  fullscreen: true,
+  shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: punkty, poziom, seria, cel dnia, odznaki — po każdej odpowiedzi „+10” nad nią.'
+    : size.height === 'tall' ? 'Wszystko: punkty z poziomem, płomień serii z ostatnimi 28 dniami, pierścień celu dnia, wszystkie odznaki i ostatnie nagrody.'
+    : 'Punkty z poziomem, płomień serii z tygodniem, pierścień celu dnia (co zaznaczone); jeden wybrany element — duży.',
+  View: later(() => import('./cogitaViews').then((m) => ({ default: m.RewardsView })))
+});
+
+const STATS_BITS = [
+  { value: 'tiles', label: 'Liczby dnia' }, { value: 'today', label: 'Punkty dziś — wykres' }, { value: 'days', label: 'Punkty dzień po dniu' },
+  { value: 'goal', label: 'Cel dnia dzień po dniu' }, { value: 'knowledge', label: 'Gdzie są karty (w pełnym widoku)' }
+] as const;
+
+export type LiveStatsConfig = RewardsConfig;
+
+export const cogitaLiveStatsPart = definePart<LiveStatsConfig>({
+  kind: 'cogita-stats',
+  example: { title: 'Na żywo', library: '<id-bazy-wiedzy>', rewards: '<id-nagród albo puste>', revision: '<id-powtórki albo puste>', hide: 'knowledge' },
+  label: 'Statystyki na żywo',
+  use: 'Wykresy i liczby nauki osoby, która się tu uczy — rosną z każdą odpowiedzią w module nauki na tej stronie: punkty dziś odpowiedź po odpowiedzi, punkty i cel dnia dzień po dniu, trafność, seria; w pełnym widoku także gdzie są karty (co umie, co zanika).',
+  box: { colSpan: 4, rowSpan: 3 },
+  fields: [
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'np. Na żywo' },
+    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
+    REWARDS_RULES,
+    SCOPE,
+    { key: 'hide', label: 'Co pokazuje', kind: 'hide', options: STATS_BITS }
+  ],
+  read: (raw: RawConfig): LiveStatsConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), rewards: text(raw, 'rewards'), revision: text(raw, 'revision'), hidden: hiddenSet(raw) }),
+  hasContent: (c) => c.library !== '',
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy — tę samą, z której uczy się moduł nauki na stronie.' : null),
+  fullscreen: true,
+  shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: dziś punkty, odpowiedzi, trafność i cel dnia — na żywo.'
+    : size.height === 'tall' ? 'Liczby dnia, wykres punktów dziś, punkty i cel dnia dzień po dniu (7/14/30 dni), gdzie są karty.'
+    : 'Liczby dnia i wykres punktów dziś — rośnie z każdą odpowiedzią.',
+  View: later(() => import('./cogitaViews').then((m) => ({ default: m.LiveStatsView })))
 });

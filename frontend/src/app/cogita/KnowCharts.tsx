@@ -53,7 +53,7 @@ function niceMax(v: number): number {
 const DATE = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'numeric' });
 const DAY_NAME = new Intl.DateTimeFormat('pl-PL', { weekday: 'short', day: 'numeric', month: 'long' });
 
-type TipLine = readonly [value: string, label: string];
+export type TipLine = readonly [value: string, label: string];
 
 /**
  * Der Hinweis über einem Punkt — der Wert vorn, die Bezeichnung dahinter. Wo er steht, sagen zwei CSS-Variablen, gesetzt
@@ -74,7 +74,7 @@ function Tip({ x, y, width, lines }: { x: number; y: number; width: number; line
 }
 
 /** Eine Figur: Titel, ein Satz dazu, das Diagramm — und seine Tabelle (dieselben Werte, ohne Zeiger). */
-function Figure({ title, says, table, children, id }: { title: string; says?: string; table?: ReactNode; children: ReactNode; id: string }) {
+export function Figure({ title, says, table, children, id }: { title: string; says?: string; table?: ReactNode; children: ReactNode; id: string }) {
   return (
     <figure className="cg-viz" data-viz={id}>
       <figcaption className="cg-viz-head">
@@ -93,7 +93,7 @@ function Figure({ title, says, table, children, id }: { title: string; says?: st
 }
 
 /** Ein Punkt über die Zeit: Bezeichnung auf der Achse, Wert, und was der Hinweis sagt. */
-interface Point {
+export interface Point {
   readonly key: string;
   readonly axis: string;
   readonly value: number;
@@ -135,8 +135,11 @@ function YAxis({ top, width, y }: { top: number; width: number; y: (v: number) =
   );
 }
 
-/** SÄULEN — eine Reihe über Tage (Antworten je Tag, was fällig wird). */
-function Columns({ points, name, emphasize }: { points: readonly Point[]; name: string; emphasize?: number }) {
+/**
+ * SÄULEN — eine Reihe über Tage (Antworten je Tag, was fällig wird). 2026-11-02: `rule` — eine Bezugslinie (das
+ * Tagesziel), beschriftet; `pulse` — ändert sich die Zahl, wächst die hervorgehobene Säule neu (live, `LiveStats.tsx`).
+ */
+export function Columns({ points, name, emphasize, rule, pulse }: { points: readonly Point[]; name: string; emphasize?: number; rule?: { readonly value: number; readonly label: string }; pulse?: number }) {
   const [ref, width] = useWidth();
   const [hover, setAt] = useState<number | null>(null);
   const n = points.length;
@@ -145,7 +148,7 @@ function Columns({ points, name, emphasize }: { points: readonly Point[]; name: 
   const plotW = Math.max(0, width - PAD_L - PAD_R);
   const band = n === 0 ? 0 : plotW / n;
   const barW = Math.max(2, Math.min(24, band * 0.7));
-  const top = niceMax(Math.max(1, ...points.map((p) => p.value)));
+  const top = niceMax(Math.max(1, rule?.value ?? 0, ...points.map((p) => p.value)));
   const y = (v: number) => PAD_T + (PLOT_H - PAD_T) * (1 - v / top);
   const nth = everyNth(n, plotW);
   const pick = (e: PointerEvent<SVGSVGElement>) => {
@@ -168,9 +171,16 @@ function Columns({ points, name, emphasize }: { points: readonly Point[]; name: 
             const yTop = y(p.value);
             const h = PLOT_H - yTop;
             const rr = Math.min(r, h, barW / 2);
-            return <path key={p.key} className={`cg-viz-bar${i === emphasize ? ' is-now' : ''}${i === at ? ' is-at' : ''}`}
+            const live = i === emphasize && pulse !== undefined && pulse > 0;
+            return <path key={live ? `${p.key}:${pulse}` : p.key} className={`cg-viz-bar${i === emphasize ? ' is-now' : ''}${i === at ? ' is-at' : ''}${live ? ' is-pulse' : ''}`}
               d={`M${x},${PLOT_H} V${yTop + rr} Q${x},${yTop} ${x + rr},${yTop} H${x + barW - rr} Q${x + barW},${yTop} ${x + barW},${yTop + rr} V${PLOT_H} Z`} />;
           })}
+          {rule !== undefined && rule.value > 0 && (
+            <g aria-hidden data-viz-rule={rule.value}>
+              <line className="cg-viz-rule" x1={PAD_L} x2={width - PAD_R} y1={y(rule.value)} y2={y(rule.value)} />
+              <text className="cg-viz-rule-text" x={width - PAD_R} y={y(rule.value) - 4} textAnchor="end">{rule.label}</text>
+            </g>
+          )}
           {points.map((p, i) => ((i % nth === 0 || i === n - 1) && (i === n - 1 || n - 1 - i >= nth)
             ? <text key={p.key} className="cg-viz-tick" x={cx(i)} y={PLOT_H + 15} textAnchor="middle">{p.axis}</text> : null))}
         </svg>
@@ -180,8 +190,8 @@ function Columns({ points, name, emphasize }: { points: readonly Point[]; name: 
   );
 }
 
-/** LINIE — eine Reihe über Tage (wie viele Karten sitzen), mit Fläche, Fadenkreuz und dem letzten Wert am Ende. */
-function Line({ points, name, max }: { points: readonly Point[]; name: string; max: number }) {
+/** LINIE — eine Reihe über Tage (wie viele Karten sitzen), mit Fläche, Fadenkreuz und dem letzten Wert am Ende. 2026-11-02: `pulse` — der letzte Punkt leuchtet auf, wenn er neu ist. */
+export function Line({ points, name, max, pulse }: { points: readonly Point[]; name: string; max: number; pulse?: number }) {
   const [ref, width] = useWidth();
   const [hover, setAt] = useState<number | null>(null);
   const n = points.length;
@@ -210,7 +220,7 @@ function Line({ points, name, max }: { points: readonly Point[]; name: string; m
           <path className="cg-viz-line" d={line} />
           {at !== null && <line className="cg-viz-cross" x1={x(at)} x2={x(at)} y1={PAD_T} y2={PLOT_H} />}
           {at !== null && <circle className="cg-viz-dot" cx={x(at)} cy={y(points[at]!.value)} r={4} />}
-          {last !== undefined && <circle className="cg-viz-dot" cx={x(n - 1)} cy={y(last.value)} r={4} />}
+          {last !== undefined && <circle key={pulse ?? 0} className={`cg-viz-dot${pulse !== undefined && pulse > 0 ? ' is-pulse' : ''}`} cx={x(n - 1)} cy={y(last.value)} r={4} />}
           {last !== undefined && <text className="cg-viz-end" x={x(n - 1) + 8} y={y(last.value) + 4}>{last.value}</text>}
           {points.map((p, i) => ((i % nth === 0 || i === n - 1) && (i === n - 1 || n - 1 - i >= nth)
             ? <text key={p.key} className="cg-viz-tick" x={x(i)} y={PLOT_H + 15} textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}>{p.axis}</text> : null))}
@@ -283,7 +293,7 @@ function BandLegend({ bands, total }: { bands: Readonly<Record<Band, number>>; t
 }
 
 /** Kleine Zahlen oben: der Wert gross, was er ist darüber, eine Zeile darunter. */
-function Tiles({ tiles }: { tiles: readonly { key: string; label: string; value: string; sub?: string }[] }) {
+export function Tiles({ tiles }: { tiles: readonly { key: string; label: string; value: string; sub?: string }[] }) {
   return (
     <div className="cg-tiles">
       {tiles.map((t) => (

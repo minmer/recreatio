@@ -57,7 +57,7 @@ export function needsOf(lib: { readonly store: { get(id: string): { readonly kin
 
 const KIND_WORDS: Readonly<Record<string, string>> = {
   kind: 'rodzaj', template: 'szablon', revision: 'powtórka', flow: 'przebieg', collection: 'zbiór',
-  addform: 'formularz', rules: 'zasady', values: 'wartości', look: 'wygląd', view: 'widok'
+  addform: 'formularz', rules: 'zasady', values: 'wartości', look: 'wygląd', view: 'widok', reward: 'nagrody'
 };
 
 /** Wie ein Eintrag der Baza im Plan heisst — ein Eintrag mit seinem Etikett, ein Dokument mit Art und Namen. */

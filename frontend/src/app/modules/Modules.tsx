@@ -540,7 +540,7 @@ function Content({ module: row, busy }: { module: ModuleRow; busy: boolean }) {
         ) : field.kind === 'library' || field.kind === 'knowledge' || field.kind === 'scriptorium' ? (
           <PickLibrary kind={field.kind === 'knowledge' ? 'knowledge' : field.kind === 'scriptorium' ? 'writing' : 'books'} value={value} busy={busy} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'libraryEntry' ? (
-          <PickLibraryEntry library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} onPick={(id) => void save(field.key, id)} />
+          <PickLibraryEntry library={config[field.of ?? ''] ?? ''} kinds={field.entryKinds ?? ['text']} value={value} busy={busy} optional={field.optional} none={field.none} onPick={(id) => void save(field.key, id)} />
         ) : field.kind === 'resource' ? (
           <PickResource
             value={value}
