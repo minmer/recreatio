@@ -53,6 +53,8 @@ export type { ListMode } from './views';
  * der gespeicherte Widok derselbe ist (`base`); nach dem Speichern fällt es weg.
  */
 const drafts = new Map<string, { readonly base: string; readonly view: ViewDoc }>();
+/** 2026-11-03 — ob „Dostosuj“ offen stand (die Eingaben des Krajobraz stehen darin) — je Widok, wie der Entwurf. */
+const adjustOpen = new Map<string, boolean>();
 const draftKey = (libraryId: string, viewId: string | null, design: boolean) => `${libraryId}:${design ? 'design:' : ''}${viewId ?? '-'}`;
 function readDraft(key: string, base: string): ViewDoc | undefined {
   const here = drafts.get(key);
@@ -131,7 +133,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   /* 2026-11-03 — der Krajobraz braucht die Karten immer (wer Karten hat, ist lernbar; die Kenntnis jedes Eintrags). */
   const landscape = view.mode === 'landscape';
   /* 2026-11-03 — die Karten bleiben stehen, solange neue gerechnet werden (sonst wiche der Krajobraz einem „Liczenie…" und verlöre alles). */
-  const knowCards = useAsyncKeep(wants || quilt || landscape ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, landscape, lib.revision], () => lib.cardsReady('learn'));
+  const [knowCards, knowBusy] = useAsyncKeep(wants || quilt || landscape ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, landscape, lib.revision], () => lib.cardsReady('learn'));
   /* Punkte und Serie im Lauf aus dem Krajobraz — wenn die Nauka dieser Baza sie zählt. */
   const runRewards = useRunRewards();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -312,7 +314,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         )}
       </div>
       {design ? adjust : (
-        <details className="cg-adjust">
+        <details className="cg-adjust" open={adjustOpen.get(dKey) === true || undefined} onToggle={(e) => { adjustOpen.set(dKey, e.currentTarget.open); }}>
           <summary>Dostosuj — co i jak pokazać</summary>
           {adjust}
         </details>
@@ -365,7 +367,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       {/* 2026-11-01 — die Mapa postępów: wie gut der Betrachter (sein Lernender) jeden Eintrag kann. */}
       {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel), sie schneidet ihn nicht zu. */}
       {landscape && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
-        : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} urlScope="" />)}
+        : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} urlScope="" busy={knowBusy} />)}
       {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
         : <QuiltView view={shown} list={list} cards={knowCards} answers={ownAnswers} learner={learner ?? null} onOpen={onOpen} />)}
       {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} vlib={vlib} />}

@@ -110,9 +110,11 @@ interface Asked {
 }
 
 /** Die Gestalt aus dem Motor — der Graph nur, wenn er neu ist; der Stand nach jeder Antwort; veraltetes verworfen. */
-function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsState, options: Asked): { run: LsRun | null; failed: string | null } {
+function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsState, options: Asked): { run: LsRun | null; failed: string | null; pending: boolean } {
   const [run, setRun] = useState<LsRun | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  /* 2026-11-03 — eine neuere Frage ist unterwegs (das letzte Bild steht noch). */
+  const [pending, setPending] = useState(false);
   /* Was DIESER Motor schon hat — ein neuer (StrictMode, ein neuer Worker) bekommt Graph und Stand noch einmal. */
   const sent = useRef<{ client: LandscapeClient | null; input: LsInput | null; state: LsState | null }>({ client: null, input: null, state: null });
   const seq = useRef(0);
@@ -125,11 +127,12 @@ function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsS
     const freshInput = same && sent.current.input === input ? undefined : input;
     const freshState = same && sent.current.state === state && freshInput === undefined ? undefined : state;
     sent.current = { client, input, state };
+    setPending(true);
     client.run({ ...(freshInput === undefined ? {} : { input: freshInput }), ...(freshState === undefined ? {} : { state: freshState }), options: { budget: options.budget, focus: options.focus, goal: options.goal, narrow: options.narrow, ...(options.bands === undefined ? {} : { bands: options.bands }) } })
-      .then((r) => { if (my === seq.current) { setRun(r); setFailed(null); } }, (e: unknown) => { if (my === seq.current) setFailed(e instanceof Error ? e.message : String(e)); });
+      .then((r) => { if (my === seq.current) { setRun(r); setFailed(null); setPending(false); } }, (e: unknown) => { if (my === seq.current) { setFailed(e instanceof Error ? e.message : String(e)); setPending(false); } });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- der Fokus und die Anteile als Text
   }, [client, input, state, options.budget, focusKey, options.goal, options.narrow, bandsKey]);
-  return { run, failed };
+  return { run, failed, pending };
 }
 
 /* -- 2026-11-03: was ein Krajobraz behält — über Reiter, Zurück/Vor und Neuladen ------------------------------- */
@@ -235,14 +238,16 @@ function useKept(key: string, scope: string | null) {
   const setListed = (next: string | null) => { setListedNow(next); mem.listed = next; };
   /* Wo die Seite steht — beim Verlassen schon gemerkt (ein kürzerer Reiter danach setzt den Bildlauf zurück, bevor wir es erfahren). */
   const gone = useRef(false);
+  /* Solange der alte Bildlauf zurückgeholt wird, zählt er nicht als neuer (die Seite wächst noch, er bliebe zu kurz stehen). */
+  const restoring = useRef(false);
   useLayoutEffect(() => { gone.current = false; return () => { gone.current = true; }; }, []);
   useEffect(() => {
     let frame = 0;
     const onScroll = () => {
-      if (gone.current || frame !== 0) return;
+      if (gone.current || restoring.current || frame !== 0) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
-        if (gone.current) return;
+        if (gone.current || restoring.current) return;
         mem.scroll = window.scrollY;
         try { sessionStorage.setItem(`cg-ls-scroll:${key}`, String(Math.round(window.scrollY))); } catch { /* ohne Speicher des Tabs */ }
       });
@@ -250,7 +255,26 @@ function useKept(key: string, scope: string | null) {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => { window.removeEventListener('scroll', onScroll); if (frame !== 0) window.cancelAnimationFrame(frame); };
   }, [key, mem]);
-  return { mem, focus, setFocus, chosen, setChosen, listed, setListed };
+  /**
+   * DEN BILDLAUF ZURÜCKHOLEN — sofort (ohne das weiche Scrollen der Seite) und so lange, bis die Seite hoch genug ist
+   * (Bild und Tafel kommen einen Augenblick später), höchstens anderthalb Sekunden; scrollt der Nutzer selbst, gilt das.
+   */
+  const restoreScroll = () => {
+    const y = mem.scroll;
+    if (y === null || y <= 0 || typeof window === 'undefined') return;
+    restoring.current = true;
+    const until = performance.now() + 1500;
+    const stop = () => { restoring.current = false; for (const e of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) window.removeEventListener(e, stop); };
+    for (const e of ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const) window.addEventListener(e, stop, { passive: true });
+    const step = () => {
+      if (!restoring.current || gone.current) return;
+      if (Math.abs(window.scrollY - y) > 1) window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior });
+      if (Math.abs(window.scrollY - y) <= 1 && document.documentElement.scrollHeight >= y + window.innerHeight - 1 && performance.now() > until - 1200) { stop(); return; }
+      if (performance.now() < until) window.requestAnimationFrame(step); else stop();
+    };
+    step();
+  };
+  return { mem, focus, setFocus, chosen, setChosen, listed, setListed, restoreScroll };
 }
 
 /** Wer weniger Bewegung will, bekommt keine. */
@@ -280,11 +304,13 @@ export interface LandscapeProps {
    * fehlt es: nirgends (ein kleiner Baustein).
    */
   readonly urlScope?: string;
+  /** 2026-11-03 — draussen wird neu gerechnet (die Karten): das Bild bleibt, ein kleines Zeichen sagt es. */
+  readonly busy?: boolean;
 }
 
 type Running = { readonly key: string; readonly source: RunSource; readonly then?: () => void };
 
-export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope }: LandscapeProps) {
+export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
   const { lib } = useCtx();
   /* 2026-11-03 — was bleibt (`useKept`): je Baza, Widok und Grösse. */
   const keep = useKept(`${lib.libraryId}:${viewKey}:${compact ? 'small' : 'big'}`, urlScope ?? null);
@@ -345,9 +371,9 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   useLayoutEffect(() => {
     if (scrolled.current || run === null || boxWidth === 0) return;
     scrolled.current = true;
-    const y = keep.mem.scroll;
-    if (y !== null && y > 0 && Math.abs(window.scrollY - y) > 2) window.scrollTo({ top: y });
-  }, [run, boxWidth, keep.mem]);
+    keep.restoreScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run, boxWidth]);
   const [note, setNote] = useState<string | null>(null);
   const [said, setSaid] = useState('');
   const answers = useMemo(() => (learner === null ? () => [] : answerIndex(learner.progress, rename)),
@@ -427,6 +453,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   return host(
     <div className={`cg-ls${compact ? ' is-compact' : ''}`} data-landscape={layout.fields.length} data-landscape-ring={layout.counts.ring}
       data-landscape-ms={`${run.ms.graph.toFixed(1)}/${run.ms.heights.toFixed(1)}/${run.ms.layout.toFixed(1)}`} data-landscape-worker={client?.inWorker === true ? '1' : '0'}>
+      {/* 2026-11-03 — es wird neu gerechnet: das Bild bleibt stehen, nur ein kleines Zeichen sagt es. */}
+      {(busy || fresh.pending) && <p className="cg-ls-busy" role="status" data-landscape-busy="">liczenie…</p>}
       <TopBar layout={layout} focus={focus} onFocus={(f) => { setFocus(f); setListed(null); }} goalLabel={layout.goal === null ? null : labelOf(layout.goal.id)} nextLabel={(id) => labelOf(id)}
         onClearGoal={() => setGoal(null)} onShowGoal={() => { if (layout.goal !== null) { setListed(null); setChosen(layout.goal.id); } }} />
       {query.trim() !== '' && (

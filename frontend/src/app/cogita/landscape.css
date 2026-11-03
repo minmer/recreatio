@@ -123,3 +123,11 @@
 .cg-ls-pits .cg-ls-pit.is-still { transition: none; }
 @media (prefers-reduced-motion: reduce) { .cg-ls-pits .cg-ls-pit { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .cg-ls-names .cg-ls-label { transition: none; } }
+
+/* 2026-11-03 — es wird neu gerechnet (Karten, Bild): das Bild bleibt, oben rechts ein kleines Zeichen. */
+.cg-ls { position: relative; }
+.cg-ls-busy {
+  position: absolute; top: 0; right: 0; z-index: 2; margin: 0;
+  padding: 0.1rem 0.6rem; border-radius: 999px; font-size: var(--wk-text-sm, 0.8rem);
+  color: var(--wk-muted); background: var(--wk-surface); border: 1px solid var(--wk-line);
+}

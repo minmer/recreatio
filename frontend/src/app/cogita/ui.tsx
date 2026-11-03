@@ -88,16 +88,19 @@ export function useAsync<T>(make: (() => Promise<T>) | null, deps: readonly unkn
  * verschwindet nichts (ein Krajobraz, der während des Rechnens einem „Liczenie…" wich, verlor Zoom, Wahl und Bildlauf).
  * `initial`: was schon gerechnet ist (ohne Warten), etwa `lib.cardsReady()`.
  */
-export function useAsyncKeep<T>(make: (() => Promise<T>) | null, deps: readonly unknown[], initial?: () => T | undefined): T | null | undefined {
+export function useAsyncKeep<T>(make: (() => Promise<T>) | null, deps: readonly unknown[], initial?: () => T | undefined): [T | null | undefined, boolean] {
   const [value, setValue] = useState<T | null | undefined>(() => (make === null ? undefined : initial?.()));
+  /* Rechnet es gerade neu (das Alte steht noch da)? — für ein kleines Zeichen statt eines leeren Bildes. */
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (make === null) { setValue(undefined); return undefined; }
+    if (make === null) { setValue(undefined); setBusy(false); return undefined; }
     let alive = true;
-    make().then((v) => { if (alive) setValue(v); }, () => { if (alive) setValue((was) => was ?? null); });
+    setBusy(true);
+    make().then((v) => { if (alive) { setValue(v); setBusy(false); } }, () => { if (alive) { setValue((was) => was ?? null); setBusy(false); } });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
-  return value;
+  return [value, busy];
 }
 
 /** Ein Knopf, der etwas tut und solange wartet. */

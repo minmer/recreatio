@@ -3124,3 +3124,24 @@ never stored, and every re-import minted a new id.
   fixed code saves 19 rows with one timestamp (9 new), ids = preview ids, the AI link reads `@bosko-nauka/obszar/etap-1`
   at once, a second import shows 0/0.
 - Needs: API deploy (new endpoint, MCP texts) BEFORE the frontend deploy (the import calls the new endpoint). No migration.
+
+## C22 — Landscape: the view keeps its place across tabs, Back/Forward and reload (2026-11-03, Part 2 A)
+
+Owner's report: every time the landscape's tab was left and reopened, the view reloaded and jumped to the top.
+
+- Cause: on `visibilitychange` the store syncs, and `sync()` always bumped the revision; `EntityList`/`viewViews`
+  recounted the cards with `useAsync` (value reset to "loading"), replaced the map with "Liczenie kart…", the
+  landscape unmounted and the page collapsed.
+- `libraryStore.ts` `sync()`: a revision only when entries came back (or the first load). `ui.tsx` `useAsyncKeep`:
+  the old value stays while the new one is counted (returns `[value, busy]`); `store.ts` `cardsReady()` + a card cache
+  per store (a new view of the same base shows its cards at once).
+- `LandscapeView.tsx` `useKept`: memory per base and view (last picture, zoom, chosen field, open panel, width,
+  scroll); zoom (`obszar`, a history step) and chosen field (`pole`, replaced) in the address — on a page with the
+  module's scope (`<zakres>.obszar`); Back/Forward follow it; scroll restored instantly while the page grows (never
+  recorded while restoring, user scroll wins); a small "liczenie…" marker while cards or the map are recounted.
+- `EntityList.tsx`: unsaved view settings (budget, band shares …) kept per view (memory + sessionStorage, dropped
+  after save or when the saved view changed) and whether "Dostosuj" stood open.
+- Browser tests (scratchpad `import-fix/a-browser.mjs`, `a-page.mjs`, LocalDB): hidden/visible without and with a
+  change by another client (same element, no "Liczenie…"), another tab and back (zoom, field, panel, scroll ±4 px,
+  settings, "Dostosuj"), Back/Forward through zoom levels, reload (zoom and field from the address), page module with
+  scoped keys — all pass, no console errors.
