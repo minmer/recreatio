@@ -2,7 +2,7 @@
   "format": "recreatio/page",
   "version": 1,
   "title": "Skąd się bierze deszcz",
-  "lead": "Opowieść, która liczy się w Cogicie: trzy drogi, jedno spotkanie — i mapa, która pokazuje, gdzie jesteś.",
+  "lead": "Opowieść, która liczy się w Cogicie: trzy drogi, jedno spotkanie, na końcu przegląd z trzech pytań — i mapa, która pokazuje, gdzie jesteś.",
   "mode": "presentation",
   "show": {
     "format": "screen",
@@ -48,6 +48,80 @@
           },
           "yes": "razem",
           "no": "rozwidlenie"
+        },
+        {
+          "key": "przeglad-zero",
+          "label": "Przegląd od zera",
+          "type": "set",
+          "actions": [
+            {
+              "type": "set",
+              "value": "opowiesc.przeglad",
+              "to": 0
+            }
+          ],
+          "next": "przeglad-1"
+        },
+        {
+          "key": "przeglad-dobrze-1",
+          "label": "Dobrze (1)",
+          "type": "set",
+          "actions": [
+            {
+              "type": "add",
+              "value": "opowiesc.przeglad",
+              "by": 1
+            }
+          ],
+          "next": "przeglad-2"
+        },
+        {
+          "key": "przeglad-dobrze-2",
+          "label": "Dobrze (2)",
+          "type": "set",
+          "actions": [
+            {
+              "type": "add",
+              "value": "opowiesc.przeglad",
+              "by": 1
+            }
+          ],
+          "next": "przeglad-3"
+        },
+        {
+          "key": "przeglad-dobrze-3",
+          "label": "Dobrze (3)",
+          "type": "set",
+          "actions": [
+            {
+              "type": "add",
+              "value": "opowiesc.przeglad",
+              "by": 1
+            }
+          ],
+          "next": "gate:przeglad-wynik"
+        },
+        {
+          "key": "przeglad-wynik",
+          "label": "Trzy z trzech?",
+          "type": "condition",
+          "when": {
+            "type": "value",
+            "value": "opowiesc.przeglad",
+            "op": "ge",
+            "than": 3
+          },
+          "yes": "koniec",
+          "no": "przeglad-znowu"
+        }
+      ],
+      "values": [
+        {
+          "id": "opowiesc.przeglad",
+          "label": "Przegląd: dobre odpowiedzi",
+          "start": 0,
+          "min": 0,
+          "max": 3
         }
       ]
     },
@@ -94,10 +168,40 @@
         "key": "razem",
         "label": "Obieg wody",
         "change": "rise",
-        "next": "koniec",
+        "next": "przeglad",
         "about": [
           "@opowiesc/t/obieg"
         ]
+      },
+      {
+        "key": "przeglad",
+        "label": "Przegląd",
+        "change": "rise",
+        "next": "gate:przeglad-zero"
+      },
+      {
+        "key": "przeglad-1",
+        "label": "Przegląd 1/3",
+        "change": "rise",
+        "next": "przeglad-2"
+      },
+      {
+        "key": "przeglad-2",
+        "label": "Przegląd 2/3",
+        "change": "rise",
+        "next": "przeglad-3"
+      },
+      {
+        "key": "przeglad-3",
+        "label": "Przegląd 3/3",
+        "change": "rise",
+        "next": "gate:przeglad-wynik"
+      },
+      {
+        "key": "przeglad-znowu",
+        "label": "Jeszcze nie",
+        "change": "rise",
+        "next": "przeglad"
       },
       {
         "key": "koniec",
@@ -377,6 +481,173 @@
       }
     },
     {
+      "id": "przeglad-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 1
+      },
+      "show": {
+        "places": {
+          "przeglad": {
+            "x": 50,
+            "y": 40,
+            "w": 60
+          }
+        }
+      },
+      "config": {
+        "title": "Przegląd: trzy pytania",
+        "body": [
+          "Czy zapamiętałeś, czego uczyła ta opowieść? Te same trzy pytania, jedno po drugim.",
+          "Trzy dobre odpowiedzi — i lekcja opada w Twoim krajobrazie do doliny."
+        ]
+      }
+    },
+    {
+      "id": "przeglad-parowanie",
+      "kind": "question",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "przeglad-1": {
+            "x": 50,
+            "y": 45,
+            "w": 62
+          }
+        },
+        "go": {
+          "przeglad-1:right": "gate:przeglad-dobrze-1",
+          "przeglad-1:wrong": "przeglad-2"
+        }
+      },
+      "config": {
+        "question": "@opowiesc/q/parowanie"
+      }
+    },
+    {
+      "id": "przeglad-chmury",
+      "kind": "question",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "przeglad-2": {
+            "x": 50,
+            "y": 45,
+            "w": 62
+          }
+        },
+        "go": {
+          "przeglad-2:right": "gate:przeglad-dobrze-2",
+          "przeglad-2:wrong": "przeglad-3"
+        }
+      },
+      "config": {
+        "question": "@opowiesc/q/chmury"
+      }
+    },
+    {
+      "id": "przeglad-opady",
+      "kind": "question",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 3
+      },
+      "show": {
+        "places": {
+          "przeglad-3": {
+            "x": 50,
+            "y": 45,
+            "w": 62
+          }
+        },
+        "go": {
+          "przeglad-3:right": "gate:przeglad-dobrze-3",
+          "przeglad-3:wrong": "gate:przeglad-wynik"
+        }
+      },
+      "config": {
+        "question": "@opowiesc/q/opady"
+      }
+    },
+    {
+      "id": "przeglad-znowu-tekst",
+      "kind": "text",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 1
+      },
+      "show": {
+        "places": {
+          "przeglad-znowu": {
+            "x": 50,
+            "y": 30,
+            "w": 60
+          }
+        }
+      },
+      "config": {
+        "title": "Przegląd jeszcze niezdany",
+        "body": [
+          "Nie wszystkie trzy odpowiedzi były dobre. Spróbuj jeszcze raz — albo zakończ teraz i wróć do przeglądu później („Powtórz przegląd” w krajobrazie i w Nauce)."
+        ]
+      }
+    },
+    {
+      "id": "przeglad-znowu-jeszcze",
+      "kind": "text",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 1
+      },
+      "show": {
+        "places": {
+          "przeglad-znowu": {
+            "x": 34,
+            "y": 62,
+            "w": 28
+          }
+        },
+        "go": {
+          "przeglad-znowu": "przeglad"
+        }
+      },
+      "config": {
+        "title": "Spróbuj jeszcze raz",
+        "body": []
+      }
+    },
+    {
+      "id": "przeglad-znowu-koniec",
+      "kind": "text",
+      "size": {
+        "colSpan": 4,
+        "rowSpan": 1
+      },
+      "show": {
+        "places": {
+          "przeglad-znowu": {
+            "x": 66,
+            "y": 62,
+            "w": 28
+          }
+        },
+        "go": {
+          "przeglad-znowu": "koniec"
+        }
+      },
+      "config": {
+        "title": "Zakończ na razie",
+        "body": []
+      }
+    },
+    {
       "id": "koniec-tekst",
       "kind": "text",
       "size": {
@@ -395,7 +666,8 @@
       "config": {
         "title": "Koniec opowieści",
         "body": [
-          "Lekcja „Skąd się bierze deszcz” opadła w Twoim krajobrazie do doliny."
+          "Opowieść „Skąd się bierze deszcz” za Tobą.",
+          "Zdany przegląd opuszcza lekcję w Twoim krajobrazie do doliny; bez niego zostaje ona na równinie jako „przegląd jeszcze niezdany”."
         ]
       }
     }

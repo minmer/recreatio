@@ -15,7 +15,7 @@
  * (`narrators`) wählen sich nach den Werten und stehen über jedem Schritt.
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { CardFace } from './CardFace';
 import { questionCard } from './cards';
@@ -36,7 +36,11 @@ import type { Facts } from './logic';
 import { publicEntity, type PublicEntity } from './publish';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
-import { Markup, MediaView } from './ui';
+import { CogitaContext, Markup, MediaView, originPath } from './ui';
+import { readPlan } from './revision';
+import { RevisionRun, type RunSource } from './RevisionRun';
+import { OPEN_LOCK, storyLock } from './storyLock';
+import { readView } from './views';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
 
@@ -107,7 +111,7 @@ const PATH_OPEN = 'cg-story-path-open:';
 const readOpen = (flow: string): boolean => { try { return sessionStorage.getItem(PATH_OPEN + flow) !== '0'; } catch { return true; } };
 const keepOpen = (flow: string, open: boolean): void => { try { sessionStorage.setItem(PATH_OPEN + flow, open ? '1' : '0'); } catch { /* ohne Speicher: offen */ } };
 
-export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play' }: {
+export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true }: {
   flow: Flow;
   content: FlowContent;
   learner: Learner | null;
@@ -121,6 +125,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   jumpTo?: { readonly step: string; readonly at: number } | null;
   /** Jede Antwort auch nach aussen (eine Sitzung mit Code sammelt sie für den Gastgeber). */
   onAnswer?: (step: string, card: Card, correctness: number, given: unknown) => void;
+  /** 2026-11-03 (Prompt 5) — vor einer Erzählung ihre Sperre prüfen (aus nur in einer Sitzung, die der Gastgeber führt). */
+  gate?: boolean;
 }) {
   const flow = useMemo(() => resolveFlow(given, content.flow), [given, content]);
   const saved = learner?.progress.positions.get(flow.id);
@@ -200,6 +206,18 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const reached = reachedNow;
 
   const restart = () => setState(startFlow(flow, learner?.progress.values ?? {}));
+  /*
+    2026-11-03 (Prompt 5) — DER PRZEGLĄD: welche Ziele erreicht sind (gemerkt und jetzt), und „Powtórz przegląd" — zum
+    Schritt, an dem er beginnt (`review`), ohne ihn an den Anfang.
+  */
+  const goalsHeld = mergeGoals(learner?.progress.positions.get(flow.id)?.goals, reachedNow);
+  const reviewOpen = flow.goals.length > 0 && !flow.goals.every((g) => goalsHeld.includes(g.id));
+  const reviewStep = flow.review !== undefined && flow.graph.nodes.some((n) => n.id === flow.review) ? flow.review : flow.start;
+  const toReview = () => {
+    if (reviewStep === null) { restart(); return; }
+    setAnsweredOn(null);
+    setState((s) => ({ ...s, flow: flow.id, step: reviewStep, ended: false, stack: [], visited: s.visited.includes(reviewStep) ? s.visited : [...s.visited, reviewStep] }));
+  };
 
   /*
     2026-11-03 (F) — DIE KARTE NEBEN DER ERZÄHLUNG: ihre Einträge in der Reihenfolge des Lernens (wo sie nichts sagt, in
@@ -225,6 +243,22 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     onBlur: () => setHovered(null)
   });
   const [pathOpen, setPathOpen] = useState(() => readOpen(flow.id));
+  /*
+    2026-11-03 (Prompt 5) — DIE SPERRE VOR EINER ERZÄHLUNG (`storyLock.ts`, die Logik des Krajobraz): fehlt vor ihrer Einheit
+    noch etwas, steht ein Bildschirm davor — was fehlt, in der Reihenfolge des Weges, mit Links und „Ucz się", dazu „Ustaw
+    jako cel"; sind nur Karten der Kette schwach, „Najpierw powtórz (N)" mit genau diesen Karten, danach weiter zur
+    Erzählung. Wer in der Baza schreibt, darf sie trotzdem ansehen („Podgląd mimo to").
+  */
+  const cg = useContext(CogitaContext);
+  const [unlocked, setUnlocked] = useState(false);
+  const [lockRun, setLockRun] = useState<{ readonly key: string; readonly source: RunSource; readonly weak: boolean } | null>(null);
+  const [lockTick, setLockTick] = useState(0);
+  const [goalSet, setGoalSet] = useState(false);
+  const progressNow = learner?.progress;
+  const lock = useMemo(() => {
+    if (!gate || unlocked || learner === null || flow.unit === undefined || cg === null || content.cards === undefined || cg.lib.entity(flow.unit) === undefined) return OPEN_LOCK;
+    return storyLock(cg.lib, content.cards, learner, flow.unit);
+  }, [gate, unlocked, learner, progressNow, flow.unit, cg, cg?.lib.revision, content.cards, lockTick]); // eslint-disable-line react-hooks/exhaustive-deps
   const jumpToEntry = (entry: string) => {
     const step = fp.stepOf.get(entry);
     if (step === undefined) return;
@@ -251,6 +285,67 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return one === null ? null : content.entity(one.character);
   };
 
+  if ((lock.missing.length > 0 || lock.weak.length > 0) && cg !== null) {
+    /* Nach „Najpierw powtórz" weiter zur Erzählung (wie im Krajobraz); nach „Ucz się" an einem fehlenden Eintrag neu geprüft. */
+    const back = () => { const weak = lockRun?.weak === true; setLockRun(null); if (weak) setUnlocked(true); else setLockTick((n) => n + 1); };
+    if (lockRun !== null) return <RevisionRun key={lockRun.key} lib={cg.lib} learner={learner} source={lockRun.source} onClose={back} onDone={back} />;
+    const all = content.cards ?? [];
+    const run = (title: string, list: readonly Card[], weak: boolean) => {
+      if (list.length === 0) return;
+      setLockRun({ key: `lock:${Date.now()}`, weak, source: { plan: readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), cards: all, title } });
+    };
+    const name = (id: string) => content.label?.(id) ?? content.entity(id)?.label ?? id;
+    const inWorkspace = typeof window !== 'undefined' && window.location.hash.startsWith('#/workspace');
+    const landscapes = cg.lib.docs('view').filter((d) => readView(d.data).mode === 'landscape');
+    const setGoal = () => {
+      if (learner === null || flow.unit === undefined) return;
+      for (const v of landscapes) void learner.keepPosition({ flow: `landscape:${v.id}`, step: flow.unit, visited: [], at: Date.now() }).catch(() => undefined);
+      setGoalSet(true);
+    };
+    const missing = lock.missing.length > 0;
+    return (
+      <section className="cg-flow cg-flow-locked" data-flow-locked={missing ? 'missing' : 'weak'}>
+        <div className="cg-flow-step">
+          <h2><TexText text={flow.name} /></h2>
+          {missing ? (
+            <>
+              <p><strong>Ta opowieść jest jeszcze zamknięta.</strong> Otworzy się, gdy poznasz to, co trzeba znać przed nią — od podstaw:</p>
+              <ol className="cg-flow-missing" data-flow-missing={lock.missing.length}>
+                {lock.missing.map((id) => {
+                  const origin = cg.lib.origin(id);
+                  const own = cardsAbout(all, id);
+                  return (
+                    <li key={id} data-flow-missing-item={id}>
+                      {inWorkspace && origin !== undefined ? <a className="cg-ref" href={originPath(origin, id, 'wpisy')}><TexText text={name(id)} /></a> : <TexText text={name(id)} />}
+                      {learner !== null && own.length > 0 && <> · <button type="button" className="wk-link-btn" onClick={() => run(name(id), own, false)} data-flow-missing-learn={id}>Ucz się</button></>}
+                    </li>
+                  );
+                })}
+              </ol>
+              {learner !== null && landscapes.length > 0 && (
+                <div className="wk-actions">
+                  <button type="button" className="wk-btn" onClick={setGoal} disabled={goalSet} data-flow-goal="">{goalSet ? 'Cel ustawiony' : 'Ustaw jako cel'}</button>
+                </div>
+              )}
+              {goalSet && <p className="cg-muted" role="status">W krajobrazie ta lekcja jest teraz Twoim celem — z ponumerowaną drogą do niej.</p>}
+            </>
+          ) : (
+            <>
+              <p>Wszystko, czego ta opowieść wymaga, już poznałeś — ale {lock.weak.length === 1 ? 'jedną kartę' : `${lock.weak.length} kart`} z tego warto najpierw powtórzyć.</p>
+              <div className="wk-actions">
+                <button type="button" className="wk-btn" onClick={() => run(`Najpierw powtórka: ${flow.name}`, lock.weak, true)} data-flow-review-first={lock.weak.length}>Najpierw powtórz ({lock.weak.length})</button>
+              </div>
+            </>
+          )}
+          <div className="wk-actions">
+            {cg.writes && <button type="button" className="wk-link-btn" onClick={() => setUnlocked(true)} data-flow-preview="">Podgląd mimo to</button>}
+            {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button>}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   /* 2026-10-22 (Schritt 12) — ein Storyboard: die Präsentation spielt selbst; der Ablauf bringt den Lernenden und die Erzähler mit. */
   if (flow.presentation !== undefined) {
     if (presentationAs === 'link') {
@@ -267,6 +362,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return (
       <Suspense fallback={<Loading />}>
         <PresentationInNauka name={flow.name} path={flow.presentation} learner={learner} onClose={onClose} content={content} unit={flow.unit ?? null}
+          startAt={jumpTo == null ? null : { scene: jumpTo.step, at: jumpTo.at }}
           narrator={flow.narrators.length === 0 ? undefined : (f) => <Narrator who={narratorOf(f)} says={null} />} />
       </Suspense>
     );
@@ -277,9 +373,15 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       <section className={`cg-flow cg-flow-${look}`}>
         <div className="cg-flow-step">
           <h2>Koniec — <TexText text={flow.name} /></h2>
-          {flow.goals.length > 0 && <Goals flow={flow} reached={reached} />}
+          {flow.goals.length > 0 && <Goals flow={flow} reached={goalsHeld} />}
+          {flow.goals.length > 0 && (
+            <p className={reviewOpen ? 'wk-note' : 'cg-muted'} data-flow-review={reviewOpen ? 'open' : 'passed'}>
+              {reviewOpen ? 'Opowieść ukończona — przegląd jeszcze niezdany.' : 'Przegląd zdany — opowieść zaliczona.'}
+            </p>
+          )}
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={restart}>Od początku</button>
+            {reviewOpen && <button type="button" className="wk-btn" onClick={toReview} data-flow-review-again="">Powtórz przegląd</button>}
+            <button type="button" className={reviewOpen ? 'wk-btn wk-btn-line' : 'wk-btn'} onClick={restart}>Od początku</button>
             {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>Wróć</button>}
           </div>
         </div>

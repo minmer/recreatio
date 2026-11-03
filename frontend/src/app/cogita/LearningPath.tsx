@@ -29,6 +29,7 @@ import type { Card } from './cardBasics';
 import { gaugeFromMarks, itemKnowness, ownKnowness } from './knowing';
 import { KNOWN } from './knowness';
 import { answeredCards, renamer, type Learner } from './learn';
+import { learnerFlows, STORY_BUTTON, storyStage, storyUnitsOf } from './flowFacts';
 import { authorOrder, gaugeKnow, pathOfEntries, usePathRun } from './PathLearn';
 import { PathMap } from './PathMap';
 import { pathMarks } from './pathLayout';
@@ -78,6 +79,14 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const now = Date.now();
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
   const g = gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now);
+  /*
+    2026-11-03 (Prompt 5) — ERZÄHLUNGEN ALS KNOTEN: eine Einheit, auf die ein Ablauf zeigt und die keine eigenen Karten hat,
+    steht auf der Karte (gelernt, wenn ihr Przegląd bestanden ist); ihr Knopf öffnet den Spieler — an der Stelle des
+    Lernenden, „Powtórz przegląd" am Przegląd. Nie Karten üben, die sie nicht hat.
+  */
+  const stories = storyUnitsOf(lib, (id) => g.testing.has(id));
+  const told = learnerFlows(lib, learner?.progress.positions);
+  const stageOf = (id: string) => { const f = stories.get(id); return f === undefined ? null : storyStage(f, told.get(f.id)); };
   const stateOf = (id: string): { state: State; waits: string[] } => {
     if (!g.askable.has(id)) return { state: 'order', waits: [] };
     if (ownKnowness(g, id) >= KNOWN) return { state: 'known', waits: [] };
@@ -98,9 +107,10 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const shown = (id: string) => entityNameTex(lib, id);
   /* 2026-11-03 (F) — die Karte: was Karten hat, von den Grundlagen her (Einträge, die nur ordnen, sind durchsichtig), je Ebene in der Reihenfolge des Autors. */
   const byAuthor = authorOrder(lib);
-  const items = order.flatMap((at) => levels.get(at)!.filter((id) => g.askable.has(id)).sort(byAuthor)).map((id) => ({ id, label: name(id) }));
+  const items = order.flatMap((at) => levels.get(at)!.filter((id) => g.askable.has(id) || stories.has(id)).sort(byAuthor)).map((id) => ({ id, label: name(id) }));
   const model = pathOfEntries(items, graph, false);
-  const marks = pathMarks(model, gaugeKnow(g));
+  const known = gaugeKnow(g);
+  const marks = pathMarks(model, (id) => { const st = stageOf(id); return st === null ? known(id) : { learned: st === 'passed', due: false }; });
 
   return (
     <div className="cg cg-path" data-learning-path={order.length}>
@@ -117,9 +127,15 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
         detail={(id) => { const n = cardsAbout(cards, id).length; return n === 0 ? null : `${n} ${n === 1 ? 'karta' : 'kart'}`; }}
         actions={(id, state) => (
           <div className="wk-actions">
-            <button type="button" className="wk-btn" onClick={() => setRun({ title: name(id), ids: [id] })} data-path-learn={id}>
-              {state === 'done' ? 'Powtórz' : 'Ucz się'}{state !== 'done' && (graph.needs.get(id) ?? []).length > 0 ? ' (z podstawami)' : ''}
-            </button>
+            {stageOf(id) !== null ? (
+              <button type="button" className="wk-btn" onClick={() => go('przebiegi', stories.get(id)!.id, 'graj', ...(stageOf(id) === 'review' ? ['przeglad'] : []))} data-path-story={stageOf(id)!}>
+                {STORY_BUTTON[stageOf(id)!]}
+              </button>
+            ) : (
+              <button type="button" className="wk-btn" onClick={() => setRun({ title: name(id), ids: [id] })} data-path-learn={id}>
+                {state === 'done' ? 'Powtórz' : 'Ucz się'}{state !== 'done' && (graph.needs.get(id) ?? []).length > 0 ? ' (z podstawami)' : ''}
+              </button>
+            )}
             {lib.origin(id) !== undefined && <a className="wk-link-btn" href={originPath(lib.origin(id)!, id, 'wpisy')}>Otwórz wpis</a>}
           </div>
         )} />

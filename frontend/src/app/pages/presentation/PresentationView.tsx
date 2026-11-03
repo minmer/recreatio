@@ -52,7 +52,7 @@ import { LayerArt, layerBackground } from './deckLayers';
 import { MotionBox, SlidePhase, type Phase } from '../motion/MotionBox';
 import { backdropAt } from '../slides/slideMotion';
 import { usePrefersDark, usePrefersReducedMotion } from '../slides/SlideDeck';
-import { addressWithSlide, anchorOf, slideInAddress } from '../slides/slides';
+import { addressWithSlide, anchorOf, sceneInAddress, slideInAddress } from '../slides/slides';
 import { imageUrl, resolveTheme, type Layer, type Theme } from '../slides/slideLook';
 import { usePresentationDrive, type DriveControl } from './usePresentationDrive';
 
@@ -205,7 +205,9 @@ export function PresentationView({
   /** Der Weg von vorn — mit einem Przebieg durch die Tore; wer schon hier war, auf dem Weg zu seiner letzten Szene. */
   const freshRoute = (): readonly string[] => {
     if (!storyOn || show.scenes.length === 0) return routeOf(show);
-    const last = story.last();
+    /* 2026-11-03 (Prompt 5) — eine Szene in der Adresse (`?scena=`, der Przegląd) gilt vor der letzten Stelle. */
+    const asked = sceneInAddress(window.location.hash);
+    const last = asked !== null && byKey.has(asked) ? asked : story.last();
     if (last !== null && byKey.has(last) && last !== show.scenes[0].key) {
       const way = routeTo(show, pieces.map((one) => one.piece), last);
       const upTo = way.indexOf(last);
@@ -687,8 +689,9 @@ export function PresentationView({
     if (mode !== 'page') return 0;
     const n = slideInAddress(window.location.hash);
     if (n === null && storyOn) {
-      /* 2026-10-21 — ein Przebieg: dort weiter, wo der Lernende aufgehört hat. */
-      const last = story.last();
+      /* 2026-10-21 — ein Przebieg: dort weiter, wo der Lernende aufgehört hat (2026-11-03: oder an der Szene der Adresse). */
+      const asked = sceneInAddress(window.location.hash);
+      const last = asked !== null && scenes.some((sc) => sc.key === asked) ? asked : story.last();
       const at = last === null ? -1 : scenes.findIndex((sc) => sc.key === last);
       return at > 0 ? zones[at]?.at ?? 0 : 0;
     }

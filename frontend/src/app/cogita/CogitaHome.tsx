@@ -20,7 +20,7 @@
  * dem Wissen, ohne Kopie; eine Karte führt zurück zu ihrem Eintrag.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { areaKeys } from '../chat/chat';
 import type { OpenLibrary } from '../library/library';
@@ -43,6 +43,7 @@ import { EntityList } from './EntityList';
 import { ExploreMap } from './ExploreMap';
 import { FlowEditor } from './FlowEditor';
 import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
+import { reviewStart } from './flowFacts';
 import { readFlow, resolveFlow } from './flow';
 import { answersArea } from './answersTo';
 import { holderOfMe, useLearner } from './holders';
@@ -300,9 +301,12 @@ function FlowsTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, entry?.version]);
   const content = useMemo(() => (cards === null ? null : contentOfLibrary(lib, cards)), [lib, cards]);
+  /* 2026-11-03 (Prompt 5) — „…/graj/przeglad": „Powtórz przegląd" — der Spieler beginnt am Teil des Przeglądu (sonst am Anfang). */
+  const [asked] = useState(() => Date.now());
+  const jump = flow !== null && trail[1] === 'graj' && trail[2] === 'przeglad' ? { step: reviewStart(flow), at: asked } : null;
   if (flow !== null && (trail[1] === 'graj' || !writes)) {
     if (content === null) return <p className="wk-hint">Przygotowywanie…</p>;
-    return <FlowPlayer flow={flow} content={content} learner={learner} onClose={() => go(writes ? 'przebiegi' : 'nauka')} />;
+    return <FlowPlayer flow={flow} content={content} learner={learner} onClose={() => go(writes ? 'przebiegi' : 'nauka')} jumpTo={jump} />;
   }
   if (!writes) {
     return (

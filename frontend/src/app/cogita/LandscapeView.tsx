@@ -28,15 +28,15 @@ import { createPortal } from 'react-dom';
 
 import type { Card } from './cardBasics';
 import { gaugeFromMarks, withFlows } from './knowing';
-import { learnerFlows } from './flowFacts';
+import { learnerFlows, reviewStart, STORY_BUTTON, storyStage, type StoryStage } from './flowFacts';
 import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_BUDGET, LS_FORE, LS_SHRINK, LS_TILE, type LsBand, type LsBands, type LsField, type LsInput, type LsLand, type LsLayout, type LsRun, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
 import { cellEdges, hexRoutes, numberedStep, placeLabels, segmentKey, type DrawLabel } from './landscapeDraw';
 import { answeredCards, renamer, type Learner } from './learn';
 import { gaugeKnow, pathOfEntries, unitMembers } from './PathLearn';
-import { readFlow } from './flow';
-import { contentOfLibrary, stepEntries } from './FlowPlayer';
+import { readFlow, resolveFlow, type Flow } from './flow';
+import { contentOfLibrary, FlowPlayer, stepEntries } from './FlowPlayer';
 import { flowCurrent, flowPath, flowPathModel } from './flowPath';
 import { viewPath } from '../routes';
 import { PathMap } from './PathMap';
@@ -126,6 +126,11 @@ function geometryOf(layout: LsLayout, width: number, compact: boolean): Geo {
 /* -- Worte -------------------------------------------------------------------------------------------------------- */
 
 const steps = (n: number): string => `${n} ${n === 1 ? 'krok' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'kroki' : 'kroków'}`;
+
+/** 2026-11-03 (Prompt 5) — wo der Lernende in einer Erzählung steht, in Worten. */
+const STORY_WORDS: Readonly<Record<StoryStage, string>> = {
+  new: '', started: 'w drodze', review: 'ukończona — przegląd jeszcze niezdany', passed: 'ukończona'
+};
 
 /** Der Stand eines Feldes in Worten (D): gotowe do nauki, 2 kroki dalej, do powtórki, umiesz. */
 function stateWords(f: Pick<LsField, 'band' | 'missing' | 'locked'>): string {
@@ -435,7 +440,10 @@ export interface LandscapeProps {
   readonly busy?: boolean;
 }
 
-type Running = { readonly key: string; readonly source: RunSource; readonly then?: () => void };
+/** Was hier drin läuft: eine Powtórka (RevisionRun) — oder 2026-11-03 (Prompt 5) eine Erzählung im Spieler (an ihrer Stelle oder am Przegląd). */
+type Running =
+  | { readonly key: string; readonly source: RunSource; readonly then?: () => void; readonly story?: undefined }
+  | { readonly key: string; readonly story: Flow; readonly jump: { readonly step: string; readonly at: number } | null; readonly source?: undefined };
 
 
 export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
@@ -468,7 +476,12 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   */
   const stories = useMemo(() => lib.docs('flow').map((d) => ({ doc: d, flow: readFlow(d.id, d.data) })).filter((x) => x.flow.unit !== undefined), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   const storyOf = (id: string) => stories.find((x) => x.flow.unit === id)?.flow;
-  const lowered = useMemo(() => new Set(stories.filter((x) => flows.get(x.flow.id)?.done === true).map((x) => x.flow.unit!)), [stories, flows]);
+  /*
+    2026-11-03 (Prompt 5) — ERST DER BESTANDENE PRZEGLĄD SENKT: ein Ablauf mit Zielen senkt seine Einheit, wenn er zu Ende ist
+    und jedes Ziel erreicht hat; ohne Ziele wie bisher, wenn er zu Ende ist.
+  */
+  const lowered = useMemo(() => new Set(stories.filter((x) => storyStage(x.flow, flows.get(x.flow.id)) === 'passed').map((x) => x.flow.unit!)), [stories, flows]);
+  const stageOf = (flow: Flow): StoryStage => storyStage(flow, flows.get(flow.id));
   const shownAskable = useMemo(() => (stories.length === 0 ? gauge : { ...gauge, askable: new Set([...gauge.askable, ...stories.map((x) => x.flow.unit!)]) }), [gauge, stories]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const input = useMemo(() => landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, list, view.group, shownAskable), [lib, lib.revision, listKey, groupKey, cards, stories]);
@@ -538,19 +551,28 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       if (plan !== null) setRunning({ key: `learn:${id}:${Date.now()}`, source: { plan, cards, title: labelOf(id) } });
     })();
   };
-  const reviewFirst = (id: string) => {
+  const reviewFirst = (id: string, after?: () => void) => {
     setNote(null);
     const groups = lockCards(gauge, lib.prerequisites(), id, cards);
     const list = groups.flatMap((g) => g.cards).filter((c) => !(learner?.progress.suspended.has(c.key) ?? false));
-    if (list.length === 0) { learnEntry(id); return; }
+    const next = after ?? (() => learnEntry(id));
+    if (list.length === 0) { next(); return; }
     const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true });
-    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `Najpierw powtórka: ${labelOf(id)}` }, then: () => learnEntry(id) });
+    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `Najpierw powtórka: ${labelOf(id)}` }, then: next });
   };
   const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.length, 0);
 
   /* Immer in einer Hülle, deren Breite gemessen wird (das Budget hängt an ihr) — auch beim Warten und im Lauf. */
   const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
   if (running !== null) {
+    /* 2026-11-03 (Prompt 5) — eine Erzählung im Spieler, hier drin: an der Stelle, an der der Lernende war, oder am Przegląd. */
+    if (running.story !== undefined) {
+      return host(
+        <div className="cg-ls-run" data-landscape-run="story" data-landscape-run-flow={running.story.id}>
+          <FlowPlayer key={running.key} flow={running.story} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setRunning(null)} jumpTo={running.jump} />
+        </div>
+      );
+    }
     return host(
       <div className="cg-ls-run" data-landscape-run={running.key.split(':')[0]}>
         <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} rewards={rewards}
@@ -558,6 +580,17 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       </div>
     );
   }
+  /*
+    2026-11-03 (Prompt 5) — EINE EINHEIT, DIE EINE ERZÄHLUNG IST (ein Ablauf zeigt auf sie, eigene Karten hat sie keine): ihr
+    Knopf öffnet den Spieler — „Powtórz przegląd" am Teil des Przeglądu (`review`; ohne ihn am Anfang).
+  */
+  const storyUnit = (id: string): Flow | undefined => (gauge.testing.has(id) ? undefined : storyOf(id));
+  const openStory = (flow: Flow, review: boolean) => {
+    const find = (x: string) => { const d = lib.docs('flow').find((one) => one.id === x); return d === undefined ? undefined : readFlow(d.id, d.data); };
+    const full = resolveFlow(flow, find);
+    const at = review ? reviewStart(full) : null;
+    setRunning({ key: `story:${full.id}:${Date.now()}`, story: full, jump: at === null ? null : { step: at, at: Date.now() } });
+  };
   /* 2026-11-03 (F) — wie viele Teile eine Einheit hat (ihre Ścieżka), und sie gross statt der Karte. */
   const askable = (id: string) => gauge.askable.has(id);
   /* 2026-11-03 (G) — eine Einheit, die eine Erzählung ist: ihre Ścieżka ist die der Erzählung (jetzt dran: wo er in ihr steht). */
@@ -584,7 +617,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         </div>
         {told !== undefined && (
           <p className="cg-muted" data-landscape-unit-story={told.id} data-landscape-unit-done={flows.get(told.id)?.done === true ? '1' : '0'}>
-            Opowieść: <strong><TexText text={told.name} /></strong>{flows.get(told.id)?.done === true ? ' — ukończona' : flows.has(told.id) ? ' — w drodze' : ''}
+            Opowieść: <strong><TexText text={told.name} /></strong>{STORY_WORDS[stageOf(told)] === '' ? '' : ` — ${STORY_WORDS[stageOf(told)]}`}
             {urlScope === '' && <> · <a className="wk-link" href={viewPath('learn', lib.libraryId, 'przebiegi', told.id, 'graj')} data-landscape-unit-play="">{flows.has(told.id) ? 'Wróć do opowieści' : 'Zacznij opowieść'}</a></>}
           </p>
         )}
@@ -638,7 +671,9 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         onZoom={(value) => setFocus([value])}
         quest={(f, paths) => (
           <Quest field={f} goal={goal} canLearn={learner !== null} note={note} label={labelOf} lockCount={lockCount} paths={paths} unitSize={unitSize} onUnit={(id) => keep.setUnit(id)}
-            onLearn={(id) => learnEntry(id)} onReview={(id, band) => learnEntry(id, band !== 'known')} onReviewFirst={(id) => reviewFirst(id)}
+            story={(() => { const flow = f.kind === 'entry' ? storyUnit(f.id!) : undefined; return flow === undefined ? null : { stage: stageOf(flow), open: (review: boolean) => openStory(flow, review) }; })()}
+            onLearn={(id) => learnEntry(id)} onReview={(id, band) => learnEntry(id, band !== 'known')}
+            onReviewFirst={(id) => { const flow = storyUnit(id); reviewFirst(id, flow === undefined ? undefined : () => openStory(flow, false)); }}
             onGoal={(id, on) => { setGoal(on ? id : null); setSaid(on ? `Cel: ${labelOf(id)}` : 'Cel usunięty'); }}
             onZoom={() => zoom(f)} canZoom={opens(f)} {...(onOpen === undefined ? {} : { onOpen })} />
         )} />
@@ -1237,8 +1272,10 @@ function ProgressRing({ known, total }: { known: number; total: number }) {
  * DIE KARTE EINES FELDES (D; 2026-11-03, Prompt 3): oben, was immer zu sehen bleibt — Name, Fortschritt, Stand, der Knopf;
  * darunter, was rollt — was darin liegt, der ganze Weg (jeder Schritt, das Ziel zuletzt), was danach kommt.
  */
-function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen, unitSize, onUnit }: {
+function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen, unitSize, onUnit, story = null }: {
   field: LsField;
+  /** 2026-11-03 (Prompt 5) — die Einheit ist eine Erzählung: wo der Lernende in ihr steht, und sie öffnen (am Przegląd oder an seiner Stelle). */
+  story?: { readonly stage: StoryStage; readonly open: (review: boolean) => void } | null;
   /** 2026-11-03 (F) — wie viele Teile eine Einheit hat; öffnen zeigt ihre Ścieżka gross. */
   unitSize: (id: string) => number;
   onUnit: (id: string) => void;
@@ -1310,13 +1347,16 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
         <>
           <div className="cg-ls-qrow">
             {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
-            <p className="cg-ls-qstate" data-landscape-state={f.band}><span aria-hidden>{markOf(f)} </span>{stateWords(f)}</p>
+            <p className="cg-ls-qstate" data-landscape-state={f.band}><span aria-hidden>{markOf(f)} </span>{story !== null && story.stage === 'review' ? `Opowieść ${STORY_WORDS.review}` : stateWords(f)}</p>
           </div>
+          {story !== null && <p className="cg-muted" data-landscape-story-stage={story.stage}>{story.stage === 'review' ? 'Wróć do przeglądu na końcu opowieści — pole opadnie, gdy go zdasz.' : STORY_WORDS[story.stage] === '' ? 'Opowieść' : `Opowieść — ${STORY_WORDS[story.stage]}`}</p>}
           <div className="wk-actions">
-            {canLearn && f.band === 'ring' && !f.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">Zacznij</button>}
+            {canLearn && story !== null && f.band !== 'mountain' && !(f.band === 'ring' && f.locked) && <button type="button" className="wk-btn" onClick={() => story.open(story.stage === 'review')} data-landscape-story={story.stage}>{STORY_BUTTON[story.stage]}</button>}
+            {canLearn && story === null && f.band === 'ring' && !f.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">Zacznij</button>}
             {canLearn && f.band === 'ring' && f.locked && <button type="button" className="wk-btn" onClick={() => onReviewFirst(id)} data-landscape-review-first="">Najpierw powtórz ({locks})</button>}
-            {canLearn && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">Powtórz</button>}
+            {canLearn && story === null && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">Powtórz</button>}
             {f.band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? 'Usuń cel' : 'Ustaw jako cel'}</button>}
+            {canLearn && story !== null && f.band === 'mountain' && <button type="button" className="wk-link-btn" onClick={() => story.open(false)} data-landscape-story="locked">Otwórz opowieść</button>}
             {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">Otwórz wpis</button>}
             {parts > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>Pokaż ścieżkę ({parts})</button>}
           </div>

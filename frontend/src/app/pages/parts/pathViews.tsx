@@ -4,11 +4,13 @@
  * Ścieżka (`cogita/PathMap.tsx`): einer Erzählung, einer Einheit, eines Widoku oder der ganzen Baza.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { PartContext } from '../part';
 import { answersArea } from '../../cogita/answersTo';
-import { contentOfLibrary, stepEntries } from '../../cogita/FlowPlayer';
+import { contentOfLibrary, FlowPlayer, stepEntries } from '../../cogita/FlowPlayer';
+import { learnerFlows, reviewStart, STORY_BUTTON, storyStage, storyUnitsOf } from '../../cogita/flowFacts';
+import type { Flow } from '../../cogita/flow';
 import { flowCurrent, flowPath, flowPathModel, flowShown } from '../../cogita/flowPath';
 import { gaugeFromMarks } from '../../cogita/knowing';
 import { answeredCards, renamer } from '../../cogita/learn';
@@ -62,7 +64,9 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
     if (lib == null || cards == null || gauge === null) return { model: EMPTY_PATH, current: null, note: null };
     const graph = lib.prerequisites();
     const label = (id: string) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
-    const askable = (id: string) => gauge.askable.has(id);
+    /* 2026-11-03 (Prompt 5) — eine Einheit, die eine Erzählung ist (ohne eigene Karten), steht auf der Karte wie ein Schritt. */
+    const stories = storyUnitsOf(lib, (id) => gauge.testing.has(id));
+    const askable = (id: string) => gauge.askable.has(id) || stories.has(id);
     if (config.flow !== '') {
       const content = contentOfLibrary(lib, cards);
       const flow = content.flow(config.flow);
@@ -98,6 +102,22 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   }, [lib, lib?.revision, cards, gauge, config.flow, config.entry, config.view, learner, live, shown]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = usePathRun(lib ?? null, learner, cards ?? null);
+  /*
+    2026-11-03 (Prompt 5) — DER KNOPF EINER ERZÄHLUNG: eine Präsentation ist eine Seite — dorthin, an die Stelle des
+    Lernenden (der Przegląd über `?scena=`); ein eigener Graph spielt hier im Baustein, im Spieler.
+  */
+  const [story, setStory] = useState<{ readonly flow: Flow; readonly jump: { readonly step: string; readonly at: number } | null } | null>(null);
+  const stories = useMemo(() => (lib == null || gauge === null ? new Map<string, Flow>() : storyUnitsOf(lib, (id) => gauge.testing.has(id))), [lib, lib?.revision, gauge]); // eslint-disable-line react-hooks/exhaustive-deps
+  const told = useMemo(() => (lib == null ? new Map() : learnerFlows(lib, learner?.progress.positions)), [lib, lib?.revision, learner, live]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stageOf = (id: string) => { const f = stories.get(id); return f === undefined ? null : storyStage(f, told.get(f.id)); };
+  const openStory = (flow: Flow, review: boolean) => {
+    if (flow.presentation !== undefined) {
+      const scene = review ? reviewStart(flow) : '';
+      window.location.hash = `#/${flow.presentation}${scene === '' ? '' : `?scena=${encodeURIComponent(scene)}`}`;
+      return;
+    }
+    setStory({ flow, jump: review ? { step: reviewStart(flow), at: Date.now() } : null });
+  };
 
   if (lib == null || cg === null) {
     return (
@@ -109,7 +129,15 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   }
   if (cards == null || gauge === null) return <><h2 className="wk-card-title">{title}</h2><Loading label="Liczenie kart…" /></>;
   if (run.view !== null) return <CogitaContext.Provider value={cg}>{run.view}</CogitaContext.Provider>;
-  const marks = pathMarks(made.model, made.shown === undefined ? gaugeKnow(gauge) : storyKnow(gauge, made.shown), made.current);
+  if (story !== null) {
+    return (
+      <CogitaContext.Provider value={cg}>
+        <FlowPlayer key={`${story.flow.id}:${story.jump?.at ?? 0}`} flow={story.flow} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setStory(null)} jumpTo={story.jump} presentationAs="link" />
+      </CogitaContext.Provider>
+    );
+  }
+  const baseKnow = made.shown === undefined ? gaugeKnow(gauge) : storyKnow(gauge, made.shown);
+  const marks = pathMarks(made.model, (id) => { const st = stageOf(id); return st === null ? baseKnow(id) : { learned: st === 'passed', due: false }; }, made.current);
   const tall = isTall(ctx);
   const label = (id: string) => made.model.nodes[made.model.index.get(id) ?? -1]?.label ?? id;
 
@@ -129,9 +157,15 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
           detail={(id) => { const n = cardsAbout(cards, id).length; return n === 0 ? null : `${n} ${n === 1 ? 'karta' : 'kart'}`; }}
           actions={(id, state) => (
             <div className="wk-actions">
-              <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => run.start(label(id), [id])} data-path-learn={id}>
-                {state === 'done' ? 'Powtórz' : state === 'locked' ? 'Ucz się z podstawami' : 'Ucz się'}
-              </button>
+              {stageOf(id) !== null ? (
+                <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => openStory(stories.get(id)!, stageOf(id) === 'review')} data-path-story={stageOf(id)!}>
+                  {STORY_BUTTON[stageOf(id)!]}
+                </button>
+              ) : (
+                <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => run.start(label(id), [id])} data-path-learn={id}>
+                  {state === 'done' ? 'Powtórz' : state === 'locked' ? 'Ucz się z podstawami' : 'Ucz się'}
+                </button>
+              )}
             </div>
           )} />
         <LearnerLine learner={who} lib={lib} />

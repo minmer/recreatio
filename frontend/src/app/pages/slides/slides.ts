@@ -364,6 +364,18 @@ export function slideInAddress(hash: string): number | null {
 }
 
 /**
+ * 2026-11-03 (Prompt 5) — welche Szene einer Präsentation die Adresse nennt: `#/<seite>?scena=przeglad` (der Przegląd
+ * einer Erzählung — „Powtórz przegląd" von einem Baustein „Ścieżka"); null, wenn keine.
+ */
+export function sceneInAddress(hash: string): string | null {
+  const plain = withoutAnchor(hash);
+  const at = plain.indexOf('?');
+  if (at < 0) return null;
+  const key = (new URLSearchParams(plain.slice(at + 1)).get('scena') ?? '').trim();
+  return key === '' ? null : key;
+}
+
+/**
  * 0086 — DER ANKER IN DER ADRESSE: `#/<seite>#zapisy` (oder `…?s=2#zapisy`) —
  * der Teil hinter der zweiten Raute, kleingeschrieben; leer, wenn keiner da ist.
  * So führt ein Link (etwa der nach dem Absenden) auf einen Slajd nach seinem Namen.

@@ -189,6 +189,11 @@ export interface Flow {
    * ist die der Erzählung, und wer sie zu Ende bringt, senkt das Feld ins Tal.
    */
   readonly unit?: string;
+  /**
+   * 2026-11-03 (Prompt 5) — WO DER PRZEGLĄD BEGINNT: ein Schritt des eigenen Graphen (bei einer Präsentation der Schlüssel
+   * einer Szene). „Powtórz przegląd" springt dorthin; ohne ihn an den Anfang.
+   */
+  readonly review?: string;
 }
 
 export function readFlow(id: string, raw: unknown): Flow {
@@ -214,7 +219,8 @@ export function readFlow(id: string, raw: unknown): Flow {
     lines: (Array.isArray(d.lines) ? d.lines : []).flatMap((l): CharacterLine[] => (isObject(l) && str(l.character) !== '' && str(l.of) !== '' ? [{ character: str(l.character), of: str(l.of), condition: readCondition(l.condition), once: l.once !== false }] : [])),
     narrators: (Array.isArray(d.narrators) ? d.narrators : []).flatMap((n): Narrator[] => (isObject(n) && str(n.character) !== '' ? [{ character: str(n.character), condition: readCondition(n.condition) }] : [])).slice(0, 12),
     ...(str(d.presentation).trim() === '' ? {} : { presentation: str(d.presentation).trim().replace(/^#?\/?/, '') }),
-    ...(str(d.unit).trim() === '' ? {} : { unit: str(d.unit).trim() })
+    ...(str(d.unit).trim() === '' ? {} : { unit: str(d.unit).trim() }),
+    ...(str(d.review).trim() === '' ? {} : { review: str(d.review).trim() })
   };
 }
 

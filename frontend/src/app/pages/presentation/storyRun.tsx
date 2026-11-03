@@ -221,18 +221,19 @@ export function useStoryRun(show: Show, pageId: string | null, given: CogitaLear
       const marks = learner.marks(id);
       return marks.length === 0 ? null : marks[marks.length - 1].correctness;
     };
+    const factsNow = () => ({
+      values: startValues(story, learner.progress.values),
+      knowness: entryKnowness,
+      answered: lastOf,
+      visited: visited.current,
+      now: new Date(),
+      /* 2026-11-03 (G) — die Erzählungen dieses Lernenden in der Baza (die Bedingung „Przebieg"). */
+      flow: (id: string) => gaugeNow()?.flows?.get(id.startsWith('@') ? resolve(id) ?? id : id)
+    });
     return {
       mode: learner.holder.kind === 'local' ? 'browser' : 'cogita',
       version,
-      facts: () => ({
-        values: startValues(story, learner.progress.values),
-        knowness: entryKnowness,
-        answered: lastOf,
-        visited: visited.current,
-        now: new Date(),
-        /* 2026-11-03 (G) — die Erzählungen dieses Lernenden in der Baza (die Bedingung „Przebieg"). */
-        flow: (id) => gaugeNow()?.flows?.get(id.startsWith('@') ? resolve(id) ?? id : id)
-      }),
+      facts: factsNow,
       record: (card, correctness, given) => {
         learner.record(card, correctness, {
           ...(given === undefined ? {} : { given }), via: flowOf(pageId),
@@ -268,10 +269,15 @@ export function useStoryRun(show: Show, pageId: string | null, given: CogitaLear
         keepTimer.current = window.setTimeout(() => {
           const kept = learner.progress.positions.get(flowOf(pageId));
           const done = ends || kept?.done === true;
-          if (kept?.step === sceneKey && kept.visited.length === visited.current.size && (kept.done === true) === done && (pagePath === null || kept.path === pagePath)) return;
+          /* 2026-11-03 (Prompt 5) — die Ziele des Ablaufs der Baza, der auf diese Seite zeigt (der Przegląd): einmal erreicht bleibt erreicht. */
+          const reached = baseOpen === null ? [] : loaded.flowFacts.pageGoals(baseOpen.lib, pagePath, factsNow());
+          const goals = loaded.flowFacts.mergeGoals(kept?.goals, reached);
+          const sameGoals = goals.length === (kept?.goals?.length ?? 0);
+          if (kept?.step === sceneKey && kept.visited.length === visited.current.size && (kept.done === true) === done && (pagePath === null || kept.path === pagePath) && sameGoals) return;
           void learner.keepPosition({
             flow: flowOf(pageId), step: sceneKey, visited: [...visited.current], at: Date.now(),
-            ...(done ? { done: true } : {}), ...(pagePath === null || pagePath === '' ? {} : { path: pagePath })
+            ...(done ? { done: true } : {}), ...(pagePath === null || pagePath === '' ? {} : { path: pagePath }),
+            ...(goals.length > 0 ? { goals } : {})
           }).catch(() => undefined);
         }, ends ? 300 : 1500);
       },

@@ -787,7 +787,7 @@ function StoryPlay({ session, meta, learner, jump, raw, onAnswer, game }: {
     <CogitaContext.Provider value={ctx}>
       <div className="cg">
         {game !== null && <GamePlay sessionId={session.sessionId} cred={game.cred} player={game.player} team={game.team} events={raw} onOpen={game.onOpen} />}
-        <FlowPlayer flow={flow} content={content} learner={learner} jumpTo={jump} onAnswer={(step, _card, correctness, given) => onAnswer(step, correctness, given)} />
+        <FlowPlayer flow={flow} content={content} learner={learner} jumpTo={jump} gate={false} onAnswer={(step, _card, correctness, given) => onAnswer(step, correctness, given)} />
       </div>
     </CogitaContext.Provider>
   );

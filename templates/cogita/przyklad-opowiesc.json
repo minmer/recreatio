@@ -2,7 +2,7 @@
   "format": "recreatio.cogita.course",
   "version": 1,
   "name": "Skąd się bierze deszcz — opowieść",
-  "description": "Przykład opowieści, która liczy się w Cogicie: jedna jednostka (lekcja), początek, rozwidlenie na trzy drogi i krok, który je łączy; trzy pytania (po jednym na drogę), przebieg, który JEST prezentacją ze strony („przyklad-opowiesc-strona.json”), krajobraz lekcji i widok, który pokazuje tematy dopiero po ukończonej opowieści. Najpierw utwórz stronę (sam adres), wpisz go w \"presentation\" przebiegu, zaimportuj ten plik, potem stronę z id bazy i przebiegu.",
+  "description": "Przykład opowieści, która liczy się w Cogicie: jedna jednostka (lekcja), która wymaga tematu „Stany skupienia wody” (dopóki go nie umiesz, opowieść jest zamknięta i pokazuje, czego brakuje), początek, rozwidlenie na trzy drogi i krok, który je łączy; trzy pytania (po jednym na drogę, „about” — tylko tematy, nigdy lekcja), na końcu przegląd z tymi samymi trzema pytaniami (licznik „opowiesc.przeglad”, cel „przeglad”: dopiero zdany przegląd opuszcza lekcję do doliny), przebieg, który JEST prezentacją ze strony („przyklad-opowiesc-strona.json”), krajobraz lekcji i widok, który pokazuje tematy dopiero po ukończonej opowieści. Najpierw utwórz stronę (sam adres), wpisz go w \"presentation\" przebiegu, zaimportuj ten plik, potem stronę z id bazy i przebiegu.",
   "kinds": [
     {
       "ref": "@opowiesc/lekcja",
@@ -10,7 +10,8 @@
       "label": "{nazwa}",
       "fields": [
         { "key": "nazwa", "label": "Nazwa", "type": "line", "says": "Nazwa jednostki: „Skąd się bierze deszcz”." },
-        { "key": "nr", "label": "Kolejność", "type": "number", "says": "Miejsce lekcji w kursie (od lewej w krajobrazie lekcji)." }
+        { "key": "nr", "label": "Kolejność", "type": "number", "says": "Miejsce lekcji w kursie (od lewej w krajobrazie lekcji)." },
+        { "key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@opowiesc/temat"], "multi": true, "prerequisite": "up", "says": "Co trzeba umieć, zanim opowieść się otworzy: do tego czasu lekcja stoi w krajobrazie jako góra, a odtwarzacz pokazuje, czego brakuje." }
       ]
     },
     {
@@ -26,15 +27,17 @@
     }
   ],
   "entities": [
-    { "ref": "@opowiesc/lekcja/deszcz", "kinds": ["@opowiesc/lekcja"], "data": { "nazwa": "Skąd się bierze deszcz", "nr": 1 } },
+    { "ref": "@opowiesc/t/stany", "kinds": ["@opowiesc/temat"], "data": { "nazwa": "Stany skupienia wody", "tekst": "Woda bywa ciałem stałym (lód), cieczą (woda) i gazem (para wodna). Przy ogrzewaniu i ochładzaniu przechodzi z jednego stanu w drugi." } },
+    { "ref": "@opowiesc/lekcja/deszcz", "kinds": ["@opowiesc/lekcja"], "data": { "nazwa": "Skąd się bierze deszcz", "nr": 1, "wymaga": ["@opowiesc/t/stany"] } },
     { "ref": "@opowiesc/t/start", "kinds": ["@opowiesc/temat"], "data": { "nazwa": "Woda wokół nas", "tekst": "Woda jest w morzach, w rzekach, w powietrzu i w nas. Ciągle zmienia miejsce i postać.", "lekcja": "@opowiesc/lekcja/deszcz" } },
     { "ref": "@opowiesc/t/parowanie", "kinds": ["@opowiesc/temat"], "data": { "nazwa": "Parowanie", "tekst": "Słońce ogrzewa wodę, a ta paruje: niewidzialna para wodna unosi się w powietrze.", "wymaga": ["@opowiesc/t/start"], "lekcja": "@opowiesc/lekcja/deszcz" } },
     { "ref": "@opowiesc/t/chmury", "kinds": ["@opowiesc/temat"], "data": { "nazwa": "Chmury", "tekst": "Wysoko jest zimniej: para skrapla się w maleńkie kropelki — z nich jest chmura.", "wymaga": ["@opowiesc/t/start"], "lekcja": "@opowiesc/lekcja/deszcz" } },
     { "ref": "@opowiesc/t/opady", "kinds": ["@opowiesc/temat"], "data": { "nazwa": "Opady", "tekst": "Kropelki łączą się w większe krople; gdy są za ciężkie, spadają jako deszcz albo śnieg.", "wymaga": ["@opowiesc/t/start"], "lekcja": "@opowiesc/lekcja/deszcz" } },
     { "ref": "@opowiesc/t/obieg", "kinds": ["@opowiesc/temat"], "data": { "nazwa": "Obieg wody", "tekst": "Parowanie, chmury i opady razem tworzą koło: woda wraca do mórz i zaczyna od nowa.", "wymaga": ["@opowiesc/t/parowanie", "@opowiesc/t/chmury", "@opowiesc/t/opady"], "lekcja": "@opowiesc/lekcja/deszcz" } },
-    { "ref": "@opowiesc/q/parowanie", "kinds": ["question"], "data": { "form": "one", "prompt": "Co dzieje się z wodą w kałuży, gdy mocno świeci słońce?", "options": ["Paruje i unosi się w powietrze", "Zamienia się w lód", "Znika na zawsze"], "correct": [0], "feedback": ["Tak — ciepło zamienia wodę w niewidzialną parę.", "Lód powstaje na mrozie, nie w słońcu.", "Nie znika: zmienia postać i wróci jako deszcz."], "about": ["@opowiesc/t/parowanie", "@opowiesc/lekcja/deszcz"] } },
-    { "ref": "@opowiesc/q/chmury", "kinds": ["question"], "data": { "form": "one", "prompt": "Z czego jest chmura?", "options": ["Z dymu", "Z maleńkich kropelek wody", "Z waty"], "correct": [1], "feedback": ["Dym to co innego — chmura to woda.", "Tak — para skrapla się w kropelki.", "Tylko wygląda jak wata."], "about": ["@opowiesc/t/chmury", "@opowiesc/lekcja/deszcz"] } },
-    { "ref": "@opowiesc/q/opady", "kinds": ["question"], "data": { "form": "one", "prompt": "Kiedy z chmury spada deszcz?", "options": ["Gdy krople są za ciężkie, by unosić się w powietrzu", "Gdy chmura jest bardzo biała", "Zawsze w południe"], "correct": [0], "feedback": ["Tak — ciężkie krople spadają.", "Biała chmura zwykle nie pada.", "Pora dnia nie ma znaczenia."], "about": ["@opowiesc/t/opady", "@opowiesc/lekcja/deszcz"] } }
+    { "ref": "@opowiesc/q/stany", "kinds": ["question"], "data": { "form": "one", "prompt": "W jakim stanie skupienia jest para wodna?", "options": ["Ciało stałe", "Ciecz", "Gaz"], "correct": [2], "feedback": ["Ciałem stałym jest lód.", "Cieczą jest woda w kałuży.", "Tak — para wodna to gaz, zwykle niewidzialny."], "about": ["@opowiesc/t/stany"] } },
+    { "ref": "@opowiesc/q/parowanie", "kinds": ["question"], "data": { "form": "one", "prompt": "Co dzieje się z wodą w kałuży, gdy mocno świeci słońce?", "options": ["Paruje i unosi się w powietrze", "Zamienia się w lód", "Znika na zawsze"], "correct": [0], "feedback": ["Tak — ciepło zamienia wodę w niewidzialną parę.", "Lód powstaje na mrozie, nie w słońcu.", "Nie znika: zmienia postać i wróci jako deszcz."], "about": ["@opowiesc/t/parowanie"] } },
+    { "ref": "@opowiesc/q/chmury", "kinds": ["question"], "data": { "form": "one", "prompt": "Z czego jest chmura?", "options": ["Z dymu", "Z maleńkich kropelek wody", "Z waty"], "correct": [1], "feedback": ["Dym to co innego — chmura to woda.", "Tak — para skrapla się w kropelki.", "Tylko wygląda jak wata."], "about": ["@opowiesc/t/chmury"] } },
+    { "ref": "@opowiesc/q/opady", "kinds": ["question"], "data": { "form": "one", "prompt": "Kiedy z chmury spada deszcz?", "options": ["Gdy krople są za ciężkie, by unosić się w powietrzu", "Gdy chmura jest bardzo biała", "Zawsze w południe"], "correct": [0], "feedback": ["Tak — ciężkie krople spadają.", "Biała chmura zwykle nie pada.", "Pora dnia nie ma znaczenia."], "about": ["@opowiesc/t/opady"] } }
   ],
   "flows": [
     {
@@ -42,7 +45,11 @@
       "name": "Skąd się bierze deszcz",
       "look": "scenes",
       "presentation": "<adres strony z prezentacją, np. c/abcd1234>",
-      "unit": "@opowiesc/lekcja/deszcz"
+      "unit": "@opowiesc/lekcja/deszcz",
+      "review": "przeglad",
+      "goals": [
+        { "id": "przeglad", "title": "Przegląd zdany (3 z 3)", "condition": { "type": "value", "value": "opowiesc.przeglad", "op": "ge", "than": 3 } }
+      ]
     }
   ],
   "views": [
