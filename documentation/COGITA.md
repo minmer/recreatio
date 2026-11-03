@@ -898,6 +898,27 @@ Phones stay awake.
   (collapsible): "now" = the scene shown (route-aware), the current branch lit, a tap drives the stage there
   (`DriveControl.jump`). The page module `path` follows presentation flows too.
 
+### Story units: review, button, lock (2026-11-03, Prompt 5)
+
+- **One story** = one unit entry (no cards of its own; a prerequisite field → the topics it needs) + one flow with
+  `unit`, `goals` and `review` (own graph, or `presentation`). Questions name topics in `about`, never the unit.
+- **The unit sinks only after the review** (`flowFacts.storyStage`: new / started / review / passed): a flow with goals
+  lowers its unit when it is done AND every goal is reached; without goals as before (done). A done story with a goal
+  missing stays where its prerequisites put it (ring) — popover: „Opowieść ukończona — przegląd jeszcze niezdany".
+- **The review inside the flow**: a counter value prefixed with the story's name, reset at the review start (the step or
+  scene that `review` names), +1 on every "right", a condition looping back while too low, a goal with the same
+  condition. Presentation stories record the goals of the base flow that points at them (`pageGoals`, `storyRun`).
+- **The button** (`STORY_BUTTON`, landscape popover, Nauka → Ścieżka, module `path`): „Zacznij opowieść" / „Kontynuuj
+  opowieść" (the player at the saved position) / „Powtórz przegląd" (`reviewStart`: `review`, else the start) /
+  „Otwórz opowieść"; never card practice for a story unit. The landscape and the path module play the flow inline
+  (`FlowPlayer` with `jumpTo`; a presentation `startAt`); Nauka → Ścieżka goes to `…/przebiegi/<flow>/graj[/przeglad]`; a
+  presentation from a page module opens its page (`?scena=<key>`, `slides.ts sceneInAddress`).
+- **The lock** (`storyLock.ts`, landscape logic): before a story starts, `FlowPlayer` lists what is missing in the
+  unit's chain (learnable, not learned — a story unit counts when passed), in route order with links and „Ucz się",
+  plus „Ustaw jako cel" (the goal of every landscape view); nothing missing but weak cards (`lockCards`) → „Najpierw
+  powtórz (N)" with exactly those cards, then the story. Writers get „Podgląd mimo to"; sessions run without it
+  (`gate={false}`). The presentation page itself (outside the player) is not gated.
+
 ### For AI (2026-11-03, H)
 
 - Format text (`json.ts`, → `ksiazka-AI.md`, MCP `knowledge-base`): the flows section complete — steps and exits,

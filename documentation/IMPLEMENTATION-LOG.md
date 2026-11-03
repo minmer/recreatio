@@ -3258,3 +3258,21 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   route of „Zdrowie ucznia i kleryka (1832–1839)" (5 steps here: 1, 2, 3, 6; 1–4 when 3 steps are missing) without
   overlaps; whiter = less known in every area; 390 sheet with the field above it. Editor 8 (Edge; old rules forced back
   reproduce the screenshot). E 53, F 27, G 22 still pass; `npm run app:check` passes.
+
+## C28 — Story units: the review lowers, the button starts, the lock screen (2026-11-03, Prompt 5)
+
+- `flow.ts` `review`; `flowFacts.ts` `storyStage`, `STORY_BUTTON`, `reviewStart`, `storyUnitsOf`, `pageGoals`; `storyRun.tsx`
+  records the goals of the flow pointing at the page; `LandscapeView.tsx` lowers on "passed", the popover's story
+  button and inline player, „Najpierw powtórz" returns to the story; `LearningPath.tsx` and `pathViews.tsx` story nodes;
+  `CogitaHome.tsx` `graj/przeglad`; `PresentationInNauka.tsx` `startAt`; `PresentationView.tsx` + `slides.ts` `?scena=`;
+  `storyLock.ts` (new) + `FlowPlayer.tsx` locked screen and the review end screen; `Sessions.tsx` `gate={false}`.
+- Example: `przyklad-opowiesc.json` (lesson requires „Stany skupienia wody", questions about topics only, `review`,
+  goal „przeglad"), `przyklad-opowiesc-strona.json` (review: counter `opowiesc.przeglad`, gates zero / +1 / result,
+  scene „Jeszcze nie" with „Spróbuj jeszcze raz" / „Zakończ na razie"); `json.ts` flows section, `opowiesci-AI.md`,
+  `import-formats.mjs` descriptions; `ksiazka-AI.md` and `ImportFormats.json` regenerated.
+- Checks: `app-story-check` 31 (9 new: stages with and without goals, button words, review start, story units, page
+  goals). Browser on LocalDB (scratchpad `prompt5/p5-accept.mjs`, fresh setup `p5-api.mjs`): the locked screen with the
+  missing topic, goal, preview; „Ucz się" opens the story; a due card → „Najpierw powtórz (1)" → back to the story;
+  „Kontynuuj opowieść" resumes at the saved scene; review failed → ring + „przegląd jeszcze niezdany" + „Powtórz
+  przegląd" (landscape, Nauka → Ścieżka, path module → `?scena=przeglad`); review passed → valley, „Otwórz opowieść".
+  Flows without goals: the G browser test on the previous example (no goals) still lowers the lesson when done.
