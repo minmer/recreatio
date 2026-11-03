@@ -19,7 +19,7 @@ import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import { Browser } from './cdp.mjs';
 import { startHost } from './host.mjs';
-import { captureText, checkText, moduleLine, sideText, viewHeading } from './report.mjs';
+import { captureText, checkText, knowledgeCaptureText, knowledgeText, moduleLine, samplesText, sideText, viewHeading } from './report.mjs';
 import { slices, Studio } from './sheet.mjs';
 
 /** Benannte Bildschirme — oder „BREITExHÖHE". Am Telefon und Tablet mit Berührung. */
@@ -170,6 +170,8 @@ export class Previewer {
     }
     tab.uses += 1;
     tab.page.console.length = 0;
+    /* Ein Tab im Hintergrund (ein anderer wurde danach geöffnet) liefert Bilder langsam oder gar nicht — nach vorn. */
+    await tab.page.send('Page.bringToFront').catch(() => {});
     return tab.page;
   }
 
@@ -724,6 +726,79 @@ export class Previewer {
       }
       lines.push('', '## Files', `- folder: ${dir}`, ...images.map((one) => `- ${one.label}: ${one.file}`));
       return { text: lines.join('\n'), images, dir };
+    });
+  }
+
+  /**
+   * 2026-11-03 — EINE BAZA WIEDZY AUS JSON (`preview_knowledge`): importiert in einen Speicher ohne Dienst, ein Widok
+   * daraus gezeichnet — je Fortschritt (`none`, `partial`, `all`) und Bildschirm ein Bild —, dazu Proben der Generatoren.
+   */
+  async knowledge(args) {
+    return this.serial(async () => {
+      const doc = await this.docOf(args);
+      const vps = (args.viewports?.length > 0 ? args.viewports : ['desktop', 'phone']).map(viewportOf);
+      const progresses = [...new Set((args.progress?.length > 0 ? args.progress : ['none', 'partial']).map((p) => String(p).trim()))];
+      for (const p of progresses) if (!['none', 'partial', 'all'].includes(p)) throw new UserError(`Unknown progress "${p}" — use none, partial or all.`);
+      const scheme = args.theme === 'dark' ? 'dark' : 'light';
+      const reduced = args.reducedMotion === true;
+      const count = Math.max(0, Math.min(30, Math.round(args.samples ?? 10)));
+      const input = { doc, view: args.view ?? null, mode: args.mode ?? null };
+
+      const first = await this.tab(viewportOf('desktop'), scheme, reduced);
+      const summary = await first.call(async (i) => window.recreatioPreview.knowledgeSummary(i), input);
+      if (summary === null || summary === undefined) throw new UserError('This renderer has no knowledge preview yet (window.recreatioPreview.knowledgeSummary) — use the "source" renderer.');
+      if (summary.error) throw new UserError(summary.error);
+
+      const captures = [];
+      if (args.pictures !== false) {
+        let step = 0;
+        for (const progress of progresses) {
+          for (const vp of vps) {
+            args.onProgress?.(step, progresses.length * vps.length, `rendering ${progress} on ${vp.name} ${vp.width}×${vp.height}`);
+            step += 1;
+            const page = await this.tab(vp, scheme, reduced);
+            const loaded = await page.call(async (i) => window.recreatioPreview.knowledge(i), { ...input, progress });
+            if (loaded.error) throw new UserError(loaded.error);
+            const measure = await this.measure(page);
+            const height = Math.max(vp.height, Math.min(measure.page.h, MAX_PAGE));
+            const png = await page.screenshot({ clip: { x: 0, y: 0, width: vp.width, height }, beyond: true });
+            await this.contrast(png, measure);
+            captures.push({ progress, vp, scheme, loaded, measure, png, console: [...page.console] });
+          }
+        }
+      }
+      /* Der Tab von vorhin kann inzwischen ersetzt sein (geänderte Quellen) — der aktuelle. */
+      const sampler = count > 0 ? await this.tab(viewportOf('desktop'), scheme, reduced) : null;
+      const samples = sampler !== null ? await sampler.call(async (i) => window.recreatioPreview.knowledgeSamples(i), { ...input, count }) : null;
+      if (samples?.error) throw new UserError(samples.error);
+
+      const dir = await this.runDir({ path: `wiedza-${summary.name}` });
+      const lines = [knowledgeText(summary, { renderer: this.rendererWord })];
+      const images = [];
+      if (captures.length > 0) lines.push('', `# How the view renders (${captures.length} picture${captures.length === 1 ? '' : 's'})`);
+      for (const c of captures) {
+        lines.push('', ...knowledgeCaptureText(c));
+        const file = join(dir, `${c.progress}-${c.vp.name}-${c.scheme}.png`);
+        await writeFile(file, c.png);
+        const sheets = await this.pageSheets({ vp: c.vp, scheme: `${c.scheme} · ${c.progress}` }, { png: c.png, measure: c.measure, labels: { view: 'V1 widok' } }, false);
+        sheets.forEach((sheet, i) => images.push({ label: `${c.progress} · ${c.vp.name} — view „${c.loaded.shown.name}” as ${c.loaded.shown.mode}${sheets.length > 1 ? ` ${i + 1}/${sheets.length}` : ''}`, sheet }));
+      }
+      lines.push(...samplesText(samples));
+      for (const [i, one] of images.entries()) {
+        one.file = join(dir, `sheet-${String(i + 1).padStart(2, '0')}.jpg`);
+        await writeFile(one.file, one.sheet.buffer);
+      }
+      const link = this.host === null ? null : (() => {
+        const id = randomBytes(6).toString('hex');
+        this.host.keep(id, { ...input, progress: progresses[progresses.length - 1] });
+        return `${this.host.url}/preview.html?knowledge=${id}`;
+      })();
+      lines.push('', '## Files', `- folder: ${dir}`, ...images.map((one) => `- ${one.label}: ${one.file}`));
+      if (link !== null) lines.push(`- open this preview in a browser (while the preview server runs): ${link}`);
+      const text = lines.join('\n');
+      await writeFile(join(dir, 'report.md'), text);
+      await writeFile(join(dir, 'report.json'), JSON.stringify({ summary, samples, captures: captures.map(({ png: _png, ...rest }) => rest) }, null, 1));
+      return { text, images, dir };
     });
   }
 

@@ -233,7 +233,7 @@ function lastMark(list: readonly AnswerRecord[]): { readonly glyph: string; read
 }
 
 /** DIE TAFEL EINER KACHEL: lesen, die Fragen mit der letzten Antwort, üben, im Buch nachschlagen. */
-function QuiltPanel({ tile, cards, answers, onClose, onPractise, onOpen, note }: {
+export function QuiltPanel({ tile, cards, answers, onClose, onPractise, onOpen, note }: {
   tile: QuiltTile;
   cards: readonly Card[];
   answers: AnswersOf;

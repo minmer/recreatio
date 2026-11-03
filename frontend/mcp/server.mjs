@@ -129,7 +129,9 @@ const INSTRUCTIONS = `Recreatio (recreatio.pl) builds pages from a JSON document
 
 Work loop: page_format (learn the format; Polish, like the app) → write the document → check_page (fast: import plan, ignored keys, module sizes) → preview_page (pictures + measured problems per screen) → preview_motion for slides/presentations/animations → preview_module for one module in every grid size → fix and repeat. Modules are named M1, M2 … in the order of the page — the same names on the pictures and in the reports; slides S1, S2 …; presentation scenes by their key.
 
-A page has three modes ("mode"): "page" (modules in a 6/4/2-column grid; widths snap to 2/3/4/6 columns, heights to 1 strip / 3 block / 5 tall; each size shows a different view), "slides" (every module a full screen, transitions, a stage of travelling modules), "presentation" (scenes with freely placed pieces, steps, camera changes, buttons and paths). Pictures the page still needs are written as "page-image:@key" with a description in "images" — the preview shows labelled placeholders, or real files given with "images".`;
+A page has three modes ("mode"): "page" (modules in a 6/4/2-column grid; widths snap to 2/3/4/6 columns, heights to 1 strip / 3 block / 5 tall; each size shows a different view), "slides" (every module a full screen, transitions, a stage of travelling modules), "presentation" (scenes with freely placed pieces, steps, camera changes, buttons and paths). Pictures the page still needs are written as "page-image:@key" with a description in "images" — the preview shows labelled placeholders, or real files given with "images".
+
+Knowledge bases (Cogita): preview_knowledge imports a knowledge-base JSON (the "knowledge-base" format of the Recreatio MCP, get_import_format) into memory and shows a saved view — also the landscape — for a new learner and for one halfway, plus ~10 sample instances of every generator (questions with "params", templates with "generate"/"random") with their answers, so generated exercises can be checked before the user imports them.`;
 
 function buildServer() {
   const server = new McpServer({ name: 'recreatio-preview', version: '1.0.0' }, { instructions: INSTRUCTIONS });
@@ -201,6 +203,27 @@ function buildServer() {
     },
     annotations: READ_ONLY
   }, guarded(async (args) => answer(await previewer(args.renderer).module(args))));
+
+  /* 2026-11-03 — eine Baza wiedzy aus JSON: ein Widok (auch Krajobraz) mit erfundenem Fortschritt, Proben der Generatoren. */
+  server.registerTool('preview_knowledge', {
+    title: 'Preview a knowledge base (Cogita)',
+    description: 'Import a knowledge-base document (format "recreatio.cogita.course" or "recreatio.cogita.schema" — the "knowledge-base" import format of the Recreatio MCP) into a memory store (nothing is saved, no service), then (1) render one of its saved views with the app’s real list of views (Nauka → Wpisy: table, tree, matrix, quilt, landscape …) for a chosen learner progress — "none" (a new learner), "partial" (fundamentals known, some due, some forgotten or answered wrong, the rest new — by learning level) or "all" — at desktop and phone width, with measured problems; and (2) list ~10 sample instances of every generator (questions with "params"/"let", card templates with "random"/"generate" nodes) with the expected answer, the drawn values, the redraw rate, and the generators that fail. Also reports what the import would do, its warnings, the learning-order levels and cycles. Use it before the user imports: check that generators always produce valid instances and that the landscape looks right for a beginner and for someone halfway.',
+    inputSchema: {
+      json: z.union([z.string(), z.record(z.string(), z.any())]).optional()
+        .describe('The knowledge-base document — as a JSON object or as JSON text. Give this or "file".'),
+      file: docArgs.file.describe('Path to a .json file with the knowledge-base document (absolute, or relative to the repository root) — instead of "json".'),
+      view: z.string().optional().describe('Which saved view: its "ref" (e.g. "@world/v-landscape"), id or name. Default: the first view with mode "landscape", else the first view, else all entries.'),
+      mode: z.string().optional().describe('Show the view in another mode than saved: "landscape", "quilt", "table", "tree", "matrix", "map", "outline" — or the page words "krajobraz", "postepy", "tabela", "drzewo", "macierz", "mapa".'),
+      progress: z.array(z.enum(['none', 'partial', 'all'])).optional().describe('Learner progress states to render. Default ["none", "partial"].'),
+      viewports: viewportList.describe(`${viewportList.description} Default: ["desktop", "phone"].`),
+      theme: z.enum(['light', 'dark']).optional(),
+      reducedMotion: z.boolean().optional(),
+      pictures: z.boolean().optional().describe('false: only the text report (import plan, structure, generator samples) — fast.'),
+      samples: z.number().int().min(0).max(30).optional().describe('Instances per generator (default 10; 0 = no samples).'),
+      renderer: docArgs.renderer
+    },
+    annotations: READ_ONLY
+  }, guarded(async (args) => answer(await previewer(args.renderer).knowledge(args))));
 
   return server;
 }

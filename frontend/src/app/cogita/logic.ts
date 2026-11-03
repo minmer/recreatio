@@ -134,14 +134,20 @@ export interface Facts {
  * Karten, was vorher zu können ist, worunter er in der Struktur liegt — oder (jeder andere Wert) der Schlüssel eines
  * Verweisfeldes: worauf es zeigt.
  */
-export const RELATIONS = ['self', 'cards', 'before', 'up'] as const;
+export const RELATIONS = ['self', 'cards', 'before', 'up', 'chain'] as const;
 export type Relation = (typeof RELATIONS)[number];
 
 export const RELATION_LABEL: Record<Relation, string> = {
   self: 'ten wpis',
   cards: 'jego karty',
   before: 'to, co trzeba znać wcześniej',
-  up: 'to, pod czym leży w strukturze'
+  up: 'to, pod czym leży w strukturze',
+  /*
+   * 2026-11-03 — DIE GANZE KETTE DAVOR (Krajobraz, `knowing.ts`): die schon beantworteten Karten aller Einträge, die
+   * (über Stufen, auch durch Einträge ohne Karten und durch Kreise) vorher zu können sind. Nie gefragte zählen nicht.
+   * „Każda znana" — die Sperre des Krajobraz: erst wiederholen, was in der Kette verblasst oder falsch war.
+   */
+  chain: 'już pytane karty całej drogi przed nim'
 };
 
 /** Eine Beziehung in Worten — `field`: der Name eines Feldes. */
@@ -152,6 +158,7 @@ export function relationText(rel: string, each: 'all' | 'any' | undefined, field
     case 'cards': return any ? 'którejś z jego kart' : 'każdej z jego kart';
     case 'before': return any ? 'czegoś z tego, co trzeba znać wcześniej' : 'tego, co trzeba znać wcześniej';
     case 'up': return any ? 'czegoś, pod czym leży' : 'tego, pod czym leży';
+    case 'chain': return any ? 'którejś z już pytanych kart całej drogi przed nim' : 'każdej już pytanej karty całej drogi przed nim';
     default: return `${any ? 'czegoś, na co wskazuje' : 'tego, na co wskazuje'} pole „${field(rel)}”`;
   }
 }
@@ -201,7 +208,8 @@ export const CONDITION_LABEL: Record<ConditionType, string> = {
  * <code>
  *   { "type": "value", "value": "zaufanie", "op": "ge", "than": 3 }
  *   { "type": "knowness", "of": "<id>", "op": "ge", "than": 1 }
- *   { "type": "knowness", "rel": "before", "op": "ge", "than": 1 }      (2026-10-30) relativ: self · cards · before · up · <pole>
+ *   { "type": "knowness", "rel": "before", "op": "ge", "than": 1 }      (2026-10-30) relativ: self · cards · before · up · chain · <pole>
+ *   { "type": "knowness", "rel": "chain", "band": "known" }             (2026-11-03) jede schon gefragte Karte der ganzen Kette davor sitzt
  *   { "type": "knowness", "rel": "okres", "each": "any", "than": 1 }    — mehrere: alle (Vorgabe) oder einer genügt
  *   { "type": "knowness", "rel": "before", "band": "learned" }          (2026-11-01) ein Band statt einer Zahl
  *   { "type": "answered", "of": "<pytanie>", "correct": true }

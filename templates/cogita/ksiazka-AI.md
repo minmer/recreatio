@@ -1003,10 +1003,114 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
       np. {"form": "build", "prompt": "Bilden Sie die Negation von $\\forall a\\in A: P(a)$.", "items": ["$\\exists a\\in A$", "$:$", "$\\neg P(a)$"], "extra": ["$\\forall a\\in A$", "$P(a)$"], "preview": "math"}
       "order" z "preview" pokazuje nad listą ułożone razem (jak "build"); "extra" przy "order" nic nie zmienia — zmiana "form" na "build" je włącza
     "code" — "tests": widoczne przykłady [{"input": …, "output": …, "note": "…"}] (wartości JSON albo tekst JSON), sprawdzane przed ukrytymi przypadkami z "createInput"/"reference"; każdy przypadek ma 2 s; wynik: część zdanych
-    PARAMETRY (każdy rodzaj): "params": [{"name": "a", "random": [20, 99], "step": 1}, {"name": "f", "values": ["sin", "cos"]}] — losowane przy każdym pytaniu; "let": [{"name": "r", "value": "mod(a, n)"}] — liczone z nich (język wyrażeń rysunków: mod, round, sqrt, fmt(x, 2) …);
-      "require": ["a > 2*n"] — losuje się od nowa (do 60 razy), aż warunki są spełnione; w tekstach (prompt, options, answers, items, left, right, hints, explanation, feedback, extra, choices) {a}, {r}, {fmt(x, 2)} to wartości — liczby z przecinkiem, we wzorze {,};
-      {…} z nazwą spoza parametrów to zwykły tekst (LaTeX: \mathbb{N}, x^{2}); odpowiedź zapisuje wylosowane wartości
+    GENERATOR — PARAMETRY (każdy rodzaj; zadanie losowane od nowa przy każdym pokazaniu karty; ten sam mechanizm ma szablon w węźle "generate"):
+      "params" — losowane po kolei: {"name": "a", "random": [20, 99], "step": 1} (liczba z przedziału; całe granice — krok 1) · {"name": "f", "values": ["sin", "cos"]} (jedna z listy; element może być listą)
+        · {"name": "kation", "entry": {"kind": "@rodzaj", "where": "it.ladunek > 0"}} — jeden wpis z bazy · {"name": "zd", "entries": {"kind": "@rodzaj", "count": 4}} — kilka RÓŻNYCH (bez "count": wszystkie pasujące, w ich kolejności);
+        "where" — wyrażenie z "it" (kandydat), może czytać wcześniejsze parametry (anion pasujący do kationu); "rule" — reguła jak w zbiorach ({"op": "and", "items": [{"field": "data", "cmp": "filled"}]}); wpis wylosowany już w tym zadaniu nie wraca ("repeat": true — może);
+        wylosowany wpis to rekord: kation.label, kation.id, kation.kind i każde pole po kluczu — liczba (z wielkością: pole_si w SI, pole_unit), tekst, wybór (pole_label — nazwa), tak/nie jako 1/0, data jako liczba rrrrmmdd do porównań (pole_text — słowami), odwołanie jako rekord jeden krok dalej (zd[0].okres.label)
+      "let": [{"name": "n", "value": "lcm(kation.ladunek, -anion.ladunek)"}] — liczone po kolei (język wyrażeń niżej); "require": ["isint(x)", "a != b"] — losuje od nowa (do 60 razy), aż wszystkie są spełnione; gdy się nie da — karta NIE powstaje (nigdy zepsuta), a autor widzi powód w edytorze, w „Do zrobienia” i w podglądzie importu
+      w tekstach (prompt, options, answers, items, left, right, back, hints, explanation, feedback, extra, choices) {wyrażenie} to wartość — liczby z przecinkiem, we wzorze {,}, wpis — jego nazwa, lista — przez przecinek;
+        cały element listy jako jedna lista: "options": ["{dobra}", "{zle}"] — gdy {zle} to lista, każdy jej element jest osobną możliwością (tak samo items, left, right, answers); "correct": ["{k}"], "value": "{a.data < b.data}" (prawda/fałsz), "tolerance": "{tol}" — też liczone;
+        {…} z nazwą spoza parametrów to zwykły tekst (LaTeX: \mathbb{N}, x^{2}); kto chce literę parametru jako grupę LaTeX-a, pisze ją ze spacjami: \frac{ a }{2}
+      odpowiedź zapisuje numer losowania ("seed") i wylosowane wartości (wpisy jako "@id", krótkie listy); karta zostaje ta sama (klucz pytania) — historia zaczyna się od nowa TYLKO, gdy zmieni się generator (params, let, require) albo wzór odpowiedzi (answers, options, correct, items …), nigdy przy losowaniu
+      "rule" przy form "text": {"spaces": true} — spacje się nie liczą; {"scripts": true} — indeksy (₂, ²) jak zwykłe cyfry: Al2(SO4)3 = Al₂(SO₄)₃
       np. {"form": "number", "prompt": "Bestimmen Sie $r$ mit $0\\le r<{n}$ und ${a} = q\\cdot {n} + r$.", "params": [{"name": "a", "random": [20, 99]}, {"name": "n", "random": [3, 9]}], "let": [{"name": "r", "value": "mod(a, n)"}], "answers": ["{r}"]}
+      np. {"form": "number", "prompt": "Samochód przejechał {s} m w {t} s. Jaka była jego średnia prędkość?", "params": [{"name": "s", "random": [20, 500], "step": 10}, {"name": "t", "random": [2, 60]}], "let": [{"name": "v", "value": "s / t"}], "answers": ["{v}"], "unit": "m/s", "quantity": "Velocity", "tolerance": 0.01, "relative": true}
+      np. {"form": "one", "prompt": "Co było wcześniej?", "params": [{"name": "a", "entry": {"kind": "@hist/zdarzenie"}}, {"name": "b", "entry": {"kind": "@hist/zdarzenie", "where": "it.data != a.data"}}], "let": [{"name": "pierwsze", "value": "minby([a, b], it.data)"}, {"name": "drugie", "value": "maxby([a, b], it.data)"}], "options": ["{pierwsze.label}", "{drugie.label}"], "correct": [0]}
+    JĘZYK WYRAŻEŃ w generatorach (let, require, where, {…}, „Oblicz”):
+      Wyrażenia w zadaniach generowanych — ten sam język co w rysunkach (liczby z kropką, teksty w apostrofach, + - * / % ^, < <= > >= == !=, && || !, w ? a : b), a do tego:
+        listy: [1, 2, 3], [a, b]; element: lista[0] (od 0; lista[-1] — ostatni); lista + lista — połączone
+        wpis (wylosowany z bazy): wpis.pole (np. kation.ladunek), wpis.id, wpis.label; pole liczbowe z wielkością: wpis.pole_si (w SI), wpis.pole_unit; data: wpis.data (liczba rrrrmmdd, do porównań), wpis.data_text (słowami); odwołanie: wpis.okres.label (jeden krok dalej)
+        wyrażenie dla każdego elementu (filter, map, sortby, count, any, all, find, sum, avg, min, max, minby, maxby): "it" — element, "i" — jego miejsce (od 0), np. filter(jony, it.ladunek < 0), map(wydarzenia, it.label)
+        teksty porównują się alfabetycznie ("Ala" < "Ola"); == porównuje też listy (element po elemencie) i wpisy (po id)
+        losowanie w wyrażeniu (shuffle, choose, pick) używa numeru zadania — ten sam numer daje to samo zadanie
+        funkcje liczbowe:
+          sin — sinus (kąt w radianach — rad(30) zamienia stopnie)
+          cos — cosinus (radiany)
+          tan — tangens (radiany)
+          asin — arcus sinus — wynik w radianach (deg(...) zamienia na stopnie)
+          acos — arcus cosinus (radiany)
+          atan — arcus tangens (radiany)
+          atan2 — atan2(y, x) — kąt wektora (x, y) w radianach
+          sinh — sinus hiperboliczny
+          cosh — cosinus hiperboliczny
+          tanh — tangens hiperboliczny
+          sqrt — pierwiastek kwadratowy
+          cbrt — pierwiastek sześcienny
+          abs — wartość bezwzględna
+          sign — znak: −1, 0 albo 1
+          floor — w dół do całości
+          ceil — w górę do całości
+          trunc — część całkowita
+          round — round(x) albo round(x, cyfry) — zaokrąglenie
+          clamp — clamp(x, od, do) — x przycięte do przedziału
+          lerp — lerp(a, b, t) — od a do b: t = 0 daje a, t = 1 daje b
+          exp — e do potęgi x
+          ln — logarytm naturalny
+          log10 — logarytm dziesiętny
+          log2 — logarytm o podstawie 2
+          pow — pow(a, b) — to samo co a^b
+          hypot — hypot(x, y) — długość wektora
+          deg — radiany na stopnie
+          rad — stopnie na radiany
+          mod — mod(a, b) — reszta, zawsze od 0 do b (także dla ujemnych)
+          step — step(próg, x) — 0 przed progiem, 1 od progu
+          smooth — smooth(od, do, x) — łagodnie od 0 do 1, gdy x idzie od „od" do „do"
+          tri — tri(x) — fala trójkątna 0 → 1 → 0, okres 1 (odbijanie, zygzak)
+          rand — rand(x) — „losowa" liczba 0–1, zawsze ta sama dla tego samego x (np. rand(i) dla każdej kopii)
+          onstep — onstep(x, krok) — 1, gdy x leży na siatce kroku (onstep(2.25, 0.25) → 1): warunek zadań losowych, żeby rozwiązanie dało się ustawić
+          root — root(x, n) — pierwiastek stopnia n (root(27, 3) → 3; z liczby ujemnej tylko nieparzystego stopnia)
+          log — log(x) — dziesiętny, log(x, b) — o podstawie b: log(8, 2) → 3
+          sig — sig(x, n) — zaokrąglenie do n cyfr znaczących: sig(0.012345, 2) → 0,012
+          fact — fact(n) — silnia n! (n całkowite 0–170)
+          binom — binom(n, k) — symbol Newtona: na ile sposobów wybrać k z n
+          isint — isint(x) — 1, gdy x jest liczbą całkowitą (warunek: wynik ma być całkowity)
+          fmt — fmt(x, cyfry) — liczba jako tekst z przecinkiem: fmt(9.81, 1) → "9,8"
+        funkcje list, tekstów i wpisów:
+          len — len(x) — ile elementów ma lista (albo znaków tekst)
+          first — first(lista) — pierwszy element
+          last — last(lista) — ostatni element
+          at — at(lista, i) — element na miejscu i, licząc od 0 (−1: ostatni); to samo co lista[i]
+          take — take(lista, k) — pierwsze k elementów
+          drop — drop(lista, k) — bez pierwszych k elementów
+          slice — slice(lista, od, do) — kawałek: od włącznie, do wyłącznie (od 0; ujemne liczą od końca)
+          reverse — reverse(lista) — w odwrotnej kolejności
+          sort — sort(lista) — rosnąco: liczby według wartości, teksty alfabetycznie, wpisy według nazwy (malejąco: reverse(sort(lista)))
+          shuffle — shuffle(lista) — losowo przemieszana (los zadania: ten sam numer zadania, ta sama kolejność)
+          choose — choose(lista, k) — k różnych elementów wybranych losowo (bez powtórzeń)
+          pick — pick(lista) — jeden element wybrany losowo
+          contains — contains(lista, x) — 1, gdy x jest na liście (w tekście: gdy tekst zawiera x)
+          index — index(lista, x) — miejsce x na liście, od 0 (−1: nie ma)
+          unique — unique(lista) — każdy element raz
+          range — range(od, do, krok) — liczby od…do WŁĄCZNIE (range(1, 5) → [1, 2, 3, 4, 5]); krok domyślnie 1
+          join — join(lista, separator) — elementy w jednym tekście (domyślnie przez przecinek)
+          concat — concat(a, b, …) — listy połączone w jedną (pojedyncza wartość dochodzi jako element)
+          list — list(a, b, …) — lista z tych wartości (to samo co [a, b, …])
+          get — get(wpis, "klucz") — pole wpisu po kluczu (to samo co wpis.klucz)
+          str — str(x) — jako tekst; liczba z przecinkiem, do 12 cyfr znaczących
+          num — num(tekst) — liczba z tekstu ("3,5" → 3.5)
+          sub — sub(x) — cyfry i znaki + − ( ) w indeksie dolnym: "SO" + sub(4) → "SO₄"
+          sup — sup(x) — w indeksie górnym: "Al" + sup("3+") → "Al³⁺"
+          plain — plain(x) — indeksy z powrotem jako zwykłe znaki: "Al₂(SO₄)₃" → "Al2(SO4)3"
+          upper — upper(tekst) — wielkimi literami
+          lower — lower(tekst) — małymi literami
+          gcd — gcd(a, b, …) — największy wspólny dzielnik liczb całkowitych (także listy)
+          lcm — lcm(a, b, …) — najmniejsza wspólna wielokrotność (także listy): lcm(3, 2) → 6
+          if — if(warunek, a, b) — a, gdy warunek jest spełniony, inaczej b (to samo co warunek ? a : b)
+          filter — filter(lista, warunek) — te elementy, dla których warunek jest spełniony: filter(jony, it.ladunek > 0)
+          map — map(lista, wyrażenie) — wyrażenie dla każdego elementu: map(wydarzenia, it.label)
+          sortby — sortby(lista, klucz) — rosnąco według wyrażenia: sortby(wydarzenia, it.data) — od najwcześniejszego
+          find — find(lista, warunek) — pierwszy element, który spełnia warunek (nie ma: "")
+          any — any(lista, warunek) — 1, gdy choć jeden element spełnia warunek
+          all — all(lista, warunek) — 1, gdy każdy element spełnia warunek
+          count — count(lista) — ile elementów; count(lista, warunek) — ile spełnia warunek
+          sum — sum(lista) albo sum(lista, wyrażenie) — suma: sum(skladniki, it.masa)
+          avg — avg(lista) albo avg(lista, wyrażenie) — średnia
+          min — min(a, b, …) — najmniejsza liczba; min(lista); min(lista, wyrażenie)
+          max — max(a, b, …) — największa liczba; max(lista); max(lista, wyrażenie)
+          minby — minby(lista, klucz) — element z najmniejszym kluczem: minby(wydarzenia, it.data) — najwcześniejsze
+          maxby — maxby(lista, klucz) — element z największym kluczem
+        Granice: lista do 2000 elementów, w jednym wyrażeniu do 200000 kroków po listach — więcej daje NaN (zadanie się nie losuje).
     "interactive" — rysunek do poruszania: "drawing" (ten sam JSON co moduł strony „Animacja”: vars, let, sim, controls, rules z "goal": true, world, elements — jako tekst JSON),
     "goal" (wyrażenie celu, np. "abs(x - cel) < 0.5 && y <= 0"; puste — reguły rysunku z "goal"), "solution" ("kat = 45; v0 = sqrt(cel*g)" — rachunek z wartościami rysunku; w świecie także "w2.pos = 5"; puste — "task.solve" rysunku, a jego "task" losuje przy każdej próbie zadanie tak samo trudne);
     sprawdzane przez symulację ustawionych wartości do końca (świat — odtworzony według jego reguł: co zablokowane, zostaje); wartości z "random" losowane przy każdej próbie
@@ -1019,7 +1123,11 @@ Kto czyta: bazę czyta ten, kto czyta jej obszar. W obszarze jawnym (gdy baza je
   "asks" — o jaki FAKT pytają karty szablonu: [{"of": "this" | "klucz pola-odwołania", "facet": "nazwa faktu"}] albo krótko ["data"]; karty, które pytają o ten sam fakt tego samego wpisu, dzielą każdą odpowiedź
     — np. „Kiedy było X?” i „Co było w listopadzie 1829?” z "asks": ["data"]: dobra odpowiedź na jedną liczy się dla obu; w pętli „Dla każdej wartości” fakt jest osobny dla każdej wartości; bez "asks": karta liczy się tylko dla siebie;
     pary pytania „Połącz w pary” są faktami same z siebie: każda pokazana para liczy się dla karty swojej pary
-  węzły liczące: "random" ({"min", "max", "step"} albo {"list": ["3", "5"]}, albo lista z wejścia "items") — losuje przy każdej karcie; "calc" („Oblicz”): {"expr": "p0 * p1; p0 + 1", "inputs": 2, "decimals": 2} — wyrażenia językiem rysunków (mod, round, fmt, sqrt …), jedno w wierszu albo po „;”, każde daje wartość; p0…p7 — pierwsza liczba z wejścia, n0…n7 — ile wartości przyszło; "aggregate" („Zbierz”): {"op": "sum"|"count"|"min"|"max"|"avg", "decimals"} — wejście "values" (np. "follow" → "field" liczbowe); wyjście "value" łączy się z "pattern", "answer.number" ("expected") i "answer.one" ("expected" albo "distractors", np. "p0 + 1; p0 - 1; p0 * 2")
+  węzły liczące: "random" ({"min", "max", "step"} albo {"list": ["3", "5"]}, albo lista z wejścia "items"; "count": 4 — tyle RÓŻNYCH naraz) — losuje przy każdej karcie; "calc" („Oblicz”): {"expr": "p0 * p1; p0 + 1", "inputs": 2, "decimals": 2} — wyrażenia językiem rysunków (mod, round, fmt, sqrt …), jedno w wierszu albo po „;”, każde daje wartość (lista — kilka); p0…p7 — pierwsza liczba z wejścia, n0…n7 — ile wartości przyszło, l0…l7 — wszystkie wartości wejścia jako lista (wpisy jako rekordy: sum(l0, it.masa)); "aggregate" („Zbierz”): {"op": "sum"|"count"|"min"|"max"|"avg", "decimals"} — wejście "values" (np. "follow" → "field" liczbowe); wyjście "value" łączy się z "pattern", "answer.number" ("expected") i "answer.one" ("expected" albo "distractors", np. "p0 + 1; p0 - 1; p0 * 2")
+  węzeł "generate" („Generator”) — TEN SAM generator co w pytaniach (GENERATOR wyżej): "config": {"params": […], "let": […], "require": […], "texts": [{"name": "pytanie", "value": "Jaki wzór ma {kation.label} z {anion.label}?"}]} — "this" w wyrażeniach to wpis tej karty (this.symbol); "only": "this.ladunek > 0" — kartę dostają tylko takie wpisy rodzaju (pozostałe bez ostrzeżenia);
+    każda nazwa (parametr, wartość liczona, tekst) ma swoje wyjście o tej nazwie: liczby i teksty jako wartości, wpisy jako wpisy, lista jako kilka wartości — do "prompt" (przez "pattern" albo prosto tekst z "texts"), "answer.*" ("expected", "distractors", "items", "left", "right"), "card"
+    gdy zadania nie da się wylosować (60 prób), dla tego wpisu nie powstaje karta — z powodem w podglądzie szablonu; karta zapisuje wylosowane wartości i numer losowania; historia karty zaczyna się od nowa tylko po zmianie grafu szablonu
+  węzeł "card" przyjmuje też "hints" (podpowiedzi — teksty, od łagodnej do konkretnej) i "solution" (rozwiązanie — tekst z wartościami zadania, po odpowiedzi)
 
 Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w JSON):
   każda odpowiedź zostaje zapisana; karta pamięta tylko kilka wartości: kiedy ostatnio odpowiedziano, ile czasu naprawdę minęło przed tą odpowiedzią, odstęp do następnego razu i najlepszy odstęp przed ostatnim błędem;
@@ -1039,7 +1147,8 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   „Filtr znajomości”: {"type": "filter.when", "config": {"when": warunek}} — zostają karty, dla których warunek jest spełniony, sprawdzany W TRAKCIE powtórki przy każdej karcie: co czekało, wchodzi, gdy warunek zacznie obowiązywać; karta już w stosie zostaje
     warunek to ta sama logika co w przebiegach: {"type": "knowness", "rel": "before", "band": "learned"} — to, co trzeba znać wcześniej, jest poznane;
     "band" — pasmo zamiast liczby: "learned" (poznane: do powtórki albo znane — termin powtórki nie zamyka tego, co dalej) | "known" (znane, od 100 %) | "due" (do powtórki) | "unknown" (nieznane); albo liczba: "op": "ge", "than": 0.5 (dawne "rel": "before" / "up" z "than": 1 czyta się jako "learned");
-    "rel": "self" (ten wpis) | "cards" (jego karty; w powtórce: ta karta) | "before" (to, co trzeba znać wcześniej — najbliższe wpisy z kartami w kolejności nauki) | "up" (to, pod czym leży w strukturze) | klucz pola-odwołania (to, na co wskazuje, np. "okres");
+    "rel": "self" (ten wpis) | "cards" (jego karty; w powtórce: ta karta) | "before" (to, co trzeba znać wcześniej — najbliższe wpisy z kartami w kolejności nauki) | "up" (to, pod czym leży w strukturze) | "chain" (już pytane karty CAŁEJ drogi przed nim — przez wszystkie stopnie, także przez wpisy bez pytań i koła; nigdy niepytane się nie liczą) | klucz pola-odwołania (to, na co wskazuje, np. "okres");
+    blokada krajobrazu jako warunek do każdego widoku i powtórki: {"type": "knowness", "rel": "chain", "band": "known"} — każda już pytana karta całej drogi przed wpisem jest znana (nic w niej nie blednie, nic nie było ostatnio źle);
     "each": "all" (domyślnie — każdy) | "any" (choć jeden); gdy nic takiego nie ma, "all" jest spełnione; "of": "@wpis" zamiast "rel" — znajomość jednego wpisu; warunki łączą "and" / "or" / "not": {"type": "and", "items": [ … ]}
   „Idź po kolejności nauki”: {"type": "learning", "config": {"dir": "before" | "after", "one": true, "keep": true}} — karty tego, co trzeba znać wcześniej (albo, "after", co na tym buduje), aż do podstaw albo ("one") o krok; "keep": true dokłada je do kart wyjściowych
   „Sposób pytania” ("strategy"): {"mode": "temporal" (według tego, co umiem) | "levels" | "once" | "random", "order", "pick", "stackSize", "count", "levels", "minCorrectness", "endWhenDone", "rule"}
@@ -1052,7 +1161,7 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …
   przebieg z prezentacji (jedna opowieść, nie kopia): {"name": "Droga", "look": "scenes", "presentation": "parafia/droga", "narrators": […]} — bez własnego "graph": jego mapą jest storyboard strony (sceny, przejścia, pytania, warunki, wartości — "story" w JSON strony); w Nauce gra tę prezentację, a odpowiedzi, wartości i miejsce, w którym ktoś skończył, liczą się w tej bazie (to samo miejsce co na stronie); zobaczy ją tylko ten, kto może zobaczyć stronę
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
-"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas|outline|quilt", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}}
+"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas|outline|quilt|landscape", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}, "landscape": {"budget": 60}}
   na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text" ze skryptorium, "from"} | "source.collection" {"collection": "@zbiór"} | "source.list" {"ids": ["@wpis"]};
   także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, wypowiedzi, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"}, "structure" {"dir": "down|up", "one": true} (po polach struktury — bez "one": do samego końca; "one": true — jeden poziom) i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
@@ -1060,6 +1169,11 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
     np. fakty okresu dopiero, gdy okres jest znany: {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "okres", "op": "ge", "than": 1}}}; tylko wpisy, których podstawy są znane: "rel": "before";
   kolumny i "sort" ze znajomości: "#knowness" (znajomość wpisu), "#due" (kiedy powtórzyć), "#level" (poziom w kolejności nauki), np. "sort": {"key": "#knowness", "dir": 1} — najpierw najsłabsze;
   "mode": "quilt" (Mapa postępów) — kafelek na wpis w kolorze tego, jak dobrze uczący się go zna (nowe, uczę się, do powtórki, umiem), pogrupowany jak "group" (np. idee według lekcji pod rozdziałami: {"by": "axis", "kind": "@lekcja", "via": ["lekcja"], "sort": {"field": "nr"}, "group": "rozdzial"}); klik: tekst, pytania, „Ćwicz to”, „Otwórz w źródle”; widać go w Nauka → Postępy (też nauczycielowi) i w module „Widok”
+  "mode": "landscape" (Krajobraz) — osobisty krajobraz wiedzy tego, kto patrzy: półkole przed nim, w dolinie to, co umie (wysokość −1 przy znajomości od 100 %; to, co do powtórki, wznosi się z doliny, gdy blednie), na pierścieniu to, czego może się uczyć teraz (wysokość 0: nic przed tym nie brakuje), dalej góry — wysokość to liczba różnych nieopanowanych wpisów w całej kolejności nauki przed nim (wspólna podstawa liczy się raz, koło jako jeden krok, wpisy bez pytań są przezroczyste); „opanowane” = pasmo "learned" (od 10 %) — to, co blednie, zostaje opanowane, dopiero poniżej 10 % brakuje go znowu;
+    kierunek daje "group" widoku: oś ("by": "axis") z hierarchią wartości przez ich pola struktury (tagi pod tagami, rozdziały przez "teil") — wartości dzielą 180° według liczby wpisów, sąsiadują te, które często występują razem albo łączy je kolejność nauki; wpis z kilkoma wartościami stoi między nimi; także "by": "field" | "kind" | "level"; bez "group" — według sąsiedztwa w kolejności nauki;
+    "landscape": {"budget": 60} — najwyżej tyle pól pojedynczo (6–400): najpierw pierścień, potem to, co do powtórki, potem bliskie góry; reszta obszaru zbiera się w jedno pole ("II wojna · 340"), które otwiera się po kliknięciu (przybliżenie w głąb wartości; wysokości zostają globalne); wpisy bez pytań się nie pokazują (są tylko etykietami obszarów, jeśli są wartościami osi);
+    klik: czytanie i pytania, „Ucz się tego” (z „Nowym tematem”), „Powtórz” (nigdy zablokowane), droga góry i „Ustaw jako cel” (cel zapisuje się prywatnie jak postępy, droga podświetla się we wszystkich obszarach, następny krok na pierścieniu); wpis na pierścieniu z już pytanymi, słabymi kartami w drodze przed nim mówi „najpierw powtórz te N kart” i zaczyna lekcję dokładnie z nimi, potem od razu nowe;
+    np. {"ref": "@swiat/w-krajobraz", "name": "Krajobraz wiedzy", "mode": "landscape", "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}], "group": {"by": "axis", "kind": "@swiat/tag", "via": ["tagi"]}, "landscape": {"budget": 60}}
   "mode": "outline" (Struktura) rysuje źródła jako korzenie, a pod nimi to, do czego prowadzą kroki; "outline": {"chip": "klucz pola nad każdym krokiem (np. rola)", "order": "tree|text" (bez "order": ostatni wybór czytelnika, a na początek kolejność tekstu u Tomasza i drzewo w innych dziełach), "by": "klucz pola, według którego najpierw układają się kroki jednego poziomu (np. czas — czas opowieści; bez "by": według miejsca w dziele)", "tie": "klucz pola przy tym samym miejscu (np. nr)"};
     widok otwarty od wpisu (wejście z Biblioteki) zastępuje tym wpisem wszystko przed pierwszym „Idź po…”; np. {"name": "Wywód", "mode": "outline", "steps": [{"type": "source.kind", "config": {"kind": "@krok"}}, {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field": "nalezy", "cmp": "empty"}]}}}, {"type": "structure", "config": {"dir": "down"}}], "outline": {"chip": "rola", "order": "tree", "tie": "nr"}}
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "axis", "kind": "@rodzaj", "via", "through", "sort", "group"} — OŚ: jej wartości to wpisy rodzaju
@@ -1070,7 +1184,7 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   np. {"name": "Postacie według okresu", "mode": "tree", "steps": [{"type": "source.kind", "config": {"kind": "@postac"}}], "group": {"by": "axis", "kind": "@okres", "via": ["okres"], "sort": {"field": "od"}}}
   np. macierz 20 × 12 — Tajemnica × Obszar: {"name": "Tajemnica × Obszar", "mode": "matrix", "steps": [{"type": "source.kind", "config": {"kind": "text"}}, {"type": "source.kind", "config": {"kind": "@komentarz"}}], "matrix": {"rows": {"by": "axis", "kind": "@tajemnica", "sort": {"field": "numer"}, "group": "czesc"}, "cols": {"by": "axis", "kind": "@obszar", "group": "grupa"}}}
     — 20 tajemnic różańca (w czterech częściach) × 12 maryjnych obszarów (w grupach); w polu: kazania ze skryptorium (rodzaj tekstu „Kazanie maryjne” z polami "tajemnica" i "obszar") i komentarze, których "about" wskazuje tajemnicę i obszar; puste pola też są widoczne
-  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa|postepy"} — pole macierzy (klik) i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu
+  na stronie: moduł "view" {"library": "<id bazy>", "view": "<id widoku>", "mode": "tabela|drzewo|macierz|mapa|postepy|krajobraz", "answers": "<id obszaru kursu>", "rewards": "<id nagród>"} — pole macierzy (klik) i wpis otwierają się pod spodem, droga w adresie osobno dla każdego modułu; w krajobrazie uczy się osoba strony: "answers" i "rewards" jak w module „Powtórka”, nauka liczy się dla modułów „Punkty i seria” i „Statystyki na żywo” tej strony
 "rewards" — nagrody (punkty, seria dni, cel dnia, poziomy, odznaki); kilka w bazie, każde miejsce wybiera swoje (moduł „Punkty i seria” / „Statystyki na żywo” na stronie, Ustawienia → Motywacja → „Punkty i nagrody” w Nauce):
   {"ref": "@kurs/punkty", "name": "Punkty i seria",
    "points": {"correct": 10, "partial": 5, "wrong": 1, "first": 5, "known": 20, "fast": 0, "combo": 15, "goal": 50, "streak": 5},
@@ -1096,6 +1210,7 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
 ## Jak aplikacja używa tych danych
   Wiedza: wpisy stoją w „Wpisy” (tabela, drzewo, struktura, macierz, płótno — według widoków), każdy ze swoją stroną (pola, odwołania, kolejność nauki); rodzaje, szablony, widoki i sposoby dodawania — w „Schematach”; wejścia ("anchors") dają przy dziele w Bibliotece i w czytniku przycisk „W Wiedzy”.
   Nauka: szablony robią z wpisów karty (z kluczem „szablon:wpis”); powtórki wybierają z kart i pytają; „Ścieżka” pokazuje kolejność nauki; widoki i powtórki z „Filtrem znajomości” pokazują to, co uczący się już może.
+  Krajobraz (widok "landscape", na stronie "krajobraz"): z kolejności nauki i znajomości liczy dla każdego wpisu wysokość (dolina, pierścień, góry), z grupowania widoku — kierunek; uczący się wybiera tam, czego się uczyć, ustawia cel (zapisany prywatnie jak postępy), a blokada każe najpierw powtórzyć słabe karty z drogi przed wpisem.
   Czytanie w Nauce: przed pierwszym pytaniem o wpis z "about" stoi „Nowy temat” (tytuł i zapowiedź, „Czytaj dalej”, „Czytaj tekst” do miejsca w źródle), po odpowiedzi — wyjaśnienie; oba według "reading" jego rodzaju, a bez niego — streszczenie albo pierwszy akapit, potem pola z tekstem.
   Odpowiedzi: każda zapisuje się zaszyfrowana w przeglądarce — dla uczącego się i dla obszaru przyjęć kursu (Ustawienia), gdzie nauczyciel widzi „Postępy”; z nich liczy się znajomość kart i wpisów. Serwis nie czyta odpowiedzi; widzi tylko, kiedy następna powtórka i ile kart czeka — na osobę i bazę (do przypomnienia).
   Strony: moduły „Widok” (tabela, drzewo, macierz, mapa), „Powtórka”, „Kurs / opowieść”, „Karta wpisu” czytają bazę tak, jak widzi ją czytelnik strony; uczy się osoba strony (zalogowana — ona sama, bez konta — ta przeglądarka).
@@ -1245,9 +1360,9 @@ Widoki: „Od podstaw”.
 - "goal" — Cel (wyrażenie) (line; tylko gdy form: interactive): Kiedy odpowiedź jest dobra, np. "abs(x - cel) < 0.5 && y <= 0" — liczone w symulacji do końca; puste: reguły rysunku z "goal": true (interactive)
 - "solution" — Rozwiązanie (line; tylko gdy form: interactive): Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" albo własności rzeczy "w2.pos = 5" — pokazywane po złej odpowiedzi; puste: "task.solve" rysunku (interactive)
 - "explain" — Wyjaśnienie (wpisy) (ref; kilka): Wpisy pokazywane po odpowiedzi, zwinięte (np. wypowiedź z treścią w blokach)
-- "params" — Parametry (json): Wartości losowane przy każdym pytaniu: [{"name": "a", "random": [2, 30], "step": 1}] albo {"name": "f", "values": [...]}; w tekstach {a}
-- "let" — Wartości liczone (json): Liczone z parametrów, po kolei: [{"name": "r", "value": "mod(a, n)"}] — język wyrażeń rysunków; w tekstach {r}, {fmt(x, 2)}
-- "require" — Warunki losowania (list): Warunki, które losowanie musi spełnić, np. "a > 2*n" — losuje się od nowa (do 60 razy)
+- "params" — Parametry (json): Wartości losowane przy każdym pytaniu: [{"name": "a", "random": [2, 30], "step": 1}], {"name": "f", "values": [...]}, 2026-11-03 także wpisy z bazy: {"name": "kation", "entry": {"kind": "@rodzaj", "where": "it.ladunek > 0"}}, {"name": "zd", "entries": {"kind": "@rodzaj", "count": 4}}; w tekstach {a}, {kation.symbol}
+- "let" — Wartości liczone (json): Liczone z parametrów, po kolei: [{"name": "r", "value": "mod(a, n)"}] — język wyrażeń rysunków z listami i wpisami (filter, map, sortby, choose, gcd, lcm, sub, sup …); w tekstach {r}, {fmt(x, 2)}
+- "require" — Warunki losowania (list): Warunki, które losowanie musi spełnić, np. "a > 2*n" — losuje się od nowa (do 60 razy); gdy się nie da, karta nie powstaje
 - "about" — O czym (ref; kilka): Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi
 - "needs" — Najpierw trzeba znać (ref; kilka; kolejność nauki up): Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)
 Sposoby dodawania: „Prawda czy fałsz — wiele naraz”, „Pytania z odpowiedzią słowami — wiele naraz”, „Jedna z kilku — wiele naraz (pierwsza możliwość jest dobra)”, „Fiszki — wiele naraz”.

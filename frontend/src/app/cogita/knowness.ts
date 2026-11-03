@@ -234,6 +234,12 @@ export interface Dependency {
 
 /** Ohne Kreise: eine Kante, die einen schlösse, fällt weg — die frühere gewinnt. */
 export function acyclic(deps: readonly Dependency[]): Dependency[] {
+  /*
+   * 2026-11-03 — DER SCHNELLE WEG: hat der ganze Graph keinen Kreis, schliesst keine Kante einen — jede bleibt (ausser einer
+   * Schleife auf sich selbst), genau wie unten. Geprüft in O(V+E) (Kahn); unten sucht jede Kante einen Weg zurück, bei
+   * 50 000 Kanten viel zu langsam für jede Antwort (`gauge` ruft `propagate` jedes Mal).
+   */
+  if (withoutCircle(deps)) return deps.filter((d) => d.parent !== d.child);
   const kept: Dependency[] = [];
   const next = new Map<string, string[]>();
   const reaches = (from: string, to: string): boolean => {
@@ -267,16 +273,51 @@ export function propagate(own: ReadonlyMap<string, number>, deps: readonly Depen
   const edges = acyclic(deps);
   const ids = new Set<string>([...own.keys(), ...edges.flatMap((d) => [d.parent, d.child])]);
   const children = new Map<string, Dependency[]>();
-  for (const dep of edges) children.set(dep.parent, [...(children.get(dep.parent) ?? []), dep]);
+  for (const dep of edges) { const list = children.get(dep.parent); if (list === undefined) children.set(dep.parent, [dep]); else list.push(dep); }
+  /*
+   * 2026-11-03 — von den Blättern her OHNE Rekursion (eine Kette von 10 000 Einträgen sprengte sonst den Stapel): jeder
+   * Eintrag erst, wenn alles, was auf ihm aufbaut, fertig ist — dasselbe Ergebnis wie der rekursive Weg.
+   */
+  const waiting = new Map<string, number>();
+  for (const id of ids) waiting.set(id, (children.get(id) ?? []).length);
+  const parents = new Map<string, string[]>();
+  for (const dep of edges) { const list = parents.get(dep.child); if (list === undefined) parents.set(dep.child, [dep.parent]); else list.push(dep.parent); }
+  const ready = [...ids].filter((id) => waiting.get(id) === 0);
   const total = new Map<string, number>();
-  const visit = (id: string): number => {
-    const done = total.get(id);
-    if (done !== undefined) return done;
+  for (let i = 0; i < ready.length; i += 1) {
+    const id = ready[i];
     let best = own.get(id) ?? 0;
-    for (const dep of children.get(id) ?? []) best = Math.max(best, visit(dep.child) * Math.max(0, Math.min(1, dep.impact)));
+    for (const dep of children.get(id) ?? []) best = Math.max(best, (total.get(dep.child) ?? 0) * Math.max(0, Math.min(1, dep.impact)));
     total.set(id, best);
-    return best;
-  };
-  for (const id of ids) visit(id);
+    for (const p of parents.get(id) ?? []) {
+      const left = (waiting.get(p) ?? 1) - 1;
+      waiting.set(p, left);
+      if (left === 0) ready.push(p);
+    }
+  }
   return total;
+}
+
+/** Hat der Graph keinen Kreis (Schleifen auf sich selbst zählen nicht)? Kahn, O(V+E). */
+function withoutCircle(deps: readonly Dependency[]): boolean {
+  const indeg = new Map<string, number>();
+  const next = new Map<string, string[]>();
+  for (const d of deps) {
+    if (d.parent === d.child) continue;
+    if (!indeg.has(d.parent)) indeg.set(d.parent, 0);
+    indeg.set(d.child, (indeg.get(d.child) ?? 0) + 1);
+    const list = next.get(d.parent);
+    if (list === undefined) next.set(d.parent, [d.child]); else list.push(d.child);
+  }
+  const queue = [...indeg].filter(([, n]) => n === 0).map(([id]) => id);
+  let done = 0;
+  for (let i = 0; i < queue.length; i += 1) {
+    done += 1;
+    for (const c of next.get(queue[i]) ?? []) {
+      const left = (indeg.get(c) ?? 1) - 1;
+      indeg.set(c, left);
+      if (left === 0) queue.push(c);
+    }
+  }
+  return done === indeg.size;
 }

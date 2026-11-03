@@ -1,0 +1,78 @@
+{
+ "format": "recreatio/page",
+ "version": 1,
+ "title": "Świat wiedzy",
+ "lead": "Matematyka i fizyka jako jeden krajobraz: to, co umiesz, jest doliną; to, czego możesz nauczyć się teraz — pierścieniem przed Tobą; dalej góry tego, co jeszcze daleko.",
+ "mode": "page",
+ "modules": [
+  {
+   "kind": "view",
+   "config": {
+    "title": "Twój krajobraz wiedzy",
+    "library": "<id-bazy-wiedzy>",
+    "view": "<id-widoku „Krajobraz wiedzy”>",
+    "mode": "krajobraz",
+    "answers": "",
+    "rewards": "<id-nagród „Punkty świata wiedzy”>"
+   },
+   "layout": {
+    "desktop": {
+     "position": {
+      "row": 1,
+      "col": 1
+     },
+     "size": {
+      "colSpan": 4,
+      "rowSpan": 5
+     }
+    }
+   }
+  },
+  {
+   "kind": "cogita-rewards",
+   "config": {
+    "title": "Twoje punkty",
+    "library": "<id-bazy-wiedzy>",
+    "rewards": "<id-nagród „Punkty świata wiedzy”>",
+    "revision": "",
+    "hide": "feed"
+   },
+   "layout": {
+    "desktop": {
+     "position": {
+      "row": 1,
+      "col": 5
+     },
+     "size": {
+      "colSpan": 2,
+      "rowSpan": 3
+     }
+    }
+   }
+  },
+  {
+   "kind": "text",
+   "config": {
+    "title": "Jak czytać krajobraz",
+    "body": [
+     "Dolina — to, co już umiesz (im wyżej się wynurza, tym pilniej trzeba to powtórzyć). Pierścień przed Tobą — tematy, których możesz nauczyć się teraz.",
+     "Góry — tematy, do których brakuje jeszcze kroków; liczba na górze mówi ile.",
+     "Kliknij górę i „Ustaw jako cel”: krajobraz pokaże drogę od podstaw i następny krok.",
+     "Gdy pod tematem są karty do powtórki, krajobraz najpierw je powtórzy, a potem przejdzie do nowego tematu."
+    ]
+   },
+   "layout": {
+    "desktop": {
+     "position": {
+      "row": 4,
+      "col": 5
+     },
+     "size": {
+      "colSpan": 2,
+      "rowSpan": 3
+     }
+    }
+   }
+  }
+ ]
+}

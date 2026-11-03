@@ -5,12 +5,12 @@
  * Plätze auf der Leinwand — und wie er sich zeigt.
  *
  * <code>
- *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map" | "outline" | "quilt",
+ *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map" | "outline" | "quilt" | "landscape",
  *     steps: [{ type: "source.kind", config: { kind } }, { type: "follow", config: { field, back } },
  *             { type: "filter.rule", config: { rule } }],
  *     query, group: { by: "kind" } | { by: "field", field } | { by: "axis", kind, via, through?, sort?, group? },
  *     columns: [klucze pól | "#axis:<rodzaj>"], sort: { key, dir }, positions: { id: { x, y } },
- *     matrix: { rows: grupowanie, cols: grupowanie } }
+ *     matrix: { rows: grupowanie, cols: grupowanie }, landscape: { budget } }
  * </code>
  *
  * 2026-10-22 (Schritt 10) — <b>Macierz</b>: Zeilen und Spalten sind zwei
@@ -45,11 +45,13 @@ import { childrenOf, orderByPlace, parentsOf, placeOf } from './structure';
  * 2026-11-01 — `quilt` (Postępy, Lemma): je Eintrag eine Kachel in der Farbe dessen, wie gut der Betrachter ihn kann — in den
  * Gruppen des Widoku; ein Klick zeigt, was zu lesen ist, die Fragen und „Ćwicz to" (`quilt.ts`, `QuiltView.tsx`).
  */
-export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline' | 'quilt';
+export type ListMode = 'table' | 'tree' | 'canvas' | 'matrix' | 'map' | 'outline' | 'quilt' | 'landscape';
 
 /** 2026-11-01 — die Gestalten in Worten (Wpisy, der Baustein „Widok", die Beschreibung des JSON). */
 export const LIST_MODE_LABEL: Readonly<Record<ListMode, string>> = {
-  table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno', matrix: 'Macierz', map: 'Mapa', outline: 'Struktura', quilt: 'Mapa postępów'
+  table: 'Tabela', tree: 'Drzewo', canvas: 'Płótno', matrix: 'Macierz', map: 'Mapa', outline: 'Struktura', quilt: 'Mapa postępów',
+  /* 2026-11-03 — der Krajobraz (`landscape.ts`, `LandscapeView.tsx`): Tal, Ring, Berge — die eigene Landschaft des Wissens. */
+  landscape: 'Krajobraz'
 };
 
 /** Zeilen und Spalten einer Macierz. */
@@ -72,6 +74,21 @@ export interface ViewDoc {
   readonly retired: readonly string[];
   /** 2026-10-25 (Wywód) — wie die Struktura zeigt (nur dort gebraucht; gespeichert mit dem Widok). */
   readonly outline: OutlineDisplay | null;
+  /** 2026-11-03 — der Krajobraz: wie viele Felder einzeln (der Rest sammelt sich zu Bereichen). */
+  readonly landscape: LandscapeDisplay | null;
+}
+
+/** 2026-11-03 — DIE GESTALT DES KRAJOBRAZ: höchstens so viele einzelne Felder (6–400, Vorgabe 60). */
+export interface LandscapeDisplay {
+  readonly budget: number;
+}
+
+export const LANDSCAPE_BUDGET = 60;
+
+export function readLandscape(raw: unknown): LandscapeDisplay | null {
+  if (!isObject(raw)) return null;
+  const n = typeof raw.budget === 'number' ? raw.budget : typeof raw.budget === 'string' ? Number(raw.budget) : Number.NaN;
+  return { budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET };
 }
 
 /**
@@ -121,7 +138,7 @@ export function readView(raw: unknown): ViewDoc {
   ];
   return {
     name: typeof d.name === 'string' ? d.name : 'Widok',
-    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' || d.mode === 'outline' || d.mode === 'quilt' ? d.mode : 'table',
+    mode: d.mode === 'tree' || d.mode === 'canvas' || d.mode === 'matrix' || d.mode === 'map' || d.mode === 'outline' || d.mode === 'quilt' || d.mode === 'landscape' ? d.mode : 'table',
     steps,
     query: typeof d.query === 'string' ? d.query : '',
     group: readGrouping(d.group),
@@ -130,7 +147,8 @@ export function readView(raw: unknown): ViewDoc {
     positions,
     matrix: readMatrix(d.matrix),
     retired,
-    outline: readOutlineDisplay(d.outline)
+    outline: readOutlineDisplay(d.outline),
+    landscape: readLandscape(d.landscape)
   };
 }
 
@@ -152,7 +170,8 @@ export function viewJson(view: ViewDoc): Record<string, unknown> {
     ...(view.sort === null ? {} : { sort: view.sort }),
     positions: view.positions,
     ...(view.matrix === null ? {} : { matrix: view.matrix }),
-    ...(view.outline === null ? {} : { outline: view.outline })
+    ...(view.outline === null ? {} : { outline: view.outline }),
+    ...(view.landscape === null ? {} : { landscape: view.landscape })
   };
 }
 

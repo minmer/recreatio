@@ -23,7 +23,9 @@ export type ConfigType =
   /* 2026-10-22 — eine Bibliothek oder Baza wiedzy: diese oder eine ihrer Quellen. */
   | 'source'
   /* 2026-10-30 — ein gespeicherter Widok; eine Bedingung, die auch die Kenntnis relativ sieht (Widoki, Powtórki). */
-  | 'view' | 'when';
+  | 'view' | 'when'
+  /* 2026-11-03 — ein JSON-Wert (die Einstellung des Generators: params, let, texts). */
+  | 'json';
 
 export interface ConfigField {
   readonly key: string;
@@ -88,7 +90,17 @@ const TEMPLATE_FIELDS: Record<string, readonly ConfigField[]> = {
   random: [
     f('min', 'Od', 'number'), f('max', 'Do', 'number'), f('step', 'Co ile', 'number'),
     /* 2026-11-01 — oder eine Pozycja aus einer hier getippten Liste. */
-    f('list', 'albo jedna z listy', 'lines', { hint: 'jedna pozycja w wierszu; lista z lewej też się liczy' })
+    f('list', 'albo jedna z listy', 'lines', { hint: 'jedna pozycja w wierszu; lista z lewej też się liczy' }),
+    /* 2026-11-03 — k verschiedene auf einmal. */
+    f('count', 'Ile różnych', 'number', { hint: 'puste: jedna; np. 4 — cztery różne, bez powtórzeń' })
+  ],
+  /* 2026-11-03 — der eine Generator (`generator.ts`): dieselbe Einstellung wie an einer Frage. */
+  generate: [
+    f('params', 'Losowane (JSON)', 'json', { hint: '[{"name": "s", "random": [20, 500], "step": 10}, {"name": "f", "values": ["sin", "cos"]}, {"name": "anion", "entry": {"kind": "@chem/jon", "where": "it.ladunek < 0"}}, {"name": "zd", "entries": {"kind": "@hist/zdarzenie", "count": 4}}]' }),
+    f('let', 'Wartości liczone (JSON)', 'json', { hint: '[{"name": "v", "value": "s / t"}, {"name": "wzor", "value": "this.symbol + sub(n)"}] — this: wpis tej karty' }),
+    f('require', 'Warunki', 'lines', { hint: 'jeden w wierszu, np. isint(v) — losuje od nowa, najwyżej 60 razy' }),
+    f('texts', 'Teksty z wartościami (JSON)', 'json', { hint: '[{"name": "pytanie", "value": "Ile to {a} + {b}?"}] — każdy tekst ma swoje wyjście' }),
+    f('only', 'Tylko dla wpisów, dla których', 'text', { hint: 'np. this.ladunek > 0 — inne wpisy rodzaju nie dostają karty (bez ostrzeżenia)' })
   ],
   math: [
     f('op', 'Działanie', 'select', { options: opts([['add', '+'], ['sub', '−'], ['mul', '×'], ['div', '÷'], ['pow', 'potęga'], ['exp', 'e^x'], ['log', 'log'], ['abs', '|x|'], ['min', 'min'], ['max', 'max'], ['floor', 'w dół'], ['ceil', 'w górę'], ['round', 'zaokrąglij'], ['mod', 'reszta']]) }),
@@ -217,6 +229,11 @@ export function configSummary(palette: string, type: string, config: Readonly<Re
     else if (typeof v === 'number' || typeof v === 'boolean') parts.push(`${field.label.split(' ')[0].toLowerCase()} ${v === true ? 'tak' : v === false ? 'nie' : v}`);
     else if (field.type === 'options' && Array.isArray(v)) parts.push(`${v.length} możliwości`);
     else if (field.type === 'chapters' && Array.isArray(v)) parts.push(`${v.length} rozdziałów`);
+    /* 2026-11-03 — der Generator: welche Namen er zieht oder rechnet. */
+    else if (field.type === 'json' && Array.isArray(v)) {
+      const names = v.map((x) => (typeof x === 'object' && x !== null && typeof (x as { name?: unknown }).name === 'string' ? (x as { name: string }).name : '')).filter((x) => x !== '');
+      if (names.length > 0) parts.push(names.slice(0, 4).join(', '));
+    }
     if (parts.length >= 2) break;
   }
   return parts.join(' · ');

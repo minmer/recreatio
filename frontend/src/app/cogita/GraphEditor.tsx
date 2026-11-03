@@ -8,7 +8,7 @@
  * Leiste über Listen.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import ReactFlow, {
   Background, Controls, Handle, Position, useReactFlow, useStore, useUpdateNodeInternals,
   type Connection, type Edge, type EdgeChange, type Node, type NodeChange, type NodeProps
@@ -367,6 +367,9 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
       return <label className="wk-field">{label}<textarea rows={3} value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value)} /></label>;
     case 'code':
       return <label className="wk-field">{label}<textarea className="cg-code" spellCheck={false} value={typeof value === 'string' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value)} /></label>;
+    /* 2026-11-03 — JSON im Knoten (der Generator): gezeigt eingerückt, gespeichert als Wert, solange es JSON ist. */
+    case 'json':
+      return <JsonInput value={value} readOnly={readOnly} onSet={onSet} label={label} />;
     case 'number':
       return <label className="wk-field">{label}<input type="number" step="any" value={typeof value === 'number' ? value : ''} disabled={readOnly} onChange={(e) => onSet(e.target.value === '' ? undefined : Number(e.target.value))} /></label>;
     case 'bool':
@@ -501,6 +504,25 @@ export function ConfigInput({ field, value, fieldKeys, readOnly, onSet }: {
   }
 }
 
+/** 2026-11-03 — ein JSON-Wert eines Knotens: getippt als Text, gespeichert als JSON (sonst als Text — dann mit Hinweis). */
+function JsonInput({ value, readOnly, onSet, label }: { value: unknown; readOnly: boolean; onSet: (v: unknown) => void; label: ReactNode }) {
+  const shown = value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value, null, 1);
+  const [text, setText] = useState(shown);
+  const [bad, setBad] = useState<string | null>(null);
+  useEffect(() => { setText(shown); }, [shown]);
+  return (
+    <label className="wk-field">{label}
+      <textarea className="cg-code" spellCheck={false} rows={4} value={text} disabled={readOnly} aria-invalid={bad !== null || undefined} onChange={(e) => {
+        const t = e.target.value;
+        setText(t);
+        if (t.trim() === '') { setBad(null); onSet(undefined); return; }
+        try { onSet(JSON.parse(t) as unknown); setBad(null); } catch (err) { setBad(err instanceof Error ? err.message : 'to nie jest JSON'); onSet(t); }
+      }} />
+      {bad !== null && <span className="wk-warn" role="alert">To jeszcze nie jest poprawny JSON: {bad}</span>}
+    </label>
+  );
+}
+
 function RuleInput({ value, readOnly, onSet, label }: { value: unknown; readOnly: boolean; onSet: (v: unknown) => void; label: string }) {
   const rule: TextRule = readRule(value, TEXT_RULE);
   const set = (patch: Partial<TextRule>) => onSet({ ...rule, ...patch });
@@ -517,6 +539,9 @@ function RuleInput({ value, readOnly, onSet, label }: { value: unknown; readOnly
       <label className="pe-check"><input type="checkbox" checked={rule.similar} disabled={readOnly} onChange={(e) => set({ similar: e.target.checked })} /><span>podobne litery (ą/a, ł/l) liczą się w połowie</span></label>
       <label className="pe-check"><input type="checkbox" checked={rule.ignorePunctuation} disabled={readOnly} onChange={(e) => set({ ignorePunctuation: e.target.checked })} /><span>bez interpunkcji</span></label>
       <label className="pe-check"><input type="checkbox" checked={rule.caseSensitive} disabled={readOnly} onChange={(e) => set({ caseSensitive: e.target.checked })} /><span>wielkość liter ma znaczenie</span></label>
+      {/* 2026-11-03 — für Formeln und zusammengesetzte Antworten (Al2(SO4)3 = Al₂(SO₄)₃). */}
+      <label className="pe-check"><input type="checkbox" checked={rule.spaces === true} disabled={readOnly} onChange={(e) => set({ spaces: e.target.checked })} /><span>spacje się nie liczą</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.scripts === true} disabled={readOnly} onChange={(e) => set({ scripts: e.target.checked })} /><span>indeksy (₂, ²) jak zwykłe cyfry</span></label>
     </fieldset>
   );
 }

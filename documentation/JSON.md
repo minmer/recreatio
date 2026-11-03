@@ -73,6 +73,21 @@ What each import may do, in short (the descriptions say it in full):
   also edited one by one as JSON in Nauka → „Nagrody”; what a document leaves out comes from the built-in rule; the
   settings key `rewards` names the one the Nauka uses. Points themselves are never stored or imported — they are
   computed from the answers.
+- **knowledge-base generators** (2026-11-03) — questions with `params` (numbers from ranges, values from a list, and
+  entries: `"entry"` one, `"entries"` several, with `kind`, `rule`, `where`, `count`, `repeat`), `let`, `require`;
+  `{…}` also in `correct`, `value`, `tolerance`, `unit`; templates with the node `"generate"` (the same recipe plus
+  `texts` and `only`, `this` = the card's entry) and the card inputs `hints`/`solution`; answers store `seed` and
+  `params`. A question's history restarts only when its recipe changes (not its prompt, hints or explanation); a
+  generator with no valid instance in 60 draws makes no card and says why. Guide `guide-generators`
+  (`templates/cogita/generatory-AI.md`), the four patterns as one course `example-generators`
+  (`przyklad-generatory.json`).
+- **knowledge-base landscape** (2026-11-03) — views with `"mode": "landscape"` and `"landscape": {"budget": 60}`
+  (6–400), the condition `{"type": "knowness", "rel": "chain", "band": "known"}`; on pages the module `view` with
+  `"mode": "krajobraz"` (+ `answers`, `rewards`). The goal is kept per learner and view in the learner's positions
+  (`landscape:<view>`), never in the base. The import warns about prerequisite cycles touching imported entries, a
+  missing axis kind and a landscape view in a base without prerequisites. How to build a base for it:
+  `guide-schemes` §2.5; an example world `example-world` (`przyklad-swiat.json`) with its page `example-world-page`
+  (`przyklad-swiat-strona.json`). Both can be checked before the import with `preview_knowledge` (PREVIEW-MCP.md).
 - **lamps** — lamps, signals, timers and the button pace; deletes only with `"remove": true`.
 - **addresses** — aliases and domains the app can set; the preview lists what remains outside (DNS, hosting, the
   service's origins).

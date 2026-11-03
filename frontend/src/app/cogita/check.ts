@@ -63,9 +63,18 @@ export interface TextRule {
   /** Ab welchem Anteil (0–1) die Antwort richtig ist. */
   readonly threshold: number;
   readonly caseSensitive: boolean;
+  /** 2026-11-03 — Leerzeichen zählen nicht („Al 2 (SO 4) 3" = „Al2(SO4)3"). */
+  readonly spaces?: boolean;
+  /** 2026-11-03 — hoch- und tiefgestellte Ziffern und Zeichen gelten wie normale („Al2(SO4)3" = „Al₂(SO₄)₃", „x2" = „x²"). */
+  readonly scripts?: boolean;
 }
 
 export const TEXT_RULE: TextRule = { algorithm: 'anchors', similar: true, ignorePunctuation: false, threshold: 1, caseSensitive: false };
+
+/** 2026-11-03 — hoch- und tiefgestellte Zeichen als normale (dieselbe Tabelle wie `plain(…)` in den Ausdrücken). */
+const SCRIPT_FROM = '₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾';
+const SCRIPT_TO = '0123456789+-=()0123456789+-=()';
+const unscript = (s: string): string => Array.from(s).map((c) => { const i = SCRIPT_FROM.indexOf(c); return i < 0 ? c : SCRIPT_TO[i]!; }).join('');
 
 /** Die Lücke im Zitat: wie im Altbestand ohne Satzzeichen und mit 90 %. */
 export const GAP_RULE: TextRule = { ...TEXT_RULE, ignorePunctuation: true, threshold: 0.9 };
@@ -78,12 +87,16 @@ export function readRule(raw: unknown, base: TextRule = TEXT_RULE): TextRule {
   if (!isObject(raw)) return base;
   const algorithm = raw.algorithm === 'bidirectional' || raw.algorithm === 'prefix' || raw.algorithm === 'anchors' ? raw.algorithm : base.algorithm;
   const threshold = typeof raw.threshold === 'number' ? clamp01(raw.threshold > 1 ? raw.threshold / 100 : raw.threshold) : base.threshold;
+  const spaces = typeof raw.spaces === 'boolean' ? raw.spaces : base.spaces;
+  const scripts = typeof raw.scripts === 'boolean' ? raw.scripts : base.scripts;
   return {
     algorithm,
     similar: typeof raw.similar === 'boolean' ? raw.similar : base.similar,
     ignorePunctuation: typeof raw.ignorePunctuation === 'boolean' ? raw.ignorePunctuation : base.ignorePunctuation,
     threshold,
-    caseSensitive: typeof raw.caseSensitive === 'boolean' ? raw.caseSensitive : base.caseSensitive
+    caseSensitive: typeof raw.caseSensitive === 'boolean' ? raw.caseSensitive : base.caseSensitive,
+    ...(spaces === true ? { spaces } : {}),
+    ...(scripts === true ? { scripts } : {})
   };
 }
 
@@ -243,7 +256,12 @@ export function maskShare(mask: Uint8Array, similar: boolean): number {
  * als getroffen), damit die Karte ihn Zeichen für Zeichen einfärben kann.
  */
 export function compareText(expected: string, given: string, rule: TextRule = TEXT_RULE): { mask: Uint8Array; share: number } {
-  const norm = (s: string) => (rule.caseSensitive ? s.trim() : s.trim().toLocaleLowerCase('pl-PL'));
+  /* 2026-11-03 — `scripts`: Al₂ = Al2; `spaces`: ohne Leerzeichen. */
+  const shape = (s: string) => {
+    const plain = rule.scripts === true ? unscript(s) : s;
+    return rule.spaces === true ? plain.replace(/\s+/g, '') : plain;
+  };
+  const norm = (s: string) => (rule.caseSensitive ? shape(s).trim() : shape(s).trim().toLocaleLowerCase('pl-PL'));
   const want = Array.from(norm(expected));
   const got = Array.from(norm(given));
   const run = (e: readonly string[], g: readonly string[]) =>

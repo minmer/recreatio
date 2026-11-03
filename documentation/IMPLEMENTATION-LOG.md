@@ -3028,3 +3028,44 @@ the earning live, and a module with live charts and statistics; generalized.
   flame, ring, effects end, 1100 and 390 px); `page-api.mjs` → `page-browser.mjs` on LocalDB rcd8 (17: a real page
   with revision + both modules, points after the idle flush and reload, Nauka → Nagrody total, editor preview).
 - Needs: frontend build + deploy; API deploy only for the MCP format text (ImportFormats.json). No migration.
+
+## C17 — Cogita: generated exercises (2026-11-03)
+
+Owner (agent prompt „generated exercises and the knowledge landscape”, task 1): exercises generated on every show
+from ranges, lists of entries, logic and calculations, deterministic from a seed, for questions and templates.
+
+- `generator.ts` (one generator; `questionParams.ts` re-exports), `expr.ts` (lists/records/functions behind
+  `compile(src, {lists: true})` — Animation unchanged), `cardPalette.ts` (node `generate`, `random.count`, calc `l0…l7`,
+  card inputs `hints`/`solution`), `cards.ts`/`cardBasics.ts` (seed, params with lists and `@id`, skip + reason),
+  `check.ts` (`spaces`, `scripts`), `learn.ts` (`AnswerRecord.seed`), `store.ts` (`genWorld`, `kindOf`, `redrawn`),
+  `RevisionRun.tsx` (per-show instances for templates, seed with the answer, asked version in „Do poćwiczenia”),
+  `GeneratorSamples.tsx` (10 samples + redraw rate in the question and template editors), `generatorImport.ts`
+  (import warnings), `CardFace.tsx` (computed numbers shown as precisely as the tolerance asks).
+- Checks: `app-generator-check.mjs` (65), app-cogita 776, lemma, sim, motion, world unchanged. Drive (scratchpad `t1/`,
+  DB-free): 28/28 — 7 questions and 7 template cards right and wrong, km/h for m/s, Na₂O typed plainly, seeds.
+
+## C18 — Cogita: the knowledge landscape (2026-11-03)
+
+Same prompt, task 2: a view mode that shows any base with a learning order as the viewer's landscape.
+
+- `landscape.ts` (heights, routes, lock, sectors, hex layout, budget/focus; internal API), `landscape.worker.ts` +
+  `landscapeClient.ts` (worker, main-thread fallback), `landscapeData.ts`, `landscapeImport.ts` (warnings: cycles, unknown
+  axis kind, no prerequisites), `LandscapeView.tsx` + `landscape.css`; `views.ts` (mode `landscape`, `landscape.budget`),
+  `EntityList.tsx`, `knowing.ts`/`logic.ts`/`revision.ts` (relation `chain`), `pages/parts/view.tsx`/`viewViews.tsx`
+  (`krajobraz`, `answers`, `rewards`), `RevisionRun.onDone`, `QuiltView` exports `QuiltPanel`; `knowness.ts`
+  `acyclic`/`propagate` without recursion and with a fast path (same results).
+- Checks: `app-landscape-check.mjs` (60). Drives (scratchpad `t2/`, DB-free, StrictMode, real worker): LAAG 17/17, Bosko
+  16/16, Wpisy 7/7, the world example at 1200/390 px; lock → review → entry learning end to end. Real page on LocalDB
+  (scratchpad `rewards/world-api.mjs` → `world-browser.mjs`, 13/13): the view module in `krajobraz` mode with rewards,
+  learning from a ring field, points live in „Punkty i seria”, the landscape moving after the run, generated tasks on
+  the same page.
+
+## C19 — Cogita: guides, examples and preview for C17/C18 (2026-11-03)
+
+- Guides `generatory-AI.md` (MCP `guide-generators`), `schematy-AI.md` §2.5 (designing for the landscape); examples
+  `przyklad-generatory.json` (`example-generators`), `przyklad-swiat.json` + `przyklad-swiat-strona.json`
+  (`example-world`, `example-world-page`); `import-formats.mjs` → ImportFormats.json.
+- Preview MCP tool `preview_knowledge` (`frontend/mcp`, `preview/PreviewKnowledge.tsx`, `cogita/memoryBase.ts`): a
+  knowledge-base JSON as an in-memory base — the landscape (or any view) for progress none/partial/all at desktop and
+  phone width, and ~10 instances of every generator with answers and redraw rate.
+- Needs: frontend build + deploy; API deploy for the MCP texts. No migration.

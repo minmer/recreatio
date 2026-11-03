@@ -10,7 +10,8 @@ import { blockPlain, thesisOf, type CommentBlock } from '../library/blocks';
 import { entityAbout, entityBlocks } from './statements';
 import { guessKind, kindById } from '../core/quantities';
 import { hasTex } from '../core/tex';
-import { compile, isExprError, newEnv, type Val } from '../pages/motion/expr';
+import { compile, isExprError, isList, isRecord, newEnv, recordId, takeOverrun, truth as isTrue, valueText as exprText, withRng, type Val } from '../pages/motion/expr';
+import { drawInstance, readParamsSpec, recordOf, storedValues, type GenWorld, type Stored } from './generator';
 
 /** Was an einem Eingang ankam — alle Kanten, alle Stücke, in einer Liste. */
 const itemsAt = (inputs: Readonly<Record<string, readonly unknown[]>>, port: string): Item[] =>
@@ -504,19 +505,29 @@ const FIELD_PAIRS: Kind = {
 
 const RANDOM: Kind = {
   type: 'random', label: 'Losowa wartość', group: 'Liczby',
-  says: 'Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy (wpisanej tu albo przychodzącej z lewej) — jeden szablon daje za każdym razem inne pytanie (karta „losowa”: jej historia nie zaczyna się od nowa przy każdym losowaniu).',
+  says: 'Losuje liczbę z przedziału (z krokiem) albo jedną pozycję z listy (wpisanej tu albo przychodzącej z lewej) — jeden szablon daje za każdym razem inne pytanie (karta „losowa”: jej historia nie zaczyna się od nowa przy każdym losowaniu). „Ile” > 1: tyle różnych (bez powtórzeń) — np. 4 wpisy do ułożenia w kolejności.',
   ports: () => ({ inputs: [port('items', 'Z listy', 'items', true)], outputs: [port('value', 'Wartość')] }),
   run: ({ node, config, inputs, ctx }) => {
     const rng = rngFor(ctx, node.id);
+    /* 2026-11-03 — „Ile": k różnych naraz (bez powtórzeń); bez — jedna, jak dotąd. */
+    const count = Math.max(1, Math.min(200, Math.round(num(config.count, 1))));
     /* 2026-11-01 — auch eine hier getippte Liste (eine Pozycja je Zeile); eine Zahl darin bleibt eine Zahl. */
     const list = [...itemsAt(inputs, 'items'), ...lines(config.list).map((text): Item => { const n = strictNumber(text); return n === null ? { text } : { text, value: n }; })];
-    if (list.length > 0) return { value: [list[Math.floor(rng() * list.length)]] };
+    if (list.length > 0) {
+      if (count === 1) return { value: [list[Math.floor(rng() * list.length)]] };
+      if (list.length < count) throw new Error(`„Losowa wartość": potrzeba ${count} różnych pozycji, jest ${list.length}.`);
+      return { value: sample(list, count, rng) };
+    }
     const min = num(config.min, 1);
     const max = Math.max(min, num(config.max, 10));
     const step = Math.max(1e-9, num(config.step, 1));
     const steps = Math.floor((max - min) / step + 1e-9);
-    const value = Number((min + Math.floor(rng() * (steps + 1)) * step).toFixed(10));
-    return { value: [{ text: String(value).replace('.', ','), value }] };
+    const one = (k: number): Item => { const value = Number((min + k * step).toFixed(10)); return { text: String(value).replace('.', ','), value }; };
+    if (count === 1) return { value: [one(Math.floor(rng() * (steps + 1)))] };
+    if (steps + 1 < count) throw new Error(`„Losowa wartość": w przedziale jest tylko ${steps + 1} liczb, a potrzeba ${count} różnych.`);
+    const picked = new Set<number>();
+    while (picked.size < count) picked.add(Math.floor(rng() * (steps + 1)));
+    return { value: [...picked].map(one) };
   }
 };
 
@@ -606,47 +617,117 @@ const calcInputs = (config: Readonly<Record<string, unknown>>): number => Math.m
 export const calcExpressions = (config: Readonly<Record<string, unknown>>): string[] =>
   str(config.expr).split(/[;\n]/).map((x) => x.trim()).filter((x) => x !== '').slice(0, 20);
 
+/**
+ * 2026-11-03 — EIN GERECHNETER WERT ALS STÜCKE: eine Zahl (gerundet, wenn gesagt), ein Text (eine Zahl darin bleibt
+ * eine Zahl — für „Odpowiedź: liczba"), ein Eintrag (sein Name, er selbst), eine Liste — jedes Element ein Stück.
+ */
+function itemsOfValue(v: Val, decimals: number | null): Item[] {
+  if (typeof v === 'number') return Number.isFinite(v) ? [numberItem(v, decimals)] : [];
+  if (isRecord(v)) {
+    const id = recordId(v);
+    const label = exprText(v);
+    return id === '' ? (label === '' ? [] : [{ text: label }]) : [{ text: label || id, entity: id }];
+  }
+  if (isList(v)) return v.flatMap((x) => itemsOfValue(x, decimals));
+  /* Ein Text (fmt): wie er ist, mit einfachem Minus. */
+  const text = v.replace(/−/g, '-');
+  if (text.trim() === '') return [];
+  const n = strictNumber(text);
+  return [n === null ? { text } : { text, value: n }];
+}
+
+/** 2026-11-03 — die Werte eines Eingangs als Liste für Ausdrücke (`l0`): Zahlen, Texte, Einträge als Datensätze (`it.masa`). */
+const listOfItems = (items: readonly Item[], look: TemplateContext['look']): Val[] => items.map((item): Val => {
+  if (item.entity !== undefined) { const e = look.entity(item.entity); if (e !== undefined) return recordOf(e, look); }
+  const n = numberOfItem(item);
+  return n !== null ? n : item.text;
+});
+
 const CALC: Kind = {
   type: 'calc', label: 'Oblicz', group: 'Liczby',
-  says: 'Liczy wyrażenia w języku rysunków — np. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — każde w osobnym wierszu albo po „;”, każde daje jedną wartość (np. dystraktory „p0 + 1; p0 - 1; p0 * 2” do „Odpowiedź: jeden wybór”). p0, p1, … to pierwsza liczba z wejścia, n0, n1, … — ile wartości przyszło. Wynik, który nie jest liczbą (dzielenie przez zero), odpada; gdy wejście, z którego wyrażenie korzysta, nie dało liczby, albo żadne wyrażenie nic nie dało — krok się nie udaje i z tego wpisu nie powstaje karta.',
+  says: 'Liczy wyrażenia w języku rysunków — np. p0 * p1, mod(p0, 7), round(p0 / 3, 2), sqrt(p0), fmt(p0, 2) — każde w osobnym wierszu albo po „;”, każde daje jedną wartość (np. dystraktory „p0 + 1; p0 - 1; p0 * 2” do „Odpowiedź: jeden wybór”). p0, p1, … to pierwsza liczba z wejścia, n0, n1, … — ile wartości przyszło, l0, l1, … — wszystkie wartości wejścia jako lista (wpisy jako wpisy: sum(l0, it.masa), map(l0, it.label)). Wynik, który jest listą, daje kilka wartości; wynik, który nie jest liczbą (dzielenie przez zero), odpada; gdy wejście, z którego wyrażenie korzysta, nie dało liczby, albo żadne wyrażenie nic nie dało — krok się nie udaje i z tego wpisu nie powstaje karta.',
   ports: (config) => ({
     inputs: Array.from({ length: calcInputs(config) }, (_, i) => port(`p${i}`, `p${i}`, 'items', true)),
     outputs: [port('value', 'Wynik')]
   }),
-  run: ({ config, inputs }) => {
+  run: ({ node, config, inputs, ctx }) => {
     const count = calcInputs(config);
     const sources = calcExpressions(config);
     if (sources.length === 0) throw new Error('„Oblicz” nie ma wyrażenia — wpisz np. p0 + 1.');
-    const env = newEnv();
+    /* 2026-11-03 — `shuffle`, `choose`, `pick` ziehen mit dem Zufall dieser Karte. */
+    const env = withRng(newEnv(), rngFor(ctx, node.id));
     const empty = new Set<string>();
     for (let i = 0; i < count; i += 1) {
       const items = itemsAt(inputs, `p${i}`);
       const first = items.map(numberOfItem).find((x): x is number => x !== null);
       env[`p${i}`] = first ?? Number.NaN;
       env[`n${i}`] = items.length;
+      env[`l${i}`] = listOfItems(items, ctx.look);
       if (first === undefined) empty.add(`p${i}`);
     }
     const known = (name: string) => Object.prototype.hasOwnProperty.call(env, name);
     const decimals = decimalsOf(config);
     const out: Item[] = [];
     for (const source of sources) {
-      const expr = compile(source, known);
+      const expr = compile(source, { known, lists: true });
       if (isExprError(expr)) throw new Error(`„${source}”: ${expr.error}.`);
       const lacking = expr.reads.filter((name) => empty.has(name));
       if (lacking.length > 0) throw new Error(`Wejście ${lacking.join(', ')} nie dało liczby (puste pole?).`);
       const v: Val = expr.run(env);
-      if (typeof v === 'number') {
-        if (Number.isFinite(v)) out.push(numberItem(v, decimals));
-        continue;
-      }
-      /* Ein Text (fmt): wie er ist, mit einfachem Minus — eine Zahl darin bleibt eine Zahl (für „Odpowiedź: liczba"). */
-      const text = v.replace(/−/g, '-');
-      if (text.trim() === '') continue;
-      const n = strictNumber(text);
-      out.push(n === null ? { text } : { text, value: n });
+      if (takeOverrun()) throw new Error(`„${source}”: za dużo obliczeń.`);
+      out.push(...itemsOfValue(v, decimals));
     }
     if (out.length === 0) throw new Error('Żadne wyrażenie nie dało liczby (np. dzielenie przez zero).');
     return { value: out };
+  }
+};
+
+/*
+ * 2026-11-03 — DER GENERATOR IM SZABLON (`generator.ts`): dieselbe Einstellung wie an einer Frage — `params` (Zahlen,
+ * Listen, Einträge aus der Baza), `let`, `require` — und `texts` (Texte mit {…}); `this` ist der Eintrag der Karte.
+ * Je Name ein Ausgang. Kann keine Aufgabe gezogen werden, entsteht für diesen Eintrag keine Karte (mit dem Grund).
+ */
+const generatorNames = (config: Readonly<Record<string, unknown>>): string[] => {
+  const spec = readParamsSpec(config);
+  if (spec === null) return [];
+  return [...new Set([...spec.params.map((p) => p.name), ...spec.lets.map((l) => l.name), ...spec.texts.map((t) => t.name)])];
+};
+
+/** Was ein Generator für die Antwort mitgibt: die Werte (gekürzt) und die gezogenen Einträge. */
+export interface GeneratorRun {
+  readonly values: Readonly<Record<string, Stored>>;
+  readonly picked: readonly string[];
+  readonly tries: number;
+}
+
+const GENERATE: Kind = {
+  type: 'generate', label: 'Generator', group: 'Liczby',
+  says: 'Losuje zadanie: liczby z przedziałów ("params": [{"name": "s", "random": [20, 500], "step": 10}]), pozycje z list ({"name": "f", "values": ["sin", "cos"]}), wpisy z bazy ({"name": "kation", "entry": {"kind": "@chem/jon", "where": "it.ladunek > 0"}}, kilka różnych: "entries" z "count"), liczy wartości ("let": [{"name": "v", "value": "s / t"}]) i sprawdza warunki ("require": ["isint(v)"] — losuje od nowa, najwyżej 60 razy); "texts": [{"name": "pytanie", "value": "Ile to {a} + {b}?"}] — teksty z wartościami. W wyrażeniach "this" to wpis tej karty (this.pole); "only": "this.ladunek > 0" — tylko takie wpisy rodzaju dostają kartę (inne bez ostrzeżenia). Każda nazwa ma swoje wyjście. Gdy zadania nie da się wylosować, z tego wpisu nie powstaje karta — z powodem w podglądzie.',
+  ports: (config) => ({ inputs: [], outputs: generatorNames(config).map((name) => port(name, name)) }),
+  run: ({ node, config, ctx }) => {
+    /* „Tylko dla": ein Eintrag, für den der Generator nicht gedacht ist, bekommt still keine Karte (kein Fehler). */
+    const only = str(config.only).trim();
+    if (only !== '') {
+      const test = compile(only, { known: (name) => name === 'this', lists: true });
+      if (isExprError(test)) throw new Error(`Generator, „tylko dla” — „${only}”: ${test.error}.`);
+      const env = newEnv();
+      env.this = recordOf(ctx.entity, ctx.look);
+      if (!isTrue(test.run(env))) return { pass: false };
+    }
+    const spec = readParamsSpec(config);
+    if (spec === null) throw new Error('Generator nie ma nic do losowania — dodaj "params", "let" albo "texts".');
+    const world: GenWorld = { look: ctx.look, pool: ctx.pool, self: ctx.entity, ...(ctx.kindOf === undefined ? {} : { kindOf: ctx.kindOf }) };
+    /* Jede Karte ihr eigenes Zadanie: der Zufall auch nach dem Eintrag (sonst zöge jeder Eintrag eines Laufs dasselbe). */
+    const made = drawInstance(spec, rngOf(`${ctx.seed}:${node.id}:${ctx.variant ?? ''}:${ctx.entity.id}`), world);
+    if (!made.held) throw new Error(made.problem ?? 'Zadania nie dało się wylosować.');
+    const out: Record<string, unknown> = {};
+    for (const name of generatorNames(config)) {
+      const v = made.values[name];
+      out[name] = v === undefined ? [] : itemsOfValue(v, null);
+    }
+    /* Kein Ausgang: was die Karte mit der Antwort mitnimmt (`cardsOf`). */
+    out.$generator = { values: storedValues(spec, made.values), picked: made.picked, tries: made.tries } satisfies GeneratorRun;
+    return out;
   }
 };
 
@@ -929,13 +1010,20 @@ const ANSWER_POINT: Kind = {
 
 const CARD: Kind = {
   type: 'card', label: 'Karta', group: 'Karta',
-  says: 'Składa kartę: pytanie, odpowiedź i (po odpowiedzi) wyjaśnienie z połączonych wpisów.',
-  ports: () => ({ inputs: [port('prompt', 'Pytanie', 'prompt'), port('answer', 'Odpowiedź', 'answer'), port('explain', 'Wyjaśnienie', 'items', true)], outputs: [port('card', 'Karta', 'card')] }),
+  says: 'Składa kartę: pytanie, odpowiedź i (po odpowiedzi) wyjaśnienie z połączonych wpisów. Dla zadań z generatora: „Podpowiedzi” (teksty, od łagodnej do konkretnej) i „Rozwiązanie” (tekst z wylosowanymi wartościami i wynikami pośrednimi — po odpowiedzi).',
+  ports: () => ({
+    inputs: [port('prompt', 'Pytanie', 'prompt'), port('answer', 'Odpowiedź', 'answer'), port('explain', 'Wyjaśnienie', 'items', true),
+      /* 2026-11-03 — podpowiedzi i rozwiązanie z wartościami zadania (z „Generatora” albo „Wzoru tekstu”). */
+      port('hints', 'Podpowiedzi', 'items', true), port('solution', 'Rozwiązanie', 'items', true)],
+    outputs: [port('card', 'Karta', 'card')]
+  }),
   run: ({ inputs }) => ({
     card: {
       prompt: (inputs.prompt ?? [])[0] ?? [],
       draft: (inputs.answer ?? [])[0],
-      explain: itemsAt(inputs, 'explain').map((i) => i.entity).filter((e): e is string => e !== undefined)
+      explain: itemsAt(inputs, 'explain').map((i) => i.entity).filter((e): e is string => e !== undefined),
+      hints: texts(itemsAt(inputs, 'hints')),
+      explanation: texts(itemsAt(inputs, 'solution')).join('\n\n')
     }
   })
 };
@@ -946,7 +1034,7 @@ export const TEMPLATE_PALETTE = paletteOf<TemplateContext>('card-template', [
   STATEMENT_THESIS, STATEMENT_PART, STATEMENT_TABLE, STATEMENT_SUBJECTS,
   PATTERN, MASK, FRAGMENTS,
   PICK, DISTRACTORS, EACH, PAIRS, FIELD_PAIRS,
-  RANDOM, MATH, CALC, AGGREGATE, COMPARE, WHEN, PYTHON,
+  RANDOM, MATH, CALC, AGGREGATE, GENERATE, COMPARE, WHEN, PYTHON,
   PROMPT, ANSWER_TEXT, ANSWER_GAP, ANSWER_NUMBER, ANSWER_DATE, ANSWER_ONE, ANSWER_MANY, ANSWER_TRUEFALSE, ANSWER_ORDER, ANSWER_MATCH, ANSWER_FLASH, ANSWER_CODE, ANSWER_POINT,
   CARD
 ]);

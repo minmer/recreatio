@@ -1,0 +1,121 @@
+/*
+ * 2026-11-03 — DER KRAJOBRAZ (LandscapeView.tsx). Das Fach ist nur eine Farbe (acht Schritte der geprüften
+ * kategorischen Palette, hell und dunkel; nebeneinander liegende Bereiche sind Nachbarpaare — dataviz
+ * `validate_palette.js`, adjazent bestanden), ein neuntes und weitere Fächer grau. Der Stand steht in der Höhe und im
+ * Zeichen jedes Feldes (● ◑ ○ ▲n), nie nur in der Farbe; Schrift in den Textfarben mit Hof.
+ */
+
+.cg-ls {
+  --cg-ls-c0: #2a78d6; --cg-ls-c1: #eb6834; --cg-ls-c2: #1baf7a; --cg-ls-c3: #eda100;
+  --cg-ls-c4: #e87ba4; --cg-ls-c5: #008300; --cg-ls-c6: #6250d6; --cg-ls-c7: #e34948;
+  --cg-ls-cx: #8d8a82;
+  --cg-ls-light: #ffffff;
+  --cg-ls-floor: #f3f0ea;
+  --cg-ls-route: #b07800;
+  display: grid; gap: var(--wk-space-3); min-width: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .cg-ls {
+    --cg-ls-c0: #3987e5; --cg-ls-c1: #d95926; --cg-ls-c2: #199e70; --cg-ls-c3: #c98500;
+    --cg-ls-c4: #d55181; --cg-ls-c5: #008300; --cg-ls-c6: #9085e9; --cg-ls-c7: #e66767;
+    --cg-ls-cx: #6f6b62;
+    --cg-ls-light: #2a2620;
+    --cg-ls-floor: #1d1a15;
+    --cg-ls-route: #f2b705;
+  }
+}
+
+/* Oben: wo man ist, was es gibt, das Ziel */
+.cg-ls-top { display: grid; gap: var(--wk-space-2); }
+.cg-ls-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+.cg-ls-crumb { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.cg-ls-sum { display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-4); margin: 0; font-size: var(--wk-text-sm); color: var(--wk-muted); font-variant-numeric: tabular-nums; }
+.cg-ls-sum strong { color: var(--wk-ink); }
+.cg-ls-areas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--wk-space-1) var(--wk-space-2); font-size: var(--wk-text-sm); }
+.cg-ls-area { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.25rem 0.1rem 0.45rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-pill); background: var(--wk-surface); }
+.cg-ls-swatch { width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--ls-c, var(--cg-ls-cx)); flex: none; }
+.cg-ls-mix { border: 1px solid var(--wk-line-strong); border-radius: 50%; width: 1.35rem; height: 1.35rem; padding: 0; background: var(--wk-surface); color: var(--wk-ink); cursor: pointer; line-height: 1; }
+.cg-ls-mix.is-on { background: var(--wk-accent); color: var(--wk-on-accent); border-color: var(--wk-accent); }
+.cg-ls-goal { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-3); margin: 0; padding: var(--wk-space-2) var(--wk-space-3); border: 1px solid var(--cg-ls-route); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
+.cg-ls-flag { color: var(--cg-ls-route); font-weight: 700; }
+.cg-ls-note { margin: 0; }
+
+/* Die Farben je Fach — Fläche, Seiten (dunkler), Namen am Rand. */
+.cg-ls .is-s0 { --ls-c: var(--cg-ls-c0); } .cg-ls .is-s1 { --ls-c: var(--cg-ls-c1); } .cg-ls .is-s2 { --ls-c: var(--cg-ls-c2); } .cg-ls .is-s3 { --ls-c: var(--cg-ls-c3); }
+.cg-ls .is-s4 { --ls-c: var(--cg-ls-c4); } .cg-ls .is-s5 { --ls-c: var(--cg-ls-c5); } .cg-ls .is-s6 { --ls-c: var(--cg-ls-c6); } .cg-ls .is-s7 { --ls-c: var(--cg-ls-c7); }
+.cg-ls .is-sx { --ls-c: var(--cg-ls-cx); }
+
+/* Das Bild */
+.cg-ls-map { min-width: 0; overflow: hidden; }
+.cg-ls-svg { display: block; width: 100%; max-width: 100%; height: auto; touch-action: manipulation; }
+.cg-ls-floor { fill: var(--cg-ls-floor); stroke: var(--wk-line); stroke-width: 1; }
+.cg-ls-ringline { fill: none; stroke: var(--wk-accent); stroke-width: 1.2; stroke-dasharray: 5 4; opacity: 0.55; }
+.cg-ls-border { stroke: var(--wk-line-strong); stroke-width: 1; stroke-dasharray: 2 4; }
+.cg-ls-sector { fill: var(--wk-muted); font-size: var(--wk-text-xs); font-weight: 600; paint-order: stroke; stroke: var(--wk-surface); stroke-width: 3px; stroke-linejoin: round; }
+.cg-ls-me ellipse { fill: var(--wk-accent-soft); stroke: var(--wk-accent); stroke-width: 1.2; }
+.cg-ls-me circle, .cg-ls-me path { fill: var(--wk-ink); }
+.cg-ls-me text { fill: var(--wk-ink); font-size: var(--wk-text-xs); font-weight: 700; }
+
+.cg-ls-field { transform: translate(var(--ls-x, 0), var(--ls-y, 0)); transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: pointer; outline: none; }
+.cg-ls-field.is-still { transition: none; }
+.cg-ls-top { fill: color-mix(in oklab, var(--ls-c) 74%, var(--cg-ls-light)); stroke: color-mix(in oklab, var(--ls-c) 55%, #000000); stroke-width: 1; stroke-linejoin: round; }
+.cg-ls-side { stroke: color-mix(in oklab, var(--ls-c) 45%, #000000); stroke-width: 0.6; stroke-linejoin: round; }
+.cg-ls-side.is-l { fill: color-mix(in oklab, var(--ls-c) 64%, #000000); }
+.cg-ls-side.is-f { fill: color-mix(in oklab, var(--ls-c) 78%, #000000); }
+.cg-ls-side.is-r { fill: color-mix(in oklab, var(--ls-c) 56%, #000000); }
+/* Tal: versenkt, das Gelernte satt; was verblasst, heller — es steigt aus dem Tal. */
+.cg-ls-pit { fill: none; stroke: var(--wk-line-strong); stroke-width: 1; stroke-dasharray: 2 2; }
+.cg-ls-field.is-known .cg-ls-top { fill: color-mix(in oklab, var(--ls-c) 62%, var(--cg-ls-floor)); }
+.cg-ls-field.is-due .cg-ls-top { fill: color-mix(in oklab, var(--ls-c) 38%, var(--cg-ls-light)); stroke-dasharray: 3 2; }
+/* Der Ring: hell, mit Rand in der Textfarbe — hier geht es weiter. */
+.cg-ls-field.is-ring .cg-ls-top { fill: color-mix(in oklab, var(--ls-c) 50%, var(--cg-ls-light)); stroke: var(--wk-ink); stroke-width: 1.6; }
+/* Berge: je weiter, desto mehr im Dunst. */
+.cg-ls-field.is-fog1 { opacity: 0.94; }
+.cg-ls-field.is-fog2 { opacity: 0.82; }
+.cg-ls-field.is-fog3 { opacity: 0.7; }
+.cg-ls-break { fill: none; stroke: var(--wk-surface); stroke-width: 2; }
+/* Bereiche: gestrichelt umrandet, mit ihrer Zahl. */
+.cg-ls-area-ring { fill: none; stroke: var(--wk-ink); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.cg-ls-field.is-edge { opacity: 0.6; }
+/* Gewählt, im Fokus der Tasten, auf dem Weg, das nächste, das Ziel, gesperrt. */
+.cg-ls-field.is-on .cg-ls-top { stroke: var(--wk-accent); stroke-width: 3; }
+.cg-ls-field:focus-visible .cg-ls-top { stroke: var(--wk-accent); stroke-width: 4; }
+.cg-ls-field.is-route .cg-ls-top { stroke: var(--cg-ls-route); stroke-width: 2.6; stroke-dasharray: 5 3; }
+.cg-ls-field.is-goal .cg-ls-top { stroke: var(--cg-ls-route); stroke-width: 3.2; stroke-dasharray: none; }
+.cg-ls-nextdot { fill: var(--cg-ls-route); stroke: var(--wk-surface); stroke-width: 1.5; }
+.cg-ls-goalflag { fill: var(--cg-ls-route); stroke: var(--wk-ink); stroke-width: 1.2; stroke-linejoin: round; }
+.cg-ls-lock { fill: var(--wk-surface); stroke: var(--wk-ink); stroke-width: 1.3; }
+.cg-ls-mark { fill: var(--wk-ink); font-size: var(--wk-text-xs); font-weight: 700; paint-order: stroke; stroke: var(--wk-surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.cg-ls-label { fill: var(--wk-ink); font-size: var(--wk-text-xs); paint-order: stroke; stroke: var(--wk-surface); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+
+/* Tafeln */
+.cg-ls-detail { display: grid; gap: var(--wk-space-3); }
+.cg-ls-actions { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
+.cg-ls-state { margin: 0; font-weight: 600; display: flex; align-items: baseline; gap: var(--wk-space-2); }
+.cg-ls-badge { font-weight: 700; }
+.cg-ls-lockbox { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-2) var(--wk-space-3); border-left: 3px solid var(--cg-ls-route); background: var(--wk-sunk); border-radius: var(--wk-radius-xs); }
+.cg-ls-lockbox p { margin: 0; }
+.cg-ls-route h4 { margin: 0 0 var(--wk-space-1); font-size: var(--wk-text-sm); }
+.cg-ls-route ol { margin: 0; padding-left: 1.4rem; display: grid; gap: 0.2rem; }
+.cg-ls-route li.is-next { font-weight: 600; }
+.cg-ls-route-goal { color: var(--cg-ls-route); }
+.cg-ls-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; font-size: var(--wk-text-sm); }
+.cg-ls-areapanel { padding: var(--wk-space-3); border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); }
+.cg-ls-areapanel h4 { margin: 0; }
+.cg-ls-list summary { cursor: pointer; font-size: var(--wk-text-sm); }
+.cg-ls-list h5 { margin: var(--wk-space-2) 0 var(--wk-space-1); }
+.cg-ls-list ul { margin: 0; padding-left: 1.1rem; font-size: var(--wk-text-sm); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-ls-field { transition: none; }
+}
+
+/* Klein (Telefon, Baustein): kleinere Zeichen, dünnere Ränder. */
+.cg-ls-host { min-width: 0; }
+.cg-ls-field.is-small .cg-ls-top { stroke-width: 0.8; }
+.cg-ls-field.is-small.is-ring .cg-ls-top { stroke-width: 1.2; }
+.cg-ls-map.is-compact .cg-ls-sector { font-weight: 500; }
+/* Die Namen in der obersten Lage gleiten mit ihren Feldern. */
+.cg-ls-names .cg-ls-label { transform: translate(var(--ls-x, 0), var(--ls-y, 0)); transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.cg-ls-names .cg-ls-label.is-still { transition: none; }
+@media (prefers-reduced-motion: reduce) { .cg-ls-names .cg-ls-label { transition: none; } }

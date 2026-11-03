@@ -161,3 +161,90 @@ export function sideText(view) {
   }
   return out;
 }
+
+/* -- 2026-11-03: eine Baza wiedzy aus JSON (preview_knowledge) ----------------------------------------------------- */
+
+const MOOD_WORD = { known: 'known', due: 'due', forgotten: 'forgotten', wrong: 'last answered wrong', new: 'new' };
+
+/** Was die Baza ist: Import (Plan, Warnungen), Rodzaje, Karten, Reihenfolge des Lernens, Widoki. */
+export function knowledgeText(summary, { renderer }) {
+  const out = [];
+  out.push(`# Knowledge base „${summary.name}” (${summary.format || 'no "format"'})`);
+  out.push(`Renderer: ${renderer} · imported into a memory store (nothing is saved, no service) · ${summary.entries} entr${summary.entries === 1 ? 'y' : 'ies'}, ${summary.questions} question(s), ${summary.templates} card template(s), ${summary.revisions} revision(s), ${summary.cards} card(s)`);
+  out.push(`- kinds: ${summary.kinds.map((k) => `${k.name} ${k.count}`).join(', ') || '—'}`);
+  out.push(`- learning order: ${summary.levels === 0 ? 'none declared (no "prerequisite" fields, no dependencies) — a landscape puts everything not learned on the ring' : `${summary.levels} level(s) from the fundamentals`}`);
+  if (summary.circles.length > 0) out.push(`- ⚠ cycles in the learning order (the edge that closes a cycle is dropped; the app lists it under „Do zrobienia”): ${summary.circles.slice(0, 8).join('; ')}${summary.circles.length > 8 ? ` … +${summary.circles.length - 8}` : ''}`);
+  out.push(`- views: ${summary.views.length === 0 ? 'none' : summary.views.map((v) => `${v.ref ?? v.id} „${v.name}” (${v.mode})`).join('; ')}`);
+  out.push(`- modes this build draws: ${summary.modes.join(', ')}`);
+  out.push('', '## What the import would do (the app’s own plan)');
+  for (const line of summary.lines) out.push(`- ${line}`);
+  if (summary.warnings.length > 0) {
+    /* Warnungen derselben Gestalt (nur die Namen in „…” anders) einmal, mit ihrer Zahl und einem Beispiel. */
+    const shapes = new Map();
+    for (const w of summary.warnings) {
+      const shape = w.replace(/„[^”]*”/g, '„…”').replace(/@[\w/.-]+/g, '@…').replace(/\b\d+\b/g, 'N');
+      const had = shapes.get(shape);
+      if (had === undefined) shapes.set(shape, { first: w, n: 1 }); else had.n += 1;
+    }
+    const library = [...shapes.values()].filter((s) => /bibliotek|dzieła/.test(s.first));
+    out.push('', `## Import warnings (${summary.warnings.length}, ${shapes.size} kind${shapes.size === 1 ? '' : 's'})`);
+    for (const s of [...shapes.values()].slice(0, 30)) out.push(`- ${s.n > 1 ? `${s.n}× like: ` : ''}${s.first}`);
+    if (shapes.size > 30) out.push(`- … and ${shapes.size - 30} more kinds`);
+    if (library.length > 0) out.push('- (references to works of a library lead nowhere here — the preview has no library; in the app the base must use that library as a source)');
+  }
+  return out.join('\n');
+}
+
+/** Ein Bild der Baza: welcher Widok, welcher Fortschritt, was gemessen wurde. */
+export function knowledgeCaptureText(capture) {
+  const r = capture.loaded;
+  const v = capture.vp;
+  const out = [];
+  const counts = Object.entries(r.progress.counts).filter(([, n]) => n > 0).map(([k, n]) => `${MOOD_WORD[k] ?? k} ${n}`).join(', ');
+  out.push(`## ${r.progress.name} · ${v.name} ${v.width}×${v.height} · ${capture.scheme} — view „${r.shown.name}” as ${r.shown.mode}${r.settled.settled ? '' : ` — ⚠ still loading after ${Math.round(r.settled.ms / 1000)} s: ${r.settled.waiting.join(', ')}`}`);
+  out.push(`- progress: ${r.progress.label}${counts === '' ? '' : ` — cards: ${counts}`}`);
+  if (r.shown.note !== null) out.push(`- note: ${r.shown.note}`);
+  const m = capture.measure;
+  out.push(`- page ${m.page.w}×${m.page.h} px`);
+  for (const item of m.items) {
+    /* Der Widok ist keine Kachel fester Grösse: was „herausragt" oder „leer bleibt", sagt hier nichts. */
+    const issues = item.findings.filter((f) => f.kind !== 'spills' && f.kind !== 'sparse').map((f) => `⚠ ${f.kind}: ${f.detail}`);
+    out.push(`- V1 (the view) — ${item.rect.w}×${item.rect.h} px${item.says.length > 0 ? ` · says „${item.says.join(' / ')}”` : ''}${issues.length === 0 ? '' : `\n  ${issues.join('\n  ')}`}`);
+  }
+  if (m.overflowX > 1) out.push(`- ⚠ the page is ${m.overflowX} px wider than the screen (sideways scrolling): ${m.culprits.map((c) => `${c.what} +${c.right} px`).join('; ')}`);
+  if (m.loading > 0) out.push(`- ⚠ ${m.loading}× still „Wczytywanie…” when the picture was taken`);
+  const errors = capture.console.filter((c) => c.level !== 'warning');
+  if (errors.length > 0) out.push(`- ⚠ console: ${errors.length} error(s) — ${[...new Set(errors.map((c) => c.text.split('\n')[0]))].slice(0, 3).map((t) => `„${t.slice(0, 200)}”`).join('; ')}`);
+  return out;
+}
+
+const valueWord = (v) => (Array.isArray(v) ? `[${v.map(valueWord).join(', ')}]` : typeof v === 'string' ? v : JSON.stringify(v));
+
+/** Die Generatoren mit ihren Proben. */
+export function samplesText(samples) {
+  const out = [];
+  if (samples === null) return out;
+  const gens = samples.generators;
+  out.push('', `# Generators (${gens.length})`);
+  if (gens.length === 0) {
+    out.push('No question with "params"/"let" and no card template with a "random" or "generate" node.');
+    return out;
+  }
+  const failing = gens.filter((g) => g.problems.length > 0 || g.made < g.tried);
+  if (failing.length > 0) {
+    out.push(`## Failing generators (${failing.length})`);
+    for (const g of failing) out.push(`- ⚠ ${g.kind} ${g.ref ?? g.id} „${g.name}” — ${g.made}/${g.tried} instance(s)${g.problems.length > 0 ? `: ${g.problems.slice(0, 3).join(' | ')}` : ''}`);
+  }
+  for (const g of gens) {
+    out.push('', `## ${g.kind === 'question' ? 'Question' : 'Template'} ${g.ref ?? g.id} „${g.name}” — ${g.made}/${g.tried} instance(s)${g.draws === null ? '' : ` · draws per instance ≈ ${String(g.draws)}${g.draws > 1.5 ? ' (many redraws: widen the ranges or soften "require")' : ''}`}`);
+    g.samples.forEach((s, i) => {
+      const values = s.values === undefined ? '' : ` · values ${Object.entries(s.values).map(([k, v]) => `${k}=${valueWord(v)}`).join(', ')}`;
+      out.push(`${i + 1}. ${s.entry === undefined ? '' : `[${s.entry}] `}${s.prompt || '(no prompt text)'} → **${s.answer}**${s.options === undefined ? '' : ` · options: ${s.options.join(' / ')}`}${values}`);
+      /* Hints and solution of the first few instances — enough to see whether the values landed in them. */
+      if (i < 3 && (s.hints !== undefined || s.explanation !== undefined)) {
+        out.push(`   ${[s.hints === undefined ? '' : `hints: ${s.hints.join(' / ')}`, s.explanation === undefined ? '' : `solution: ${s.explanation}`].filter(Boolean).join(' · ')}`);
+      }
+    });
+  }
+  return out;
+}

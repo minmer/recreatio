@@ -82,7 +82,7 @@ export class PanelSync {
           if (e === null) return;
           if (changed !== null && !e.reads.some((r) => changed.has(r))) return;
           const raw = e.run(env);
-          const text = typeof raw === 'string' ? raw : withUnit(raw, c.digits ?? 2, c.unit);
+          const text = typeof raw === 'string' ? raw : withUnit(toNum(raw), c.digits ?? 2, c.unit);
           const out = el.querySelector('output');
           if (out !== null && out.textContent !== text) out.textContent = text;
           return;
@@ -158,7 +158,7 @@ export class PanelSync {
       if (spec === undefined) return;
       el.hidden = !world.readoutShown(selected, i);
       const raw = world.readout(selected, i);
-      const text = typeof raw === 'string' ? raw : withUnit(raw, spec.digits ?? 2, spec.unit);
+      const text = typeof raw === 'string' ? raw : withUnit(toNum(raw), spec.digits ?? 2, spec.unit);
       const out = el.querySelector('output');
       if (out !== null && out.textContent !== text) out.textContent = text;
     });

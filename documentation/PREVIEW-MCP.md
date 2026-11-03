@@ -31,6 +31,7 @@ Needs `npm install` in `frontend/` (adds `@modelcontextprotocol/sdk`, `zod`) and
 | `preview_page` | the check, plus per screen size (`viewports`, default phone + desktop; `theme` light/dark/both; `reducedMotion`): a page as one long picture, slides one by one (tall ones also at their end), a presentation scene by scene and step by step; overview sheets with M1, M2 … framed (red: something to fix), PNG files of every picture, and measured findings |
 | `preview_motion` | filmstrips (`frames` 3–8 per change): between slides, between scenes and steps of a presentation, clock-driven animations of modules on a page (paused and sampled); `only` filters by label |
 | `preview_module` | one module (`M3`, `modules[2]`, its id or its kind) in every size the grid allows per screen (2/3/4/6 columns × strip/block/tall), with the "shows" sentence per size |
+| `preview_knowledge` | (2026-11-03) a knowledge base (`knowledge-base` format: `recreatio.cogita.course` or `…schema`) imported into memory: what the import would do and its warnings, kinds, cards, learning-order levels and cycles, its views; pictures of one saved view (`view`: ref, id or name — default the first `landscape` view) in its mode or another (`mode`: `landscape`, `quilt`, `table`, … or the page words `krajobraz`, `postepy` …) for a synthetic learner (`progress`: `none`, `partial`, `all`; default none + partial) at desktop and phone width; and ~10 sample instances (`samples`) of every generator — questions with `params`/`let`, templates with `random`/`generate` — with the expected answer, the drawn values (entries by their ref), the options, the hints and the solution as filled in, the draws per instance, and the generators that fail (with the reason). `pictures: false` — the text alone |
 
 Common arguments: `json` (object or text) or `file` (path), `path` (address it would have), `basePath` + `replace`
 (import onto an existing public page, fetched live), `live` (public data from the service, default on),
@@ -63,10 +64,25 @@ takes pasted JSON — it never loads a document from its address.
 - `frontend/mcp/`: `server.mjs` (tools), `preview.mjs` (driving), `host.mjs` (serves the renderer on 127.0.0.1 —
   `source` through Vite from the working tree, `site` = `docs/`, `dist` — and proxies `/api` to the service,
   GET/HEAD only, without cookies), `cdp.mjs` (Edge/Chrome over the DevTools protocol; GPU compositing off, WebGL
-  through SwiftShader; browsers left by a killed server are closed on the next start), `sheet.mjs` (sheets,
+  through SwiftShader; browsers left by a killed server are closed on the next start; one tab per screen size, brought
+  to the front before each use — a tab left in the background gave pictures slowly or not at all), `sheet.mjs` (sheets,
   filmstrips and pixel contrast drawn on a canvas in the browser), `report.mjs`.
 - Checks: `scripts/app-preview-check.mjs` (in `app:check`: the page after import, the key check — every kind's own
-  example passes silently, the fixtures carry no unknown key — sizes, slides, route).
+  example passes silently, the fixtures carry no unknown key — sizes, slides, route; the knowledge preview: the
+  memory base, the synthetic progress, generator samples of the served examples).
+- **Knowledge bases** (2026-11-03): `src/app/cogita/memoryBase.ts` — `MemoryStore` (a `LibraryStore` that writes into
+  the tab's memory, seals and sends nothing), `memoryBase(doc)` (the app's own `planImport` + `applyImport` into it),
+  `previewLearner(lib, progress)` (a learner of this browser with invented answers, never loaded or sent: by the
+  card's learning level — `partial` knows the lower third of the levels, mixes the next ones (due, answered wrong,
+  new), has forgotten some on the level after, the rest is new; a base without a learning order splits its cards the
+  same way; which card gets which state depends only on the document — cards are ordered by the document's refs, not
+  by the ids the memory store draws anew in every tab), `generatorReport(lib, n)` (n rounds of `lib.cards(seed)`
+  exactly as the Nauka makes them; drawn entries are named by their ref).
+  `src/app/preview/PreviewKnowledge.tsx` draws the chosen view in a read-only `CogitaContext` with that learner — a
+  landscape through the Nauka's own `LandscapeView` (the preview waits until its worker has computed), every other
+  mode through the Nauka's own list (`EntityList`); a view in another mode is a copy in the memory store. Rendered
+  without StrictMode, like the built page. The probe measures the view as one item `V1`. `?knowledge=<id>` opens the
+  same preview for a person.
 
 ## Limits
 
@@ -79,3 +95,6 @@ takes pasted JSON — it never loads a document from its address.
 - Data modules show live public data, or nothing with `live: false`; a sealed or access-only base page cannot be
   fetched for `basePath`.
 - Headless Edge has no WebGPU here, so the labs' accelerated view is not shown; WebGL works.
+- Knowledge preview: references to works of a library (`@klucz-dzieła`) lead nowhere (the preview has no library) and
+  are summed up in one line; Python template nodes do not run (no Pyodide); the view is drawn as in Nauka → Wpisy,
+  not inside the page module „Widok” (same view component, without the page frame).

@@ -96,7 +96,7 @@ truth('the palette has „Oblicz" and „Zbierz" in the group „Liczby"', Pal.T
 check('„Oblicz" has as many inputs as set (1–8), all taking many edges', Pal.TEMPLATE_PALETTE.kinds.get('calc').ports({ inputs: 3 }).inputs.map((p) => [p.id, p.many]), [['p0', true], ['p1', true], ['p2', true]]);
 check('… at least one, at most eight', [Pal.TEMPLATE_PALETTE.kinds.get('calc').ports({}).inputs.length, Pal.TEMPLATE_PALETTE.kinds.get('calc').ports({ inputs: 40 }).inputs.length], [1, 8]);
 check('„Zbierz" takes values and gives one value', (() => { const p = Pal.TEMPLATE_PALETTE.kinds.get('aggregate').ports({}); return [p.inputs.map((x) => x.id), p.outputs.map((x) => x.id)]; })(), [['values'], ['value']]);
-check('the editor offers their settings', [NF.configFields('card-template', 'calc').map((f) => f.key), NF.configFields('card-template', 'aggregate').map((f) => f.key), NF.configFields('card-template', 'random').map((f) => f.key)], [['expr', 'inputs', 'decimals'], ['op', 'decimals'], ['min', 'max', 'step', 'list']]);
+check('the editor offers their settings', [NF.configFields('card-template', 'calc').map((f) => f.key), NF.configFields('card-template', 'aggregate').map((f) => f.key), NF.configFields('card-template', 'random').map((f) => f.key)], [['expr', 'inputs', 'decimals'], ['op', 'decimals'], ['min', 'max', 'step', 'list', 'count']]);
 truth('their outputs connect to a pattern, „Odpowiedź: liczba" and „Odpowiedź: jeden wybór"', ['pattern', 'answer.number', 'answer.one'].every((to) => {
   const graph = { nodes: [n('c', 'calc', { expr: 'p0' }), n('a', 'aggregate'), n('t', to, { inputs: 1 })], edges: [] };
   const into = Pal.TEMPLATE_PALETTE.kinds.get(to).ports({ inputs: 1 }).inputs[to === 'answer.one' ? 1 : 0].id;

@@ -359,7 +359,9 @@ try {
     const offB = b.subscribe(() => { heardB += 1; });
     const offO = other.subscribe(() => { heardOther += 1; });
     const offE = elsewhere.subscribe(() => undefined);
-    const { answer } = a.record(card('q1'), 1, { ms: 1200 });
+    /* Eigene Zeiten (eine Sekunde auseinander): drei Antworten in derselben Millisekunde hätte die Rechnung nach ihren (zufälligen) Kennungen geordnet. */
+    const t0 = Date.now();
+    const { answer } = a.record(card('q1'), 1, { ms: 1200 }, t0);
     check('12 b hears a at once (same person, same base) and its listener fires', [b.progress.answers.get(answer.id)?.key, heardB > 0], ['q1', true]);
     check('12 b only takes it in — nothing to send from b', [b.fresh.length, a.fresh.length], [0, 1]);
     check('12 another person and another base do not hear it', [other.progress.answers.size, heardOther, elsewhere.progress.answers.size], [0, 0, 0]);
@@ -367,16 +369,16 @@ try {
     const before = heardB;
     b.hear([answer], []);
     check('12 hearing an answer it already has changes nothing', heardB, before);
-    const { answer: back } = b.record(card('q2'), 0.5);
+    const { answer: back } = b.record(card('q2'), 0.5, {}, t0 + 1000);
     check('12 and the other way round', a.progress.answers.has(back.id), true);
     offB();
-    const { answer: late } = a.record(card('q3'), 1);
+    const { answer: late } = a.record(card('q3'), 1, {}, t0 + 2000);
     check('12 after unsubscribing, b no longer hears', b.progress.answers.has(late.id), false);
-    const { answer: led } = a.record(card('q4'), 1, { lead: answer.id });
+    const { answer: led } = a.record(card('q4'), 1, { lead: answer.id }, t0 + 2500);
     check('12 lead is kept on the record', a.progress.answers.get(led.id)?.lead, answer.id);
     const absorbed = R.absorb(R.EMPTY_PROGRESS, { kind: 'answers', answers: [JSON.parse(JSON.stringify(led)), { ...JSON.parse(JSON.stringify(answer)), lead: '' }] });
     check('12 lead survives absorb/readAnswer (an empty lead is dropped)', [absorbed.answers.get(led.id)?.lead, 'lead' in absorbed.answers.get(answer.id)], [answer.id, false]);
-    const fromLearner = R.rewardState(a.progress.answers.values(), rules({}), Date.now() + 1000);
+    const fromLearner = R.rewardState(a.progress.answers.values(), rules({}), t0 + 5000);
     check('12 rewards read a learner\'s answers directly (q4 came with q1: no points of its own)', ofKind(fromLearner, 'answer').map((e) => e.card), ['q1', 'q2', 'q3']);
     offA(); offO(); offE();
   }

@@ -62,7 +62,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null }: {
+export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -89,6 +89,11 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
    * am Ende die ganze Tafel. Welche Regel, sagt der Ort (der Baustein, die Ustawienia der Baza); `null`: keine.
    */
   rewards?: RewardRules | null;
+  /**
+   * 2026-11-03 — DIE FORTSETZUNG: endet der Lauf von selbst (nicht mit „Zakończ"), geht der Aufrufer gleich weiter —
+   * der Krajobraz: erst die Wiederholung der Kette, dann direkt das Neue.
+   */
+  onDone?: () => void;
 }) {
   const ctx = useContext(CogitaContext);
   /*
@@ -123,6 +128,14 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   const intro = useRef<{ at: string; ids: readonly string[] }>({ at: '', ids: [] });
   /* 2026-11-01 — eine Frage mit Parametern: bei jedem Zeigen neue Zahlen (`redrawCard`), gemerkt für dieses Zeigen. */
   const drawn = useRef<{ at: string; card: Card } | null>(null);
+  /*
+   * 2026-11-03 — AUCH EIN SZABLON MIT ZUFALL (Generator): kommt seine Karte in diesem Lauf wieder, entsteht eine neue
+   * Fassung (`lib.redrawn`, asynchron — vor „Dalej” gerechnet); beim ersten Zeigen gilt die des Plans. Je Stelle gemerkt.
+   */
+  const instances = useRef(new Map<string, Card>());
+  /* Je Karte die zuletzt gefragte Fassung (mit ihren Werten). */
+  const askedLast = useRef(new Map<string, Card>());
+  const shownKeys = useRef(new Set<string>());
   /* Für welche Powtórka die Abschrift schon gemacht ist (eine weitere Lektion im selben Lauf bekommt ihre eigene). */
   const saved = useRef<string | null>(null);
   /*
@@ -257,6 +270,14 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
 
   /* 2026-11-01 — ein Lauf nach den Bändern endet oft nicht von selbst („na zapas”): „Zakończ” zeigt dasselbe Ende. */
   const finished = state !== null && (state.session.current === null || stopped);
+  /* 2026-11-03 — von selbst zu Ende: einmal weitergeben (`onDone`); nach „Zakończ" nicht. */
+  const doneFor = useRef<object | null>(null);
+  useEffect(() => {
+    if (onDone === undefined || state === null || stopped || state.session.current !== null || doneFor.current === state) return;
+    doneFor.current = state;
+    void learner?.flush().catch(() => undefined);
+    onDone();
+  }, [state, stopped, onDone, learner]);
   useEffect(() => {
     if (!finished || learner === null || state === null) return;
     void (async () => {
@@ -315,7 +336,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     const held = waiting(session, Date.now());
     /* 2026-11-01 — was nicht sass (falsch, oder nur mit Podpowiedź), in der Folge, in der es geschah. */
     const missed = [...log.missed.entries()]
-      .map(([key, why]) => ({ card: state.all.find((c) => c.key === key) ?? session.plan.cards.find((c) => c.key === key), why }))
+      .map(([key, why]) => ({ card: askedLast.current.get(key) ?? state.all.find((c) => c.key === key) ?? session.plan.cards.find((c) => c.key === key), why }))
       .filter((x): x is { card: Card; why: Missed } => x.card !== undefined);
     const summary = logSummary(log);
     /* In einer Sitzung entscheidet die Leitung, was als Nächstes kommt — dort keine „Następna lekcja". */
@@ -387,8 +408,10 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     };
   }
   const fresh = intro.current.ids;
-  if (card.params !== undefined && lib !== null && drawn.current?.at !== at) drawn.current = { at, card: redrawCard(card, card.entity === undefined ? undefined : lib.entity(card.entity), `${seed}#${session.step}`) };
-  const asked: Card = card.params !== undefined && drawn.current?.at === at ? drawn.current.card : card;
+  /* 2026-11-03 — ein Pytanie mit Generator: neu gezogen mit der Baza (`genWorld` — auch Einträge); ein Szablon: siehe `instances`. */
+  const redraws = card.template === undefined && (card.params !== undefined || card.seed !== undefined);
+  if (redraws && lib !== null && drawn.current?.at !== at) drawn.current = { at, card: redrawCard(card, card.entity === undefined ? undefined : lib.entity(card.entity), `${seed}#${session.step}`, lib.genWorld()) };
+  const asked: Card = instances.current.get(at) ?? (redraws && drawn.current?.at === at ? drawn.current.card : card);
   const promptText = (asked.answer.form === 'gap' ? asked.answer.shown : asked.prompt.map((x) => x.text).join(' ')).replace(/\s+/g, ' ').trim().slice(0, 500);
   const sendFlag = (text: string) => {
     if (lib === null) return;
@@ -447,9 +470,12 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           const q = evidence[0].correctness;
           const from = via ?? source.revisionId;
           /* 2026-11-01 — mit der Antwort: wie viele Podpowiedzi, welche Zahlen gezogen waren. */
-          const main = learner?.record(asked, q, { given: storedGiven(asked, given), ms, via: from, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(asked.params === undefined ? {} : { params: asked.params }) });
+          /* 2026-11-03 — und mit welchem Samen: dieselbe Aufgabe lässt sich wieder erzeugen (Postępy, Ćwicz te jeszcze raz). */
+          const main = learner?.record(asked, q, { given: storedGiven(asked, given), ms, via: from, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(asked.params === undefined ? {} : { params: asked.params }), ...(asked.seed === undefined ? {} : { seed: asked.seed }) });
           /* 2026-11-02 — mitgezählt mit dieser Antwort (`lead`): Punkte für „eine Antwort" gibt es nur einmal (`rewards.ts`). */
           for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from, ...(main === undefined ? {} : { lead: main.answer.id }) });
+          /* 2026-11-03 — „Do poćwiczenia” am Ende zeigt die Fassung, nach der gefragt wurde (nicht die des Plans). */
+          askedLast.current.set(card.key, asked);
           const had = tally.current.get(card.key) ?? { asked: 0, wrong: 0 };
           tally.current.set(card.key, { asked: had.asked + 1, wrong: had.wrong + (outcome.correct ? 0 : 1) });
           onAnswer?.(card, outcome.correctness, given);
@@ -459,10 +485,22 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           setPending(answer(session, q, Date.now(), others.map((p) => ({ key: p.card.key, correctness: p.correctness }))).session);
         }}
         onNext={() => {
-          if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending }));
-          setPending(null); setNote(null); setLast(null); setFlag(null);
-          setLog((l) => logTick(l, Date.now()));
-          if (fresh.length > 0) setIntroduced((was) => new Set([...was, ...fresh]));
+          const advance = () => {
+            if (pending !== null) setState((was) => (was === null ? was : { ...was, session: pending }));
+            setPending(null); setNote(null); setLast(null); setFlag(null);
+            setLog((l) => logTick(l, Date.now()));
+            if (fresh.length > 0) setIntroduced((was) => new Set([...was, ...fresh]));
+          };
+          /* 2026-11-03 — kommt als Nächstes eine Karte eines Szablon mit Zufall wieder: erst ihre neue Fassung, dann weiter. */
+          shownKeys.current.add(card.key);
+          const nextKey = pending?.current ?? null;
+          const nextCard = pending === null || nextKey === null ? undefined : state.all.find((c) => c.key === nextKey) ?? pending.plan.cards.find((c) => c.key === nextKey);
+          if (lib !== null && pending !== null && nextCard !== undefined && nextCard.template !== undefined && nextCard.varies && shownKeys.current.has(nextCard.key)) {
+            const nextAt = `${nextCard.key}#${pending.step}`;
+            void lib.redrawn(nextCard, `${seed}#${pending.step}`).then((fresh2) => { instances.current.set(nextAt, fresh2); advance(); }, advance);
+            return;
+          }
+          advance();
         }}
         foot={(
           <div className="cg-card-foot">

@@ -27,12 +27,20 @@ export * from '${app}preview/previewDoc';
 export { lintDocument } from '${app}preview/previewLint';
 export { PARTS, partOf } from '${app}pages/parts/registry';
 `);
+/* 2026-11-03 — die Vorschau einer Baza wiedzy (preview_knowledge): die Baza im Speicher, der erfundene Fortschritt, die Proben. */
+const knowledgeEntry = join(workspace, 'knowledge.ts');
+await writeFile(knowledgeEntry, `
+export * from '${app}cogita/memoryBase';
+export { readView } from '${app}cogita/views';
+export { gaugeFromMarks, cardKnowness } from '${app}cogita/knowing';
+`);
 await build({
-  entryPoints: [entry],
+  entryPoints: [entry, knowledgeEntry],
   bundle: true,
   format: 'esm',
   platform: 'node',
-  outfile: join(workspace, 'entry.mjs'),
+  outdir: workspace,
+  outExtension: { '.js': '.mjs' },
   define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) },
   loader: { '.css': 'empty' },
   logLevel: 'error'
@@ -175,6 +183,99 @@ try {
     assert.deepEqual(said, [], `${name}: no unknown keys — ${JSON.stringify(said.slice(0, 3))}`);
   }
   ok('the fixtures carry no unknown key');
+
+  /* -- 5: eine Baza wiedzy aus JSON (preview_knowledge) ------------------------------------------ */
+  const k = await import(pathToFileURL(join(workspace, 'knowledge.mjs')).href);
+  const template = async (name) => JSON.parse(await readFile(new URL(`../../templates/cogita/${name}`, import.meta.url), 'utf8'));
+  const NOW = Date.parse('2026-11-03T12:00:00Z');
+
+  const atom = await k.memoryBase(await template('przyklad-atom.json'));
+  assert.ok(!('error' in atom), 'the atom example imports into memory');
+  assert.deepEqual(atom.warnings, [], 'without a warning');
+  assert.equal(atom.lib.entities().length, 24);
+  assert.ok('error' in await k.memoryBase('{ zepsuty'), 'broken JSON is an error in words');
+  assert.ok('error' in await k.memoryBase({ format: 'recreatio/page' }), 'a page is no knowledge base');
+  const none = await k.previewLearner(atom.lib, 'none', NOW);
+  assert.equal(none.learner.progress.answers.size, 0, 'no progress: no answers');
+  const all = await k.previewLearner(atom.lib, 'all', NOW);
+  assert.ok(all.counts.known > 0 && all.counts.new === 0, 'all: every card known');
+  const half = await k.previewLearner(atom.lib, 'partial', NOW);
+  assert.ok(half.counts.known > 0 && half.counts.due > 0 && half.counts.new > 0 && half.counts.forgotten + half.counts.wrong > 0, `partial: known, due, forgotten or wrong, new — ${JSON.stringify(half.counts)}`);
+  assert.equal(Object.values(half.counts).reduce((a, b) => a + b, 0), half.moods.size);
+  /* Die erfundenen Antworten treffen die Bänder der Kenntnis, wie die App sie rechnet. */
+  const { cards } = await atom.lib.cards('podglad');
+  const g = k.gaugeFromMarks(cards, (key) => half.learner.marks(key), atom.lib.dependencies(), NOW);
+  for (const [key, mood] of half.moods) {
+    const kn = k.cardKnowness(g, key);
+    const fits = mood === 'known' ? kn >= 1 : mood === 'due' ? kn >= 0.1 && kn < 1 : mood === 'new' ? half.learner.marks(key).length === 0 : kn < 0.1 && half.learner.marks(key).length > 0;
+    assert.ok(fits, `${mood}: knowness ${kn} of ${key}`);
+  }
+  ok(`knowledge preview: a course imports into memory; the invented progress (${JSON.stringify(half.counts)}) lands in the app's bands`);
+
+  /* Die Muster des Leitfadens (`example-generators`): was rechnet, gibt jedes Mal eine gültige Fassung. */
+  const gens = await k.memoryBase(await template('przyklad-generatory.json'));
+  assert.ok(!('error' in gens) && gens.warnings.length === 0, `the generator examples import — ${'error' in gens ? gens.error : gens.warnings.join(' | ')}`);
+  const report = await k.generatorReport(gens.lib, 12);
+  const byRef = new Map(report.map((r) => [r.ref, r]));
+  const num = (text) => Number(String(text).split(' ')[0].replace(',', '.'));
+  const speed = byRef.get('@generatory/q-predkosc');
+  assert.equal(speed.made, 12, 'speed: an instance every time');
+  assert.ok(speed.samples.every((s) => Math.abs(num(s.answer) - s.values.s / s.values.t) < 1e-4 * Math.max(1, s.values.s / s.values.t) && s.values.s % 10 === 0 && s.values.t >= 2 && s.values.t <= 60), 'speed: s/t from the ranges (step 10)');
+  const equation = byRef.get('@generatory/q-rownanie');
+  assert.equal(equation.made, 12, 'linear equation: an instance every time');
+  assert.ok(equation.samples.every((s) => s.values.a * s.values.x + s.values.b === s.values.c && num(s.answer) === s.values.x && s.values.x !== 0 && Number.isInteger(s.values.x)), 'linear equation: built backwards from an integer solution, x ≠ 0');
+  const log = byRef.get('@generatory/q-logarytm');
+  assert.ok(log.made === 12 && log.samples.every((s) => s.values.p ** s.values.k === s.values.w && num(s.answer) === s.values.k), 'logarithm: log_p(p^k) = k');
+  assert.ok(new Set(speed.samples.map((s) => s.prompt)).size > 6, 'the instances differ');
+  /* `\frac{ s }{ t }` (Leerzeichen in den Klammern) bleibt in Buchstaben — `\frac{s}{t}` bekäme die Zahlen. */
+  assert.ok(speed.samples.every((s) => s.hints?.[0]?.includes('\\frac{ s }{ t }') === true), `speed: the hint keeps the letters — ${speed.samples[0]?.hints?.[0]}`);
+  /* Ein Platzhalter, der stehen blieb (`{nazwa}`), oder ein Wert, der keiner ist — „NaNO₃" (Natriumnitrat) ist einer; auch in Podpowiedzi und Wyjaśnienie. */
+  const unfilled = /\{[A-Za-z_][\w.[\]]*\}|\bNaN\b|\bundefined\b/;
+  const shownOf = (s) => `${s.prompt} ${s.answer} ${(s.options ?? []).join(' ')} ${(s.hints ?? []).join(' ')} ${s.explanation ?? ''}`;
+  for (const r of report) {
+    assert.ok(r.made === 12 && r.problems.length === 0, `${r.ref}: an instance every time — ${r.problems.join(' | ')}`);
+    assert.ok(r.samples.every((s) => s.answer !== '' && !unfilled.test(shownOf(s))), `${r.ref}: no unfilled value — ${JSON.stringify(r.samples.find((s) => unfilled.test(shownOf(s))))}`);
+    /* Gezogene Einträge mit ihrem Namen aus dem Dokument, nicht mit der Kennung des Speichers. */
+    assert.ok(r.samples.every((s) => !/[0-9a-f]{8}-[0-9a-f]{4}-/.test(JSON.stringify(s.values ?? {}))), `${r.ref}: drawn entries by their names — ${JSON.stringify(r.samples[0]?.values)}`);
+  }
+  assert.equal(byRef.get('@generatory/q-wzor-z-nazwy').samples[0].values.kation.startsWith('@generatory/jon-'), true, 'a drawn ion by its ref');
+  assert.ok(byRef.get('@generatory/q-wzor-z-nazwy').samples.every((s) => /^[A-Za-z()₀-₉]+$/.test(s.answer)), 'chemistry: a formula with subscripts');
+  assert.ok(byRef.get('@generatory/q-rownanie').samples.every((s) => s.explanation?.includes(`x = ${String(s.values.x)}`) === true), 'equation: the solution shows this instance');
+  ok(`generator samples: all ${report.length} patterns valid in 12 of 12 instances (entry draws included); prompts, hints and solutions filled`);
+
+  /* Die Welt des Wissens (`example-world`) und ihre Seite (`example-world-page`). */
+  const world = await k.memoryBase(await template('przyklad-swiat.json'));
+  assert.ok(!('error' in world) && world.warnings.length === 0, `the world example imports — ${'error' in world ? world.error : world.warnings.join(' | ')}`);
+  const graph = world.lib.prerequisites();
+  assert.deepEqual(graph.circles, [], 'no cycle in its learning order');
+  assert.ok(Math.max(...graph.level.values()) >= 5, 'several levels from the fundamentals');
+  const topics = world.lib.entities().filter((e) => e.kinds.some((kind) => world.lib.kind(kind)?.name === 'Temat'));
+  assert.equal(topics.length, 20, 'twenty topics (one from the history of science)');
+  /* Dieselbe Baza zweimal importiert (andere Kennungen — wie Desktop und Telefon in zwei Tabs): dieselben Zustände. */
+  const twice = await k.memoryBase(await template('przyklad-swiat.json'));
+  const moodsBy = async (base) => {
+    const stable = k.stableKeyOf(base.lib);
+    const p = await k.previewLearner(base.lib, 'partial', NOW);
+    return new Map([...p.moods].map(([key, mood]) => [stable(key), mood]));
+  };
+  const firstMoods = await moodsBy(world);
+  assert.ok([...firstMoods.keys()].every((key) => !/[0-9a-f]{8}-[0-9a-f]{4}-/.test(key)), 'stable keys carry no import id');
+  assert.deepEqual(await moodsBy(twice), firstMoods, 'the same document gives the same invented progress in every tab');
+  const landscape = world.lib.docs('view').find((e) => e.data.mode === 'landscape');
+  assert.ok(landscape !== undefined, 'a view saved as landscape');
+  assert.equal(k.readView(landscape.data).mode, 'landscape', 'the app reads it as a landscape');
+  assert.equal(k.readView(landscape.data).landscape?.budget, 60, 'its budget');
+  const conversion = (await k.generatorReport(world.lib, 8)).find((r) => r.ref === '@swiat/t-zamiana');
+  assert.ok(conversion.made === 8 && conversion.problems.length === 0, `the template with "generate" makes a card every time — ${conversion.problems.join(' | ')}`);
+  assert.ok(conversion.samples.every((s) => /^Zamień na metry: \d+ [khcm]m$/.test(s.prompt) && Number.isFinite(num(s.answer))), 'conversion: prompt and a number');
+  /* `texts` des Generators → Eingang „solution" der Karte: „45 km = 45 · 1000 m = 45000 m". */
+  assert.ok(conversion.samples.every((s) => /^\d+ [khcm]m = \d+ · [\d,]+ m = [\d,]+ m$/.test(s.explanation ?? '') && num(s.answer) === num(s.explanation.split(' = ')[2])), `conversion: the solution with this instance's numbers — ${conversion.samples[0]?.explanation}`);
+  const pageDoc = await template('przyklad-swiat-strona.json');
+  const pageSaid = m.lintDocument(pageDoc);
+  assert.deepEqual(pageSaid.filter((one) => one.kind === 'unknown'), [], `example-world-page: no unknown keys — ${JSON.stringify(pageSaid.slice(0, 3))}`);
+  const viewModule = pageDoc.modules.find((one) => one.kind === 'view');
+  assert.ok(viewModule.config.mode === 'krajobraz' && 'answers' in viewModule.config && /Punkty świata wiedzy/.test(viewModule.config.rewards), 'example-world-page: the landscape module names answers and the course rewards');
+  ok('the world example: 20 topics, no cycle, a landscape view the app reads, the "generate" template with its solution, the same invented progress in every tab; its page has no unknown key');
 } finally {
   globalThis.BroadcastChannel = broadcastChannel;
   await rm(workspace, { recursive: true, force: true });

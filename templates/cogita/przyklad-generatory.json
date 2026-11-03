@@ -1,0 +1,689 @@
+{
+ "format": "recreatio.cogita.course",
+ "version": 1,
+ "name": "Przykład: ćwiczenia generowane — fizyka, chemia, matematyka, daty",
+ "kinds": [
+  {
+   "ref": "@generatory/jon",
+   "name": "Jon",
+   "label": "{nazwa}",
+   "tells": "symbol",
+   "fields": [
+    {
+     "key": "nazwa",
+     "label": "Nazwa",
+     "type": "line",
+     "says": "Nazwa jonu: „kation glinu”, „anion siarczanowy(VI)”."
+    },
+    {
+     "key": "w_nazwie",
+     "label": "W nazwie związku",
+     "type": "line",
+     "says": "Jak jon brzmi w nazwie soli: kation w dopełniaczu („glinu”, „amonu”), anion w mianowniku („siarczan(VI)”, „chlorek”)."
+    },
+    {
+     "key": "symbol",
+     "label": "Symbol",
+     "type": "line",
+     "says": "Symbol bez ładunku, cyfry zwykłe: „Al”, „SO4”, „NH4” (indeksy dolne robi aplikacja)."
+    },
+    {
+     "key": "ladunek",
+     "label": "Ładunek",
+     "type": "number",
+     "says": "Ładunek ze znakiem: Al³⁺ → 3, SO₄²⁻ → −2."
+    },
+    {
+     "key": "wieloatomowy",
+     "label": "Wieloatomowy",
+     "type": "choice",
+     "options": [
+      {
+       "value": "tak",
+       "label": "tak"
+      },
+      {
+       "value": "nie",
+       "label": "nie"
+      }
+     ],
+     "says": "Czy jon składa się z kilku atomów (SO₄, NH₄ — tak; Al, Cl — nie): wtedy we wzorze z indeksem stoi w nawiasie."
+    }
+   ]
+  },
+  {
+   "ref": "@generatory/wydarzenie",
+   "name": "Wydarzenie",
+   "label": "{nazwa}",
+   "fields": [
+    {
+     "key": "nazwa",
+     "label": "Nazwa",
+     "type": "line",
+     "says": "Krótko, co się stało: „Newton publikuje Principia”."
+    },
+    {
+     "key": "kiedy",
+     "label": "Kiedy",
+     "type": "date",
+     "says": "Data z dokładnością, jaką znamy: rok, miesiąc albo dzień."
+    }
+   ]
+  }
+ ],
+ "entities": [
+  {
+   "ref": "@generatory/jon-na",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "kation sodu",
+    "w_nazwie": "sodu",
+    "symbol": "Na",
+    "ladunek": 1,
+    "wieloatomowy": "nie"
+   }
+  },
+  {
+   "ref": "@generatory/jon-mg",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "kation magnezu",
+    "w_nazwie": "magnezu",
+    "symbol": "Mg",
+    "ladunek": 2,
+    "wieloatomowy": "nie"
+   }
+  },
+  {
+   "ref": "@generatory/jon-al",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "kation glinu",
+    "w_nazwie": "glinu",
+    "symbol": "Al",
+    "ladunek": 3,
+    "wieloatomowy": "nie"
+   }
+  },
+  {
+   "ref": "@generatory/jon-ca",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "kation wapnia",
+    "w_nazwie": "wapnia",
+    "symbol": "Ca",
+    "ladunek": 2,
+    "wieloatomowy": "nie"
+   }
+  },
+  {
+   "ref": "@generatory/jon-nh4",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "kation amonowy",
+    "w_nazwie": "amonu",
+    "symbol": "NH4",
+    "ladunek": 1,
+    "wieloatomowy": "tak"
+   }
+  },
+  {
+   "ref": "@generatory/jon-cl",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "anion chlorkowy",
+    "w_nazwie": "chlorek",
+    "symbol": "Cl",
+    "ladunek": -1,
+    "wieloatomowy": "nie"
+   }
+  },
+  {
+   "ref": "@generatory/jon-so4",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "anion siarczanowy(VI)",
+    "w_nazwie": "siarczan(VI)",
+    "symbol": "SO4",
+    "ladunek": -2,
+    "wieloatomowy": "tak"
+   }
+  },
+  {
+   "ref": "@generatory/jon-no3",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "anion azotanowy(V)",
+    "w_nazwie": "azotan(V)",
+    "symbol": "NO3",
+    "ladunek": -1,
+    "wieloatomowy": "tak"
+   }
+  },
+  {
+   "ref": "@generatory/jon-po4",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "anion fosforanowy(V)",
+    "w_nazwie": "fosforan(V)",
+    "symbol": "PO4",
+    "ladunek": -3,
+    "wieloatomowy": "tak"
+   }
+  },
+  {
+   "ref": "@generatory/jon-oh",
+   "kinds": [
+    "@generatory/jon"
+   ],
+   "data": {
+    "nazwa": "anion wodorotlenkowy",
+    "w_nazwie": "wodorotlenek",
+    "symbol": "OH",
+    "ladunek": -1,
+    "wieloatomowy": "tak"
+   }
+  },
+  {
+   "ref": "@generatory/w-kopernik",
+   "kinds": [
+    "@generatory/wydarzenie"
+   ],
+   "data": {
+    "nazwa": "Kopernik ogłasza „O obrotach sfer niebieskich”",
+    "kiedy": "1543"
+   }
+  },
+  {
+   "ref": "@generatory/w-galileusz",
+   "kinds": [
+    "@generatory/wydarzenie"
+   ],
+   "data": {
+    "nazwa": "Galileusz odkrywa księżyce Jowisza",
+    "kiedy": "1610-01-07"
+   }
+  },
+  {
+   "ref": "@generatory/w-newton",
+   "kinds": [
+    "@generatory/wydarzenie"
+   ],
+   "data": {
+    "nazwa": "Newton publikuje „Principia”",
+    "kiedy": "1687-07-05"
+   }
+  },
+  {
+   "ref": "@generatory/w-faraday",
+   "kinds": [
+    "@generatory/wydarzenie"
+   ],
+   "data": {
+    "nazwa": "Faraday odkrywa indukcję elektromagnetyczną",
+    "kiedy": "1831-08-29"
+   }
+  },
+  {
+   "ref": "@generatory/w-polon",
+   "kinds": [
+    "@generatory/wydarzenie"
+   ],
+   "data": {
+    "nazwa": "Maria Skłodowska-Curie i Piotr Curie odkrywają polon",
+    "kiedy": "1898-07"
+   }
+  },
+  {
+   "ref": "@generatory/w-einstein",
+   "kinds": [
+    "@generatory/wydarzenie"
+   ],
+   "data": {
+    "nazwa": "Einstein ogłasza szczególną teorię względności",
+    "kiedy": "1905-09-26"
+   }
+  },
+  {
+   "ref": "@generatory/q-predkosc",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "number",
+    "prompt": "Rowerzysta przejechał {s} m w ciągu {t} s. Jaka była jego średnia prędkość?",
+    "params": [
+     {
+      "name": "s",
+      "random": [
+       20,
+       500
+      ],
+      "step": 10
+     },
+     {
+      "name": "t",
+      "random": [
+       2,
+       60
+      ]
+     }
+    ],
+    "let": [
+     {
+      "name": "v",
+      "value": "s / t"
+     }
+    ],
+    "answers": [
+     "{v}"
+    ],
+    "unit": "m/s",
+    "quantity": "Velocity",
+    "tolerance": 0.01,
+    "relative": true,
+    "hints": [
+     "Prędkość to droga podzielona przez czas: $v = \\frac{ s }{ t }$."
+    ],
+    "explanation": "v = {s} m : {t} s ≈ {fmt(v, 2)} m/s, czyli {fmt(v * 3.6, 1)} km/h."
+   }
+  },
+  {
+   "ref": "@generatory/q-wzor-z-nazwy",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "text",
+    "prompt": "Napisz wzór związku: {nazwa}.",
+    "params": [
+     {
+      "name": "kation",
+      "entry": {
+       "kind": "@generatory/jon",
+       "where": "it.ladunek > 0"
+      }
+     },
+     {
+      "name": "anion",
+      "entry": {
+       "kind": "@generatory/jon",
+       "where": "it.ladunek < 0"
+      }
+     }
+    ],
+    "let": [
+     {
+      "name": "n",
+      "value": "lcm(kation.ladunek, -anion.ladunek)"
+     },
+     {
+      "name": "nk",
+      "value": "n / kation.ladunek"
+     },
+     {
+      "name": "na",
+      "value": "n / -anion.ladunek"
+     },
+     {
+      "name": "czK",
+      "value": "nk > 1 && kation.wieloatomowy == 'tak' ? '(' + sub(kation.symbol) + ')' + sub(nk) : sub(kation.symbol) + (nk > 1 ? sub(nk) : '')"
+     },
+     {
+      "name": "czA",
+      "value": "na > 1 && anion.wieloatomowy == 'tak' ? '(' + sub(anion.symbol) + ')' + sub(na) : sub(anion.symbol) + (na > 1 ? sub(na) : '')"
+     },
+     {
+      "name": "wzor",
+      "value": "czK + czA"
+     },
+     {
+      "name": "nazwa",
+      "value": "anion.w_nazwie + ' ' + kation.w_nazwie"
+     }
+    ],
+    "answers": [
+     "{wzor}"
+    ],
+    "rule": {
+     "spaces": true,
+     "scripts": true,
+     "caseSensitive": true
+    },
+    "explanation": "Ładunki {kation.ladunek} i {anion.ladunek}: NWW = {n}, więc {nk} × {kation.symbol} i {na} × {anion.symbol} — {wzor}."
+   }
+  },
+  {
+   "ref": "@generatory/q-nazwa-ze-wzoru",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "one",
+    "prompt": "Jak nazywa się związek {wzor}?",
+    "params": [
+     {
+      "name": "kation",
+      "entry": {
+       "kind": "@generatory/jon",
+       "where": "it.ladunek > 0"
+      }
+     },
+     {
+      "name": "anion",
+      "entry": {
+       "kind": "@generatory/jon",
+       "where": "it.ladunek < 0"
+      }
+     },
+     {
+      "name": "kationy",
+      "entries": {
+       "kind": "@generatory/jon",
+       "where": "it.ladunek > 0"
+      }
+     },
+     {
+      "name": "aniony",
+      "entries": {
+       "kind": "@generatory/jon",
+       "where": "it.ladunek < 0"
+      }
+     }
+    ],
+    "let": [
+     {
+      "name": "n",
+      "value": "lcm(kation.ladunek, -anion.ladunek)"
+     },
+     {
+      "name": "nk",
+      "value": "n / kation.ladunek"
+     },
+     {
+      "name": "na",
+      "value": "n / -anion.ladunek"
+     },
+     {
+      "name": "czK",
+      "value": "nk > 1 && kation.wieloatomowy == 'tak' ? '(' + sub(kation.symbol) + ')' + sub(nk) : sub(kation.symbol) + (nk > 1 ? sub(nk) : '')"
+     },
+     {
+      "name": "czA",
+      "value": "na > 1 && anion.wieloatomowy == 'tak' ? '(' + sub(anion.symbol) + ')' + sub(na) : sub(anion.symbol) + (na > 1 ? sub(na) : '')"
+     },
+     {
+      "name": "wzor",
+      "value": "czK + czA"
+     },
+     {
+      "name": "inneA",
+      "value": "choose(filter(aniony, it.id != anion.id), 2)"
+     },
+     {
+      "name": "innyK",
+      "value": "pick(filter(kationy, it.id != kation.id))"
+     }
+    ],
+    "require": [
+     "len(kationy) >= 2",
+     "len(aniony) >= 3"
+    ],
+    "options": [
+     "{anion.w_nazwie} {kation.w_nazwie}",
+     "{inneA[0].w_nazwie} {kation.w_nazwie}",
+     "{inneA[1].w_nazwie} {kation.w_nazwie}",
+     "{anion.w_nazwie} {innyK.w_nazwie}"
+    ],
+    "correct": [
+     0
+    ]
+   }
+  },
+  {
+   "ref": "@generatory/q-rownanie",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "number",
+    "prompt": "Rozwiąż równanie: ${a}x {znak} {bb} = {c}$",
+    "params": [
+     {
+      "name": "x",
+      "random": [
+       -9,
+       9
+      ]
+     },
+     {
+      "name": "a",
+      "random": [
+       2,
+       9
+      ]
+     },
+     {
+      "name": "b",
+      "random": [
+       -20,
+       20
+      ]
+     }
+    ],
+    "let": [
+     {
+      "name": "c",
+      "value": "a * x + b"
+     },
+     {
+      "name": "znak",
+      "value": "b < 0 ? '-' : '+'"
+     },
+     {
+      "name": "bb",
+      "value": "abs(b)"
+     }
+    ],
+    "require": [
+     "x != 0",
+     "b != 0"
+    ],
+    "answers": [
+     "{x}"
+    ],
+    "hints": [
+     "Przenieś liczbę bez $x$ na drugą stronę, potem podziel przez {a}."
+    ],
+    "explanation": "${a}x = {c - b}$, więc $x = {x}$."
+   }
+  },
+  {
+   "ref": "@generatory/q-logarytm",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "number",
+    "prompt": "Oblicz: $\\log_{ {p} } {w}$",
+    "params": [
+     {
+      "name": "p",
+      "values": [
+       2,
+       3,
+       5,
+       10
+      ]
+     },
+     {
+      "name": "k",
+      "random": [
+       2,
+       5
+      ]
+     }
+    ],
+    "let": [
+     {
+      "name": "w",
+      "value": "p^k"
+     }
+    ],
+    "require": [
+     "w <= 100000"
+    ],
+    "answers": [
+     "{k}"
+    ],
+    "hints": [
+     "Do jakiej potęgi trzeba podnieść {p}, żeby dostać {w}?"
+    ],
+    "explanation": "${p}^{ {k} } = {w}$, więc $\\log_{ {p} } {w} = {k}$."
+   }
+  },
+  {
+   "ref": "@generatory/q-wczesniej",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "one",
+    "prompt": "Co było wcześniej?",
+    "params": [
+     {
+      "name": "dwa",
+      "entries": {
+       "kind": "@generatory/wydarzenie",
+       "count": 2,
+       "rule": {
+        "op": "and",
+        "items": [
+         {
+          "field": "kiedy",
+          "cmp": "filled"
+         }
+        ]
+       }
+      }
+     }
+    ],
+    "let": [
+     {
+      "name": "po",
+      "value": "sortby(dwa, it.kiedy)"
+     }
+    ],
+    "require": [
+     "po[0].kiedy != po[1].kiedy"
+    ],
+    "options": [
+     "{po[0].label}",
+     "{po[1].label}"
+    ],
+    "correct": [
+     0
+    ],
+    "explanation": "{po[0].label}: {po[0].kiedy_text}; {po[1].label}: {po[1].kiedy_text}."
+   }
+  },
+  {
+   "ref": "@generatory/q-kolejnosc",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "order",
+    "prompt": "Ułóż od najwcześniejszego.",
+    "params": [
+     {
+      "name": "cztery",
+      "entries": {
+       "kind": "@generatory/wydarzenie",
+       "count": 4,
+       "rule": {
+        "op": "and",
+        "items": [
+         {
+          "field": "kiedy",
+          "cmp": "filled"
+         }
+        ]
+       }
+      }
+     }
+    ],
+    "let": [
+     {
+      "name": "po",
+      "value": "sortby(cztery, it.kiedy)"
+     }
+    ],
+    "require": [
+     "len(unique(map(cztery, it.kiedy))) == 4"
+    ],
+    "items": [
+     "{po[0].label}",
+     "{po[1].label}",
+     "{po[2].label}",
+     "{po[3].label}"
+    ]
+   }
+  }
+ ],
+ "revisions": [
+  {
+   "ref": "@generatory/p-cwiczenia",
+   "name": "Ćwiczenia generowane — za każdym razem nowe",
+   "graph": {
+    "nodes": [
+     {
+      "id": "s",
+      "type": "source.all",
+      "x": 0,
+      "y": 0,
+      "config": {}
+     },
+     {
+      "id": "p",
+      "type": "strategy",
+      "x": 260,
+      "y": 0,
+      "config": {
+       "mode": "temporal",
+       "stackSize": 7,
+       "minCorrectness": 1
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "e1",
+      "from": "s",
+      "out": "cards",
+      "to": "p",
+      "in": "cards"
+     }
+    ]
+   }
+  }
+ ]
+}

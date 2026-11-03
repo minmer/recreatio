@@ -779,6 +779,46 @@ Phones stay awake.
   ring fills, level burst, badge pop); `prefers-reduced-motion` turns motion off.
 - No leaderboards (K7 stands).
 
+### Generated exercises (2026-11-03)
+
+- **One generator** (`generator.ts`) for questions (`params`, `let`, `require`) and templates (node `generate`, same
+  configuration plus `texts` and `only`). Draws: number ranges (`random`, `step`), lists (`values`), entries (`entry` one
+  record, `entries` a list — `kind`, `rule`, `where`, `count`, `repeat`); later draws read earlier ones; `require`
+  redraws up to 60 times, otherwise no card and a reason for authors (editor samples, lib problems, import preview).
+- **One language**: the drawing expressions (`expr.ts`) gained, in generator contexts only, lists `[…]`, `xs[i]`,
+  records `it.field`, list functions (with `it`, `i`), `gcd lcm root log(x,b) sig fact binom`, `sub sup plain`, seeded
+  `shuffle choose pick`. Animation keeps exactly its old language.
+- **Records** of entries: `id`, `label`, `kind`, each field (quantities + `_si`/`_unit`, choices + `_label`, dates as
+  `yyyymmdd` + `_text`, references one level deeper, lists).
+- **Seeds**: every instance comes from a seed; the answer stores `seed` and `params` (scalars, `@id`, short lists), so
+  Postępy, „Do poćwiczenia” and the progress export show exactly what was asked. A question is redrawn at every show,
+  a template card when it comes again in a run (`lib.redrawn`).
+- **History** stays on the card key (`question` or `template:entry`). It restarts only when the generator changes (the
+  question's written answer keys incl. params/let/require; a template's graph with chance nodes) — never per draw.
+- Text answers: `rule.spaces`, `rule.scripts` (Al2(SO4)3 = Al₂(SO₄)₃). Number answers with `quantity` accept any unit
+  of that quantity (km/h for m/s) and refuse other quantities. Examples: `frontend/scripts/fixtures/generators.json`,
+  `templates/cogita/przyklad-generatory.json`; guide `generatory-AI.md` (MCP `guide-generators`).
+
+### The knowledge landscape (2026-11-03)
+
+- **A view mode** `landscape` (page module `view`: `"mode": "krajobraz"`, with `answers` and `rewards` like
+  `cogita-revision`); `map` stays the small prerequisite map. Options: `"landscape": {"budget": 60}` (6–400).
+- **Heights** (`landscape.ts`): −1 known, −(k−0.1)/0.9 due, 0 learnable now, n ≥ 1 = distinct not-learned learnable
+  entries in the whole chain before it (bitsets over the condensed graph; a cycle is one step; entries without cards are
+  transparent and not shown as fields). Inputs only: the view's steps, the learning-order graph, the grouping, the
+  viewer's knowness.
+- **Layout**: a half-oblique hex amphitheatre — the learner at the bottom centre, the valley, the ring, mountains
+  behind; directions are the grouping's values (axis hierarchy = zoom levels), sector order from co-occurrence and
+  prerequisite links, an entry between its values; deterministic. Beyond the budget, values aggregate into fields;
+  focus zooms at any depth, heights stay global.
+- **Interaction**: ring field → the quilt's entry panel and „Ucz się tego” (RevisionRun with „Nowy temat”); a locked
+  entry (answered cards below 1 in its chain, `{"type":"knowness","rel":"chain","band":"known"}`) offers „Najpierw
+  powtórz” with exactly those cards, then continues with the entry (`RevisionRun.onDone`); mountains show their route
+  and „Ustaw jako cel” — the goal lives in the learner's sealed positions (`landscape:<viewKey>`).
+- **Worker** (`landscape.worker.ts`, main-thread fallback): 10 000 entries / 48 254 edges at 4× CPU slowdown — graph
+  59 ms, heights 11 ms, layout 34 ms; after an answer 14 + 15 ms; zoom p95 16.8 ms per frame.
+- Prepared for later: `positionOf`, `routeTo`, `heightOf`, field marks, an edge filter (avatars, tours, age variants).
+
 ## 13. Access
 
 - **A course in areas** [L1, E10]:

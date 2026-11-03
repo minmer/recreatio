@@ -40,13 +40,26 @@ export function CardPrompt({ parts }: { parts: readonly PromptPart[] }) {
   );
 }
 
+/**
+ * 2026-11-03 — EINE GERECHNETE ZAHL, WIE MAN SIE SAGT: so genau, wie die Toleranz es verlangt (1 % → drei gültige
+ * Ziffern, ± 0,01 → zwei Stellen), ohne Toleranz höchstens sechs gültige Ziffern — nie „8,0487804878" (Generatoren).
+ */
+export function shownNumber(v: number, tolerance: number, relative: boolean): string {
+  if (!Number.isFinite(v)) return String(v);
+  let out: number;
+  if (tolerance > 0 && relative) out = Number(v.toPrecision(Math.max(2, Math.min(12, Math.ceil(-Math.log10(tolerance)) + 1))));
+  else if (tolerance > 0) out = Number(v.toFixed(Math.max(0, Math.min(10, Math.ceil(-Math.log10(tolerance))))));
+  else out = Number(v.toPrecision(6));
+  return String(out).replace('.', ',');
+}
+
 /** Was als richtig galt, in Worten. */
 export function answerText(card: Card): string {
   const a = card.answer;
   switch (a.form) {
     case 'text': return a.accepted[0] ?? '';
     case 'gap': return gapWords(card) ?? a.accepted[0] ?? '';
-    case 'number': return `${String(a.values[0] ?? '').replace('.', ',')}${a.unit === '' ? '' : ` ${a.unit}`}`;
+    case 'number': return `${a.values[0] === undefined ? '' : shownNumber(a.values[0], a.tolerance, a.relative)}${a.unit === '' ? '' : ` ${a.unit}`}`;
     /* 2026-11-01 — wie man ein Datum sagt („listopad 1829"), nicht wie es gespeichert ist („1829-11"). */
     case 'date': { const d = readDate(a.values[0]); return d === null ? a.values[0] ?? '' : dateText(d); }
     case 'one': return a.options[a.correct] ?? '';

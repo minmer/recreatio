@@ -1,0 +1,1071 @@
+{
+ "format": "recreatio.cogita.course",
+ "version": 1,
+ "name": "Przykład: świat wiedzy — matematyka i fizyka jako jeden krajobraz",
+ "kinds": [
+  {
+   "ref": "@swiat/dziedzina",
+   "name": "Dziedzina",
+   "label": "{nazwa}",
+   "fields": [
+    {
+     "key": "nazwa",
+     "label": "Nazwa",
+     "type": "line",
+     "says": "Nazwa dziedziny albo jej części: „Fizyka”, „Ruch”, „Algebra”."
+    },
+    {
+     "key": "nad",
+     "label": "Należy do",
+     "type": "ref",
+     "to": [
+      "@swiat/dziedzina"
+     ],
+     "structure": "up",
+     "says": "Szersza dziedzina, w której ta leży: „Ruch” należy do „Fizyki”. Z tego pola powstaje hierarchia — krajobraz najpierw dzieli półkole na dziedziny najwyższe, a po wybraniu jednej rozkłada jej części. Puste: dziedzina najwyższa."
+    }
+   ]
+  },
+  {
+   "ref": "@swiat/temat",
+   "name": "Temat",
+   "label": "{nazwa}",
+   "fields": [
+    {
+     "key": "nazwa",
+     "label": "Nazwa",
+     "type": "line",
+     "says": "Krótka nazwa jednego kroku nauki: „Ułamki dziesiętne”, „Prędkość”."
+    },
+    {
+     "key": "czym",
+     "label": "Czym jest",
+     "type": "markup",
+     "says": "Jedno–dwa zdania: czego uczy ten temat — tak, żeby zrozumiał je ktoś, kto zna już to, czego temat wymaga. Temat to JEDEN krok: jeśli potrzeba więcej zdań, podziel go na dwa tematy."
+    },
+    {
+     "key": "wymaga",
+     "label": "Wymaga",
+     "type": "ref",
+     "to": [
+      "@swiat/temat"
+     ],
+     "multi": true,
+     "prerequisite": "up",
+     "inverse": "Na tym budują",
+     "says": "Tematy, które trzeba znać BEZPOŚREDNIO przed tym (prędkość wymaga drogi i czasu oraz proporcjonalności). Tylko bezpośrednie — dalsze wynikają same; bez kół (A wymaga B, B wymaga A). Puste: temat podstawowy."
+    },
+    {
+     "key": "dziedziny",
+     "label": "Dziedziny",
+     "type": "ref",
+     "to": [
+      "@swiat/dziedzina"
+     ],
+     "multi": true,
+     "says": "Gdzie temat leży: zwykle jedna, najwęższa pasująca dziedzina („Ruch”, nie „Fizyka”); kilka tylko wtedy, gdy temat naprawdę należy do kilku (historia odkrycia fizycznego: „Historia nauki” i „Ruch”) — wtedy stoi w krajobrazie między nimi."
+    }
+   ]
+  },
+  {
+   "ref": "@swiat/przedrostek",
+   "name": "Przedrostek jednostki",
+   "label": "{nazwa}",
+   "fields": [
+    {
+     "key": "nazwa",
+     "label": "Nazwa",
+     "type": "line",
+     "says": "Nazwa przedrostka: „kilo”, „centy”."
+    },
+    {
+     "key": "symbol",
+     "label": "Symbol",
+     "type": "line",
+     "says": "Symbol przed jednostką: „k” (km), „c” (cm), „m” (mm)."
+    },
+    {
+     "key": "wykladnik",
+     "label": "Wykładnik",
+     "type": "number",
+     "says": "Potęga dziesięciu, przez którą przedrostek mnoży jednostkę: kilo 3 (×1000), centy −2 (×0,01)."
+    },
+    {
+     "key": "temat",
+     "label": "Temat",
+     "type": "ref",
+     "to": [
+      "@swiat/temat"
+     ],
+     "says": "Temat, którego ten przedrostek jest częścią — ćwiczenia z przedrostkami liczą się też dla niego."
+    }
+   ]
+  }
+ ],
+ "entities": [
+  {
+   "ref": "@swiat/d-matematyka",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Matematyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-liczby",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Liczby i działania",
+    "nad": "@swiat/d-matematyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-algebra",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Algebra",
+    "nad": "@swiat/d-matematyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-fizyka",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Fizyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-jednostki",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Wielkości i jednostki",
+    "nad": "@swiat/d-fizyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-ruch",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Ruch",
+    "nad": "@swiat/d-fizyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-sily",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Siły",
+    "nad": "@swiat/d-fizyka"
+   }
+  },
+  {
+   "ref": "@swiat/d-historia",
+   "kinds": [
+    "@swiat/dziedzina"
+   ],
+   "data": {
+    "nazwa": "Historia nauki"
+   }
+  },
+  {
+   "ref": "@swiat/t-naturalne",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Liczby naturalne",
+    "czym": "Liczby 0, 1, 2, 3, … — służą do liczenia i porządkowania.",
+    "dziedziny": [
+     "@swiat/d-liczby"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-dodawanie",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Dodawanie i odejmowanie",
+    "czym": "Dodawanie łączy dwie liczby w sumę; odejmowanie znajduje różnicę i odwraca dodawanie.",
+    "wymaga": [
+     "@swiat/t-naturalne"
+    ],
+    "dziedziny": [
+     "@swiat/d-liczby"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-mnozenie",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Mnożenie i dzielenie",
+    "czym": "Mnożenie to wielokrotne dodawanie tej samej liczby; dzielenie odwraca mnożenie (przez zero się nie dzieli).",
+    "wymaga": [
+     "@swiat/t-dodawanie"
+    ],
+    "dziedziny": [
+     "@swiat/d-liczby"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-ulamki",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Ułamki zwykłe",
+    "czym": "Liczba $\\frac{a}{b}$: całość podzielona na $b$ równych części, z których bierzemy $a$.",
+    "wymaga": [
+     "@swiat/t-mnozenie"
+    ],
+    "dziedziny": [
+     "@swiat/d-liczby"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-dziesietne",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Ułamki dziesiętne",
+    "czym": "Ułamki o mianowniku 10, 100, 1000… zapisane po przecinku: $0{,}25 = \\frac{25}{100}$.",
+    "wymaga": [
+     "@swiat/t-ulamki"
+    ],
+    "dziedziny": [
+     "@swiat/d-liczby"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-procenty",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Procenty",
+    "czym": "Setne części całości: $p\\% = \\frac{p}{100}$, więc 25% z 80 to 20.",
+    "wymaga": [
+     "@swiat/t-dziesietne"
+    ],
+    "dziedziny": [
+     "@swiat/d-liczby"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-potegi",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Potęgi",
+    "czym": "Iloczyn tych samych czynników: $a^n = a \\cdot a \\cdot \\ldots \\cdot a$ ($n$ razy); $10^3 = 1000$.",
+    "wymaga": [
+     "@swiat/t-mnozenie"
+    ],
+    "dziedziny": [
+     "@swiat/d-liczby",
+     "@swiat/d-algebra"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-pierwiastek",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Pierwiastek kwadratowy",
+    "czym": "Liczba nieujemna, której kwadrat daje daną liczbę: $\\sqrt{49} = 7$, bo $7^2 = 49$.",
+    "wymaga": [
+     "@swiat/t-potegi"
+    ],
+    "dziedziny": [
+     "@swiat/d-algebra"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-wyrazenia",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Wyrażenia algebraiczne",
+    "czym": "Zapis z liczbami i literami, np. $3x + 5$; za literę można podstawić liczbę.",
+    "wymaga": [
+     "@swiat/t-mnozenie"
+    ],
+    "dziedziny": [
+     "@swiat/d-algebra"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-rownania",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Równania liniowe",
+    "czym": "Równość z niewiadomą w pierwszej potędze, np. $3x + 5 = 20$; rozwiązanie to liczba, która ją spełnia ($x = 5$).",
+    "wymaga": [
+     "@swiat/t-wyrazenia"
+    ],
+    "dziedziny": [
+     "@swiat/d-algebra"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-proporcje",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Proporcjonalność",
+    "czym": "Dwie wielkości są wprost proporcjonalne, gdy ich iloraz jest stały: $y = k \\cdot x$.",
+    "wymaga": [
+     "@swiat/t-ulamki",
+     "@swiat/t-rownania"
+    ],
+    "dziedziny": [
+     "@swiat/d-algebra"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-logarytm",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Logarytm",
+    "czym": "Wykładnik, do którego trzeba podnieść podstawę, by dostać liczbę: $\\log_2 8 = 3$, bo $2^3 = 8$.",
+    "wymaga": [
+     "@swiat/t-potegi"
+    ],
+    "dziedziny": [
+     "@swiat/d-algebra"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-jednostki",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Wielkości i jednostki",
+    "czym": "Wielkość fizyczną podaje się liczbą i jednostką (5 m, 2 s); przedrostki kilo-, centy-, mili- mnożą jednostkę przez potęgę dziesięciu.",
+    "wymaga": [
+     "@swiat/t-dziesietne",
+     "@swiat/t-potegi"
+    ],
+    "dziedziny": [
+     "@swiat/d-jednostki"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-droga",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Droga i czas",
+    "czym": "Droga to długość przebytego toru (w metrach), czas — jak długo trwał ruch (w sekundach).",
+    "wymaga": [
+     "@swiat/t-jednostki"
+    ],
+    "dziedziny": [
+     "@swiat/d-ruch"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-predkosc",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Prędkość",
+    "czym": "Droga przebyta w jednostce czasu: $v = \\frac{s}{t}$; jednostka m/s (1 m/s = 3,6 km/h).",
+    "wymaga": [
+     "@swiat/t-droga",
+     "@swiat/t-proporcje"
+    ],
+    "dziedziny": [
+     "@swiat/d-ruch"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-przyspieszenie",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Przyspieszenie",
+    "czym": "Zmiana prędkości w jednostce czasu: $a = \\frac{\\Delta v}{\\Delta t}$; jednostka m/s².",
+    "wymaga": [
+     "@swiat/t-predkosc"
+    ],
+    "dziedziny": [
+     "@swiat/d-ruch"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-sila",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Siła",
+    "czym": "Oddziaływanie, które zmienia ruch albo kształt ciała; jednostka niuton (N).",
+    "wymaga": [
+     "@swiat/t-jednostki"
+    ],
+    "dziedziny": [
+     "@swiat/d-sily"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-masa",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Masa i ciężar",
+    "czym": "Masa mówi, ile jest materii (kg); ciężar to siła, z jaką Ziemia przyciąga ciało: $Q = m \\cdot g$, $g \\approx 9{,}81\\ \\mathrm{m/s^2}$.",
+    "wymaga": [
+     "@swiat/t-sila"
+    ],
+    "dziedziny": [
+     "@swiat/d-sily"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-dynamika",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Druga zasada dynamiki",
+    "czym": "Przyspieszenie ciała rośnie z działającą siłą i maleje z masą: $F = m \\cdot a$.",
+    "wymaga": [
+     "@swiat/t-przyspieszenie",
+     "@swiat/t-masa",
+     "@swiat/t-rownania"
+    ],
+    "dziedziny": [
+     "@swiat/d-sily",
+     "@swiat/d-ruch"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/t-galileusz",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "data": {
+    "nazwa": "Galileusz i swobodny spadek",
+    "czym": "Galileusz (1564–1642) pokazał doświadczeniami, że bez oporu powietrza wszystkie ciała spadają z tym samym przyspieszeniem.",
+    "wymaga": [
+     "@swiat/t-przyspieszenie"
+    ],
+    "dziedziny": [
+     "@swiat/d-historia",
+     "@swiat/d-ruch"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/p-kilo",
+   "kinds": [
+    "@swiat/przedrostek"
+   ],
+   "data": {
+    "nazwa": "kilo",
+    "symbol": "k",
+    "wykladnik": 3,
+    "temat": "@swiat/t-jednostki"
+   }
+  },
+  {
+   "ref": "@swiat/p-hekto",
+   "kinds": [
+    "@swiat/przedrostek"
+   ],
+   "data": {
+    "nazwa": "hekto",
+    "symbol": "h",
+    "wykladnik": 2,
+    "temat": "@swiat/t-jednostki"
+   }
+  },
+  {
+   "ref": "@swiat/p-centy",
+   "kinds": [
+    "@swiat/przedrostek"
+   ],
+   "data": {
+    "nazwa": "centy",
+    "symbol": "c",
+    "wykladnik": -2,
+    "temat": "@swiat/t-jednostki"
+   }
+  },
+  {
+   "ref": "@swiat/p-mili",
+   "kinds": [
+    "@swiat/przedrostek"
+   ],
+   "data": {
+    "nazwa": "mili",
+    "symbol": "m",
+    "wykladnik": -3,
+    "temat": "@swiat/t-jednostki"
+   }
+  },
+  {
+   "ref": "@swiat/q-predkosc",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "number",
+    "prompt": "Samochód przejechał {s} m w ciągu {t} s. Jaka była jego średnia prędkość?",
+    "params": [
+     {
+      "name": "s",
+      "random": [
+       20,
+       500
+      ],
+      "step": 10
+     },
+     {
+      "name": "t",
+      "random": [
+       2,
+       60
+      ]
+     }
+    ],
+    "let": [
+     {
+      "name": "v",
+      "value": "s / t"
+     }
+    ],
+    "answers": [
+     "{round(v, 2)}"
+    ],
+    "unit": "m/s",
+    "quantity": "Velocity",
+    "tolerance": 0.01,
+    "relative": true,
+    "hints": [
+     "Prędkość to droga podzielona przez czas: $v = \\frac{ s }{ t }$."
+    ],
+    "explanation": "v = {s} m : {t} s ≈ {fmt(v, 2)} m/s — to samo co {fmt(v * 3.6, 1)} km/h.",
+    "about": [
+     "@swiat/t-predkosc"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/q-procent",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "one",
+    "prompt": "Ile to 25% z 80?",
+    "options": [
+     "20",
+     "25",
+     "40",
+     "320"
+    ],
+    "correct": [
+     0
+    ],
+    "feedback": [
+     "Tak: 25% to ćwierć, a ćwierć z 80 to 20.",
+     "To 25 — ale procent mówi, jaka to część z 80.",
+     "To połowa z 80, czyli 50%.",
+     "To 80 · 4 — odwrotnie."
+    ],
+    "about": [
+     "@swiat/t-procenty"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/q-niuton",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "one",
+    "prompt": "W jakiej jednostce mierzy się siłę?",
+    "options": [
+     "niuton (N)",
+     "kilogram (kg)",
+     "dżul (J)",
+     "wat (W)"
+    ],
+    "correct": [
+     0
+    ],
+    "about": [
+     "@swiat/t-sila"
+    ]
+   }
+  },
+  {
+   "ref": "@swiat/q-galileusz",
+   "kinds": [
+    "question"
+   ],
+   "data": {
+    "form": "date",
+    "prompt": "W którym roku urodził się Galileusz?",
+    "answers": [
+     "1564"
+    ],
+    "precision": "year",
+    "about": [
+     "@swiat/t-galileusz"
+    ]
+   }
+  }
+ ],
+ "templates": [
+  {
+   "ref": "@swiat/t-czym",
+   "name": "Czym jest temat? (fiszka)",
+   "kinds": [
+    "@swiat/temat"
+   ],
+   "direction": "nazwa→czym",
+   "graph": {
+    "nodes": [
+     {
+      "id": "n1",
+      "type": "entity",
+      "x": 0,
+      "y": 0,
+      "config": {}
+     },
+     {
+      "id": "n2",
+      "type": "pattern",
+      "x": 230,
+      "y": 0,
+      "config": {
+       "text": "Czym jest: {0}?",
+       "inputs": 1
+      }
+     },
+     {
+      "id": "n3",
+      "type": "prompt",
+      "x": 460,
+      "y": 0,
+      "config": {}
+     },
+     {
+      "id": "n4",
+      "type": "field",
+      "x": 0,
+      "y": 140,
+      "config": {
+       "key": "czym"
+      }
+     },
+     {
+      "id": "n5",
+      "type": "answer.flash",
+      "x": 460,
+      "y": 140,
+      "config": {}
+     },
+     {
+      "id": "n6",
+      "type": "card",
+      "x": 690,
+      "y": 60,
+      "config": {}
+     }
+    ],
+    "edges": [
+     {
+      "id": "e1",
+      "from": "n1",
+      "out": "entities",
+      "to": "n2",
+      "in": "p0"
+     },
+     {
+      "id": "e2",
+      "from": "n2",
+      "out": "text",
+      "to": "n3",
+      "in": "parts"
+     },
+     {
+      "id": "e3",
+      "from": "n4",
+      "out": "values",
+      "to": "n5",
+      "in": "back"
+     },
+     {
+      "id": "e4",
+      "from": "n3",
+      "out": "prompt",
+      "to": "n6",
+      "in": "prompt"
+     },
+     {
+      "id": "e5",
+      "from": "n5",
+      "out": "answer",
+      "to": "n6",
+      "in": "answer"
+     }
+    ]
+   },
+   "tests": [
+    {
+     "of": "this",
+     "weight": 0.5
+    }
+   ]
+  },
+  {
+   "ref": "@swiat/t-zamiana",
+   "name": "Zamiana jednostek z przedrostkiem (generator)",
+   "kinds": [
+    "@swiat/przedrostek"
+   ],
+   "direction": "przedrostek→metry",
+   "graph": {
+    "nodes": [
+     {
+      "id": "g",
+      "type": "generate",
+      "x": 0,
+      "y": 0,
+      "config": {
+       "params": [
+        {
+         "name": "x",
+         "random": [
+          2,
+          90
+         ]
+        }
+       ],
+       "let": [
+        {
+         "name": "metry",
+         "value": "x * 10^this.wykladnik"
+        }
+       ],
+       "texts": [
+        {
+         "name": "rozwiazanie",
+         "value": "{x} {this.symbol}m = {x} · {10^this.wykladnik} m = {metry} m"
+        }
+       ]
+      }
+     },
+     {
+      "id": "f",
+      "type": "field",
+      "x": 0,
+      "y": 160,
+      "config": {
+       "key": "symbol"
+      }
+     },
+     {
+      "id": "p",
+      "type": "pattern",
+      "x": 260,
+      "y": 40,
+      "config": {
+       "text": "Zamień na metry: {0} {1}m",
+       "inputs": 2
+      }
+     },
+     {
+      "id": "q",
+      "type": "prompt",
+      "x": 500,
+      "y": 40,
+      "config": {}
+     },
+     {
+      "id": "a",
+      "type": "answer.number",
+      "x": 500,
+      "y": 180,
+      "config": {
+       "unit": "m",
+       "quantity": "Length",
+       "tolerance": 0.001,
+       "relative": true
+      }
+     },
+     {
+      "id": "c",
+      "type": "card",
+      "x": 740,
+      "y": 100,
+      "config": {}
+     }
+    ],
+    "edges": [
+     {
+      "id": "e1",
+      "from": "g",
+      "out": "x",
+      "to": "p",
+      "in": "p0"
+     },
+     {
+      "id": "e2",
+      "from": "f",
+      "out": "values",
+      "to": "p",
+      "in": "p1"
+     },
+     {
+      "id": "e3",
+      "from": "p",
+      "out": "text",
+      "to": "q",
+      "in": "parts"
+     },
+     {
+      "id": "e4",
+      "from": "g",
+      "out": "metry",
+      "to": "a",
+      "in": "expected"
+     },
+     {
+      "id": "e5",
+      "from": "q",
+      "out": "prompt",
+      "to": "c",
+      "in": "prompt"
+     },
+     {
+      "id": "e6",
+      "from": "a",
+      "out": "answer",
+      "to": "c",
+      "in": "answer"
+     },
+     {
+      "id": "e7",
+      "from": "g",
+      "out": "rozwiazanie",
+      "to": "c",
+      "in": "solution"
+     }
+    ]
+   },
+   "tests": [
+    {
+     "of": "this",
+     "weight": 1
+    },
+    {
+     "of": "temat",
+     "weight": 0.5
+    }
+   ]
+  }
+ ],
+ "revisions": [
+  {
+   "ref": "@swiat/p-od-podstaw",
+   "name": "Świat wiedzy — od podstaw",
+   "graph": {
+    "nodes": [
+     {
+      "id": "s",
+      "type": "source.all",
+      "x": 0,
+      "y": 0,
+      "config": {}
+     },
+     {
+      "id": "l",
+      "type": "learning",
+      "x": 230,
+      "y": 0,
+      "config": {
+       "dir": "before",
+       "keep": true
+      }
+     },
+     {
+      "id": "w",
+      "type": "filter.when",
+      "x": 460,
+      "y": 0,
+      "config": {
+       "when": {
+        "type": "knowness",
+        "rel": "before",
+        "band": "learned"
+       }
+      }
+     },
+     {
+      "id": "p",
+      "type": "strategy",
+      "x": 690,
+      "y": 0,
+      "config": {
+       "mode": "temporal",
+       "stackSize": 12,
+       "minCorrectness": 1,
+       "order": "general"
+      }
+     }
+    ],
+    "edges": [
+     {
+      "id": "e1",
+      "from": "s",
+      "out": "cards",
+      "to": "l",
+      "in": "cards"
+     },
+     {
+      "id": "e2",
+      "from": "l",
+      "out": "cards",
+      "to": "w",
+      "in": "cards"
+     },
+     {
+      "id": "e3",
+      "from": "w",
+      "out": "cards",
+      "to": "p",
+      "in": "cards"
+     }
+    ]
+   }
+  }
+ ],
+ "views": [
+  {
+   "ref": "@swiat/w-krajobraz",
+   "name": "Krajobraz wiedzy",
+   "mode": "landscape",
+   "steps": [
+    {
+     "type": "source.kind",
+     "config": {
+      "kind": "@swiat/temat"
+     }
+    }
+   ],
+   "group": {
+    "by": "axis",
+    "kind": "@swiat/dziedzina",
+    "via": [
+     "dziedziny"
+    ]
+   },
+   "landscape": {
+    "budget": 60
+   }
+  },
+  {
+   "ref": "@swiat/w-od-podstaw",
+   "name": "Od podstaw (poziomy)",
+   "mode": "tree",
+   "steps": [
+    {
+     "type": "source.kind",
+     "config": {
+      "kind": "@swiat/temat"
+     }
+    }
+   ],
+   "group": {
+    "by": "level"
+   },
+   "query": "",
+   "columns": [
+    "nazwa",
+    "wymaga",
+    "dziedziny"
+   ],
+   "positions": {}
+  }
+ ],
+ "rewards": [
+  {
+   "ref": "@swiat/nagrody",
+   "name": "Punkty świata wiedzy",
+   "points": {
+    "correct": 10,
+    "partial": 5,
+    "wrong": 1,
+    "first": 5,
+    "known": 20,
+    "fast": 0,
+    "combo": 15,
+    "goal": 30,
+    "streak": 5
+   },
+   "goal": {
+    "amount": 10,
+    "unit": "cards"
+   },
+   "streak": {
+    "counts": "goal",
+    "grace": 1,
+    "max": 10
+   }
+  }
+ ]
+}

@@ -27,13 +27,15 @@ import { RuleEditor } from './RuleEditor';
 import { OriginTag, useAsync, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
 import {
-  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
+  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LANDSCAPE_BUDGET, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
   withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
 } from './views';
 import { gaugeFromMarks } from './knowing';
 import { renamer } from './learn';
 import { answerIndex } from './measures';
 import { QuiltView } from './QuiltView';
+import { LandscapeView } from './LandscapeView';
+import { useRunRewards } from './RewardsEditor';
 import { clipTex } from './texClip';
 import { StructureView } from './StructureView';
 import type { Group } from './selection';
@@ -92,14 +94,18 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   const wants = needsKnowing(shown);
   /* 2026-11-01 — die Mapa postępów braucht die Karten immer (die Kenntnis jedes Eintrags und seine Fragen). */
   const quilt = view.mode === 'quilt';
-  const knowCards = useAsync(wants || quilt ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, lib.revision]);
+  /* 2026-11-03 — der Krajobraz braucht die Karten immer (wer Karten hat, ist lernbar; die Kenntnis jedes Eintrags). */
+  const landscape = view.mode === 'landscape';
+  const knowCards = useAsync(wants || quilt || landscape ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, landscape, lib.revision]);
+  /* Punkte und Serie im Lauf aus dem Krajobraz — wenn die Nauka dieser Baza sie zählt. */
+  const runRewards = useRunRewards();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ownAnswers = useMemo(() => (learner == null ? () => [] : answerIndex(learner.progress, renamer(lib.merges()))), [learner, learner?.progress, lib]);
   const knowing = useMemo(() => {
     if (!wants || knowCards === null || knowCards === undefined) return null;
     const rename = renamer(lib.merges());
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
-    return gaugeFromMarks(knowCards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now());
+    return gaugeFromMarks(knowCards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wants, knowCards, learner, learner?.progress, lib.revision]);
   const vlib = useMemo(() => withKnowing(lib, knowing), [lib, knowing]);
@@ -173,7 +179,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   });
   const layout = (
     <span className="cg-subtabs" role="group" aria-label="Układ">
-      {(['table', 'tree', 'outline', 'matrix', 'canvas', 'quilt'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} aria-pressed={view.mode === m} data-mode={m} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{LIST_MODE_LABEL[m]}</button>)}
+      {(['table', 'tree', 'outline', 'matrix', 'canvas', 'quilt', 'landscape'] as const).map((m) => <button key={m} type="button" className={view.mode === m ? 'is-on' : ''} aria-pressed={view.mode === m} data-mode={m} onClick={() => setV({ mode: m, ...(m === 'matrix' && view.matrix === null ? { matrix: { rows: view.group ?? { by: 'kind' }, cols: { by: 'kind' } } } : {}) })}>{LIST_MODE_LABEL[m]}</button>)}
     </span>
   );
   /* „Co pokazać" (die Auswahl) und „Jak pokazać" (die Gestalt) — getrennt gesagt, zusammen gespeichert. */
@@ -201,6 +207,15 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         <h4 className="cg-adjust-h">Jak pokazać</h4>
         {layout}
         {view.mode === 'outline' && <OutlineSettings value={view.outline} fields={chooserFields.filter((f) => !f.key.startsWith(AXIS_COLUMN))} onChange={(outline) => setV({ outline })} />}
+        {landscape && (
+          <div className="cg-row" data-landscape-settings="">
+            <p className="cg-muted">Krajobraz: przed Tobą pierścień tego, czego możesz się uczyć teraz; dalej góry — tym wyższe, im więcej kroków („Najpierw trzeba znać”) brakuje; za Tobą dolina tego, co umiesz. Kierunek daje grupowanie z „Wybór i grupy” (np. oś tagów z ich strukturą).</p>
+            <label className="wk-field"><span>Ile pól pojedynczo</span>
+              <input type="number" min={6} max={400} value={view.landscape?.budget ?? LANDSCAPE_BUDGET} data-landscape-budget=""
+                onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setV({ landscape: { budget: Math.max(6, Math.min(400, Math.round(n))) } }); }} />
+            </label>
+          </div>
+        )}
         {quilt && <p className="cg-muted" data-quilt-hint="">Mapa postępów: każdy wpis to kafelek w kolorze tego, jak dobrze go znasz — pogrupowany jak w „Wybór i grupy” (np. idee według lekcji, lekcje pod rozdziałami). Uczący się widzą ją w Postępach i w module „Widok” na stronie.</p>}
       </div>
     </>
@@ -301,6 +316,9 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       )}
       {view.mode === 'tree' && (groups === null ? <Tree list={list} onOpen={onOpen} /> : <GroupTree groups={groups} onOpen={onOpen} vlib={vlib} />)}
       {/* 2026-11-01 — die Mapa postępów: wie gut der Betrachter (sein Lernender) jeden Eintrag kann. */}
+      {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel), sie schneidet ihn nicht zu. */}
+      {landscape && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
+        : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} />)}
       {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
         : <QuiltView view={shown} list={list} cards={knowCards} answers={ownAnswers} learner={learner ?? null} onOpen={onOpen} />)}
       {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} vlib={vlib} />}

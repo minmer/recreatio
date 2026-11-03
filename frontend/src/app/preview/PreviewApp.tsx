@@ -55,6 +55,7 @@ import { installPreviewFetch, type FetchEntry, type PreviewFetch } from './previ
 import { previewFileMap, type GivenFiles } from './previewFiles';
 import { lintDocument, type LintItem } from './previewLint';
 import { animatedItems, measureView, nextFrames, seek, settle, type Settled, type ViewKind, type ViewMeasure } from './previewProbe';
+import { knowledgeSamples, knowledgeSummary, renderKnowledge, type KnowledgeInput, type KnowledgeResult, type KnowledgeSummary, type SamplesResult } from './PreviewKnowledge';
 import './preview.css';
 
 /* -- Was der Treiber bekommt --------------------------------------------------------- */
@@ -130,6 +131,13 @@ export interface PreviewApi {
   readonly seek: (t: number | null) => void;
   readonly fetches: () => readonly FetchEntry[];
   readonly format: (kind?: string | null) => { readonly text: string; readonly kinds: readonly { kind: string; label: string; use: string; box: string; retired: boolean }[] };
+  /**
+   * 2026-11-03 — EINE BAZA WIEDZY AUS JSON (`PreviewKnowledge.tsx`): importiert in einen Speicher ohne Dienst, einer ihrer
+   * Widoki gezeichnet (mit einem erfundenen Fortschritt) — und, ohne zu zeichnen, was sie ist und Proben ihrer Generatoren.
+   */
+  readonly knowledge: (input: KnowledgeInput) => Promise<(KnowledgeResult & { readonly settled: Settled }) | { error: string }>;
+  readonly knowledgeSummary: (input: KnowledgeInput) => Promise<KnowledgeSummary | { error: string }>;
+  readonly knowledgeSamples: (input: KnowledgeInput & { readonly count?: number | null }) => Promise<SamplesResult | { error: string }>;
 }
 
 declare global {
@@ -337,9 +345,29 @@ async function matrixInto(state: State, input: LoadInput, which: string | number
 
 function labelsOf(state: State): Record<string, string> {
   const out: Record<string, string> = {};
+  if (state.view === 'knowledge') return { view: 'V1 widok' };
   if (state.current === null) return out;
   state.current.plan.parts.forEach((part, i) => { out[part.id] = `M${i + 1} ${part.kind}`; });
   return out;
+}
+
+/** 2026-11-03 — eine Baza wiedzy statt der Seite: gezeichnet in derselben Wurzel, gewartet wie auf eine Seite. */
+async function knowledgeInto(state: State, input: KnowledgeInput): Promise<(KnowledgeResult & { readonly settled: Settled }) | { error: string }> {
+  unmount(state);
+  state.current = null;
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/podglad-wiedzy`);
+  const done = await renderKnowledge(state.node, null, input);
+  if ('error' in done) return done;
+  state.root = done.root;
+  state.view = 'knowledge';
+  let settled = await settle(state.fetches);
+  /* Ein Krajobraz rechnet im Worker und sagt solange „Liczenie krajobrazu…" (`data-landscape-wait`) — darauf warten. */
+  const start = performance.now();
+  while (document.querySelector('[data-pv-knowledge] [data-landscape-wait], [data-pv-knowledge] [aria-busy="true"]') !== null && performance.now() - start < 20000) {
+    await new Promise((wake) => window.setTimeout(wake, 150));
+  }
+  if (performance.now() - start > 0) settled = await settle(state.fetches);
+  return { ...done.result, settled };
 }
 
 /* -- Für den Menschen: einfügen und ansehen ------------------------------------------- */
@@ -435,7 +463,10 @@ export function startPreview(node: HTMLElement): void {
     format: (kind) => ({
       text: kind != null && kind !== '' && partOf(kind) !== undefined ? partDescription(kind) : pageDescription(),
       kinds: PARTS.map((def) => ({ kind: def.kind, label: def.label, use: def.use, box: `${def.box.colSpan}×${def.box.rowSpan}`, retired: def.retired !== undefined }))
-    })
+    }),
+    knowledge: (input) => knowledgeInto(state, input),
+    knowledgeSummary: (input) => knowledgeSummary(input),
+    knowledgeSamples: (input) => knowledgeSamples(input)
   };
   window.recreatioPreview = api;
 
@@ -455,7 +486,15 @@ export function startPreview(node: HTMLElement): void {
    */
   const params = new URLSearchParams(window.location.search);
   const docId = params.get('doc');
-  if (docId !== null) {
+  /* 2026-11-03 — dieselbe Vorschau einer Baza wiedzy (`preview_knowledge`) für den Menschen. */
+  const knowledgeId = params.get('knowledge');
+  if (knowledgeId !== null) {
+    void fetch(`/__preview/doc/${encodeURIComponent(knowledgeId)}`)
+      .then((response) => (response.ok ? response.json() as Promise<KnowledgeInput> : Promise.reject(new Error('gone'))))
+      .then((input) => knowledgeInto(state, input))
+      .then((done) => { if ('error' in done) showForm(state, done.error); })
+      .catch(() => showForm(state, 'Tego podglądu już nie ma (serwer podglądu został zamknięty).'));
+  } else if (docId !== null) {
     void fetch(`/__preview/doc/${encodeURIComponent(docId)}`)
       .then((response) => (response.ok ? response.json() as Promise<LoadInput> : Promise.reject(new Error('gone'))))
       .then((input) => loadInto(state, input, <Bar onBack={() => showForm(state)} problem={null} />))

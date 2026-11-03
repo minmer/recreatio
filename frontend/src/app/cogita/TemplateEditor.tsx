@@ -11,6 +11,7 @@ import { answerText } from './CardFace';
 import type { Card } from './cardBasics';
 import { cardsOf, readTemplate, templateProblems, type Template } from './cards';
 import { TEMPLATE_PALETTE } from './cardPalette';
+import { TemplateSamples } from './GeneratorSamples';
 import { evaluate, graphJson, type Graph } from './graph';
 import { GraphEditor, type FieldKey } from './GraphEditor';
 import { presetChoice, presetField, TEMPLATE_PRESETS } from './presets';
@@ -161,7 +162,7 @@ function TemplateForm({ template }: { template: Template }) {
 
   const entity = sample === null ? lib.material(draft.kinds[0] ?? '')[0] : lib.entity(sample);
   const preview = useAsync(entity === undefined ? null : async () => {
-    const ctx = { look: lib.look, entity, pool: lib.poolFor(entity), seed: 'podglad', ...(lib.python === undefined ? {} : { python: lib.python }) };
+    const ctx = { look: lib.look, entity, pool: lib.poolFor(entity), seed: 'podglad', kindOf: (ref: string) => lib.kindOf(ref), ...(lib.python === undefined ? {} : { python: lib.python }) };
     const made = await cardsOf(draft, ctx);
     const evaluated = await evaluate(draft.graph, TEMPLATE_PALETTE, ctx);
     return { made, errors: evaluated.errors };
@@ -256,6 +257,11 @@ function TemplateForm({ template }: { template: Template }) {
             </>
           )}
       </div>
+      {/* 2026-11-03 — ein Szablon mit Zufall (Generator, Losowa wartość): zehn Fassungen für diesen Eintrag, mit Antwort und Werten. */}
+      {entity !== undefined && draft.graph.nodes.some((n) => n.type === 'generate' || n.type === 'random') && (
+        <TemplateSamples lib={lib} deps={[JSON.stringify(graphJson(draft.graph)), entity.id, lib.revision]}
+          make={(seed) => cardsOf(draft, { look: lib.look, entity, pool: lib.poolFor(entity), seed, kindOf: (ref) => lib.kindOf(ref), ...(lib.python === undefined ? {} : { python: lib.python }) })} />
+      )}
       {failed !== null && <p className="wk-error">{failed}</p>}
       {writes && (
         <div className="wk-actions">

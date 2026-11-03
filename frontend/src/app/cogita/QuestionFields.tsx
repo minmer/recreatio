@@ -15,11 +15,14 @@
  * Karte, wie der Lernende sie sieht — bei einer langen Liste von Paaren Karte für Karte.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { CardFace } from './CardFace';
 import { questionCards, readAlternatives, readChoices } from './cards';
-import { drawParams, paramsProblems, readParamsSpec } from './questionParams';
+import { drawParams, paramsProblems, readParamsSpec, storedValues } from './generator';
+import { paramsText } from './AnswerLog';
+import { QuestionSamples } from './GeneratorSamples';
+import { CogitaContext } from './ui';
 import { choicesOf, GAP, QUESTION_GROUPS, QUESTION_TYPES, SHOW_MAX, pairsOf, parsePairs, questionProblems, questionType, rawList, showOf } from './questionTypes';
 import type { FieldDef } from './schema';
 import type { CogitaLibrary } from './store';
@@ -67,6 +70,7 @@ export function QuestionFields({ id, data, writes, onSet, field }: { id: string;
           placeholder={(i) => (type.form === 'number' ? (i === 0 ? 'np. 12' : 'albo inna liczba') : type.form === 'date' ? 'np. 1410, 1410-07-15' : i === 0 ? 'odpowiedź' : 'inna dobra odpowiedź')}
           min={type.form === 'gap' ? 0 : 1} onChange={(v) => onSet('answers', v)} />
       )}
+      {type.form === 'text' && <TextRuleChecks data={data} writes={writes} onSet={onSet} />}
       {type.form === 'number' && <div className="cg-qmore">{field('unit')}{field('quantity')}{field('tolerance')}{field('relative')}</div>}
       {type.form === 'date' && <div className="cg-qmore">{field('precision')}{field('tolerance')}</div>}
       {type.form === 'gap' && <GapChoices data={data} writes={writes} onSet={onSet} />}
@@ -295,26 +299,46 @@ function JsonArea({ label, value, writes, rows = 3, hint, onChange }: { label: s
 function Params({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
   const spec = readParamsSpec(data);
   const [round, setRound] = useState(0);
-  const sample = useMemo(() => (spec === null ? null : drawParams(spec, Math.random)), [JSON.stringify([data.params, data.let, data.require]), round]); // eslint-disable-line react-hooks/exhaustive-deps
-  const problems = useMemo(() => (spec === null ? [] : paramsProblems(spec)), [JSON.stringify([data.params, data.let, data.require])]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 2026-11-03 — mit der Baza: auch Einträge (`entry`, `entries`) werden gezogen. */
+  const cg = useContext(CogitaContext);
+  const world = cg === null ? undefined : cg.lib.genWorld();
+  const sample = useMemo(() => (spec === null ? null : drawParams(spec, Math.random, undefined, world)), [JSON.stringify([data.params, data.let, data.require]), round, cg?.lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const problems = useMemo(() => (spec === null ? [] : paramsProblems(spec, Math.random, world)), [JSON.stringify([data.params, data.let, data.require]), cg?.lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <details className="cg-qparams" open={spec !== null} data-question-params={spec?.params.length ?? 0}>
-      <summary>Parametry — nowe liczby przy każdym pytaniu</summary>
-      <JsonArea label="Parametry" value={data.params} writes={writes} rows={2}
-        hint={'[{"name": "a", "random": [20, 99]}, {"name": "n", "random": [3, 9], "step": 1}] — w tekstach pytania {a}, {n}; albo {"name": "f", "values": ["sin", "cos"]}'}
+      <summary>Parametry — nowe zadanie przy każdym pytaniu</summary>
+      <JsonArea label="Parametry" value={data.params} writes={writes} rows={3}
+        hint={'[{"name": "a", "random": [20, 99]}, {"name": "f", "values": ["sin", "cos"]}, {"name": "kation", "entry": {"kind": "@chem/jon", "where": "it.ladunek > 0"}}, {"name": "zd", "entries": {"kind": "@hist/zdarzenie", "count": 4}}] — w tekstach {a}, {kation.symbol}; wpis ma pola (wpis.pole), id, label'}
         onChange={(v) => onSet('params', v)} />
       <JsonArea label="Wartości liczone" value={data.let} writes={writes} rows={2}
-        hint={'[{"name": "r", "value": "mod(a, n)"}] — język wyrażeń rysunków (mod, round, sqrt, fmt(x, 2) …); w tekstach {r}'}
+        hint={'[{"name": "r", "value": "mod(a, n)"}, {"name": "pierwsze", "value": "minby(zd, it.data).label"}] — język wyrażeń rysunków z listami: [a, b], xs[0], filter, map, sortby, choose, gcd, lcm, sub, sup …; w tekstach {r}; lista w „options”: "{zle}" — każdy element osobno'}
         onChange={(v) => onSet('let', v)} />
-      <Rows label="Warunki losowania (losuje się od nowa, aż wszystkie są spełnione)" add="warunek" values={rawList(data.require)} writes={writes} min={0} placeholder={() => 'np. a > 2*n'} onChange={(v) => onSet('require', v)} />
-      {sample !== null && (
+      <Rows label="Warunki losowania (losuje się od nowa, aż wszystkie są spełnione — najwyżej 60 razy; inaczej karta nie powstaje)" add="warunek" values={rawList(data.require)} writes={writes} min={0} placeholder={() => 'np. a > 2*n'} onChange={(v) => onSet('require', v)} />
+      {sample !== null && sample.held && (
         <p className="cg-muted" data-params-sample="">
-          Przykład: {Object.entries(sample.values).map(([k, v]) => `${k} = ${typeof v === 'number' ? Number(v.toPrecision(10)) : v}`).join(', ')}{' '}
+          Przykład: {paramsText(storedValues(spec!, sample.values), (id) => { const e = cg?.lib.entity(id); return e === undefined ? null : cg!.lib.label(e); })}{' '}
           <button type="button" className="wk-link-btn" onClick={() => setRound((r) => r + 1)}>losuj jeszcze raz</button>
         </p>
       )}
       {problems.map((p) => <p key={p} className="wk-warn">{p}</p>)}
     </details>
+  );
+}
+
+/** 2026-11-03 — wie streng ein getippter Text verglichen wird: ohne Leerzeichen, Indizes (₂, ²) wie normale Ziffern. */
+function TextRuleChecks({ data, writes, onSet }: { data: Readonly<Record<string, unknown>>; writes: boolean; onSet: Put }) {
+  const rule = data.rule !== null && typeof data.rule === 'object' && !Array.isArray(data.rule) ? (data.rule as Record<string, unknown>) : {};
+  const set = (key: 'spaces' | 'scripts', on: boolean) => {
+    const { [key]: _drop, ...rest } = rule;
+    const next = on ? { ...rest, [key]: true } : rest;
+    onSet('rule', Object.keys(next).length === 0 ? undefined : next);
+  };
+  return (
+    <fieldset className="cg-row cg-qrule" data-question-rule="">
+      <legend>Porównanie wpisanej odpowiedzi</legend>
+      <label className="pe-check"><input type="checkbox" checked={rule.spaces === true} disabled={!writes} onChange={(e) => set('spaces', e.target.checked)} /><span>spacje się nie liczą</span></label>
+      <label className="pe-check"><input type="checkbox" checked={rule.scripts === true} disabled={!writes} onChange={(e) => set('scripts', e.target.checked)} /><span>indeksy (₂, ²) jak zwykłe cyfry — Al2(SO4)3 = Al₂(SO₄)₃</span></label>
+    </fieldset>
   );
 }
 
@@ -406,8 +430,9 @@ function Sentences({ data, writes, onSet, share }: { data: Readonly<Record<strin
 export function QuestionPreview({ id, data, lib }: { id: string; data: Readonly<Record<string, unknown>>; lib: CogitaLibrary }) {
   const [round, setRound] = useState(0);
   const text = JSON.stringify(data);
+  /* 2026-11-03 — mit der Baza (`genWorld`): ein Generator zieht auch Einträge. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const cards = useMemo(() => questionCards({ id, kinds: ['question'], data: { ...data } }, `podglad:${round}`), [id, text, round]);
+  const cards = useMemo(() => questionCards({ id, kinds: ['question'], data: { ...data } }, `podglad:${round}`, lib.genWorld()), [id, text, round, lib, lib.revision]);
   const card = cards.length === 0 ? undefined : cards[round % cards.length];
   return (
     <section className="cg-card cg-qpreview" data-question-preview={cards.length}>
@@ -423,6 +448,8 @@ export function QuestionPreview({ id, data, lib }: { id: string; data: Readonly<
       {card === undefined
         ? <span className="cg-muted">Karta pojawi się, gdy pytanie będzie kompletne.</span>
         : <CardFace key={`${card.key}:${round}`} card={card} lib={lib} autoFocus={false} onAnswered={() => undefined} />}
+      {/* 2026-11-03 — z generatorem: dziesięć zadań z odpowiedziami i ile losowań odrzucono. */}
+      {readParamsSpec(data) !== null && <QuestionSamples id={id} data={data} lib={lib} />}
     </section>
   );
 }

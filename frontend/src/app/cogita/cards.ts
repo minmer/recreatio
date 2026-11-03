@@ -34,13 +34,13 @@
 import { checkBuild, checkCode, checkDate, checkFlash, checkGaps, checkMany, checkMatch, checkNumber, checkOne, checkOrder, checkPoint, checkText, checkTrueFalse, GAP_RULE, readDateAnswer, readRule, TEXT_RULE, type AnswerForm, type FlashGrade, type Outcome, type PointGiven, type TextRule } from './check';
 import { ancestors, evaluate, readGraph, type Graph, type RunOutput } from './graph';
 import { dateKey, fieldsOf, plainOf, readNumber, valuesOf, type DatePrecision, type Entity, type Lookup } from './schema';
-import { type AnswerSpec, type Card, type CardTest, type CodeTest, type Fragment, type GapSlot, type Item, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, readParams, rngOf, shuffle, shuffleAway, shuffledPairs, stable, str } from './cardBasics';
-import { type Draft, TEMPLATE_PALETTE } from './cardPalette';
+import { type AnswerSpec, type Card, type CardTest, type CodeTest, type Fragment, type GapSlot, type Item, type ParamValue, type PromptPart, type TemplateContext, cardKey, hashOf, isObject, lines, num, readParams, rngOf, shuffle, shuffleAway, shuffledPairs, stable, str } from './cardBasics';
+import { type Draft, type GeneratorRun, TEMPLATE_PALETTE } from './cardPalette';
 import { checkInteractive, interactiveExpected, interactiveSpec } from './interactive';
 import { convert, findUnit, guessKind, kindById, measures, parseQuantity } from '../core/quantities';
 import { hasTex, plainWithTex } from '../core/tex';
 import { choicesOf, GAP, pairsOf, rawList, showOf } from './questionTypes';
-import { drawParams, readParamsSpec, withParams } from './questionParams';
+import { drawInstance, drawsEntries, readParamsSpec, storedValues, withParams, type GenWorld } from './generator';
 
 /** Was als richtig gilt, ohne die Reihenfolge, in der es gezeigt wird — gemischte Wahlmöglichkeiten ändern nichts. */
 function expectedOf(answer: AnswerSpec): unknown {
@@ -126,8 +126,28 @@ export function checkCard(card: Card, given: unknown, rule?: Partial<TextRule>):
   }
 }
 
-/** Bausteine, deren Ergebnis bei jedem Lauf anders ausfallen darf. */
-const CHANCE = new Set(['random']);
+/** Bausteine, deren Ergebnis bei jedem Lauf anders ausfallen darf. 2026-11-03: auch der Generator. */
+const CHANCE = new Set(['random', 'generate']);
+
+/**
+ * 2026-11-03 — WAS EINE KARTE MIT ZUFALL GEZOGEN HAT, für die Antwort: die Werte jedes Generators (beim Namen) und jeder
+ * „Losowa wartość" (`r_<knoten>`: ihre Texte). `undefined`: nichts.
+ */
+function drawnOf(graph: Graph, outputs: ReadonlyMap<string, RunOutput>): Record<string, ParamValue> | undefined {
+  const out: Record<string, ParamValue> = {};
+  for (const node of graph.nodes) {
+    const produced = outputs.get(node.id);
+    if (produced === undefined) continue;
+    if (node.type === 'generate' && isObject(produced.$generator)) {
+      const run = produced.$generator as unknown as GeneratorRun;
+      for (const [k, v] of Object.entries(run.values)) out[k] = v;
+    } else if (node.type === 'random' && Array.isArray(produced.value)) {
+      const values = (produced.value as Item[]).map((i) => (typeof i.value === 'number' ? i.value : i.entity !== undefined ? `@${i.entity}` : i.text));
+      out[`r_${node.id.replace(/[^A-Za-z0-9_]/g, '_')}`.slice(0, 40)] = values.length === 1 ? values[0]! : values;
+    }
+  }
+  return readParams(out);
+}
 
 /** Was eine Vorlage TUT — ohne die Plätze im Bild: wer einen Knoten verschiebt, ändert keine Frage. */
 const definitionOf = (graph: Graph) => ({
@@ -306,20 +326,25 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
   for (const run of runs) {
     const fixed = loop !== undefined && run.item !== undefined ? new Map<string, RunOutput>([[loop.id, { item: [run.item] }]]) : undefined;
     const result = await evaluate(graph, TEMPLATE_PALETTE, { ...ctx, variant: run.variant }, { fixed });
-    if (graph.nodes.some((n) => n.type === 'when' && result.outputs.get(n.id)?.pass === false)) continue;
+    /* 2026-11-03 — auch ein Generator mit „tylko dla" (`only`), der für diesen Eintrag nicht gilt: still keine Karte. */
+    if (graph.nodes.some((n) => (n.type === 'when' || n.type === 'generate') && result.outputs.get(n.id)?.pass === false)) continue;
     const error = result.errors.get(cardNode.id);
     if (error !== undefined) {
       const first = [...result.errors.entries()].find(([, text]) => text !== 'Poprzedni krok się nie udał.');
       problems.push(first ? first[1] : error);
       continue;
     }
-    const made = result.outputs.get(cardNode.id)?.card as { prompt: PromptPart[]; draft?: Draft; explain: string[] } | undefined;
+    const made = result.outputs.get(cardNode.id)?.card as { prompt: PromptPart[]; draft?: Draft; explain: string[]; hints?: string[]; explanation?: string } | undefined;
     if (made === undefined || made.draft === undefined) continue;
     const question = run.variant === undefined ? `${template.id}:${ctx.entity.id}` : `${template.id}:${ctx.entity.id}:${run.variant}`;
     const direction = template.direction;
     const prefix = `${template.id}:${ctx.entity.id}`;
     const tests = testsOf(template.tests, ctx.entity, ctx.look);
     const facts = factsOf(template.asks, ctx.entity, ctx.look, run.variant);
+    /* 2026-11-03 — eine Karte mit Zufall nimmt mit, was gezogen wurde (Generator, Losowa wartość), und ihren Samen. */
+    const params = varies ? drawnOf(graph, result.outputs) : undefined;
+    const hints = (made.hints ?? []).map((h) => h.trim()).filter((h) => h !== '');
+    const explanation = (made.explanation ?? '').trim();
     cards.push({
       question,
       direction,
@@ -333,7 +358,11 @@ export async function cardsOf(template: Template, ctx: TemplateContext): Promise
       varies,
       requires: (run.requires ?? []).map((part) => cardKey(`${prefix}:${part}`, direction)),
       ...(tests === null ? {} : { tests }),
-      ...(facts.length === 0 ? {} : { facts })
+      ...(facts.length === 0 ? {} : { facts }),
+      ...(hints.length === 0 ? {} : { hints }),
+      ...(explanation === '' ? {} : { explanation }),
+      ...(params === undefined ? {} : { params }),
+      ...(varies ? { seed: ctx.seed } : {})
     });
   }
   return { cards, problems };
@@ -449,15 +478,20 @@ function matchAnswer(pairs: readonly { left: string; right: string }[], heads: r
  * lange Liste von Paaren („Ile par naraz") zeigt dann je Versuch andere Paare; zum Lernen gibt
  * `questionCards` jedem Paar seine eigene Karte.
  */
-export function questionCard(entity: Entity, seed = ''): Card | null {
+export function questionCard(entity: Entity, seed = '', world?: GenWorld): Card | null {
   const rng = rngOf(`${seed}:${entity.id}`);
   /*
    * 2026-11-01 — EINE FRAGE MIT PARAMETERN (`questionParams.ts`): je Versuch neue Werte, eingesetzt in jeden Text der
    * Frage; die Karte trägt sie (`params`), und die Antwort nimmt sie mit. Der Fingerabdruck ist der der Frage, wie sie
    * geschrieben ist — die Geschichte endet nicht bei jedem Würfeln.
+   * 2026-11-03 — DER EINE GENERATOR (`generator.ts`): auch Einträge aus der Baza (`world`), Listen, Texte. Gelingt
+   * kein Zug (die Bedingungen nicht in 60 Losowania, kein passender Eintrag), entsteht KEINE Karte — nie eine kaputte;
+   * der Grund steht beim Autor (`generatorProblem`). Die Karte trägt die Werte (`params`) und ihren Samen (`seed`).
    */
   const spec = readParamsSpec(entity.data);
-  const drawn = spec === null ? null : drawParams(spec, rng).values;
+  const instance = spec === null ? null : drawInstance(spec, rng, world);
+  if (instance !== null && !instance.held) return null;
+  const drawn = instance === null ? null : instance.values;
   const d: Readonly<Record<string, unknown>> = drawn === null ? entity.data : withParams(entity.data, drawn);
   const form = FORMS.find((f) => f === d.form) ?? 'text';
   const answers = lines(d.answers);
@@ -579,8 +613,12 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
   const facts = partFacts(entity.id, d, answer, prompt);
   const hints = hintsOf(d);
   const explanation = str(d.explanation).trim();
-  const params = drawn === null ? undefined : readParams(drawn);
-  /* Mit Parametern: der Fingerabdruck der Frage, wie sie geschrieben ist (nicht der gezogenen Zahlen). */
+  /* 2026-11-03 — die Werte, wie die Antwort sie mitnimmt: Zahlen, Texte, Einträge als `@kennung`, kurze Listen. */
+  const params = drawn === null || spec === null ? undefined : readParams(storedValues(spec, drawn));
+  /*
+   * Mit Parametern: der Fingerabdruck der Frage, wie sie geschrieben ist (nicht der gezogenen Zahlen) — die Geschichte
+   * beginnt neu, wenn sich der Generator (params, let, require) oder eine Formel der Antwort ändert, nie bei einem Zug.
+   */
   if (drawn !== null) {
     const raw = entity.data;
     print = { f: 'params', d: Object.fromEntries(['form', 'answers', 'options', 'correct', 'items', 'extra', 'alternatives', 'left', 'right', 'value', 'back', 'choices', 'params', 'let', 'require', 'tolerance', 'relative', 'unit', 'precision'].filter((k) => raw[k] !== undefined).map((k) => [k, raw[k]])) };
@@ -603,17 +641,31 @@ export function questionCard(entity: Entity, seed = ''): Card | null {
     ...(hints.length > 0 ? { hints } : {}),
     ...(explanation === '' ? {} : { explanation }),
     ...(feedback === undefined ? {} : { feedback }),
-    ...(params === undefined ? {} : { params })
+    ...(params === undefined ? {} : { params }),
+    ...(drawn === null ? {} : { seed })
   };
+}
+
+/**
+ * 2026-11-03 — WARUM EINE FRAGE MIT GENERATOR KEINE KARTE GIBT (für den Autor: Do zrobienia, der Editor, die Vorschau
+ * des Imports) — `null`: sie gibt eine, oder sie hat keinen Generator.
+ */
+export function generatorProblem(entity: Entity, seed = '', world?: GenWorld): string | null {
+  const spec = readParamsSpec(entity.data);
+  if (spec === null) return null;
+  if (drawsEntries(spec) && world === undefined) return null;
+  const made = drawInstance(spec, rngOf(`${seed}:${entity.id}`), world);
+  return made.held ? null : made.problem ?? 'Zadania nie dało się wylosować.';
 }
 
 /**
  * 2026-11-01 — EINE FRAGE MIT PARAMETERN NEU GEZOGEN: dieselbe Karte (Schlüssel, Fingerabdruck), andere Zahlen — für
  * jedes neue Zeigen in einem Lauf (kommt sie wieder, rechnet man neu, statt sich die Zahl von eben zu merken).
  */
-export function redrawCard(card: Card, entity: Entity | undefined, seed: string): Card {
-  if (card.params === undefined || entity === undefined || !entity.kinds.includes('question')) return card;
-  return questionCards(entity, seed).find((c) => c.key === card.key) ?? card;
+export function redrawCard(card: Card, entity: Entity | undefined, seed: string, world?: GenWorld): Card {
+  if ((card.params === undefined && card.seed === undefined) || entity === undefined || !entity.kinds.includes('question')) return card;
+  /* 2026-11-03 — mit der Baza (`world`): auch Einträge werden neu gezogen. Gelingt kein Zug, bleibt die alte Fassung. */
+  return questionCards(entity, seed, world).find((c) => c.key === card.key) ?? card;
 }
 
 /** 2026-11-01 — der Fakt eines Paars einer Frage „Połącz w pary": die Frage und das Paar (nicht die Karte, auf der es steht). */
@@ -749,8 +801,8 @@ export function answerEvidence(card: Card, given: unknown, outcome: Pick<Outcome
  * zurück, die noch nicht sitzen, und eine Liste von 40 Jahren zeigt nie alle 40 auf einmal. Der
  * Fingerabdruck ist der des eigenen Paars: ändert sich ein anderes, bleibt die Geschichte.
  */
-export function questionCards(entity: Entity, seed = ''): Card[] {
-  const whole = questionCard(entity, seed);
+export function questionCards(entity: Entity, seed = '', world?: GenWorld): Card[] {
+  const whole = questionCard(entity, seed, world);
   if (whole === null) return [];
   const d = entity.data;
   if (whole.answer.form === 'many') return sentenceCards(entity, whole, seed);

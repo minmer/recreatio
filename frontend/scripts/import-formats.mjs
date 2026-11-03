@@ -222,22 +222,38 @@ export async function formats() {
     { id: 'guide-book', group: 'Przewodniki dla AI', title: 'Przewodnik: książka → Biblioteka i baza wiedzy', what: 'Jak z książki albo artykułu zrobić dzieło z pełnym tekstem, a potem bazę wiedzy z pytaniami (z gotowym schematem). Z dodatkami wygenerowanymi z aplikacji.', where: 'Plik templates/cogita/ksiazka-AI.md; importy jak w „work-with-text” i „knowledge-base”.', text: await file('ksiazka-AI.md') },
     { id: 'guide-argument', group: 'Przewodniki dla AI', title: 'Przewodnik: rekonstrukcja wywodu dzieła (Wywód)', what: 'Jak odtworzyć tok argumentacji dzieła krok po kroku, z odwołaniami do miejsc w tekście.', where: 'Plik templates/cogita/wywod-AI.md; import jako „knowledge-base” do bazy ze schematem „scheme-wywod”.', text: await file('wywod-AI.md') },
     /* 2026-11-01 — wie man ein Schema baut: was die App selbst rechnet (Bänder, Stapel, Prüfung) und was ein Schema erklärt (Reihenfolge, tests, asks, Bänder in Bedingungen). */
-    { id: 'guide-schemes', group: 'Przewodniki dla AI', title: 'Przewodnik: jak budować schemat wiedzy', what: 'Co aplikacja liczy sama (pamięć karty, trzy pasma, stos powtórki, sprawdzanie odpowiedzi), a co opisuje schemat: kolejność nauki, "tests" (dla jakich wpisów karta jest dowodem), "asks" (karty o tym samym fakcie dzielą odpowiedzi), warunki pasmami w widokach i powtórkach.', where: 'Plik templates/cogita/schematy-AI.md; import jako schemat: Wiedza → Schematy → „Schemat jako JSON”.', text: await file('schematy-AI.md') },
+    { id: 'guide-schemes', group: 'Przewodniki dla AI', title: 'Przewodnik: jak budować schemat wiedzy', what: 'Co aplikacja liczy sama (pamięć karty, trzy pasma, stos powtórki, sprawdzanie odpowiedzi), a co opisuje schemat: kolejność nauki, "tests" (dla jakich wpisów karta jest dowodem), "asks" (karty o tym samym fakcie dzielą odpowiedzi), warunki pasmami w widokach i powtórkach — i jak zbudować bazę pod krajobraz wiedzy (jak liczy wysokości, tylko bezpośrednie wymagania, bez kół, temat = jeden krok, oś dziedzin z hierarchią, cel i zamek „najpierw powtórz” z warunkiem "rel": "chain", moduł strony, ostrzeżenia importu).', where: 'Plik templates/cogita/schematy-AI.md; import jako schemat: Wiedza → Schematy → „Schemat jako JSON”.', text: await file('schematy-AI.md') },
     /* 2026-11-01 — Teile einer Frage als Fakten: Paare, Sätze, Lücken, "fact", "share", "#strona". */
-    { id: 'guide-parts', group: 'Przewodniki dla AI', title: 'Przewodnik: pytania z części (wspólne fakty)', what: 'Jak pisać pytania, których części (pary, zdania, luki, nazwane fakty) liczą się osobno i dzielą odpowiedzi między pytaniami i kartami szablonów: "show", "share", "fact", "#strona".', where: 'Plik templates/cogita/czesci-AI.md; import jako „knowledge-base” (pytania w "entities").', text: await file('czesci-AI.md') }
+    { id: 'guide-parts', group: 'Przewodniki dla AI', title: 'Przewodnik: pytania z części (wspólne fakty)', what: 'Jak pisać pytania, których części (pary, zdania, luki, nazwane fakty) liczą się osobno i dzielą odpowiedzi między pytaniami i kartami szablonów: "show", "share", "fact", "#strona".', where: 'Plik templates/cogita/czesci-AI.md; import jako „knowledge-base” (pytania w "entities").', text: await file('czesci-AI.md') },
+    /* 2026-11-03 — Übungen, die bei jedem Zeigen neu entstehen: Parameter, gezogene Einträge, Bedingungen, der Knoten "generate". */
+    { id: 'guide-generators', group: 'Przewodniki dla AI', title: 'Przewodnik: ćwiczenia generowane (nowe przy każdym pokazaniu)', what: 'Jak opisać ćwiczenie raz, żeby przy każdym pokazaniu powstawała nowa wersja: "params" (liczby z zakresów, wartości z listy, wylosowane wpisy "entry"/"entries"), "let", "require", wartości w tekstach i wzorach, węzeł "generate" w szablonie ("texts", "only", wejścia karty "hints" i "solution"); co zaczyna historię karty od nowa; cztery wzory (fizyka z jednostkami, chemia z listy jonów, matematyka od końca, logika na datach), dystraktory, jednostki, normalizacja tekstu, sprawdzanie podglądem, typowe błędy.', where: 'Plik templates/cogita/generatory-AI.md; import jako „knowledge-base” (pytania w "entities", szablony w "templates"); wszystkie wzory razem: „example-generators”.', text: await file('generatory-AI.md') }
   ];
-  for (const [id, name] of [['scheme-fakty', 'fakty.json'], ['scheme-zbior', 'zbior.json'], ['scheme-wywod', 'wywod.json'], ['scheme-podstawy', 'podstawy.json'], ['scheme-pytania', 'pytania.json'], ['example-atom', 'przyklad-atom.json']]) {
+  /* 2026-11-03 — dazu: die vier Muster der Generatoren als ein Kurs, und die Welt des Wissens (Krajobraz + Generatoren). */
+  const EXAMPLE_WHAT = {
+    'example-atom': 'Mała, kompletna baza wiedzy (rodzaje, wpisy, pytania, powtórka) — wzór dokumentu w formacie „knowledge-base”.',
+    'example-generators': 'Cztery wzory ćwiczeń generowanych z przewodnika „guide-generators” jako jeden kurs: prędkość z jednostkami, wzór i nazwa soli z listy jonów, równanie i logarytm liczone od końca, które wydarzenie było wcześniej i kolejność czterech — do zaimportowania i przećwiczenia.',
+    'example-world': 'Świat wiedzy pod krajobraz: ok. 20 tematów z matematyki i fizyki i jeden z historii nauki, dziedziny z hierarchią, bezpośrednie wymagania, dwa generatory (pytanie z "params", szablon z węzłem "generate" i rozwiązaniem z wartościami), widok w trybie "landscape" i nagrody; strona do niego — „example-world-page”.'
+  };
+  for (const [id, name] of [['scheme-fakty', 'fakty.json'], ['scheme-zbior', 'zbior.json'], ['scheme-wywod', 'wywod.json'], ['scheme-podstawy', 'podstawy.json'], ['scheme-pytania', 'pytania.json'], ['example-atom', 'przyklad-atom.json'], ['example-generators', 'przyklad-generatory.json'], ['example-world', 'przyklad-swiat.json']]) {
     const s = await schemeOf(name);
     list.push({
       id, group: id.startsWith('example') ? 'Przykłady' : 'Gotowe schematy baz wiedzy',
       title: `${id.startsWith('example') ? 'Przykład kursu' : 'Schemat'}: ${s.name}`,
-      what: id.startsWith('example') ? 'Mała, kompletna baza wiedzy (rodzaje, wpisy, pytania, powtórka) — wzór dokumentu w formacie „knowledge-base”.' : 'Gotowy schemat (rodzaje wpisów, szablony kart, sposoby dodawania, widoki) do zaimportowania w bazie wiedzy, zanim doda się wpisy.',
+      what: EXAMPLE_WHAT[id] ?? 'Gotowy schemat (rodzaje wpisów, szablony kart, sposoby dodawania, widoki) do zaimportowania w bazie wiedzy, zanim doda się wpisy.',
       where: `Plik templates/cogita/${name}; import w Wiedza → baza wiedzy → „Więcej” → „Import i eksport (JSON)”.`,
       text: s.text,
       /* Ein Dokument zum Importieren bleibt ganz — in Teilen liesse es sich nicht einfügen. */
       whole: true
     });
   }
+  /* 2026-11-03 — die Seite zur Welt des Wissens: der Baustein „Widok" als Krajobraz und „Punkty i seria". */
+  list.push({
+    id: 'example-world-page', group: 'Przykłady', title: 'Przykład strony: Świat wiedzy (krajobraz i punkty)',
+    what: 'Strona do kursu „example-world”: moduł „Widok” w trybie "krajobraz" (krajobraz wiedzy odwiedzającego, z nagrodami kursu w trakcie nauki), „Punkty i seria” i krótki tekst. Po zaimportowaniu kursu wstaw w "library" identyfikator bazy wiedzy, w "view" — identyfikator widoku „Krajobraz wiedzy”, a w "rewards" — identyfikator nagród „Punkty świata wiedzy” (albo wybierz je w edytorze strony); "answers" puste — odpowiedzi idą tam, gdzie każe baza wiedzy.',
+    where: 'Plik templates/cogita/przyklad-swiat-strona.json; import w Strony → strona → „Edytuj” → „JSON strony — eksport i import” (format „page”).',
+    text: await file('przyklad-swiat-strona.json'),
+    whole: true
+  });
   const contextual = [
     { title: 'Tekst konkretnego dzieła', where: 'Biblioteka → dzieło → „Tekst źródła” → „Dodaj tekst (JSON)”.', why: 'Polecenie zawiera klucz i sposób liczenia miejsc tego dzieła; ogólny format to „source-text”.' },
     { title: 'Wygłoszenie z nagrania albo zapisu (Skryptorium)', where: 'Skryptorium → wygłoszenie → „Z nagrania albo zapisu — przez AI we własnym czacie”.', why: 'Polecenie zawiera plan wygłoszonego tekstu z identyfikatorami jego punktów; zwracany dokument ma format „scriptorium”.' },

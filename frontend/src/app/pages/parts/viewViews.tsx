@@ -37,6 +37,12 @@ import { gaugeFromMarks } from '../../cogita/knowing';
 import { answerIndex } from '../../cogita/measures';
 import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
 import { QuiltView } from '../../cogita/QuiltView';
+import { answersArea } from '../../cogita/answersTo';
+import { usePageRewards } from '../../cogita/pageRewards';
+import { rewardsFor } from '../../cogita/rewards';
+
+/* 2026-11-03 — der Krajobraz: erst geladen, wenn ein Widok ihn zeigt. */
+const LandscapeView = later(() => import('../../cogita/LandscapeView').then((m) => m.LandscapeView));
 import { clipTex } from '../../cogita/texClip';
 import { TexText } from '../../ui/tex/Tex';
 import { StatementCard } from '../../library/markupView';
@@ -62,11 +68,13 @@ export function modeOf(asked: string, saved: string): PageMode {
   if (word === 'mapa' || word === 'map') return 'map';
   /* 2026-11-01 — die Mapa postępów: Kacheln in der Farbe dessen, wie gut der Besucher jeden Eintrag kann. */
   if (word === 'postepy' || word === 'postępy' || word === 'mapa postępów' || word === 'mapa postepow' || word === 'kafelki' || word === 'quilt') return 'quilt';
-  return saved === 'tree' || saved === 'matrix' || saved === 'map' || saved === 'quilt' ? saved : 'table';
+  /* 2026-11-03 — der Krajobraz: Tal, Ring, Berge — die eigene Landschaft des Wissens. */
+  if (word === 'krajobraz' || word === 'landscape') return 'landscape';
+  return saved === 'tree' || saved === 'matrix' || saved === 'map' || saved === 'quilt' || saved === 'landscape' ? saved : 'table';
 }
 
-const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', matrix: 'macierz', map: 'mapa', quilt: 'postepy' };
-const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa', quilt: 'Postępy' };
+const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', matrix: 'macierz', map: 'mapa', quilt: 'postepy', landscape: 'krajobraz' };
+const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa', quilt: 'Postępy', landscape: 'Krajobraz' };
 
 /** Ein Eintrag, aufgeklappt: eine Aussage mit ihren Bausteinen, ein Kazanie ganz, alles andere als Karte. */
 function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
@@ -150,8 +158,14 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const wants = needsKnowing(saved);
   /* 2026-11-01 — die Mapa postępów braucht die Kenntnis des Besuchers immer (und seine Antworten je Karte). */
   const mode = modeOf(state.u ?? config.mode, saved.mode);
-  const learns = wants || mode === 'quilt';
-  const visitor = usePageLearner(learns ? lib : null);
+  const learns = wants || mode === 'quilt' || mode === 'landscape';
+  /* 2026-11-03 — wohin die Antworten gehen (wie in „Powtórka"): der Bereich, den der Baustein nennt, sonst die Baza. */
+  const visitor = usePageLearner(learns ? lib : null, answersArea(config.answers));
+  /* 2026-11-03 — Punkte und Serie im Lauf aus dem Krajobraz: die genannte Regel, sonst die eines Bausteins „Punkty i seria" der Seite. */
+  const pageRules = usePageRewards(lib?.libraryId ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const namedRules = useMemo(() => (lib == null || config.rewards === '' ? null : rewardsFor(lib.docs('reward'), config.rewards, null).rules), [lib, lib?.revision, config.rewards]);
+  const runRules = namedRules ?? pageRules;
   const knowCards = useAsync(learns && lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [learns, lib, lib?.revision]);
   const visitorAnswers = useMemo(() => (visitor.learner === null ? () => [] : answerIndex(visitor.learner.progress)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +173,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const knowing = useMemo(() => {
     if (!wants || lib == null || knowCards == null) return null;
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
-    return gaugeFromMarks(knowCards, (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now());
+    return gaugeFromMarks(knowCards, (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wants, lib, knowCards, visitor.learner, visitor.learner?.progress]);
   const vlib = useMemo(() => (lib == null ? lib : withKnowing(lib, knowing)), [lib, knowing]);
@@ -203,6 +217,19 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
         {knowCards == null ? <Loading /> : (
           <QuiltView view={saved} list={list} cards={knowCards} answers={visitorAnswers} learner={visitor.learner} onOpen={open} compact
             {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cała mapa</button> })} />
+        )}
+        <LearnerLine learner={visitor} lib={lib} />
+      </CogitaContext.Provider>
+    );
+  }
+  /* 2026-11-03 — als Block: der Krajobraz klein (höchstens 24 Felder), der Weg zum ganzen darunter. */
+  if (!isTall(ctx) && mode === 'landscape') {
+    return (
+      <CogitaContext.Provider value={cg}>
+        <h2 className="wk-card-title">{title}</h2>
+        {knowCards == null ? <Loading /> : (
+          <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} compact viewKey={config.view} rewards={runRules}
+            {...(ctx.openWhole === undefined ? {} : { more: <button type="button" className="wk-link-btn" onClick={ctx.openWhole}>cały krajobraz</button> })} />
         )}
         <LearnerLine learner={visitor} lib={lib} />
       </CogitaContext.Provider>
@@ -253,8 +280,10 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       <div className="cg-row">
         <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} />
         <span className="cg-subtabs">
-          {(['table', 'tree', 'matrix', 'map', 'quilt'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
-            <button key={m} type="button" className={mode === m ? 'is-on' : ''} onClick={() => setState({ u: MODE_WORD[m], c: null })}>{MODE_LABEL[m]}</button>
+          {(['table', 'tree', 'matrix', 'map', 'quilt', 'landscape'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
+            <button key={m} type="button" className={mode === m ? 'is-on' : ''} onClick={() => setState({ u: MODE_WORD[m], c: null })}
+              /* 2026-11-03 — die gewählte Gestalt bleibt in der (auf dem Telefon scrollenden) Reihe sichtbar — nur die Reihe scrollt, nie die Seite. */
+              ref={mode === m ? (el) => { const row = el?.parentElement; if (el != null && row != null && el.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = el.offsetLeft + el.offsetWidth - row.clientWidth; } : undefined}>{MODE_LABEL[m]}</button>
           ))}
         </span>
         <span className="wk-card-muted">{shown.length === list.length ? `${list.length} wpisów` : `${shown.length} z ${list.length}`}</span>
@@ -319,7 +348,14 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
           <LearnerLine learner={visitor} lib={lib} />
         </>
       ))}
-      {shown.length === 0 && <p className="wk-card-muted">Nic nie pasuje.</p>}
+      {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel); gelernt wird als die Person der Seite (Punkte, Statystyki). */}
+      {mode === 'landscape' && (knowCards == null ? <Loading /> : (
+        <>
+          <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} query={state.q ?? ''} viewKey={config.view} rewards={runRules} />
+          <LearnerLine learner={visitor} lib={lib} />
+        </>
+      ))}
+      {shown.length === 0 && mode !== 'landscape' && <p className="wk-card-muted">Nic nie pasuje.</p>}
       {state.e !== undefined && <EntryCard lib={lib} id={state.e} ctx={ctx} scope={scope} delivery={state.d ?? null} onDelivery={(d) => setState({ d })} />}
     </CogitaContext.Provider>
   );

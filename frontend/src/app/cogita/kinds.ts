@@ -207,9 +207,9 @@ export const QUESTION: KindDef = {
     q('solution', 'Rozwiązanie', 'line', { says: 'Wartości, które rozwiązują zadanie, np. "kat = 45; v0 = 12" albo własności rzeczy "w2.pos = 5" — pokazywane po złej odpowiedzi; puste: "task.solve" rysunku (interactive)' }),
     field('explain', 'Wyjaśnienie (wpisy)', 'ref', { multi: true, says: 'Wpisy pokazywane po odpowiedzi, zwinięte (np. wypowiedź z treścią w blokach)' }),
     /* 2026-11-01 (Lemma) — neue Zahlen je Versuch, gerechnet in der Sprache der Rysunki. */
-    field('params', 'Parametry', 'json', { says: 'Wartości losowane przy każdym pytaniu: [{"name": "a", "random": [2, 30], "step": 1}] albo {"name": "f", "values": [...]}; w tekstach {a}' }),
-    field('let', 'Wartości liczone', 'json', { says: 'Liczone z parametrów, po kolei: [{"name": "r", "value": "mod(a, n)"}] — język wyrażeń rysunków; w tekstach {r}, {fmt(x, 2)}' }),
-    field('require', 'Warunki losowania', 'list', { says: 'Warunki, które losowanie musi spełnić, np. "a > 2*n" — losuje się od nowa (do 60 razy)' }),
+    field('params', 'Parametry', 'json', { says: 'Wartości losowane przy każdym pytaniu: [{"name": "a", "random": [2, 30], "step": 1}], {"name": "f", "values": [...]}, 2026-11-03 także wpisy z bazy: {"name": "kation", "entry": {"kind": "@rodzaj", "where": "it.ladunek > 0"}}, {"name": "zd", "entries": {"kind": "@rodzaj", "count": 4}}; w tekstach {a}, {kation.symbol}' }),
+    field('let', 'Wartości liczone', 'json', { says: 'Liczone z parametrów, po kolei: [{"name": "r", "value": "mod(a, n)"}] — język wyrażeń rysunków z listami i wpisami (filter, map, sortby, choose, gcd, lcm, sub, sup …); w tekstach {r}, {fmt(x, 2)}' }),
+    field('require', 'Warunki losowania', 'list', { says: 'Warunki, które losowanie musi spełnić, np. "a > 2*n" — losuje się od nowa (do 60 razy); gdy się nie da, karta nie powstaje' }),
     field('about', 'O czym', 'ref', { multi: true, inverse: 'pytania', says: 'Wpisy, które to pytanie sprawdza: jego wynik liczy się do ich znajomości, a samo pytanie czeka, aż opanujesz to, co trzeba znać przed nimi' }),
     /* 2026-10-27 — Voraussetzungen der Frage selbst (eine andere Frage, ein Eintrag): erst sie, dann diese. */
     field('needs', 'Najpierw trzeba znać', 'ref', { multi: true, prerequisite: 'up', inverse: 'Trzeba znać przed pytaniem', says: 'Wpisy albo pytania, które trzeba opanować, zanim padnie to pytanie (np. „Czym jest atom?” przed „Czym jest orbital?”)' })

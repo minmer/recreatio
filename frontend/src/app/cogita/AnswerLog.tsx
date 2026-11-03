@@ -43,7 +43,9 @@ export function AnswerLog({ progress, cards, shown }: { progress: Progress; card
               <td className="cg-stats-q">
                 {card === undefined ? a.question.slice(0, 60) : <TexText text={cardLine(card, name, 140)} />}
                 {/* 2026-11-01 — eine Frage mit Parametern: welche Fassung gefragt wurde. */}
-                {a.params !== undefined && <div className="cg-muted" data-answer-params="">{paramsText(a.params)}</div>}
+                {a.params !== undefined && <div className="cg-muted" data-answer-params="">{paramsText(a.params, (id) => { const e = lib.entity(id); return e === undefined ? null : lib.label(e); })}</div>}
+                {/* 2026-11-03 — z którego losowania: ten sam numer daje dokładnie to samo zadanie. */}
+                {a.seed !== undefined && <div className="cg-muted" data-answer-seed={a.seed}>los: {a.seed}</div>}
               </td>
               <td className="cg-stats-q" data-answer-given="">{shownGiven(card, a.given)}</td>
               <td>{a.correctness >= 0.999 ? '✓ dobrze' : a.correctness >= 0.5 ? '½ częściowo' : '✗ źle'}</td>
@@ -58,9 +60,17 @@ export function AnswerLog({ progress, cards, shown }: { progress: Progress; card
   );
 }
 
-/** 2026-11-01 — die gezogenen Werte einer Antwort, kurz: „a = 37 · n = 5". */
-export function paramsText(params: NonNullable<AnswerRecord['params']>): string {
-  return Object.entries(params).map(([k, v]) => `${k} = ${typeof v === 'number' ? String(Number(v.toPrecision(10))).replace('.', ',') : v}`).join(' · ');
+/**
+ * 2026-11-01 — die gezogenen Werte einer Antwort, kurz: „a = 37 · n = 5". 2026-11-03 — auch Listen und gezogene
+ * Einträge (`@kennung`, mit ihrem Namen, wenn `name` ihn kennt): „kation = Glin · zd = [Bitwa pod Grunwaldem, …]".
+ */
+export function paramsText(params: NonNullable<AnswerRecord['params']>, name?: (id: string) => string | null): string {
+  const one = (v: number | string): string => {
+    if (typeof v === 'number') return String(Number(v.toPrecision(10))).replace('.', ',');
+    if (v.startsWith('@') && name !== undefined) return name(v.slice(1)) ?? v;
+    return v;
+  };
+  return Object.entries(params).map(([k, v]) => `${k} = ${Array.isArray(v) ? `[${v.map(one).join(', ')}]` : one(v as number | string)}`).join(' · ');
 }
 
 /** Das Gegebene in Worten — gespeichert ist, was die Karte bekam: Text, oder als JSON eine Nummer, eine Liste. */

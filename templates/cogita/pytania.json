@@ -682,19 +682,19 @@
           "key": "params",
           "label": "Parametry",
           "type": "json",
-          "says": "Wartości losowane przy każdym pytaniu: [{\"name\": \"a\", \"random\": [2, 30], \"step\": 1}] albo {\"name\": \"f\", \"values\": [...]}; w tekstach {a}"
+          "says": "Wartości losowane przy każdym pytaniu: [{\"name\": \"a\", \"random\": [2, 30], \"step\": 1}], {\"name\": \"f\", \"values\": [...]}, 2026-11-03 także wpisy z bazy: {\"name\": \"kation\", \"entry\": {\"kind\": \"@rodzaj\", \"where\": \"it.ladunek > 0\"}}, {\"name\": \"zd\", \"entries\": {\"kind\": \"@rodzaj\", \"count\": 4}}; w tekstach {a}, {kation.symbol}"
         },
         {
           "key": "let",
           "label": "Wartości liczone",
           "type": "json",
-          "says": "Liczone z parametrów, po kolei: [{\"name\": \"r\", \"value\": \"mod(a, n)\"}] — język wyrażeń rysunków; w tekstach {r}, {fmt(x, 2)}"
+          "says": "Liczone z parametrów, po kolei: [{\"name\": \"r\", \"value\": \"mod(a, n)\"}] — język wyrażeń rysunków z listami i wpisami (filter, map, sortby, choose, gcd, lcm, sub, sup …); w tekstach {r}, {fmt(x, 2)}"
         },
         {
           "key": "require",
           "label": "Warunki losowania",
           "type": "list",
-          "says": "Warunki, które losowanie musi spełnić, np. \"a > 2*n\" — losuje się od nowa (do 60 razy)"
+          "says": "Warunki, które losowanie musi spełnić, np. \"a > 2*n\" — losuje się od nowa (do 60 razy); gdy się nie da, karta nie powstaje"
         },
         {
           "key": "about",

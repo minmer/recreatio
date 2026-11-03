@@ -14,6 +14,8 @@
  *   cards     seine Karten (bei einer Karte: sie selbst)
  *   before    was vorher zu können ist (Kolejność nauki, die nächsten mit Karten; bei einer Karte auch die Teile eines Zitats)
  *   up        worunter er in der Struktur liegt
+ *   chain     (2026-11-03) die schon beantworteten Karten der GANZEN Kette davor (Krajobraz: die Sperre — erst
+ *             wiederholen, was dort verblasst oder falsch war; nie gefragte Karten zählen nicht)
  *   <pole>    worauf sein Verweisfeld zeigt (der Okres eines Fakts)
  * </code>
  * Die Bedingung selbst ist die der einen Logik (`logic.ts`, `rel`, `each`) — keine zweite Regelsprache.
@@ -87,9 +89,12 @@ export function gauge(cards: readonly Card[], state: (key: string) => CardState 
   return { now, states, own, totals: propagate(own, deps), testing, askable, graph };
 }
 
-/** Dasselbe aus den gespeicherten Antworten je Karte. */
-export const gaugeFromMarks = (cards: readonly Card[], marks: (key: string) => readonly Mark[], deps: readonly Dependency[], now: number): Gauge =>
-  gauge(cards, (key) => stateOf(marks(key)), deps, now);
+/**
+ * Dasselbe aus den gespeicherten Antworten je Karte. `graph` (2026-11-03): der schon gerechnete Graph der Baza
+ * (`CogitaLibrary.prerequisites()`) — ohne ihn wird er bei jedem Aufruf neu gebaut.
+ */
+export const gaugeFromMarks = (cards: readonly Card[], marks: (key: string) => readonly Mark[], deps: readonly Dependency[], now: number, graph?: PrerequisiteGraph): Gauge =>
+  gauge(cards, (key) => stateOf(marks(key)), deps, now, graph ?? prerequisiteGraph(deps));
 
 /** Ohne Karten und Antworten — wer nichts gelernt hat. */
 export const EMPTY_GAUGE: Gauge = { now: 0, states: new Map(), own: new Map(), totals: new Map(), testing: new Map(), askable: new Set(), graph: prerequisiteGraph([]) };
@@ -134,6 +139,8 @@ export interface RelSource {
   readonly askable: (id: string) => boolean;
   /** Die Karten eines Eintrags (Schlüssel). */
   readonly cardsOf: (id: string) => readonly string[];
+  /** 2026-11-03 — wurde diese Karte schon beantwortet? (für `chain`: nie gefragte Karten zählen nicht) — fehlt es: keine. */
+  readonly answered?: (key: string) => boolean;
 }
 
 /** Aus einer Messung (und der Baza) die Quelle der Beziehungen. */
@@ -142,8 +149,48 @@ export const relSourceOf = (g: Gauge, base: Pick<RelSource, 'entity' | 'look' | 
   graph: graph ?? g.graph,
   /* Ohne Karten (noch nichts gerechnet) gilt jeder Eintrag als prüfbar: wer nichts weiss, dem fehlt das Vorherige. */
   askable: g.testing.size === 0 ? () => true : (id) => g.askable.has(id),
-  cardsOf: (id) => (g.testing.get(id) ?? []).map((t) => t.key)
+  cardsOf: (id) => (g.testing.get(id) ?? []).map((t) => t.key),
+  answered: (key) => g.states.has(key)
 });
+
+/**
+ * 2026-11-03 — DIE GANZE KETTE DAVOR (Krajobraz): alles, was über Stufen vorher zu können ist — auch durch Einträge ohne
+ * Karten und durch Kreise (die Kanten, die einen Kreis schliessen, stehen in `circles`; hier gelten sie mit, nie in
+ * einer Schleife). Ohne die Einträge selbst.
+ */
+export function chainNeeds(ids: readonly string[], graph: PrerequisiteGraph): string[] {
+  let extra: Map<string, string[]> | null = null;
+  if (graph.circles.length > 0) {
+    extra = new Map();
+    for (const d of graph.circles) { const list = extra.get(d.child); if (list === undefined) extra.set(d.child, [d.parent]); else list.push(d.parent); }
+  }
+  const before = (id: string): readonly string[] => {
+    const own = graph.needs.get(id) ?? [];
+    const more = extra?.get(id);
+    return more === undefined ? own : [...own, ...more];
+  };
+  const start = new Set(ids);
+  const seen = new Set<string>(ids);
+  const out: string[] = [];
+  const stack = ids.flatMap((id) => [...before(id)]);
+  while (stack.length > 0) {
+    const p = stack.pop()!;
+    if (seen.has(p)) continue;
+    seen.add(p);
+    if (!start.has(p)) out.push(p);
+    for (const q of before(p)) if (!seen.has(q)) stack.push(q);
+  }
+  return out;
+}
+
+/** Die schon beantworteten Karten der ganzen Kette (als `#schlüssel`) — ohne `skip` (die Karte, die gerade gefragt wird). */
+function chainCards(src: RelSource, ids: readonly string[], skip?: string): string[] {
+  const out = new Set<string>();
+  for (const id of chainNeeds(ids, src.graph)) {
+    for (const key of src.cardsOf(id)) if (key !== skip && src.answered?.(key) === true) out.add(`${CARD_REF}${key}`);
+  }
+  return [...out];
+}
 
 const refTargets = (entity: Entity | undefined, look: Lookup, key: string): string[] => {
   if (entity === undefined) return [];
@@ -162,6 +209,7 @@ export function itemRelated(src: RelSource, id: string, rel: string): string[] {
     case 'cards': return src.cardsOf(id).map((key) => `${CARD_REF}${key}`);
     case 'before': return nearestNeeds([id], src.graph, src.askable);
     case 'up': return parents(src, id);
+    case 'chain': return chainCards(src, [id]);
     default: return refTargets(src.entity(id), src.look, rel);
   }
 }
@@ -174,6 +222,7 @@ export function cardRelated(src: RelSource, card: Card, rel: string): string[] {
     case 'cards': return [`${CARD_REF}${card.key}`];
     case 'before': return [...card.requires.map((key) => `${CARD_REF}${key}`), ...nearestNeeds(cardEntities(card), src.graph, src.askable)];
     case 'up': return parents(src, main);
+    case 'chain': return chainCards(src, cardEntities(card), card.key);
     default: return refTargets(src.entity(main), src.look, rel);
   }
 }

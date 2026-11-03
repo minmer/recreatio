@@ -379,13 +379,24 @@ const NO_LOOK: Lookup = { kind: () => undefined, entity: () => undefined };
 /** Woraus die Beziehungen beim Planen kommen: die Einträge, die Reihenfolge des Lernens, welche Einträge Karten haben. */
 function relSourceFor(ctx: RevisionContext): RelSource {
   const askable = new Set(ctx.cards.flatMap(cardEntities));
+  /* 2026-11-03 — die Karten je Eintrag einmal gesammelt: `chain` fragt nach jedem Eintrag einer langen Kette. */
+  let byEntity: Map<string, string[]> | null = null;
+  const cardsOf = (id: string): readonly string[] => {
+    if (byEntity === null) {
+      byEntity = new Map();
+      for (const c of ctx.cards) for (const e of cardEntities(c)) { const list = byEntity.get(e); if (list === undefined) byEntity.set(e, [c.key]); else list.push(c.key); }
+    }
+    return byEntity.get(id) ?? [];
+  };
   return {
     entity: ctx.select?.entity ?? (() => undefined),
     look: ctx.select?.look ?? NO_LOOK,
     ...(ctx.select === undefined ? {} : { pointing: ctx.select.pointing }),
     graph: prerequisiteGraph(ctx.deps ?? []),
     askable: (id) => askable.has(id),
-    cardsOf: (id) => ctx.cards.filter((c) => cardEntities(c).includes(id)).map((c) => c.key)
+    cardsOf,
+    /* 2026-11-03 — `rel: "chain"` zählt nur schon beantwortete Karten (`knowing.ts`). */
+    answered: (key) => ctx.marks(key).length > 0
   };
 }
 

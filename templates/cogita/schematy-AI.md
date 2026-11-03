@@ -85,6 +85,7 @@ Znajomość wpisu to średnia jego kart z odpowiedzią, ważona `"tests"`. Karta
 - Data: `"precision"` (`year`, `month`, `day`) tak dokładnie, jak naprawdę trzeba to umieć; `"tolerance"` tylko gdy sama wiedza jest przybliżona (±1 rok). Części daty i „blisko” aplikacja liczy sama.
 - Długie listy par: `"show"` (Ile par naraz) 4–6.
 - Części pytań (pary, zdania, luki, `"fact"`, `"share"`, `"#strona"`) — osobny przewodnik `guide-parts` (`templates/cogita/czesci-AI.md`).
+- Ćwiczenia generowane — za każdym razem nowe liczby, wylosowane wpisy, wynik liczony (`"params"`, `"let"`, `"require"`, węzeł `"generate"` w szablonie) — osobny przewodnik `guide-generators` (`templates/cogita/generatory-AI.md`).
 
 ### 2.4 Widoki i powtórki w schemacie: warunki pasmami
 
@@ -106,12 +107,69 @@ Warunek „Znajomość” w widoku albo w powtórce nazywa pasmo zamiast liczby:
 - `"pick"`: `"weighted"` (domyślnie);
 - `"endWhenDone": true` tylko w powtórkach „tylko zaległe” — zwykła codzienna powtórka uczy dalej na zapas i kończy się przyciskiem.
 
+### 2.5 Baza gotowa na krajobraz wiedzy (`"mode": "landscape"`)
+
+Krajobraz (tryb widoku `"landscape"`; na stronie moduł „Widok” z `"mode": "krajobraz"`) pokazuje każdemu uczącemu się JEGO wiedzę jako teren: to, co umie, jest doliną (im pilniej trzeba to powtórzyć, tym wyżej się wynurza), to, czego może nauczyć się teraz — pierścieniem przed nim, a reszta górami. Tryb `"map"` zostaje bez zmian — to mała mapa; krajobraz jest osobnym trybem.
+
+**Wysokość liczy aplikacja** — z kart i odpowiedzi uczącego się, nic jej nie deklarujesz:
+
+- **−1** — wpis znany (znajomość ≥ 1): dno doliny;
+- **od −1 do 0** — do powtórki (0,1 ≤ k < 1): −(k − 0,1)/0,9, więc w miarę zapominania wpis wynurza się z doliny;
+- **0** — pierścień: wpis jeszcze niepoznany, a wszystko przed nim poznane — do nauki teraz;
+- **n ≥ 1** — góra: n to liczba RÓŻNYCH niepoznanych wpisów z kartami w całym łańcuchu wymagań przed nim, gdziekolwiek stoją (poznany = pasmo `learned`, od 10 %: to, co blednie, nie podnosi gór z powrotem).
+
+Koło w wymaganiach liczy się jako jeden krok. Wpis bez kart jest przezroczysty: nie jest polem ani krokiem — łańcuch wymagań przez niego przechodzi, a jego nazwa może się pojawić jako nazwa obszaru.
+
+Krajobraz czyta tylko to, co schemat i tak deklaruje — nic nie dopisujesz specjalnie dla niego — ale schemat musi być dobrze zbudowany:
+
+1. **Tylko bezpośrednie wymagania.** Pole z `"prerequisite": "up"` wskazuje to, co trzeba znać BEZPOŚREDNIO przed tematem (prędkość → droga i czas, proporcjonalność). Dalsze kroki aplikacja liczy sama; dopisane „na zapas” nie zmieniają wysokości gór, ale psują drogę do celu (trasa przechodzi wtedy obok kroków, które naprawdę są po drodze).
+2. **Bez kół.** A wymaga B, a B wymaga A — to błąd danych. Import ostrzega o kole, które dotyka importowanych wpisów; poziomy i ścieżka pomijają wtedy jedno połączenie, a krajobraz liczy całe koło jako jeden krok. Popraw dane, zamiast na tym polegać.
+3. **Jeden temat = jeden równy krok.** Krajobraz liczy każdy wpis jako jeden krok, bez wag trudności. Temat, który wymaga kilku nowych idei naraz (albo godzin nauki), podziel na kilka tematów z wymaganiami między nimi; temat zbyt drobny (definicja, która nic nie wnosi) połącz z sąsiednim.
+4. **Każdy temat ma karty.** Wpis bez kart (np. „Dział”, który tylko porządkuje) nie stoi w krajobrazie jako pole: to, co go wymaga, czeka od razu na to, czego wymaga on. Do każdego tematu dołącz szablon (np. fiszkę „Czym jest…?”) albo pytania z `"about"`.
+5. **Kierunek: oś z hierarchią.** Grupowanie widoku wyznacza kierunki na półkolu i poziomy przybliżenia. Najlepsza jest oś — rodzaj „Dziedzina” albo „Tag” — z hierarchią przez pole `"structure": "up"` („Ruch” należy do „Fizyki”, „Algebra” do „Matematyki”): krajobraz dzieli półkole na dziedziny najwyższe, a po wybraniu jednej rozkłada jej części, na dowolną głębokość (wysokości zostają te same). Temat wskazuje dziedziny polem-odwołaniem (to pole wpisujesz w `"via"`).
+6. **Kilka dziedzin tylko tam, gdzie naprawdę pasują.** Temat z kilkoma dziedzinami stoi między ich obszarami (historia odkrycia fizycznego — między „Historią nauki” a „Ruchem”). Dziedzina dopisana „na wszelki wypadek” rozmywa mapę. Dziedzina ma być najwęższa pasująca („Ruch”, nie „Fizyka”).
+7. **Grupowanie widoku krajobrazu:**
+   - `{"by": "axis", "kind": "<rodzaj osi>", "via": ["<pole dziedzin>"]}` — zwykle najlepsze (oś z hierarchią jak wyżej);
+   - `{"by": "field", "field": "<pole wyboru>"}` — gdy tematy dzieli jedno pole wyboru (epoka, rodzaj tematu);
+   - `{"by": "kind"}` — gdy w widoku stoi kilka rodzajów wpisów;
+   - bez grupowania kierunek wynika z grafu wymagań (to, co ze sobą związane, stoi obok siebie).
+
+   Przykłady z prawdziwych baz: kurs ze skryptu (rodzaj „Lerneinheit”, wymagania w `braucht`, części w `teil` ze `"structure": "up"`) grupuje po osi tego samego rodzaju przez `teil`; przewodnik po biografii (rodzaj „Temat”, pole `wymaga` jako wymaganie i struktura) — po osi tematów przez `wymaga`.
+
+Widok krajobrazu (z przykładu `example-world`, `templates/cogita/przyklad-swiat.json`):
+
+```json
+{"ref": "@swiat/w-krajobraz", "name": "Krajobraz wiedzy", "mode": "landscape",
+ "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}],
+ "group": {"by": "axis", "kind": "@swiat/dziedzina", "via": ["dziedziny"]},
+ "landscape": {"budget": 60}}
+```
+
+`"landscape.budget"` — ile pól najwyżej stoi na ekranie osobno: 6–400, domyślnie 60 (na telefonie i w małym module mniej); reszta zbiera się w pola zbiorcze jednej dziedziny („Ruch · 34 tematy”), które rozkładają się po wybraniu.
+
+**Cel.** Uczący się wybiera górę i „Ustaw jako cel”: krajobraz pokazuje drogę od podstaw i następny krok. Cel zapamiętuje się dla uczącego się i widoku, w jego pozycjach (`landscape:<id widoku>`) razem z postępami; kto uczy się bez konta, ma go tylko w tej przeglądarce. W schemacie nic o celu nie piszesz.
+
+**Zamek: najpierw powtórz.** Temat z pierścienia jest zamknięty, gdy w jego łańcuchu wymagań są karty już odpowiadane, które teraz są poniżej 1 (do powtórki, zapomniane, ostatnio źle) — krajobraz proponuje „Powtórz (n), potem ucz się tego”: najpierw dokładnie te karty, od podstaw, a potem nauka idzie dalej tym tematem. Nigdy nie pytane karty nie zamykają. Ten sam warunek działa w każdym widoku i każdej powtórce:
+
+```json
+{"type": "knowness", "rel": "chain", "band": "known"}
+```
+
+**Na stronie** — moduł „Widok” z `"mode": "krajobraz"`, `"answers"` (obszar kursu, do którego idą odpowiedzi; puste — jak w bazie wiedzy) i `"rewards"` (nagrody kursu w trakcie nauki; puste — jak moduł „Punkty i seria” na tej stronie). Wzór: `example-world-page` (`templates/cogita/przyklad-swiat-strona.json`).
+
+**Import ostrzega**, gdy kolejność nauki zamyka koło dotykające importowanych wpisów, gdy oś krajobrazu (`"by": "axis"`) wskazuje rodzaj, którego nie ma (kierunek przyjdzie wtedy z sąsiedztwa w kolejności nauki), i gdy baza z widokiem krajobrazu nie ma żadnej kolejności nauki (wszystko, czego się nie umie, leży wtedy na pierścieniu, bez gór).
+
+Sprawdź przed importem: narzędzie `preview_knowledge` serwera podglądu (`recreatio-preview`) rysuje krajobraz dla nowego uczącego się i dla kogoś w połowie drogi oraz wypisuje koła w wymaganiach.
+
 ## 3. Czego nie robić
 
 - Schemat pod jedną książkę albo jeden kurs.
 - Ten sam fakt pod dwiema nazwami w dwóch szablonach (odpowiedzi się nie dzielą) albo dwa różne fakty pod jedną nazwą (karta „umie” to, czego nie pytano).
 - Wysokie wagi `"tests"` na ogólnych, łatwych kartach (fiszka „co wiadomo?” z wagą 1 obok dokładnego pytania).
 - Kolejność nauki na każdym polu-odwołaniu.
+- Wymagania pośrednie dopisane obok bezpośrednich („na zapas”) i koła w wymaganiach.
+- Jeden ogromny temat zamiast kilku kroków — krajobraz liczy każdy wpis jako jeden krok.
+- Dziedziny (tagi) przypięte „na wszelki wypadek”, zamiast najwęższej pasującej.
 - Warunki „≥ 1” albo „znane” tam, gdzie chodzi o poznanie.
 - `"endWhenDone": true` w codziennej powtórce.
 - Deklarowanie tego, czego aplikacja jeszcze nie czyta: reguł przenoszenia znajomości innych niż kolejność nauki (np. „wpis zna się przez średnią jego części”, „przykłady dają najwyżej 60 %”) i częściowego dzielenia odpowiedzi między różnymi faktami. Takie potrzeby opisz w raporcie, nie w JSON-ie.
@@ -148,6 +206,7 @@ Powtórka schematu: źródło „widok” od ogółu do szczegółu, filtr `{"ty
 - [ ] Schemat opisuje rodzaj wiedzy i da się go użyć w dwóch zupełnie różnych książkach.
 - [ ] Każde pole ma `"says"` z przykładem.
 - [ ] Kolejność nauki (`"prerequisite"`, `"structure"`) tylko tam, gdzie zrozumienie jej wymaga.
+- [ ] Pod krajobraz: wymagania tylko bezpośrednie i bez kół; każdy temat jednym krokiem i z kartami; oś dziedzin z hierarchią (`"structure": "up"`); kilka dziedzin tylko tam, gdzie naprawdę pasują.
 - [ ] Każdy szablon: `"tests"` z wagami z powodem; `"asks"` — wspólna nazwa dokładnie dla kart pytających o to samo.
 - [ ] Warunki w widokach i powtórkach pasmami (`"band": "learned"` dla tego, co wcześniej i wyżej).
 - [ ] Powtórka: `"temporal"`, stos 10–20, `"minCorrectness": 1`, bez `"endWhenDone"` (chyba że „tylko zaległe”).

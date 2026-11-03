@@ -32,6 +32,8 @@ export interface TemplateContext {
   readonly python?: (code: string, args: readonly unknown[]) => Promise<unknown>;
   /** Der Wert der Schleife „dla każdej wartości" in diesem Lauf. */
   readonly variant?: string;
+  /** 2026-11-03 — eine Art aus dem, was dasteht (Kennung, `@bleibender/name`, Name) — für den Generator (`generate`). */
+  readonly kindOf?: (ref: string) => string | undefined;
 }
 
 /* -- Zufall mit Samen -------------------------------------------------------------- */
@@ -207,9 +209,17 @@ export interface Card {
   readonly explanation?: string;
   /** 2026-11-01 — ein Satz je Möglichkeit (`one`, `many`), in der Folge von `answer.options` — '' wo keiner ist. */
   readonly feedback?: readonly string[];
-  /** 2026-11-01 — die für diesen Versuch gezogenen Werte einer Frage mit `params` — sie gehen mit der Antwort. */
-  readonly params?: Readonly<Record<string, number | string>>;
+  /**
+   * 2026-11-01 — die für diesen Versuch gezogenen Werte einer Frage mit `params` — sie gehen mit der Antwort.
+   * 2026-11-03 — auch die eines Szablon mit Zufall (`generate`, `random`); Einträge als `@kennung`, kurze Listen.
+   */
+  readonly params?: Readonly<Record<string, ParamValue>>;
+  /** 2026-11-03 — der Same dieser Fassung: mit ihm entsteht genau dieselbe Aufgabe wieder (`questionCards`, `cardsOf`). */
+  readonly seed?: string;
 }
+
+/** 2026-11-03 — ein gezogener Wert, wie ihn Karte und Antwort tragen: Zahl, Text, Eintrag (`@kennung`), kurze Liste. */
+export type ParamValue = number | string | readonly (number | string)[];
 
 /** 2026-11-01 — wie viel jede aufgedeckte Podpowiedź vom Höchsten einer Antwort nimmt. */
 export const HINT_COST = 0.25;
@@ -231,16 +241,23 @@ export const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v
 export const num = (v: unknown, fallback: number): number => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 
 /** 2026-11-01 — gezogene Werte, wie sie mit einer Antwort gehen: höchstens 24 Namen, Zahlen und Texte bis 80 Zeichen. */
-export function readParams(raw: unknown): Record<string, number | string> | undefined {
+export function readParams(raw: unknown): Record<string, ParamValue> | undefined {
   if (!isObject(raw)) return undefined;
-  const out: Record<string, number | string> = {};
+  const out: Record<string, ParamValue> = {};
   for (const [k, v] of Object.entries(raw).slice(0, 24)) {
     if (!/^[A-Za-z_][A-Za-z0-9_]{0,39}$/.test(k)) continue;
     if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
     else if (typeof v === 'string') out[k] = v.length <= 80 ? v : `${v.slice(0, 79)}…`;
+    /* 2026-11-03 — eine kurze Liste (gezogene Einträge, Wörter, Zahlen). */
+    else if (Array.isArray(v)) {
+      out[k] = v.slice(0, 12).flatMap((x): (number | string)[] => (typeof x === 'number' && Number.isFinite(x) ? [x] : typeof x === 'string' ? [x.length <= 40 ? x : `${x.slice(0, 39)}…`] : []));
+    }
   }
   return Object.keys(out).length === 0 ? undefined : out;
 }
+
+/** 2026-11-03 — der Same einer Fassung, wie ihn Karte und Antwort tragen (höchstens 120 Zeichen). */
+export const readSeed = (raw: unknown): string | undefined => (typeof raw === 'string' && raw !== '' ? raw.slice(0, 120) : undefined);
 
 export const lines = (v: unknown): string[] => (Array.isArray(v) ? v.map((x) => str(x).trim()).filter((x) => x !== '') : typeof v === 'string' ? v.split('\n').map((x) => x.trim()).filter((x) => x !== '') : []);
 

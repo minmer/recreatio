@@ -23,7 +23,7 @@ import { aad, Field, fromBase64Url, open, openText, seal, sealText, toBase64Url,
 import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import { call, Unreachable, WorkspaceError } from '../core/session';
-import { readParams, type Card } from './cardBasics';
+import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
 import { dueAt, snapshotOf, type Mark, type Snapshot } from './knowness';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
@@ -47,7 +47,9 @@ export interface AnswerRecord {
   /** 2026-11-01 — wie viele Podpowiedzi vor der Antwort aufgedeckt waren (die Lehrerin sieht es). */
   readonly hints?: number;
   /** 2026-11-01 — eine Frage mit `params`: welche Werte gezogen waren (welche Fassung gefragt wurde). */
-  readonly params?: Readonly<Record<string, number | string>>;
+  readonly params?: Readonly<Record<string, ParamValue>>;
+  /** 2026-11-03 — der Same der Fassung (eine Aufgabe aus einem Generator): mit ihm entsteht genau diese Aufgabe wieder. */
+  readonly seed?: string;
   /**
    * 2026-11-02 — MITGEZÄHLT: diese Antwort kam mit einer anderen (ein Paar einer langen Liste, `answerEvidence`) — ihre
    * Kennung. Für die Kenntnis zählt sie wie jede; Punkte für „eine Antwort" gibt es nur einmal (`rewards.ts`).
@@ -110,6 +112,7 @@ function readAnswer(raw: unknown): AnswerRecord | null {
     ...(typeof raw.via === 'string' ? { via: raw.via } : {}),
     ...(typeof raw.hints === 'number' && raw.hints > 0 ? { hints: Math.min(20, Math.floor(raw.hints)) } : {}),
     ...(readParams(raw.params) === undefined ? {} : { params: readParams(raw.params)! }),
+    ...(readSeed(raw.seed) === undefined ? {} : { seed: readSeed(raw.seed)! }),
     ...(typeof raw.lead === 'string' && raw.lead !== '' ? { lead: raw.lead } : {})
   };
 }
@@ -614,7 +617,7 @@ export class Learner {
   }
 
   /** Eine Antwort festhalten — sofort im Fortschritt, hinaus mit dem nächsten Stapel. */
-  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, number | string>>; lead?: string } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
+  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, ParamValue>>; lead?: string; seed?: string } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
     const params = readParams(extras.params);
     const answer: AnswerRecord = {
       id: newId(), key: card.key, question: card.question, direction: card.direction, fingerprint: card.fingerprint,
@@ -624,7 +627,8 @@ export class Learner {
       ...(extras.via === undefined ? {} : { via: extras.via }),
       ...(extras.hints === undefined || extras.hints <= 0 ? {} : { hints: Math.floor(extras.hints) }),
       ...(params === undefined ? {} : { params }),
-      ...(extras.lead === undefined || extras.lead === '' ? {} : { lead: extras.lead })
+      ...(extras.lead === undefined || extras.lead === '' ? {} : { lead: extras.lead }),
+      ...(readSeed(extras.seed) === undefined ? {} : { seed: readSeed(extras.seed)! })
     };
     const marks = [...this.marks(card.key, card.fingerprint), { at, correctness: answer.correctness }];
     const snapshot = snapshotOf(card.question, card.direction, marks, at);

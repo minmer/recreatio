@@ -1,0 +1,233 @@
+{
+  "format": "recreatio.cogita.course",
+  "version": 1,
+  "name": "Zadania generowane — cztery przykłady (fizyka, chemia, matematyka, historia)",
+  "kinds": [
+    {
+      "ref": "@gen/jon",
+      "name": "Jon",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line", "says": "w mianowniku, np. glin, siarczan" },
+        { "key": "dopelniacz", "label": "Nazwa w dopełniaczu", "type": "line", "says": "kationy: np. glinu, sodu — do nazwy związku „siarczan glinu”" },
+        { "key": "symbol", "label": "Symbol", "type": "line", "says": "bez ładunku, z indeksami: Al, SO₄" },
+        { "key": "ladunek", "label": "Ładunek", "type": "number", "says": "dodatni — kation, ujemny — anion" },
+        { "key": "wieloatomowy", "label": "Wieloatomowy", "type": "bool", "says": "w nawiasie, gdy jest go kilka: (SO₄)₃" }
+      ]
+    },
+    {
+      "ref": "@gen/zdarzenie",
+      "name": "Zdarzenie",
+      "label": "{nazwa}",
+      "fields": [
+        { "key": "nazwa", "label": "Nazwa", "type": "line" },
+        { "key": "data", "label": "Data", "type": "date" }
+      ]
+    }
+  ],
+  "entities": [
+    { "ref": "@gen/jon/na", "kinds": ["@gen/jon"], "data": { "nazwa": "sód", "dopelniacz": "sodu", "symbol": "Na", "ladunek": 1, "wieloatomowy": false } },
+    { "ref": "@gen/jon/k", "kinds": ["@gen/jon"], "data": { "nazwa": "potas", "dopelniacz": "potasu", "symbol": "K", "ladunek": 1, "wieloatomowy": false } },
+    { "ref": "@gen/jon/nh4", "kinds": ["@gen/jon"], "data": { "nazwa": "amon", "dopelniacz": "amonu", "symbol": "NH₄", "ladunek": 1, "wieloatomowy": true } },
+    { "ref": "@gen/jon/mg", "kinds": ["@gen/jon"], "data": { "nazwa": "magnez", "dopelniacz": "magnezu", "symbol": "Mg", "ladunek": 2, "wieloatomowy": false } },
+    { "ref": "@gen/jon/ca", "kinds": ["@gen/jon"], "data": { "nazwa": "wapń", "dopelniacz": "wapnia", "symbol": "Ca", "ladunek": 2, "wieloatomowy": false } },
+    { "ref": "@gen/jon/al", "kinds": ["@gen/jon"], "data": { "nazwa": "glin", "dopelniacz": "glinu", "symbol": "Al", "ladunek": 3, "wieloatomowy": false } },
+    { "ref": "@gen/jon/fe3", "kinds": ["@gen/jon"], "data": { "nazwa": "żelazo(III)", "dopelniacz": "żelaza(III)", "symbol": "Fe", "ladunek": 3, "wieloatomowy": false } },
+    { "ref": "@gen/jon/cl", "kinds": ["@gen/jon"], "data": { "nazwa": "chlorek", "symbol": "Cl", "ladunek": -1, "wieloatomowy": false } },
+    { "ref": "@gen/jon/no3", "kinds": ["@gen/jon"], "data": { "nazwa": "azotan", "symbol": "NO₃", "ladunek": -1, "wieloatomowy": true } },
+    { "ref": "@gen/jon/oh", "kinds": ["@gen/jon"], "data": { "nazwa": "wodorotlenek", "symbol": "OH", "ladunek": -1, "wieloatomowy": true } },
+    { "ref": "@gen/jon/o", "kinds": ["@gen/jon"], "data": { "nazwa": "tlenek", "symbol": "O", "ladunek": -2, "wieloatomowy": false } },
+    { "ref": "@gen/jon/so4", "kinds": ["@gen/jon"], "data": { "nazwa": "siarczan", "symbol": "SO₄", "ladunek": -2, "wieloatomowy": true } },
+    { "ref": "@gen/jon/co3", "kinds": ["@gen/jon"], "data": { "nazwa": "węglan", "symbol": "CO₃", "ladunek": -2, "wieloatomowy": true } },
+    { "ref": "@gen/jon/po4", "kinds": ["@gen/jon"], "data": { "nazwa": "fosforan", "symbol": "PO₄", "ladunek": -3, "wieloatomowy": true } },
+
+    { "ref": "@gen/zd/chrzest", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Chrzest Polski", "data": "966" } },
+    { "ref": "@gen/zd/cedynia", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Bitwa pod Cedynią", "data": "972-06-24" } },
+    { "ref": "@gen/zd/koronacja", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Koronacja Bolesława Chrobrego", "data": "1025-04-18" } },
+    { "ref": "@gen/zd/grunwald", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Bitwa pod Grunwaldem", "data": "1410-07-15" } },
+    { "ref": "@gen/zd/hold", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Hołd pruski", "data": "1525-04-10" } },
+    { "ref": "@gen/zd/unia", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Unia lubelska", "data": "1569-07-01" } },
+    { "ref": "@gen/zd/wieden", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Odsiecz wiedeńska", "data": "1683-09-12" } },
+    { "ref": "@gen/zd/konstytucja", "kinds": ["@gen/zdarzenie"], "data": { "nazwa": "Konstytucja 3 maja", "data": "1791-05-03" } },
+
+    {
+      "ref": "@gen/q/predkosc", "kinds": ["question"],
+      "data": {
+        "form": "number",
+        "prompt": "Samochód przejechał {s} m w czasie {t} s. Jaka była jego średnia prędkość?",
+        "params": [{ "name": "s", "random": [20, 500], "step": 10 }, { "name": "t", "random": [2, 60] }],
+        "let": [{ "name": "v", "value": "s / t" }],
+        "answers": ["{v}"],
+        "unit": "m/s", "quantity": "Velocity", "tolerance": 0.01, "relative": true,
+        "hints": ["Prędkość średnia to droga podzielona przez czas: v = s / t."],
+        "explanation": "v = {s} m : {t} s = {fmt(v, 2)} m/s, czyli {fmt(v * 3.6, 1)} km/h."
+      }
+    },
+    {
+      "ref": "@gen/q/wzor", "kinds": ["question"],
+      "data": {
+        "form": "text",
+        "prompt": "Napisz wzór związku: {nazwa}.",
+        "params": [
+          { "name": "kation", "entry": { "kind": "@gen/jon", "where": "it.ladunek > 0" } },
+          { "name": "anion", "entry": { "kind": "@gen/jon", "where": "it.ladunek < 0" } }
+        ],
+        "let": [
+          { "name": "n", "value": "lcm(kation.ladunek, -anion.ladunek)" },
+          { "name": "ik", "value": "n / kation.ladunek" },
+          { "name": "ia", "value": "n / -anion.ladunek" },
+          { "name": "czk", "value": "ik > 1 && kation.wieloatomowy ? '(' + kation.symbol + ')' + sub(ik) : kation.symbol + (ik > 1 ? sub(ik) : '')" },
+          { "name": "cza", "value": "ia > 1 && anion.wieloatomowy ? '(' + anion.symbol + ')' + sub(ia) : anion.symbol + (ia > 1 ? sub(ia) : '')" },
+          { "name": "wzor", "value": "czk + cza" },
+          { "name": "nazwa", "value": "anion.nazwa + ' ' + kation.dopelniacz" },
+          { "name": "jk", "value": "kation.symbol + sup((kation.ladunek > 1 ? str(kation.ladunek) : '') + '+')" },
+          { "name": "ja", "value": "anion.symbol + sup((anion.ladunek < -1 ? str(-anion.ladunek) : '') + '-')" }
+        ],
+        "answers": ["{wzor}"],
+        "rule": { "scripts": true, "spaces": true },
+        "hints": ["Jony: {jk} i {ja}.", "Najmniejsza wspólna wielokrotność ładunków {kation.ladunek} i {-anion.ladunek} to {n}."],
+        "explanation": "{n} : {kation.ladunek} = {ik} jonów {kation.symbol}, {n} : {-anion.ladunek} = {ia} jonów {anion.symbol} — wzór {wzor}."
+      }
+    },
+    {
+      "ref": "@gen/q/nazwa", "kinds": ["question"],
+      "data": {
+        "form": "one",
+        "prompt": "Jak nazywa się związek {wzor}?",
+        "params": [
+          { "name": "kation", "entry": { "kind": "@gen/jon", "where": "it.ladunek > 0" } },
+          { "name": "anion", "entry": { "kind": "@gen/jon", "where": "it.ladunek < 0" } },
+          { "name": "inne", "entries": { "kind": "@gen/jon", "count": 3, "where": "it.ladunek < 0" } }
+        ],
+        "let": [
+          { "name": "n", "value": "lcm(kation.ladunek, -anion.ladunek)" },
+          { "name": "ik", "value": "n / kation.ladunek" },
+          { "name": "ia", "value": "n / -anion.ladunek" },
+          { "name": "wzor", "value": "(ik > 1 && kation.wieloatomowy ? '(' + kation.symbol + ')' + sub(ik) : kation.symbol + (ik > 1 ? sub(ik) : '')) + (ia > 1 && anion.wieloatomowy ? '(' + anion.symbol + ')' + sub(ia) : anion.symbol + (ia > 1 ? sub(ia) : ''))" },
+          { "name": "dobra", "value": "anion.nazwa + ' ' + kation.dopelniacz" },
+          { "name": "zle", "value": "map(inne, it.nazwa + ' ' + kation.dopelniacz)" }
+        ],
+        "options": ["{dobra}", "{zle}"],
+        "correct": [0],
+        "explanation": "{wzor}: kation {kation.symbol} ({kation.nazwa}), anion {anion.symbol} ({anion.nazwa}) — {dobra}."
+      }
+    },
+    {
+      "ref": "@gen/q/rownanie", "kinds": ["question"],
+      "data": {
+        "form": "number",
+        "prompt": "Rozwiąż równanie: ${a}x {b < 0 ? '-' : '+'} {abs(b)} = {c}$",
+        "params": [{ "name": "x", "random": [-9, 9] }, { "name": "a", "random": [2, 9] }, { "name": "b", "random": [-20, 20] }],
+        "let": [{ "name": "c", "value": "a * x + b" }],
+        "require": ["x != 0", "b != 0"],
+        "answers": ["{x}"],
+        "hints": ["Przenieś {abs(b)} na drugą stronę, potem podziel przez {a}."],
+        "explanation": "$ {a}x = {c - b}$, więc $x = {c - b} : {a} = {x}$."
+      }
+    },
+    {
+      "ref": "@gen/q/logarytm", "kinds": ["question"],
+      "data": {
+        "form": "number",
+        "prompt": "Oblicz $\\log_{{b}} {p}$.",
+        "params": [{ "name": "b", "values": [2, 3, 5, 10] }, { "name": "k", "random": [2, 5] }],
+        "let": [{ "name": "p", "value": "b ^ k" }],
+        "require": ["p <= 100000"],
+        "answers": ["{k}"],
+        "explanation": "${b}^{k} = {p}$, więc $\\log_{{b}} {p} = {k}$."
+      }
+    },
+    {
+      "ref": "@gen/q/wczesniej", "kinds": ["question"],
+      "data": {
+        "form": "one",
+        "prompt": "Co wydarzyło się wcześniej?",
+        "params": [
+          { "name": "a", "entry": { "kind": "@gen/zdarzenie" } },
+          { "name": "b", "entry": { "kind": "@gen/zdarzenie", "where": "it.data != a.data" } }
+        ],
+        "let": [{ "name": "pierwsze", "value": "minby([a, b], it.data)" }, { "name": "drugie", "value": "maxby([a, b], it.data)" }],
+        "options": ["{pierwsze.label}", "{drugie.label}"],
+        "correct": [0],
+        "explanation": "{pierwsze.label} — {pierwsze.data_text}; {drugie.label} — {drugie.data_text}."
+      }
+    },
+    {
+      "ref": "@gen/q/kolejnosc", "kinds": ["question"],
+      "data": {
+        "form": "order",
+        "prompt": "Ułóż od najwcześniejszego.",
+        "params": [{ "name": "zd", "entries": { "kind": "@gen/zdarzenie", "count": 4 } }],
+        "let": [{ "name": "po", "value": "sortby(zd, it.data)" }],
+        "require": ["len(unique(map(zd, it.data))) == 4"],
+        "items": ["{map(po, it.label)}"],
+        "explanation": "{join(map(po, it.label + ' (' + it.data_text + ')'), ' → ')}"
+      }
+    }
+  ],
+  "templates": [
+    {
+      "ref": "@gen/t/wzor",
+      "name": "Wzór związku tego kationu (generator)",
+      "kinds": ["@gen/jon"],
+      "direction": "nazwa→wzór",
+      "graph": {
+        "nodes": [
+          {
+            "id": "gen", "type": "generate", "x": 0, "y": 0,
+            "config": {
+              "only": "this.ladunek > 0",
+              "params": [{ "name": "anion", "entry": { "kind": "@gen/jon", "where": "it.ladunek < 0" } }],
+              "let": [
+                { "name": "n", "value": "lcm(this.ladunek, -anion.ladunek)" },
+                { "name": "ik", "value": "n / this.ladunek" },
+                { "name": "ia", "value": "n / -anion.ladunek" },
+                { "name": "wzor", "value": "(ik > 1 && this.wieloatomowy ? '(' + this.symbol + ')' + sub(ik) : this.symbol + (ik > 1 ? sub(ik) : '')) + (ia > 1 && anion.wieloatomowy ? '(' + anion.symbol + ')' + sub(ia) : anion.symbol + (ia > 1 ? sub(ia) : ''))" }
+              ],
+              "texts": [
+                { "name": "pytanie", "value": "Jaki wzór ma {anion.nazwa} {this.dopelniacz}?" },
+                { "name": "podpowiedz", "value": "Najmniejsza wspólna wielokrotność ładunków {this.ladunek} i {-anion.ladunek} to {n}." },
+                { "name": "rozwiazanie", "value": "{n} : {this.ladunek} = {ik} jonów {this.symbol}, {n} : {-anion.ladunek} = {ia} jonów {anion.symbol} — {wzor}." }
+              ]
+            }
+          },
+          { "id": "p", "type": "prompt", "x": 320, "y": 0, "config": {} },
+          { "id": "a", "type": "answer.text", "x": 320, "y": 160, "config": { "rule": { "scripts": true, "spaces": true } } },
+          { "id": "c", "type": "card", "x": 640, "y": 80, "config": {} }
+        ],
+        "edges": [
+          { "id": "e1", "from": "gen", "out": "pytanie", "to": "p", "in": "parts" },
+          { "id": "e2", "from": "gen", "out": "wzor", "to": "a", "in": "expected" },
+          { "id": "e3", "from": "p", "out": "prompt", "to": "c", "in": "prompt" },
+          { "id": "e4", "from": "a", "out": "answer", "to": "c", "in": "answer" },
+          { "id": "e5", "from": "gen", "out": "podpowiedz", "to": "c", "in": "hints" },
+          { "id": "e6", "from": "gen", "out": "rozwiazanie", "to": "c", "in": "solution" }
+        ]
+      }
+    }
+  ],
+  "revisions": [
+    {
+      "ref": "@gen/r/pytania",
+      "name": "Zadania generowane — wszystkie pytania",
+      "graph": {
+        "nodes": [
+          { "id": "s", "type": "source.list", "x": 0, "y": 0, "config": { "ids": ["@gen/q/predkosc", "@gen/q/wzor", "@gen/q/nazwa", "@gen/q/rownanie", "@gen/q/logarytm", "@gen/q/wczesniej", "@gen/q/kolejnosc"] } },
+          { "id": "p", "type": "strategy", "x": 260, "y": 0, "config": { "mode": "once", "order": "given" } }
+        ],
+        "edges": [{ "id": "e1", "from": "s", "out": "cards", "to": "p", "in": "cards" }]
+      }
+    },
+    {
+      "ref": "@gen/r/wzory",
+      "name": "Wzory związków — z szablonu",
+      "graph": {
+        "nodes": [
+          { "id": "s", "type": "source.kind", "x": 0, "y": 0, "config": { "kind": "@gen/jon" } },
+          { "id": "p", "type": "strategy", "x": 260, "y": 0, "config": { "mode": "once", "order": "given" } }
+        ],
+        "edges": [{ "id": "e1", "from": "s", "out": "cards", "to": "p", "in": "cards" }]
+      }
+    }
+  ]
+}

@@ -31,6 +31,8 @@
   border-bottom: 1px solid var(--wk-line); overflow-x: auto; scrollbar-width: none;
 }
 .cg-subtabs::-webkit-scrollbar { display: none; }
+/* 2026-11-03 — in einer Zeile mit anderem (Suche, Zahl): die Knöpfe halten die Zeile nie offen — sie scrollen in ihr (auf dem Telefon wuchs sonst der ganze Baustein). */
+.cg-row > .cg-subtabs { contain: inline-size; flex: 1 1 16rem; min-width: 0; }
 .cg-subtabs a, .cg-subtabs button {
   font: inherit; font-size: var(--wk-text-sm); font-weight: 600; white-space: nowrap;
   padding: var(--wk-space-2) var(--wk-space-3) calc(var(--wk-space-2) + 1px); margin-bottom: -1px;

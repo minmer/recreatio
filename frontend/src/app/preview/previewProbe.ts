@@ -405,7 +405,8 @@ function overlapsOf(items: readonly { id: string; rect: DOMRect; text: boolean }
   return out;
 }
 
-export type ViewKind = 'page' | 'slides' | 'presentation' | 'matrix';
+/** 2026-11-03 — `knowledge`: eine Baza wiedzy aus JSON mit einem ihrer Widoki (`PreviewKnowledge.tsx`). */
+export type ViewKind = 'page' | 'slides' | 'presentation' | 'matrix' | 'knowledge';
 
 /** Die Bausteine der Ansicht: im Raster, auf den Slajdy (und der Bühne der Folge), als Stücke einer Szene, in der Matrix. */
 function itemsOf(view: ViewKind): { el: HTMLElement; id: string; kind: string }[] {
@@ -418,6 +419,10 @@ function itemsOf(view: ViewKind): { el: HTMLElement; id: string; kind: string }[
   }
   if (view === 'presentation') {
     return Array.from(document.querySelectorAll<HTMLElement>('.pz [data-pz-piece]')).map((el) => ({ el, id: el.dataset.pzPiece ?? '', kind: kindOf(el, '?') }));
+  }
+  /* 2026-11-03 — eine Baza wiedzy: der Widok als Ganzes (der eine „Baustein" dieser Ansicht). */
+  if (view === 'knowledge') {
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-pv-knowledge] [data-pv-part]')).map((el) => ({ el, id: el.dataset.pvPart ?? 'view', kind: 'view' }));
   }
   /* Die Matrix: die Kachel jeder Grösse (ohne ihre Beschriftung darüber). */
   return Array.from(document.querySelectorAll<HTMLElement>('.pv-cell .wk-page-grid > article')).map((el) => ({

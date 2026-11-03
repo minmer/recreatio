@@ -23,7 +23,8 @@ import { newId } from '../core/ids';
 import type { Entry, LibraryStore } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { refsOf } from '../library/refIndex';
-import { cardsOf, questionCards, readTemplate, templatesFor, type Template } from './cards';
+import { cardsOf, generatorProblem, questionCards, readTemplate, redrawCard, templatesFor, type Template } from './cards';
+import type { GenWorld } from './generator';
 import { blockMarkups, blockRefs, blocksKeyOf } from '../library/blocks';
 import { statementTokens } from '../library/statement';
 import { citedKeys } from '../library/libraryMarkup';
@@ -344,6 +345,41 @@ export class CogitaLibrary {
   /** Woraus die Wpisy rodzaju und Dystraktory eines Szablons schöpfen: für Stoff einer Bibliothek aus dem Stoff, sonst aus dem Eigenen. */
   poolFor(entity: Entity): (kindId: string) => readonly Entity[] {
     return this.fresh().refs.includes(entity) ? (k) => this.material(k) : (k) => this.ofKind(k);
+  }
+
+  /**
+   * 2026-11-03 — EINE ART AUS DEM, WAS IN EINEM GENERATOR STEHT (`generator.ts`): ihre Kennung, ihr bleibender Name aus
+   * einem Import (`@chem/jon` — so bleibt ein exportiertes Pytanie in einer anderen Baza gültig) oder ihr Name.
+   */
+  kindOf(ref: string): string | undefined {
+    const bare = ref.trim().replace(/^@/, '');
+    if (bare === '') return undefined;
+    if (this.kind(bare) !== undefined) return bare;
+    const lasting = this.byImportRef(bare, 'kind');
+    if (lasting !== undefined) return lasting.id;
+    const named = this.refKinds.find((k) => k.name.toLocaleLowerCase('pl-PL') === bare.toLocaleLowerCase('pl-PL'));
+    return named?.id;
+  }
+
+  /** 2026-11-03 — woraus ein Generator Einträge zieht: die Einträge dieser Baza (und ihres Stoffs), ihre Arten. */
+  genWorld(): GenWorld {
+    return { look: this.look, pool: (kind) => this.material(kind), kindOf: (ref) => this.kindOf(ref) };
+  }
+
+  /**
+   * 2026-11-03 — EINE NEUE FASSUNG EINER KARTE MIT ZUFALL (für jedes neue Zeigen in einem Lauf): ein Pytanie mit
+   * Generator neu gezogen, eine Karte eines Szablon mit Zufall neu gerechnet — mit diesem Samen. Gelingt es nicht (kein
+   * Zug, die Karte gibt es so nicht mehr), bleibt die alte.
+   */
+  async redrawn(card: Card, seed: string): Promise<Card> {
+    if (!card.varies || card.entity === undefined) return card;
+    const entity = this.entity(card.entity);
+    if (entity === undefined) return card;
+    if (card.template === undefined) return redrawCard(card, entity, seed, this.genWorld());
+    const template = this.templates().find((t) => t.id === card.template);
+    if (template === undefined) return card;
+    const done = await cardsOf(template, { look: this.look, entity, pool: this.poolFor(entity), seed, kindOf: (ref) => this.kindOf(ref), ...(this.python === undefined ? {} : { python: this.python }) });
+    return done.cards.find((c) => c.key === card.key) ?? card;
   }
 
   /**
@@ -811,20 +847,28 @@ export class CogitaLibrary {
       const cards: Card[] = [];
       const problems = new Map<string, string[]>();
       const pool = (kind: string) => this.ofKind(kind);
+      /* 2026-11-03 — ein Generator (Pytanie oder Szablon) zieht Einträge dieser Baza, Arten auch beim bleibenden Namen. */
+      const kindOf = (ref: string) => this.kindOf(ref);
+      const world = this.genWorld();
       for (const entity of this.entities()) {
         for (const template of templatesFor(entity, templates)) {
-          const done = await cardsOf(template, { look, entity, pool, seed, ...(this.python === undefined ? {} : { python: this.python }) });
+          const done = await cardsOf(template, { look, entity, pool, seed, kindOf, ...(this.python === undefined ? {} : { python: this.python }) });
           cards.push(...done.cards);
           if (done.problems.length > 0) problems.set(template.id, [...(problems.get(template.id) ?? []), ...done.problems]);
         }
         /* 2026-10-27 — eine lange Liste von Paaren: jedes Paar seine Karte (`questionCards`). */
-        if (entity.kinds.includes('question')) cards.push(...questionCards(entity, seed));
+        if (entity.kinds.includes('question')) {
+          const made = questionCards(entity, seed, world);
+          cards.push(...made);
+          /* 2026-11-03 — ein Generator, der keine Aufgabe zieht: keine Karte, und der Grund beim Pytanie. */
+          if (made.length === 0) { const why = generatorProblem(entity, seed, world); if (why !== null) problems.set(entity.id, [why]); }
+        }
       }
       const material = (kind: string) => this.material(kind);
       const foreign = this.fresh().foreign;
       for (const entity of this.fresh().refs) {
         for (const template of templatesFor(entity, templates).filter((t) => t.kinds.some((k) => foreign.has(k) && entity.kinds.includes(k)))) {
-          const done = await cardsOf(template, { look, entity, pool: material, seed, ...(this.python === undefined ? {} : { python: this.python }) });
+          const done = await cardsOf(template, { look, entity, pool: material, seed, kindOf, ...(this.python === undefined ? {} : { python: this.python }) });
           cards.push(...done.cards);
           if (done.problems.length > 0) problems.set(template.id, [...(problems.get(template.id) ?? []), ...done.problems]);
         }
