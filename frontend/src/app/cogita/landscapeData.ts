@@ -106,17 +106,28 @@ function directionValues(select: SelectContext, list: readonly Entity[], groupin
   return { values, memberOf, sorted: grouping.by === 'level' };
 }
 
-/** DER STAND DES BETRACHTERS: Kenntnis je Eintrag (mit dem, was darauf aufbaut), schwache beantwortete Karten. */
+/**
+ * DER STAND DES BETRACHTERS: Kenntnis je Eintrag (mit dem, was darauf aufbaut), schwache beantwortete Karten — und
+ * 2026-11-03 (C) je Eintrag, wie viele seiner Karten sitzen, von wie vielen (der Ring des Fortschritts einer Einheit).
+ */
 export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge): LsState {
   const n = input.ids.length;
   const knowness = new Float64Array(n);
   const weak = new Uint8Array(n);
+  const cardsKnown = new Uint16Array(n);
+  const cardsTotal = new Uint16Array(n);
   for (let i = 0; i < n; i += 1) {
     const id = input.ids[i];
     knowness[i] = itemKnowness(gauge, id);
-    for (const t of gauge.testing.get(id) ?? []) if (gauge.states.has(t.key) && cardKnowness(gauge, t.key) < 1) { weak[i] = 1; break; }
+    const testing = gauge.testing.get(id) ?? [];
+    cardsTotal[i] = Math.min(65535, testing.length);
+    for (const t of testing) {
+      const known = gauge.states.has(t.key) ? cardKnowness(gauge, t.key) : 0;
+      if (known >= 1) cardsKnown[i] = Math.min(65535, cardsKnown[i] + 1);
+      if (gauge.states.has(t.key) && known < 1) weak[i] = 1;
+    }
   }
-  return { knowness, weak };
+  return { knowness, weak, cardsKnown, cardsTotal };
 }
 
 /** Was vor einem Eintrag noch zu wiederholen ist (die Sperre): je Eintrag der Kette seine schwachen, schon gefragten Karten. */

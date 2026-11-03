@@ -809,32 +809,40 @@ Phones stay awake.
   entries in the whole chain before it (bitsets over the condensed graph; a cycle is one step; entries without cards are
   transparent and not shown as fields). Inputs only: the view's steps, the learning-order graph, the grouping, the
   viewer's knowness.
-- **Layout** (fixed after the first real test, 2026-11-03): a half-oblique hex amphitheatre in rows around the learner
-  (own cell at the bottom centre) — the valley inside, the ring on one row (a second only where an area's arc needs it),
-  a free row, mountains by height. One field per cell; inside every row the fields keep area order, in every placement
-  pass (arc → wider arc → anywhere between the neighbours; out of order only as the last resort). Drawn heights rise
-  with the row; a face that would cover the cell behind is drawn lower; pit outlines lie in a layer below all fields.
-  Lock, goal flag and next-step dot sit inside the hex. Deterministic.
-- **Directions**: the grouping's values split 180° by entry count — left to right in the axis `sort` order, otherwise
-  neighbours by co-occurrence and prerequisite links; an entry with several values stands between them; an entry
-  without any value stands in the centre by the learner (never an invented area). Axis membership: `through` with
-  `"depth": "all"` (or n) follows the field all the way up — the nearest value on each path, an entry's own value wins;
-  in landscape mode a `through` over a structure-up field means `"all"` by itself, elsewhere it stays one step. Without
-  `group`, the areas are the subtrees under the most general topic (structure up, else learning order), named after
-  their root, sized by content.
-- **Budget**: at most `budget` single fields, split by bands — the ring at most its share, due and valley at least
-  theirs, mountains the rest (spare room: due, ring, mountains, valley). An area whose ring or valley does not fit
-  becomes one counted field („Ruch · 23 do nauki”, „Ruch · 12 umiem”), mountains likewise; a click zooms in (at any
-  depth, heights stay global) or lists the entries when it cannot go deeper. Goal, next step and ring topics on its
-  route always stand singly. A group counts its entries under their home area (the nearest of their own areas).
-- **Names**: an entry's name is drawn only where it covers nothing (measured, shortened), otherwise on hover, tap and in
-  the list; area names stand on the outer arc in their order (on a phone the outer ones move inward along the arc).
-  Test hooks: `data-ls-field/-band/-row/-q/-r/-area`, `data-ls-arcs` on the SVG (`from,to|…`, 0° = left),
-  `data-ls-label`, `data-ls-area-label`, `data-landscape-counts`.
-- **Interaction**: ring field → the quilt's entry panel and „Ucz się tego” (RevisionRun with „Nowy temat”); a locked
-  entry (answered cards below 1 in its chain, `{"type":"knowness","rel":"chain","band":"known"}`) offers „Najpierw
-  powtórz” with exactly those cards, then continues with the entry (`RevisionRun.onDone`); mountains show their route
-  and „Ustaw jako cel” — the goal lives in the learner's sealed positions (`landscape:<viewKey>`).
+- **A fixed map** (E, 2026-11-03): `fixedLayout` places every entry once, from the structure alone — never from
+  knowness, budget, zoom or width. Each area of the grouping is a sector of EQUAL width from the learner outwards, in
+  the axis `sort` order (a value splits its arc equally among its children); the distance is the depth in the
+  learning order (longest learnable chain before it, across areas): per area one band of cells per depth level (a
+  coarse size ladder 3/5/8/×1.32 with room for new entries), inside a band the free cell nearest to the wanted angle —
+  the parent's angle (siblings alternating), a root the middle of the arc, an entry with two values the border towards
+  the other. Claims go in id order (UUIDv7 = creation order): a new entry takes a free cell and pushes nobody; a new
+  root before an area moves only that area. One axial hex grid edge to edge: band cells and ground between them; the
+  learner at (0,0); entries without a value in the hub around it.
+- **Heights only**: valley −0.55 (known and due, flat; due is a dot on the field), level ground 0 (learnable now),
+  mountain 0.22 + 0.13·min(9, missing). Ground cells take their neighbours' lift (damped) and tone; a cell in front never
+  covers more than a third of the one behind. Learning lowers a field where it stands.
+- **Budget** (B.1): fields = singles + "+N" fields ≤ `budget`. Per area (in a zoom: per sub-area) and band (ring,
+  due, valley, mountains) the best stand singly — goal route first, then what unlocks most, then the author's order,
+  round-robin over the areas — and the rest of that band is ONE "+N" field on its entries' cells ("○ 14", "◑ 3",
+  "● 5", "▲ 25"); a lone rest stands singly. Shares (`bands`) are what each band gets first; unused room passes on:
+  ring, due, valley, mountains — mountains single only when no ring topic is hidden. When "+N" fields would take over
+  half the budget, an area's valley is one field, below that the whole area. Phone 22, tablet 40.
+- **Zoom** = a camera on the same map: a "+N" field or an area chip opens its area (sub-values become the sectors,
+  more stands singly, heights stay global); the learner stays in the picture; surroundings are drawn flat and faded;
+  the other areas wait as buttons at the left/right rim in their direction.
+- **Interaction** (C, D): hover (mouse, 120 ms intent; 260 ms grace into the popover) or tap opens a popover at the
+  field — title, progress ring (known/total cards), state in words, ONE primary button (Zacznij / Najpierw powtórz (N) /
+  Powtórz / Ustaw jako cel), a small „Otwórz wpis", the numbered route of a mountain, „Co dalej" (what learning it
+  unlocks; hovering an item lights the path to it). The prerequisite paths ("wymaga", through entries without cards)
+  light up down to the ring and valley, the rest dims. Esc or a click outside closes. No native tooltips. A "+N" field
+  shows its counts per band and „Przybliż". On a phone the popover is a sheet.
+- **Names**: an entry's name only where it covers no other mark (goal, next step, a few ring topics; more in a zoom);
+  area names on the outer arc in order. Test hooks: `data-ls-cell`, `data-ls-owner`, `data-ls-field/-band/-q/-r/-area/
+  -count`, `data-ls-paths`, `data-ls-step`, `data-ls-progress`, `data-landscape-quest/-state/-unlocks/-next-item`,
+  `data-landscape-rim`, `data-ls-area-label/-area-index`, `data-landscape-counts`.
+- **Locks**: a ring entry with answered cards below 1 in its chain (`{"type":"knowness","rel":"chain","band":"known"}`)
+  offers „Najpierw powtórz" with exactly those cards, then continues with the entry (`RevisionRun.onDone`); the goal
+  lives in the learner's sealed positions (`landscape:<viewKey>`).
 - **Worker** (`landscape.worker.ts`, main-thread fallback): 10 000 entries / 48 254 edges at 4× CPU slowdown — graph
   59 ms, heights 11 ms, layout 34 ms; after an answer 14 + 15 ms; zoom p95 16.8 ms per frame.
 - Prepared for later: `positionOf`, `routeTo`, `heightOf`, field marks, an edge filter (avatars, tours, age variants).

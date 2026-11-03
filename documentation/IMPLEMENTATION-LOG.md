@@ -3145,3 +3145,28 @@ Owner's report: every time the landscape's tab was left and reopened, the view r
   change by another client (same element, no "Liczenie…"), another tab and back (zoom, field, panel, scroll ±4 px,
   settings, "Dostosuj"), Back/Forward through zoom levels, reload (zoom and field from the address), page module with
   scoped keys — all pass, no console errors.
+
+## C23 — Landscape: a fixed map where only the heights change (2026-11-03, Part 2 E with B.1, B.3, C, D)
+
+Owner's report: the map reflowed with every bit of progress; the ring collapsed into a few counted fields; group
+fields showed bare numbers; nothing showed how topics connect; the panels under the map read like an admin tool.
+
+- `landscape.ts`: `directionTree` (equal arcs in the author's order) + `fixedLayout` (cells from structure only, depth
+  bands per area, claims in creation order, one edge-to-edge grid) built once in `setInput`; `layoutOf` only lifts
+  cells, cuts the budget and sets the camera. Budget per area and band with one "+N" field each (B.1), round-robin,
+  unused room ring → due → valley → mountains; group marks "○ 14 / ◑ 3 / ● 5 / ▲ 25" (B.3); `links` (prerequisites
+  through entries without cards), `unlocks`, `progress` (cards known/total, `landscapeData.ts`).
+- `LandscapeView.tsx` / `landscape.css`: prisms back to front, outlines of "+N" fields, lit paths with dimming,
+  numbered routes, the quest popover with hover intent (EntryPanel, AreaPanel and the map's `title` removed), rims
+  as two stacks, zoom with flat faded surroundings and the learner in view.
+- `EntityList.tsx` settings words; format text in `json.ts` (→ `ksiazka-AI.md`, `ImportFormats.json` regenerated).
+- Not done in E: B.2/B.4/B.5 are replaced by E as asked. Subtree zoom (`sub:<id>`) was tried and dropped — groups
+  are areas × bands now.
+- Checks: `app-landscape-check.mjs` rewritten for the fixed map (100 checks: determinism, nothing moves under
+  progress/budget/zoom/width/goal, one grid, equal sectors, own arc, depth order, additions push nobody, heights,
+  zoom camera and rims, budget per area and band, no "+1", B.3 counts, unlocks, links, progress, 10 000 entries:
+  map 0.2 s, an answer 0.1 s in node). Browser (scratchpad `landscape-e/e-accept.mjs`, LocalDB Bosko with a learner,
+  real mouse events): 54 checks at 1280/820/390 — one grid, own cells, budget, ring singles, symbol language, names
+  never overlap, area order, no tooltips, no sideways scroll, same cells at every width/budget/zoom, rims by direction,
+  zoom in the address, hover intent, paths and route numbers, popover contents, Esc and outside click, „Co dalej"
+  hover, phone sheet; no console errors. `npm run app:check` and `vite build` pass.

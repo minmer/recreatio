@@ -247,13 +247,14 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         {view.mode === 'outline' && <OutlineSettings value={view.outline} fields={chooserFields.filter((f) => !f.key.startsWith(AXIS_COLUMN))} onChange={(outline) => setV({ outline })} />}
         {landscape && (
           <div className="cg-row" data-landscape-settings="">
-            <p className="cg-muted">Krajobraz: przed Tobą pierścień tego, czego możesz się uczyć teraz; dalej góry — tym wyższe, im więcej kroków („Najpierw trzeba znać”) brakuje; za Tobą dolina tego, co umiesz. Kierunek daje grupowanie z „Wybór i grupy” (np. oś tagów z ich strukturą).</p>
-            <label className="wk-field"><span>Ile pól pojedynczo</span>
+            <p className="cg-muted">Krajobraz to stała mapa: każdy temat ma swoje miejsce. Obszary (grupowanie z „Wybór i grupy”, w ich kolejności) biegną od Ciebie na zewnątrz; im więcej trzeba znać wcześniej („Najpierw trzeba znać”), tym dalej. Zmienia się tylko wysokość: co możesz zacząć teraz, to równina; dalej góry — tym wyższe, im więcej kroków brakuje; co umiesz, zapada się w dolinę.</p>
+            <label className="wk-field"><span>Ile pól na mapie (z polami „+N”)</span>
               <input type="number" min={6} max={400} value={view.landscape?.budget ?? LANDSCAPE_BUDGET} data-landscape-budget=""
                 onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setV({ landscape: { ...view.landscape, budget: Math.max(6, Math.min(400, Math.round(n))) } }); }} />
             </label>
-            {/* 2026-11-03 — wie się dzieli budżet: pierścień najwyżej, powtórki i dolina co najmniej (reszta: góry). */}
-            {([['ring', 'Pierścień najwyżej (%)'], ['due', 'Do powtórki co najmniej (%)'], ['known', 'Dolina co najmniej (%)']] as const).map(([band, words]) => (
+            <p className="cg-muted">Każde pasmo najpierw dostaje swoją część pól: w każdym obszarze najlepsze tematy stoją pojedynczo, reszta to jedno pole „+N”. Czego pasmo nie wykorzysta, przechodzi dalej — do nauki, do powtórki, dolina, góry; góry pojedynczo dopiero wtedy, gdy nic gotowego do nauki nie jest schowane.</p>
+            {/* 2026-11-03 (B.1) — die Anteile der Bänder; was eines nicht braucht, geht weiter (Ring, Wiederholung, Tal, Berge). */}
+            {([['ring', 'Gotowe do nauki (%)'], ['due', 'Do powtórki (%)'], ['known', 'Dolina (%)']] as const).map(([band, words]) => (
               <label key={band} className="wk-field"><span>{words}</span>
                 <input type="number" min={0} max={100} step={5} value={Math.round((view.landscape?.bands?.[band] ?? LANDSCAPE_BANDS[band]) * 100)} data-landscape-band={band}
                   onChange={(e) => {
