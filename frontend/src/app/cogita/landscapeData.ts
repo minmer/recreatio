@@ -10,8 +10,8 @@ import { cardKnowness, chainNeeds, itemKnowness, type Gauge } from './knowing';
 import type { Dependency } from './knowness';
 import type { LsInput, LsState, LsValue } from './landscape';
 import type { PrerequisiteGraph } from './prerequisites';
-import { labelOf, type Entity } from './schema';
-import { axisMembers, axisValues, groupsOf, type Grouping, type SelectContext } from './selection';
+import { fieldsOf, labelOf, type Entity } from './schema';
+import { axisMembersOf, axisValues, groupsOf, type Axis, type Grouping, type SelectContext } from './selection';
 import { parentsOf } from './structure';
 
 export interface LandscapeSource {
@@ -47,16 +47,42 @@ export function landscapeInput(src: LandscapeSource, list: readonly Entity[], gr
   const learnable = ids.map((id) => gauge.askable.has(id));
   const inViewSet = new Set(list.map((e) => e.id));
   const inView = ids.map((id) => inViewSet.has(id));
-  const { values, memberOf } = directionValues(src.select, list, grouping, ids, index);
-  return { ids, labels, needs, learnable, inView, values, memberOf };
+  const { values, memberOf, sorted } = directionValues(src.select, list, grouping, ids, index);
+  /* Ohne Werte kommen die Bereiche aus dem Baum (`treeAreas`): worunter jeder in der Struktur liegt. */
+  const up = values.length > 0 ? undefined : structureUp(src.select, ids, index);
+  return { ids, labels, needs, learnable, inView, values, memberOf, sorted, ...(up === undefined ? {} : { up }) };
+}
+
+/** Je Knoten, worunter er in der Struktur liegt (Felder mit `structure`) — nur innerhalb der Knoten. */
+function structureUp(select: SelectContext, ids: readonly string[], index: ReadonlyMap<string, number>): number[][] | undefined {
+  const source = { entity: select.entity, look: select.look, pointing: select.pointing };
+  let any = false;
+  const up = ids.map((id) => {
+    const list = parentsOf(id, source).map((p) => index.get(p)).filter((x): x is number => x !== undefined && x !== index.get(id));
+    if (list.length > 0) any = true;
+    return list;
+  });
+  return any ? up : undefined;
+}
+
+/**
+ * 2026-11-03 — DIE ACHSE IM KRAJOBRAZ: ein `through` über ein Strukturfeld nach oben (`wymaga`, `teil`) geht ohne
+ * `depth` über ALLE Stufen — der nächste Eintrag mit Wert je Weg, ein eigener Wert gewinnt (`axisMembersOf`). Anderswo
+ * bleibt `through` ohne `depth` ein Schritt.
+ */
+export function landscapeAxis(select: SelectContext, axis: Axis, list: readonly Entity[]): Axis {
+  if (axis.through === undefined || axis.through === '*' || axis.depth !== undefined) return axis;
+  const up = list.some((e) => fieldsOf(e, select.look).some((f) => f.key === axis.through && f.type === 'ref' && f.structure === 'up'));
+  return up ? { ...axis, depth: 'all' } : axis;
 }
 
 /** Die Werte der Richtung: eine Achse mit ihrem Baum (Struktur der Werte) — sonst die Gruppen des Widoku, flach. */
-function directionValues(select: SelectContext, list: readonly Entity[], grouping: Grouping | null, ids: readonly string[], index: ReadonlyMap<string, number>): { values: LsValue[]; memberOf: number[][] } {
+function directionValues(select: SelectContext, list: readonly Entity[], grouping: Grouping | null, ids: readonly string[], index: ReadonlyMap<string, number>): { values: LsValue[]; memberOf: number[][]; sorted: boolean } {
   const memberOf: number[][] = ids.map(() => []);
-  if (grouping === null) return { values: [], memberOf };
+  if (grouping === null) return { values: [], memberOf, sorted: false };
   if (grouping.by === 'axis') {
-    const ordered = axisValues(select, grouping).map((x) => x.value);
+    const axis = landscapeAxis(select, grouping, list);
+    const ordered = axisValues(select, axis).map((x) => x.value);
     const at = new Map(ordered.map((e, i) => [e.id, i] as const));
     const set = new Set(at.keys());
     const source = { entity: select.entity, look: select.look, pointing: select.pointing };
@@ -64,17 +90,20 @@ function directionValues(select: SelectContext, list: readonly Entity[], groupin
       const up = parentsOf(e.id, source).filter((p) => set.has(p)).sort((a, b) => (at.get(a) ?? 0) - (at.get(b) ?? 0))[0];
       return { id: e.id, label: labelOf(e, select.look), parent: up === undefined ? -1 : at.get(up)!, rank: i };
     });
+    const membersOf = axisMembersOf(select, axis, set);
     for (const e of list) {
       const v = index.get(e.id);
       if (v === undefined) continue;
-      memberOf[v] = axisMembers(select, e, grouping, set).map((id) => at.get(id)!).filter((x) => x !== undefined);
+      memberOf[v] = membersOf(e).map((id) => at.get(id)).filter((x): x is number => x !== undefined);
     }
-    return { values, memberOf };
+    /* Die Reihenfolge des Autors (`sort`) gilt links → rechts; ohne sie ordnet das Gemeinsame. */
+    return { values, memberOf, sorted: axis.sort !== undefined };
   }
   const groups = groupsOf(select, list.map((e) => e.id), grouping).filter((g) => g.key !== '');
   const values: LsValue[] = groups.map((g, i) => ({ id: g.key, label: g.label, parent: -1, rank: i }));
   groups.forEach((g, i) => { for (const id of g.ids) { const v = index.get(id); if (v !== undefined && !memberOf[v].includes(i)) memberOf[v].push(i); } });
-  return { values, memberOf };
+  /* Die Ebenen haben ihre Reihenfolge (Poziom 1, 2, …). */
+  return { values, memberOf, sorted: grouping.by === 'level' };
 }
 
 /** DER STAND DES BETRACHTERS: Kenntnis je Eintrag (mit dem, was darauf aufbaut), schwache beantwortete Karten. */

@@ -3069,3 +3069,23 @@ Same prompt, task 2: a view mode that shows any base with a learning order as th
   knowledge-base JSON as an in-memory base — the landscape (or any view) for progress none/partial/all at desktop and
   phone width, and ~10 instances of every generator with answers and redraw rate.
 - Needs: frontend build + deploy; API deploy for the MCP texts. No migration.
+
+## C20 — Cogita: landscape fixes after the first real test (2026-11-03)
+
+The owner's tablet test on Bosko (ring over budget as a diagonal band, overlapping hexes and labels, empty valley, eight
+equal fallback areas named after arbitrary topics). Heights, knowness, bands and the lock rule unchanged.
+
+- `landscape.ts`: budget split by bands (`landscape.bands`, `LS_BANDS` 0.5/0.2/0.1), ring/valley/mountain group fields
+  per area (home area), goal route always single; hex rows (valley, one ring row, free row, mountains), order-keeping
+  placement in every pass, drawn lift that never covers the cell behind; `sort` respected; entries without a value in
+  the centre; `treeAreas` (subtrees named after their root) without `group`. `selection.ts`: axis `depth` ("all" | n),
+  nearest value per path, own value wins; landscape mode makes a structure-up `through` transitive. `landscapeData.ts`,
+  `views.ts` (`bands`), `EntityList.tsx` (band share inputs), `LandscapeView.tsx` + `landscape.css` (measured labels,
+  area names on the outer arc, marks inside the hex, pit layer, test hooks `data-ls-area`, `data-ls-arcs`).
+- Docs: `json.ts` (format; regenerated `ksiazka-AI.md` appendix and ImportFormats.json), `schematy-AI.md` §2.5,
+  `przyklad-swiat.json` (`nr` + `sort`, `bands`).
+- Checks: `app-landscape-check.mjs` 112 (row order desktop/phone, arc drift, an overflowing goal route). Real pages on
+  LocalDB (scratchpad `verify/`: `expected.mjs` computes every topic's areas from the JSON alone; `bosko-real-browser.mjs`
+  measures the rendered SVG at 1280/820/390, grouped and ungrouped, 151/156 — the 5 misses are area names moved inward
+  along the arc at narrow widths; `locks.mjs` 13/13; `rewards/world-browser.mjs` 13/13 at 1280 and 390).
+- Needs: frontend build + deploy; API deploy for the MCP texts. No migration.

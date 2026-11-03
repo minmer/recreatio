@@ -4,30 +4,42 @@
  * es wieder), die Sperre (schwache, schon gefragte Karten in der Kette; nie gefragte sperren nicht), der Weg zum Ziel
  * (die Grundlagen zuerst, so viele Schritte wie die Höhe), die Gestalt (deterministisch, stabil, Budget und Bereiche,
  * Fokus mit globalen Höhen, ein Eintrag mit zwei Werten zwischen ihnen, ohne Werte aus der Nähe im Graphen) — und die
- * Beziehung `rel: "chain"` der einen Logik (`knowing.ts`), der Modus `landscape` eines Widoku (`views.ts`).
+ * Beziehung `rel: "chain"` der einen Logik (`knowing.ts`), der Modus `landscape` eines Widoku (`views.ts`). 2026-11-03: das Budget
+ * nach Bändern (Ring höchstens, Tal immer, Sammelfelder je Bereich), Reihen (der Ring auf einer Reihe), keine Fläche über
+ * einer anderen, die Reihenfolge des Autors, die Mitte, Bereiche aus dem Baum, die Achse über alle Stufen (`depth`).
  *
  *   node scripts/app-landscape-check.mjs
  */
 import { build } from 'esbuild';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-landscape-'));
 const names = ['landscape', 'knowing', 'logic', 'views', 'prerequisites', 'knowness'];
+/* 2026-11-03 — dazu eine Baza im Speicher (derselbe Import wie die App): Zugehörigkeit zu einer Achse über die Stufen. */
+const baseEntry = join(workspace, 'base-entry.ts');
+const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
+await writeFile(baseEntry, `
+export { memoryBase } from '${app}cogita/memoryBase';
+export { axisMembersOf, axisValues, groupsOf, readAxis, readGrouping } from '${app}cogita/selection';
+export { landscapeAxis, landscapeInput } from '${app}cogita/landscapeData';
+`);
 await build({
-  entryPoints: Object.fromEntries(names.map((n) => [n, `src/app/cogita/${n}.ts`])),
+  entryPoints: { ...Object.fromEntries(names.map((n) => [n, `src/app/cogita/${n}.ts`])), base: baseEntry },
   bundle: true,
   format: 'esm',
   platform: 'node',
   outdir: workspace,
   logLevel: 'error',
+  loader: { '.css': 'empty' },
   define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
 const [L, KN, LG, VW, PR, K] = await Promise.all(names.map(load));
+const B = await load('base');
 
 let failed = 0;
 let passed = 0;
@@ -197,6 +209,213 @@ const sig = (layout) => layout.fields.map((f) => `${f.key}@${f.q},${f.r}:${f.hei
   const n = runLayout(none).run.layout;
   check('no prerequisites: everything not learned is on the ring', n.fields.every((f) => f.band === 'ring'), true);
   check('no prerequisites: the view says so', n.notes.some((t) => t.includes('kolejności nauki')), true);
+}
+
+/* ── 2026-11-03: Budget nach Bändern, Reihen, Flächen, Mitte, Bäume ─────── */
+
+/* Acht Bereiche (in der Reihenfolge des Autors), je 3 sitzen, 2 verblassen, 17 auf dem Ring, 25 dahinter. */
+function bandWorld() {
+  const values = Array.from({ length: 8 }, (_, a) => ({ id: `a${a}`, label: `Obszar ${a + 1}`, rank: a }));
+  const spec = {};
+  const memberOf = {};
+  const k = {};
+  for (let a = 0; a < 8; a += 1) {
+    const base = [`k${a}_0`, `k${a}_1`, `k${a}_2`];
+    for (const id of base) { spec[id] = []; k[id] = 1.2; memberOf[id] = [`a${a}`]; }
+    for (let i = 0; i < 2; i += 1) { const id = `d${a}_${i}`; spec[id] = [base[0]]; k[id] = 0.5; memberOf[id] = [`a${a}`]; }
+    for (let i = 0; i < 17; i += 1) { const id = `r${a}_${i}`; spec[id] = [base[i % 3]]; memberOf[id] = [`a${a}`]; }
+    for (let i = 0; i < 25; i += 1) { const id = `m${a}_${i}`; spec[id] = [`r${a}_${i % 17}`, ...(i > 16 ? [`m${a}_${i - 17}`] : [])]; memberOf[id] = [`a${a}`]; }
+  }
+  return { input: { ...graphOf(spec, { values, memberOf }), sorted: true }, k };
+}
+/* Die gezeichneten Flächen wie in der Ansicht (`LandscapeView.tsx`): je Feld und der Lernende in (0, 0). */
+const facesOf = (layout) => {
+  const C = L.LS_SHRINK / Math.sqrt(3);
+  const face = (x, y, lift) => [0, 60, 120, 180, 240, 300].map((a) => [x + Math.cos((a * Math.PI) / 180) * C, -y * L.LS_FORE - lift * L.LS_TILE - Math.sin((a * Math.PI) / 180) * C * L.LS_FORE]);
+  return [...layout.fields.map((f) => ({ key: f.key, poly: face(f.x, f.y, f.lift) })), { key: 'Ty', poly: face(0, 0, layout.me.lift) }];
+};
+const overlapsOf = (layout) => {
+  const faces = facesOf(layout);
+  const out = [];
+  for (let i = 0; i < faces.length; i += 1) for (let j = i + 1; j < faces.length; j += 1) if (L.polygonsOverlap(faces[i].poly, faces[j].poly, 1e-6)) out.push(`${faces[i].key}×${faces[j].key}`);
+  return out;
+};
+/* Je Reihe von links nach rechts: die Bereiche in ihrer Reihenfolge (Einzelfelder und Sammelfelder; ohne Mitte und Ränder). */
+const rowOrderBreaks = (layout) => {
+  const rows = new Map();
+  for (const f of layout.fields) {
+    if (f.edge || f.area < 0) continue;
+    const list = rows.get(f.row) ?? [];
+    list.push({ area: f.area, at: Math.atan2(f.y, -f.x), key: f.key });
+    rows.set(f.row, list);
+  }
+  const out = [];
+  for (const [row, list] of rows) {
+    list.sort((a, b) => a.at - b.at);
+    for (let i = 1; i < list.length; i += 1) if (list[i].area < list[i - 1].area) out.push(`row ${row}: ${list[i - 1].key} (area ${list[i - 1].area}) before ${list[i].key} (area ${list[i].area})`);
+  }
+  return out;
+};
+/* Wie weit (Zellen) ein Feld ausserhalb des Bogens seines Bereichs steht. */
+const drift = (layout) => layout.fields.filter((f) => !f.edge && f.area >= 0).map((f) => {
+  const s = layout.sectors[f.area];
+  const at = (Math.atan2(f.y, -f.x) * 180) / Math.PI;
+  return Math.max(0, s.from - at, at - s.to) / (57.3 / f.row);
+});
+{
+  const { input, k } = bandWorld();
+  const run = runLayout(input, k, { budget: 60 }).run.layout;
+  const entries = run.fields.filter((f) => f.kind === 'entry');
+  const groups = run.fields.filter((f) => f.kind === 'area');
+  check('bands: the counts (24 known, 16 due, 136 ring, 200 behind)', run.counts, { known: 24, due: 16, ring: 136, mountain: 200 });
+  check('bands: at most the budget stands singly', entries.length <= 60, true);
+  check('bands: the ring takes at most its share (½ of 60)', entries.filter((f) => f.band === 'ring').length <= 30, true);
+  const ringGroups = groups.filter((f) => f.band === 'ring');
+  check('bands: the ring over its share gathers per area („Obszar n · 17 do nauki”)', ringGroups.length > 0 && ringGroups.every((f) => f.ring === f.count && f.count === 17) && new Set(ringGroups.map((f) => f.value)).size === ringGroups.length, true);
+  check('bands: every ring topic is single or counted once', entries.filter((f) => f.band === 'ring').length + ringGroups.reduce((s, f) => s + f.count, 0), 136);
+  check('bands: due topics stay single while the budget allows (16)', entries.filter((f) => f.band === 'due').length, 16);
+  const valleyAreas = new Set(run.fields.filter((f) => f.band === 'known' || f.band === 'due' || f.known > 0).map((f) => f.area));
+  check('bands: the valley is visible in every area (singly or one counted field)', [0, 1, 2, 3, 4, 5, 6, 7].every((a) => valleyAreas.has(a)), true);
+  check('bands: configurable — ring 20 % → at most 12 ring singles', runLayout(input, k, { budget: 60, bands: { ring: 0.2 } }).run.layout.fields.filter((f) => f.kind === 'entry' && f.band === 'ring').length <= 12, true);
+  check('bands: shares above 1 together are scaled down', L.bandShares({ ring: 1, due: 1, known: 0 }), { ring: 0.5, due: 0.5, known: 0 });
+  /* Ein Ziel: sein Ring-Schritt steht einzeln, auch wenn sein Bereich gesammelt ist. */
+  const goal = runLayout(input, k, { budget: 60, goal: 'm5_3' }).run.layout;
+  check('bands: the goal and its ring step stand singly', ['m5_3', 'r5_3'].every((id) => goal.fields.some((f) => f.kind === 'entry' && f.id === id)), true);
+
+  /* Die Gestalt: eine Zelle je Feld, der Ring auf seiner Reihe, nichts überdeckt etwas. */
+  const cells = new Set(run.fields.map((f) => `${f.q},${f.r}`));
+  check('cells: one field per hex, the learner keeps (0,0)', cells.size === run.fields.length && !cells.has('0,0'), true);
+  check('rows: height-0 fields (singles and ring groups) stand on the ring row(s)', run.fields.filter((f) => f.band === 'ring').every((f) => run.rows.ring.includes(f.row)), true);
+  check('rows: the valley inside the ring, the mountains outside', run.fields.filter((f) => f.band === 'known' || f.band === 'due').every((f) => f.row < run.ring) && run.fields.filter((f) => f.band === 'mountain').every((f) => f.row > Math.max(...run.rows.ring)), true);
+  check('faces: no drawn face overlaps another (incl. the learner and group fields)', overlapsOf(run), []);
+  const narrow = runLayout(input, k, { budget: 22, narrow: true }).run.layout;
+  check('faces: also on a phone (budget 22, narrow)', [overlapsOf(narrow).length, narrow.fields.filter((f) => f.kind === 'entry').length <= 22], [0, true]);
+  const areaOrder = (layout) => layout.fields.filter((f) => f.kind === 'area' && f.band === 'ring').map((f) => Math.atan2(f.y, -f.x));
+  const order = areaOrder(run);
+  check('rows: ring groups follow the areas left → right', order.every((x, i) => i === 0 || x > order[i - 1]), true);
+  check('order: every row goes left → right in area order', rowOrderBreaks(run), []);
+  check('order: no field more than one cell outside its area’s arc', drift(run).filter((d) => d > 1).length, 0);
+  check('order: also on a phone', [rowOrderBreaks(narrow), drift(narrow).filter((d) => d > 1).length], [[], 0]);
+}
+{
+  /* Ein Bereich läuft über: 30 Ring-Schritte auf dem Weg zum Ziel (die stehen immer einzeln) — mehr, als sein Bogen hält. */
+  const values = [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }];
+  const spec = { ka: [], kb: [], kc: [] };
+  const memberOf = { ka: ['a'], kb: ['b'], kc: ['c'] };
+  const k = { ka: 1.2, kb: 1.2, kc: 1.2 };
+  for (const a of ['a', 'b', 'c']) {
+    const n = a === 'b' ? 30 : 6;
+    for (let i = 0; i < n; i += 1) { spec[`r${a}${i}`] = [`k${a}`]; memberOf[`r${a}${i}`] = [a]; }
+    /* A und C gross (300 Berge): der Bogen von B wird schmal. */
+    for (let i = 0; i < (a === 'b' ? 8 : 300); i += 1) { spec[`m${a}${i}`] = [`r${a}${i % n}`, `r${a}${(i + 1) % n}`]; memberOf[`m${a}${i}`] = [a]; }
+  }
+  spec.goal = Array.from({ length: 30 }, (_, i) => `rb${i}`);
+  memberOf.goal = ['b'];
+  const input = { ...graphOf(spec, { values, memberOf }), sorted: true };
+  for (const opts of [{ budget: 60 }, { budget: 22, narrow: true }]) {
+    const l = runLayout(input, k, { ...opts, goal: 'goal' }).run.layout;
+    const tag = opts.narrow === true ? ' (phone)' : '';
+    check(`overflow${tag}: every row still goes left → right in area order`, rowOrderBreaks(l), []);
+    const route = new Set(l.goal.route);
+    check(`overflow${tag}: no ring group holds a ring step of the goal's route`, l.fields.filter((f) => f.kind === 'area' && f.band === 'ring' && (f.ids ?? []).some((id) => route.has(id))).length, 0);
+    check(`overflow${tag}: all 30 route steps stand singly — none lost`, l.goal.route.filter((id) => l.fields.some((f) => f.kind === 'entry' && f.id === id)).length, 30);
+    check(`overflow${tag}: one field per cell, none on the learner`, new Set(l.fields.map((f) => `${f.q},${f.r}`)).size === l.fields.length && !l.fields.some((f) => f.q === 0 && f.r === 0), true);
+    check(`overflow${tag}: no face covers another`, overlapsOf(l), []);
+    const sb = l.sectors.find((x) => x.value === 'b');
+    check(`overflow${tag}: B really overflows its arc (${Math.round(sb.to - sb.from)}°)`, drift(l).some((d) => d > 1), true);
+  }
+}
+{
+
+  /* Die Reihenfolge des Autors: a, b, c — b und c kommen oft zusammen vor; ohne `sorted` rückt das Gemeinsame zusammen. */
+  const values = [{ id: 'a', rank: 0 }, { id: 'b', rank: 1 }, { id: 'c', rank: 2 }];
+  const spec = { x1: [], x2: [], x3: [], y1: [], y2: [], z1: [] };
+  const memberOf = { x1: ['a', 'c'], x2: ['a', 'c'], x3: ['a', 'c'], y1: ['b'], y2: ['b'], z1: ['c'] };
+  const base = graphOf(spec, { values, memberOf });
+  const free = runLayout(base).run.layout.sectors.map((s) => s.value);
+  const sorted = runLayout({ ...base, sorted: true }).run.layout.sectors.map((s) => s.value);
+  check('sort: without an order, co-occurrence makes neighbours (a next to c)', Math.abs(free.indexOf('a') - free.indexOf('c')), 1);
+  check('sort: the author’s order (group.sort) stays left → right', sorted, ['a', 'b', 'c']);
+}
+{
+  /* Ohne Wert: in die Mitte beim Lernenden — kein Bereich „bez wartości”. */
+  const values = [{ id: 'p', label: 'P' }, { id: 'q', label: 'Q' }];
+  const g = graphOf({ root: [], p1: ['root'], p2: ['p1'], q1: ['root'], q2: ['q1'] }, { values, memberOf: { p1: ['p'], p2: ['p'], q1: ['q'], q2: ['q'] } });
+  const l = runLayout(g, { root: 1.2 }).run.layout;
+  const root = l.fields.find((f) => f.id === 'root');
+  check('centre: an entry without a value stands in the middle (90°), in no area', [root?.angle, root?.area], [90, -1]);
+  check('centre: no made-up area for it', l.sectors.map((s) => s.value), ['p', 'q']);
+}
+{
+  /* Ohne Gruppierung: die Teilbäume unter dem allgemeinsten Eintrag (einer → hinab, bis er sich teilt), nach ihm benannt. */
+  const spec = { R: [], M: ['R'] };
+  const sizes = { S1: 3, S2: 5, S3: 7, S4: 9 };
+  for (const [s, n] of Object.entries(sizes)) { spec[s] = ['M']; for (let i = 0; i < n; i += 1) spec[`${s}_${i}`] = [i === 0 ? s : `${s}_${i - 1}`]; }
+  spec.T = ['S1_0', 'S4_0'];
+  const g = graphOf(spec);
+  const l = runLayout(g, {}, { budget: 200 }).run.layout;
+  check('tree: one root descends to where it splits — areas named after their most general topic', l.sectors.map((s) => s.label), ['S1', 'S2', 'S3', 'S4']);
+  check('tree: areas as big as their subtrees (no equal slices)', l.sectors.map((s) => s.count), [5, 6, 8, 11]);
+  check('tree: what lies above the areas stands in the middle', ['R', 'M'].map((id) => l.fields.find((f) => f.id === id)?.area), [-1, -1]);
+  const t = l.fields.find((f) => f.id === 'T');
+  const mid = (label) => { const s = l.sectors.find((x) => x.label === label); return (s.from + s.to) / 2; };
+  check('tree: an entry below two subtrees stands between them', t.angle > mid('S1') && t.angle < mid('S4'), true);
+  const flat = runLayout(graphOf({ A: [], B: [], C: [] })).run.layout;
+  check('tree: no tree at all → one area without a name (never „okolice: …”)', flat.sectors.map((s) => s.label), ['']);
+}
+{
+  /* Die Achse über die Stufen (Baza im Speicher, derselbe Import wie die App). */
+  const doc = {
+    format: 'recreatio.cogita.course', version: 1, name: 'Droga przez etapy',
+    kinds: [
+      { ref: '@t/obszar', name: 'Obszar', label: '{nazwa}', fields: [{ key: 'nazwa', label: 'Nazwa', type: 'line' }, { key: 'nr', label: 'Nr', type: 'number' }] },
+      { ref: '@t/temat', name: 'Temat', label: '{nazwa}', fields: [
+        { key: 'nazwa', label: 'Nazwa', type: 'line' },
+        { key: 'wymaga', label: 'Najpierw', type: 'ref', to: ['@t/temat'], multi: true, prerequisite: 'up', structure: 'up' },
+        { key: 'obszar', label: 'Obszar', type: 'ref', to: ['@t/obszar'] }] }
+    ],
+    entities: [
+      { ref: '@t/o2', kinds: ['@t/obszar'], data: { nazwa: 'Drugi', nr: 2 } },
+      { ref: '@t/o1', kinds: ['@t/obszar'], data: { nazwa: 'Pierwszy', nr: 1 } },
+      { ref: '@t/root', kinds: ['@t/temat'], data: { nazwa: 'Przegląd' } },
+      { ref: '@t/e1', kinds: ['@t/temat'], data: { nazwa: 'Etap 1', wymaga: ['@t/root'], obszar: '@t/o1' } },
+      { ref: '@t/e2', kinds: ['@t/temat'], data: { nazwa: 'Etap 2', wymaga: ['@t/root', '@t/e1'], obszar: '@t/o2' } },
+      { ref: '@t/c1', kinds: ['@t/temat'], data: { nazwa: 'Rozdział 1', wymaga: ['@t/e1'] } },
+      { ref: '@t/d1', kinds: ['@t/temat'], data: { nazwa: 'Szczegół 1', wymaga: ['@t/c1'] } },
+      { ref: '@t/w', kinds: ['@t/temat'], data: { nazwa: 'Wątek', wymaga: ['@t/c1', '@t/e2'] } }
+    ],
+    views: [{ ref: '@t/v', name: 'Krajobraz', mode: 'landscape', steps: [{ type: 'source.kind', config: { kind: '@t/temat' } }],
+      group: { by: 'axis', kind: '@t/obszar', via: ['obszar'], through: 'wymaga', sort: { field: 'nr' } }, landscape: { budget: 60, bands: { ring: 0.4 } } }]
+  };
+  const made = await B.memoryBase(doc);
+  if ('error' in made) throw new Error(made.error);
+  const lib = made.lib;
+  const sel = lib.selectContext();
+  const byName = (n) => lib.entities().find((e) => lib.label(e) === n);
+  const name = (id) => lib.label(lib.entity(id));
+  const viewDoc = lib.docs('view').find((v) => v.data.mode === 'landscape');
+  const view = VW.readView(viewDoc.data);
+  const topics = ['Przegląd', 'Etap 1', 'Etap 2', 'Rozdział 1', 'Szczegół 1', 'Wątek'].map(byName);
+  const axis = B.landscapeAxis(sel, view.group, topics);
+  check('through: in a landscape a structure-up field goes over all levels (depth "all")', axis.depth, 'all');
+  const set = new Set(B.axisValues(sel, axis).map((x) => x.value.id));
+  const of = B.axisMembersOf(sel, axis, set);
+  const names = (e) => of(e).map(name).sort();
+  check('through: a detail two levels below a stage belongs to the stage’s area', names(byName('Szczegół 1')), ['Pierwszy']);
+  check('through: an entry with its own value keeps only that one (stage 2 requires stage 1)', names(byName('Etap 2')), ['Drugi']);
+  check('through: ancestors in two branches with two values → both (a thread between)', names(byName('Wątek')), ['Drugi', 'Pierwszy']);
+  check('through: the root overview has no value', names(byName('Przegląd')), []);
+  const old = B.axisMembersOf(sel, view.group, set);
+  check('through: elsewhere (no depth) still one step, own and inherited together', [old(byName('Etap 2')).map(name).sort(), old(byName('Szczegół 1')).length], [['Drugi', 'Pierwszy'], 0]);
+  const two = B.axisMembersOf(sel, { ...view.group, depth: 2 }, set);
+  check('through: depth 2 reaches two levels (own value still wins)', [two(byName('Szczegół 1')).map(name), two(byName('Etap 2')).map(name)], [['Pierwszy'], ['Drugi']]);
+  check('through: tree groups keep the old one step (Etap 2 in both groups)', B.groupsOf(sel, [byName('Etap 2').id], view.group).map((g) => g.label).sort(), ['Drugi', 'Pierwszy']);
+  check('through: "depth" reads ("all", a number, nothing without through)', [B.readAxis({ kind: 'k', through: 'f', depth: 'all' }).depth, B.readAxis({ kind: 'k', through: 'f', depth: 2 }).depth, B.readAxis({ kind: 'k', depth: 'all' }).depth, B.readAxis({ kind: 'k', through: 'f', depth: 'x' }).depth], ['all', 2, undefined, undefined]);
+  const input = B.landscapeInput({ select: sel, deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, view.group, { askable: new Set(topics.map((e) => e.id)) });
+  check('input: the author’s order (sort by nr) and the values in it', [input.sorted, input.values.map((v) => v.label)], [true, ['Pierwszy', 'Drugi']]);
+  const run = runLayout(input).run.layout;
+  check('input: the root overview stands in the middle, no area', run.fields.find((f) => f.id === byName('Przegląd').id)?.area, -1);
+  check('view: "bands" read and written back', [view.landscape, VW.viewJson(view).landscape], [{ budget: 60, bands: { ring: 0.4 } }, { budget: 60, bands: { ring: 0.4 } }]);
 }
 
 /* ── Gross: 10 000 Einträge, 50 000 Kanten ─────────────────────────────── */

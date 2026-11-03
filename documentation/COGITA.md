@@ -802,15 +802,34 @@ Phones stay awake.
 ### The knowledge landscape (2026-11-03)
 
 - **A view mode** `landscape` (page module `view`: `"mode": "krajobraz"`, with `answers` and `rewards` like
-  `cogita-revision`); `map` stays the small prerequisite map. Options: `"landscape": {"budget": 60}` (6–400).
+  `cogita-revision`); `map` stays the small prerequisite map. Options: `"landscape": {"budget": 60, "bands": {"ring":
+  0.5, "due": 0.2, "known": 0.1}}` (budget 6–400; band shares are the defaults, a sum above 1 is scaled down).
 - **Heights** (`landscape.ts`): −1 known, −(k−0.1)/0.9 due, 0 learnable now, n ≥ 1 = distinct not-learned learnable
   entries in the whole chain before it (bitsets over the condensed graph; a cycle is one step; entries without cards are
   transparent and not shown as fields). Inputs only: the view's steps, the learning-order graph, the grouping, the
   viewer's knowness.
-- **Layout**: a half-oblique hex amphitheatre — the learner at the bottom centre, the valley, the ring, mountains
-  behind; directions are the grouping's values (axis hierarchy = zoom levels), sector order from co-occurrence and
-  prerequisite links, an entry between its values; deterministic. Beyond the budget, values aggregate into fields;
-  focus zooms at any depth, heights stay global.
+- **Layout** (fixed after the first real test, 2026-11-03): a half-oblique hex amphitheatre in rows around the learner
+  (own cell at the bottom centre) — the valley inside, the ring on one row (a second only where an area's arc needs it),
+  a free row, mountains by height. One field per cell; inside every row the fields keep area order, in every placement
+  pass (arc → wider arc → anywhere between the neighbours; out of order only as the last resort). Drawn heights rise
+  with the row; a face that would cover the cell behind is drawn lower; pit outlines lie in a layer below all fields.
+  Lock, goal flag and next-step dot sit inside the hex. Deterministic.
+- **Directions**: the grouping's values split 180° by entry count — left to right in the axis `sort` order, otherwise
+  neighbours by co-occurrence and prerequisite links; an entry with several values stands between them; an entry
+  without any value stands in the centre by the learner (never an invented area). Axis membership: `through` with
+  `"depth": "all"` (or n) follows the field all the way up — the nearest value on each path, an entry's own value wins;
+  in landscape mode a `through` over a structure-up field means `"all"` by itself, elsewhere it stays one step. Without
+  `group`, the areas are the subtrees under the most general topic (structure up, else learning order), named after
+  their root, sized by content.
+- **Budget**: at most `budget` single fields, split by bands — the ring at most its share, due and valley at least
+  theirs, mountains the rest (spare room: due, ring, mountains, valley). An area whose ring or valley does not fit
+  becomes one counted field („Ruch · 23 do nauki”, „Ruch · 12 umiem”), mountains likewise; a click zooms in (at any
+  depth, heights stay global) or lists the entries when it cannot go deeper. Goal, next step and ring topics on its
+  route always stand singly. A group counts its entries under their home area (the nearest of their own areas).
+- **Names**: an entry's name is drawn only where it covers nothing (measured, shortened), otherwise on hover, tap and in
+  the list; area names stand on the outer arc in their order (on a phone the outer ones move inward along the arc).
+  Test hooks: `data-ls-field/-band/-row/-q/-r/-area`, `data-ls-arcs` on the SVG (`from,to|…`, 0° = left),
+  `data-ls-label`, `data-ls-area-label`, `data-landscape-counts`.
 - **Interaction**: ring field → the quilt's entry panel and „Ucz się tego” (RevisionRun with „Nowy temat”); a locked
   entry (answered cards below 1 in its chain, `{"type":"knowness","rel":"chain","band":"known"}`) offers „Najpierw
   powtórz” with exactly those cards, then continues with the entry (`RevisionRun.onDone`); mountains show their route

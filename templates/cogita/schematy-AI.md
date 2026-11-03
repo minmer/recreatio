@@ -126,15 +126,17 @@ Krajobraz czyta tylko to, co schemat i tak deklaruje — nic nie dopisujesz spec
 2. **Bez kół.** A wymaga B, a B wymaga A — to błąd danych. Import ostrzega o kole, które dotyka importowanych wpisów; poziomy i ścieżka pomijają wtedy jedno połączenie, a krajobraz liczy całe koło jako jeden krok. Popraw dane, zamiast na tym polegać.
 3. **Jeden temat = jeden równy krok.** Krajobraz liczy każdy wpis jako jeden krok, bez wag trudności. Temat, który wymaga kilku nowych idei naraz (albo godzin nauki), podziel na kilka tematów z wymaganiami między nimi; temat zbyt drobny (definicja, która nic nie wnosi) połącz z sąsiednim.
 4. **Każdy temat ma karty.** Wpis bez kart (np. „Dział”, który tylko porządkuje) nie stoi w krajobrazie jako pole: to, co go wymaga, czeka od razu na to, czego wymaga on. Do każdego tematu dołącz szablon (np. fiszkę „Czym jest…?”) albo pytania z `"about"`.
-5. **Kierunek: oś z hierarchią.** Grupowanie widoku wyznacza kierunki na półkolu i poziomy przybliżenia. Najlepsza jest oś — rodzaj „Dziedzina” albo „Tag” — z hierarchią przez pole `"structure": "up"` („Ruch” należy do „Fizyki”, „Algebra” do „Matematyki”): krajobraz dzieli półkole na dziedziny najwyższe, a po wybraniu jednej rozkłada jej części, na dowolną głębokość (wysokości zostają te same). Temat wskazuje dziedziny polem-odwołaniem (to pole wpisujesz w `"via"`).
-6. **Kilka dziedzin tylko tam, gdzie naprawdę pasują.** Temat z kilkoma dziedzinami stoi między ich obszarami (historia odkrycia fizycznego — między „Historią nauki” a „Ruchem”). Dziedzina dopisana „na wszelki wypadek” rozmywa mapę. Dziedzina ma być najwęższa pasująca („Ruch”, nie „Fizyka”).
-7. **Grupowanie widoku krajobrazu:**
+5. **Kierunek: oś z hierarchią.** Grupowanie widoku wyznacza kierunki na półkolu i poziomy przybliżenia. Najlepsza jest oś — rodzaj „Dziedzina” albo „Tag” — z hierarchią przez pole `"structure": "up"` („Ruch” należy do „Fizyki”, „Algebra” do „Matematyki”): krajobraz dzieli półkole na dziedziny najwyższe, a po wybraniu jednej rozkłada jej części, na dowolną głębokość (wysokości zostają te same). Temat wskazuje dziedziny polem-odwołaniem (to pole wpisujesz w `"via"`). Z `"sort": {"field": "nr"}` obszary stoją od lewej do prawej w tej kolejności (np. etapy życia chronologicznie); bez `"sort"` krajobraz sam stawia obok siebie to, co często występuje razem albo łączy kolejność nauki.
+6. **Kilka dziedzin tylko tam, gdzie naprawdę pasują.** Temat z kilkoma dziedzinami stoi między ich obszarami (historia odkrycia fizycznego — między „Historią nauki” a „Ruchem”). Dziedzina dopisana „na wszelki wypadek” rozmywa mapę. Dziedzina ma być najwęższa pasująca („Ruch”, nie „Fizyka”). Temat bez żadnej dziedziny (np. przegląd całości) stoi pośrodku, przy uczącym się — nie jest obszarem.
+7. **Dziedzina tylko u góry drzewa — reszta ją dziedziczy.** Gdy tematy tworzą drzewo przez pole struktury w górę (np. `wymaga` z `"structure": "up"`), wystarczy wpisać dziedzinę tematom najwyższego poziomu (etapom) i dodać `"through": "<to pole>"`: w krajobrazie `through` po polu struktury w górę sięga wszystkich poziomów (gdzie indziej: `"depth": "all"`). Temat dostaje dziedzinę najbliższego przodka, który ją ma — na każdej drodze w górę osobno, więc wątek wymagający dwóch etapów stoi między ich obszarami; temat z własną dziedziną ma tylko ją (etap 2, który wymaga etapu 1, zostaje w obszarze 2).
+8. **Grupowanie widoku krajobrazu:**
    - `{"by": "axis", "kind": "<rodzaj osi>", "via": ["<pole dziedzin>"]}` — zwykle najlepsze (oś z hierarchią jak wyżej);
+   - `{"by": "axis", "kind": "<rodzaj obszarów>", "via": ["<pole obszaru>"], "through": "<pole struktury w górę>", "sort": {"field": "nr"}}` — obszar wpisany tylko tematom najwyższego poziomu;
    - `{"by": "field", "field": "<pole wyboru>"}` — gdy tematy dzieli jedno pole wyboru (epoka, rodzaj tematu);
    - `{"by": "kind"}` — gdy w widoku stoi kilka rodzajów wpisów;
-   - bez grupowania kierunek wynika z grafu wymagań (to, co ze sobą związane, stoi obok siebie).
+   - bez grupowania obszary to poddrzewa pod najogólniejszymi tematami (po polu struktury w górę, inaczej po wymaganiach; przy jednym korzeniu — niżej, aż drzewo się rozgałęzi), nazwane od swojego najogólniejszego tematu.
 
-   Przykłady z prawdziwych baz: kurs ze skryptu (rodzaj „Lerneinheit”, wymagania w `braucht`, części w `teil` ze `"structure": "up"`) grupuje po osi tego samego rodzaju przez `teil`; przewodnik po biografii (rodzaj „Temat”, pole `wymaga` jako wymaganie i struktura) — po osi tematów przez `wymaga`.
+   Przykłady z prawdziwych baz: kurs ze skryptu (rodzaj „Lerneinheit”, wymagania w `braucht`, części w `teil` ze `"structure": "up"`) grupuje po osi tego samego rodzaju przez `teil`; przewodnik po biografii (rodzaj „Temat”, pole `wymaga` jako wymaganie i struktura) — po osi rodzaju „Obszar” (`nazwa`, `nr`), wpisanego tylko ośmiu etapom w polu `obszar`: `{"by": "axis", "kind": "@przewodnik/obszar", "via": ["obszar"], "through": "wymaga", "sort": {"field": "nr"}}`.
 
 Widok krajobrazu (z przykładu `example-world`, `templates/cogita/przyklad-swiat.json`):
 
@@ -142,10 +144,10 @@ Widok krajobrazu (z przykładu `example-world`, `templates/cogita/przyklad-swiat
 {"ref": "@swiat/w-krajobraz", "name": "Krajobraz wiedzy", "mode": "landscape",
  "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}],
  "group": {"by": "axis", "kind": "@swiat/dziedzina", "via": ["dziedziny"]},
- "landscape": {"budget": 60}}
+ "landscape": {"budget": 60, "bands": {"ring": 0.5, "due": 0.2, "known": 0.1}}}
 ```
 
-`"landscape.budget"` — ile pól najwyżej stoi na ekranie osobno: 6–400, domyślnie 60 (na telefonie i w małym module mniej); reszta zbiera się w pola zbiorcze jednej dziedziny („Ruch · 34 tematy”), które rozkładają się po wybraniu.
+`"landscape.budget"` — ile pól najwyżej stoi na ekranie osobno: 6–400, domyślnie 60 (na telefonie i w małym module mniej). `"landscape.bands"` — jak dzieli się budżet: pierścień najwyżej `ring`, to, co do powtórki, i dolina co najmniej `due` i `known` (domyślnie 0,5 / 0,2 / 0,1), góry dostają resztę; czego któremu pasmu nie trzeba, przechodzi kolejno do powtórek, pierścienia, gór i doliny. Obszar, którego pierścień (albo dolina) nie mieści się w budżecie albo w swoim łuku półkola, staje się jednym polem z liczbą („Ruch · 23 do nauki”, „Ruch · 12 umiem”), tak samo góry obszaru, które nie stoją osobno; klik przybliża obszar (głębiej się nie da — pokazuje listę). Cel, następny krok i pierścień na drodze do celu stoją zawsze osobno, dolina jest zawsze widoczna. Każde pole ma własne sześciokątne pole, pierścień stoi na jednym rzędzie, a nazwy obszarów — na zewnętrznym łuku, w ich kolejności; nazwa tematu pojawia się tam, gdzie niczego nie zasłania (zawsze: po najechaniu, po dotknięciu i na liście).
 
 **Cel.** Uczący się wybiera górę i „Ustaw jako cel”: krajobraz pokazuje drogę od podstaw i następny krok. Cel zapamiętuje się dla uczącego się i widoku, w jego pozycjach (`landscape:<id widoku>`) razem z postępami; kto uczy się bez konta, ma go tylko w tej przeglądarce. W schemacie nic o celu nie piszesz.
 

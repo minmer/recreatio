@@ -27,7 +27,7 @@ import { RuleEditor } from './RuleEditor';
 import { OriginTag, useAsync, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
 import {
-  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LANDSCAPE_BUDGET, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
+  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LANDSCAPE_BANDS, LANDSCAPE_BUDGET, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
   withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
 } from './views';
 import { gaugeFromMarks } from './knowing';
@@ -212,8 +212,19 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
             <p className="cg-muted">Krajobraz: przed Tobą pierścień tego, czego możesz się uczyć teraz; dalej góry — tym wyższe, im więcej kroków („Najpierw trzeba znać”) brakuje; za Tobą dolina tego, co umiesz. Kierunek daje grupowanie z „Wybór i grupy” (np. oś tagów z ich strukturą).</p>
             <label className="wk-field"><span>Ile pól pojedynczo</span>
               <input type="number" min={6} max={400} value={view.landscape?.budget ?? LANDSCAPE_BUDGET} data-landscape-budget=""
-                onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setV({ landscape: { budget: Math.max(6, Math.min(400, Math.round(n))) } }); }} />
+                onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setV({ landscape: { ...view.landscape, budget: Math.max(6, Math.min(400, Math.round(n))) } }); }} />
             </label>
+            {/* 2026-11-03 — wie się dzieli budżet: pierścień najwyżej, powtórki i dolina co najmniej (reszta: góry). */}
+            {([['ring', 'Pierścień najwyżej (%)'], ['due', 'Do powtórki co najmniej (%)'], ['known', 'Dolina co najmniej (%)']] as const).map(([band, words]) => (
+              <label key={band} className="wk-field"><span>{words}</span>
+                <input type="number" min={0} max={100} step={5} value={Math.round((view.landscape?.bands?.[band] ?? LANDSCAPE_BANDS[band]) * 100)} data-landscape-band={band}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (!Number.isFinite(n)) return;
+                    setV({ landscape: { budget: view.landscape?.budget ?? LANDSCAPE_BUDGET, bands: { ...view.landscape?.bands, [band]: Math.max(0, Math.min(1, n / 100)) } } });
+                  }} />
+              </label>
+            ))}
           </div>
         )}
         {quilt && <p className="cg-muted" data-quilt-hint="">Mapa postępów: każdy wpis to kafelek w kolorze tego, jak dobrze go znasz — pogrupowany jak w „Wybór i grupy” (np. idee według lekcji, lekcje pod rozdziałami). Uczący się widzą ją w Postępach i w module „Widok” na stronie.</p>}

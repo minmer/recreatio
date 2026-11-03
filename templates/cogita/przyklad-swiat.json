@@ -23,6 +23,12 @@
      ],
      "structure": "up",
      "says": "Szersza dziedzina, w której ta leży: „Ruch” należy do „Fizyki”. Z tego pola powstaje hierarchia — krajobraz najpierw dzieli półkole na dziedziny najwyższe, a po wybraniu jednej rozkłada jej części. Puste: dziedzina najwyższa."
+    },
+    {
+     "key": "nr",
+     "label": "Kolejność",
+     "type": "number",
+     "says": "Miejsce dziedziny na półkolu krajobrazu, od lewej (z \"sort\" w grupowaniu widoku): Matematyka 1, Fizyka 2, Historia nauki 3; części — w obrębie swojej dziedziny."
     }
    ]
   },
@@ -109,7 +115,8 @@
     "@swiat/dziedzina"
    ],
    "data": {
-    "nazwa": "Matematyka"
+    "nazwa": "Matematyka",
+    "nr": 1
    }
   },
   {
@@ -119,7 +126,8 @@
    ],
    "data": {
     "nazwa": "Liczby i działania",
-    "nad": "@swiat/d-matematyka"
+    "nad": "@swiat/d-matematyka",
+    "nr": 1
    }
   },
   {
@@ -129,7 +137,8 @@
    ],
    "data": {
     "nazwa": "Algebra",
-    "nad": "@swiat/d-matematyka"
+    "nad": "@swiat/d-matematyka",
+    "nr": 2
    }
   },
   {
@@ -138,7 +147,8 @@
     "@swiat/dziedzina"
    ],
    "data": {
-    "nazwa": "Fizyka"
+    "nazwa": "Fizyka",
+    "nr": 2
    }
   },
   {
@@ -148,7 +158,8 @@
    ],
    "data": {
     "nazwa": "Wielkości i jednostki",
-    "nad": "@swiat/d-fizyka"
+    "nad": "@swiat/d-fizyka",
+    "nr": 1
    }
   },
   {
@@ -158,7 +169,8 @@
    ],
    "data": {
     "nazwa": "Ruch",
-    "nad": "@swiat/d-fizyka"
+    "nad": "@swiat/d-fizyka",
+    "nr": 2
    }
   },
   {
@@ -168,7 +180,8 @@
    ],
    "data": {
     "nazwa": "Siły",
-    "nad": "@swiat/d-fizyka"
+    "nad": "@swiat/d-fizyka",
+    "nr": 3
    }
   },
   {
@@ -177,7 +190,8 @@
     "@swiat/dziedzina"
    ],
    "data": {
-    "nazwa": "Historia nauki"
+    "nazwa": "Historia nauki",
+    "nr": 3
    }
   },
   {
@@ -1012,10 +1026,18 @@
     "kind": "@swiat/dziedzina",
     "via": [
      "dziedziny"
-    ]
+    ],
+    "sort": {
+     "field": "nr"
+    }
    },
    "landscape": {
-    "budget": 60
+    "budget": 60,
+    "bands": {
+     "ring": 0.5,
+     "due": 0.2,
+     "known": 0.1
+    }
    }
   },
   {

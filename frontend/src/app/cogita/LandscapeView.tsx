@@ -3,12 +3,15 @@
  * Wissens. Gerechnet in `landscape.ts` (im Worker, `landscapeClient.ts`); gesammelt aus der Baza in `landscapeData.ts`.
  *
  * <code>
- *   Bild      ein Halbkreis vor dem Lernenden (unten in der Mitte), halbschräg (30°/60°) auf einem Sechseckraster:
- *             das Tal (gelernt, je verblasster desto höher), der Ring (jetzt zu lernen), die Berge (n fehlende
- *             Schritte, gestapelte Kacheln, ab 7 mit Zahl); das Fach nur als Farbe, nie als Rand; jedes Feld trägt
- *             sein Zeichen (● ◑ ○ ▲n), nie nur Farbe
+ *   Bild      ein Halbkreis vor dem Lernenden (unten in der Mitte, in seiner Zelle), halbschräg (30°/60°) auf einem
+ *             Sechseckraster: das Tal (gelernt), der Ring (jetzt zu lernen) auf einer Reihe, die Berge dahinter, nach
+ *             aussen höher; das Fach nur als Farbe, nie als Rand; jedes Feld trägt sein Zeichen (● ◑ ○ ▲n, ein
+ *             Bereichsfeld seine Zahl), nie nur Farbe — alles IN seiner Zelle (auch Schloss, Fahne, Punkt)
+ *   Namen     die Bereiche am äusseren Bogen, in ihrer Reihenfolge; Felder nur dort, wo der Name nichts überdeckt
+ *             (gemessen, notfalls gekürzt) — sonst beim Zeigen, beim Tippen (gewählt) und in der Liste
  *   Klick     ein Feld: lesen, Fragen (die Tafel der Mapa postępów), lernen (`RevisionRun`, mit „Nowy temat"),
- *             wiederholen (nie gesperrt), der Weg eines Berges, „Ustaw jako cel"; ein Bereich: hineinzoomen
+ *             wiederholen (nie gesperrt), der Weg eines Berges, „Ustaw jako cel"; ein Bereichsfeld: hineinzoomen
+ *             (geht es nicht tiefer: die Liste seiner Einträge)
  *   Sperre    ein Ring-Feld, vor dem schon gefragte Karten verblasst oder falsch sind: „najpierw powtórz te N kart" —
  *             eine Lektion genau mit ihnen (das Allgemeine zuerst, endet, wenn alles sitzt), dann gleich das Neue
  *   Ziel      gesucht oder angeklickt, gemerkt je Lernendem (versiegelt wie der Fortschritt, ohne Konto im Browser):
@@ -22,7 +25,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Keyb
 import type { Card } from './cardBasics';
 import { gaugeFromMarks } from './knowing';
 import { shareOf } from './knowness';
-import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_BUDGET, type LsBand, type LsField, type LsInput, type LsLayout, type LsRun, type LsState } from './landscape';
+import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_BUDGET, LS_FORE, LS_SHRINK, LS_TILE, type LsBand, type LsBands, type LsField, type LsInput, type LsLayout, type LsRun, type LsSector, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
 import { renamer, type Learner } from './learn';
@@ -40,13 +43,11 @@ import './landscape.css';
 
 /* -- Die Zeichnung ------------------------------------------------------------------------------------------------ */
 
-/** Halbschräg: der Boden um 60° gekippt — Tiefe gestaucht. */
-const FORE = 0.52;
-/** Ab so vielen Kacheln wird ein Berg nicht höher; die Zahl sagt den Rest. */
-const CAP = 7;
-/** Halber Abstand zweier Nachbarn bis zur Ecke (flache Oberseite), etwas kleiner — Fugen zwischen den Kacheln. */
-const CORNER = (1 / Math.sqrt(3)) * 0.93;
+/** Von der Mitte bis zur Ecke einer Kachel (flache Oberseite) — dieselbe Fläche, mit der der Motor die Höhen prüft. */
+const CORNER = LS_SHRINK / Math.sqrt(3);
 const CORNERS = [0, 60, 120, 180, 240, 300].map((a) => [Math.cos((a * Math.PI) / 180) * CORNER, Math.sin((a * Math.PI) / 180) * CORNER] as const);
+/** Die halbe Höhe einer Fläche auf dem Schirm (Einheiten). */
+const FACE_HALF = Math.sin(Math.PI / 3) * CORNER * LS_FORE;
 
 interface Geo {
   /** Pixel je Bodeneinheit (waagrecht). */
@@ -58,20 +59,27 @@ interface Geo {
   /** Wo der Lernende steht (Bildschirm). */
   readonly ox: number;
   readonly oy: number;
+  /** Der äussere Bogen (Einheiten): bis dahin der Boden, dahinter die Namen der Bereiche. */
+  readonly outer: number;
 }
 
-/** Die Höhe einer Kachel-Säule: Talgrund versenkt, Ring eine Platte, ein Berg n Kacheln (gedeckelt). */
-function stackOf(f: Pick<LsField, 'band' | 'height'>): { readonly base: number; readonly top: number } {
-  if (f.band === 'known' || f.band === 'due') return { base: f.height * 0.55, top: f.height * 0.55 };
-  if (f.band === 'ring') return { base: 0, top: 0.32 };
-  return { base: 0, top: 0.32 + Math.min(CAP, Math.max(1, f.height)) * 0.62 };
+interface Box {
+  readonly x0: number;
+  readonly x1: number;
+  readonly y0: number;
+  readonly y1: number;
 }
+
+const hits = (a: Box, b: Box): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** Eine Säule: im Tal eine versenkte Fläche, sonst vom Boden bis zur Fläche (die Höhe kommt aus dem Motor). */
+const stackOf = (f: Pick<LsField, 'lift'>): { readonly base: number; readonly top: number } => (f.lift < 0 ? { base: f.lift, top: f.lift } : { base: 0, top: f.lift });
 
 const pts = (list: readonly (readonly [number, number])[]): string => list.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
 
 /** Eine Kachel-Säule in eigenen Koordinaten (0,0 = Mitte am Boden): oben die Fläche, vorn drei Seiten. */
 function prism(geo: Geo, base: number, top: number): { readonly top: string; readonly sides: readonly string[]; readonly rim: string } {
-  const at = (i: number, z: number): [number, number] => [CORNERS[i][0] * geo.u, -CORNERS[i][1] * geo.u * FORE - z * geo.t];
+  const at = (i: number, z: number): [number, number] => [CORNERS[i][0] * geo.u, -CORNERS[i][1] * geo.u * LS_FORE - z * geo.t];
   const topFace = pts([0, 1, 2, 3, 4, 5].map((i) => at(i, top)));
   /* Vorn (zum Lernenden): die Kanten unten — 180°→240°, 240°→300°, 300°→0°. */
   const sides = top > base + 1e-6 ? [[3, 4], [4, 5], [5, 0]].map(([a, b]) => pts([at(a, base), at(b, base), at(b, top), at(a, top)])) : [];
@@ -79,19 +87,37 @@ function prism(geo: Geo, base: number, top: number): { readonly top: string; rea
   return { top: topFace, sides, rim };
 }
 
-/** Die Stelle eines Bodenpunkts auf dem Bildschirm. */
-const screenOf = (geo: Geo, x: number, y: number): [number, number] => [geo.ox + x * geo.u, geo.oy - y * geo.u * FORE];
+/** Die Stelle eines Bodenpunkts (gehoben um `lift` Kacheln) auf dem Bildschirm. */
+const screenOf = (geo: Geo, x: number, y: number, lift = 0): [number, number] => [geo.ox + x * geo.u, geo.oy - y * geo.u * LS_FORE - lift * geo.t];
+
+/** Was ein Feld auf dem Schirm einnimmt: die Fläche und darunter die Säule bis zum Boden (Namen bleiben draussen). */
+function fieldBox(geo: Geo, f: Pick<LsField, 'x' | 'y' | 'lift'>): Box {
+  const [cx, gy] = screenOf(geo, f.x, f.y);
+  const ly = gy - f.lift * geo.t;
+  const hw = CORNER * geo.u;
+  const hh = FACE_HALF * geo.u;
+  return { x0: cx - hw, x1: cx + hw, y0: Math.min(gy, ly) - hh, y1: Math.max(gy, ly) + hh };
+}
 
 /* -- Daten ------------------------------------------------------------------------------------------------------- */
 
+interface Asked {
+  readonly budget: number;
+  readonly focus: readonly string[];
+  readonly goal: string | null;
+  readonly narrow: boolean;
+  readonly bands: Partial<LsBands> | undefined;
+}
+
 /** Die Gestalt aus dem Motor — der Graph nur, wenn er neu ist; der Stand nach jeder Antwort; veraltetes verworfen. */
-function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsState, options: { budget: number; focus: readonly string[]; goal: string | null; narrow: boolean }): { run: LsRun | null; failed: string | null } {
+function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsState, options: Asked): { run: LsRun | null; failed: string | null } {
   const [run, setRun] = useState<LsRun | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   /* Was DIESER Motor schon hat — ein neuer (StrictMode, ein neuer Worker) bekommt Graph und Stand noch einmal. */
   const sent = useRef<{ client: LandscapeClient | null; input: LsInput | null; state: LsState | null }>({ client: null, input: null, state: null });
   const seq = useRef(0);
   const focusKey = options.focus.join('|');
+  const bandsKey = JSON.stringify(options.bands ?? null);
   useEffect(() => {
     if (client === null) return;
     const my = ++seq.current;
@@ -99,10 +125,10 @@ function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsS
     const freshInput = same && sent.current.input === input ? undefined : input;
     const freshState = same && sent.current.state === state && freshInput === undefined ? undefined : state;
     sent.current = { client, input, state };
-    client.run({ ...(freshInput === undefined ? {} : { input: freshInput }), ...(freshState === undefined ? {} : { state: freshState }), options: { budget: options.budget, focus: options.focus, goal: options.goal, narrow: options.narrow } })
+    client.run({ ...(freshInput === undefined ? {} : { input: freshInput }), ...(freshState === undefined ? {} : { state: freshState }), options: { budget: options.budget, focus: options.focus, goal: options.goal, narrow: options.narrow, ...(options.bands === undefined ? {} : { bands: options.bands }) } })
       .then((r) => { if (my === seq.current) { setRun(r); setFailed(null); } }, (e: unknown) => { if (my === seq.current) setFailed(e instanceof Error ? e.message : String(e)); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- der Fokus als Text
-  }, [client, input, state, options.budget, focusKey, options.goal, options.narrow]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- der Fokus und die Anteile als Text
+  }, [client, input, state, options.budget, focusKey, options.goal, options.narrow, bandsKey]);
   return { run, failed };
 }
 
@@ -176,9 +202,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Schmal (ein Telefon): weniger einzelne Felder — sonst würden die Sechsecke zu klein. */
   const wanted = view.landscape?.budget ?? LS_BUDGET;
   const budget = Math.min(wanted, compact ? 24 : 400, boxWidth > 0 && boxWidth < 480 ? 22 : boxWidth > 0 && boxWidth < 760 ? 40 : 400);
-  const { run, failed } = useLandscape(client, input, state, { budget, focus, goal, narrow: boxWidth > 0 && boxWidth < 560 });
+  const { run, failed } = useLandscape(client, input, state, { budget, focus, goal, narrow: boxWidth > 0 && boxWidth < 560, bands: view.landscape?.bands });
 
   const [chosen, setChosen] = useState<string | null>(null);
+  /* Ein Bereichsfeld, das sich nicht weiter öffnen lässt: seine Einträge als Liste. */
+  const [listed, setListed] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [said, setSaid] = useState('');
   const answers = useMemo(() => (learner === null ? () => [] : answerIndex(learner.progress, rename)),
@@ -235,31 +263,41 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   const field = chosen === null ? undefined : layout.fields.find((f) => f.key === chosen);
   const entryChosen = chosen !== null && (field === undefined || field.kind === 'entry') && lib.entity(chosen) !== undefined ? chosen : null;
+  const listedField = listed === null ? undefined : layout.fields.find((f) => f.key === listed);
+  /* Ein Bereich öffnet sich (Zoom), wenn er ein Wert ist, der nicht schon das Ganze des Bildes ist. */
+  const opens = (f: LsField): boolean => {
+    const v = f.value ?? '';
+    if (v === '' || v.startsWith('#')) return false;
+    const here = layout.path.length > 0 ? layout.path[layout.path.length - 1].value : '';
+    return !(v === here && layout.sectors.length <= 1) && !(focus.length === 1 && focus[0] === v && layout.sectors.length <= 1);
+  };
   const choose = (f: LsField) => {
     setNote(null);
     if (f.kind === 'area') {
-      if (f.value !== undefined && f.value !== '' && !f.value.startsWith('#')) { setFocus([f.value]); setChosen(null); setSaid(`Pokazano: ${f.label}`); return; }
-      setChosen(f.key);
+      if (opens(f)) { setFocus([f.value!]); setChosen(null); setListed(null); setSaid(`Pokazano: ${f.label}`); return; }
+      setChosen(null);
+      setListed(listed === f.key ? null : f.key);
       return;
     }
+    setListed(null);
     setChosen(chosen === f.key ? null : f.key);
   };
 
   return host(
     <div className={`cg-ls${compact ? ' is-compact' : ''}`} data-landscape={layout.fields.length} data-landscape-ring={layout.counts.ring}
       data-landscape-ms={`${run.ms.graph.toFixed(1)}/${run.ms.heights.toFixed(1)}/${run.ms.layout.toFixed(1)}`} data-landscape-worker={client.inWorker ? '1' : '0'}>
-      <TopBar layout={layout} focus={focus} onFocus={setFocus} goalLabel={layout.goal === null ? null : labelOf(layout.goal.id)} nextLabel={(id) => labelOf(id)}
-        onClearGoal={() => setGoal(null)} onShowGoal={() => { if (layout.goal !== null) setChosen(layout.goal.id); }} />
+      <TopBar layout={layout} focus={focus} onFocus={(f) => { setFocus(f); setListed(null); }} goalLabel={layout.goal === null ? null : labelOf(layout.goal.id)} nextLabel={(id) => labelOf(id)}
+        onClearGoal={() => setGoal(null)} onShowGoal={() => { if (layout.goal !== null) { setListed(null); setChosen(layout.goal.id); } }} />
       {query.trim() !== '' && (
         <SearchHits query={query} ids={input.ids} bandOf={bandOf} heightOf={heightOf} label={labelOf} goal={goal}
-          onShow={(id) => setChosen(id)} onGoal={(id) => { setGoal(id); setSaid(`Cel: ${labelOf(id)}`); }} />
+          onShow={(id) => { setListed(null); setChosen(id); }} onGoal={(id) => { setGoal(id); setSaid(`Cel: ${labelOf(id)}`); }} />
       )}
       {layout.notes.map((n) => <p key={n} className="cg-muted cg-ls-note">{n}</p>)}
-      <LandscapeMap layout={layout} chosen={chosen} onChoose={choose} compact={compact} width={boxWidth} />
+      <LandscapeMap layout={layout} chosen={chosen ?? listed} onChoose={choose} compact={compact} width={boxWidth} />
       {more}
       <p className="cg-sr" aria-live="polite">{said}</p>
-      {field !== undefined && field.kind === 'area' && (field.value === '' || (field.value ?? '').startsWith('#')) && (
-        <AreaPanel field={field} label={labelOf} bandOf={bandOf} onPick={(id) => setChosen(id)} onClose={() => setChosen(null)} />
+      {listedField !== undefined && (
+        <AreaPanel field={listedField} label={labelOf} bandOf={bandOf} onPick={(id) => { setListed(null); setChosen(id); }} onClose={() => setListed(null)} />
       )}
       {entryChosen !== null && (
         <EntryPanel id={entryChosen} band={bandOf(entryChosen)} height={heightOf(entryChosen)} locked={lockedOf(entryChosen)} goal={goal === entryChosen}
@@ -351,62 +389,210 @@ function useWidth(): [RefObject<HTMLDivElement>, number] {
   return [ref, width];
 }
 
-/** Die Grösse des Bildes: der Halbkreis passt ganz in die Breite (auch auf dem Telefon); die Höhe folgt. */
+/** Die Grösse des Bildes: der Halbkreis (mit dem Bogen für die Namen) passt in die Breite; die Höhe folgt. */
 function geometryOf(layout: LsLayout, width: number): Geo {
-  let maxX = 3.5;
-  let maxY = 3.5;
-  let tallest = 1;
+  let maxR = layout.ring + 1;
+  let maxX = 3;
   for (const f of layout.fields) {
-    maxX = Math.max(maxX, Math.abs(f.x) + 0.9);
-    maxY = Math.max(maxY, f.y + 1.1);
-    tallest = Math.max(tallest, stackOf(f).top);
+    maxR = Math.max(maxR, Math.hypot(f.x, f.y));
+    maxX = Math.max(maxX, Math.abs(f.x) + CORNER);
   }
-  /* Platz für die Namen der Bereiche am Rand. */
-  const u = Math.max(8, Math.min(48, (width - 20) / (2 * (maxX + 0.6))));
-  const t = u * 0.4;
-  const top = tallest * t + 30;
-  const height = Math.ceil(top + (maxY + 0.8) * u * FORE + u * 1.4 + 6);
-  return { u, t, width, height, ox: width / 2, oy: height - u * 1.1 };
+  const outer = maxR + 0.9;
+  const u = Math.max(8, Math.min(48, (width - 16) / (2 * (Math.max(maxX, outer) + 0.15))));
+  const t = u * LS_TILE;
+  /* Über dem Lernenden: der Bogen (oder das höchste Feld) und darüber Platz für die Namen der Bereiche. */
+  let above = outer * u * LS_FORE;
+  for (const f of layout.fields) above = Math.max(above, f.y * u * LS_FORE + Math.max(0, f.lift) * t + FACE_HALF * u);
+  above += (width < 480 ? 4 : 3) * 17 + 6;
+  /* Darunter: die Zelle des Lernenden (im Tal) und sein Name. */
+  const below = FACE_HALF * u + Math.max(0, -layout.me.lift) * t + 22;
+  const height = Math.ceil(above + below);
+  return { u, t, width, height, ox: width / 2, oy: height - below, outer };
 }
 
-/** Wie breit ein Name in der kleinen Schrift ungefähr ist (Pixel). */
-const textWidth = (text: string): number => text.length * 6.4 + 6;
+/** Eine Schrift, wie sie im Bild steht — gemessen (Leinwand), sonst geschätzt. */
+interface Font {
+  readonly css: string;
+  readonly px: number;
+}
 
-/**
- * WELCHE FELDER EINEN NAMEN BEKOMMEN: gewählt, Ziel, nächster Schritt, dann der Ring — nur so viele, wie ohne
- * Überdeckung passen (gierig, in dieser Reihenfolge). Der Rest sagt seinen Namen beim Zeigen und in der Liste.
- */
-function labelsOf(layout: LsLayout, geo: Geo, chosen: string | null): Map<string, string> {
-  const max = geo.width < 480 ? 14 : 22;
-  const short = (s: string) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
-  const order = [...layout.fields].filter((f) => f.kind === 'entry').sort((a, b) => {
-    const rank = (f: LsField) => (f.key === chosen ? 0 : f.goal ? 1 : f.next ? 2 : f.band === 'ring' ? 3 : 9);
-    return rank(a) - rank(b) || a.angle - b.angle;
-  }).filter((f) => f.key === chosen || f.goal || f.next || f.band === 'ring');
-  const boxes: { x0: number; x1: number; y0: number; y1: number }[] = [];
-  const out = new Map<string, string>();
-  for (const f of order) {
-    const text = short(f.label);
-    const [sx, sy] = screenOf(geo, f.x, f.y);
-    const w = textWidth(text);
-    const box = { x0: sx - w / 2, x1: sx + w / 2, y0: sy + geo.u * 0.5 - 6, y1: sy + geo.u * 0.5 + 8 };
-    if (box.x0 < 2 || box.x1 > geo.width - 2) continue;
-    if (boxes.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) continue;
-    boxes.push(box);
-    out.set(f.key, text);
-    if (out.size >= (geo.width < 480 ? 6 : 18)) break;
+const FALLBACK_FONT: Font = { css: '', px: 12 };
+let measureCanvas: CanvasRenderingContext2D | null | undefined;
+function textWidth(text: string, font: Font): number {
+  if (measureCanvas === undefined) measureCanvas = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+  if (measureCanvas !== null && font.css !== '') {
+    measureCanvas.font = font.css;
+    return measureCanvas.measureText(text).width;
+  }
+  return text.length * font.px * 0.58;
+}
+
+/** Kürzungen eines Namens: ganz (bis `max`), dann kürzer mit „…" — nie unter ein paar Zeichen. */
+function shortened(label: string, max: number): string[] {
+  const out: string[] = [];
+  for (const n of [max, 22, 16, 12, 9, 6]) {
+    if (n > max) continue;
+    const t = label.length > n ? `${label.slice(0, n - 1).trimEnd()}…` : label;
+    if (!out.includes(t)) out.push(t);
   }
   return out;
+}
+
+interface Placed {
+  readonly key: string;
+  readonly text: string;
+  /** Mitte waagrecht, Grundlinie. */
+  readonly x: number;
+  readonly y: number;
+  readonly box: Box;
+}
+
+/** Wo der Name des Lernenden steht (unter seiner Zelle) und was seine Zelle einnimmt. */
+function meBoxes(geo: Geo, lift: number, font: Font): { face: Box; label: Box; x: number; y: number } {
+  const face = fieldBox(geo, { x: 0, y: 0, lift });
+  const w = textWidth('Ty', font) + 4;
+  const y = face.y1 + 2 + font.px * 1.05;
+  return { face, label: { x0: geo.ox - w / 2, x1: geo.ox + w / 2, y0: y - font.px * 1.05, y1: y + font.px * 0.4 }, x: geo.ox, y };
+}
+
+/** Der Winkel eines Punktes auf dem Schirm, vom Lernenden aus (0 links, 180 rechts) — die Reihenfolge am Bogen. */
+const angleOnScreen = (geo: Geo, x: number, y: number): number => (Math.atan2((geo.oy - y) / LS_FORE, geo.ox - x) * 180) / Math.PI;
+
+/**
+ * DIE NAMEN DER BEREICHE am äusseren Bogen, in ihrer Reihenfolge (am Bogen von links nach rechts): über den Feldern des
+ * Bereichs, so tief wie möglich — über ein hohes Feld rückt der Name hinauf; passt er nicht, gekürzt. Nie über einem
+ * anderen Namen oder Feld.
+ */
+function areaLabelsOf(layout: LsLayout, geo: Geo, font: Font, fieldBoxes: readonly Box[]): Placed[] {
+  const sums = new Map<number, { s: number; n: number }>();
+  for (const f of layout.fields) {
+    if (f.area < 0 || f.edge) continue;
+    const got = sums.get(f.area) ?? { s: 0, n: 0 };
+    got.s += (Math.atan2(f.y, -f.x) * 180) / Math.PI;
+    got.n += 1;
+    sums.set(f.area, got);
+  }
+  const max = geo.width < 480 ? 14 : geo.width < 900 ? 22 : 30;
+  const asc = font.px * 1.05;
+  const desc = font.px * 0.4;
+  const placed: Placed[] = [];
+  const anchors = layout.sectors.map((s, i) => {
+    const got = sums.get(i);
+    const deg = got === undefined ? (s.from + s.to) / 2 : got.s / got.n;
+    return { s, deg };
+  }).filter((a) => a.s.label !== '');
+  /*
+   * Die linke Hälfte von links nach innen, die rechte von rechts nach innen: an den Rändern stehen Namen übereinander,
+   * und jeder rückt nur so weit zur Mitte, dass die Reihenfolge auch waagrecht stimmt.
+   */
+  const place = (list: readonly { s: LsSector; deg: number }[], dir: 1 | -1) => {
+    let last = dir > 0 ? -Infinity : Infinity;
+    let lastX = dir > 0 ? -Infinity : Infinity;
+    for (const { s, deg } of list) {
+      const rad = (deg * Math.PI) / 180;
+      const [ax, ay] = screenOf(geo, -Math.cos(rad) * (geo.outer + 0.3), Math.sin(rad) * (geo.outer + 0.3));
+      let done = false;
+      for (const text of shortened(s.label, max)) {
+        const w = textWidth(text, font) + 8;
+        /* Wo der Name stehen kann: über seinem Bereich, notfalls ein Stück zur Mitte hin (nie an seinem Nachbarn vorbei). */
+        for (const shift of [0, 0.5, 1, 1.5]) {
+        let x0 = Math.max(2, Math.min(geo.width - w - 2, ax - w / 2 + dir * shift * w));
+        if (dir > 0 && x0 + w / 2 <= lastX + 1) x0 = lastX + 2 - w / 2;
+        if (dir < 0 && x0 + w / 2 >= lastX - 1) x0 = lastX - 2 - w / 2;
+        if (x0 < 2 || x0 + w > geo.width - 2) continue;
+        for (let up = 0; up <= 8 * asc; up += 2) {
+          const y = Math.min(ay - 2, geo.height - desc - 1) - up;
+          if (y - asc < 1) break;
+          const box = { x0, x1: x0 + w, y0: y - asc, y1: y + desc };
+          if (fieldBoxes.some((b) => hits(b, box)) || placed.some((p) => hits(p.box, box))) continue;
+          const along = angleOnScreen(geo, x0 + w / 2, y);
+          if (dir > 0 ? along <= last : along >= last) continue;
+          placed.push({ key: s.value, text, x: x0 + w / 2, y, box });
+          last = along;
+          lastX = x0 + w / 2;
+          done = true;
+          break;
+        }
+        if (done) break;
+        }
+        if (done) break;
+      }
+    }
+  };
+  place(anchors.filter((a) => a.deg <= 90), 1);
+  place(anchors.filter((a) => a.deg > 90).reverse(), -1);
+  return placed;
+}
+
+/**
+ * WELCHE FELDER EINEN NAMEN BEKOMMEN: gewählt, Ziel, nächster Schritt, dann der Ring, was zu wiederholen ist und der Weg —
+ * unter oder über der Fläche, wo er nichts überdeckt (kein anderes Feld, keinen Namen); notfalls gekürzt; sonst keiner
+ * (er steht beim Zeigen, beim Tippen und in der Liste).
+ */
+function labelsOf(layout: LsLayout, geo: Geo, chosen: string | null, font: Font, taken: readonly Box[]): Placed[] {
+  const rank = (f: LsField) => (f.key === chosen ? 0 : f.goal ? 1 : f.next ? 2 : f.band === 'ring' && f.kind === 'entry' ? 3 : f.band === 'due' && f.kind === 'entry' ? 4 : f.route > 0 && f.kind === 'entry' ? 5 : 9);
+  const order = layout.fields.filter((f) => rank(f) < 9).sort((a, b) => rank(a) - rank(b) || a.angle - b.angle);
+  const boxes = layout.fields.map((f) => ({ key: f.key, box: fieldBox(geo, f) }));
+  const max = geo.width < 480 ? 16 : 26;
+  const limit = geo.width < 480 ? 8 : geo.width < 900 ? 14 : 24;
+  const out: Placed[] = [];
+  const used: Box[] = [...taken];
+  for (const f of order) {
+    if (out.length >= limit) break;
+    const own = boxes.find((b) => b.key === f.key)!.box;
+    const [cx] = screenOf(geo, f.x, f.y);
+    let done = false;
+    for (const text of shortened(f.label, max)) {
+      const w = textWidth(text, font) + 4;
+      for (const y of [own.y1 + 2 + font.px * 1.05, own.y0 - 3 - font.px * 0.4]) {
+        const x0 = Math.max(2, Math.min(geo.width - w - 2, cx - w / 2));
+        const box = { x0, x1: x0 + w, y0: y - font.px * 1.05, y1: y + font.px * 0.4 };
+        if (box.y0 < 1 || box.y1 > geo.height - 1) continue;
+        if (used.some((b) => hits(b, box)) || boxes.some((b) => b.key !== f.key && hits(b.box, box))) continue;
+        out.push({ key: f.key, text, x: x0 + w / 2, y, box });
+        used.push(box);
+        done = true;
+        break;
+      }
+      if (done) break;
+    }
+  }
+  return out;
+}
+
+/** Die Schriften des Bildes aus zwei unsichtbaren Proben (einmal, nach dem ersten Zeichnen). */
+function useFonts(svg: RefObject<SVGSVGElement>): { label: Font; sector: Font } {
+  const [fonts, setFonts] = useState<{ label: Font; sector: Font }>({ label: FALLBACK_FONT, sector: FALLBACK_FONT });
+  useLayoutEffect(() => {
+    const read = (sel: string): Font => {
+      const el = svg.current?.querySelector(sel);
+      if (el === null || el === undefined || typeof getComputedStyle === 'undefined') return FALLBACK_FONT;
+      const cs = getComputedStyle(el);
+      const px = Number.parseFloat(cs.fontSize) || 12;
+      return { css: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, px };
+    };
+    const label = read('[data-ls-probe="label"]');
+    const sector = read('[data-ls-probe="sector"]');
+    setFonts((was) => (was.label.css === label.css && was.sector.css === sector.css ? was : { label, sector }));
+  }, [svg]);
+  return fonts;
 }
 
 function LandscapeMap({ layout, chosen, onChoose, compact, width }: { layout: LsLayout; chosen: string | null; onChoose: (f: LsField) => void; compact: boolean; width: number }) {
   const geo = useMemo(() => geometryOf(layout, width), [layout, width]);
   const svg = useRef<SVGSVGElement>(null);
+  const fonts = useFonts(svg);
   const title = `cg-ls-${useId().replace(/[^A-Za-z0-9]/g, '')}`;
   /* Weit hinten zuerst (die nahen Säulen decken die fernen). */
   const drawn = useMemo(() => [...layout.fields].sort((a, b) => b.y - a.y || a.x - b.x), [layout]);
-  const names = useMemo(() => labelsOf(layout, geo, chosen), [layout, geo, chosen]);
+  const me = useMemo(() => meBoxes(geo, layout.me.lift, fonts.label), [geo, layout.me.lift, fonts.label]);
+  const fieldBoxes = useMemo(() => [...layout.fields.map((f) => fieldBox(geo, f)), me.face], [layout, geo, me]);
+  const areaNames = useMemo(() => areaLabelsOf(layout, geo, fonts.sector, fieldBoxes), [layout, geo, fonts.sector, fieldBoxes]);
+  const names = useMemo(() => labelsOf(layout, geo, chosen, fonts.label, [...areaNames.map((p) => p.box), me.face, me.label]), [layout, geo, chosen, fonts.label, areaNames, me]);
   const motion = useMemo(() => !still(), []);
+  /* Die Zeichen in der Fläche wachsen mit ihr (nie grösser als die Kachel). */
+  const markPx = Math.max(7, Math.min(13, Math.round(FACE_HALF * 2 * geo.u * 0.95)));
+  useLayoutEffect(() => { svg.current?.style.setProperty('--ls-mark', `${markPx}px`); }, [markPx]);
   const move = (e: KeyboardEvent<SVGSVGElement>) => {
     const el = (e.target as Element).closest('[data-ls-field]');
     if (el === null) return;
@@ -434,124 +620,138 @@ function LandscapeMap({ layout, chosen, onChoose, compact, width }: { layout: Ls
     e.preventDefault();
     if (next !== undefined) svg.current?.querySelector<SVGGElement>(`[data-ls-field="${CSS.escape(next.key)}"]`)?.focus();
   };
+  const small = geo.u < 20;
   return (
     <div className={`cg-ls-map${compact ? ' is-compact' : ''}`}>
       {/* 2026-11-03 — mit viewBox und 100 % Breite: die gemessene Breite darf den Kasten nie offen halten (auf dem Telefon wuchs sonst die ganze Seite). */}
-      <svg ref={svg} className="cg-ls-svg" width={geo.width} height={geo.height} viewBox={`0 0 ${Math.max(1, geo.width)} ${Math.max(1, geo.height)}`} role="group" aria-labelledby={title} onKeyDown={move} data-landscape-svg="">
+      <svg ref={svg} className="cg-ls-svg" width={geo.width} height={geo.height} viewBox={`0 0 ${Math.max(1, geo.width)} ${Math.max(1, geo.height)}`} role="group" aria-labelledby={title} onKeyDown={move} data-landscape-svg="" data-ls-arcs={layout.sectors.map((s) => `${s.from.toFixed(2)},${s.to.toFixed(2)}`).join('|')}>
         <title id={title}>Krajobraz wiedzy: przed Tobą pierścień tego, czego możesz się uczyć teraz; dalej góry — tym wyższe, im więcej kroków brakuje; przy Tobie dolina tego, co już umiesz.</title>
+        <text className="cg-ls-label" data-ls-probe="label" visibility="hidden" x={0} y={-10}>Ag</text>
+        <text className="cg-ls-sector" data-ls-probe="sector" visibility="hidden" x={0} y={-10}>Ag</text>
         <Ground layout={layout} geo={geo} />
-        {drawn.map((f) => <Field key={f.key} field={f} geo={geo} on={chosen === f.key} onChoose={onChoose} motion={motion} />)}
-        <Me geo={geo} />
-        {/* Die Namen über allem (sonst deckte eine nahe Säule den Namen einer fernen); sie gleiten mit ihrem Feld. */}
+        {/* Die Ränder der versenkten Kacheln unter allen Feldern: eine Fläche dahinter deckt sie, nie umgekehrt. */}
+        <g className="cg-ls-pits" aria-hidden>
+          {drawn.filter((f) => f.lift < 0).map((f) => <Pit key={f.key} field={f} geo={geo} motion={motion} />)}
+        </g>
+        {drawn.map((f) => <Field key={f.key} field={f} geo={geo} on={chosen === f.key} onChoose={onChoose} motion={motion} small={small} markPx={markPx} />)}
+        <Me geo={geo} lift={layout.me.lift} label={me} />
+        {/* Die Namen über allem; sie gleiten mit ihrem Feld. */}
+        <g className="cg-ls-areanames" aria-hidden>
+          {areaNames.map((p) => {
+            const i = layout.sectors.findIndex((s) => s.value === p.key);
+            const s = layout.sectors[i];
+            return <text key={`a${p.key}`} className={`cg-ls-sector is-s${s !== undefined && s.subject >= 0 && s.subject < 8 ? s.subject : 'x'}`} x={p.x} y={p.y} textAnchor="middle" data-ls-area-label={p.key} data-ls-area-index={i}>{p.text}</text>;
+          })}
+        </g>
         <g className="cg-ls-names" aria-hidden>
-          {drawn.filter((f) => names.has(f.key)).map((f) => <Name key={f.key} field={f} geo={geo} text={names.get(f.key)!} motion={motion} />)}
+          {names.map((p) => <Name key={p.key} place={p} motion={motion} />)}
         </g>
       </svg>
     </div>
   );
 }
 
-/** Der Boden: der Halbkreis, der Ring als Linie, die Namen der Bereiche am Rand — dort, wo ihre Felder stehen. */
+/** Der Boden: der Halbkreis bis zum äusseren Bogen und der Ring als Linie (durch die Mitte seiner Reihe). */
 function Ground({ layout, geo }: { layout: LsLayout; geo: Geo }) {
-  const outer = Math.max(layout.ring + 1.6, ...layout.fields.map((f) => Math.hypot(f.x, f.y) + 0.8));
+  const outer = geo.outer;
   const [lx, ly] = screenOf(geo, -outer, 0);
   const [rx] = screenOf(geo, outer, 0);
-  const ry = outer * geo.u * FORE;
+  const ry = outer * geo.u * LS_FORE;
   const ringR = layout.ring * geo.u;
-  /* Wo die Felder eines Bereichs im Mittel stehen (nach dem Auseinanderrücken), sonst die Mitte seines Bogens. */
-  const sums = new Map<number, { s: number; n: number }>();
-  for (const f of layout.fields) {
-    if (f.area < 0 || f.edge) continue;
-    const got = sums.get(f.area) ?? { s: 0, n: 0 };
-    got.s += f.angle; got.n += 1;
-    sums.set(f.area, got);
-  }
-  /* Namen am Rand dürfen sich nur nicht decken — auf verschiedener Höhe des Bogens passen auch nahe nebeneinander. */
-  const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
   return (
     <g className="cg-ls-ground" aria-hidden>
       <path className="cg-ls-floor" d={`M${lx.toFixed(1)},${ly.toFixed(1)} A${(outer * geo.u).toFixed(1)},${ry.toFixed(1)} 0 0 1 ${rx.toFixed(1)},${ly.toFixed(1)} Z`} />
-      <path className="cg-ls-ringline" d={`M${(geo.ox - ringR).toFixed(1)},${geo.oy.toFixed(1)} A${ringR.toFixed(1)},${(ringR * FORE).toFixed(1)} 0 0 1 ${(geo.ox + ringR).toFixed(1)},${geo.oy.toFixed(1)}`} />
-      {layout.sectors.map((s, i) => {
-        const got = sums.get(i);
-        const deg = got === undefined ? (s.from + s.to) / 2 : got.s / got.n;
-        const mid = deg * (Math.PI / 180);
-        const [x, y] = screenOf(geo, -Math.cos(mid) * (outer + 0.25), Math.sin(mid) * (outer + 0.25));
-        const max = geo.width < 480 ? 12 : 22;
-        const text = s.label.length > max ? `${s.label.slice(0, max - 1)}…` : s.label;
-        const w = textWidth(text);
-        const anchor = deg < 25 ? 'start' : deg > 155 ? 'end' : 'middle';
-        const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
-        const ty = Math.max(12, y - 4);
-        const box = { x0: Math.max(2, Math.min(geo.width - w - 2, x0)), x1: 0, y0: ty - 11, y1: ty + 3 };
-        box.x1 = box.x0 + w;
-        if (placed.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) return null;
-        placed.push(box);
-        return <text key={`l${s.value}`} className={`cg-ls-sector is-s${s.subject >= 0 && s.subject < 8 ? s.subject : 'x'}`} x={box.x0} y={ty} textAnchor="start">{text}</text>;
-      })}
+      <path className="cg-ls-ringline" d={`M${(geo.ox - ringR).toFixed(1)},${geo.oy.toFixed(1)} A${ringR.toFixed(1)},${(ringR * LS_FORE).toFixed(1)} 0 0 1 ${(geo.ox + ringR).toFixed(1)},${geo.oy.toFixed(1)}`} />
     </g>
   );
 }
 
-function Me({ geo }: { geo: Geo }) {
+/** Der Lernende: eine eigene Zelle (im Tal), die Gestalt IN ihrer Fläche, sein Name davor. */
+function Me({ geo, lift, label }: { geo: Geo; lift: number; label: { x: number; y: number } }) {
+  const shape = prism(geo, lift, lift);
+  const [, cy] = screenOf(geo, 0, 0, lift);
+  const s = FACE_HALF * geo.u;
   return (
-    <g className="cg-ls-me" aria-hidden transform={`translate(${geo.ox.toFixed(1)},${geo.oy.toFixed(1)})`}>
-      <ellipse cx={0} cy={0} rx={geo.u * 0.42} ry={geo.u * 0.42 * FORE} />
-      <circle cx={0} cy={-geo.u * 0.62} r={geo.u * 0.16} />
-      <path d={`M${-geo.u * 0.2},${-geo.u * 0.05} Q0,${-geo.u * 0.55} ${geo.u * 0.2},${-geo.u * 0.05} Z`} />
-      <text y={geo.u * 0.55 + 6} textAnchor="middle">Ty</text>
+    <g className="cg-ls-me" aria-hidden data-ls-me="" data-ls-lift={Number(lift.toFixed(3))}>
+      <g transform={`translate(${geo.ox.toFixed(1)},${geo.oy.toFixed(1)})`}>
+        <polygon className="cg-ls-me-face" points={shape.top} data-ls-face="" />
+      </g>
+      <circle cx={geo.ox} cy={cy - s * 0.38} r={s * 0.3} />
+      <path d={`M${(geo.ox - s * 0.62).toFixed(1)},${(cy + s * 0.62).toFixed(1)} Q${geo.ox.toFixed(1)},${(cy - s * 0.25).toFixed(1)} ${(geo.ox + s * 0.62).toFixed(1)},${(cy + s * 0.62).toFixed(1)} Z`} />
+      <text x={label.x} y={label.y} textAnchor="middle" data-ls-me-label="">Ty</text>
     </g>
   );
 }
 
-/** Wie ein Feld sich ansagt: Name, Band, Höhe, Sperre, Ziel. */
+/** Wie ein Feld sich ansagt: Name, Band, Höhe, Sperre, Ziel — ein Bereichsfeld mit seinen Zahlen. */
 function fieldWords(f: LsField): string {
-  const what = f.kind === 'area' ? `${f.label}: ${f.count} wpisów${f.ring > 0 ? `, do nauki teraz ${f.ring}` : ''}${f.due > 0 ? `, do powtórki ${f.due}` : ''}${f.edge ? ' (poza widokiem — przybliż)' : ' — przybliż'}`
-    : `${f.label}: ${LS_BAND_LABEL[f.band]}${f.band === 'mountain' ? `, brakuje ${f.missing} ${f.missing === 1 ? 'kroku' : 'kroków'}` : ''}${f.locked ? ', najpierw powtórka' : ''}`;
-  return `${what}${f.goal ? ' · cel' : ''}${f.next ? ' · następny krok do celu' : ''}${f.route > 0 && f.kind === 'area' ? ` · ${f.route} kroków drogi w środku` : f.route > 0 ? ' · na drodze do celu' : ''}`;
+  if (f.kind === 'area') {
+    const parts = [
+      f.ring > 0 ? `${f.ring} do nauki teraz` : '', f.due > 0 ? `${f.due} do powtórki` : '', f.known > 0 ? `${f.known} umiem` : '',
+      f.count - f.ring - f.due - f.known > 0 ? `${f.count - f.ring - f.due - f.known} za górami (od ${f.missing} ${f.missing === 1 ? 'kroku' : 'kroków'})` : ''
+    ].filter(Boolean).join(', ');
+    return `${f.label} · ${parts}${f.edge ? ' (poza widokiem — przybliż)' : ' — otwórz'}${f.goal ? ' · cel w środku' : ''}${f.route > 0 ? ` · ${f.route} kroków drogi w środku` : ''}`;
+  }
+  const what = `${f.label}: ${LS_BAND_LABEL[f.band]}${f.band === 'mountain' ? `, brakuje ${f.missing} ${f.missing === 1 ? 'kroku' : 'kroków'}` : ''}${f.locked ? ', najpierw powtórka' : ''}`;
+  return `${what}${f.goal ? ' · cel' : ''}${f.next ? ' · następny krok do celu' : ''}${f.route > 0 ? ' · na drodze do celu' : ''}`;
 }
 
-/** Ein Name unter seinem Feld — in der obersten Lage. */
-function Name({ field: f, geo, text, motion }: { field: LsField; geo: Geo; text: string; motion: boolean }) {
-  const ref = useRef<SVGTextElement>(null);
+/** Der Rand einer versenkten Kachel am Boden — in der Lage unter allen Feldern; er gleitet mit seinem Feld. */
+function Pit({ field: f, geo, motion }: { field: LsField; geo: Geo; motion: boolean }) {
+  const ref = useRef<SVGPolygonElement>(null);
   const [sx, sy] = screenOf(geo, f.x, f.y);
   useLayoutEffect(() => {
     ref.current?.style.setProperty('--ls-x', `${sx.toFixed(1)}px`);
     ref.current?.style.setProperty('--ls-y', `${sy.toFixed(1)}px`);
   }, [sx, sy]);
-  return <text ref={ref} className={`cg-ls-label${motion ? '' : ' is-still'}`} x={0} y={geo.u * 0.5 + 6} textAnchor="middle">{text}</text>;
+  return <polygon ref={ref} className={`cg-ls-pit${motion ? '' : ' is-still'}`} points={prism(geo, 0, 0).rim} data-ls-pit={f.key} />;
 }
 
-function Field({ field: f, geo, on, onChoose, motion }: { field: LsField; geo: Geo; on: boolean; onChoose: (f: LsField) => void; motion: boolean }) {
+/** Ein Name in der obersten Lage — er gleitet mit seinem Feld. */
+function Name({ place, motion }: { place: Placed; motion: boolean }) {
+  const ref = useRef<SVGTextElement>(null);
+  useLayoutEffect(() => {
+    ref.current?.style.setProperty('--ls-x', `${place.x.toFixed(1)}px`);
+    ref.current?.style.setProperty('--ls-y', `${place.y.toFixed(1)}px`);
+  }, [place.x, place.y]);
+  return <text ref={ref} className={`cg-ls-label${motion ? '' : ' is-still'}`} x={0} y={0} textAnchor="middle" data-ls-label={place.key}>{place.text}</text>;
+}
+
+function Field({ field: f, geo, on, onChoose, motion, small, markPx }: { field: LsField; geo: Geo; on: boolean; onChoose: (f: LsField) => void; motion: boolean; small: boolean; markPx: number }) {
   const ref = useRef<SVGGElement>(null);
   const [sx, sy] = screenOf(geo, f.x, f.y);
   useLayoutEffect(() => {
     ref.current?.style.setProperty('--ls-x', `${sx.toFixed(1)}px`);
     ref.current?.style.setProperty('--ls-y', `${sy.toFixed(1)}px`);
   }, [sx, sy]);
-  /* Ein Bereich: niedriger als ein Berg (seine Höhe sagt die Entfernung), gestrichelt umrandet, mit seiner Zahl. */
-  const stack = f.kind === 'area' && f.band === 'mountain' ? { base: 0, top: 0.32 + Math.min(3, Math.max(1, f.height)) * 0.36 } : stackOf(f);
+  const stack = stackOf(f);
   const shape = prism(geo, stack.base, stack.top);
   const topY = -stack.top * geo.t;
-  const tall = f.kind === 'entry' && f.band === 'mountain' && f.height > CAP;
-  const fog = f.band === 'mountain' ? Math.min(3, Math.floor(Math.log2(1 + f.height))) : 0;
+  const fog = f.band === 'mountain' && f.kind === 'entry' ? Math.min(3, Math.floor(Math.log2(1 + f.height))) : 0;
   const subject = f.subject >= 0 && f.subject < 8 ? f.subject : 'x';
-  const mark = f.kind === 'area' ? String(f.count) : f.band === 'mountain' ? `▲${f.height}` : LS_BAND_MARK[f.band];
+  /* Ein Bereichsfeld: seine Zahl (mit dem Zeichen von Ring und Tal); ein Berg ▲n; sonst das Zeichen des Bandes. */
+  const mark = f.kind === 'area' ? `${f.band === 'mountain' ? '' : LS_BAND_MARK[f.band]}${f.count}` : f.band === 'mountain' ? `▲${f.height}` : LS_BAND_MARK[f.band];
+  /* Passt das Zeichen in die Fläche? (Ein Bereich zeigt seine Zahl immer.) */
+  const faceH = FACE_HALF * 2 * geo.u;
+  const fits = f.kind === 'area' || markPx <= faceH * 1.25;
   const words = fieldWords(f);
+  /* Schloss, Fahne, Punkt — klein, IN der Fläche: links die Fahne, rechts der Punkt; das Schloss statt des Zeichens. */
+  const s = FACE_HALF * geo.u;
+  const lock = f.locked && (
+    <path className="cg-ls-lock" d={`M${-s * 0.42},${topY - s * 0.1} h${s * 0.84} v${s * 0.66} h${-s * 0.84} z M${-s * 0.24},${topY - s * 0.1} v${-s * 0.22} a${s * 0.24},${s * 0.24} 0 0 1 ${s * 0.48},0 v${s * 0.22}`} />
+  );
   return (
-    <g ref={ref} className={`cg-ls-field is-${f.band} is-s${subject} is-fog${fog}${f.kind === 'area' ? ' is-area' : ''}${f.edge ? ' is-edge' : ''}${on ? ' is-on' : ''}${f.route > 0 ? ' is-route' : ''}${f.next ? ' is-next' : ''}${f.goal ? ' is-goal' : ''}${f.locked ? ' is-locked' : ''}${motion ? '' : ' is-still'}${geo.u < 20 ? ' is-small' : ''}`}
-      data-ls-field={f.key} data-ls-band={f.band} data-ls-height={Number.isFinite(f.height) ? Number(f.height.toFixed(3)) : ''} tabIndex={0} role="button" aria-pressed={on} aria-label={words}
+    <g ref={ref} className={`cg-ls-field is-${f.band} is-s${subject} is-fog${fog}${f.kind === 'area' ? ' is-area' : ''}${f.edge ? ' is-edge' : ''}${on ? ' is-on' : ''}${f.route > 0 ? ' is-route' : ''}${f.next ? ' is-next' : ''}${f.goal ? ' is-goal' : ''}${f.locked ? ' is-locked' : ''}${motion ? '' : ' is-still'}${small ? ' is-small' : ''}`}
+      data-ls-field={f.key} data-ls-band={f.band} data-ls-height={Number.isFinite(f.height) ? Number(f.height.toFixed(3)) : ''} data-ls-q={f.q} data-ls-r={f.r} data-ls-row={f.row} data-ls-area={f.edge ? 'edge' : f.area} data-ls-lift={Number(f.lift.toFixed(3))}
+      tabIndex={0} role="button" aria-pressed={on} aria-label={words}
       onClick={() => onChoose(f)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChoose(f); } }}>
       <title>{words}</title>
-      {(f.band === 'known' || f.band === 'due') && <polygon className="cg-ls-pit" points={shape.rim} />}
-      {shape.sides.map((s, i) => <polygon key={i} className={`cg-ls-side is-${['l', 'f', 'r'][i]}`} points={s} />)}
-      <polygon className="cg-ls-top" points={shape.top} />
+      {shape.sides.map((side, i) => <polygon key={i} className={`cg-ls-side is-${['l', 'f', 'r'][i]}`} points={side} />)}
+      <polygon className="cg-ls-top" points={shape.top} data-ls-face="" />
       {f.kind === 'area' && <polygon className="cg-ls-area-ring" points={shape.top} />}
-      {tall && <path className="cg-ls-break" d={`M${-geo.u * 0.28},${topY + geo.t * 1.6} l${geo.u * 0.18},${-geo.t * 0.5} l${geo.u * 0.2},${geo.t * 0.5} l${geo.u * 0.18},${-geo.t * 0.5}`} />}
-      {(geo.u >= 15 || f.kind === 'area') && <text className="cg-ls-mark" x={0} y={topY + 4} textAnchor="middle">{mark}</text>}
-      {f.locked && <path className="cg-ls-lock" d={`M${geo.u * 0.18},${topY - geo.u * 0.34} h${geo.u * 0.24} v${geo.u * 0.2} h${-geo.u * 0.24} z M${geo.u * 0.22},${topY - geo.u * 0.34} v${-geo.u * 0.08} a${geo.u * 0.08},${geo.u * 0.08} 0 0 1 ${geo.u * 0.16},0 v${geo.u * 0.08}`} />}
-      {f.goal && <path className="cg-ls-goalflag" d={`M${-geo.u * 0.05},${topY - 2} v${-geo.u * 0.7} l${geo.u * 0.36},${geo.u * 0.14} l${-geo.u * 0.36},${geo.u * 0.14}`} />}
-      {f.next && !f.goal && <circle className="cg-ls-nextdot" cx={geo.u * 0.34} cy={topY - geo.u * 0.18} r={geo.u * 0.1} />}
+      {f.locked ? lock : fits && <text className="cg-ls-mark" x={0} y={topY + markPx * 0.36} textAnchor="middle">{mark}</text>}
+      {f.goal && <path className="cg-ls-goalflag" d={`M${-CORNER * geo.u * 0.62},${topY + s * 0.55} v${-s * 1.1} l${s * 0.6},${s * 0.25} l${-s * 0.6},${s * 0.25}`} />}
+      {f.next && !f.goal && <circle className="cg-ls-nextdot" cx={CORNER * geo.u * 0.62} cy={topY} r={Math.max(1.5, s * 0.3)} />}
     </g>
   );
 }
@@ -639,7 +839,7 @@ function EntryPanel({ id, band, height, locked, goal, canLearn, gauge, cards, an
   );
 }
 
-/** Ein Bereich ohne Wert zum Hineinzoomen (aus der Nähe im Graphen, „bez wartości"): seine Einträge. */
+/** Ein Bereichsfeld, das sich nicht weiter öffnen lässt (die Mitte, ein Bereich ohne Werte darunter): seine Einträge. */
 function AreaPanel({ field, label, bandOf, onPick, onClose }: { field: LsField; label: (id: string) => string; bandOf: (id: string) => LsBand | null; onPick: (id: string) => void; onClose: () => void }) {
   const ids = field.ids ?? [];
   return (

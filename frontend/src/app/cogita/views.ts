@@ -8,9 +8,9 @@
  *   { name, mode: "table" | "tree" | "canvas" | "matrix" | "map" | "outline" | "quilt" | "landscape",
  *     steps: [{ type: "source.kind", config: { kind } }, { type: "follow", config: { field, back } },
  *             { type: "filter.rule", config: { rule } }],
- *     query, group: { by: "kind" } | { by: "field", field } | { by: "axis", kind, via, through?, sort?, group? },
+ *     query, group: { by: "kind" } | { by: "field", field } | { by: "axis", kind, via, through?, depth?, sort?, group? },
  *     columns: [klucze pól | "#axis:<rodzaj>"], sort: { key, dir }, positions: { id: { x, y } },
- *     matrix: { rows: grupowanie, cols: grupowanie }, landscape: { budget } }
+ *     matrix: { rows: grupowanie, cols: grupowanie }, landscape: { budget, bands?: { ring, due, known } } }
  * </code>
  *
  * 2026-10-22 (Schritt 10) — <b>Macierz</b>: Zeilen und Spalten sind zwei
@@ -78,17 +78,34 @@ export interface ViewDoc {
   readonly landscape: LandscapeDisplay | null;
 }
 
-/** 2026-11-03 — DIE GESTALT DES KRAJOBRAZ: höchstens so viele einzelne Felder (6–400, Vorgabe 60). */
+/**
+ * 2026-11-03 — DIE GESTALT DES KRAJOBRAZ: höchstens so viele einzelne Felder (6–400, Vorgabe 60) — und wie sie sich auf
+ * die Bänder teilen (`bands`, Anteile 0–1: `ring` höchstens, `due` und `known` mindestens, die Berge den Rest; fehlt
+ * ein Anteil: 0,5 / 0,2 / 0,1).
+ */
 export interface LandscapeDisplay {
   readonly budget: number;
+  readonly bands?: Partial<Record<'ring' | 'due' | 'known', number>>;
 }
 
 export const LANDSCAPE_BUDGET = 60;
+export const LANDSCAPE_BANDS = { ring: 0.5, due: 0.2, known: 0.1 } as const;
 
 export function readLandscape(raw: unknown): LandscapeDisplay | null {
   if (!isObject(raw)) return null;
   const n = typeof raw.budget === 'number' ? raw.budget : typeof raw.budget === 'string' ? Number(raw.budget) : Number.NaN;
-  return { budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET };
+  const bands: Partial<Record<'ring' | 'due' | 'known', number>> = {};
+  if (isObject(raw.bands)) {
+    for (const key of ['ring', 'due', 'known'] as const) {
+      const x = raw.bands[key];
+      const v = typeof x === 'number' ? x : typeof x === 'string' ? Number(x) : Number.NaN;
+      if (Number.isFinite(v)) bands[key] = Math.max(0, Math.min(1, v));
+    }
+  }
+  return {
+    budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET,
+    ...(Object.keys(bands).length > 0 ? { bands } : {})
+  };
 }
 
 /**

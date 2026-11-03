@@ -5,8 +5,8 @@
  *
  * <b>Eingänge — und nichts sonst</b>: die Einträge des Widoku, die Reihenfolge des Lernens (dieselben Kanten wie
  * `#level`, `learning` und `rel: "before"`: Felder mit `prerequisite`, `needs` der Pytania, die Zależności der
- * Ustawienia — hier ROH, mit Kreisen), die Gruppierung des Widoku als Richtung, die Kenntnis des Betrachters
- * (`knowing.ts`, Bänder aus `logic.ts`).
+ * Ustawienia — hier ROH, mit Kreisen), die Struktur nach oben (für Bereiche ohne Gruppierung), die Gruppierung des
+ * Widoku als Richtung, die Kenntnis des Betrachters (`knowing.ts`, Bänder aus `logic.ts`).
  *
  * <code>
  *   Höhe   −1            Kenntnis ≥ 1 (znane): Talgrund
@@ -20,15 +20,28 @@
  * (stark zusammenhängende Komponente) ist EIN Schritt. Die Vereinigung rechnen Bitmengen über dem verdichteten Graphen
  * in topologischer Reihenfolge — die Mengen hängen nur vom Graphen ab; ein neuer Stand zählt nur neu.
  *
- * <b>Die Gestalt</b>: ein Halbkreis vor dem Lernenden (unten in der Mitte) — das Tal um ihn, der Ring davor, die Berge
- * dahinter; die Entfernung wächst mit der Höhe. Die Richtung ist der Winkel: die Werte der Gruppierung teilen die 180°
- * nach der Zahl ihrer Einträge, geordnet so, dass Werte, die oft zusammen vorkommen oder durch Voraussetzungen
- * verbunden sind, Nachbarn werden; ein Eintrag steht im Mittel seiner Werte. Platziert auf einem Sechseckraster,
- * deterministisch: derselbe Stand gibt dasselbe Bild.
+ * <b>Die Richtung</b> ist der Winkel: die Werte der Gruppierung teilen die 180° nach der Zahl ihrer Einträge — in der
+ * Reihenfolge des Autors, wenn er eine gibt (`sort` der Achse, die Ebenen), sonst so, dass Werte, die oft zusammen
+ * vorkommen oder durch Voraussetzungen verbunden sind, Nachbarn werden. Ein Eintrag steht im Mittel seiner Werte; einer
+ * ohne Wert in der Mitte beim Lernenden (nie ein erfundener Bereich). Ohne Gruppierung sind die Bereiche die Teilbäume
+ * unter den allgemeinsten Einträgen (Struktur nach oben, sonst die Reihenfolge des Lernens), benannt nach ihrem
+ * obersten Eintrag (`treeAreas`).
  *
- * <b>Budget und Fokus</b>: höchstens `budget` einzelne Felder (der Ring zuerst, dann was im Tal zu wiederholen ist,
- * dann die nahen Berge); der Rest eines Bereichs wird ein Feld („II wojna · 340 tematów"), das sich beim Fokus
- * öffnet. Fokus ist Zoom in die Werte, in jeder Tiefe; die Höhen bleiben global.
+ * <b>Die Gestalt</b>: ein Halbkreis vor dem Lernenden (unten in der Mitte, in seiner eigenen Zelle) — das Tal um ihn,
+ * der Ring davor, eine leere Reihe, die Berge dahinter. Gestellt wird in REIHEN eines Sechseckrasters (alle Zellen mit
+ * demselben gerundeten Abstand zum Lernenden): das Gelernte im Tal (je verblasster, desto weiter draussen), der Ring auf
+ * genau EINER Reihe über den ganzen Halbkreis (zu viele: eine zweite), die Berge nach ihrer Höhe weiter aussen. In
+ * jeder Reihe der Reihe nach wie die Winkel — ordnungstreu und so nah wie möglich (`matchInOrder`): die Bereiche
+ * bleiben zusammen und in ihrer Folge, nie zwei Felder in einer Zelle. Gezeichnet steht jede Reihe gleich hoch, nach
+ * aussen steigend; eine Fläche, die die Zelle dahinter überdecken würde, wird niedriger gezeichnet (`lift`).
+ * Deterministisch: derselbe Stand gibt dasselbe Bild.
+ *
+ * <b>Budget und Fokus</b>: höchstens `budget` einzelne Felder, nach Bändern geteilt (`bands`, Anteile): der Ring
+ * höchstens die Hälfte, was zu wiederholen ist und das Tal mindestens ein Stück, die Berge den Rest; was übrig bleibt,
+ * geht an das Zu-Wiederholende, den Ring, die Berge, das Tal. Ein Bereich, dessen Ring (oder dessen Tal) nicht mehr
+ * passt, wird EIN Feld mit seiner Zahl („Ruch · 23 do nauki", „Ruch · 12 umiem"), seine Berge, die nicht einzeln
+ * stehen, ebenso; ein Klick öffnet ihn (Zoom in die Werte, in jeder Tiefe; die Höhen bleiben global). Das Ziel, der
+ * nächste Schritt und der Ring auf dem Weg dorthin stehen immer einzeln.
  *
  * <b>Für später</b> (Avatare, Führungen, Altersvarianten): `LandscapeEngine` — Graph, Stand und Gestalt getrennt;
  * `positionOf`, `routeOf`, `marks` (fremde Markierungen auf Feldern) und `edgeFilter` sind der Weg hinein, ohne die
@@ -57,10 +70,14 @@ export interface LsInput {
   readonly learnable: readonly boolean[];
   /** Gehört zum Widok. */
   readonly inView: readonly boolean[];
-  /** Die Werte der Richtung — leer: der Winkel kommt aus der Nähe im Graphen. */
+  /** Die Werte der Richtung — leer: die Bereiche kommen aus dem Baum (`treeAreas`). */
   readonly values: readonly LsValue[];
   /** Je Knoten die Werte, zu denen er gehört (Indizes in `values`). */
   readonly memberOf: readonly (readonly number[])[];
+  /** 2026-11-03 — die Werte stehen in der Reihenfolge des Autors (`sort` einer Achse, die Ebenen): nie umordnen. */
+  readonly sorted?: boolean;
+  /** 2026-11-03 — je Knoten, worunter er in der Struktur liegt (Indizes) — für Bereiche ohne Gruppierung. */
+  readonly up?: readonly (readonly number[])[];
 }
 
 /** Der Stand des Betrachters je Knoten. */
@@ -71,16 +88,31 @@ export interface LsState {
   readonly weak: ArrayLike<number | boolean>;
 }
 
+/**
+ * 2026-11-03 — WIE SICH DAS BUDGET AUF DIE BÄNDER TEILT (Anteile 0–1): `ring` höchstens (sonst sammeln sich Bereiche),
+ * `due` und `known` mindestens (das Tal bleibt immer sichtbar); die Berge bekommen den Rest. Mehr als 1 zusammen wird
+ * verhältnisgleich gekürzt.
+ */
+export interface LsBands {
+  readonly ring: number;
+  readonly due: number;
+  readonly known: number;
+}
+
+export const LS_BANDS: LsBands = { ring: 0.5, due: 0.2, known: 0.1 };
+
 export interface LsOptions {
   /** Höchstens so viele einzelne Felder (Vorgabe 60). */
   readonly budget?: number;
+  /** 2026-11-03 — die Anteile der Bänder am Budget (fehlende: `LS_BANDS`). */
+  readonly bands?: Partial<LsBands>;
   /** Der Fokus: Werte (ihre Kennungen) — leer: alles. */
   readonly focus?: readonly string[];
   /** Das Ziel (eine Kennung) — sein Weg wird markiert. */
   readonly goal?: string | null;
   /** 2026-11-03 — für später: fremde Markierungen auf Feldern (Avatare, eine Führung), je Eintrag ein Wort. */
   readonly marks?: Readonly<Record<string, string>>;
-  /** Schmal (ein Telefon): die Berge rücken näher, damit der Halbkreis in die Breite passt. */
+  /** Schmal (ein Telefon): weniger Reihen, damit der Halbkreis in die Breite passt. */
   readonly narrow?: boolean;
 }
 
@@ -92,6 +124,13 @@ export const LS_LEARNED = 0.1;
 export const LS_BUDGET = 60;
 /** Mehr Speicher für die Bitmengen nicht (Wörter): darüber zählt eine Suche je Eintrag (langsamer, aber begrenzt). */
 const MAX_WORDS = 40_000_000;
+
+/** 2026-11-03 — DIE ZEICHNUNG (auch für die Ansicht): halbschräg — die Tiefe des Bodens gestaucht. */
+export const LS_FORE = 0.52;
+/** Eine Kachel in der Höhe, in Bodeneinheiten (Abstand zweier Nachbarzellen = 1). */
+export const LS_TILE = 0.4;
+/** So viel ihrer Zelle füllt eine Kachel (der Rest ist Fuge — auch der Spielraum für die Höhen). */
+export const LS_SHRINK = 0.86;
 
 export type LsBand = 'known' | 'due' | 'ring' | 'mountain';
 
@@ -387,10 +426,11 @@ export function routeOf(g: LsGraph, h: LsHeights, needs: readonly (readonly numb
   return { steps, next, goalOpen };
 }
 
+
 /* -- Richtung: Werte, Sektoren, Winkel ------------------------------------------------------------------------------ */
 
 export interface LsSector {
-  /** Der Wert (seine Kennung) — '' für „bez wartości" und für die Bereiche aus der Nähe im Graphen (`#1` …). */
+  /** Der Wert (seine Kennung) — `~…` ein Bereich aus dem Baum, `#` der eine Bereich ohne Namen. */
   readonly value: string;
   readonly label: string;
   /** Winkel in Grad (0 links, 180 rechts). */
@@ -406,8 +446,16 @@ export interface LsSector {
 export interface Direction {
   /** Je Knoten im Fokus sein Winkel — NaN: ausserhalb des Fokus. */
   readonly angle: Float64Array;
-  /** Je Knoten sein Bereich (Index in `sectors`) — −1: ausserhalb. */
+  /** Je Knoten sein Bereich (Index in `sectors`) — −1: ausserhalb oder in der Mitte. */
   readonly area: Int32Array;
+  /** 2026-11-03 — im Fokus, aber ohne Wert: steht in der Mitte beim Lernenden (Winkel 90°, kein Bereich). */
+  readonly centre: Uint8Array;
+  /**
+   * 2026-11-03 — je Knoten der Bereich, zu dem er GEHÖRT (von seinen Werten der, dessen Bogen seinem Winkel am nächsten
+   * liegt): darin sammelt er sich, wenn er nicht einzeln steht — ein Bereichsfeld hält nur, was beim Öffnen auch da ist.
+   * Einzeln steht er nach seinem Winkel (ein Wątek zwischen seinen Bereichen). −1: ausserhalb oder in der Mitte.
+   */
+  readonly home: Int32Array;
   readonly sectors: readonly LsSector[];
   /** Der Fokus, wie er nach dem Hinabsteigen gilt (die Kette von oben). */
   readonly path: readonly { readonly value: string; readonly label: string }[];
@@ -443,24 +491,36 @@ export function seriate(items: readonly number[], affinity: (a: number, b: numbe
 }
 
 /**
- * DIE RICHTUNG: die Werte unter dem Fokus teilen die 180° nach der Zahl ihrer Einträge (geordnet nach Gemeinsamem);
- * jeder Wert bekommt rekursiv seinen Bogen im Bogen darüber. Ein Eintrag hängt an seinen TIEFSTEN Werten (ein Wert,
- * der über einem anderen seiner Werte liegt, zählt nicht — eine Idee unter ihrer Lektion steht in ihrem eigenen Bogen,
- * nicht in der Mitte der Lektion) und steht im Mittel ihrer Mitten. Ohne Werte: die Reihenfolge eines Gangs durch den
- * Graphen (Nachbarn im Graphen — Nachbarn im Bogen), in Bereichen zu etwa gleich vielen.
+ * DIE RICHTUNG: die Werte unter dem Fokus teilen die 180° nach der Zahl ihrer Einträge — in der Reihenfolge des Autors,
+ * wenn es eine gibt (`sorted`), sonst nach Gemeinsamem; jeder Wert bekommt rekursiv seinen Bogen im Bogen darüber. Ein
+ * Eintrag hängt an seinen TIEFSTEN Werten (ein Wert, der über einem anderen seiner Werte liegt, zählt nicht — eine Idee
+ * unter ihrer Lektion steht in ihrem eigenen Bogen, nicht in der Mitte der Lektion) und steht im Mittel ihrer Mitten.
+ * Ohne Wert: im Ganzen in der Mitte (`centre`), beim Zoomen nicht im Bild. Ohne Werte überhaupt: die Bereiche aus dem
+ * Baum (`treeAreas`), ohne Baum ein Bereich ohne Namen.
  */
 export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly string[]): Direction {
   const n = input.ids.length;
   const angle = new Float64Array(n).fill(Number.NaN);
   const area = new Int32Array(n).fill(-1);
+  const centre = new Uint8Array(n);
+  const home = new Int32Array(n).fill(-1);
   const subject = new Int32Array(n).fill(-1);
   const shown = (v: number) => input.inView[v] === true && input.learnable[v] === true;
-  const V = input.values.length;
-  if (V === 0) return proximityDirection(input, g, shown, angle, area, subject);
+  let values = input.values;
+  let memberOf = input.memberOf;
+  let sorted = input.sorted === true;
+  if (values.length === 0) {
+    const tree = treeAreas(input, g, shown);
+    if (tree === null) return flatDirection(input, g, shown, angle, area, centre, subject, home);
+    values = tree.values;
+    memberOf = tree.memberOf;
+    sorted = true;
+  }
+  const V = values.length;
 
   /* Der Baum der Werte (ein Wert, der über sich selbst läge, hängt oben); Kinder in der Reihenfolge des Autors. */
   const ROOT = V;
-  const rawParent = (x: number): number => { const p = input.values[x]?.parent ?? -1; return p >= 0 && p < V && p !== x ? p : ROOT; };
+  const rawParent = (x: number): number => { const p = values[x]?.parent ?? -1; return p >= 0 && p < V && p !== x ? p : ROOT; };
   const parent = new Int32Array(V + 1).fill(ROOT);
   for (let x = 0; x < V; x += 1) {
     let p = rawParent(x);
@@ -468,7 +528,7 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
     for (let y = p, guard = 0; y !== ROOT && guard < 256; y = rawParent(y), guard += 1) { if (seen.has(y)) { p = ROOT; break; } seen.add(y); }
     parent[x] = p;
   }
-  const rankOf = (x: number) => (x === ROOT ? -1 : input.values[x].rank);
+  const rankOf = (x: number) => (x === ROOT ? -1 : values[x].rank);
   const kids: number[][] = Array.from({ length: V + 1 }, () => []);
   for (let x = 0; x < V; x += 1) kids[parent[x]].push(x);
   for (const list of kids) list.sort((a, b) => rankOf(a) - rankOf(b) || a - b);
@@ -479,13 +539,11 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
   /* Die tiefsten Werte jedes Eintrags. */
   const deepest: (readonly number[])[] = new Array(n);
   const own: number[][] = Array.from({ length: V + 1 }, () => []);
-  const noValue: number[] = [];
   for (let v = 0; v < n; v += 1) {
     if (!shown(v)) { deepest[v] = []; continue; }
-    const list = [...new Set((input.memberOf[v] ?? []).filter((x) => x >= 0 && x < V))];
+    const list = [...new Set((memberOf[v] ?? []).filter((x) => x >= 0 && x < V))];
     const deep = list.filter((x) => !list.some((y) => y !== x && isAncestor(x, y)));
     deepest[v] = deep;
-    if (deep.length === 0) noValue.push(v);
     for (const x of deep) own[x].push(v);
   }
   const sub = new Int32Array(V + 1);
@@ -521,7 +579,8 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
     const pos = new Map(siblings.map((s, i) => [s, i] as const));
     return (a, b) => table[(pos.get(a) ?? 0) * m + (pos.get(b) ?? 0)];
   };
-  const orderOf = (items: readonly number[]): number[] => (items.length > 160 ? [...items].sort((a, b) => rankOf(a) - rankOf(b) || a - b) : seriate(items, affinityAmong(items), rankOf));
+  /* Die Reihenfolge des Autors gilt (`sort`); nur ohne sie ordnet das Gemeinsame. */
+  const orderOf = (items: readonly number[]): number[] => (sorted || items.length > 160 ? [...items].sort((a, b) => rankOf(a) - rankOf(b) || a - b) : seriate(items, affinityAmong(items), rankOf));
 
   /* Die Farbe: die Werte auf der Ebene, auf der sich das Ganze zuerst teilt — in der Reihenfolge des Autors (stabil beim Zoomen). */
   let top = ROOT;
@@ -531,7 +590,7 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
   for (let x = 0; x < V; x += 1) for (const y of chainTo(x)) { const i = subjects.indexOf(y); if (i >= 0) { subjectOfValue[x] = i; break; } }
 
   /* Der Fokus: die genannten Werte, sonst oben; ein Fokus mit nur einem lebenden Kind (und ohne eigene Einträge) steigt hinab. */
-  const byId = new Map(input.values.map((x, i) => [x.id, i] as const));
+  const byId = new Map(values.map((x, i) => [x.id, i] as const));
   let focus = [...new Set(focusIds.map((id) => byId.get(id)).filter((x): x is number => x !== undefined && live(x)))];
   if (focus.length === 0) focus = [ROOT];
   for (let guard = 0; guard < 64 && focus.length === 1; guard += 1) {
@@ -539,24 +598,23 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
     if (only.length !== 1 || own[focus[0]].length > 0 || liveKids(only[0]).length === 0) break;
     focus = [only[0]];
   }
-  const path = focus.length === 1 ? (focus[0] === ROOT ? [] : chainTo(focus[0]).map((y) => ({ value: input.values[y].id, label: input.values[y].label })))
-    : focus.map((x) => ({ value: input.values[x].id, label: input.values[x].label }));
+  const atRoot = focus.length === 1 && focus[0] === ROOT;
+  const path = focus.length === 1 ? (atRoot ? [] : chainTo(focus[0]).map((y) => ({ value: values[y].id, label: values[y].label })))
+    : focus.map((x) => ({ value: values[x].id, label: values[x].label }));
 
   /* Die Bereiche: die lebenden Kinder der Werte im Fokus (ein Blatt im Fokus ist selbst sein Bereich). */
   const items = [...new Set(focus.flatMap((f) => (liveKids(f).length > 0 ? liveKids(f) : f === ROOT ? [] : [f])))];
   const ordered = orderOf(items);
-  const withNone = focus[0] === ROOT && noValue.length > 0;
-  const weightOf = (x: number) => Math.max(0.35, x < 0 ? noValue.length : sub[x]);
-  const sectorList = withNone ? [...ordered, -1] : ordered;
-  const total = sectorList.reduce((s, x) => s + weightOf(x), 0) || 1;
+  const weightOf = (x: number) => Math.max(0.35, sub[x]);
+  const total = ordered.reduce((s, x) => s + weightOf(x), 0) || 1;
   const span = new Map<number, [number, number]>();
   const lay = (list: readonly number[], from: number, to: number) => {
     if (list.length === 0) return;
     const ord = orderOf(list);
-    const sum = ord.reduce((s, x) => s + Math.max(0.35, sub[x]), 0) || 1;
+    const sum = ord.reduce((s, x) => s + weightOf(x), 0) || 1;
     let at = from;
     for (const x of ord) {
-      const w = ((to - from) * Math.max(0.35, sub[x])) / sum;
+      const w = ((to - from) * weightOf(x)) / sum;
       span.set(x, [at, at + w]);
       lay(liveKids(x), at, at + w);
       at += w;
@@ -564,15 +622,11 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
   };
   const sectors: LsSector[] = [];
   let at = 0;
-  for (const x of sectorList) {
+  for (const x of ordered) {
     const w = (180 * weightOf(x)) / total;
-    if (x < 0) {
-      sectors.push({ value: '', label: 'bez wartości', from: at, to: at + w, subject: -1, count: noValue.length, deeper: false });
-    } else {
-      span.set(x, [at, at + w]);
-      lay(liveKids(x), at, at + w);
-      sectors.push({ value: input.values[x].id, label: input.values[x].label, from: at, to: at + w, subject: subjectOfValue[x], count: sub[x], deeper: liveKids(x).length > 0 });
-    }
+    span.set(x, [at, at + w]);
+    lay(liveKids(x), at, at + w);
+    sectors.push({ value: values[x].id, label: values[x].label, from: at, to: at + w, subject: subjectOfValue[x], count: sub[x], deeper: liveKids(x).length > 0 });
     at += w;
   }
   /* Ein Wert im Fokus mit eigenen Einträgen: sein Bogen ist der seiner Bereiche (die Einträge stehen in der Mitte). */
@@ -582,9 +636,14 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
     if (inner.length > 0) span.set(f, [Math.min(...inner.map((s) => s[0])), Math.max(...inner.map((s) => s[1]))]);
   }
 
-  /* Je Eintrag: seine tiefsten Werte, die im Fokus liegen → Winkel; sonst ausserhalb, gesammelt am Rand. */
-  const noneSector = withNone ? sectors.length - 1 : -1;
-  const focusChain = focus[0] === ROOT ? [] : chainTo(focus[0]);
+  /* Der Bereich (Sektor) eines Wertes: er selbst oder der Vorfahr, der im Fokus ein Bereich ist — −1: keiner. */
+  const sectorAt = new Map(ordered.map((x, i) => [x, i] as const));
+  const sectorOfValue = (x: number): number => {
+    for (let y = x, guard = 0; y !== ROOT && guard < 256; y = parent[y], guard += 1) { const i = sectorAt.get(y); if (i !== undefined) return i; }
+    return -1;
+  };
+  /* Je Eintrag: seine tiefsten Werte, die im Fokus liegen → Winkel; ohne Wert in die Mitte; sonst ausserhalb, am Rand. */
+  const focusChain = atRoot ? [] : chainTo(focus[0]);
   const siblingsAt = new Map<number, number[]>();
   const sideOf = (x: number): { group: number; side: 'left' | 'right' } => {
     const chain = chainTo(x);
@@ -602,84 +661,165 @@ export function directionOf(input: LsInput, g: LsGraph, focusIds: readonly strin
   for (let v = 0; v < n; v += 1) {
     if (!shown(v)) continue;
     const deep = deepest[v];
+    if (deep.length === 0) {
+      /* Ohne Wert: im Ganzen in der Mitte, beim Lernenden; in einem Zoom nicht im Bild. */
+      if (atRoot) { angle[v] = 90; centre[v] = 1; }
+      continue;
+    }
     const inside = deep.filter((x) => span.has(x) || focus.some((f) => f !== ROOT && isAncestor(f, x)));
-    if (deep.length > 0) subject[v] = subjectOfValue[inside[0] ?? deep[0]];
+    subject[v] = subjectOfValue[inside[0] ?? deep[0]];
     if (inside.length > 0) {
       let sum = 0;
       let k = 0;
       for (const x of inside) { const s = span.get(x); if (s !== undefined) { sum += (s[0] + s[1]) / 2; k += 1; } }
       angle[v] = k === 0 ? 90 : sum / k;
       const a = angle[v];
-      let hit = sectors.findIndex((s) => s.value !== '' && s.from <= a + 1e-9 && a <= s.to + 1e-9);
+      let hit = sectors.findIndex((s) => s.from <= a + 1e-9 && a <= s.to + 1e-9);
       if (hit < 0) hit = sectors.reduce((best, s, i) => (Math.abs((s.from + s.to) / 2 - a) < Math.abs((sectors[best].from + sectors[best].to) / 2 - a) ? i : best), 0);
       area[v] = hit;
-    } else if (deep.length === 0 && noneSector >= 0) {
-      const s = sectors[noneSector];
-      const i = noValue.indexOf(v);
-      angle[v] = s.from + ((i + 0.5) / Math.max(1, noValue.length)) * (s.to - s.from);
-      area[v] = noneSector;
+      /* Sein Bereich (für das Sammeln): von den Bereichen seiner Werte der nächste. */
+      let best = -1;
+      let bestD = Infinity;
+      for (const x of inside) {
+        const sec = sectorOfValue(x);
+        if (sec < 0) continue;
+        const d = Math.abs((sectors[sec].from + sectors[sec].to) / 2 - a);
+        if (d < bestD - 1e-9) { bestD = d; best = sec; }
+      }
+      home[v] = best >= 0 ? best : hit;
     } else {
-      const { group, side } = deep.length === 0 ? { group: -1, side: 'right' as const } : sideOf(deep[0]);
+      const { group, side } = sideOf(deep[0]);
       const o = outsideMap.get(group);
       if (o === undefined) outsideMap.set(group, { side, ids: [v] }); else o.ids.push(v);
     }
   }
-  const outside = [...outsideMap.entries()].map(([x, o]) => ({
-    value: x < 0 ? '' : input.values[x].id, label: x < 0 ? 'bez wartości' : input.values[x].label, side: o.side, ids: o.ids, subject: x < 0 ? -1 : subjectOfValue[x]
-  })).sort((a, b) => (a.side === b.side ? 0 : a.side === 'left' ? -1 : 1) || a.label.localeCompare(b.label, 'pl', { numeric: true }));
-  return { angle, area, sectors, path, outside, subject };
+  const outside = [...outsideMap.entries()].map(([x, o]) => ({ value: values[x].id, label: values[x].label, side: o.side, ids: o.ids, subject: subjectOfValue[x] }))
+    .sort((a, b) => (a.side === b.side ? 0 : a.side === 'left' ? -1 : 1) || a.label.localeCompare(b.label, 'pl', { numeric: true }));
+  return { angle, area, centre, home, sectors, path, outside, subject };
 }
 
-/** Ohne Werte: ein Gang durch den Graphen (Grundlagen zuerst, Nachbarn hintereinander), in Bereiche zu je etwa gleich vielen. */
-function proximityDirection(input: LsInput, g: LsGraph, shown: (v: number) => boolean, angle: Float64Array, area: Int32Array, subject: Int32Array): Direction {
+/**
+ * 2026-11-03 — BEREICHE OHNE GRUPPIERUNG, entlang des Baums: der Struktur nach oben (`up`), sonst der Reihenfolge des
+ * Lernens. Jeder Eintrag hängt an seinem flachsten Vorgänger (der Baum der kürzesten Wege von den allgemeinsten
+ * Einträgen); die Bereiche sind die Teilbäume unter ihnen. Gibt es nur einen, geht es hinab, bis sich der Baum teilt;
+ * sind es weniger als drei, teilt sich der grösste, der sich teilen kann; mehr als acht: die grössten acht. Ein Bereich
+ * heisst wie sein oberster Eintrag; was darüber liegt (oder in keinem Bereich), steht in der Mitte. Zu einem Bereich
+ * gehört ein Eintrag über ALLE Wege nach oben: der nächste Bereich je Weg (ein Wątek zwischen zwei Etappen steht
+ * zwischen ihnen). Kein sinnvoller Baum (nichts geteilt, die Bereiche deckten nicht die Hälfte): `null`.
+ */
+export function treeAreas(input: LsInput, g: LsGraph, shown: (v: number) => boolean): { values: LsValue[]; memberOf: number[][] } | null {
   const n = input.ids.length;
-  const view: number[] = [];
-  for (let v = 0; v < n; v += 1) if (shown(v)) view.push(v);
-  const inView = new Uint8Array(n);
-  for (const v of view) inView[v] = 1;
-  /* Nachbarn im Graphen, ungerichtet; über Einträge ausserhalb des Widoku hinweg (einen Schritt). */
-  const builds: number[][] = Array.from({ length: n }, () => []);
-  for (let v = 0; v < n; v += 1) for (const p of input.needs[v] ?? []) if (p >= 0 && p < n && p !== v) builds[p].push(v);
-  const label = (v: number) => input.labels[v] ?? '';
-  const byName = (a: number, b: number) => label(a).localeCompare(label(b), 'pl', { numeric: true }) || a - b;
-  const order: number[] = [];
-  const seen = new Uint8Array(n);
-  const roots = view.filter((v) => (input.needs[v] ?? []).every((p) => inView[p] !== 1)).sort((a, b) => g.rank[g.comp[a]] - g.rank[g.comp[b]] || byName(a, b));
-  const visit = (start: number) => {
-    const stack = [start];
-    while (stack.length > 0) {
-      const v = stack.pop()!;
-      if (seen[v] === 1) continue;
-      seen[v] = 1;
-      if (inView[v] === 1) order.push(v);
-      const next = [...builds[v], ...(input.needs[v] ?? [])].filter((x) => x >= 0 && x < n && seen[x] === 0).sort(byName).reverse();
-      for (const x of next) stack.push(x);
-    }
+  const useUp = input.up !== undefined && input.up.some((l) => l.length > 0);
+  const parentsOf = (v: number): number[] => ((useUp ? input.up![v] : input.needs[v]) ?? []).filter((p) => p >= 0 && p < n && p !== v);
+  const rankOf = (v: number) => g.rank[g.comp[v]];
+  const byRank = (a: number, b: number) => rankOf(a) - rankOf(b) || a - b;
+  const down: number[][] = Array.from({ length: n }, () => []);
+  for (let v = 0; v < n; v += 1) for (const p of parentsOf(v)) down[p].push(v);
+  /* Die Tiefe: Breitensuche von den Wurzeln (was nur in Kreisen hängt, wird selbst eine). */
+  const depth = new Int32Array(n).fill(-1);
+  const queue = new Int32Array(n);
+  const roots: number[] = [];
+  const bfs = (starts: readonly number[]) => {
+    let head = 0;
+    let tail = 0;
+    for (const s of starts) if (depth[s] < 0) { depth[s] = 0; queue[tail++] = s; }
+    while (head < tail) { const x = queue[head++]; for (const c of down[x]) if (depth[c] < 0) { depth[c] = depth[x] + 1; queue[tail++] = c; } }
   };
-  for (const r of roots) visit(r);
-  for (const v of [...view].sort(byName)) if (seen[v] === 0) visit(v);
-  const m = order.length;
-  const parts = Math.max(1, Math.min(8, Math.ceil(m / 12)));
-  const sectors: LsSector[] = [];
-  for (let i = 0; i < parts; i += 1) {
-    const from = Math.floor((i * m) / parts);
-    const to = Math.floor(((i + 1) * m) / parts);
-    const lead = order[from];
-    sectors.push({ value: `#${i + 1}`, label: lead === undefined ? `Obszar ${i + 1}` : `okolice: ${label(lead)}`, from: (180 * from) / Math.max(1, m), to: (180 * to) / Math.max(1, m), subject: i, count: to - from, deeper: false });
-    for (let j = from; j < to; j += 1) { const v = order[j]; angle[v] = (180 * (j + 0.5)) / m; area[v] = i; subject[v] = i; }
+  for (let v = 0; v < n; v += 1) if (parentsOf(v).length === 0) roots.push(v);
+  roots.sort(byRank);
+  bfs(roots);
+  for (let v = 0; v < n; v += 1) if (depth[v] < 0) { roots.push(v); bfs([v]); }
+  /* Der flachste Vorgänger hält den Eintrag (Gleichstand: der in der Reihenfolge des Lernens frühere). */
+  const kids: number[][] = Array.from({ length: n }, () => []);
+  const primary = new Int32Array(n).fill(-1);
+  for (let v = 0; v < n; v += 1) {
+    let best = -1;
+    for (const p of parentsOf(v)) if (depth[p] >= 0 && depth[p] < depth[v] && (best < 0 || depth[p] < depth[best] || (depth[p] === depth[best] && byRank(p, best) < 0))) best = p;
+    primary[v] = best;
+    if (best >= 0) kids[best].push(v);
   }
-  return { angle, area, sectors, path: [], outside: [], subject };
+  for (const list of kids) list.sort(byRank);
+  const size = new Int32Array(n);
+  const byDepth = Array.from({ length: n }, (_, v) => v).sort((a, b) => depth[b] - depth[a]);
+  for (const v of byDepth) { if (shown(v)) size[v] += 1; if (primary[v] >= 0) size[primary[v]] += size[v]; }
+  const total = size.reduce((s, x, v) => s + (primary[v] < 0 ? x : 0), 0);
+  const branches = (v: number) => kids[v].filter((k) => size[k] > 0);
+  let areas = roots.filter((r) => size[r] > 0);
+  for (let guard = 0; guard < 256 && areas.length < 3; guard += 1) {
+    let pick = -1;
+    for (const a of areas) {
+      const b = branches(a).length;
+      if (b === 0 || (b < 2 && areas.length > 1)) continue;
+      if (pick < 0 || size[a] > size[pick]) pick = a;
+    }
+    if (pick < 0) break;
+    const at = areas.indexOf(pick);
+    areas = [...areas.slice(0, at), ...branches(pick), ...areas.slice(at + 1)];
+  }
+  if (areas.length > 8) {
+    const keep = new Set([...areas].sort((a, b) => size[b] - size[a] || byRank(a, b)).slice(0, 8));
+    areas = areas.filter((a) => keep.has(a));
+  }
+  areas.sort(byRank);
+  const covered = areas.reduce((s, a) => s + size[a], 0);
+  if (areas.length < 2 || areas.every((a) => size[a] < 2) || covered * 2 < total) return null;
+
+  /* Zugehörigkeit: je Weg nach oben der nächste Bereich (Bitmasken, ohne Rekursion; ein Kreis bricht ab). */
+  const isArea = new Int32Array(n).fill(-1);
+  areas.forEach((a, i) => { isArea[a] = i; });
+  const mask = new Int32Array(n).fill(-1);
+  const open = new Uint8Array(n);
+  const resolve = (s: number): number => {
+    if (mask[s] >= 0) return mask[s];
+    const stack = [s];
+    while (stack.length > 0) {
+      const v = stack[stack.length - 1];
+      if (mask[v] >= 0) { stack.pop(); continue; }
+      if (isArea[v] >= 0) { mask[v] = 1 << isArea[v]; stack.pop(); continue; }
+      const ps = parentsOf(v);
+      if (open[v] === 0) {
+        open[v] = 1;
+        for (const p of ps) if (mask[p] < 0 && open[p] === 0) stack.push(p);
+        continue;
+      }
+      let m = 0;
+      for (const p of ps) if (mask[p] > 0) m |= mask[p];
+      mask[v] = m;
+      open[v] = 0;
+      stack.pop();
+    }
+    return mask[s];
+  };
+  const memberOf: number[][] = Array.from({ length: n }, () => []);
+  for (let v = 0; v < n; v += 1) {
+    if (!shown(v)) continue;
+    const m = resolve(v);
+    for (let i = 0; i < areas.length; i += 1) if ((m & (1 << i)) !== 0) memberOf[v].push(i);
+  }
+  const values = areas.map((a, i) => ({ id: `~${input.ids[a]}`, label: input.labels[a] ?? input.ids[a], parent: -1, rank: i }));
+  return { values, memberOf };
+}
+
+/** Weder Werte noch ein Baum: EIN Bereich ohne Namen, die Einträge in der Reihenfolge des Lernens (dann nach dem Namen). */
+function flatDirection(input: LsInput, g: LsGraph, shown: (v: number) => boolean, angle: Float64Array, area: Int32Array, centre: Uint8Array, subject: Int32Array, home: Int32Array): Direction {
+  const list: number[] = [];
+  for (let v = 0; v < input.ids.length; v += 1) if (shown(v)) list.push(v);
+  const label = (v: number) => input.labels[v] ?? '';
+  list.sort((a, b) => g.rank[g.comp[a]] - g.rank[g.comp[b]] || label(a).localeCompare(label(b), 'pl', { numeric: true }) || a - b);
+  const m = list.length;
+  list.forEach((v, i) => { angle[v] = (180 * (i + 0.5)) / Math.max(1, m); area[v] = 0; home[v] = 0; });
+  return { angle, area, centre, home, sectors: [{ value: '#', label: '', from: 0, to: 180, subject: -1, count: m, deeper: false }], path: [], outside: [], subject };
 }
 
 /* -- Die Felder und ihr Platz ------------------------------------------------------------------------------------- */
 
 export interface LsField {
-  /** Eintrag: seine Kennung; Bereich: `area:<wert>:<art>`. */
+  /** Eintrag: seine Kennung; Bereich: `area:<wert>:<art>`; ausserhalb des Fokus: `edge:<wert>`. */
   readonly key: string;
   readonly kind: 'entry' | 'area';
   /** Der Eintrag (bei `entry`). */
   readonly id?: string;
-  /** Der Wert, in den ein Klick zoomt (bei `area`). */
+  /** Der Wert, in den ein Klick zoomt (bei `area`; '' in der Mitte). */
   readonly value?: string;
   readonly label: string;
   /** Wie viele Einträge (1 bei einem Eintrag). */
@@ -690,7 +830,7 @@ export interface LsField {
   readonly locked: boolean;
   /** Farbe (oberster Wert), −1 grau. */
   readonly subject: number;
-  /** Der Bereich (Index in `sectors`), −1 ausserhalb des Fokus. */
+  /** Der Bereich (Index in `sectors`), −1 ausserhalb des Fokus oder in der Mitte. */
   readonly area: number;
   /** Das Sechseck (axial, flache Oberseite). */
   readonly q: number;
@@ -698,7 +838,12 @@ export interface LsField {
   /** Der Platz am Boden (Einheiten: Abstand zweier Nachbarn). */
   readonly x: number;
   readonly y: number;
+  /** Die Richtung, in die er gehört (Grad; die Zelle kann daneben liegen). */
   readonly angle: number;
+  /** 2026-11-03 — die Reihe (gerundeter Abstand der Zelle zum Lernenden). */
+  readonly row: number;
+  /** 2026-11-03 — wie hoch die Fläche gezeichnet wird (Kacheln; im Tal negativ). */
+  readonly lift: number;
   /** Wie viele Schritte des Weges zum Ziel darin liegen. */
   readonly route: number;
   readonly next: boolean;
@@ -707,6 +852,8 @@ export interface LsField {
   readonly due: number;
   /** Bei einem Bereich: wie viele davon jetzt zu lernen sind. */
   readonly ring: number;
+  /** 2026-11-03 — bei einem Bereich: wie viele davon sitzen (znane). */
+  readonly known: number;
   /** Ausserhalb des Fokus (am Rand). */
   readonly edge: boolean;
   /** Für später: fremde Markierungen (Avatare, Führung). */
@@ -724,8 +871,12 @@ export interface LsLayout {
   readonly counts: Readonly<Record<LsBand, number>>;
   /** Wie viele Einträge mit Karten der Widok hat (im Fokus). */
   readonly total: number;
-  /** Der Radius des Rings (für die Zeichnung). */
+  /** Die Reihe des Rings (für die Zeichnung). */
   readonly ring: number;
+  /** 2026-11-03 — die Reihen: das Tal bis `valley`, der Ring (eine oder zwei), die Berge ab `mountain`. */
+  readonly rows: { readonly valley: number; readonly ring: readonly number[]; readonly mountain: number };
+  /** 2026-11-03 — der Lernende in seiner Zelle (0, 0): wie tief sie gezeichnet wird. */
+  readonly me: { readonly lift: number };
   /** Was die Ansicht sagen sollte (keine Reihenfolge des Lernens, Kreise …). */
   readonly notes: readonly string[];
   /** Je Knoten (wie `LsInput.ids`): Höhe, Band (0 ohne Karten, 1 znane, 2 do powtórki, 3 Ring, 4 Berg), Sperre — für Suche, Wege, Listen. */
@@ -737,133 +888,229 @@ export interface LsLayout {
 export const BAND_CODE: readonly (LsBand | null)[] = [null, 'known', 'due', 'ring', 'mountain'];
 
 const SQ3 = Math.sqrt(3);
-/** Vom Boden zum Sechseck (flache Oberseite, Nachbarn im Abstand 1): x = √3/2·q, y = r + q/2. */
-export function hexAt(x: number, y: number): { q: number; r: number } {
-  const qf = (2 * x) / SQ3;
-  const rf = y - qf / 2;
-  /* Würfel runden. */
-  const sf = -qf - rf;
-  let q = Math.round(qf);
-  let r = Math.round(rf);
-  const s = Math.round(sf);
-  const dq = Math.abs(q - qf);
-  const dr = Math.abs(r - rf);
-  const ds = Math.abs(s - sf);
-  if (dq > dr && dq > ds) q = -r - s;
-  else if (dr > ds) r = -q - s;
-  return { q, r };
-}
+/** Die Mitte eines Sechsecks (flache Oberseite, Nachbarn im Abstand 1): x = √3/2·q, y = r + q/2. */
 export const hexCenter = (q: number, r: number): { x: number; y: number } => ({ x: (SQ3 / 2) * q, y: r + q / 2 });
 
-/** Die Sechsecke im Abstand `d` um (q, r), in fester Reihenfolge. */
-function hexRing(q: number, r: number, d: number): { q: number; r: number }[] {
-  if (d === 0) return [{ q, r }];
-  const dirs = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]] as const;
-  const out: { q: number; r: number }[] = [];
-  let cq = q + dirs[4][0] * d;
-  let cr = r + dirs[4][1] * d;
-  for (let side = 0; side < 6; side += 1) {
-    for (let i = 0; i < d; i += 1) {
-      out.push({ q: cq, r: cr });
-      cq += dirs[side][0];
-      cr += dirs[side][1];
+interface Cell {
+  readonly q: number;
+  readonly r: number;
+  readonly x: number;
+  readonly y: number;
+  /** Grad: 0 links, 180 rechts. */
+  readonly angle: number;
+}
+
+/** So viele Reihen kennt das Raster (mehr braucht kein Bild). */
+const ROWS = 48;
+let cellRows: Cell[][] | null = null;
+/** DIE ZELLEN JE REIHE (gerundeter Abstand zum Lernenden), vor ihm (y ≥ 0,45), nach dem Winkel geordnet — einmal gerechnet. */
+function rowCells(k: number): readonly Cell[] {
+  if (cellRows === null) {
+    const rows: Cell[][] = Array.from({ length: ROWS + 1 }, () => []);
+    const R = ROWS + 2;
+    for (let q = -R; q <= R; q += 1) {
+      for (let r = -2 * R; r <= 2 * R; r += 1) {
+        const c = hexCenter(q, r);
+        if (c.y < 0.45) continue;
+        const k = Math.round(Math.hypot(c.x, c.y));
+        if (k < 1 || k > ROWS) continue;
+        rows[k].push({ q, r, x: c.x, y: c.y, angle: (Math.atan2(c.y, -c.x) * 180) / Math.PI });
+      }
     }
+    for (const list of rows) list.sort((a, b) => a.angle - b.angle || a.q - b.q);
+    cellRows = rows;
+  }
+  return cellRows[Math.max(0, Math.min(ROWS, k))];
+}
+
+/** Wie viele Zellen eine Reihe hat. */
+export const rowSize = (k: number): number => rowCells(k).length;
+
+/**
+ * ORDNUNGSTREU IN EINE REIHE: Felder (nach Winkel geordnet) in Zellen (nach Winkel geordnet), die i-ten nie hinter die
+ * j-ten — so viele wie möglich, dann so nah an ihren Winkeln wie möglich; wer nicht passt, wartet (−1) und kommt eine
+ * Reihe weiter. Bei zu vielen fallen zuerst die mit dem höheren Vorrang-Wert heraus (`prio`, je Stufe wie 20°).
+ */
+export function matchInOrder(targets: readonly number[], prio: readonly number[], cells: readonly number[], allowed?: (i: number, j: number) => boolean): number[] {
+  const n = targets.length;
+  const m = cells.length;
+  const W = m + 1;
+  const BIG = 1e6;
+  const best = new Float64Array((n + 1) * W);
+  const how = new Uint8Array((n + 1) * W);
+  for (let i = 0; i <= n; i += 1) {
+    for (let j = 0; j <= m; j += 1) {
+      if (i === 0 && j === 0) continue;
+      let v = Number.NEGATIVE_INFINITY;
+      let w = 0;
+      if (i > 0) { const x = best[(i - 1) * W + j]; if (x > v) { v = x; w = 0; } }
+      if (j > 0) { const x = best[i * W + j - 1]; if (x > v) { v = x; w = 1; } }
+      if (i > 0 && j > 0 && (allowed === undefined || allowed(i - 1, j - 1))) {
+        const x = best[(i - 1) * W + j - 1] + BIG - Math.abs(targets[i - 1] - cells[j - 1]) - (prio[i - 1] ?? 0) * 20;
+        if (x > v) { v = x; w = 2; }
+      }
+      best[i * W + j] = v;
+      how[i * W + j] = w;
+    }
+  }
+  const out = new Array<number>(n).fill(-1);
+  let i = n;
+  let j = m;
+  while (i > 0 && j > 0) {
+    const w = how[i * W + j];
+    if (w === 2) { out[i - 1] = j - 1; i -= 1; j -= 1; } else if (w === 0) i -= 1; else j -= 1;
   }
   return out;
 }
 
-/** Die Entfernung zum Lernenden aus der Höhe: Tal innen, Ring, Berge dahinter (zusammengedrückt, gedeckelt). */
-export function radiusOf(height: number, ring: number, narrow = false): number {
-  if (height < 0) return 2 + (ring - 3) * (height + 1);
-  if (height === 0) return ring;
-  const n = height;
-  const g = n <= 4 ? n - 1 : 3 + Math.log2(n - 3);
-  return narrow ? Math.min(ring + 4.6, ring + 1.15 + 0.75 * g) : Math.min(ring + 7.5, ring + 1.35 + 0.95 * g);
-}
+/* -- Höhen der Zeichnung: nie eine Fläche über die Zelle dahinter ------------------------------------------------ */
 
-/** Die Stelle am Boden zu Winkel (0 links … 180 rechts) und Entfernung. */
-export const groundAt = (angle: number, radius: number): { x: number; y: number } => {
-  const t = (angle * Math.PI) / 180;
-  return { x: -radius * Math.cos(t), y: radius * Math.sin(t) };
+/** Die Kachelfläche (flache Oberseite) auf dem Schirm, in Einheiten: Mitte (cx, cy), y nach unten. */
+const faceAt = (cx: number, cy: number): [number, number][] => {
+  const C = LS_SHRINK / SQ3;
+  return [0, 60, 120, 180, 240, 300].map((a) => [cx + Math.cos((a * Math.PI) / 180) * C, cy - Math.sin((a * Math.PI) / 180) * C * LS_FORE] as [number, number]);
 };
 
-interface Placing {
-  readonly key: string;
-  readonly angle: number;
-  readonly radius: number;
+/** Überschneiden sich zwei konvexe Vielecke (mehr als eine Berührung)? — Trennachsen. */
+export function polygonsOverlap(a: readonly (readonly [number, number])[], b: readonly (readonly [number, number])[], eps = 1e-9): boolean {
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i += 1) {
+      const [x1, y1] = poly[i];
+      const [x2, y2] = poly[(i + 1) % poly.length];
+      const nx = y2 - y1;
+      const ny = x1 - x2;
+      let aMin = Infinity; let aMax = -Infinity; let bMin = Infinity; let bMax = -Infinity;
+      for (const [x, y] of a) { const p = x * nx + y * ny; aMin = Math.min(aMin, p); aMax = Math.max(aMax, p); }
+      for (const [x, y] of b) { const p = x * nx + y * ny; bMin = Math.min(bMin, p); bMax = Math.max(bMax, p); }
+      const len = Math.hypot(nx, ny) || 1;
+      if (aMax <= bMin + eps * len || bMax <= aMin + eps * len) return false;
+    }
+  }
+  return true;
 }
 
 /**
- * DER PLATZ AUF DEM RASTER — der Reihe nach (wer zuerst kommt, steht genau): das nächste freie Sechseck, das die
- * Entfernung (die Höhe) besser hält als den Winkel; nie hinter dem Lernenden, nie auf ihm.
+ * Die Zellen dahinter, die eine höhere Fläche überdecken könnte (axial), und wie viel höher sie sein darf (Kacheln):
+ * gemessen an den Flächen selbst, mit einem Fünftel Reserve (Rundung auf Pixel).
  */
-export function placeAll(items: readonly Placing[]): Map<string, { q: number; r: number; x: number; y: number }> {
-  const taken = new Set<string>(['0,0']);
-  const out = new Map<string, { q: number; r: number; x: number; y: number }>();
-  for (const it of items) {
-    const want = groundAt(it.angle, it.radius);
-    const start = hexAt(want.x, want.y);
-    let best: { q: number; r: number; cost: number } | null = null;
-    for (let d = 0; d <= 12; d += 1) {
-      for (const c of hexRing(start.q, start.r, d)) {
-        const key = `${c.q},${c.r}`;
-        if (taken.has(key)) continue;
-        const at = hexCenter(c.q, c.r);
-        if (at.y < 0.45) continue;
-        const rad = Math.hypot(at.x, at.y);
-        const ang = (Math.atan2(at.y, -at.x) * 180) / Math.PI;
-        const cost = Math.abs(rad - it.radius) * 2.2 + (Math.abs(ang - it.angle) * Math.PI / 180) * Math.max(1, it.radius);
-        if (best === null || cost < best.cost - 1e-9) best = { q: c.q, r: c.r, cost };
-      }
-      /* Ein Ring weiter kann nur teurer sein, sobald schon ein freies gefunden ist und der Abstand den Preis übersteigt. */
-      if (best !== null && d >= 2 && best.cost < d * 0.9) break;
+const BEHIND: readonly (readonly [number, number, number])[] = (() => {
+  const out: [number, number, number][] = [];
+  for (const [dq, dr] of [[0, 1], [1, 0], [-1, 1], [0, 2], [1, 1], [-1, 2]] as const) {
+    const b = hexCenter(dq, dr);
+    const back = faceAt(b.x, -b.y * LS_FORE);
+    let lo = 0;
+    let hi = 6;
+    for (let step = 0; step < 40; step += 1) {
+      const mid = (lo + hi) / 2;
+      if (polygonsOverlap(faceAt(0, -mid * LS_TILE), back)) hi = mid; else lo = mid;
     }
-    if (best === null) continue;
-    taken.add(`${best.q},${best.r}`);
-    const c = hexCenter(best.q, best.r);
-    out.set(it.key, { q: best.q, r: best.r, x: c.x, y: c.y });
+    out.push([dq, dr, lo * 0.8]);
   }
   return out;
+})();
+
+/* -- Die Gestalt ---------------------------------------------------------------------------------------------- */
+
+/** Die Anteile der Bänder (0–1), zusammen höchstens 1. */
+export function bandShares(raw?: Partial<LsBands>): LsBands {
+  const pick = (x: unknown, fallback: number) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : fallback);
+  const s = { ring: pick(raw?.ring, LS_BANDS.ring), due: pick(raw?.due, LS_BANDS.due), known: pick(raw?.known, LS_BANDS.known) };
+  const sum = s.ring + s.due + s.known;
+  return sum <= 1 ? s : { ring: s.ring / sum, due: s.due / sum, known: s.known / sum };
 }
 
-const CLASS_RANK: Readonly<Record<LsBand, number>> = { ring: 0, due: 1, mountain: 2, known: 3 };
+/** Wie weit hinter den ersten Bergen eine Höhe steht (Reihen): 1 → 0, 2 → 1, … ab 5 verdichtet, gedeckelt. */
+const mountainSpread = (height: number, narrow: boolean): number => {
+  const h = Math.max(1, height);
+  const g = h <= 4 ? h - 1 : 3 + Math.log2(h - 3);
+  return Math.min(narrow ? 4 : 7, Math.round(g));
+};
+
+type Region = 'valley' | 'ring' | 'mountain';
+
+interface Item {
+  readonly key: string;
+  /** Die Richtung (Grad). */
+  readonly angle: number;
+  /** Die Reihe, in die es gehört (weiter innen nie). */
+  readonly want: number;
+  /** Wer zuerst eine Zelle bekommt (kleiner zuerst). */
+  readonly prio: number;
+  readonly region: Region;
+  /** Der Bogen seines Bereichs (Grad) — dort bleibt es, solange Platz ist. */
+  readonly arc: readonly [number, number];
+}
+
+/** Liegt eine Zelle der Reihe k im Bogen — mit einer halben Zellbreite Spiel und `widen` ganzen Zellen mehr? */
+const inArc = (angle: number, arc: readonly [number, number], k: number, widen = 0): boolean => {
+  const slack = ((0.5 + widen) * 57.3) / Math.max(1, k);
+  return angle >= arc[0] - slack && angle <= arc[1] + slack;
+};
+
+/** Die Reihenfolge der Felder in einer Reihe: nach der Richtung, dann dem Vorrang, dann dem Schlüssel. */
+const itemOrder = (a: Pick<Item, 'angle' | 'prio' | 'key'>, b: Pick<Item, 'angle' | 'prio' | 'key'>): number =>
+  a.angle - b.angle || a.prio - b.prio || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 
 /**
- * EINE REIHE AUSEINANDERZIEHEN, so wenig wie nötig: Winkel (aufsteigend) mit mindestens `gap` Grad Abstand, die Summe der
- * Verschiebungen im Quadrat klein (Pool-Adjacent-Violators auf t_i − i·gap), innerhalb [lo, hi]. Wo Platz ist, bleibt
- * jeder bei seinem Winkel; nur Gedränge rückt auseinander — die Reihenfolge der Richtung bleibt.
+ * DAS STELLEN IN REIHEN (2026-11-03). In jeder Reihe stehen die Felder in der Reihenfolge ihrer Richtung — über ALLE
+ * Durchgänge: wer später kommt, kommt zwischen die schon stehenden Felder, zwischen die er gehört. Je Durchgang Reihe für
+ * Reihe von innen; wer hier stehen darf (`want` ≤ Reihe, ausser mit `anyRow`), bekommt ordnungstreu eine freie Zelle im
+ * Bogen seines Bereichs, `widen` Zellen weiter (∞: wo auch immer zwischen seinen Nachbarn). `loose` lässt die Reihenfolge
+ * fallen — der allerletzte Ausweg, damit kein Feld verloren geht. Zurück: wer in diesem Durchgang nicht unterkam.
  */
-export function spreadAngles(targets: readonly number[], gap: number, lo: number, hi: number): number[] {
-  const n = targets.length;
-  if (n === 0) return [];
-  const g = n > 1 && (n - 1) * gap > hi - lo ? (hi - lo) / (n - 1) : gap;
-  const blocks: { sum: number; n: number }[] = [];
-  targets.forEach((t, i) => {
-    blocks.push({ sum: t - i * g, n: 1 });
-    while (blocks.length > 1) {
-      const b = blocks[blocks.length - 1];
-      const a = blocks[blocks.length - 2];
-      if (a.sum / a.n <= b.sum / b.n) break;
-      a.sum += b.sum; a.n += b.n; blocks.pop();
+class RowPlacer {
+  private readonly standing = new Map<number, { readonly item: Item; readonly angle: number }[]>();
+
+  constructor(private readonly taken: Set<string>, private readonly out: Map<string, { cell: Cell; row: number }>) {}
+
+  place(items: readonly Item[], rows: readonly number[], opt: { readonly widen?: number; readonly anyRow?: boolean; readonly loose?: boolean } = {}): Item[] {
+    const widen = opt.widen ?? 0;
+    let pending = [...items];
+    for (const k of rows) {
+      if (pending.length === 0) break;
+      const here = pending.filter((it) => opt.anyRow === true || it.want <= k).sort(itemOrder);
+      if (here.length === 0) continue;
+      const cells = rowCells(k).filter((c) => !this.taken.has(`${c.q},${c.r}`));
+      if (cells.length === 0) continue;
+      const row = this.standing.get(k) ?? [];
+      /* Das Fenster jedes Feldes: zwischen den Zellen der stehenden Nachbarn davor und danach. */
+      const at = (it: Item): number => {
+        let a = 0;
+        let b = row.length;
+        while (a < b) { const m = (a + b) >> 1; if (itemOrder(row[m].item, it) < 0) a = m + 1; else b = m; }
+        return a;
+      };
+      const lo = here.map((it) => { const i = at(it); return opt.loose === true || i === 0 ? -Infinity : row[i - 1].angle; });
+      const hi = here.map((it) => { const i = at(it); return opt.loose === true || i === row.length ? Infinity : row[i].angle; });
+      const got = matchInOrder(here.map((it) => it.angle), here.map((it) => it.prio), cells.map((c) => c.angle), (i, j) => {
+        const angle = cells[j].angle;
+        return angle > lo[i] && angle < hi[i] && (widen === Infinity || inArc(angle, here[i].arc, k, widen));
+      });
+      const placed = new Set<string>();
+      got.forEach((ci, i) => {
+        if (ci < 0) return;
+        const c = cells[ci];
+        this.taken.add(`${c.q},${c.r}`);
+        this.out.set(here[i].key, { cell: c, row: k });
+        placed.add(here[i].key);
+        row.splice(at(here[i]), 0, { item: here[i], angle: c.angle });
+      });
+      this.standing.set(k, row);
+      pending = pending.filter((it) => !placed.has(it.key));
     }
-  });
-  const x: number[] = [];
-  for (const b of blocks) for (let k = 0; k < b.n; k += 1) x.push(b.sum / b.n + x.length * g);
-  const under = lo - x[0];
-  if (under > 0) for (let i = 0; i < n; i += 1) x[i] += under;
-  const over = x[n - 1] - hi;
-  if (over > 0) for (let i = 0; i < n; i += 1) x[i] -= over;
-  return x.map((v) => Math.max(lo, Math.min(hi, v)));
+    return pending;
+  }
 }
 
 /**
- * DIE GESTALT EINES STANDES: welche Einträge einzeln stehen (das Budget), was sich zu Bereichen sammelt, wo jedes Feld
- * steht — und der Weg zum Ziel.
+ * DIE GESTALT EINES STANDES: welche Einträge einzeln stehen (das Budget nach Bändern), was sich zu Bereichsfeldern
+ * sammelt, in welcher Reihe und Zelle jedes Feld steht, wie hoch es gezeichnet wird — und der Weg zum Ziel.
  */
 export function layoutOf(input: LsInput, g: LsGraph, h: LsHeights, options: LsOptions = {}, known?: Direction): LsLayout {
   const budget = Math.max(6, Math.min(400, Math.round(options.budget ?? LS_BUDGET)));
   const dir = known ?? directionOf(input, g, options.focus ?? []);
   const n = input.ids.length;
+  const narrow = options.narrow === true;
   const label = (v: number) => input.labels[v] ?? input.ids[v] ?? '';
   const notes: string[] = [];
   if (input.needs.every((l) => l.length === 0)) notes.push('Ta baza nie ma kolejności nauki („Najpierw trzeba znać”) — wszystko, czego jeszcze nie umiesz, leży na pierścieniu.');
@@ -883,138 +1130,321 @@ export function layoutOf(input: LsInput, g: LsGraph, h: LsHeights, options: LsOp
     goal = { id: input.ids[goalIndex], steps: route.steps.length, next: route.next.map((v) => input.ids[v]).concat(route.next.length === 0 && route.goalOpen && h.band[goalIndex] === 'ring' ? [input.ids[goalIndex]] : []), route: route.steps.flat().map((v) => input.ids[v]), open: route.goalOpen };
   }
 
-  /* Wer im Fokus steht, nach Vorrang: das Ziel und der Ring zuerst, dann was zu wiederholen ist, dann die nahen Berge. */
+  /* Wer im Fokus steht — je Band. */
   const inFocus: number[] = [];
   for (let v = 0; v < n; v += 1) if (Number.isFinite(dir.angle[v]) && h.band[v] !== null) inFocus.push(v);
-  const prio = (v: number): number[] => {
-    const b = h.band[v]!;
-    const boost = v === goalIndex ? -2 : nextStep[v] === 1 ? -1 : 0;
-    const within = b === 'due' ? -h.height[v] : b === 'mountain' ? h.missing[v] : 0;
-    return [boost, CLASS_RANK[b], onRoute[v] === 1 ? 0 : 1, within, dir.angle[v]];
-  };
-  const keyed = inFocus.map((v) => ({ v, p: prio(v) }));
-  keyed.sort((a, b) => {
-    for (let i = 0; i < a.p.length; i += 1) if (a.p[i] !== b.p[i]) return a.p[i] - b.p[i];
-    return a.v - b.v;
-  });
-  const single = keyed.slice(0, budget).map((k) => k.v);
-  const rest = keyed.slice(budget).map((k) => k.v);
   const counts: Record<LsBand, number> = { known: 0, due: 0, ring: 0, mountain: 0 };
   for (const v of inFocus) counts[h.band[v]!] += 1;
-  const ringCount = single.filter((v) => h.band[v] === 'ring').length;
-  const narrow = options.narrow === true;
-  const ring = Math.max(narrow ? 4 : 5, Math.min(narrow ? 9 : 14, ringCount / 2.6 + 1.2));
+  const ofBand = (b: LsBand) => inFocus.filter((v) => h.band[v] === b);
+  const R = ofBand('ring');
+  const D = ofBand('due');
+  const K = ofBand('known');
+  const M = ofBand('mountain');
 
-  /* Bereiche: je Bereich und Art (Land: gelernt; Ring: jetzt zu lernen; Gebirge: noch nicht erreichbar). */
-  type Agg = { key: string; value: string; label: string; ids: number[]; cls: 'land' | 'ring' | 'range'; area: number };
+  /* -- Reihen und Bögen: wie viel Platz jeder Bereich hat — das Budget hängt daran ---------------------------- */
+  /* Wo ein Feld steht (sein Winkel) — und wohin es gehört (darin sammelt es sich, wenn es nicht einzeln steht). */
+  const areaKey = (v: number): string => (dir.centre[v] === 1 ? 'c' : String(dir.area[v]));
+  const homeKey = (v: number): string => (dir.centre[v] === 1 ? 'c' : String(dir.home[v] >= 0 ? dir.home[v] : dir.area[v]));
+  const regionOf = (b: LsBand): Region => (b === 'known' || b === 'due' ? 'valley' : b === 'ring' ? 'ring' : 'mountain');
+  const rowsFrom = (a: number, b: number) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
+  const kMin = narrow ? 4 : 5;
+  const kMax = narrow ? 9 : 14;
+  const keys = [...new Set([...inFocus.map(areaKey), ...inFocus.map(homeKey)])];
+  const shares = bandShares(options.bands);
+  const quota = {
+    ring: Math.round(shares.ring * budget),
+    due: Math.round(shares.due * budget),
+    known: K.length === 0 ? 0 : Math.max(Math.round(shares.known * budget), Math.min(K.length, budget >= 12 ? 3 : 1)),
+    mountain: 0
+  };
+  quota.mountain = Math.max(0, budget - quota.ring - quota.due - quota.known);
+  /* Die Bögen: ein Bereich sein Sektor; die Mitte (ohne Wert) ein schmaler Bogen um 90°; was ausserhalb liegt, die Ränder. */
+  const nCentre = inFocus.reduce((s, v) => s + dir.centre[v], 0);
+  const centreHalf = Math.min(30, 4 + nCentre * 1.5);
+  const arcOfKey = (key: string): readonly [number, number] => {
+    if (key === 'c') return [90 - centreHalf, 90 + centreHalf];
+    const s = dir.sectors[Number(key)];
+    return s === undefined ? [0, 180] : [s.from, s.to];
+  };
+  /* Immer einzeln: das Ziel, der nächste Schritt, der Ring auf dem Weg dorthin. */
+  const byAngle = (a: number, b: number) => dir.angle[a] - dir.angle[b] || a - b;
+  const forced = inFocus.filter((v) => v === goalIndex || nextStep[v] === 1 || (onRoute[v] === 1 && h.band[v] === 'ring'))
+    .sort((a, b) => (a === goalIndex ? -1 : b === goalIndex ? 1 : 0) || nextStep[b] - nextStep[a] || byAngle(a, b));
+  /* Der Ring so weit draussen, dass sein Anteil und je Bereich ein Sammelfeld auf eine Reihe passen (höchstens kMax). */
+  const ringWant = Math.min(R.length, Math.max(quota.ring, forced.filter((v) => h.band[v] === 'ring').length)) + (R.length > 0 ? keys.length : 0) + dir.outside.length;
+  const valleyWant = Math.min(K.length + D.length, quota.known + quota.due) + (K.length + D.length > 0 ? keys.length : 0);
+  /* Zellen im Bogen je Zone (die Berge: so weit, wie ihre Höhen reichen, und zwei Reihen mehr) — eine bleibt fürs Sammelfeld. */
+  /* Gezählt wird streng im Bogen: das Spiel am Rand teilen sich die Nachbarn (sonst passte mehr hinein, als Platz ist). */
+  const cellsIn = (rows: readonly number[], arc: readonly [number, number]) => rows.reduce((s, k) => s + rowCells(k).filter((c) => c.angle >= arc[0] && c.angle <= arc[1]).length, 0);
+  /*
+   * Die Reihe des Rings: weit genug für alles auf ihm (und das Tal davor) — und so weit, dass möglichst viele Bereiche
+   * ihren Ring einzeln zeigen können (ein schmaler Bogen hält nah am Lernenden nur wenige Zellen); von den Reihen, die
+   * das Meiste einzeln zeigen, die innerste.
+   */
+  const ringOf = new Map<string, number>();
+  for (const v of R) ringOf.set(homeKey(v), (ringOf.get(homeKey(v)) ?? 0) + 1);
+  const singlyAt = (k: number): number => {
+    let rest = quota.ring;
+    let shown = 0;
+    for (const [key, n] of [...ringOf].sort((a, b) => a[1] - b[1])) {
+      const cap = cellsIn([k, k + 1], arcOfKey(key));
+      if (n <= rest && n <= cap) { rest -= n; shown += n; } else if (key === 'c' || dir.sectors.length <= 1) { const m = Math.min(rest, cap - 1, n); rest -= m; shown += m; }
+    }
+    return shown;
+  };
+  let kR = kMax;
+  let bestShown = -1;
+  for (let k = kMin; k <= kMax; k += 1) {
+    let valley = 0;
+    for (let j = 1; j <= k - 2; j += 1) valley += rowSize(j);
+    if (rowSize(k) < Math.ceil(ringWant * 1.15) || valley < Math.ceil(valleyWant * 1.6) + 2) continue;
+    const shown = singlyAt(k);
+    if (shown > bestShown) { bestShown = shown; kR = k; }
+  }
+  const valleyLast = Math.max(1, kR - 2);
+  const spreadMax = narrow ? 4 : 7;
+  const room = new Map<string, Record<Region, number>>();
+  for (const key of keys) {
+    const arc = arcOfKey(key);
+    room.set(key, { valley: cellsIn(rowsFrom(1, valleyLast), arc) - 1, ring: cellsIn([kR, kR + 1], arc) - 1, mountain: cellsIn(rowsFrom(kR + 3, kR + 5 + spreadMax), arc) - 1 });
+  }
+
+  /* -- Wer einzeln steht: das Budget nach Bändern ------------------------------------------------------------ */
+  const single = new Set<number>();
+  /* `force`: das Ziel, sein nächster Schritt und der Ring auf seinem Weg — nie in einem Sammelfeld, auch wenn es eng wird. */
+  const take = (v: number, force = false): boolean => {
+    if (single.has(v)) return true;
+    if (!force && single.size >= budget) return false;
+    const r = room.get(areaKey(v));
+    const z = regionOf(h.band[v]!);
+    if (!force && r !== undefined && r[z] <= 0) return false;
+    if (r !== undefined) r[z] -= 1;
+    single.add(v);
+    return true;
+  };
+  const left = () => budget - single.size;
+  const usedOf = (list: readonly number[]) => list.reduce((s, v) => s + (single.has(v) ? 1 : 0), 0);
+  const ringOrder = (a: number, b: number) => onRoute[b] - onRoute[a] || byAngle(a, b);
+  const dueOrder = (a: number, b: number) => h.height[b] - h.height[a] || byAngle(a, b);
+  const knownOrder = (a: number, b: number) => h.height[a] - h.height[b] || byAngle(a, b);
+  /* Berge gleicher Höhe reihum aus allen Bereichen (sonst bekäme der erste Bereich alle einzelnen). */
+  const inArea = new Map<number, number>();
+  {
+    const byArea = new Map<string, number[]>();
+    for (const v of M) { const key = homeKey(v); const got = byArea.get(key); if (got === undefined) byArea.set(key, [v]); else got.push(v); }
+    for (const list of byArea.values()) { list.sort((a, b) => h.missing[a] - h.missing[b] || byAngle(a, b)); list.forEach((v, i) => inArea.set(v, i)); }
+  }
+  const mountainOrder = (a: number, b: number) => onRoute[b] - onRoute[a] || h.missing[a] - h.missing[b] || (inArea.get(a) ?? 0) - (inArea.get(b) ?? 0) || byAngle(a, b);
+  /*
+   * Ein Bereich ganz oder gar nicht (sonst EIN Feld mit Zahl) — ganz nur, wenn seine Einträge ins Budget UND in seinen
+   * Bogen passen; nur wenn er sich nicht weiter öffnen lässt (die Mitte, der einzige Bereich), auch zum Teil.
+   */
+  const partial = (key: string) => key === 'c' || dir.sectors.length <= 1;
+  const fit = (list: readonly number[], order: (a: number, b: number) => number, budgetRoom: number): void => {
+    const groups = new Map<string, number[]>();
+    for (const v of list) {
+      if (single.has(v)) continue;
+      const key = homeKey(v);
+      const got = groups.get(key);
+      if (got === undefined) groups.set(key, [v]); else got.push(v);
+    }
+    let rest = Math.min(budgetRoom, left());
+    for (const [key, members] of [...groups].sort((a, b) => a[1].length - b[1].length || (a[0] < b[0] ? -1 : 1))) {
+      if (rest <= 0) break;
+      members.sort(order);
+      const r = room.get(key);
+      const z = regionOf(h.band[members[0]]!);
+      const arcRoom = r === undefined ? Infinity : r[z];
+      /* Stehen alle einzeln, braucht der Bereich hier kein Sammelfeld: seine Zelle wird frei. */
+      if (members.length <= rest && members.length <= arcRoom + 1) {
+        if (r !== undefined) r[z] += 1;
+        for (const v of members) if (take(v)) rest -= 1;
+        continue;
+      }
+      if (partial(key)) for (const v of members.slice(0, Math.max(0, Math.min(rest, arcRoom)))) if (take(v)) rest -= 1;
+    }
+  };
+  const fill = (list: readonly number[], order: (a: number, b: number) => number, budgetRoom: number): void => {
+    let rest = Math.min(budgetRoom, left());
+    for (const v of [...list].filter((x) => !single.has(x)).sort(order)) { if (rest <= 0) break; if (take(v)) rest -= 1; }
+  };
+  for (const v of forced) take(v, true);
+  /* Erst jedes Band in seinem Anteil … */
+  fit(R, ringOrder, quota.ring - usedOf(R));
+  fill(D, dueOrder, quota.due - usedOf(D));
+  fit(K, knownOrder, quota.known - usedOf(K));
+  fill(M, mountainOrder, quota.mountain - usedOf(M));
+  /* … dann der Rest: was zu wiederholen ist, der Ring, die Berge, das Tal. */
+  fill(D, dueOrder, left());
+  fit(R, ringOrder, left());
+  fill(M, mountainOrder, left());
+  fit(K, knownOrder, left());
+
+  /* -- Die Sammelfelder: je Bereich und Art (Tal, Ring, Gebirge) -------------------------------------------- */
+  type Agg = { key: string; value: string; label: string; ids: number[]; cls: 'land' | 'ring' | 'range'; area: number; arc: readonly [number, number] };
   const aggs = new Map<string, Agg>();
-  for (const v of rest) {
+  for (const v of inFocus) {
+    if (single.has(v)) continue;
     const b = h.band[v]!;
     const cls = b === 'known' || b === 'due' ? 'land' : b === 'ring' ? 'ring' : 'range';
-    const a = dir.area[v];
-    const sector = dir.sectors[a];
-    const key = `area:${sector?.value ?? ''}:${cls}`;
+    const mid = dir.centre[v] === 1;
+    const a = mid ? -1 : dir.home[v] >= 0 ? dir.home[v] : dir.area[v];
+    const sector = a >= 0 ? dir.sectors[a] : undefined;
+    const value = mid ? '' : sector?.value ?? '';
+    const key = `area:${mid ? '' : value}:${cls}`;
     const got = aggs.get(key);
-    if (got === undefined) aggs.set(key, { key, value: sector?.value ?? '', label: sector?.label ?? '', ids: [v], cls, area: a });
+    if (got === undefined) aggs.set(key, { key, value, label: mid ? 'bez obszaru' : sector?.label ?? '', ids: [v], cls, area: a, arc: arcOfKey(homeKey(v)) });
     else got.ids.push(v);
   }
+  const aggList = [...aggs.values()];
+  const minHeight = (ids: readonly number[]) => Math.min(...ids.map((v) => h.height[v]));
+  const meanAngle = (ids: readonly number[]) => ids.reduce((s, v) => s + dir.angle[v], 0) / Math.max(1, ids.length);
 
-  const fields: LsField[] = [];
-  /*
-   * Reihen nach der Höhe (der Ring, jede Bergstufe, das Tal in Streifen): in jeder Reihe rücken nur Gedrängte auseinander
-   * (`spreadAngles`); eine Reihe, die nicht passt, wird zwei versetzte (Bienenwabe). Dann das Raster.
-   */
-  const rows = new Map<string, number[]>();
-  const radiusFor = new Map<number, number>();
-  for (const v of single) {
-    const r = radiusOf(h.height[v], ring, narrow);
-    radiusFor.set(v, r);
+  /* -- Die Reihen ---------------------------------------------------------------------------------------- */
+  const singles = inFocus.filter((v) => single.has(v));
+  const edgeRegion = (ids: readonly number[]): Region => (ids.some((v) => h.band[v] === 'ring') ? 'ring' : ids.some((v) => h.band[v] === 'mountain') ? 'mountain' : 'valley');
+  const valleyRow = (height: number) => (height <= -1 ? 1 : Math.max(1, Math.min(valleyLast, 1 + Math.round((kR - 3) * (height + 1)))));
+  const taken = new Set<string>(['0,0']);
+  const at = new Map<string, { cell: Cell; row: number }>();
+  const items: Item[] = [];
+  const later: { readonly key: string; readonly angle: number; readonly low: number; readonly prio: number; readonly arc: readonly [number, number] }[] = [];
+  for (const v of singles) {
     const b = h.band[v]!;
-    const key = b === 'ring' ? 'ring' : b === 'mountain' ? `m${h.height[v]}` : `v${Math.round(r)}`;
-    const list = rows.get(key);
-    if (list === undefined) rows.set(key, [v]); else list.push(v);
+    const region = regionOf(b);
+    const angle = dir.centre[v] === 1 ? 90 : dir.angle[v];
+    const arc = arcOfKey(areaKey(v));
+    if (region === 'mountain') { later.push({ key: input.ids[v], angle, low: h.height[v], prio: h.missing[v], arc }); continue; }
+    const prio = region === 'valley' ? (b === 'known' ? 0 : 1) : (v === goalIndex || nextStep[v] === 1 || onRoute[v] === 1 ? 0 : 1);
+    items.push({ key: input.ids[v], angle, want: region === 'valley' ? valleyRow(h.height[v]) : kR, prio, region, arc });
   }
-  const target = new Map<number, { angle: number; radius: number }>();
-  for (const list of rows.values()) {
-    list.sort((a, b) => dir.angle[a] - dir.angle[b] || a - b);
-    const base = list.reduce((sum, v) => sum + radiusFor.get(v)!, 0) / list.length;
-    const capacity = Math.max(1, Math.floor(0.86 * Math.PI * base));
-    const parts = Math.max(1, Math.ceil(list.length / capacity));
-    for (let part = 0; part < parts; part += 1) {
-      const mine = list.filter((_, i) => i % parts === part);
-      const radius = base + part * 0.95;
-      const gap = (1.04 / radius) * (180 / Math.PI);
-      const angles = spreadAngles(mine.map((v) => dir.angle[v]), gap, 3, 177);
-      mine.forEach((v, i) => target.set(v, { angle: angles[i], radius: part === 0 ? radiusFor.get(v)! : radius }));
-    }
+  for (const agg of aggList) {
+    const low = minHeight(agg.ids);
+    /* In seinem Bogen (ein Wątek darin kann seinen Winkel ausserhalb haben). */
+    const angle = agg.area < 0 ? 90 : Math.max(agg.arc[0], Math.min(agg.arc[1], meanAngle(agg.ids)));
+    if (agg.cls === 'range') { later.push({ key: agg.key, angle, low, prio: Math.max(1, low), arc: agg.arc }); continue; }
+    items.push({ key: agg.key, angle, want: agg.cls === 'land' ? valleyRow(low) : kR, prio: 0, region: agg.cls === 'land' ? 'valley' : 'ring', arc: agg.arc });
   }
-  const placing: Placing[] = [];
-  for (const v of single) {
-    const t = target.get(v)!;
-    placing.push({ key: input.ids[v], angle: t.angle, radius: t.radius });
+  /* Ausserhalb des Fokus: ganz links und ganz rechts in ihrer Zone. */
+  const edgeKeys = new Map<string, (typeof dir.outside)[number]>();
+  let li = 0;
+  let ri = 0;
+  for (const o of dir.outside) {
+    const key = `edge:${o.value}`;
+    edgeKeys.set(key, o);
+    const region = edgeRegion(o.ids);
+    const angle = o.side === 'left' ? 0.01 * li++ : 180 - 0.01 * ri++;
+    const arc: readonly [number, number] = o.side === 'left' ? [0, 8] : [172, 180];
+    const low = minHeight(o.ids.filter((v) => h.band[v] !== null));
+    if (region === 'mountain') { later.push({ key, angle, low: Math.max(1, low), prio: 0, arc }); continue; }
+    items.push({ key, angle, want: region === 'valley' ? valleyLast : kR, prio: 0, region, arc });
   }
-  const aggFields = [...aggs.values()].sort((a, b) => a.area - b.area || a.cls.localeCompare(b.cls));
-  const aggHeight = (agg: Agg): number => {
-    const open = agg.ids.filter((v) => h.band[v] === 'ring' || h.band[v] === 'mountain');
-    if (open.length === 0) return Math.max(-1, ...agg.ids.map((v) => h.height[v]));
-    return Math.min(...open.map((v) => h.height[v]));
-  };
-  for (const agg of aggFields) {
-    const s = dir.sectors[agg.area];
-    const mid = s === undefined ? 90 : (s.from + s.to) / 2;
-    const height = aggHeight(agg);
-    const radius = agg.cls === 'land' ? Math.max(2, ring - 1.4) : agg.cls === 'ring' ? ring + 0.9 : Math.min(ring + (narrow ? 3.6 : 5.5), radiusOf(Math.max(1, height), ring, narrow) + 0.9);
-    placing.push({ key: agg.key, angle: mid, radius });
-  }
-  /* Ausserhalb des Fokus: an den Rändern des Halbkreises. */
-  const edgeItems = dir.outside.map((o, i, all) => {
-    const left = all.filter((x) => x.side === 'left');
-    const right = all.filter((x) => x.side === 'right');
-    const list = o.side === 'left' ? left : right;
-    const at = list.indexOf(o);
-    return { o, key: `edge:${o.value}`, angle: o.side === 'left' ? 4 + at * 7 : 176 - at * 7, radius: ring + 0.8, i };
-  });
-  for (const e of edgeItems) placing.push({ key: e.key, angle: e.angle, radius: e.radius });
-  const placed = placeAll(placing);
+  const zone = (r: Region) => items.filter((it) => it.region === r);
+  /*
+   * Das Tal, der Ring (eine Reihe — braucht ein Bereich mehr, als sein Bogen hält, eine zweite), die Berge — jeder in
+   * seinem Bogen; wer dort nicht unterkommt, zuletzt irgendwo in seiner Zone (nie in einer Zelle mit einem anderen).
+   */
+  /*
+   * Jede Zone in Durchgängen: im Bogen in ihren Reihen (das Tal danach auch weiter innen, als es verblasst ist), dann
+   * Zelle um Zelle breiter — immer zwischen den Nachbarn in der Reihe; erst ganz zuletzt irgendwo.
+   */
+  const placer = new RowPlacer(taken, at);
+  const valleyRows = rowsFrom(1, valleyLast);
+  let valleyLeft = placer.place(zone('valley'), valleyRows);
+  valleyLeft = placer.place(valleyLeft, valleyRows, { anyRow: true });
+  for (let w = 1; w <= 6 && valleyLeft.length > 0; w += 1) valleyLeft = placer.place(valleyLeft, valleyRows, { anyRow: true, widen: w });
+  valleyLeft = placer.place(valleyLeft, [...valleyRows, kR - 1], { anyRow: true, widen: Infinity });
+  let ringLeft = placer.place(zone('ring'), [kR, kR + 1]);
+  for (let w = 1; w <= 6 && ringLeft.length > 0; w += 1) ringLeft = placer.place(ringLeft, [kR, kR + 1], { widen: w });
+  ringLeft = placer.place(ringLeft, [kR, kR + 1, kR + 2], { widen: Infinity });
+  let lastRing = kR;
+  for (const it of zone('ring')) { const p = at.get(it.key); if (p !== undefined) lastRing = Math.max(lastRing, p.row); }
+  const ringRows = rowsFrom(kR, lastRing);
+  const kM0 = lastRing + 2;
+  const mountains: Item[] = [
+    ...later.map((m) => ({ key: m.key, angle: m.angle, want: kM0 + mountainSpread(m.low, narrow), prio: m.prio, region: 'mountain' as const, arc: m.arc })),
+    ...[...valleyLeft, ...ringLeft].map((it) => ({ ...it, want: kM0 }))
+  ];
+  for (const m of mountains) items.push(m);
+  const mountainRows = rowsFrom(kM0, kM0 + spreadMax + 4);
+  let mountainLeft = placer.place(mountains, mountainRows);
+  for (let w = 1; w <= 3 && mountainLeft.length > 0; w += 1) mountainLeft = placer.place(mountainLeft, mountainRows, { widen: w });
+  mountainLeft = placer.place(mountainLeft, rowsFrom(kM0, ROWS));
+  mountainLeft = placer.place(mountainLeft, rowsFrom(kM0, ROWS), { widen: Infinity });
+  placer.place(mountainLeft, rowsFrom(1, ROWS), { anyRow: true, widen: Infinity, loose: true });
 
-  for (const v of single) {
-    const at = placed.get(input.ids[v]);
-    if (at === undefined) continue;
+  /* -- Wie hoch gezeichnet: je Zone und Reihe; dann nie über die Zelle dahinter (von hinten nach vorn). ----- */
+  const regionOfKey = new Map(items.map((it) => [it.key, it.region] as const));
+  const wantLift = (region: Region, row: number): number => {
+    if (region === 'valley') return -0.55 + 0.45 * Math.max(0, Math.min(1, (row - 1) / Math.max(1, kR - 3)));
+    if (region === 'ring') return 0.32;
+    return 0.32 + 0.3 * Math.max(1, Math.min(8, row - kM0 + 1));
+  };
+  const cellsByBack = [...at.entries()].map(([key, p]) => ({ key, q: p.cell.q, r: p.cell.r, y: p.cell.y, x: p.cell.x, want: wantLift(regionOfKey.get(key) ?? 'ring', p.row) }));
+  /* Der Lernende steht am Grund des Tals. */
+  cellsByBack.push({ key: '', q: 0, r: 0, y: 0, x: 0, want: -0.55 });
+  cellsByBack.sort((a, b) => b.y - a.y || a.x - b.x);
+  const liftAt = new Map<string, number>();
+  const liftOf = new Map<string, number>();
+  for (const c of cellsByBack) {
+    let z = c.want;
+    for (const [dq, dr, tol] of BEHIND) {
+      const behind = liftAt.get(`${c.q + dq},${c.r + dr}`);
+      if (behind !== undefined) z = Math.min(z, behind + tol);
+    }
+    liftAt.set(`${c.q},${c.r}`, z);
+    liftOf.set(c.key, z);
+  }
+
+  /* -- Die Felder ---------------------------------------------------------------------------------------- */
+  const fields: LsField[] = [];
+  const placeOf = (key: string) => at.get(key);
+  for (const v of singles) {
+    const p = placeOf(input.ids[v]);
+    if (p === undefined) continue;
+    const b = h.band[v]!;
     fields.push({
-      key: input.ids[v], kind: 'entry', id: input.ids[v], label: label(v), count: 1, height: h.height[v], missing: h.missing[v], band: h.band[v]!,
-      locked: h.locked[v] === 1, subject: dir.subject[v], area: dir.area[v], q: at.q, r: at.r, x: at.x, y: at.y, angle: dir.angle[v],
-      route: onRoute[v], next: nextStep[v] === 1, goal: v === goalIndex, due: h.band[v] === 'due' ? 1 : 0, ring: h.band[v] === 'ring' ? 1 : 0, edge: false,
+      key: input.ids[v], kind: 'entry', id: input.ids[v], label: label(v), count: 1, height: h.height[v], missing: h.missing[v], band: b,
+      locked: h.locked[v] === 1, subject: dir.subject[v], area: dir.centre[v] === 1 ? -1 : dir.area[v], q: p.cell.q, r: p.cell.r, x: p.cell.x, y: p.cell.y,
+      angle: dir.centre[v] === 1 ? 90 : dir.angle[v], row: p.row, lift: liftOf.get(input.ids[v]) ?? 0,
+      route: onRoute[v], next: nextStep[v] === 1, goal: v === goalIndex, due: b === 'due' ? 1 : 0, ring: b === 'ring' ? 1 : 0, known: b === 'known' ? 1 : 0, edge: false,
       ...(options.marks?.[input.ids[v]] === undefined ? {} : { mark: options.marks[input.ids[v]] })
     });
   }
-  for (const agg of aggFields) {
-    const at = placed.get(agg.key);
-    if (at === undefined) continue;
-    const height = aggHeight(agg);
-    const band: LsBand = agg.cls === 'land' ? (agg.ids.some((v) => h.band[v] === 'due') ? 'due' : 'known') : agg.cls === 'ring' ? 'ring' : 'mountain';
-    const s = dir.sectors[agg.area];
+  for (const agg of aggList) {
+    const p = placeOf(agg.key);
+    if (p === undefined) continue;
+    const low = minHeight(agg.ids);
+    const band: LsBand = agg.cls === 'land' ? (agg.ids.some((v) => h.band[v] === 'known') ? 'known' : 'due') : agg.cls === 'ring' ? 'ring' : 'mountain';
+    const s = agg.area >= 0 ? dir.sectors[agg.area] : undefined;
     fields.push({
-      key: agg.key, kind: 'area', value: agg.value, label: agg.label, count: agg.ids.length, height, missing: Math.max(0, height), band,
-      locked: false, subject: s?.subject ?? -1, area: agg.area, q: at.q, r: at.r, x: at.x, y: at.y, angle: s === undefined ? 90 : (s.from + s.to) / 2,
+      key: agg.key, kind: 'area', value: agg.value, label: agg.label, count: agg.ids.length, height: band === 'known' || band === 'due' ? Math.max(-1, ...agg.ids.map((v) => h.height[v])) : low, missing: Math.max(0, low), band,
+      locked: false, subject: s?.subject ?? -1, area: agg.area, q: p.cell.q, r: p.cell.r, x: p.cell.x, y: p.cell.y, angle: agg.area < 0 ? 90 : Math.max(agg.arc[0], Math.min(agg.arc[1], meanAngle(agg.ids))), row: p.row, lift: liftOf.get(agg.key) ?? 0,
       route: agg.ids.filter((v) => onRoute[v] === 1 || v === goalIndex).length, next: agg.ids.some((v) => nextStep[v] === 1), goal: goalIndex !== undefined && agg.ids.includes(goalIndex),
-      due: agg.ids.filter((v) => h.band[v] === 'due').length, ring: agg.ids.filter((v) => h.band[v] === 'ring').length, edge: false, ids: agg.ids.map((v) => input.ids[v])
+      due: agg.ids.filter((v) => h.band[v] === 'due').length, ring: agg.ids.filter((v) => h.band[v] === 'ring').length, known: agg.ids.filter((v) => h.band[v] === 'known').length,
+      edge: false, ids: agg.ids.map((v) => input.ids[v])
     });
   }
-  for (const e of edgeItems) {
-    const at = placed.get(e.key);
-    if (at === undefined) continue;
-    const open = e.o.ids.filter((v) => h.band[v] === 'ring' || h.band[v] === 'mountain');
+  for (const [key, o] of edgeKeys) {
+    const p = placeOf(key);
+    if (p === undefined) continue;
+    const open = o.ids.filter((v) => h.band[v] === 'ring' || h.band[v] === 'mountain');
     const height = open.length === 0 ? -1 : Math.min(...open.map((v) => h.height[v]));
     fields.push({
-      key: e.key, kind: 'area', value: e.o.value, label: e.o.label, count: e.o.ids.length, height, missing: Math.max(0, height),
-      band: open.length === 0 ? 'known' : height === 0 ? 'ring' : 'mountain', locked: false, subject: e.o.subject, area: -1, q: at.q, r: at.r, x: at.x, y: at.y, angle: e.angle,
-      route: e.o.ids.filter((v) => onRoute[v] === 1 || v === goalIndex).length, next: e.o.ids.some((v) => nextStep[v] === 1), goal: goalIndex !== undefined && e.o.ids.includes(goalIndex),
-      due: e.o.ids.filter((v) => h.band[v] === 'due').length, ring: e.o.ids.filter((v) => h.band[v] === 'ring').length, edge: true, ids: e.o.ids.map((v) => input.ids[v])
+      key, kind: 'area', value: o.value, label: o.label, count: o.ids.length, height, missing: Math.max(0, height),
+      band: open.length === 0 ? 'known' : height === 0 ? 'ring' : 'mountain', locked: false, subject: o.subject, area: -1, q: p.cell.q, r: p.cell.r, x: p.cell.x, y: p.cell.y,
+      angle: o.side === 'left' ? 0 : 180, row: p.row, lift: liftOf.get(key) ?? 0,
+      route: o.ids.filter((v) => onRoute[v] === 1 || v === goalIndex).length, next: o.ids.some((v) => nextStep[v] === 1), goal: goalIndex !== undefined && o.ids.includes(goalIndex),
+      due: o.ids.filter((v) => h.band[v] === 'due').length, ring: o.ids.filter((v) => h.band[v] === 'ring').length, known: o.ids.filter((v) => h.band[v] === 'known').length,
+      edge: true, ids: o.ids.map((v) => input.ids[v])
     });
   }
   const bands = new Uint8Array(n);
   for (let v = 0; v < n; v += 1) bands[v] = h.band[v] === null ? 0 : BAND_CODE.indexOf(h.band[v]);
-  return { fields, sectors: dir.sectors, path: dir.path, goal, counts, total: inFocus.length, ring, notes, heights: h.height.slice(), bands, locked: h.locked.slice() };
+  return {
+    fields, sectors: dir.sectors, path: dir.path, goal, counts, total: inFocus.length, ring: kR,
+    rows: { valley: valleyLast, ring: ringRows, mountain: kM0 }, me: { lift: liftOf.get('') ?? 0 },
+    notes, heights: h.height.slice(), bands, locked: h.locked.slice()
+  };
 }
 
 /* -- Der Motor: Graph, Stand, Gestalt — getrennt, damit jeder Teil nur rechnet, wenn er sich ändert ---------------- */
@@ -1084,7 +1514,7 @@ export class LandscapeEngine {
 
   /** Wo ein Eintrag (oder sein Bereich) gerade steht — für Avatare und Führungen. */
   positionOf(id: string): { readonly x: number; readonly y: number; readonly height: number; readonly field: string } | null {
-    const f = this.last?.fields.find((x) => x.id === id) ?? null;
+    const f = this.last?.fields.find((x) => x.id === id || (x.ids?.includes(id) ?? false)) ?? null;
     return f === null ? null : { x: f.x, y: f.y, height: f.height, field: f.key };
   }
 

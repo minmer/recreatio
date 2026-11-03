@@ -358,11 +358,20 @@ export interface AxisSort {
  * der dann auf den Wert zeigt; `*`: über irgendeines). `group`: ein
  * Verweisfeld der Werte, nach dem sie unter Überschriften stehen
  * (Tajemnica → „część": radosne, światła, bolesne, chwalebne).
+ *
+ * 2026-11-03 — `depth` (mit `through`): über ALLE Stufen (`"all"`) oder bis
+ * zu n Schritte. Dann gilt: ein Eintrag mit eigenem Wert behält NUR diesen;
+ * sonst je Weg nach oben der nächste Eintrag, der einen Wert hat (dessen
+ * Vorfahren zählen nicht mehr) — Wege in verschiedene Zweige geben alle ihre
+ * Werte (ein Wątek zwischen zwei Etappen). Ohne `depth`: wie bisher ein
+ * Schritt, eigene und geerbte Werte zusammen (der Krajobraz nimmt bei einem
+ * Strukturfeld nach oben von sich aus `"all"`, `landscapeData.ts`).
  */
 export interface Axis {
   readonly kind: string;
   readonly via: readonly string[];
   readonly through?: string;
+  readonly depth?: number | 'all';
   readonly sort?: AxisSort;
   readonly group?: string;
 }
@@ -380,10 +389,14 @@ export function readAxis(raw: Record<string, unknown>): Axis | null {
   const kind = str(raw.kind);
   if (kind === '') return null;
   const sort = isObject(raw.sort) && str(raw.sort.field) !== '' ? { field: str(raw.sort.field), ...(str(raw.sort.list) !== '' ? { list: str(raw.sort.list) } : {}) } : undefined;
+  const steps = typeof raw.depth === 'number' ? raw.depth : typeof raw.depth === 'string' && raw.depth.trim() !== 'all' ? Number(raw.depth) : Number.NaN;
+  const depth = raw.depth === 'all' || (typeof raw.depth === 'string' && raw.depth.trim() === 'all') ? 'all' as const
+    : Number.isFinite(steps) && steps >= 1 ? Math.min(64, Math.round(steps)) : undefined;
   return {
     kind,
     via: strings(raw.via),
     ...(str(raw.through) !== '' ? { through: str(raw.through) } : {}),
+    ...(depth === undefined || str(raw.through) === '' ? {} : { depth }),
     ...(sort === undefined ? {} : { sort }),
     ...(str(raw.group) !== '' ? { group: str(raw.group) } : {})
   };
@@ -458,18 +471,90 @@ export function axisValues(ctx: SelectContext, axis: Axis): { value: Entity; hea
  * `via` auf sie zeigt. Ein Wert gehört zu sich selbst.
  */
 export function axisMembers(ctx: SelectContext, entity: Entity, axis: Axis, values: ReadonlySet<string>): string[] {
+  return axisMembersOf(ctx, axis, values)(entity);
+}
+
+/**
+ * 2026-11-03 — DIE ZUGEHÖRIGKEIT FÜR VIELE EINTRÄGE auf einmal (Gruppen, Krajobraz): einmal gebaut, je Eintrag
+ * gefragt; mit `depth` über die Stufen, gemerkt (jeder Eintrag einmal), ohne Rekursion (lange Ketten), ein Kreis
+ * bricht ab. Ohne `depth`: genau `axisMembers` von früher (ein Schritt).
+ */
+export function axisMembersOf(ctx: SelectContext, axis: Axis, values: ReadonlySet<string>): (entity: Entity) => string[] {
   const look = ctx.look;
-  const out = new Set<string>();
-  if (values.has(entity.id)) out.add(entity.id);
-  for (const t of targetsVia(entity, look, axis.via)) if (values.has(t)) out.add(t);
-  if (axis.through !== undefined) {
-    for (const mid of targetsOf(entity, look, axis.through === '*' ? '' : axis.through)) {
-      const between = ctx.entity(mid);
-      if (between === undefined || between.id === entity.id) continue;
-      for (const t of targetsVia(between, look, axis.via)) if (values.has(t)) out.add(t);
-    }
+  const own = (entity: Entity): string[] => {
+    const out = new Set<string>();
+    if (values.has(entity.id)) out.add(entity.id);
+    for (const t of targetsVia(entity, look, axis.via)) if (values.has(t)) out.add(t);
+    return [...out];
+  };
+  const field = axis.through === '*' ? '' : axis.through ?? '';
+  if (axis.through === undefined || axis.depth === undefined) {
+    return (entity) => {
+      const out = new Set(own(entity));
+      if (axis.through !== undefined) {
+        for (const mid of targetsOf(entity, look, field)) {
+          const between = ctx.entity(mid);
+          if (between === undefined || between.id === entity.id) continue;
+          for (const t of targetsVia(between, look, axis.via)) if (values.has(t)) out.add(t);
+        }
+      }
+      return [...out];
+    };
   }
-  return [...out];
+  const up = (entity: Entity): string[] => targetsOf(entity, look, field).filter((x) => x !== entity.id);
+  /* Ein Weg nach oben endet am ersten Eintrag mit eigenem Wert. */
+  if (axis.depth !== 'all') {
+    const limit = axis.depth;
+    return (entity) => {
+      const mine = own(entity);
+      if (mine.length > 0) return mine;
+      const out = new Set<string>();
+      const seen = new Set<string>([entity.id]);
+      let frontier = up(entity);
+      for (let step = 1; step <= limit && frontier.length > 0; step += 1) {
+        const next: string[] = [];
+        for (const id of frontier) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const e = ctx.entity(id);
+          if (e === undefined) continue;
+          const got = own(e);
+          if (got.length > 0) { for (const x of got) out.add(x); continue; }
+          next.push(...up(e));
+        }
+        frontier = next;
+      }
+      return [...out];
+    };
+  }
+  const memo = new Map<string, string[]>();
+  const open = new Set<string>();
+  const resolve = (start: Entity): string[] => {
+    const known = memo.get(start.id);
+    if (known !== undefined) return known;
+    const stack: string[] = [start.id];
+    while (stack.length > 0) {
+      const id = stack[stack.length - 1];
+      if (memo.has(id)) { stack.pop(); continue; }
+      const e = id === start.id ? start : ctx.entity(id);
+      if (e === undefined) { memo.set(id, []); stack.pop(); continue; }
+      const mine = own(e);
+      if (mine.length > 0) { memo.set(id, mine); stack.pop(); continue; }
+      const parents = up(e);
+      if (!open.has(id)) {
+        open.add(id);
+        for (const p of parents) if (!memo.has(p) && !open.has(p)) stack.push(p);
+        continue;
+      }
+      const out = new Set<string>();
+      for (const p of parents) for (const x of memo.get(p) ?? []) out.add(x);
+      memo.set(id, [...out]);
+      open.delete(id);
+      stack.pop();
+    }
+    return memo.get(start.id) ?? [];
+  };
+  return resolve;
 }
 
 /**
@@ -504,9 +589,10 @@ export function groupsOf(ctx: SelectContext, ids: readonly string[], grouping: G
   if (grouping.by === 'axis') {
     const values = axisValues(ctx, grouping);
     const known = new Set(values.map((v) => v.value.id));
+    const membersOf = axisMembersOf(ctx, grouping, known);
     for (const id of ids) {
       const e = ctx.entity(id);
-      const hits = e === undefined ? [] : axisMembers(ctx, e, grouping, known);
+      const hits = e === undefined ? [] : membersOf(e);
       for (const hit of hits) put(hit, labelOf(ctx.entity(hit)!, look), id);
       if (hits.length === 0) rest.push(id);
     }
