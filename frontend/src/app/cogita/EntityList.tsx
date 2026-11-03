@@ -24,7 +24,7 @@ import { TexText } from '../ui/tex/Tex';
 import { fieldsOf, fieldText, valuesOf, type Entity } from './schema';
 import { SelectionBar } from './EntitySelection';
 import { RuleEditor } from './RuleEditor';
-import { OriginTag, useAsync, useBusy, useCtx } from './ui';
+import { OriginTag, useAsyncKeep, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
 import {
   AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LANDSCAPE_BANDS, LANDSCAPE_BUDGET, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
@@ -46,6 +46,31 @@ import { ask, toast } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 
 export type { ListMode } from './views';
+
+/**
+ * 2026-11-03 — WAS MAN AN EINEM WIDOK GEÄNDERT, ABER NICHT GESPEICHERT HAT (Modus, Budget und Anteile des Krajobraz,
+ * Filter …), je Baza und Widok: ein anderer Reiter und zurück — oder ein Neuladen — findet es wieder. Gilt nur, solange
+ * der gespeicherte Widok derselbe ist (`base`); nach dem Speichern fällt es weg.
+ */
+const drafts = new Map<string, { readonly base: string; readonly view: ViewDoc }>();
+const draftKey = (libraryId: string, viewId: string | null, design: boolean) => `${libraryId}:${design ? 'design:' : ''}${viewId ?? '-'}`;
+function readDraft(key: string, base: string): ViewDoc | undefined {
+  const here = drafts.get(key);
+  if (here !== undefined) return here.base === base ? here.view : undefined;
+  try {
+    const raw = sessionStorage.getItem(`cg-view-draft:${key}`);
+    if (raw === null) return undefined;
+    const got = JSON.parse(raw) as { base?: unknown; view?: unknown };
+    return got.base === base && typeof got.view === 'object' && got.view !== null ? readView(got.view) : undefined;
+  } catch { return undefined; }
+}
+function keepDraft(key: string, base: string, view: ViewDoc | null): void {
+  if (view === null) drafts.delete(key); else drafts.set(key, { base, view });
+  try {
+    if (view === null) sessionStorage.removeItem(`cg-view-draft:${key}`);
+    else sessionStorage.setItem(`cg-view-draft:${key}`, JSON.stringify({ base, view: viewJson(view) }));
+  } catch { /* ohne Speicher des Tabs: nur im Speicher dieser Seite */ }
+}
 
 /**
  * 2026-10-24 (Wiedza) — ZWEI GESTALTEN DERSELBEN LISTE. In „Wpisy" steht das Wissen vorn:
@@ -70,9 +95,18 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
 }) {
   const { lib, writes, href, learner } = useCtx();
   const saved = viewId === null ? undefined : lib.docs('view').find((e) => e.id === viewId);
-  const [view, setView] = useState<ViewDoc>(() => readView(saved?.data ?? { mode: 'table', ...(design ? { name: 'Nowy sposób wyświetlania' } : {}) }));
+  /* 2026-11-03 — ein nicht gespeicherter Stand dieses Widoku kommt wieder (`drafts`). */
+  const dKey = draftKey(lib.libraryId, viewId, design);
+  const dBase = saved === undefined ? '' : `${saved.id}:${saved.version}`;
+  const [view, setView] = useState<ViewDoc>(() => readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table', ...(design ? { name: 'Nowy sposób wyświetlania' } : {}) }));
   const [shownFor, setShownFor] = useState(viewId);
-  if (shownFor !== viewId) { setShownFor(viewId); setView(readView(saved?.data ?? { mode: 'table' })); }
+  if (shownFor !== viewId) { setShownFor(viewId); setView(readDraft(dKey, dBase) ?? readView(saved?.data ?? { mode: 'table' })); }
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    keepDraft(dKey, dBase, view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
   const { busy, failed, run } = useBusy();
   const look = lib.look;
   /* 2026-10-18 — zaznaczone wpisy: bleiben über Seiten und Filter hinweg gewählt, bis man sie abwählt. */
@@ -96,7 +130,8 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
   const quilt = view.mode === 'quilt';
   /* 2026-11-03 — der Krajobraz braucht die Karten immer (wer Karten hat, ist lernbar; die Kenntnis jedes Eintrags). */
   const landscape = view.mode === 'landscape';
-  const knowCards = useAsync(wants || quilt || landscape ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, landscape, lib.revision]);
+  /* 2026-11-03 — die Karten bleiben stehen, solange neue gerechnet werden (sonst wiche der Krajobraz einem „Liczenie…" und verlöre alles). */
+  const knowCards = useAsyncKeep(wants || quilt || landscape ? () => lib.cards('learn').then((r) => r.cards) : null, [wants, quilt, landscape, lib.revision], () => lib.cardsReady('learn'));
   /* Punkte und Serie im Lauf aus dem Krajobraz — wenn die Nauka dieser Baza sie zählt. */
   const runRewards = useRunRewards();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,6 +202,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     const name = design || !asNew ? view.name : view.name === 'Widok' ? `${kind?.name ?? 'Wpisy'} — widok` : view.name;
     const doc = viewJson({ ...view, name: name.trim() || 'Widok' });
     const done = await lib.saveDoc('view', doc, asNew ? undefined : viewId ?? undefined);
+    keepDraft(dKey, dBase, null);
     if (design) { toast('Zapisano sposób wyświetlania.'); onSaved?.(done.id); return; }
     if (asNew && onDesign !== undefined) { toast(`Zapisano „${name}” — tu możesz zmienić nazwę i ustawienia.`); onDesign(done.id); return; }
     onView(done.id);
@@ -329,7 +365,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
       {/* 2026-11-01 — die Mapa postępów: wie gut der Betrachter (sein Lernender) jeden Eintrag kann. */}
       {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel), sie schneidet ihn nicht zu. */}
       {landscape && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
-        : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} />)}
+        : <LandscapeView view={shown} cards={knowCards} learner={learner ?? null} onOpen={onOpen} query={view.query} viewKey={viewId ?? 'wpisy'} rewards={runRewards} urlScope="" />)}
       {quilt && (knowCards === null || knowCards === undefined ? <p className="cg-muted" data-knowing-wait="">Liczenie kart…</p>
         : <QuiltView view={shown} list={list} cards={knowCards} answers={ownAnswers} learner={learner ?? null} onOpen={onOpen} />)}
       {view.mode === 'outline' && <Outline view={shown} onOpen={onOpen} vlib={vlib} />}

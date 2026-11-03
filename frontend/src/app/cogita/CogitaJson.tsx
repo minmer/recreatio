@@ -9,7 +9,7 @@ import { useState } from 'react';
 
 import { JsonPanel } from '../ui/JsonPanel';
 import { WorkspaceError } from '../core/session';
-import { aiPrompt, applyImport, courseDescription, exportCourse, exportFlow, planImport, structurePreview } from './json';
+import { aiPrompt, applyImport, courseDescription, exportCourse, exportFlow } from './json';
 import { useImportReview } from './ImportReviewPanel';
 import { useCtx } from './ui';
 
@@ -31,7 +31,8 @@ export function CogitaJson() {
         fileName={`kurs-${file}.json`}
         exportDoc={() => exportCourse(lib, name)}
         description={() => courseDescription(lib)}
-        preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: [...p.lines, ...structurePreview(lib, p)], warnings: p.warnings }; }}
+        /* 2026-11-03 — derselbe Plan wie in der Durchsicht und beim Speichern (dieselben Kennungen für das Neue). */
+        preview={(doc) => review.preview(doc)}
         options={review.options}
         importLabel="Zapisz przyjęte"
         onImport={async (doc, stage) => {

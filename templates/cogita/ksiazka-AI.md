@@ -903,12 +903,14 @@ Wspólne:
   "format", "version": 1, "name" — nazwa
   "ref" — własna nazwa wpisu, np. "@dawid"; inne pola odwołują się do niej tak samo: "@dawid".
   Istniejące wpisy rozpoznaje się po identyfikatorze (z eksportu) albo po trwałej nazwie; import UZUPEŁNIA je w miejscu: pola, których dokument nie wymienia, zostają, a "pole": null usuwa pole; wpisów nie usuwa. Przed zapisem każdą zmianę w tym, co już jest, trzeba przyjąć (i można ją poprawić).
+  Zapis jest JEDEN: nowe rodzaje (z trwałymi nazwami), zmiany rodzajów, nowe wpisy, zmiany wpisów, potem widoki i reszta — wszystko albo nic. Identyfikatory nowych rzeczy w podglądzie to te, które się zapiszą.
+  Zapis nie przejdzie, jeśli coś wskazywałoby na rodzaj albo wpis, którego nie ma (np. pole "to" z nieznanym rodzajem, wartość z nieistniejącym identyfikatorem, odwołanie do nowej rzeczy odznaczonej w przeglądzie) — lista mówi, który element i które pole.
   Rodzaj można wskazać jego trwałą nazwą ("kinds": ["@wywod/krok"]) — znajdzie się także po zmianie nazwy.
   Nazwa z „/" jest TRWAŁA: zostaje przy wpisie (także przy widoku, wejściu, szablonie, formularzu, rodzaju), a ten sam dokument zaimportowany drugi raz zmienia te same rzeczy zamiast tworzyć nowe; wielkość liter nie ma znaczenia.
     Kroki rekonstrukcji: "@<klucz dzieła>/<rekonstrukcja>/<krok>", np. "@kowalski2020/calosc/pytanie", "@kowalski2020/wstep/arg1" — każda rekonstrukcja jednego dzieła ma własny środkowy człon.
     Trwałe nazwy są wspólne dla całej bazy: dokument, który trafia w nazwy wpisów z innego dokumentu, zmieni je (podgląd to mówi) — inna rekonstrukcja potrzebuje innego członu (np. "calosc-2").
     Nazwy bez „/" działają tylko w swoim dokumencie. Rodzaje i wpisy mają wspólne nazwy, każdy rodzaj dokumentów (widoki, wejścia, szablony…) własne: wejście "@q" nie zmieni wpisu "@q".
-    W polu-odwołaniu i w odwołaniu komórki ("ref") nazwa, która nigdzie nie prowadzi, wypada (z ostrzeżeniem); w polu tekstowym "@autor/rok" jest tekstem i zostaje.
+    W polu-odwołaniu i w odwołaniu komórki ("ref") nazwa, która nigdzie nie prowadzi, wypada (z ostrzeżeniem, które podaje wpis i pole); w polu tekstowym "@autor/rok" jest tekstem i zostaje.
   Dzieło, osobę, cytat z biblioteki wskazuje się jej kluczem albo identyfikatorem ("@kowalski2020") — tylko z bibliotek, z których korzysta ta baza (Więcej → Ustawienia → Źródła); nie tworzy się ich tutaj.
   Eksport zapisuje trwałe nazwy, a identyfikatory własnych wpisów, rodzajów i dokumentów w widokach, szablonach, powtórkach, przebiegach, zbiorach i formularzach jako "@nazwa" — da się go zaimportować do innej bazy.
 

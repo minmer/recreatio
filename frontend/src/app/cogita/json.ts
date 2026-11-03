@@ -33,7 +33,7 @@ import { QUESTION_SHARED, QUESTION_TYPES, SHOW_MAX } from './questionTypes';
 import { anchorData, readAnchor } from './anchors';
 import { FIELD_TYPE_LABEL, FIELD_TYPES, fieldsOf, labelOf, readKind, valuesOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import { childrenOf, isStructured, parentsOf, placeOf, rootsAbove, structureFields, structureTree, type StructNode, type StructureSource } from './structure';
-import type { CogitaLibrary } from './store';
+import type { BatchItem, CogitaLibrary } from './store';
 import { AXIS_COLUMN, readView, viewJson } from './views';
 import { landscapeImportWarnings } from './landscapeImport';
 import { generatorImportWarnings } from './generatorImport';
@@ -318,7 +318,8 @@ export function planFormImport(lib: CogitaLibrary, doc: unknown): ImportPlan | {
   if (!isObject(doc)) return { error: 'To nie jest dokument JSON.' };
   if (!Array.isArray(doc.forms) || doc.forms.length === 0) return { error: 'W dokumencie nie ma formularza — brak listy „forms".' };
   const extra = ['entities', 'revisions', 'flows', 'collections', 'looks', 'rules', 'values', 'views', 'settings', 'rewards'].filter((k) => doc[k] !== undefined);
-  const plan = planImport(lib, { format: doc.format, version: doc.version, name: doc.name, kinds: doc.kinds, templates: doc.templates, forms: doc.forms });
+  /* 2026-11-03 — die Kennungen des ganzen Dokuments: die Vorschau und das Speichern geben Neuem dieselben (`importIds`). */
+  const plan = planImport(lib, { format: doc.format, version: doc.version, name: doc.name, kinds: doc.kinds, templates: doc.templates, forms: doc.forms }, { ids: importIds(lib, doc) });
   if ('error' in plan || extra.length === 0) return plan;
   return { ...plan, warnings: [...plan.warnings, `Pominięte (to importuje się w Schematach albo w Ustawieniach): ${extra.join(', ')}.`] };
 }
@@ -351,6 +352,35 @@ export interface ImportPlan {
   readonly docs: { readonly id: string; readonly kind: DocKind; readonly data: Record<string, unknown>; readonly isNew: boolean }[];
   readonly lines: string[];
   readonly warnings: string[];
+  /**
+   * 2026-11-03 — Neues aus dem Dokument, das dieser Plan NICHT speichert (in der Durchsicht abgewählt), mit seinem Namen:
+   * zeigt etwas, das gespeichert wird, darauf, geht der Zapis nicht (`importProblems`).
+   */
+  readonly unsaved?: ReadonlyMap<string, string>;
+  /** 2026-11-03 — wie die Vorschau die Einträge nannte (ein Eintrag eines abgewählten Rodzaj hat sonst kein Etikett). */
+  readonly titles?: ReadonlyMap<string, string>;
+}
+
+/**
+ * 2026-11-03 — DIESELBEN KENNUNGEN FÜR DASSELBE DOKUMENT. Die Vorschau, die Durchsicht und das Speichern planen ein
+ * Dokument je für sich. Vorher bekam dabei jedes Neue jedes Mal eine neue Kennung: was die Durchsicht als angenommen
+ * vermerkte (`k:<kennung>`, `e:<kennung>`), fand das Speichern nicht wieder — alles Neue fiel still weg, und die
+ * angenommenen Änderungen an Bestehendem zeigten auf Kennungen, die nie gespeichert wurden. Jetzt merkt sich jedes
+ * Dokument (dasselbe Objekt) je Baza, welche Kennung es welchem Neuen gab (je Stelle im Dokument), und jede Planung
+ * gibt dieselbe — ausser, es gibt sie inzwischen (das Dokument ist schon gespeichert: ein Neues ohne bleibenden Namen
+ * wird dann wieder neu, wie bisher).
+ */
+export type ImportIds = Map<string, string>;
+const MINTED = new WeakMap<object, Map<string, ImportIds>>();
+
+/** Die Kennungen, die dieses Dokument in dieser Baza vergibt (dasselbe Objekt — dieselbe Liste). */
+export function importIds(lib: CogitaLibrary, doc: unknown): ImportIds {
+  if (typeof doc !== 'object' || doc === null) return new Map();
+  let per = MINTED.get(doc);
+  if (per === undefined) { per = new Map(); MINTED.set(doc, per); }
+  let ids = per.get(lib.libraryId);
+  if (ids === undefined) { ids = new Map(); per.set(lib.libraryId, ids); }
+  return ids;
 }
 
 /**
@@ -406,8 +436,17 @@ const FREE_TEXT = new Set(['name', 'query', 'says', 'note', 'label', 'text', 'ti
  * EIN DOKUMENT PLANEN — was angelegt, was geändert würde, und was nicht geht.
  * Nichts wird gespeichert; das tut `applyImport` nach der Rückfrage.
  */
-export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { error: string } {
+export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly ids?: ImportIds } = {}): ImportPlan | { error: string } {
   if (!isObject(doc)) return { error: 'To nie jest dokument JSON.' };
+  /* 2026-11-03 — eine neue Kennung je Stelle im Dokument, bei jeder Planung dieselbe (`importIds`). */
+  const memo = opts.ids ?? importIds(lib, doc);
+  const mint = (slot: string): string => {
+    const had = memo.get(slot);
+    if (had !== undefined && lib.entry(had) === undefined && lib.kind(had) === undefined) return had;
+    const id = newId();
+    memo.set(slot, id);
+    return id;
+  };
   const format = str(doc.format);
   if (format === 'recreatio/source-text') {
     return { error: 'To jest tekst źródła ("recreatio/source-text") — importuje się go w Bibliotece, nie w Cogicie: z nowym dziełem w Źródłach „Dzieło z tekstem (JSON)”; do dzieła, które już jest — na jego stronie, w ramce „Tekst źródła”.' };
@@ -431,11 +470,11 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     const r = str(raw).replace(/^@/, '');
     return r === '' ? null : r;
   };
-  const idFor = (raw: unknown, exists: (id: string) => boolean): { id: string; isNew: boolean } => {
+  const idFor = (raw: unknown, exists: (id: string) => boolean, slot: string): { id: string; isNew: boolean } => {
     const r = ref(raw);
     if (r !== null && exists(r)) { refs.set(refKey(r), r); return { id: r, isNew: false }; }
     if (r !== null && refs.has(refKey(r))) return { id: refs.get(refKey(r))!, isNew: false };
-    const id = newId();
+    const id = mint(slot);
     if (r !== null) refs.set(refKey(r), id);
     return { id, isNew: true };
   };
@@ -469,7 +508,9 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
   const byName = new Map(lib.refKinds.map((k) => [k.name.toLowerCase(), k.id]));
   const docNames = new Map<string, string>();
   const placed: { raw: Record<string, unknown>; id: string; isNew: boolean; marks?: Record<string, unknown> }[] = [];
+  let kindAt = -1;
   for (const raw of Array.isArray(doc.kinds) ? doc.kinds : []) {
+    kindAt += 1;
     if (!isObject(raw)) continue;
     const builtin = str(raw.builtin);
     if (builtin !== '' && isBaseKind(builtin)) {
@@ -485,7 +526,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     const lastingRef = r !== null && lasting(r) ? r.toLowerCase() : undefined;
     const byLasting = lastingRef === undefined ? undefined : lib.byImportRef(lastingRef, 'kind');
     const known = r !== null && lib.kind(r) !== undefined ? r : byLasting?.id ?? named;
-    const id = known ?? idFor(raw.ref, () => false).id;
+    const id = known ?? idFor(raw.ref, () => false, `k:${kindAt}`).id;
     if (r !== null) refs.set(refKey(r), id);
     if (str(raw.name) !== '') docNames.set(str(raw.name).toLowerCase(), id);
     const stamp = lastingRef !== undefined && (known === undefined || !hasLastingName(lib.entry(id)?.data));
@@ -574,7 +615,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     gefunden nur über einen mitgetragenen Namen (`_refs`) — der Eintrag wurde zusammengeführt, und was
     der Bleibende hat, gilt; diese Zeile füllt nur, was bei ihm leer ist.
   */
-  const entityId = (raw: unknown): { id: string; isNew: boolean; marks?: Record<string, unknown>; alias?: true } => {
+  const entityId = (raw: unknown, at: number): { id: string; isNew: boolean; marks?: Record<string, unknown>; alias?: true } => {
     const r = ref(raw);
     if (r !== null && lasting(r) && lib.entity(r) === undefined) {
       const lastingRef = r.toLowerCase();
@@ -590,13 +631,13 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
         noteOwner(had.data, r);
         return { id: had.id, isNew: false, marks: { ...(hasLastingName(had.data) ? {} : { _ref: lastingRef }), ...ownerMark } };
       }
-      const id = newId();
+      const id = mint(`e:${at}`);
       refs.set(lastingRef, id);
       return { id, isNew: true, marks: { _ref: lastingRef, ...ownerMark } };
     }
-    return idFor(raw, (id) => lib.entity(id) !== undefined);
+    return idFor(raw, (id) => lib.entity(id) !== undefined, `e:${at}`);
   };
-  const ids = rawEntities.map((raw) => entityId(raw.ref ?? raw.id));
+  const ids = rawEntities.map((raw, at) => entityId(raw.ref ?? raw.id, at));
   /*
     2026-10-25 — WORAUF EIN WERT ZEIGT: ein Name aus dem Dokument, eine Kennung, ein bleibender Name
     eines früheren Imports, ein Schlüssel dieser Baza oder ihrer ERKLÄRTEN Quellen (ein Werk der
@@ -631,7 +672,9 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
       const f = path[0] === undefined ? undefined : fieldOf(entityKinds, path[0]);
       return f?.type === 'ref' || (f?.type === 'blocks' && path[path.length - 1] === 'ref') ? 'all' : 'short';
     };
-    const data = isObject(raw.data) ? refsIn(raw.data, (r) => resolveRef(r), (missing) => warnings.push(`Wpis ${str(raw.ref) || i + 1}: ${missingWhy(missing)}.`), modeAt) : {};
+    /* 2026-11-03 — was wegfällt, mit dem Eintrag UND dem Feld (auf dem Bildschirm nach dem Zapis steht es so). */
+    const fieldName = (path: readonly string[]) => { const f = path[0] === undefined ? undefined : fieldOf(entityKinds, path[0]); return f === undefined ? path.join('.') : `${f.label} (${f.key})`; };
+    const data = isObject(raw.data) ? refsIn(raw.data, (r) => resolveRef(r), (missing, path) => warnings.push(`Wpis ${str(raw.ref) || i + 1}, pole „${fieldName(path)}”: ${missingWhy(missing)}.`), modeAt) : {};
     const { id, isNew, marks, alias } = ids[i]!;
     /* Zwei Zeilen, ein Eintrag (derselbe Name zweimal, zusammengeführte): einer — die Zeile mit dem eigenen Namen gilt, die anderen füllen nur Leeres. */
     const at = planned.get(id);
@@ -672,13 +715,13 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
     /* 2026-11-02 — Nagrody: Punkte, Serie, Tagesziel, Stufen, Abzeichen (`rewards.ts`). */
     ['reward', doc.rewards]
   ];
-  type Incoming = { kind: DocKind; raw: Record<string, unknown>; r: string | null; lastingRef?: string; id?: string; isNew?: boolean; byName?: true };
+  type Incoming = { kind: DocKind; raw: Record<string, unknown>; r: string | null; at: number; lastingRef?: string; id?: string; isNew?: boolean; byName?: true };
   const incoming: Incoming[] = [];
   for (const [kind, list] of docLists) {
     for (const raw of Array.isArray(list) ? list : isObject(list) ? [list] : []) {
       if (!isObject(raw)) continue;
       const r = ref(raw.ref ?? raw.id);
-      incoming.push({ kind, raw, r, ...(r !== null && lasting(r) ? { lastingRef: r.toLowerCase() } : {}) });
+      incoming.push({ kind, raw, r, at: incoming.length, ...(r !== null && lasting(r) ? { lastingRef: r.toLowerCase() } : {}) });
     }
   }
   /*
@@ -727,7 +770,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
         continue;
       }
     }
-    const id = newId();
+    const id = mint(`d:${d.kind}:${d.at}`);
     if (d.r !== null) own.set(refKey(d.r), id);
     Object.assign(d, { id, isNew: true });
   }
@@ -758,7 +801,7 @@ export function planImport(lib: CogitaLibrary, doc: unknown): ImportPlan | { err
         planned: docs
       }, warnings);
     } else {
-      data = refsIn(rest, resolveDocRef, (missing) => warnings.push(`${label}: ${missingWhy(missing)}.`), docModeAt);
+      data = refsIn(rest, resolveDocRef, (missing, path) => warnings.push(`${label}, „${path.filter((p) => !/^d+$/.test(p)).join('.') || '—'}”: ${missingWhy(missing)}.`), docModeAt);
     }
     if (kind === 'template') {
       const t = readTemplate(id, data);
@@ -897,7 +940,7 @@ type RefMode = 'all' | 'short' | 'none';
  */
 function refsIn(
   data: Record<string, unknown>, resolve: (ref: string, path: readonly string[]) => string | null,
-  missing: (ref: string) => void, modeAt: (path: readonly string[]) => RefMode
+  missing: (ref: string, path: readonly string[]) => void, modeAt: (path: readonly string[]) => RefMode
 ): Record<string, unknown> {
   const walk = (v: unknown, path: readonly string[]): unknown => {
     if (typeof v === 'string' && /^@[A-Za-z0-9_.:/-]{1,120}$/.test(v)) {
@@ -906,7 +949,7 @@ function refsIn(
       if (mode === 'none' || (mode === 'short' && lasting(name))) return v;
       const id = resolve(name, path);
       if (id !== null) return id;
-      missing(name);
+      missing(name, path);
       return undefined;
     }
     if (Array.isArray(v)) return v.map((x) => walk(x, path)).filter((x) => x !== undefined);
@@ -1015,25 +1058,194 @@ export function structurePreview(lib: CogitaLibrary, plan: ImportPlan, max = 80)
   return out;
 }
 
-/** Den Plan ausführen — erst die Arten, dann die Einträge, dann die Dokumente. Gibt zurück, was ging und was nicht. */
-export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (text: string) => void): Promise<{ lines: string[]; warnings: string[] }> {
-  const warnings = [...plan.warnings];
-  let done = 0;
-  const total = plan.kinds.length + plan.entities.length + plan.docs.length;
-  const step = () => { done += 1; stage(`Zapisywanie ${done} z ${total}…`); };
+/**
+ * 2026-11-03 — EIN IMPORT, DER NICHT GEHT, SAGT WARUM: jede Zeile ein Element und sein Feld. Gespeichert ist nichts.
+ */
+export class ImportBlocked extends Error {
+  constructor(readonly problems: readonly string[], lead = 'Nic nie zapisano — import wskazuje na coś, czego nie ma:') {
+    super([lead, ...problems].join('\n'));
+  }
+}
+
+/** Was ein Widok an Rodzajen nennt — nur, was dort sicher ein Rodzaj ist (Quelle, Gruppe, Achse). */
+function viewKindRefs(data: Readonly<Record<string, unknown>>): { where: string; id: string }[] {
+  const out: { where: string; id: string }[] = [];
+  const steps = Array.isArray(data.steps) ? data.steps : [];
+  steps.forEach((step, i) => {
+    const kind = isObject(step) && isObject(step.config) ? step.config.kind : undefined;
+    if (typeof kind === 'string' && kind !== '') out.push({ where: `krok ${i + 1} (źródło)`, id: kind });
+  });
+  if (isObject(data.group) && typeof data.group.kind === 'string' && data.group.kind !== '') out.push({ where: 'grupowanie (group.kind)', id: data.group.kind });
+  for (const c of Array.isArray(data.columns) ? data.columns : []) {
+    if (typeof c === 'string' && c.startsWith(AXIS_COLUMN)) out.push({ where: 'kolumny (oś)', id: c.slice(AXIS_COLUMN.length) });
+  }
+  return out;
+}
+
+/**
+ * 2026-11-03 — WORAUF DER ZAPIS ZEIGT, BEVOR ER GESCHIEHT. Gespeichert wird nie ein Verweis auf einen Rodzaj oder
+ * Eintrag, den es danach nicht gäbe:
+ * <code>
+ *   ein Neues, das nicht mitgespeichert wird (in der Durchsicht abgewählt)        → blockiert, mit seinem Namen
+ *   ein Rodzaj (Feld „to", Rodzaj eines Eintrags, Quelle/Gruppe/Achse eines Widok)  → blockiert, wenn es ihn nicht gibt
+ *   ein Eintrag in einem Verweisfeld                                               → blockiert, wenn es ihn nicht gibt
+ * </code>
+ * Gezählt wird nur, was dieser Zapis NEU hineinschreibt; ein Verweis ins Leere, der schon vorher gespeichert war und
+ * bleibt, steht als Hinweis da (`kept`). Ein Verweis, den diese Baza nicht kennen kann, weil eine erklärte Quelle noch
+ * nicht geladen ist, wird nicht blockiert (`unchecked`).
+ */
+export function importProblems(lib: CogitaLibrary, plan: ImportPlan): { blocked: string[]; kept: string[]; unchecked: number } {
+  const blocked: string[] = [];
+  const kept: string[] = [];
+  let unchecked = 0;
+  const unsaved = plan.unsaved ?? new Map<string, string>();
+  const kinds = new Map(plan.kinds.map((k) => [k.id, k.def]));
+  const planned = new Map(plan.entities.map((e) => [e.id, { id: e.id, kinds: e.kinds, data: e.data } as Entity]));
+  const look: Lookup = { kind: (id) => kinds.get(id) ?? lib.kind(id), entity: (id) => planned.get(id) ?? lib.entity(id) };
+  const sure = lib.sourcesLoaded();
+  const kindKnown = (id: string) => isBaseKind(id) || kinds.has(id) || lib.kind(id) !== undefined;
+  const entityKnown = (id: string) => planned.has(id) || lib.entity(id) !== undefined || lib.entry(id) !== undefined;
+  const notChosen = (problem: string, name: string) => `${problem}: wskazuje na nowy element — ${name} — który nie jest zaznaczony do zapisu; zaznacz go albo odznacz to, co na niego wskazuje.`;
+  /* Wer schon auf ein Abgewähltes zeigt (Element|Ziel) — die Suche unten nennt es nicht ein zweites Mal. */
+  const reported = new Set<string>();
+  /* Ein Ziel, das fehlt: was nicht mitgespeichert wird, beim Namen; sonst die Kennung. */
+  const check = (owner: string, id: string, sort: 'rodzaj' | 'wpis', known: boolean, problem: string, wasBefore: boolean): void => {
+    if (known) return;
+    const name = unsaved.get(id);
+    if (name !== undefined) { reported.add(`${owner}|${id}`); blocked.push(notChosen(problem, name)); return; }
+    if (!sure) { unchecked += 1; return; }
+    if (wasBefore) { kept.push(`${problem}: wskazuje ${sort} „${id}”, którego nie ma (tak było już przed importem) — popraw to pole.`); return; }
+    blocked.push(`${problem}: wskazuje ${sort} „${id}”, którego nie ma ani w dokumencie, ani w bazie.`);
+  };
+
+  /* Was dieser Zapis an einem Bestehenden nicht anfasst (ein Feld, das bleibt, wie es war), prüft er nicht — er schreibt dort nichts Neues. */
+  const untouched = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   for (const k of plan.kinds) {
-    try { await lib.saveKind(k.def, k.marks); } catch (e) { warnings.push(`Rodzaj „${k.def.name}": ${e instanceof Error ? e.message : 'nie udało się'}.`); }
-    step();
+    const before = lib.kind(k.id);
+    for (const f of k.def.fields) {
+      const old = before?.fields.find((x) => x.key === f.key);
+      if (old !== undefined && untouched(old, f)) continue;
+      const had = new Set(old?.to ?? []);
+      for (const t of f.to ?? []) check(k.id, t, 'rodzaj', kindKnown(t), `Rodzaj „${k.def.name}”, pole „${f.label}” (to)`, had.has(t));
+    }
   }
   for (const e of plan.entities) {
-    try { await lib.saveEntity({ id: e.id, kinds: e.kinds, data: e.data, ...(e.marks === undefined ? {} : { marks: e.marks }) }); } catch (err) { warnings.push(`Wpis ${e.id.slice(-4)}: ${err instanceof Error ? err.message : 'nie udało się'}.`); }
-    step();
+    const entity = planned.get(e.id)!;
+    const before = lib.isOwn(e.id) ? lib.entity(e.id) : undefined;
+    const title = `Wpis „${plan.titles?.get(e.id) || labelOf(entity, look) || e.id}”`;
+    for (const k of e.kinds) if (before?.kinds.includes(k) !== true) check(e.id, k, 'rodzaj', kindKnown(k), `${title}, rodzaj`, false);
+    for (const f of fieldsOf(entity, look)) {
+      if (f.type !== 'ref') continue;
+      if (before !== undefined && untouched(before.data[f.key], e.data[f.key])) continue;
+      const had = new Set(before === undefined ? [] : valuesOf(before, f).map((v) => v.value).filter((v): v is string => typeof v === 'string'));
+      for (const v of valuesOf(entity, f)) {
+        if (typeof v.value !== 'string' || v.value === '') continue;
+        check(e.id, v.value, 'wpis', entityKnown(v.value), `${title}, pole „${f.label}”`, had.has(v.value));
+      }
+    }
   }
   for (const d of plan.docs) {
-    try { await lib.saveDoc(d.kind, d.data, d.id); } catch (err) { warnings.push(`${d.kind} ${d.id.slice(-4)}: ${err instanceof Error ? err.message : 'nie udało się'}.`); }
-    step();
+    if (d.kind !== 'view') continue;
+    const title = `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”`;
+    const before = lib.docs('view').find((x) => x.id === d.id);
+    const had = new Set(before === undefined ? [] : viewKindRefs(before.data).map((r) => r.id));
+    for (const r of viewKindRefs(d.data)) check(d.id, r.id, 'rodzaj', kindKnown(r.id), `${title}, ${r.where}`, had.has(r.id));
   }
-  return { lines: [`Zapisano ${total - warnings.length + plan.warnings.length} z ${total}.`, ...plan.lines], warnings };
+  /* Was abgewählt ist, darf nirgends stehen — auch nicht an einer Stelle, die oben keiner prüft (Szablony, Powtórki, Zbiory …). */
+  if (unsaved.size > 0) {
+    const scan = (owner: string, value: unknown, where: string): void => {
+      if (typeof value === 'string') {
+        const name = unsaved.get(value);
+        if (name === undefined || reported.has(`${owner}|${value}`)) return;
+        reported.add(`${owner}|${value}`);
+        blocked.push(notChosen(where, name));
+        return;
+      }
+      if (Array.isArray(value)) { for (const x of value) scan(owner, x, where); return; }
+      if (isObject(value)) for (const [key, x] of Object.entries(value)) if (!key.startsWith('_')) scan(owner, x, where);
+    };
+    for (const d of plan.docs) for (const [key, value] of Object.entries(d.data)) if (!key.startsWith('_')) scan(d.id, value, `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”, „${key}”`);
+    for (const e of plan.entities) {
+      const entity = planned.get(e.id)!;
+      const fields = fieldsOf(entity, look);
+      for (const [key, value] of Object.entries(e.data)) {
+        if (key.startsWith('_')) continue;
+        scan(e.id, value, `Wpis „${plan.titles?.get(e.id) || labelOf(entity, look) || e.id}”, pole „${fields.find((x) => x.key === key)?.label ?? key}”`);
+      }
+    }
+  }
+  return { blocked, kept, unchecked };
+}
+
+/** In welcher Reihenfolge Dokumente einer Art nach den anderen kommen: was andere nennen, zuerst. */
+const DOC_ORDER: Readonly<Record<DocKind, number>> = {
+  collection: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
+  view: 2, revision: 3, flow: 4, anchor: 5, merge: 6, contribution: 6
+};
+
+/**
+ * DEN PLAN AUSFÜHREN — 2026-11-03: IN EINEM ZUG, ALLE ODER KEINER. Erst wird geprüft, worauf er zeigt
+ * (`importProblems`): zeigt etwas ins Leere, geht nichts (`ImportBlocked`, je Element und Feld). Dann EIN Zapis, in der
+ * Reihenfolge, in der eines auf dem anderen baut — neue Rodzaje (mit ihren bleibenden Namen), geänderte Rodzaje, neue
+ * Einträge (mit ihren bleibenden Namen), geänderte Einträge, dann die Dokumente (Widoki nach dem, was sie nennen) —, den
+ * der Dienst in einer Transaktion schreibt. Scheitert er, ist nichts gespeichert, und der Fehler sagt, woran es lag.
+ * Danach entsteht die Abschrift für AI (MCP) gleich neu.
+ */
+export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (text: string) => void): Promise<{ lines: string[]; warnings: string[] }> {
+  const checked = importProblems(lib, plan);
+  if (checked.blocked.length > 0) throw new ImportBlocked(checked.blocked);
+  const warnings = [...plan.warnings, ...checked.kept];
+  if (checked.unchecked > 0) warnings.push(`Nie wszystkie źródła tej bazy są wczytane — ${checked.unchecked} ${plural(checked.unchecked, 'odwołania', 'odwołań', 'odwołań')} do nich nie dało się sprawdzić.`);
+
+  const docs = plan.docs.map((d, i) => ({ d, i })).sort((a, b) => DOC_ORDER[a.d.kind] - DOC_ORDER[b.d.kind] || a.i - b.i).map((x) => x.d);
+  const kindItem = (k: ImportPlan['kinds'][number]): BatchItem => ({ sort: 'kind', def: k.def, ...(k.marks === undefined ? {} : { marks: k.marks }) });
+  const entityItem = (e: ImportPlan['entities'][number]): BatchItem => ({ sort: 'entity', id: e.id, kinds: e.kinds, data: e.data, ...(e.marks === undefined ? {} : { marks: e.marks }) });
+  const items: BatchItem[] = [
+    ...plan.kinds.filter((k) => k.isNew).map(kindItem),
+    ...plan.kinds.filter((k) => !k.isNew).map(kindItem),
+    ...plan.entities.filter((e) => e.isNew).map(entityItem),
+    ...plan.entities.filter((e) => !e.isNew).map(entityItem),
+    ...docs.map((d): BatchItem => ({ sort: 'doc', kind: d.kind, id: d.id, data: d.data }))
+  ];
+  if (items.length === 0) return { lines: ['Nic do zapisania — dokument zgadza się z tym, co już jest.'], warnings };
+
+  /* Wie ein Element heisst — für einen Fehler des Dienstes, der nur Kennungen nennt. */
+  const kindLook = new Map(plan.kinds.map((k) => [k.id, k.def]));
+  const entityLook = new Map(plan.entities.map((e) => [e.id, { id: e.id, kinds: e.kinds, data: e.data } as Entity]));
+  const look: Lookup = { kind: (id) => kindLook.get(id) ?? lib.kind(id), entity: (id) => entityLook.get(id) ?? lib.entity(id) };
+  const nameOf = (id: string): string => {
+    const k = kindLook.get(id);
+    if (k !== undefined) return `Rodzaj „${k.name}”`;
+    const e = entityLook.get(id);
+    if (e !== undefined) return `Wpis „${labelOf(e, look) || id}”`;
+    const d = plan.docs.find((x) => x.id === id);
+    return d === undefined ? id : `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”`;
+  };
+
+  stage(`Zapisywanie ${items.length} ${plural(items.length, 'elementu', 'elementów', 'elementów')} w jednym zapisie…`);
+  try {
+    await lib.saveBatch(items, (done, total) => { if (done === total || done % 50 === 0) stage(`Pieczętowanie ${done} z ${total}…`); });
+  } catch (e) {
+    const detail = (e as { detail?: unknown }).detail;
+    const listed = isObject(detail) && Array.isArray(detail.problems) ? detail.problems.filter(isObject).map((p) => `${nameOf(str(p.entryId))}: ${str(p.error)}`) : [];
+    if (listed.length > 0) throw new ImportBlocked(listed, 'Nic nie zapisano — usługa nie przyjęła tych elementów (pozostałe czekały razem z nimi):');
+    const said = e instanceof Error && e.message !== '' ? e.message : 'zapis się nie udał';
+    throw new ImportBlocked([], said.startsWith('Nic nie zapisano') ? said : `Nic nie zapisano: ${said}`);
+  }
+
+  const both = (label: string, list: readonly { readonly isNew: boolean }[]): string => {
+    const fresh = list.filter((x) => x.isNew).length;
+    const changed = list.length - fresh;
+    return list.length === 0 ? '' : `${label} — ${[fresh > 0 ? `nowe: ${fresh}` : '', changed > 0 ? `zmienione: ${changed}` : ''].filter(Boolean).join(', ')}`;
+  };
+  const parts = [both('rodzaje', plan.kinds), both('wpisy', plan.entities), ...DOC_KINDS.map((k) => both(DOC_LABEL[k], plan.docs.filter((d) => d.kind === k)))].filter(Boolean);
+  const lines = [`Zapisano wszystko w jednym zapisie (${items.length} ${plural(items.length, 'element', 'elementy', 'elementów')}) — ${parts.join('; ')}.`];
+
+  stage('Odświeżanie kopii dla AI…');
+  const ai = await lib.store.refreshAiNow().catch(() => null);
+  if (ai !== null && ai.refreshed > 0) lines.push('Kopia dla AI (MCP) odświeżona — asystent widzi już ten stan.');
+  if (ai !== null && ai.failed > 0) warnings.push(`Kopii dla AI (MCP) nie udało się odświeżyć${ai.reason === undefined ? '' : `: ${ai.reason}`} — odświeży się przy następnej zmianie.`);
+  return { lines, warnings };
 }
 
 /* -- Beschreibung und Auftrag ------------------------------------------------------------------ */
@@ -1195,12 +1407,14 @@ Wspólne:
   "format", "version": 1, "name" — nazwa
   "ref" — własna nazwa wpisu, np. "@dawid"; inne pola odwołują się do niej tak samo: "@dawid".
   Istniejące wpisy rozpoznaje się po identyfikatorze (z eksportu) albo po trwałej nazwie; import UZUPEŁNIA je w miejscu: pola, których dokument nie wymienia, zostają, a "pole": null usuwa pole; wpisów nie usuwa. Przed zapisem każdą zmianę w tym, co już jest, trzeba przyjąć (i można ją poprawić).
+  Zapis jest JEDEN: nowe rodzaje (z trwałymi nazwami), zmiany rodzajów, nowe wpisy, zmiany wpisów, potem widoki i reszta — wszystko albo nic. Identyfikatory nowych rzeczy w podglądzie to te, które się zapiszą.
+  Zapis nie przejdzie, jeśli coś wskazywałoby na rodzaj albo wpis, którego nie ma (np. pole "to" z nieznanym rodzajem, wartość z nieistniejącym identyfikatorem, odwołanie do nowej rzeczy odznaczonej w przeglądzie) — lista mówi, który element i które pole.
   Rodzaj można wskazać jego trwałą nazwą ("kinds": ["@wywod/krok"]) — znajdzie się także po zmianie nazwy.
   Nazwa z „/" jest TRWAŁA: zostaje przy wpisie (także przy widoku, wejściu, szablonie, formularzu, rodzaju), a ten sam dokument zaimportowany drugi raz zmienia te same rzeczy zamiast tworzyć nowe; wielkość liter nie ma znaczenia.
     Kroki rekonstrukcji: "@<klucz dzieła>/<rekonstrukcja>/<krok>", np. "@kowalski2020/calosc/pytanie", "@kowalski2020/wstep/arg1" — każda rekonstrukcja jednego dzieła ma własny środkowy człon.
     Trwałe nazwy są wspólne dla całej bazy: dokument, który trafia w nazwy wpisów z innego dokumentu, zmieni je (podgląd to mówi) — inna rekonstrukcja potrzebuje innego członu (np. "calosc-2").
     Nazwy bez „/" działają tylko w swoim dokumencie. Rodzaje i wpisy mają wspólne nazwy, każdy rodzaj dokumentów (widoki, wejścia, szablony…) własne: wejście "@q" nie zmieni wpisu "@q".
-    W polu-odwołaniu i w odwołaniu komórki ("ref") nazwa, która nigdzie nie prowadzi, wypada (z ostrzeżeniem); w polu tekstowym "@autor/rok" jest tekstem i zostaje.
+    W polu-odwołaniu i w odwołaniu komórki ("ref") nazwa, która nigdzie nie prowadzi, wypada (z ostrzeżeniem, które podaje wpis i pole); w polu tekstowym "@autor/rok" jest tekstem i zostaje.
   Dzieło, osobę, cytat z biblioteki wskazuje się jej kluczem albo identyfikatorem ("@kowalski2020") — tylko z bibliotek, z których korzysta ta baza (Więcej → Ustawienia → Źródła); nie tworzy się ich tutaj.
   Eksport zapisuje trwałe nazwy, a identyfikatory własnych wpisów, rodzajów i dokumentów w widokach, szablonach, powtórkach, przebiegach, zbiorach i formularzach jako "@nazwa" — da się go zaimportować do innej bazy.
 

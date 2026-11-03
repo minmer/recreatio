@@ -215,6 +215,23 @@ export const putEntry = (
     method: 'PUT', body: JSON.stringify(body)
   });
 
+/**
+ * 2026-11-03 — VIELE IN EINEM ZUG, ALLE ODER KEINER (ein Import): der Dienst schreibt sie in einer Transaktion, in
+ * dieser Reihenfolge — oder keinen, und nennt dann jeden, der nicht ging (`WorkspaceError.detail.problems`).
+ */
+export interface PutEntryRow {
+  readonly entryId: string;
+  readonly kind: string;
+  readonly epoch: number;
+  readonly sealed: string;
+  readonly version: number;
+}
+
+export const putEntries = (
+  libraryId: string, entries: readonly PutEntryRow[]
+): Promise<{ saved: number; entries: readonly { entryId: string; version: number; updatedAt: string }[] }> =>
+  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries/save`, { method: 'POST', body: JSON.stringify({ entries }) });
+
 export const removeEntry = (libraryId: string, entryId: string): Promise<{ deleted: boolean }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/entry/${encodeURIComponent(entryId)}`, { method: 'DELETE' });
 

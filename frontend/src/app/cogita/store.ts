@@ -20,7 +20,7 @@
  */
 
 import { newId } from '../core/ids';
-import type { Entry, LibraryStore } from '../library/libraryStore';
+import type { Entry, LibraryStore, SaveInput } from '../library/libraryStore';
 import { entryTitle, KINDS as LIBRARY_KINDS, type Lookup as MarkupLookup } from '../library/libraryKinds';
 import { refsOf } from '../library/refIndex';
 import { cardsOf, generatorProblem, questionCards, readTemplate, redrawCard, templatesFor, type Template } from './cards';
@@ -189,6 +189,18 @@ export const readCollection = (id: string, raw: unknown): Collection => {
 };
 
 const fold = (text: string): string => text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+
+/**
+ * 2026-11-03 — GERECHNETE KARTEN JE SPEICHER (über Bilder hinweg: eine `CogitaLibrary` lebt mit ihrem Bild, der Speicher
+ * länger) — je Samen das Ergebnis und der Stand, aus dem es kam.
+ */
+const cardsDone = new WeakMap<LibraryStore, Map<string, { readonly stamp: string; readonly result: { cards: Card[]; problems: Map<string, string[]> } }>>();
+
+/** 2026-11-03 — was ein Import in einem Zug speichert (`saveBatch`): ein Rodzaj, eine Entität, ein Dokument. */
+export type BatchItem =
+  | { readonly sort: 'kind'; readonly def: KindDef; readonly marks?: Readonly<Record<string, unknown>> }
+  | { readonly sort: 'entity'; readonly id: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>>; readonly marks?: Readonly<Record<string, unknown>> }
+  | { readonly sort: 'doc'; readonly kind: DocKind; readonly id: string; readonly data: Readonly<Record<string, unknown>> };
 
 /* -- Die Baza wiedzy --------------------------------------------------------------------- */
 
@@ -670,12 +682,36 @@ export class CogitaLibrary {
    * `marks` — Buchhaltung mit `_` (der Name aus einem Import, `_ref`), die mitgespeichert wird.
    */
   async saveEntity(input: { readonly id?: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>>; readonly marks?: Readonly<Record<string, unknown>> }): Promise<Entry> {
+    return this.store.save(this.entityInput(input));
+  }
+
+  /** Wie eine Entität in den Speicher geht — geprüft (eigene Baza, dieselbe Sorte), noch nicht geschrieben. */
+  private entityInput(input: { readonly id?: string; readonly kinds: readonly string[]; readonly data: Readonly<Record<string, unknown>>; readonly marks?: Readonly<Record<string, unknown>> }): SaveInput {
     this.ownOnly(input.id);
     const before = input.id === undefined ? undefined : this.store.own(input.id);
     sameSort(before, 'entity');
     const plain = before?.kind ?? plainKindOf(input.kinds);
     const data = entryData({ kinds: input.kinds, data: input.data }, plain, { ...(before?.data ?? {}), ...(input.marks ?? {}) });
-    return this.store.save({ ...(input.id === undefined ? {} : { id: input.id }), kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data });
+    return { ...(input.id === undefined ? {} : { id: input.id }), kind: plain, ...(before?.key === undefined ? {} : { key: before.key }), data };
+  }
+
+  /**
+   * 2026-11-03 — EIN IMPORT IN EINEM ZUG: Rodzaje, Entitäten und Dokumente als EIN Zapis, alle oder keiner
+   * (`LibraryStore.saveAll` → eine Transaktion des Dienstes), in der Reihenfolge, in der sie kommen. Zuerst wird
+   * jedes geprüft (eigene Baza, dieselbe Sorte) — scheitert eines, ist nichts gesendet.
+   */
+  async saveBatch(items: readonly BatchItem[], progress?: (done: number, total: number) => void): Promise<Entry[]> {
+    const inputs = items.map((item) => (item.sort === 'kind' ? this.kindInput(item.def, item.marks) : item.sort === 'entity' ? this.entityInput(item) : this.docInput(item.kind, item.data, item.id)));
+    return this.store.saveAll(inputs, progress);
+  }
+
+  /**
+   * 2026-11-03 — SIND ALLE ERKLÄRTEN QUELLEN GELADEN? Erst dann heisst „diese Kennung kenne ich nicht" auch „es gibt sie
+   * nicht" (ein Verweis auf ein Werk einer Bibliothek, die noch lädt, ist kein Verweis ins Leere).
+   */
+  sourcesLoaded(): boolean {
+    const loaded = new Set(this.sources.map((s) => s.store.libraryId));
+    return this.settings().sources.every((s) => loaded.has(s.id));
   }
 
   /**
@@ -702,25 +738,33 @@ export class CogitaLibrary {
    * 2026-10-25: was der Eintrag mit `_` trug (der bleibende Name aus einem Import), bleibt; `marks` kommt dazu.
    */
   async saveKind(kind: KindDef, marks?: Readonly<Record<string, unknown>>): Promise<Entry> {
+    return this.store.save(this.kindInput(kind, marks));
+  }
+
+  private kindInput(kind: KindDef, marks?: Readonly<Record<string, unknown>>): SaveInput {
     if (isBaseKind(kind.id)) {
       const had = overrideEntryOf(this.store.all(), kind.id);
-      return this.store.save({ ...(had === undefined ? {} : { id: had.id }), kind: 'kind', data: kindDoc(kind) });
+      return { id: had?.id ?? newId(), kind: 'kind', data: kindDoc(kind) };
     }
     this.ownOnly(kind.id);
     const before = this.store.own(kind.id);
     sameSort(before, 'kind');
     const keep = Object.fromEntries(Object.entries({ ...(before?.data ?? {}), ...(marks ?? {}) }).filter(([key]) => key.startsWith('_')));
     /* Die Kennung des Entwurfs bleibt — sonst zeigen ein Verweis auf sich selbst, die Auswahl danach und importierte Einträge ins Leere. */
-    return this.store.save({ id: kind.id, kind: 'kind', data: { ...keep, ...kindDoc(kind) } });
+    return { id: kind.id, kind: 'kind', data: { ...keep, ...kindDoc(kind) } };
   }
 
   saveDoc(kind: DocKind, data: Readonly<Record<string, unknown>>, id?: string): Promise<Entry> {
+    return this.store.save(this.docInput(kind, data, id));
+  }
+
+  private docInput(kind: DocKind, data: Readonly<Record<string, unknown>>, id?: string): SaveInput {
     this.ownOnly(id);
     const before = id === undefined ? undefined : this.store.own(id);
     sameSort(before, kind);
     /* 2026-10-25 — was das Dokument mit `_` trug (der bleibende Name aus einem Import `_ref`, sein Dokument `_refDoc`), überlebt das Ändern im Editor: sonst verdoppelte der nächste Import das Dokument. */
     const keep = Object.fromEntries(Object.entries(before?.data ?? {}).filter(([key]) => key.startsWith('_')));
-    return this.store.save({ ...(id === undefined ? {} : { id }), kind, data: { ...keep, ...data } });
+    return { id: id ?? newId(), kind, data: { ...keep, ...data } };
   }
 
   async saveSettings(patch: Partial<Record<keyof CogitaSettings, unknown>>): Promise<Entry> {
@@ -841,6 +885,12 @@ export class CogitaLibrary {
   cards(seed = ''): Promise<{ cards: Card[]; problems: Map<string, string[]> }> {
     const revision = this.revision;
     if (this.cardMemo !== null && this.cardMemo.revision === revision && this.cardMemo.seed === seed) return this.cardMemo.made;
+    /* 2026-11-03 — dieselbe Baza in einem neuen Bild (ein anderer Reiter und zurück): die Karten desselben Standes sind schon da. */
+    const done = cardsDone.get(this.store)?.get(seed);
+    if (done !== undefined && done.stamp === this.cardStamp()) {
+      this.cardMemo = { revision, seed, made: Promise.resolve(done.result) };
+      return this.cardMemo.made;
+    }
     const made = (async () => {
       const look = this.look;
       const templates = this.templates();
@@ -876,7 +926,27 @@ export class CogitaLibrary {
       return { cards, problems };
     })();
     this.cardMemo = { revision, seed, made };
+    const stamp = this.cardStamp();
+    void made.then((result) => {
+      let per = cardsDone.get(this.store);
+      if (per === undefined) { per = new Map(); cardsDone.set(this.store, per); }
+      per.set(seed, { stamp, result });
+    }, () => undefined);
     return made;
+  }
+
+  /** Der Stand, aus dem Karten gerechnet sind: diese Baza und ihre Quellen (je Speicher, nicht je Bild). */
+  private cardStamp(): string {
+    return `${this.store.revision}|${this.sources.map((s) => `${s.store.libraryId}:${s.store.revision}`).join(',')}`;
+  }
+
+  /**
+   * 2026-11-03 — DIE KARTEN, WENN SIE SCHON GERECHNET SIND (ohne Warten): ein Bild, das wiederkommt, zeigt sofort, was es
+   * zeigte, statt „Liczenie kart…" — `undefined`, wenn für diesen Stand noch nichts da ist.
+   */
+  cardsReady(seed = ''): Card[] | undefined {
+    const done = cardsDone.get(this.store)?.get(seed);
+    return done !== undefined && done.stamp === this.cardStamp() ? done.result.cards : undefined;
   }
 
   /** Die Karten eines Eintrags — für seine Seite und die Vorschau einer Vorlage. */

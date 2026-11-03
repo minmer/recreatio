@@ -23,7 +23,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ask, toast } from '../ui/dialogs';
 import { JsonPanel } from '../ui/JsonPanel';
-import { applyImport, courseDescription, exportSchema, planImport } from './json';
+import { applyImport, courseDescription, exportSchema } from './json';
 import { isBaseKind, QUESTION } from './kinds';
 import { QUESTION_SHARED, QUESTION_TYPES } from './questionTypes';
 import { problemsOf, type KindDef } from './schema';
@@ -89,7 +89,7 @@ export function SchemaEditor({ chosenId, onChoose }: { chosenId: string | null; 
             fileName={`schemat-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`}
             exportDoc={() => exportSchema(lib, name, lib.kinds.filter((k) => (!isBaseKind(k.id) && lib.isOwn(k.id)) || lib.docs('kind').some((e) => e.data.builtin === k.id)))}
             description={() => courseDescription(lib)}
-            preview={(doc) => { const p = planImport(lib, doc); return 'error' in p ? p : { lines: p.lines, warnings: p.warnings }; }}
+            preview={(doc) => review.preview(doc, false)}
             options={review.options}
             importLabel="Zapisz przyjęte"
             onImport={async (doc, stage) => applyImport(lib, review.decide(doc), stage)}

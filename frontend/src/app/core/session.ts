@@ -141,7 +141,8 @@ async function derivePasswordKey(password: string, salt: Uint8Array): Promise<Ui
  * Zwischenzeit jemand anderes schneller war.
  */
 export class WorkspaceError extends Error {
-  constructor(message: string, readonly verdict: string | null = null) {
+  /** 2026-11-03 — `detail`: die ganze Antwort des Dienstes (etwa `problems` je Eintrag eines Zapis, der nicht ging). */
+  constructor(message: string, readonly verdict: string | null = null, readonly detail: unknown = null) {
     super(message);
   }
 }
@@ -220,7 +221,7 @@ export async function call<T>(path: string, init: RequestInit = {}, extra: Reado
 
     if (said !== null && typeof said === 'object' && 'error' in said) {
       const verdict = (said as { verdict?: unknown }).verdict;
-      throw new WorkspaceError(String((said as { error: unknown }).error), typeof verdict === 'string' ? verdict : null);
+      throw new WorkspaceError(String((said as { error: unknown }).error), typeof verdict === 'string' ? verdict : null, said);
     }
 
     // Keine Antwort des Dienstes, sondern des Weiterleiters: der Dienst läuft

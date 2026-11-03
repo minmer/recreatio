@@ -83,6 +83,23 @@ export function useAsync<T>(make: (() => Promise<T>) | null, deps: readonly unkn
   return value;
 }
 
+/**
+ * 2026-11-03 — WIE `useAsync`, ABER DAS ALTE BLEIBT STEHEN, bis das Neue da ist: rechnet es nach einer Änderung neu,
+ * verschwindet nichts (ein Krajobraz, der während des Rechnens einem „Liczenie…" wich, verlor Zoom, Wahl und Bildlauf).
+ * `initial`: was schon gerechnet ist (ohne Warten), etwa `lib.cardsReady()`.
+ */
+export function useAsyncKeep<T>(make: (() => Promise<T>) | null, deps: readonly unknown[], initial?: () => T | undefined): T | null | undefined {
+  const [value, setValue] = useState<T | null | undefined>(() => (make === null ? undefined : initial?.()));
+  useEffect(() => {
+    if (make === null) { setValue(undefined); return undefined; }
+    let alive = true;
+    make().then((v) => { if (alive) setValue(v); }, () => { if (alive) setValue((was) => was ?? null); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return value;
+}
+
 /** Ein Knopf, der etwas tut und solange wartet. */
 export function useBusy(): { busy: boolean; failed: string | null; run: (todo: () => Promise<unknown>) => Promise<void>; setFailed: (s: string | null) => void } {
   const [busy, setBusy] = useState(false);

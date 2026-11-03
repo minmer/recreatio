@@ -31,7 +31,7 @@ import { readPlan } from '../../cogita/revision';
 import { RevisionRun } from '../../cogita/RevisionRun';
 import { fieldsOf, type Entity } from '../../cogita/schema';
 import type { CogitaLibrary } from '../../cogita/store';
-import { Bar, CogitaContext, useAsync } from '../../cogita/ui';
+import { Bar, CogitaContext, useAsync, useAsyncKeep } from '../../cogita/ui';
 import { cellKey, cellText, groupTitle, needsKnowing, readView, viewColumns, viewGroups, viewList, viewMatrix, withKnowing, type ListMode } from '../../cogita/views';
 import { gaugeFromMarks } from '../../cogita/knowing';
 import { answerIndex } from '../../cogita/measures';
@@ -166,7 +166,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const namedRules = useMemo(() => (lib == null || config.rewards === '' ? null : rewardsFor(lib.docs('reward'), config.rewards, null).rules), [lib, lib?.revision, config.rewards]);
   const runRules = namedRules ?? pageRules;
-  const knowCards = useAsync(learns && lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [learns, lib, lib?.revision]);
+  /* 2026-11-03 — die Karten bleiben stehen, solange neue gerechnet werden (ein Krajobraz verliert sonst Zoom, Wahl und Bildlauf). */
+  const knowCards = useAsyncKeep(learns && lib != null ? () => lib.cards('page').then((r) => r.cards) : null, [learns, lib, lib?.revision], () => lib?.cardsReady('page'));
   const visitorAnswers = useMemo(() => (visitor.learner === null ? () => [] : answerIndex(visitor.learner.progress)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [visitor.learner, visitor.learner?.progress]);
@@ -351,7 +352,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       {/* 2026-11-03 — der Krajobraz: die Suche oben zeigt Treffer (zum Zeigen, als Ziel); gelernt wird als die Person der Seite (Punkte, Statystyki). */}
       {mode === 'landscape' && (knowCards == null ? <Loading /> : (
         <>
-          <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} query={state.q ?? ''} viewKey={config.view} rewards={runRules} />
+          <LandscapeView view={saved} cards={knowCards} learner={visitor.learner} onOpen={open} query={state.q ?? ''} viewKey={config.view} rewards={runRules} urlScope={`${scope}.`} />
           <LearnerLine learner={visitor} lib={lib} />
         </>
       ))}

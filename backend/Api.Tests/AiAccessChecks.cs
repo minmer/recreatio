@@ -193,6 +193,14 @@ internal static class AiAccessChecks
                 "MCP get_knowledge_setup: paging past the end is empty; there is no section for progress");
             check(setupSnap.Items[0].Ref == "bosko/turyn" && setupSnap.Items[0].Id == "01a16af6-5a94-718f-b8b5-abdb3ab69201",
                 "a knowledge entry keeps its lasting name from an import (ref)");
+            /* 2026-11-03 — ein Odpis, der älter ist als die letzte Änderung, sagt es zuerst. */
+            check(whole.SnapshotCurrent && !whole.Note.StartsWith("STALE"), "MCP get_knowledge_setup: a current snapshot says nothing about its age");
+            setupSnap.Current = false;
+            setupSnap.ChangedAt = "2026-11-03T09:00:00.0000000+00:00";
+            var staleSetup = AiMcpTools.SetupOf(setupSnap, null, 0);
+            check(!staleSetup.SnapshotCurrent && staleSetup.ChangedAt == setupSnap.ChangedAt && staleSetup.Note.StartsWith("STALE SNAPSHOT") && staleSetup.Note.Contains(setupSnap.ChangedAt),
+                "MCP get_knowledge_setup: a snapshot older than the last change says so first, with when the base changed");
+            setupSnap.Current = true;
             using var oldBase = JsonDocument.Parse("""{ "v": 1, "library": "01a16af6-5a94-718f-b8b5-abdb3ab69200", "name": "Stara", "entries": [] }""");
             check(Fails(() => AiMcpTools.SetupOf(AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", oldBase.RootElement)!, null, 0)) == "not_ready"
                 && AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "books", setupDoc.RootElement)!.Setup.ValueKind == JsonValueKind.Undefined,

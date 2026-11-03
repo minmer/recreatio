@@ -3,47 +3,71 @@
  * was es schon gibt — Feld für Feld, vorher und nachher, anzunehmen oder nicht, und mit einem Wert, der
  * sich vor dem Speichern ändern lässt —, und das Neue, angenommen vorgeschlagen. Gespeichert wird nur,
  * was angenommen ist. Gleich, ob das Dokument von der eigenen KI kommt oder von Hand geschrieben ist.
+ *
+ * 2026-11-03 — EIN PLAN JE DOKUMENT (`importSession`): die Vorschau, die Durchsicht und das Speichern sehen dieselben
+ * Kennungen für das Neue. Vorher plante das Speichern neu — mit neuen Kennungen —, die Annahmen trafen nichts mehr,
+ * und alles Neue fiel still weg. Was den Zapis blockiert, steht hier, bevor jemand speichert.
  */
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 
 import { WorkspaceError } from '../core/session';
 import { plural } from '../core/plural';
-import { planImport, type ImportPlan } from './json';
-import { changesOf, decidedPlan, defaultDecisions, editedValue, editText, type Decisions, type ImportChange } from './importReview';
+import type { JsonPreview } from '../ui/JsonPanel';
+import { ImportBlocked, structurePreview, type ImportPlan } from './json';
+import { changeSummary, defaultDecisions, editedValue, editText, importSession, type Decisions, type ImportChange, type ImportSession } from './importReview';
 import type { CogitaLibrary } from './store';
-import { useCtx } from './ui';
 import { TexText } from '../ui/tex/Tex';
 
 /**
- * Die Durchsicht für ein JSON-Fach: `options` zeichnet sie unter den Plan, `decide` gibt beim Speichern
- * den Plan mit nur dem Angenommenen. Was angenommen ist, gilt für genau dieses Dokument.
+ * Die Durchsicht für ein JSON-Fach: `preview` sagt, was der Import tut (gezählt an dem, was sich wirklich ändert),
+ * `options` zeichnet die Durchsicht unter den Plan, `decide` gibt beim Speichern DENSELBEN Plan mit nur dem
+ * Angenommenen — oder sagt, was ihn blockiert. Was angenommen ist, gilt für genau dieses Dokument.
  */
-export function useImportReview(lib: CogitaLibrary): { options: (doc: unknown) => ReactNode; decide: (doc: unknown) => ImportPlan } {
+export function useImportReview(lib: CogitaLibrary): {
+  preview: (doc: unknown, extra?: boolean) => JsonPreview | { error: string };
+  options: (doc: unknown) => ReactNode;
+  decide: (doc: unknown) => ImportPlan;
+} {
   const [review, setReview] = useState<{ doc: unknown; decisions: Decisions } | null>(null);
+  const sessions = useRef<{ lib: CogitaLibrary; map: WeakMap<object, ImportSession> } | null>(null);
+  const session = (doc: unknown): ImportSession => {
+    if (typeof doc !== 'object' || doc === null) return importSession(lib, doc);
+    if (sessions.current === null || sessions.current.lib !== lib) sessions.current = { lib, map: new WeakMap() };
+    let one = sessions.current.map.get(doc);
+    if (one === undefined) { one = importSession(lib, doc); sessions.current.map.set(doc, one); }
+    return one;
+  };
+  const decisionsFor = (doc: unknown): Decisions | null => (review !== null && review.doc === doc ? review.decisions : null);
+  const preview = (doc: unknown, extra = true): JsonPreview | { error: string } => {
+    const one = session(doc);
+    const plan = one.plan();
+    if ('error' in plan) return plan;
+    return { lines: [...changeSummary(one.changes()), ...(extra ? structurePreview(lib, plan) : [])], warnings: plan.warnings };
+  };
   const options = (doc: unknown): ReactNode => (
-    <ImportReview doc={doc} decisions={review !== null && review.doc === doc ? review.decisions : null} onDecisions={(decisions) => setReview({ doc, decisions })} />
+    <ImportReview session={session(doc)} decisions={decisionsFor(doc)} onDecisions={(decisions) => setReview({ doc, decisions })} />
   );
   const decide = (doc: unknown): ImportPlan => {
-    const plan = planImport(lib, doc);
-    if ('error' in plan) throw new WorkspaceError(plan.error);
-    const changes = changesOf(lib, plan);
-    const decided = decidedPlan(lib, plan, changes, review !== null && review.doc === doc ? review.decisions : defaultDecisions(changes));
+    const decided = session(doc).decide(decisionsFor(doc));
+    if ('error' in decided) throw new WorkspaceError(decided.error);
     if (decided.invalid.length > 0) throw new WorkspaceError(`Popraw zmienione wartości: ${decided.invalid.join('; ')}`);
-    return decided.plan;
+    if (decided.blocked.length > 0) throw new ImportBlocked(decided.blocked);
+    return { ...decided.plan, warnings: [...decided.plan.warnings, ...decided.kept] };
   };
-  return { options, decide };
+  return { preview, options, decide };
 }
 
 const count = (n: number, one: string, few: string, many: string) => `${n} ${plural(n, one, few, many)}`;
 
-function ImportReview({ doc, decisions, onDecisions }: { doc: unknown; decisions: Decisions | null; onDecisions: (d: Decisions) => void }) {
-  const { lib } = useCtx();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const changes = useMemo(() => { const plan = planImport(lib, doc); return 'error' in plan ? [] : changesOf(lib, plan); }, [lib, lib.revision, doc]);
+function ImportReview({ session, decisions, onDecisions }: { session: ImportSession; decisions: Decisions | null; onDecisions: (d: Decisions) => void }) {
+  const changes = session.changes();
   const now = decisions ?? defaultDecisions(changes);
   const fresh = changes.filter((c) => c.isNew);
   const edits = changes.filter((c) => !c.isNew);
+  /* 2026-11-03 — was den Zapis so, wie er jetzt angekreuzt ist, blockieren würde — bevor jemand auf „Zapisz" drückt. */
+  const decided = session.decide(now);
+  const blocked = 'error' in decided ? [] : decided.blocked;
   if (changes.length === 0) return null;
 
   const set = (ids: readonly string[], on: boolean) => {
@@ -72,7 +96,14 @@ function ImportReview({ doc, decisions, onDecisions }: { doc: unknown; decisions
         Zapisze się: {count(freshOn, 'nowy element', 'nowe elementy', 'nowych elementów')} z {fresh.length}
         {edits.length > 0 && <> i {count(editsOn, 'zmiana', 'zmiany', 'zmian')} z {edits.length} w tym, co już jest</>}.
         {edits.length > 0 && ' Zmiany w tym, co już jest, zapisują się dopiero po przyjęciu — każdą można też poprawić.'}
+        {' Wszystko zapisze się w jednym zapisie — albo nic.'}
       </p>
+      {blocked.length > 0 && (
+        <div className="wk-error" role="alert" data-review-blocked={blocked.length}>
+          <p>Tak zaznaczone nie zapisze się — wskazywałoby na coś, czego nie będzie:</p>
+          <ul>{blocked.slice(0, 20).map((line, i) => <li key={i}>{line}</li>)}{blocked.length > 20 && <li>… i {blocked.length - 20} innych</li>}</ul>
+        </div>
+      )}
 
       {edits.length > 0 && (
         <section className="cg-review-part" aria-label="Zmiany w tym, co już jest">

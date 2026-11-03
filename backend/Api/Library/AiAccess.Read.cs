@@ -79,6 +79,14 @@ public static partial class AiAccess
         public required string Part { get; init; }
         public string Name { get; init; } = "";
         public string? MadeAt { get; init; }
+        /// <summary>
+        /// 2026-11-03 — ob die Abschrift den Stand trägt, den der Behälter JETZT hat (der Dienst vergleicht den Stand beim
+        /// Bauen mit dem heutigen, ohne Schlüssel). Sonst ist sie älter als die letzte Änderung — der Browser von jemandem,
+        /// der dort schreibt, baut sie neu (nach einem Import sofort).
+        /// </summary>
+        public bool Current { get; set; } = true;
+        /// <summary>Wann der Behälter zuletzt geändert wurde (der Dienst kennt die Zeit, nicht den Inhalt).</summary>
+        public string? ChangedAt { get; set; }
         public string? Notes { get; init; }
         public JsonElement Kinds { get; init; }
         /// <summary>2026-10-30 — nur eine Baza wiedzy: was ihr Lernen steuert (Kurs ohne Einträge, Karten je Vorlage, wer liest) — <c>get_knowledge_setup</c>.</summary>
@@ -982,8 +990,10 @@ public static partial class AiAccess
                 return (null, LinkProblem.Gone);
             }
 
-            await using var parts = new SqlCommand("""
-                SELECT p.library_id, l.kind, p.snapshot
+            /* 2026-11-03 — dazu der Stand beim Bauen und der heutige (wie in „Dostęp dla AI"): ist die Abschrift noch die jüngste? */
+            await using var parts = new SqlCommand($"""
+                SELECT p.library_id, l.kind, p.snapshot, p.mark, {MarkSql},
+                       (SELECT MAX(e.updated_at) FROM app.library_entry e WHERE e.library_id = l.id)
                 FROM app.ai_access_part p
                 JOIN app.library l ON l.id = p.library_id AND l.area_id = @area
                 WHERE p.access_id = @id
@@ -1006,6 +1016,8 @@ public static partial class AiAccess
                     opened.Docs.Add(doc);
                     snap.AreaId = areaId;
                     snap.AreaName = areaName;
+                    snap.Current = !reader.IsDBNull(3) && reader.GetString(3) == reader.GetString(4);
+                    snap.ChangedAt = reader.IsDBNull(5) ? null : reader.GetDateTimeOffset(5).ToString("O");
                     opened.Parts.Add(snap);
                 }
                 catch (Exception e) when (e is DecryptException or InvalidDataException or JsonException)
@@ -1069,6 +1081,9 @@ public static partial class AiAccess
                 what = PartWords(p.Part),
                 entries = p.Items.Count,
                 madeAt = p.MadeAt,
+                /* 2026-11-03 — false: zbiór zmienił się po zrobieniu odpisu (changedAt); odpis odświeży się w przeglądarce kogoś, kto w nim pisze. */
+                current = (bool?)p.Current,
+                changedAt = p.ChangedAt,
                 browse = $"{o.Base}/search?part={Ids.ToText(p.LibraryId)}"
             }).Concat(o.Missing.Select(m => new
             {
@@ -1078,6 +1093,8 @@ public static partial class AiAccess
                 what = "odpis jeszcze nie jest gotowy — pojawi się, gdy ktoś z obszaru otworzy aplikację",
                 entries = 0,
                 madeAt = (string?)null,
+                current = (bool?)null,
+                changedAt = (string?)null,
                 browse = (string)null!
             })),
             howTo = new[]

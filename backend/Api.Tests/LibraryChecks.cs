@@ -28,5 +28,30 @@ internal static class LibraryChecks
         check(Library.ParseIds($"{a}, {b},{a}") is { Count: 2 }, "where: ids, each once, spaces allowed");
         check(Library.ParseIds("kein-guid") is null && Library.ParseIds("") is null && Library.ParseIds(null) is null, "where: only ids, at least one");
         check(Library.ParseIds(string.Join(",", Enumerable.Range(0, 401).Select(_ => Guid.NewGuid()))) is null, "where: at most 400");
+
+        /* 2026-11-03 — viele in einem Zug (ein Import): alle oder keiner. Was hereinkommt … */
+        var sealedOk = Kernel.Base64Url.Encode(new byte[64]);
+        Library.SaveManyEntry Row(string id, int version = 0, string kind = "entity", string? seal = null, int epoch = 1) => new(id, kind, epoch, seal ?? sealedOk, version);
+        var (rows, error) = Library.ReadSaveMany(new Library.SaveManyRequest([Row(a), Row(b, 3)]));
+        check(rows is { Count: 2 } && error is null && rows[0].Id == Guid.Parse(a) && rows[1].Version == 3, "batch: rows in their order, with their state");
+        check(Library.ReadSaveMany(new Library.SaveManyRequest([Row(a), Row(a.ToUpperInvariant())])).Error?.Contains("dwa razy") == true, "batch: an entry at most once");
+        check(Library.ReadSaveMany(new Library.SaveManyRequest([])).Rows is null && Library.ReadSaveMany(null).Rows is null
+            && Library.ReadSaveMany(new Library.SaveManyRequest(Enumerable.Range(0, Library.MaxSaveBatch + 1).Select(_ => Row(Guid.NewGuid().ToString())).ToList())).Rows is null,
+            "batch: 1 to MaxSaveBatch entries");
+        check(Library.ReadSaveMany(new Library.SaveManyRequest([Row("kein-guid")])).Rows is null && Library.ReadSaveMany(new Library.SaveManyRequest([Row(a, kind: "Entity")])).Rows is null
+            && Library.ReadSaveMany(new Library.SaveManyRequest([Row(a, seal: Kernel.Base64Url.Encode(new byte[47]))])).Rows is null
+            && Library.ReadSaveMany(new Library.SaveManyRequest([Row(a, epoch: 0)])).Rows is null && Library.ReadSaveMany(new Library.SaveManyRequest([Row(a, version: -1)])).Rows is null,
+            "batch: every entry an id, a kind, an epoch, a sealed envelope, a state — or nothing goes");
+        /* … und was gegen die Datenbank nicht geht: ALLE werden genannt, und dann geht keiner. */
+        var lib = Guid.Parse("01a0f4c1-bab6-7be5-bdfc-6f198a63ec00");
+        var other = Guid.Parse("01a0f4c1-bab6-7be5-bdfc-6f198a63ec01");
+        var c = "01a0f4c1-bab6-7be5-bdfc-6f198a63ecec";
+        var d = "01a0f4c1-bab6-7be5-bdfc-6f198a63eced";
+        var fine = Library.ReadSaveMany(new Library.SaveManyRequest([Row(a), Row(b, 3)])).Rows!;
+        check(Library.SaveManyProblems(lib, fine, new Dictionary<Guid, (Guid, int)> { [Guid.Parse(b)] = (lib, 3) }).Count == 0, "batch: new ones with state 0, existing ones with their state — all go");
+        var bad = Library.ReadSaveMany(new Library.SaveManyRequest([Row(a, 2), Row(b, 3), Row(c, 1), Row(d)])).Rows!;
+        var found = Library.SaveManyProblems(lib, bad, new Dictionary<Guid, (Guid, int)> { [Guid.Parse(b)] = (lib, 4), [Guid.Parse(c)] = (other, 1) });
+        check(found.Count == 3 && found[0].EntryId == a && found[0].Version == 0 && found[1].EntryId == b && found[1].Version == 4 && found[2].EntryId == c && found[2].Version is null,
+            "batch: a vanished entry, a newer state and another library's entry are each named — the fourth is fine but waits with them");
     }
 }

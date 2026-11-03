@@ -3089,3 +3089,38 @@ equal fallback areas named after arbitrary topics). Heights, knowness, bands and
   measures the rendered SVG at 1280/820/390, grouped and ungrouped, 151/156 — the 5 misses are area names moved inward
   along the arc at narrow widths; `locks.mjs` 13/13; `rewards/world-browser.mjs` 13/13 at 1280 and 390).
 - Needs: frontend build + deploy; API deploy for the MCP texts. No migration.
+
+## C21 — Cogita: a course import saves its new kinds and entries — in one transaction (2026-11-03)
+
+Owner's report: importing `bosko-krajobraz-obszary.json` into Bosko saved the changes to existing items but never the
+new kind „Obszar krajobrazu" and its 8 entries; the field `obszar` and the view's group pointed at kind ids that were
+never stored, and every re-import minted a new id.
+
+- Root cause: the review (`ImportReviewPanel.tsx`) planned the document for the preview and planned it AGAIN on save;
+  `planImport` minted fresh ids for everything new each time. The ticks were keyed by the preview's ids (`k:<id>`,
+  `e:<id>`), so on save every new item counted as unticked and was dropped; `decidedPlan` then silently stripped
+  references to them from entries and docs (stages lost `obszar`, the group lost `kind`), while a kind's `to` kept the
+  dangling id. Reproduced on LocalDB with the committed code: preview „Nowe 9, Zmiany 12", result „Zapisano 10 z 10.".
+  The failed saves created no rows; they rewrote the kind, the 8 stages and the view (no orphans to remove).
+- `json.ts`: `importIds` — the same document (object) gets the same ids for its new items in every planning, per base;
+  `importProblems` — a save never stores a reference to a kind or entry that would not exist (field `to`, an entry's
+  kinds, ref values, a view's source/group/axis kinds, anything pointing at an unticked new item) → `ImportBlocked`,
+  one line per item and field; only what the save changes is checked (old dangling values elsewhere stay quiet);
+  `applyImport` saves everything as ONE batch in dependency order (new kinds, changed kinds, new entries, changed
+  entries, docs with views after what they name) and refreshes the AI snapshot right after. Skipped `@names` name the
+  entry AND the field. `importReview.ts`: `decidedPlan` blocks instead of stripping; `importSession` (one plan per
+  document and base revision for preview, review and save); `changeSummary` counts real changes; values compared as
+  stored (`query: ""`, `columns: []` were 2 phantom changes on every view — the owner's „12" was 10).
+- Backend: `POST /workspace/library/{id}/entries/save` (`Library.Batch.cs`) — up to 5000 entries / 40 MB in one SQL
+  transaction: every row locked and checked (library, version) first, all problems named, then written; nothing on
+  any problem. Client: `LibraryStore.saveAll` (seals all, one call, 24 MB cap), `CogitaLibrary.saveBatch`.
+- MCP freshness: the server compares a snapshot's mark with the collection's current one — `/ai/{token}`
+  (`current`, `changedAt`), `list_collections` (`SnapshotCurrent`, `ChangedAt`), `get_knowledge_setup` (a note starting
+  `STALE SNAPSHOT`). The browser rebuilds the snapshot right after an import (`refreshAiNow`) and flushes pending
+  rebuilds when the tab is hidden.
+- Checks: `app-import-check.mjs` (36: the owner's flow end to end with preview ids, second import 0 new / 0 changes,
+  all-or-nothing, blocked references by item and field, repair of the broken state); Api.Tests (batch reading and
+  problems, stale note). LocalDB run (scratchpad `import-fix/bosko-import-real.mjs`): old code ×3 reproduces the bug;
+  fixed code saves 19 rows with one timestamp (9 new), ids = preview ids, the AI link reads `@bosko-nauka/obszar/etap-1`
+  at once, a second import shows 0/0.
+- Needs: API deploy (new endpoint, MCP texts) BEFORE the frontend deploy (the import calls the new endpoint). No migration.

@@ -1333,6 +1333,8 @@ check('goals and lines follow the one logic', [
       byKey: (key) => [...map.values()].find((e) => (e.key ?? '').toLowerCase() === key.toLowerCase()),
       ownByKey: (key) => [...map.values()].find((e) => (e.key ?? '').toLowerCase() === key.toLowerCase()),
       save: async (input) => { const entry = { ...input, id: input.id ?? `neu-${store.saved.length}` }; map.set(entry.id, entry); store.saved.push(entry); store.revision += 1; return entry; },
+      saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+      refreshAiNow: async () => null,
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined
     };
@@ -1600,6 +1602,8 @@ check('goals and lines follow the one logic', [
     libraryId: 'B', areaId: 'area-b', revision: 1, loaded: true, saved: [],
     all: () => [...bmap.values()], get: (id) => bmap.get(id), byKey: () => undefined,
     save: async (input) => { const entry = { ...input, id: input.id ?? `nowy-${books.saved.length}` }; bmap.set(entry.id, entry); books.saved.push(entry); books.revision += 1; return entry; },
+    saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await books.save(i)); return saved; },
+    refreshAiNow: async () => null,
     subscribe: () => () => undefined
   };
   const B = (id, kind, data) => bmap.set(id, { id, kind, data });
@@ -1808,6 +1812,8 @@ check('goals and lines follow the one logic', [
       libraryId, areaId, revision: 1, loaded: true,
       all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
       save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-neu-${n += 1}`, libraryId, updatedAt: `2026-10-25T10:00:${String(n).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+      refreshAiNow: async () => null,
       saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined
@@ -2648,6 +2654,8 @@ check('goals and lines follow the one logic', [
       libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
       all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
       save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-${n += 1}`, libraryId, updatedAt: `2026-10-27T10:${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+      refreshAiNow: async () => null,
       saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined
@@ -2768,6 +2776,8 @@ check('goals and lines follow the one logic', [
       libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
       all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
       save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-${n += 1}`, libraryId, updatedAt: `2026-10-27T11:00:${String(n % 60).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+      refreshAiNow: async () => null,
       saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined
@@ -2907,6 +2917,8 @@ check('goals and lines follow the one logic', [
       libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
       all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
       save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-${n += 1}`, libraryId, updatedAt: `2026-10-30T09:00:${String(n % 60).padStart(2, '0')}Z` }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+      refreshAiNow: async () => null,
       saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined
@@ -3454,6 +3466,8 @@ check('goals and lines follow the one logic', [
     libraryId: 'R', areaId: 'area-r', revision: 1, loaded: true,
     all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey: () => undefined, ownByKey: () => undefined,
     save: async (input) => { const entry = { ...input, id: input.id ?? `R-neu-${n += 1}`, libraryId: 'R' }; map.set(entry.id, entry); store.revision += 1; return entry; },
+    saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+    refreshAiNow: async () => null,
     saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
     remove: async (id) => { map.delete(id); store.revision += 1; },
     subscribe: () => () => undefined

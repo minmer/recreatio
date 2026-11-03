@@ -358,7 +358,7 @@ const WATCH_MS = 10 * 60_000;
 
 /** Je Bereich: welche Behälter ein geltender Link abschreibt (und ob ich dort schreibe — sonst keiner). */
 const watched = new Map<string, { readonly at: number; readonly copied: Promise<ReadonlySet<string>> }>();
-const timers = new Map<string, number>();
+const timers = new Map<string, { readonly timer: number; readonly run: () => void }>();
 
 /** Nach dem Anlegen oder Löschen eines Links: neu nachsehen. */
 export function forgetAiWatch(areaId: string): void {
@@ -373,8 +373,8 @@ export function forgetAiWatch(areaId: string): void {
 export function libraryWritten(ring: Ring, areaId: string, libraryId: string): void {
   if (typeof window === 'undefined') return;
   const before = timers.get(libraryId);
-  if (before !== undefined) window.clearTimeout(before);
-  timers.set(libraryId, window.setTimeout(() => {
+  if (before !== undefined) window.clearTimeout(before.timer);
+  const run = () => {
     timers.delete(libraryId);
     void (async () => {
       let seen = watched.get(areaId);
@@ -388,5 +388,33 @@ export function libraryWritten(ring: Ring, areaId: string, libraryId: string): v
       if (!(await seen.copied).has(libraryId)) return;
       await refreshAiAccess(ring, areaId, { only: libraryId }).catch(() => undefined);
     })();
-  }, QUIET_MS));
+  };
+  timers.set(libraryId, { timer: window.setTimeout(run, QUIET_MS), run });
+  flushWhenHidden();
+}
+
+/**
+ * 2026-11-03 — WER DIE APP VERLÄSST, WARTET NICHT AUF DIE RUHE: wird der Tab verborgen (ein anderer Tab, das Telefon
+ * gesperrt, die App im Hintergrund), entstehen die anstehenden Abschriften gleich — sonst trüge die Abschrift den
+ * Stand vor der letzten Änderung, bis jemand die App wieder öffnet.
+ */
+let flushing = false;
+function flushWhenHidden(): void {
+  if (flushing || typeof document === 'undefined') return;
+  flushing = true;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    for (const [, pending] of [...timers]) { window.clearTimeout(pending.timer); pending.run(); }
+  });
+}
+
+/**
+ * 2026-11-03 — GLEICH AUFFRISCHEN (nach einem Import): die Abschriften dieses Behälters entstehen sofort, nicht erst
+ * nach der Ruhe — ein Assistent, der über MCP prüft, was der Import gespeichert hat, sieht es gleich. Ohne Link: nichts.
+ */
+export async function libraryWrittenNow(ring: Ring, areaId: string, libraryId: string): Promise<Refreshed> {
+  const pending = timers.get(libraryId);
+  if (pending !== undefined) { window.clearTimeout(pending.timer); timers.delete(libraryId); }
+  forgetAiWatch(areaId);
+  return refreshAiAccess(ring, areaId, { only: libraryId });
 }

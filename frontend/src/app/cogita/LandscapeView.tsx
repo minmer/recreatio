@@ -132,6 +132,127 @@ function useLandscape(client: LandscapeClient | null, input: LsInput, state: LsS
   return { run, failed };
 }
 
+/* -- 2026-11-03: was ein Krajobraz behält — über Reiter, Zurück/Vor und Neuladen ------------------------------- */
+
+/**
+ * DAS GEDÄCHTNIS EINES KRAJOBRAZ je Baza und Widok (über das Leben des Bildes hinaus): das letzte Bild (sofort wieder da,
+ * während neu gerechnet wird), Zoom, das gewählte Feld, die offene Tafel, die Breite und wo die Seite stand. Zoom und
+ * gewähltes Feld stehen dazu in der Adresse (`obszar`, `pole` — auf einer Seite mit dem Zakres des Bausteins): ein
+ * Neuladen, Zurück und Vor und ein geteilter Link zeigen dieselbe Stelle.
+ */
+interface Memory {
+  run: LsRun | null;
+  focus: readonly string[];
+  chosen: string | null;
+  listed: string | null;
+  width: number;
+  scroll: number | null;
+}
+
+const memories = new Map<string, Memory>();
+const memoryOf = (key: string): Memory => {
+  let m = memories.get(key);
+  if (m === undefined) {
+    m = { run: null, focus: [], chosen: null, listed: null, width: 0, scroll: null };
+    try { const raw = sessionStorage.getItem(`cg-ls-scroll:${key}`); if (raw !== null && Number.isFinite(Number(raw))) m.scroll = Number(raw); } catch { /* ohne Speicher des Tabs */ }
+    memories.set(key, m);
+  }
+  return m;
+};
+
+const urlNames = (scope: string) => ({ focus: `${scope}obszar`, chosen: `${scope}pole` });
+const hashParams = (): { base: string; params: URLSearchParams } => {
+  const hash = typeof window === 'undefined' ? '' : window.location.hash;
+  const at = hash.indexOf('?');
+  return { base: at < 0 ? hash : hash.slice(0, at), params: new URLSearchParams(at < 0 ? '' : hash.slice(at + 1)) };
+};
+
+/** Zoom und Wahl aus der Adresse — `null`: sie nennt nichts davon. */
+function readKept(scope: string): { focus: readonly string[]; chosen: string | null } | null {
+  const { params } = hashParams();
+  const names = urlNames(scope);
+  const f = params.get(names.focus);
+  const c = params.get(names.chosen);
+  if ((f === null || f === '') && (c === null || c === '')) return null;
+  const focus = f === null || f === '' ? [] : f.split(',').map((x) => { try { return decodeURIComponent(x); } catch { return x; } }).filter((x) => x !== '');
+  return { focus, chosen: c === null || c === '' ? null : c };
+}
+
+/** Zoom und Wahl in die Adresse: ein Zoom als Schritt der Geschichte (Zurück zoomt hinaus), eine Wahl ersetzend. */
+function writeKept(scope: string, focus: readonly string[], chosen: string | null, step: boolean): void {
+  if (typeof window === 'undefined') return;
+  const { base, params } = hashParams();
+  const names = urlNames(scope);
+  if (focus.length === 0) params.delete(names.focus); else params.set(names.focus, focus.map((x) => encodeURIComponent(x)).join(','));
+  if (chosen === null) params.delete(names.chosen); else params.set(names.chosen, chosen);
+  const query = params.toString();
+  const next = `${base}${query === '' ? '' : `?${query}`}`;
+  if (next === window.location.hash) return;
+  const url = `${window.location.pathname}${window.location.search}${next}`;
+  if (step) window.history.pushState(window.history.state, '', url); else window.history.replaceState(window.history.state, '', url);
+}
+
+/**
+ * ZOOM, WAHL, TAFEL UND BILDLAUF, die bleiben. `scope`: `null` — nichts in der Adresse (ein kleiner Baustein); `''`
+ * — `obszar`/`pole`; sonst der Zakres eines Bausteins (`ab12cd.obszar`).
+ */
+function useKept(key: string, scope: string | null) {
+  const mem = memoryOf(key);
+  const start = useMemo(() => (scope === null ? null : readKept(scope)), [scope]);
+  const [focus, setFocusNow] = useState<readonly string[]>(() => start?.focus ?? mem.focus);
+  const [chosen, setChosenNow] = useState<string | null>(() => (start !== null ? start.chosen : mem.chosen));
+  const [listed, setListedNow] = useState<string | null>(() => (start !== null ? null : mem.listed));
+  /* Was das Gedächtnis kannte, steht danach auch in der Adresse (ein Neuladen findet es). */
+  useEffect(() => {
+    if (scope !== null && start === null && (mem.focus.length > 0 || mem.chosen !== null)) writeKept(scope, mem.focus, mem.chosen, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /* Zurück und Vor: die Adresse sagt, was gilt. */
+  useEffect(() => {
+    if (scope === null) return undefined;
+    const again = () => {
+      const now = readKept(scope);
+      setFocusNow(now?.focus ?? []);
+      setChosenNow(now?.chosen ?? null);
+      mem.focus = now?.focus ?? [];
+      mem.chosen = now?.chosen ?? null;
+    };
+    window.addEventListener('popstate', again);
+    return () => window.removeEventListener('popstate', again);
+  }, [scope, mem]);
+  const setFocus = (next: readonly string[]) => {
+    setFocusNow(next);
+    mem.focus = next;
+    if (scope !== null) writeKept(scope, next, null, true);
+    setChosenNow(null);
+    mem.chosen = null;
+  };
+  const setChosen = (next: string | null) => {
+    setChosenNow(next);
+    mem.chosen = next;
+    if (scope !== null) writeKept(scope, mem.focus, next, false);
+  };
+  const setListed = (next: string | null) => { setListedNow(next); mem.listed = next; };
+  /* Wo die Seite steht — beim Verlassen schon gemerkt (ein kürzerer Reiter danach setzt den Bildlauf zurück, bevor wir es erfahren). */
+  const gone = useRef(false);
+  useLayoutEffect(() => { gone.current = false; return () => { gone.current = true; }; }, []);
+  useEffect(() => {
+    let frame = 0;
+    const onScroll = () => {
+      if (gone.current || frame !== 0) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        if (gone.current) return;
+        mem.scroll = window.scrollY;
+        try { sessionStorage.setItem(`cg-ls-scroll:${key}`, String(Math.round(window.scrollY))); } catch { /* ohne Speicher des Tabs */ }
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('scroll', onScroll); if (frame !== 0) window.cancelAnimationFrame(frame); };
+  }, [key, mem]);
+  return { mem, focus, setFocus, chosen, setChosen, listed, setListed };
+}
+
 /** Wer weniger Bewegung will, bekommt keine. */
 const still = (): boolean => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
@@ -154,12 +275,19 @@ export interface LandscapeProps {
   readonly viewKey: string;
   /** Was unter einem kleinen Bild steht (der Weg zum Ganzen). */
   readonly more?: ReactNode;
+  /**
+   * 2026-11-03 — wo Zoom und gewähltes Feld in der Adresse stehen: `''` — `obszar`, `pole`; ein Zakres — `<zakres>.obszar`;
+   * fehlt es: nirgends (ein kleiner Baustein).
+   */
+  readonly urlScope?: string;
 }
 
 type Running = { readonly key: string; readonly source: RunSource; readonly then?: () => void };
 
-export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more }: LandscapeProps) {
+export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope }: LandscapeProps) {
   const { lib } = useCtx();
+  /* 2026-11-03 — was bleibt (`useKept`): je Baza, Widok und Grösse. */
+  const keep = useKept(`${lib.libraryId}:${viewKey}:${compact ? 'small' : 'big'}`, urlScope ?? null);
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
   const fp = useMemo(() => new Map(cards.map((c) => [c.key, c.fingerprint] as const)), [cards]);
   const [running, setRunning] = useState<Running | null>(null);
@@ -187,10 +315,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     setClient(made);
     return () => { made.dispose(); setClient((was) => (was === made ? null : was)); };
   }, []);
-  const [boxRef, boxWidth] = useWidth();
+  const [boxRef, boxWidth] = useWidth(keep.mem.width);
+  useEffect(() => { if (boxWidth > 0) keep.mem.width = boxWidth; }, [boxWidth, keep.mem]);
 
-  const [focus, setFocus] = useState<readonly string[]>([]);
-  useEffect(() => { setFocus([]); }, [groupKey, listKey]);
+  const { focus, setFocus } = keep;
+  /* Eine andere Gruppierung: der Zoom gilt nicht mehr (eine andere Liste ändert ihn nicht — ein Wert, der fehlt, fällt ohnehin weg). */
+  const groupSeen = useRef(groupKey);
+  useEffect(() => { if (groupSeen.current !== groupKey) { groupSeen.current = groupKey; setFocus([]); } }, [groupKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const goalKey = `landscape:${viewKey}`;
   const [localGoal, setLocalGoal] = useState<string | null>(null);
   const kept = progress?.positions.get(goalKey)?.step ?? null;
@@ -202,11 +333,21 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Schmal (ein Telefon): weniger einzelne Felder — sonst würden die Sechsecke zu klein. */
   const wanted = view.landscape?.budget ?? LS_BUDGET;
   const budget = Math.min(wanted, compact ? 24 : 400, boxWidth > 0 && boxWidth < 480 ? 22 : boxWidth > 0 && boxWidth < 760 ? 40 : 400);
-  const { run, failed } = useLandscape(client, input, state, { budget, focus, goal, narrow: boxWidth > 0 && boxWidth < 560, bands: view.landscape?.bands });
+  const fresh = useLandscape(client, input, state, { budget, focus, goal, narrow: boxWidth > 0 && boxWidth < 560, bands: view.landscape?.bands });
+  /* 2026-11-03 — bis das neue Bild da ist, das letzte (kein „Liczenie…", das die Seite zusammenfallen lässt). */
+  useEffect(() => { if (fresh.run !== null) keep.mem.run = fresh.run; }, [fresh.run, keep.mem]);
+  const run = fresh.run ?? keep.mem.run;
+  const failed = fresh.failed;
 
-  const [chosen, setChosen] = useState<string | null>(null);
-  /* Ein Bereichsfeld, das sich nicht weiter öffnen lässt: seine Einträge als Liste. */
-  const [listed, setListed] = useState<string | null>(null);
+  const { chosen, setChosen, listed, setListed } = keep;
+  /* Wo die Seite stand, als man ging — einmal, sobald das Bild wieder steht. */
+  const scrolled = useRef(false);
+  useLayoutEffect(() => {
+    if (scrolled.current || run === null || boxWidth === 0) return;
+    scrolled.current = true;
+    const y = keep.mem.scroll;
+    if (y !== null && y > 0 && Math.abs(window.scrollY - y) > 2) window.scrollTo({ top: y });
+  }, [run, boxWidth, keep.mem]);
   const [note, setNote] = useState<string | null>(null);
   const [said, setSaid] = useState('');
   const answers = useMemo(() => (learner === null ? () => [] : answerIndex(learner.progress, rename)),
@@ -255,7 +396,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     );
   }
   if (failed !== null) return host(<p className="wk-error" data-landscape-failed="">Krajobraz: {failed}</p>);
-  if (run === null || client === null || boxWidth === 0) return host(<p className="cg-muted" data-landscape-wait="">Liczenie krajobrazu…</p>);
+  if (run === null || boxWidth === 0) return host(<p className="cg-muted" data-landscape-wait="">Liczenie krajobrazu…</p>);
   const layout = run.layout;
   if (layout.total === 0 && layout.fields.length === 0) {
     return host(<p className="cg-muted" data-landscape-empty="">W tym widoku nie ma wpisów z pytaniami — krajobraz pokazuje to, czego można się uczyć.</p>);
@@ -285,7 +426,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   return host(
     <div className={`cg-ls${compact ? ' is-compact' : ''}`} data-landscape={layout.fields.length} data-landscape-ring={layout.counts.ring}
-      data-landscape-ms={`${run.ms.graph.toFixed(1)}/${run.ms.heights.toFixed(1)}/${run.ms.layout.toFixed(1)}`} data-landscape-worker={client.inWorker ? '1' : '0'}>
+      data-landscape-ms={`${run.ms.graph.toFixed(1)}/${run.ms.heights.toFixed(1)}/${run.ms.layout.toFixed(1)}`} data-landscape-worker={client?.inWorker === true ? '1' : '0'}>
       <TopBar layout={layout} focus={focus} onFocus={(f) => { setFocus(f); setListed(null); }} goalLabel={layout.goal === null ? null : labelOf(layout.goal.id)} nextLabel={(id) => labelOf(id)}
         onClearGoal={() => setGoal(null)} onShowGoal={() => { if (layout.goal !== null) { setListed(null); setChosen(layout.goal.id); } }} />
       {query.trim() !== '' && (
@@ -299,7 +440,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       {listedField !== undefined && (
         <AreaPanel field={listedField} label={labelOf} bandOf={bandOf} onPick={(id) => { setListed(null); setChosen(id); }} onClose={() => setListed(null)} />
       )}
-      {entryChosen !== null && (
+      {entryChosen !== null && client !== null && (
         <EntryPanel id={entryChosen} band={bandOf(entryChosen)} height={heightOf(entryChosen)} locked={lockedOf(entryChosen)} goal={goal === entryChosen}
           canLearn={learner !== null} gauge={gauge} cards={cards} answers={answers} client={client} label={labelOf} bandOf={bandOf} note={note}
           onLearn={() => learnEntry(entryChosen)} onReview={(band) => learnEntry(entryChosen, band !== 'known')} onReviewFirst={() => reviewFirst(entryChosen)}
@@ -374,9 +515,10 @@ function TopBar({ layout, focus, onFocus, goalLabel, nextLabel, onClearGoal, onS
 
 /* -- Das Bild ---------------------------------------------------------------------------------------------------- */
 
-function useWidth(): [RefObject<HTMLDivElement>, number] {
+function useWidth(initial = 0): [RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  /* 2026-11-03 — die Breite vom letzten Mal: das Bild steht sofort (gemessen wird gleich danach). */
+  const [width, setWidth] = useState(initial);
   useEffect(() => {
     const el = ref.current;
     if (el === null) return undefined;

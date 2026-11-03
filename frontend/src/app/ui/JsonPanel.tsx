@@ -268,7 +268,14 @@ export function JsonPanel({
                 </div>
               )}
 
-              {failed !== null && <p className="wk-error">{failed}</p>}
+              {/* 2026-11-03 — ein Import, der nicht ging, nennt jedes Element und Feld: eine Zeile je Grund. */}
+              {failed !== null && !failed.includes('\n') && <p className="wk-error">{failed}</p>}
+              {failed !== null && failed.includes('\n') && (
+                <div className="wk-error" role="alert" data-json-failed="">
+                  <p>{failed.split('\n')[0]}</p>
+                  <ul>{failed.split('\n').slice(1).map((line, i) => <li key={i}>{line}</li>)}</ul>
+                </div>
+              )}
               {done !== null && (
                 <div role="status" className="wk-json-plan">
                   <p className="wk-done">Zaimportowano.</p>

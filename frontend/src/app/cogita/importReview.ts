@@ -8,15 +8,18 @@
  * <code>
  *   changesOf(lib, plan)             die Liste der Änderungen eines Plans
  *   defaultDecisions(changes)        Neues an, Änderungen an Bestehendem aus
- *   decidedPlan(lib, plan, …)        der Plan mit nur dem Angenommenen (und den geänderten Werten)
+ *   decidedPlan(lib, plan, …)        der Plan mit nur dem Angenommenen (und den geänderten Werten) — und was ihn blockiert
+ *   importSession(lib, doc)          EIN Plan je Dokument und Stand: Vorschau, Durchsicht und Speichern sehen dieselben Kennungen
+ *   changeSummary(changes)           in Worten: wie viel neu ist und wie viel sich ändert
  * </code>
  *
- * Nichts davon speichert; `applyImport` schreibt den entschiedenen Plan.
+ * Nichts davon speichert; `applyImport` schreibt den entschiedenen Plan, in einem Zug.
  */
 
 import { blockPlain, blocksIn, type CommentBlock } from '../library/blocks';
 import { DOC_KINDS, DOC_LABEL, kindDoc } from './kinds';
-import type { ImportPlan } from './json';
+import { importIds, importProblems, planImport, type ImportPlan } from './json';
+import { plural } from '../core/plural';
 import { fieldsOf, fieldText, labelOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import type { CogitaLibrary } from './store';
 
@@ -57,6 +60,18 @@ const canon = (v: unknown): string => {
   return JSON.stringify(v) ?? 'null';
 };
 const same = (a: unknown, b: unknown): boolean => canon(a) === canon(b);
+/**
+ * 2026-11-03 — WIE EIN WERT GESPEICHERT DASTEHT (`cleanData`): leerer Text, leere Liste und `null` fallen weg, Text
+ * ohne Leerraum am Ende. Ohne das zeigte jeder zweite Import eines Widok zwei Änderungen, die keine sind („query": "",
+ * „columns": [] — der Speicher legt sie nie ab) — beim Besitzer „Zmiany (12)" statt 10.
+ */
+const stored = (v: unknown): unknown => {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === 'string') { const t = v.replace(/\s+$/, ''); return t === '' ? undefined : t; }
+  if (Array.isArray(v) && v.length === 0) return undefined;
+  return v;
+};
+const sameStored = (a: unknown, b: unknown): boolean => same(stored(a), stored(b));
 const plainKeys = (data: Readonly<Record<string, unknown>>): string[] => Object.keys(data).filter((k) => !k.startsWith('_'));
 
 /* -- In Worten ------------------------------------------------------------------------------------ */
@@ -165,7 +180,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
     for (const key of keys) {
       const was = before.data[key];
       const now = e.data[key];
-      if (same(was, now) || (was === undefined && now === undefined)) continue;
+      if (sameStored(was, now)) continue;
       const field = fields.get(key);
       out.push({
         id: `e:${e.id}:${key}`, target: 'entity', targetId: e.id, isNew: false, title, field: key, fieldLabel: field?.label ?? key,
@@ -187,7 +202,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
     for (const key of [...new Set([...plainKeys(before.data), ...plainKeys(d.data)])]) {
       const was = before.data[key];
       const now = d.data[key];
-      if (same(was, now)) continue;
+      if (sameStored(was, now)) continue;
       const words = (v: unknown) => (v === undefined ? '—' : typeof v === 'string' || typeof v === 'number' ? clip(String(v)) : clip(JSON.stringify(v), 300));
       out.push({
         id: `d:${d.id}:${key}`, target: 'doc', targetId: d.id, isNew: false, title, field: key, fieldLabel: DOC_KEY_LABEL[key] ?? key,
@@ -206,29 +221,17 @@ export function defaultDecisions(changes: readonly ImportChange[]): Decisions {
 
 /* -- Der entschiedene Plan ------------------------------------------------------------------------- */
 
-/** Verweise auf Abgelehntes aus den Daten nehmen — sonst zeigte ein angenommener Eintrag ins Leere. */
-function without(value: unknown, gone: ReadonlySet<string>): unknown {
-  if (gone.size === 0) return value;
-  const walk = (v: unknown): unknown => {
-    if (typeof v === 'string') return gone.has(v) ? undefined : v;
-    if (Array.isArray(v)) return v.map(walk).filter((x) => x !== undefined);
-    if (typeof v === 'object' && v !== null) {
-      const o = v as Record<string, unknown>;
-      if (typeof o.value === 'string' && gone.has(o.value)) return undefined;
-      return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, walk(x)]).filter(([, x]) => x !== undefined));
-    }
-    return v;
-  };
-  return walk(value);
-}
-
 /**
- * DER PLAN MIT NUR DEM ANGENOMMENEN: Neues, das angenommen ist (abgelehntes fällt weg, und was darauf
- * zeigte, zeigt nicht mehr darauf); an Bestehendem nur die angenommenen Felder, mit dem geänderten Wert,
- * wo der Besitzer ihn geändert hat; ein Bestehendes ohne angenommene Änderung wird nicht gespeichert.
+ * DER PLAN MIT NUR DEM ANGENOMMENEN: Neues, das angenommen ist; an Bestehendem nur die angenommenen Felder, mit dem
+ * geänderten Wert, wo der Besitzer ihn geändert hat; ein Bestehendes ohne angenommene Änderung wird nicht gespeichert.
  * `invalid`: Änderungen, deren geänderter Wert sich nicht lesen lässt (sie bleiben aus).
+ *
+ * 2026-11-03 — `blocked`: was diesen Plan am Speichern hindert (`importProblems`), je Element und Feld. Abgelehntes
+ * Neues fällt nicht mehr STILL aus dem heraus, was darauf zeigt (vorher verlor so ein Etap sein Obszar, und ein
+ * Rodzaj zeigte auf einen, den es nie gab): zeigt Angenommenes darauf, sagt der Plan es und speichert nichts.
+ * `kept`: Verweise ins Leere, die schon vorher gespeichert waren und bleiben — ein Hinweis, kein Halt.
  */
-export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: readonly ImportChange[], decisions: Decisions): { plan: ImportPlan; invalid: string[] } {
+export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: readonly ImportChange[], decisions: Decisions): { plan: ImportPlan; invalid: string[]; blocked: string[]; kept: string[] } {
   const ok = (id: string) => decisions.accepted.has(id);
   const invalid: string[] = [];
   const valueOf = (c: ImportChange): { value: unknown } | null => {
@@ -241,8 +244,8 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
   const byTarget = new Map<string, ImportChange[]>();
   for (const c of changes) if (!c.isNew) byTarget.set(c.targetId, [...(byTarget.get(c.targetId) ?? []), c]);
 
-  /* Was als Neues abgelehnt ist — darauf darf nichts Angenommenes mehr zeigen. */
-  const gone = new Set(changes.filter((c) => c.isNew && !ok(c.id)).map((c) => c.targetId));
+  /* Was als Neues abgelehnt ist, mit seinem Namen — darauf darf nichts Angenommenes zeigen (`importProblems`). */
+  const unsaved = new Map(changes.filter((c) => c.isNew && !ok(c.id)).map((c) => [c.targetId, c.target === 'entity' ? `wpis „${c.title}”` : c.title.replace(/^Rodzaj /, 'rodzaj ')]));
 
   /* Ein Rodzaj, dessen Änderung nicht angenommen ist, der aber seinen bleibenden Namen bekommt (`_ref`), wird in seiner alten Gestalt gespeichert — das ist Buchhaltung, kein Inhalt. */
   const kinds: ImportPlan['kinds'] = plan.kinds.flatMap((k) => {
@@ -251,15 +254,11 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     if (!k.isNew && k.marks !== undefined && before !== undefined) return [{ ...k, def: before }];
     return [];
   });
-  const lostKinds = new Set(plan.kinds.filter((k) => k.isNew && !ok(`k:${k.id}`)).map((k) => k.id));
 
   const entities: ImportPlan['entities'] = [];
   for (const e of plan.entities) {
     if (e.isNew) {
-      if (!ok(`e:${e.id}`)) continue;
-      const kept = e.kinds.filter((k) => !lostKinds.has(k));
-      if (kept.length === 0) { gone.add(e.id); continue; }
-      entities.push({ ...e, kinds: kept });
+      if (ok(`e:${e.id}`)) entities.push(e);
       continue;
     }
     const before = lib.entity(e.id);
@@ -274,7 +273,7 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     const data: Record<string, unknown> = { ...before.data };
     let kindsNow: readonly string[] = before.kinds;
     for (const c of mine) {
-      if (c.field === '#kinds') { kindsNow = e.kinds.filter((k) => !lostKinds.has(k)); continue; }
+      if (c.field === '#kinds') { kindsNow = e.kinds; continue; }
       if (c.field === undefined) continue;
       if (c.after === undefined && !decisions.edited.has(c.id)) { delete data[c.field]; continue; }
       const v = valueOf(c);
@@ -305,8 +304,8 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     docs.push({ ...d, data });
   }
 
-  const cleanEntities = entities.map((e) => ({ ...e, data: without(e.data, gone) as Record<string, unknown> }));
-  const cleanDocs = docs.map((d) => ({ ...d, data: without(d.data, gone) as Record<string, unknown> }));
+  const cleanEntities = entities;
+  const cleanDocs = docs;
   const count = (n: number, one: string) => `${n} ${one}`;
   const lines = [
     kinds.length === 0 ? '' : `Rodzaje: ${count(kinds.filter((k) => k.isNew).length, 'nowych')}, ${count(kinds.filter((k) => !k.isNew).length, 'do zmiany')}.`,
@@ -316,5 +315,70 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
       return n.length === 0 ? '' : `${DOC_LABEL[k]}: ${count(n.filter((d) => d.isNew).length, 'nowych')}, ${count(n.filter((d) => !d.isNew).length, 'do zmiany')}.`;
     })
   ].filter(Boolean);
-  return { plan: { kinds, entities: cleanEntities, docs: cleanDocs, lines: lines.length === 0 ? ['Nic do zapisania.'] : lines, warnings: plan.warnings }, invalid };
+  const titles = new Map(changes.filter((c) => c.target === 'entity').map((c) => [c.targetId, c.title]));
+  const decided: ImportPlan = { kinds, entities: cleanEntities, docs: cleanDocs, lines: lines.length === 0 ? ['Nic do zapisania.'] : lines, warnings: plan.warnings, unsaved, titles };
+  const { blocked, kept } = importProblems(lib, decided);
+  return { plan: decided, invalid, blocked, kept };
+}
+
+/* -- Ein Dokument, ein Plan ----------------------------------------------------------------------- */
+
+/** Ein Dokument in der Durchsicht: sein Plan (je Stand der Baza einmal gerechnet), seine Änderungen, das Entschiedene. */
+export interface ImportSession {
+  plan(): ImportPlan | { error: string };
+  changes(): readonly ImportChange[];
+  /** `null`: wie vorgeschlagen (Neues an, Änderungen an Bestehendem aus). */
+  decide(decisions: Decisions | null): ReturnType<typeof decidedPlan> | { error: string };
+}
+
+/**
+ * 2026-11-03 — EIN PLAN FÜR VORSCHAU, DURCHSICHT UND SPEICHERN. Vorher plante jede für sich, mit neuen Kennungen für
+ * alles Neue — die Annahmen der Durchsicht trafen beim Speichern nichts mehr. Hier gibt es den Plan einmal je Stand
+ * der Baza, mit den Kennungen dieses Dokuments (`importIds`): ändert sich der Stand (ein Abgleich), wird neu geplant —
+ * mit denselben Kennungen, und die Annahmen gelten weiter.
+ */
+export function importSession(lib: CogitaLibrary, doc: unknown): ImportSession {
+  const ids = importIds(lib, doc);
+  let at: { revision: number; plan: ImportPlan | { error: string }; changes: readonly ImportChange[] } | null = null;
+  const now = () => {
+    if (at === null || at.revision !== lib.revision) {
+      const plan = planImport(lib, doc, { ids });
+      at = { revision: lib.revision, plan, changes: 'error' in plan ? [] : changesOf(lib, plan) };
+    }
+    return at;
+  };
+  return {
+    plan: () => now().plan,
+    changes: () => now().changes,
+    decide: (decisions) => {
+      const { plan, changes } = now();
+      if ('error' in plan) return plan;
+      return decidedPlan(lib, plan, changes, decisions ?? defaultDecisions(changes));
+    }
+  };
+}
+
+/** Wie ein Element in der Zusammenfassung heisst. */
+const TARGET_WORDS: Readonly<Record<ImportChange['target'], readonly [string, string, string]>> = {
+  kind: ['rodzaj', 'rodzaje', 'rodzajów'],
+  entity: ['wpis', 'wpisy', 'wpisów'],
+  doc: ['inny element', 'inne elementy', 'innych elementów']
+};
+
+/**
+ * 2026-11-03 — WAS DER IMPORT TUT, GEZÄHLT AN DEM, WAS SICH WIRKLICH ÄNDERT (nicht an dem, was das Dokument nennt):
+ * dasselbe Dokument ein zweites Mal sagt „nic nowego, nic do zmiany".
+ */
+export function changeSummary(changes: readonly ImportChange[]): string[] {
+  const fresh = changes.filter((c) => c.isNew);
+  const edits = changes.filter((c) => !c.isNew);
+  if (fresh.length === 0 && edits.length === 0) return ['Nic nowego i nic do zmiany — dokument zgadza się z tym, co już jest w bazie.'];
+  const words = (list: readonly ImportChange[]) => (['kind', 'entity', 'doc'] as const)
+    .map((t) => { const n = new Set(list.filter((c) => c.target === t).map((c) => c.targetId)).size; return n === 0 ? '' : `${n} ${plural(n, ...TARGET_WORDS[t])}`; })
+    .filter(Boolean).join(', ');
+  const touched = new Set(edits.map((c) => `${c.target}:${c.targetId}`)).size;
+  return [
+    fresh.length === 0 ? 'Nowe: nic.' : `Nowe: ${fresh.length} — ${words(fresh)}.`,
+    edits.length === 0 ? 'Zmiany w tym, co już jest: żadnych.' : `Zmiany w tym, co już jest: ${edits.length} w ${touched} ${plural(touched, 'elemencie', 'elementach', 'elementach')} — ${words(edits)}.`
+  ];
 }

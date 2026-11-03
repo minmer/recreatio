@@ -27,6 +27,7 @@ import type { MediaRef } from './schema';
 import { CogitaLibrary } from './store';
 import { newId } from '../core/ids';
 import { cleanData, LibraryStore, type Entry, type SaveInput } from '../library/libraryStore';
+import { WorkspaceError } from '../core/session';
 
 /* -- Der Speicher ------------------------------------------------------------------------------------------------- */
 
@@ -83,6 +84,20 @@ export class MemoryStore extends LibraryStore {
     return { saved, failed: [] };
   }
 
+  /**
+   * 2026-11-03 — ALLE ODER KEINER, wie der Dienst (`/entries/save`): steht `failWith`, scheitert der ganze Zapis und hier
+   * ändert sich nichts (für Prüfungen: ein Zapis, den der Dienst ablehnt).
+   */
+  failWith: string | null = null;
+
+  override async saveAll(inputs: readonly SaveInput[]): Promise<Entry[]> {
+    if (this.failWith !== null) throw new WorkspaceError(this.failWith, 'conflict');
+    const made = inputs.map((input) => this.make(input));
+    for (const entry of made) this.inside.put(entry);
+    if (made.length > 0) this.inside.changed();
+    return made;
+  }
+
   override async remove(id: string): Promise<void> {
     this.inside.drop(id);
     this.inside.changed();
@@ -135,7 +150,13 @@ export async function memoryBase(doc: unknown, { libraryId = 'podglad-bazy-wiedz
   const writer = new CogitaLibrary(store, true);
   const plan = planImport(writer, read.value);
   if ('error' in plan) return plan;
-  const applied = await applyImport(writer, plan, () => undefined);
+  /* 2026-11-03 — was der Import der App ablehnen würde (ein Verweis ins Leere), lehnt auch die Vorschau ab — mit demselben Grund. */
+  let applied: Awaited<ReturnType<typeof applyImport>>;
+  try {
+    applied = await applyImport(writer, plan, () => undefined);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
   const name = typeof read.value.name === 'string' && read.value.name.trim() !== '' ? read.value.name.trim() : 'Baza wiedzy';
   return { lib: new CogitaLibrary(store, false), writer, name, lines: applied.lines, warnings: applied.warnings };
 }

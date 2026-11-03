@@ -18,8 +18,8 @@ import { idbDelete, idbForget, idbGet, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import type { Ring } from '../core/keys';
 import {
-  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
-  type EntryDoc, type EntrySource, type LibraryRow, type PublishedAs, type SealedEntry
+  forgetLibraryNames, loadEntries, loadLibraries, moveEntry, openedLibraryKind, openEntry, openLibraries, putEntries, putEntry, removeEntries, removeEntry, sealEntry, withdrawEntries,
+  type EntryDoc, type EntrySource, type LibraryRow, type PublishedAs, type PutEntryRow, type SealedEntry
 } from './library';
 import { originOf } from './libraryCite';
 import {
@@ -53,6 +53,18 @@ export interface SaveInput {
   readonly key?: string;
   readonly data: EntryData;
 }
+
+/** 2026-11-03 — ein Eintrag, versiegelt und bereit für einen Zapis (`saveAll`), mit dem, was danach hier steht. */
+interface Prepared {
+  readonly row: PutEntryRow;
+  readonly key?: string;
+  readonly data: EntryData;
+  readonly before: Pick<Entry, 'createdAt' | 'publishedAt' | 'publishedAs'> | undefined;
+}
+
+/** 2026-11-03 — wie viel ein Zapis aus einem Guss höchstens trägt (der Dienst: 5000 Einträge, 40 MB Hüllen; die Anfrage bleibt so unter 30 MB). */
+const SAVE_ALL_MAX = 5000;
+const SAVE_ALL_BYTES = 24 * 1024 * 1024;
 
 /** Leere Werte fallen weg — ein Eintrag trägt nur, was gesagt ist. */
 export function cleanData(data: EntryData): EntryData {
@@ -516,11 +528,18 @@ export class LibraryStore implements Lookup {
           }
         }
         const { now, entries } = await this.source(this.since);
+        const first = !this.loaded;
         await this.absorb(entries);
         this.since = now;
         this.loaded = true;
-        this.changed();
-        this.keepCopy();
+        /*
+          2026-11-03 — EIN ABGLEICH OHNE NEUES ÄNDERT NICHTS: jedes Zurückkommen in den Tab gleicht ab; zählte das den
+          Stand hoch, rechnete jede Ansicht alles neu — der Krajobraz verschwand dabei samt Zoom, Wahl und Bildlauf.
+        */
+        if (first || entries.length > 0) {
+          this.changed();
+          this.keepCopy();
+        }
       } finally {
         this.syncing = null;
       }
@@ -552,10 +571,12 @@ export class LibraryStore implements Lookup {
    * Bibliothek; in einer anderen lesbaren nur gewarnt), sonst ein Vorschlag,
    * der in KEINER lesbaren Bibliothek vergeben ist (2026-10-22).
    */
-  keyFor(entry: LibEntry, wanted?: string): string | undefined {
+  keyFor(entry: LibEntry, wanted?: string, reserved?: ReadonlySet<string>): string | undefined {
     if (kindOf(entry.kind)?.keyed !== true) return undefined;
-    if ((wanted ?? '').trim() !== '') return uniqueKey(wanted!.trim(), (key) => this.keyTaken(key, entry.id));
-    return uniqueKey(suggestKey(entry, this), (key) => this.keyTaken(key, entry.id) || this.keyTakenElsewhere(key, entry.id) !== undefined);
+    /* 2026-11-03 — `reserved`: Schlüssel, die derselbe Zapis schon vergeben hat (`saveAll`) — zwei neue nehmen nie denselben. */
+    const taken = (key: string) => this.keyTaken(key, entry.id) || reserved?.has(key.toLowerCase()) === true;
+    if ((wanted ?? '').trim() !== '') return uniqueKey(wanted!.trim(), taken);
+    return uniqueKey(suggestKey(entry, this), (key) => taken(key) || this.keyTakenElsewhere(key, entry.id) !== undefined);
   }
 
   /**
@@ -631,35 +652,104 @@ export class LibraryStore implements Lookup {
 
   /** Versiegeln und schreiben — der Speicher kennt den Eintrag danach; wer zeichnet, erfährt es über `changed()`. */
   private async write(input: SaveInput, newest: { epoch: number; key: Uint8Array }): Promise<Entry> {
+    const ready = await this.prepare(input, newest);
+    const done = await putEntry(this.libraryId, ready.row.entryId, { kind: ready.row.kind, epoch: ready.row.epoch, sealed: ready.row.sealed, version: ready.row.version });
+    return this.land(ready, done);
+  }
+
+  /**
+   * Was ein Eintrag zum Schreiben braucht — versiegelt, mit dem Stand, auf dem geändert wird; noch nichts gesendet.
+   * `reserved`: Schlüssel, die derselbe Zapis schon vergibt (`saveAll`).
+   */
+  private async prepare(input: SaveInput, newest: { epoch: number; key: Uint8Array }, reserved?: Set<string>): Promise<Prepared> {
     const id = input.id ?? newId();
-    const heavy = HEAVY_KINDS.has(input.kind);
     const thin = this.heavyRows.get(id);
     const before: Pick<Entry, 'key' | 'data' | 'version' | 'createdAt' | 'publishedAt' | 'publishedAs'> | undefined = this.entries.get(id) ?? this.heavyOpen.get(id)
       ?? (thin === undefined ? undefined : { data: {}, version: thin.version, createdAt: thin.createdAt, publishedAt: null, publishedAs: null });
     if (before === undefined && (this.get(id) !== undefined || this.peers().some((p) => p.ownsHeavy(id)))) throw new WorkspaceError('Ten wpis należy do innej biblioteki — zmień go tam.');
     /* 2026-10-22 — im Speicher stehen Kennungen: ein Schlüssel im Zapis, der aufgeht, wird die Kennung seines Eintrags. */
     const data: EntryData = { ...storedMarkup(input.kind, cleanData(input.data), this) };
-    const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key);
+    const key = this.keyFor({ id, kind: input.kind, data }, input.key ?? before?.key, reserved);
+    if (key !== undefined) reserved?.add(key.toLowerCase());
     /* Der bisherige Schlüssel bleibt als alter Schlüssel — ein Text, der ihn noch nennt, findet den Eintrag weiter. */
     const aliases = nextAliases(before?.key, key, [...aliasesOf(before?.data ?? {}), ...aliasesOf(data)]);
     if (aliases.length > 0) data[ALIASES] = aliases; else delete data[ALIASES];
     const doc: EntryDoc = { v: 1, id, kind: input.kind, ...(key === undefined ? {} : { key }), data };
-    const done = await putEntry(this.libraryId, id, {
-      kind: input.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: before?.version ?? 0
-    });
-    const entry: Entry = {
-      libraryId: this.libraryId, id, kind: input.kind, ...(key === undefined ? {} : { key }), data,
-      version: done.version, epoch: newest.epoch, createdAt: before?.createdAt ?? done.updatedAt, updatedAt: done.updatedAt,
-      publishedAt: before?.publishedAt ?? null, publishedAs: before?.publishedAs ?? null
+    return {
+      row: { entryId: id, kind: input.kind, epoch: newest.epoch, sealed: await sealEntry(newest.key, doc), version: before?.version ?? 0 },
+      ...(key === undefined ? {} : { key }), data,
+      before: before === undefined ? undefined : { createdAt: before.createdAt, publishedAt: before.publishedAt, publishedAs: before.publishedAs }
     };
-    if (heavy) {
+  }
+
+  /** Was geschrieben ist, steht jetzt hier (ohne `changed()` — das tut, wer schrieb, einmal). */
+  private land(ready: Prepared, done: { version: number; updatedAt: string }): Entry {
+    const { entryId: id, kind, epoch } = ready.row;
+    const entry: Entry = {
+      libraryId: this.libraryId, id, kind, ...(ready.key === undefined ? {} : { key: ready.key }), data: ready.data,
+      version: done.version, epoch, createdAt: ready.before?.createdAt ?? done.updatedAt, updatedAt: done.updatedAt,
+      publishedAt: ready.before?.publishedAt ?? null, publishedAs: ready.before?.publishedAs ?? null
+    };
+    if (HEAVY_KINDS.has(kind)) {
       this.heavyOpen.set(id, entry);
       this.heavyRows.set(id, {
-        entryId: id, kind: input.kind, epoch: newest.epoch, sealed: null, version: done.version, createdAt: entry.createdAt, updatedAt: done.updatedAt,
+        entryId: id, kind, epoch, sealed: null, version: done.version, createdAt: entry.createdAt, updatedAt: done.updatedAt,
         deletedAt: null, publishedAt: null, publishedAs: null, heavy: true
       });
     } else this.put(entry);
     return entry;
+  }
+
+  /**
+   * 2026-11-03 — ALLE ODER KEINER (ein Import einer Baza wiedzy): jeder Eintrag versiegelt, dann EIN Aufruf, den der
+   * Dienst in einer Transaktion schreibt — in dieser Reihenfolge. Geht einer nicht (ein neuerer Stand, eine fremde
+   * Bibliothek, zu gross), ist keiner gespeichert: der Fehler nennt jeden Eintrag, der nicht ging (`problems`), und
+   * hier ändert sich nichts. Vorher, im Browser: ein Eintrag einer anderen Bibliothek, eine Kennung zweimal, zu viel.
+   */
+  async saveAll(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void): Promise<Entry[]> {
+    if (inputs.length === 0) return [];
+    if (inputs.length > SAVE_ALL_MAX) throw new WorkspaceError(`Nic nie zapisano: ${inputs.length} elementów to za dużo na jeden zapis (najwyżej ${SAVE_ALL_MAX}) — podziel plik na mniejsze części.`);
+    const newest = await this.writeKey();
+    const reserved = new Set<string>();
+    const seen = new Set<string>();
+    const ready: Prepared[] = [];
+    let size = 0;
+    for (const input of inputs) {
+      const one = await this.prepare(input.id === undefined ? { ...input, id: newId() } : input, newest, reserved);
+      if (seen.has(one.row.entryId)) throw new WorkspaceError(`Nic nie zapisano: element ${one.row.entryId} stoi w zapisie dwa razy.`);
+      seen.add(one.row.entryId);
+      size += one.row.sealed.length;
+      if (size > SAVE_ALL_BYTES) throw new WorkspaceError(`Nic nie zapisano: ten zapis jest za duży (ponad ${Math.round(SAVE_ALL_BYTES / (1024 * 1024))} MB) — podziel plik na mniejsze części.`);
+      ready.push(one);
+      progress?.(ready.length, inputs.length);
+    }
+    let done: Awaited<ReturnType<typeof putEntries>>;
+    try {
+      done = await putEntries(this.libraryId, ready.map((r) => r.row));
+    } catch (e) {
+      if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
+      throw e;
+    }
+    const at = new Map(done.entries.map((d) => [d.entryId.toLowerCase(), d]));
+    const saved = ready.map((r) => {
+      const d = at.get(r.row.entryId.toLowerCase());
+      if (d === undefined) throw new WorkspaceError(`Usługa nie potwierdziła zapisu ${r.row.entryId}.`);
+      return this.land(r, d);
+    });
+    this.changed();
+    this.written();
+    return saved;
+  }
+
+  /**
+   * 2026-11-03 — DIE ABSCHRIFT FÜR AI GLEICH NEU (nach einem Import): ohne die Ruhe abzuwarten, die sonst nach dem
+   * Schreiben gilt — damit ein Assistent über den Link (MCP) sofort sieht, was gespeichert ist. `null`: hier kein Konto.
+   */
+  async refreshAiNow(): Promise<{ refreshed: number; failed: number; reason?: string } | null> {
+    const ring = this.ring;
+    if (ring === null) return null;
+    const m = await import('../aiAccess/aiAccess');
+    return m.libraryWrittenNow(ring, this.areaId, this.libraryId);
   }
 
   async remove(id: string): Promise<void> {

@@ -186,6 +186,8 @@ check('a stored answer keeps hints and the drawn params (only finite numbers and
       libraryId, areaId: `a-${libraryId}`, revision: 1, loaded: true,
       all: () => [...map.values()], get: (id) => map.get(id), own: (id) => map.get(id), byKey, ownByKey: byKey,
       save: async (input) => { const entry = { ...input, id: input.id ?? `${libraryId}-neu-${n += 1}`, libraryId }; map.set(entry.id, entry); store.revision += 1; return entry; },
+      saveAll: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return saved; },
+      refreshAiNow: async () => null,
       saveMany: async (inputs) => { const saved = []; for (const i of inputs) saved.push(await store.save(i)); return { saved, failed: [] }; },
       remove: async (id) => { map.delete(id); store.revision += 1; },
       subscribe: () => () => undefined

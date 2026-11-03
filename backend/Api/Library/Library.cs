@@ -45,6 +45,8 @@ public static partial class Library
         app.MapDelete("/workspace/library/{id:guid}/entry/{entryId:guid}", RemoveAsync);
         /* 2026-10-23 — viele auf einmal (Zaznaczone → Usuń, „Stare wpisy"): wie einzeln, in einer Transaktion. */
         app.MapPost("/workspace/library/{id:guid}/entries/remove", RemoveManyAsync);
+        /* 2026-11-03 — viele auf einmal speichern, alle oder keiner (ein Import einer Baza wiedzy, Library.Batch.cs). */
+        MapBatch(app);
         /* 2026-10-22 (Schritt 8) — nur noch Zurückziehen: die alten offenen Fassungen gehen, gelesen wird über /open. */
         app.MapPost("/workspace/library/{id:guid}/publish", PublishAsync);
 

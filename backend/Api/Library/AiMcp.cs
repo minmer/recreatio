@@ -134,7 +134,8 @@ public sealed class AiMcpTools
     /* -- Ergebnisse ---------------------------------------------------------------------------- */
 
     public sealed record KindCount(string Kind, string Name, int Entries);
-    public sealed record CollectionInfo(string Id, string Part, string PartName, string Name, string Area, int Entries, string? SnapshotMadeAt, bool Ready, IReadOnlyList<KindCount> Kinds, int Texts);
+    /* 2026-11-03 — SnapshotCurrent: ob der Odpis den heutigen Stand des Zbiór trägt; ChangedAt: wann der Zbiór zuletzt geändert wurde. */
+    public sealed record CollectionInfo(string Id, string Part, string PartName, string Name, string Area, int Entries, string? SnapshotMadeAt, bool Ready, IReadOnlyList<KindCount> Kinds, int Texts, bool? SnapshotCurrent = null, string? ChangedAt = null);
     public sealed record CollectionsResult(IReadOnlyList<CollectionInfo> Collections, string AccessExpiresAt, string Note);
     public sealed record CollectionSchema(string Id, string Name, string Part, string Area, JsonArray Kinds);
     public sealed record SchemaResult(IReadOnlyList<CollectionSchema> Collections);
@@ -231,11 +232,12 @@ public sealed class AiMcpTools
         using var o = await OpenAsync(http, db, config, cancellationToken);
         var collections = o.Parts.Select(p => new CollectionInfo(
                 Ids.ToText(p.LibraryId), p.Part, AiAccess.PartLabel(p.Part), p.Name, p.AreaName, p.Items.Count, p.MadeAt, true,
-                p.Items.GroupBy(i => (i.Kind, i.KindName)).Select(g => new KindCount(g.Key.Kind, g.Key.KindName, g.Count())).OrderByDescending(k => k.Entries).ToList(), p.Texts.Count))
+                p.Items.GroupBy(i => (i.Kind, i.KindName)).Select(g => new KindCount(g.Key.Kind, g.Key.KindName, g.Count())).OrderByDescending(k => k.Entries).ToList(), p.Texts.Count,
+                p.Current, p.ChangedAt))
             .Concat(o.Missing.Select(m => new CollectionInfo(Ids.ToText(m.Library), m.Part, AiAccess.PartLabel(m.Part), AiAccess.PartLabel(m.Part), m.Area, 0, null, false, [], 0)))
             .ToList();
         return new CollectionsResult(collections, o.Expires.ToString("O"),
-            "Ready = false: the collection's snapshot is not built yet (it appears when someone who writes in the area opens Recreatio). Its entries are not missing, only not yet readable here. Texts = full texts of works stored in the collection (read them with list_texts / read_text).");
+            "Ready = false: the collection's snapshot is not built yet (it appears when someone who writes in the area opens Recreatio). Its entries are not missing, only not yet readable here. SnapshotCurrent = false: the collection changed after the snapshot was made (ChangedAt) — what you read here is the state at SnapshotMadeAt; the browser of someone who writes there rebuilds it (right after an import, otherwise within a minute of the last change while the app is open). Texts = full texts of works stored in the collection (read them with list_texts / read_text).");
     }
 
     [McpServerTool(Name = "get_schema", Title = "Rodzaje wpisów", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -542,7 +544,7 @@ public sealed class AiMcpTools
     public sealed record KnowledgeSetupResult(
         string CollectionId, string Collection, string Area, string? SnapshotMadeAt, string? Readers,
         IReadOnlyList<SetupSection> Sections, string? Section, int Offset, int? NextOffset, bool Complete,
-        JsonObject Document, JsonObject? Cards, string Note);
+        JsonObject Document, JsonObject? Cards, string Note, bool SnapshotCurrent = true, string? ChangedAt = null);
 
     /// <summary>Wie viele Zeichen ein Ergebnis höchstens trägt — darüber kommt es abschnitts- und stückweise.</summary>
     public const int SetupBudget = 60_000;
@@ -628,17 +630,19 @@ public sealed class AiMcpTools
 
         var sections = course.Where(kv => kv.Value is JsonArray).Select(kv => new SetupSection(kv.Key, ((JsonArray)kv.Value!).Count, kv.Value!.ToJsonString(Json).Length)).ToList();
         JsonObject Header() => new() { ["format"] = course["format"]?.DeepClone(), ["version"] = course["version"]?.DeepClone(), ["name"] = course["name"]?.DeepClone() };
-        const string about = "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. No learner progress or answers are included.";
+        /* 2026-11-03 — ein Odpis älter als die letzte Änderung sagt es, bevor jemand aus ihm schliesst, ein Import fehle. */
+        var stale = p.Current ? "" : $"STALE SNAPSHOT: made at {p.MadeAt}, but the knowledge base changed after that (last change {p.ChangedAt}) — anything saved since is not visible here yet; the snapshot is rebuilt by the browser of someone who writes there (right after an import). ";
+        var about = stale + "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. No learner progress or answers are included.";
 
         if (string.IsNullOrWhiteSpace(section))
         {
             var whole = course.ToJsonString(Json).Length;
             if (whole <= SetupBudget)
-                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about);
+                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about, p.Current, p.ChangedAt);
             var overview = Header();
             if (course["settings"] is JsonArray settings && settings.ToJsonString(Json).Length <= SetupBudget / 2) overview["settings"] = settings.DeepClone();
             return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, false, overview, cards,
-                $"The whole setup has {whole} characters — too much for one answer. Ask per section (section = one of Sections) and continue with nextOffset. {about}");
+                $"The whole setup has {whole} characters — too much for one answer. Ask per section (section = one of Sections) and continue with nextOffset. {about}", p.Current, p.ChangedAt);
         }
 
         var asked = AiAccess.Fold(section);
@@ -660,7 +664,7 @@ public sealed class AiMcpTools
         doc[key] = picked;
         int? next = at < items.Count ? at : null;
         return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, key, offset, next, offset == 0 && next is null, doc,
-            key == "templates" ? cards : null, about);
+            key == "templates" ? cards : null, about, p.Current, p.ChangedAt);
     }
 
     [McpServerTool(Name = "list_import_formats",Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
