@@ -1023,8 +1023,9 @@ function unrootedOf(lib: CogitaLibrary, plan: Pick<ImportPlan, 'kinds' | 'entiti
  * über den Strukturfeldern (mit dem, was schon in der Baza steht), jede Zeile mit ihrer Stelle im
  * Werk und einem Zeichen — „+" neu, „~" geändert —, und die Wejścia z Biblioteki. Höchstens `max` Zeilen.
  */
-export function structurePreview(lib: CogitaLibrary, plan: ImportPlan, max = 80): string[] {
-  const isNew = new Map(plan.entities.map((e) => [e.id, e.isNew]));
+export function structurePreview(lib: CogitaLibrary, plan: ImportPlan, max = 80, changed?: ReadonlySet<string>): string[] {
+  /* 2026-11-03 — `changed`: was sich wirklich ändert (die Durchsicht weiss es) — sonst trüge jedes Bestehende im Dokument ein „~“. */
+  const isNew = new Map(plan.entities.filter((e) => e.isNew || changed === undefined || changed.has(e.id)).map((e) => [e.id, e.isNew]));
   const { look, src, structured } = plannedSource(lib, plan);
   const out: string[] = [];
   if (structured.length > 0) {

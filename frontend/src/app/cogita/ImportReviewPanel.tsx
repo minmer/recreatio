@@ -43,7 +43,9 @@ export function useImportReview(lib: CogitaLibrary): {
     const one = session(doc);
     const plan = one.plan();
     if ('error' in plan) return plan;
-    return { lines: [...changeSummary(one.changes()), ...(extra ? structurePreview(lib, plan) : [])], warnings: plan.warnings };
+    const changes = one.changes();
+    const changed = new Set(changes.filter((c) => !c.isNew).map((c) => c.targetId));
+    return { lines: [...changeSummary(changes), ...(extra && changes.length > 0 ? structurePreview(lib, plan, 80, changed) : [])], warnings: plan.warnings };
   };
   const options = (doc: unknown): ReactNode => (
     <ImportReview session={session(doc)} decisions={decisionsFor(doc)} onDecisions={(decisions) => setReview({ doc, decisions })} />
