@@ -66,7 +66,9 @@ function ImportReview({ session, decisions, onDecisions }: { session: ImportSess
   const changes = session.changes();
   const now = decisions ?? defaultDecisions(changes);
   const fresh = changes.filter((c) => c.isNew);
-  const edits = changes.filter((c) => !c.isNew);
+  const edits = changes.filter((c) => !c.isNew && c.remove !== true);
+  /* 2026-11-03 — die Löschungen des Dokuments: jede beim Namen, abwählbar. */
+  const gone = changes.filter((c) => c.remove === true);
   /* 2026-11-03 — was den Zapis so, wie er jetzt angekreuzt ist, blockieren würde — bevor jemand auf „Zapisz" drückt. */
   const decided = session.decide(now);
   const blocked = 'error' in decided ? [] : decided.blocked;
@@ -85,6 +87,7 @@ function ImportReview({ session, decisions, onDecisions }: { session: ImportSess
     onDecisions({ accepted, edited });
   };
   const freshOn = fresh.filter((c) => now.accepted.has(c.id)).length;
+  const goneOn = gone.filter((c) => now.accepted.has(c.id)).length;
   const editsOn = edits.filter((c) => now.accepted.has(c.id)).length;
 
   /* Änderungen nach dem, was sie ändern. */
@@ -96,7 +99,8 @@ function ImportReview({ session, decisions, onDecisions }: { session: ImportSess
       <p className="wk-json-h">Przegląd przed zapisem</p>
       <p className="cg-muted" data-review-summary="">
         Zapisze się: {count(freshOn, 'nowy element', 'nowe elementy', 'nowych elementów')} z {fresh.length}
-        {edits.length > 0 && <> i {count(editsOn, 'zmiana', 'zmiany', 'zmian')} z {edits.length} w tym, co już jest</>}.
+        {edits.length > 0 && <> i {count(editsOn, 'zmiana', 'zmiany', 'zmian')} z {edits.length} w tym, co już jest</>}
+        {gone.length > 0 && <>; usunie się {goneOn} z {gone.length}</>}.
         {edits.length > 0 && ' Zmiany w tym, co już jest, zapisują się dopiero po przyjęciu — każdą można też poprawić.'}
         {' Wszystko zapisze się w jednym zapisie — albo nic.'}
       </p>
@@ -122,6 +126,27 @@ function ImportReview({ session, decisions, onDecisions }: { session: ImportSess
               </ul>
             </div>
           ))}
+        </section>
+      )}
+
+      {gone.length > 0 && (
+        <section className="cg-review-part" aria-label="Do usunięcia" data-review-removals={gone.length}>
+          <div className="cg-row">
+            <strong>Do usunięcia ({gone.length})</strong>
+            <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), true)}>Wszystkie</button>
+            <button type="button" className="wk-link-btn" onClick={() => set(gone.map((c) => c.id), false)}>Żadne</button>
+          </div>
+          <p className="cg-muted">Usunięte wpisy można przywrócić z historii wersji. Odpowiedzi uczących się zostają — liczą się znowu, gdy wpis wróci.</p>
+          <ul className="cg-review-new">
+            {gone.map((c) => (
+              <li key={c.id}>
+                <label className="pe-check">
+                  <input type="checkbox" checked={now.accepted.has(c.id)} onChange={(e) => set([c.id], e.target.checked)} data-review-remove={c.targetId} />
+                  <span><TexText text={c.title} /><span className="cg-muted"> — {c.afterText}</span></span>
+                </label>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

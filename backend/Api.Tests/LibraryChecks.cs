@@ -53,5 +53,28 @@ internal static class LibraryChecks
         var found = Library.SaveManyProblems(lib, bad, new Dictionary<Guid, (Guid, int)> { [Guid.Parse(b)] = (lib, 4), [Guid.Parse(c)] = (other, 1) });
         check(found.Count == 3 && found[0].EntryId == a && found[0].Version == 0 && found[1].EntryId == b && found[1].Version == 4 && found[2].EntryId == c && found[2].Version is null,
             "batch: a vanished entry, a newer state and another library's entry are each named — the fourth is fine but waits with them");
+
+        /* 2026-11-03 — Löschen im selben Zug: was gelöscht wird, wird geprüft wie das Gespeicherte. */
+        Library.SaveManyRemove Gone(string id, int version = 2) => new(id, version);
+        var onlyRemove = new Library.SaveManyRequest(null, [Gone(c)]);
+        var (noRows, noRowsError) = Library.ReadSaveMany(onlyRemove);
+        check(noRows is { Count: 0 } && noRowsError is null && Library.ReadSaveRemove(onlyRemove, noRows).Gone is { Count: 1 }, "batch: a save that only deletes is one save");
+        var both = new Library.SaveManyRequest([Row(a)], [Gone(c), Gone(d, 1)]);
+        var bothRows = Library.ReadSaveMany(both).Rows!;
+        var bothGone = Library.ReadSaveRemove(both, bothRows).Gone;
+        check(bothRows.Count == 1 && bothGone is { Count: 2 } && bothGone[0].Id == Guid.Parse(c) && bothGone[1].Version == 1, "batch: create and delete in one save, in their order");
+        check(Library.ReadSaveRemove(new Library.SaveManyRequest([Row(a)], [Gone(a)]), [.. Library.ReadSaveMany(new Library.SaveManyRequest([Row(a)])).Rows!]).Error?.Contains("i do usunięcia") == true,
+            "batch: an entry is never saved and deleted in one save");
+        check(Library.ReadSaveRemove(new Library.SaveManyRequest(null, [Gone(c), Gone(c.ToUpperInvariant())]), []).Error?.Contains("dwa razy") == true
+            && Library.ReadSaveRemove(new Library.SaveManyRequest(null, [Gone("kein-guid")]), []).Gone is null
+            && Library.ReadSaveRemove(new Library.SaveManyRequest(null, [Gone(c, 0)]), []).Gone is null,
+            "batch: a deletion names an id once, readable, with a state");
+        check(Library.ReadSaveMany(new Library.SaveManyRequest([], [])).Rows is null
+            && Library.ReadSaveMany(new Library.SaveManyRequest([Row(a)], Enumerable.Range(0, Library.MaxSaveBatch).Select(_ => Gone(Guid.NewGuid().ToString())).ToList())).Rows is null,
+            "batch: saved and deleted together 1 to MaxSaveBatch");
+        var goneHad = new Dictionary<Guid, (Guid, int, bool)> { [Guid.Parse(a)] = (lib, 2, false), [Guid.Parse(b)] = (lib, 5, false), [Guid.Parse(c)] = (other, 2, false), [Guid.Parse(d)] = (lib, 2, true) };
+        var goneFound = Library.RemoveManyProblems(lib, [new(Guid.Parse(a), 2), new(Guid.Parse(b), 4), new(Guid.Parse(c), 2), new(Guid.Parse(d), 2), new(Guid.NewGuid(), 1)], goneHad);
+        check(goneFound.Count == 4 && goneFound[0].EntryId == b && goneFound[0].Version == 5 && goneFound[1].EntryId == c && goneFound[1].Version is null && goneFound[2].EntryId == d && goneFound[3].Version == 0,
+            "batch: deleting a newer state, another library's entry, a deleted one or one that never was is refused — the first one is fine");
     }
 }

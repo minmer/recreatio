@@ -3276,3 +3276,56 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   „Kontynuuj opowieść" resumes at the saved scene; review failed → ring + „przegląd jeszcze niezdany" + „Powtórz
   przegląd" (landscape, Nauka → Ścieżka, path module → `?scena=przeglad`); review passed → valley, „Otwórz opowieść".
   Flows without goals: the G browser test on the previous example (no goals) still lowers the lesson when done.
+
+## C29 — Nested landscape: map nodes from the data, one level per zoom (2026-11-03)
+
+- `landscapeNest.ts` (new): `readNest`, `nestPath`, `nestSubtree`, `nestSlots`, `nestLayout`. `views.ts` reads `nest` and
+  `nestSort`. `landscape.ts`: the budget clamp is raised (the view passes 1 000 000, so nothing is merged), and `LsLand`
+  gains `group`/`share`. `LandscapeView.tsx`: the tree and the level, group review/goal, one primary button, a new map
+  drawing (no text, no ground, hover tip, hover/route highlight, two markers, legend), and a larger unit for levels
+  with few fields. `landscape.css`: legend, tip, repeat marker, hover/route, group intensity, due deep.
+- Example: `przyklad-swiat.json` has kind „Pole mapy" (`@swiat/pole`) and 10 nodes (Matematyka › Liczby › Działania ›
+  Ułamki › Dziesiętne i procenty = 5 levels; Fizyka › Ruch / Siły = 2), a field `pole` on every topic, and the view
+  `@swiat/w-pola` „Krajobraz pól". Docs: the `json.ts` landscape text, `schematy-AI.md` §2.6 with a full example;
+  `ksiazka-AI.md` and `ImportFormats.json` regenerated.
+- Checks: `app-landscape-check` 140 (24 new: top level only, one level per zoom, mixed levels, 5- and 2-level
+  breadcrumbs, no meaningless cell, subtree ring sums, group band/height/valley/due/lock, fixed positions, packed slots,
+  flat view unmerged). Browser (preview server, scratchpad `nest/nest-browser.mjs`): 3 top fields, no `<text>`,
+  cells = fields, legend visible, hover = tip + highlight + nothing dimmed, every field opens a popover with one primary
+  button, zoom down 5 levels, breadcrumbs back, no console errors. `app:check` passes.
+
+## C30 — One import that creates, changes and deletes by id (2026-11-03, Prompt 6)
+
+- **API first.** `Library.Batch.cs`: `/entries/save` takes `remove: [{entryId, version}]` in the same transaction.
+  `ReadSaveRemove` checks: once each, never also saved, state ≥ 1. `RemoveManyProblems` checks: exists, not deleted,
+  this library, same state; otherwise 409, and nothing is saved or deleted. A deletion works like `RemoveAsync`: the
+  last envelope stays as a version and a tombstone is left. The answer gives `removed`. Tests are in
+  `Api.Tests/LibraryChecks.cs`.
+- **Frontend.** `library.ts putEntries(…, remove)`; `LibraryStore.saveAll(inputs, progress, remove)` sends the known
+  versions, then drops the entries and their files; `CogitaLibrary.saveBatch(…, remove)`; the memory store mirrors it.
+  `json.ts`:
+  - `{"ref"|"id": "<id or @lasting/name>", "remove": true}` in `entities` and in every doc list; `ImportPlan.removals`.
+  - Kinds are never removed by an import (warning).
+  - Unknown or foreign items are warned and skipped. Changed and removed in one document = removed only, with a warning.
+  - A change by id may omit `kinds`.
+  - `removalEffects` / `withRemovals`: ref fields of staying entries and collection lists lose the reference in the
+    same save; any other place (flow `unit`/steps, views, revisions, templates, anchors, statement cells) blocks.
+  - `applyImport` sends everything as one save.
+
+  `importReview.ts` adds `x:<id>` changes, ticked by default, each naming who loses the reference. `decidedPlan`
+  keeps only the ticked ones and adds their blocks. `ImportReviewPanel.tsx` has a „Do usunięcia" section; the intro
+  in `CogitaJson.tsx` is updated.
+- **History.** Answers stay in the progress. Everything counts from the current cards (gauge, `knowStats`, landscape),
+  and the answer log falls back to the stored question text. A restored entry counts again.
+- **Docs.** `json.ts` (common part), `opowiesci-AI.md` (corrections and deletions), `schematy-AI.md` checklist,
+  `import-formats.mjs` description; `ksiazka-AI.md` and `ImportFormats.json` regenerated.
+- **Checks.**
+  - `app-import-check`: 69 checks (30 new): change by id, delete with and without references, unticked, blocked by a
+    flow and then allowed when the flow goes too, create + delete in one save (and refused = nothing), warnings,
+    history, and a 4.15 MB / 1900-entry file in one preview and one save.
+  - LocalDB (scratchpad `p6/real-4mb.mjs`), real sealing: 4.15 MB JSON → one request of 6.27 MB, 1.4 s; then 2
+    changes + 1898 deletions + 1 new in one request, 0.9 s; cleaned up.
+  - Browser (`p6/ui-remove.mjs`, Vite + LocalDB): the deletion is listed with „odwołanie zniknie z: P6 Beta (Wymaga)",
+    untick/tick works, saving reports „usunięte: 1", and the reference is gone.
+- **Limits.** One save holds at most 5000 items (saves + deletions) and 4 MB per entry. The browser caps sealed bytes
+  at 24 MB (≈ 20 MB of JSON). The service caps sealed bytes at 40 MB and the request at 64 MB.

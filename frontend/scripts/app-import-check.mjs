@@ -11,7 +11,9 @@
  * Einträgen und ein Widok, gruppiert nach dem neuen Rodzaj. Danach muss alles da sein, mit den Kennungen der Vorschau,
  * und derselbe Kurs ein zweites Mal sagt: nichts Neues, nichts zu ändern. Dazu: alle oder keiner (ein Zapis, den der
  * Dienst ablehnt, lässt nichts zurück), kein Verweis ins Leere (blockiert, je Element und Feld), und die Reparatur
- * dessen, was der alte Fehler hinterliess.
+ * dessen, was der alte Fehler hinterliess. 2026-11-03 — dazu ÄNDERN UND LÖSCHEN AN DER KENNUNG (6): nur genannte Felder,
+ * Löschungen beim Namen und abwählbar, Verweise darauf herausgenommen oder blockiert, Anlegen und Löschen in einem Zapis,
+ * die Geschichte der Lernenden bleibt heil, eine Datei von ~4 MB.
  *
  *   node scripts/app-import-check.mjs
  */
@@ -30,6 +32,11 @@ export { applyImport, importProblems, ImportBlocked, planImport } from '${app}co
 export { changesOf, changeSummary, decidedPlan, defaultDecisions, importSession } from '${app}cogita/importReview';
 export { CogitaLibrary } from '${app}cogita/store';
 export { readView } from '${app}cogita/views';
+export { gaugeFromMarks } from '${app}cogita/knowing';
+export { knowStats } from '${app}cogita/knowStats';
+export { answerIndex } from '${app}cogita/measures';
+export { landscapeInput, landscapeState } from '${app}cogita/landscapeData';
+export { LandscapeEngine } from '${app}cogita/landscape';
 `);
 await build({
   entryPoints: { entry }, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error',
@@ -252,6 +259,166 @@ const viewOf = (lib) => lib.docs('view').find((d) => d.data._ref === 'kurs/widok
   check('after the re-import: the view is grouped by the real kind', viewOf(lib).data.group?.kind, real);
   check('after the re-import: every stage has its area', stageIds(lib).map((id) => lib.entity(lib.entity(id).data.obszar[0])?.data.nr), [1, 2, 3]);
   check('after the re-import: no reference into nothing is left', A.importProblems(lib, A.planImport(lib, importDoc(lib))).blocked, []);
+}
+
+/* ===================================================================================================================
+ * 6. 2026-11-03 — ÄNDERN UND LÖSCHEN AN DER KENNUNG, in einem Import, alle oder keiner
+ * =================================================================================================================== */
+const entitiesDoc = (entities, more = {}) => ({ format: 'recreatio.cogita.entities', version: 1, name: 'Poprawki', entities, ...more });
+const decideAll = (lib, doc) => { const s = A.importSession(lib, doc); return { s, d: s.decide(acceptAll(s.changes())) }; };
+const detailIds = (lib) => DETAILS.map((s) => lib.byImportRef(s.ref.slice(1), 'entity').id);
+const countSaves = (lib) => { let n = 0; const was = lib.store.saveAll.bind(lib.store); lib.store.saveAll = (...a) => { n += 1; return was(...a); }; return () => n; };
+{
+  /* Ändern: nur die genannten Felder, Rodzaje dürfen fehlen, eine Liste wird als Ganzes ersetzt, null nimmt ein Feld weg. */
+  const lib = await freshBase();
+  const [e1, e2] = stageIds(lib);
+  const [, , d3] = detailIds(lib);
+  const doc = entitiesDoc([
+    { ref: e2, data: { nazwa: 'Etap drugi' } },
+    { id: d3, data: { wymaga: [e1] } },
+    { ref: e1, data: { nr: null } }
+  ]);
+  const { s, d } = decideAll(lib, doc);
+  check('change by id without kinds: the plan keeps the entry\'s kinds', s.plan().entities.map((e) => e.kinds.length), [1, 1, 1]);
+  check('change by id: the preview lists exactly the named fields as changes', s.changes().map((c) => `${c.title}:${c.field}`).sort(), ['Etap 1:nr', 'Etap drugi:nazwa', 'Szczegół 3:wymaga']);
+  check('change by id: changes to what exists start unticked (as every change)', A.defaultDecisions(s.changes()).accepted.size, 0);
+  await A.applyImport(lib, d.plan, () => undefined);
+  const two = lib.entity(e2);
+  check('change by id: the named field changes, the others stay (nr, wymaga)', [two.data.nazwa, two.data.nr, two.data.wymaga], ['Etap drugi', 2, [e1]]);
+  check('change by id: a list field is replaced as a whole (Szczegół 3 now needs only Etap 1)', lib.entity(d3).data.wymaga, [e1]);
+  check('change by id: null removes the field', 'nr' in lib.entity(e1).data, false);
+}
+{
+  /* Löschen ohne Verweise: in der Vorschau beim Namen, vorgeschlagen angenommen, abwählbar — und dann wirklich weg. */
+  const lib = await freshBase();
+  const [, d2] = detailIds(lib);
+  const doc = entitiesDoc([{ ref: d2, remove: true }]);
+  const s = A.importSession(lib, doc);
+  const gone = s.changes().filter((c) => c.remove === true);
+  check('delete: the preview lists the deletion by name, with what points at it', gone.map((c) => [c.title, c.afterText]), [['Szczegół 2', 'nic na niego nie wskazuje']]);
+  check('delete: the summary names it', A.changeSummary(s.changes()).some((l) => l.startsWith('Do usunięcia: 1')), true);
+  check('delete: proposed ticked (the document asks for it)', A.defaultDecisions(s.changes()).accepted.has(`x:${d2}`), true);
+  const off = s.decide({ accepted: new Set(), edited: new Map() });
+  const before = lib.store.all().length;
+  await A.applyImport(lib, off.plan, () => undefined);
+  check('delete unticked: nothing is deleted', [lib.entity(d2) !== undefined, lib.store.all().length], [true, before]);
+  const on = s.decide(null);
+  const res = await A.applyImport(lib, on.plan, () => undefined);
+  check('delete ticked: the entry is gone and the save says so', [lib.entity(d2), /usunięte: 1/.test(res.lines[0])], [undefined, true]);
+  check('… by the store\'s delete of the same save', lib.store.lastRemoved, [d2]);
+}
+{
+  /* Löschen mit Verweisen: aus Verweisfeldern (wymaga, about einer Frage) werden sie herausgenommen — im selben Zapis. */
+  const lib = await freshBase();
+  const [e1, e2] = stageIds(lib);
+  const [d1] = detailIds(lib);
+  const q = await lib.saveEntity({ kinds: ['question'], data: { form: 'text', prompt: 'Co jest w etapie 1?', answers: ['podstawy'], about: [e1, d1] } });
+  const doc = entitiesDoc([{ ref: e1, remove: true }]);
+  const { s, d } = decideAll(lib, doc);
+  const row = s.changes().find((c) => c.remove === true);
+  truth('delete with references: the preview names every entry that loses the reference, with its field',
+    row.afterText.includes('Etap 2 (Najpierw)') && row.afterText.includes('Szczegół 1 (Najpierw)') && /Co jest w etapie 1\?/.test(row.afterText), row.afterText);
+  check('delete with references: nothing blocks', d.blocked, []);
+  const saves = countSaves(lib);
+  await A.applyImport(lib, d.plan, () => undefined);
+  check('delete with references: one save', saves(), 1);
+  check('… the entry is gone, the references to it are taken out, the rest stays', [lib.entity(e1), lib.entity(e2).data.wymaga, lib.entity(d1).data.wymaga, lib.entity(q.id).data.about], [undefined, undefined, undefined, [d1]]);
+
+  /* Ein Ablauf (eine Opowieść), der darauf zeigt: das blockiert — und dann ist nichts gelöscht. */
+  const lib2 = await freshBase();
+  const [f1] = stageIds(lib2);
+  await lib2.saveDoc('flow', { name: 'Opowieść o etapie', unit: f1, graph: { nodes: [], edges: [] } });
+  const blocked = decideAll(lib2, entitiesDoc([{ ref: f1, remove: true }])).d;
+  truth('delete referenced by a flow: blocked, naming the flow, the key and the entry', blocked.blocked.some((l) => l.includes('Opowieść o etapie') && l.includes('„unit”') && l.includes('Etap 1')), blocked.blocked);
+  const rows = lib2.store.all().length;
+  let threw = null;
+  try { await A.applyImport(lib2, blocked.plan, () => undefined); } catch (e) { threw = e; }
+  check('… applying it deletes nothing and saves nothing', [threw instanceof A.ImportBlocked, lib2.entity(f1) !== undefined, lib2.store.all().length], [true, true, rows]);
+  /* Derselbe Import löscht den Ablauf mit: dann geht es. */
+  const flowId = lib2.docs('flow')[0].id;
+  const both = decideAll(lib2, entitiesDoc([{ ref: f1, remove: true }], { flows: [{ ref: flowId, remove: true }] })).d;
+  check('… deleting the flow in the same document: nothing blocks', both.blocked, []);
+  await A.applyImport(lib2, both.plan, () => undefined);
+  check('… both are gone', [lib2.entity(f1), lib2.docs('flow').length], [undefined, 0]);
+}
+{
+  /* Anlegen und löschen in einem Zapis — alle oder keiner. */
+  const lib = await freshBase();
+  const [, , d3] = detailIds(lib);
+  const doc = entitiesDoc([{ ref: '@kurs/temat/nowy', kinds: ['@kurs/temat'], data: { nazwa: 'Nowy temat' } }, { ref: d3, remove: true }]);
+  const { d } = decideAll(lib, doc);
+  const rows = lib.store.all().map((e) => `${e.id}:${e.version}`).sort();
+  lib.store.failWith = 'Nic nie zapisano: 1 wpis nie może być zapisany (x: ktoś zmienił go w międzyczasie).';
+  let threw = null;
+  try { await A.applyImport(lib, d.plan, () => undefined); } catch (e) { threw = e; }
+  lib.store.failWith = null;
+  check('create + delete, refused: nothing created, nothing deleted', [threw !== null, lib.store.all().map((e) => `${e.id}:${e.version}`).sort()], [true, rows]);
+  const saves = countSaves(lib);
+  await A.applyImport(lib, d.plan, () => undefined);
+  check('create + delete: one save, the new one is there, the old one is gone', [saves(), lib.byImportRef('kurs/temat/nowy', 'entity') !== undefined, lib.entity(d3)], [1, true, undefined]);
+}
+{
+  /* Was nicht geht, wird gesagt: Unbekanntes, ein Rodzaj, ändern und löschen zugleich; ein bleibender Name findet. */
+  const lib = await freshBase();
+  const [e1, , e3] = stageIds(lib);
+  const plan = A.planImport(lib, { format: 'recreatio.cogita.course', version: 1, kinds: [{ ref: '@kurs/temat', name: 'Temat nauki', remove: true }],
+    entities: [{ ref: '01a00000-0000-7000-8000-00000000dead', remove: true }, { ref: e1, data: { nazwa: 'X' } }, { ref: e1, remove: true }, { ref: '@kurs/temat/etap-3', remove: true }] });
+  truth('a kind is never deleted by an import (warned, skipped)', plan.warnings.some((w) => w.includes('rodzajów nie usuwa się importem')) && lib.kind(temat(lib).id) !== undefined, plan.warnings);
+  truth('deleting what does not exist: warned, nothing to delete', plan.warnings.some((w) => w.includes('nie ma takiego wpisu')), plan.warnings);
+  truth('changed and deleted in one document: only deleted, with a warning', plan.warnings.some((w) => w.includes('zmienia i usuwa')) && !plan.entities.some((e) => e.id === e1), plan.warnings);
+  check('a lasting name (@kurs/temat/etap-3) finds the entry to delete', plan.removals.map((r) => r.id).sort(), [e1, e3].sort());
+}
+{
+  /* Die Geschichte der Lernenden: Antworten auf Karten gelöschter Einträge brechen weder Statystyki noch den Krajobraz. */
+  const lib = await freshBase();
+  const [e1, e2] = stageIds(lib);
+  const [d1, d2] = detailIds(lib);
+  await lib.saveEntity({ kinds: ['question'], data: { form: 'text', prompt: 'Pytanie o etap 1', answers: ['a'], about: [e1] } });
+  const q2 = await lib.saveEntity({ kinds: ['question'], data: { form: 'text', prompt: 'Pytanie o szczegół 2', answers: ['b'], about: [d2] } });
+  await lib.saveEntity({ kinds: ['question'], data: { form: 'text', prompt: 'Pytanie o etap 2', answers: ['c'], about: [e2] } });
+  const before = (await lib.cards('')).cards;
+  const t0 = Date.UTC(2026, 10, 1, 8);
+  const answers = new Map(before.map((c, i) => [`a${i}`, { id: `a${i}`, key: c.key, at: t0 + i * 60_000, correctness: 1, question: c.question ?? '', given: 'x', fingerprint: '' }]));
+  const progress = { answers, snapshots: new Map(), suspended: new Set(), positions: new Map(), values: {} };
+  const { d } = decideAll(lib, entitiesDoc([{ ref: d2, remove: true }, { ref: q2.id, remove: true }, { ref: d1, remove: true }]));
+  await A.applyImport(lib, d.plan, () => undefined);
+  const after = (await lib.cards('')).cards;
+  const byCard = A.answerIndex(progress);
+  let problem = null;
+  try {
+    const marks = (key) => [...answers.values()].filter((a) => a.key === key).map((a) => ({ at: a.at, correctness: a.correctness }));
+    const g = A.gaugeFromMarks(after, marks, lib.dependencies(), t0 + 3_600_000);
+    const stats = A.knowStats(after, byCard, t0 + 3_600_000);
+    const topics = lib.ofKind(temat(lib).id);
+    const input = A.landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, null, { askable: new Set(topics.map((e) => e.id)) });
+    const st = A.landscapeState(input, g);
+    const e = new A.LandscapeEngine(); e.setInput(input); e.setState(st);
+    const lay = e.layout({ budget: 1_000_000 }).layout;
+    check('history: the deleted question\'s card is no longer a card; its answers stay in the progress', [before.length - after.length, answers.size], [1, before.length]);
+    check('history: statistics count only today\'s cards (the old answers neither break nor count)', [stats.cards, stats.answers], [after.length, after.length]);
+    check('history: the landscape draws the remaining topics, the deleted ones are not on it', [lay.fields.some((f) => f.id === d1 || f.id === d2), lay.fields.some((f) => f.id === e1)], [false, true]);
+  } catch (err) { problem = err; }
+  check('history: no error anywhere', problem === null ? null : String(problem), null);
+}
+{
+  /* Eine Datei von ~4 MB: eine Vorschau, ein Zapis. */
+  const lib = await freshBase();
+  const big = 'Ein langer Absatz über das Thema, der die Datei groß macht. '.repeat(36);
+  const entities = Array.from({ length: 1900 }, (_, i) => ({ ref: `@kurs/duzy/t-${i}`, kinds: ['@kurs/temat'], data: { nazwa: `Temat ${i}`, nr: i, opis: big, ...(i > 0 ? { wymaga: [`@kurs/duzy/t-${i - 1}`] } : {}) } }));
+  const doc = entitiesDoc(entities, { kinds: [{ ...TEMAT, fields: [...TEMAT.fields, { key: 'opis', label: 'Opis', type: 'text' }] }] });
+  const size = JSON.stringify(doc).length;
+  const t0 = performance.now();
+  const s = A.importSession(lib, doc);
+  const changes = s.changes();
+  const t1 = performance.now();
+  const d = s.decide(acceptAll(changes));
+  const saves = countSaves(lib);
+  await A.applyImport(lib, d.plan, () => undefined);
+  const t2 = performance.now();
+  console.log(`info 4 MB file: ${(size / 1024 / 1024).toFixed(2)} MB, ${entities.length} entries — preview ${(t1 - t0).toFixed(0)} ms, save ${(t2 - t1).toFixed(0)} ms`);
+  check('4 MB file: the document is at least 4 MB', size >= 4 * 1024 * 1024, true);
+  check('4 MB file: one preview lists every new entry, one save stores them all', [changes.filter((c) => c.isNew && c.target === 'entity').length, saves(), lib.ofKind(temat(lib).id).length], [1900, 1, 1906]);
+  check('4 MB file: preview and save under 20 s in node', t2 - t0 < 20000, true);
 }
 
 await rm(workspace, { recursive: true, force: true });

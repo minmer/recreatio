@@ -65,6 +65,24 @@ W prezentacji to samo na stronie: wartość w `"story.values"` (`{"id": "deszcz.
 3. Zaimportuj stronę (page): w "show.story.base" id bazy, w module "path" — "library" i "flow" (id przebiegu).
 4. Sprawdź stronę narzędziami podglądu (check_page, preview_page), a bazę — get_knowledge_setup: przebiegi stoją tam w całości, a "landscapes" pokazuje stałą mapę każdego krajobrazu (komórki, obszary, regiony — bez wysokości). Odpis bazy powstaje w przeglądarce kogoś, kto w niej pisze — 45 s po ostatniej zmianie, póki karta jest otwarta, i od razu po imporcie; "SnapshotCurrent": false mówi, że baza zmieniła się później.
 
+### Poprawki i usuwanie w tym samym imporcie
+
+Jeden dokument może też zmieniać i usuwać to, co już jest — wszystko w jednym zapisie (albo nic):
+
+```json
+{"format": "recreatio.cogita.entities", "version": 1, "name": "Poprawki opowieści",
+ "entities": [
+  {"ref": "<id jednostki>", "data": {"wymaga": ["<id tematu A>", "<id tematu B>"]}},
+  {"ref": "<id starego pytania>", "remove": true},
+  {"ref": "@opowiesc/pytanie-nowe", "kinds": ["question"], "data": {"form": "one", "prompt": "…", "options": ["…", "…"], "correct": [0], "about": ["<id tematu A>"]}}
+ ],
+ "flows": [{"ref": "<id starego przebiegu>", "remove": true}]}
+```
+
+- Zmiana po identyfikatorze: tylko wymienione pola; "kinds" można pominąć; lista (tu "wymaga") zastępuje całą starą.
+- Usunięcie: `{"ref": "<id>", "remove": true}`; podgląd wymienia każde z nazwą (można odznaczyć). Odwołania w polach innych wpisów ("about" pytań, "wymaga") znikają w tym samym zapisie; jeśli na wpis wskazuje przebieg ("unit", krok), zapis nie przejdzie — usuń albo popraw przebieg w tym samym dokumencie.
+- Odpowiedzi uczących się zostają; karty usuniętego pytania przestają się liczyć (postępy, przegląd, krajobraz).
+
 ## 10. Typowe błędy
 
 - Pytania z jednostką w "about" — jednostka dostaje karty, opada bez opowieści, a jej przycisk ćwiczy karty.

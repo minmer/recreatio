@@ -18,6 +18,13 @@ namespace Api;
 /// <para>
 /// Wie <see cref="SaveAsync"/> je Eintrag: die alte Hülle bleibt als Fassung, der Dienst liest nichts.
 /// </para>
+///
+/// <para>
+/// 2026-11-03 — AUCH LÖSCHEN IM SELBEN ZUG (`remove`: Kennung und Stand): ein Import, der Einträge anlegt, ändert und
+/// löscht, geht ganz oder gar nicht. Gelöscht wird wie bei <see cref="RemoveAsync"/> — die letzte Hülle bleibt als
+/// Fassung (wiederherstellbar), ein Grabstein für den Abgleich —, und nur, was in dieser Bibliothek liegt, noch nicht
+/// gelöscht ist und den Stand hat, den der Browser sah.
+/// </para>
 /// </summary>
 public static partial class Library
 {
@@ -29,7 +36,11 @@ public static partial class Library
     private const long MaxSaveBatchRequest = 64L * 1024 * 1024;
 
     public sealed record SaveManyEntry(string? EntryId, string? Kind, int Epoch, string? Sealed, int Version);
-    public sealed record SaveManyRequest(List<SaveManyEntry>? Entries);
+    public sealed record SaveManyRemove(string? EntryId, int Version);
+    public sealed record SaveManyRequest(List<SaveManyEntry>? Entries, List<SaveManyRemove>? Remove = null);
+
+    /// <summary>Ein geprüfter Eintrag, der in diesem Zapis gelöscht wird.</summary>
+    public sealed record SaveManyGone(Guid Id, int Version);
 
     /// <summary>Ein geprüfter Eintrag eines Zapis.</summary>
     public sealed record SaveManyRow(Guid Id, string Kind, int Epoch, byte[] Sealed, int Version);
@@ -47,8 +58,9 @@ public static partial class Library
     /// </summary>
     public static (List<SaveManyRow>? Rows, string? Error) ReadSaveMany(SaveManyRequest? body)
     {
-        var list = body?.Entries;
-        if (list is null || list.Count == 0 || list.Count > MaxSaveBatch) return (null, $"Od 1 do {MaxSaveBatch} wpisów w jednym zapisie.");
+        var list = body?.Entries ?? (body?.Remove is { Count: > 0 } ? [] : null);
+        var all = (list?.Count ?? 0) + (body?.Remove?.Count ?? 0);
+        if (list is null || all == 0 || all > MaxSaveBatch) return (null, $"Od 1 do {MaxSaveBatch} wpisów w jednym zapisie.");
         var rows = new List<SaveManyRow>(list.Count);
         var seen = new HashSet<Guid>();
         long total = 0;
@@ -67,6 +79,44 @@ public static partial class Library
             rows.Add(new SaveManyRow(id, one.Kind!, one.Epoch, bytes, one.Version));
         }
         return (rows, null);
+    }
+
+    /// <summary>
+    /// 2026-11-03 — was gelöscht wird, ohne Datenbank geprüft: jede Kennung einmal, nicht zugleich gespeichert, ein Stand
+    /// ab 1 (es gibt ihn). Leer, wenn nichts gelöscht wird.
+    /// </summary>
+    public static (List<SaveManyGone>? Gone, string? Error) ReadSaveRemove(SaveManyRequest? body, IReadOnlyList<SaveManyRow> rows)
+    {
+        var gone = new List<SaveManyGone>();
+        var saved = rows.Select(r => r.Id).ToHashSet();
+        var seen = new HashSet<Guid>();
+        foreach (var one in body?.Remove ?? [])
+        {
+            if (one is null || !Guid.TryParse(one.EntryId, out var id)) return (null, "Nieczytelny identyfikator wpisu do usunięcia.");
+            var name = Ids.ToText(id);
+            if (!seen.Add(id)) return (null, $"Wpis {name} stoi na liście do usunięcia dwa razy.");
+            if (saved.Contains(id)) return (null, $"Wpis {name} jest w tym zapisie i do zapisania, i do usunięcia.");
+            if (one.Version < 1) return (null, $"Nieczytelny stan wpisu {name} do usunięcia.");
+            gone.Add(new SaveManyGone(id, one.Version));
+        }
+        return (gone, null);
+    }
+
+    /// <summary>
+    /// 2026-11-03 — welche Löschungen nicht gehen (<paramref name="had"/>: Bibliothek, Stand, schon gelöscht) — ohne
+    /// Datenbank prüfbar.
+    /// </summary>
+    public static List<SaveManyProblem> RemoveManyProblems(Guid library, IReadOnlyList<SaveManyGone> gone, IReadOnlyDictionary<Guid, (Guid Library, int Version, bool Deleted)> had)
+    {
+        var problems = new List<SaveManyProblem>();
+        foreach (var one in gone)
+        {
+            var name = Ids.ToText(one.Id);
+            if (!had.TryGetValue(one.Id, out var now) || now.Deleted) problems.Add(new SaveManyProblem(name, "nie ma go już w bibliotece (nie ma czego usunąć)", 0));
+            else if (now.Library != library) problems.Add(new SaveManyProblem(name, "należy do innej biblioteki", null));
+            else if (now.Version != one.Version) problems.Add(new SaveManyProblem(name, "ktoś zmienił go w międzyczasie", now.Version));
+        }
+        return problems;
     }
 
     /// <summary>Ein Problem eines Eintrags, wie die Antwort es nennt.</summary>
@@ -106,6 +156,12 @@ public static partial class Library
             await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {error}");
             return;
         }
+        var (gone, goneError) = ReadSaveRemove(body, rows);
+        if (gone is null)
+        {
+            await Fail(ctx, StatusCodes.Status400BadRequest, $"Nic nie zapisano: {goneError}");
+            return;
+        }
 
         await using var connection = await db.OpenAsync(ctx.RequestAborted);
         var library = await AllowedAsync(ctx, connection, who.Value.AccountId, id, Capability.Write);
@@ -120,17 +176,23 @@ public static partial class Library
 
         /* Was es schon gibt — gesperrt bis zum Ende, damit niemand dazwischen schreibt (auch keinen neuen mit derselben Kennung). */
         var had = new Dictionary<Guid, (Guid Library, int Version)>();
-        foreach (var chunk in rows.Chunk(500))
+        var hadGone = new Dictionary<Guid, (Guid Library, int Version, bool Deleted)>();
+        foreach (var chunk in rows.Select(r => r.Id).Concat(gone.Select(g => g.Id)).Chunk(500))
         {
             var names = string.Join(", ", chunk.Select((_, i) => $"@i{i}"));
             await using var read = new SqlCommand(
-                $"SELECT id, library_id, version FROM app.library_entry WITH (UPDLOCK, HOLDLOCK) WHERE id IN ({names});", connection, tx);
-            for (var i = 0; i < chunk.Length; i++) read.Parameters.AddWithValue($"@i{i}", chunk[i].Id);
+                $"SELECT id, library_id, version, CASE WHEN deleted_at IS NULL THEN 0 ELSE 1 END FROM app.library_entry WITH (UPDLOCK, HOLDLOCK) WHERE id IN ({names});", connection, tx);
+            for (var i = 0; i < chunk.Length; i++) read.Parameters.AddWithValue($"@i{i}", chunk[i]);
             await using var reader = await read.ExecuteReaderAsync(ctx.RequestAborted);
-            while (await reader.ReadAsync(ctx.RequestAborted)) had[reader.GetGuid(0)] = (reader.GetGuid(1), reader.GetInt32(2));
+            while (await reader.ReadAsync(ctx.RequestAborted))
+            {
+                had[reader.GetGuid(0)] = (reader.GetGuid(1), reader.GetInt32(2));
+                hadGone[reader.GetGuid(0)] = (reader.GetGuid(1), reader.GetInt32(2), reader.GetInt32(3) == 1);
+            }
         }
 
         var problems = SaveManyProblems(id, rows, had);
+        problems.AddRange(RemoveManyProblems(id, gone, hadGone));
         if (problems.Count > 0)
         {
             await tx.RollbackAsync(ctx.RequestAborted);
@@ -191,7 +253,31 @@ public static partial class Library
             saved.Add(new { entryId = Ids.ToText(row.Id), version = (exists ? before.Version : 0) + 1, updatedAt = now });
         }
 
+        /* 2026-11-03 — die Löschungen dieses Zapis, wie RemoveAsync: die letzte Hülle bleibt als Fassung, ein Grabstein. */
+        var removed = new List<object>(gone.Count);
+        foreach (var one in gone)
+        {
+            await using var drop = new SqlCommand("""
+                INSERT INTO app.library_entry_version (entry_id, version, kind, epoch, sealed, written_at, written_by_account_id)
+                SELECT id, version, kind, epoch, sealed, updated_at, written_by_account_id
+                  FROM app.library_entry
+                 WHERE id = @entry AND library_id = @library AND sealed IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM app.library_entry_version v WHERE v.entry_id = @entry AND v.version = app.library_entry.version);
+                DELETE FROM app.library_public_ref WHERE entry_id = @entry OR ref_id = @entry;
+                UPDATE app.library_entry
+                   SET sealed = NULL, deleted_at = @now, updated_at = @now, version = version + 1,
+                       published_at = NULL, published_as = NULL, public_key = NULL, public_sort = NULL,
+                       public_summary = NULL, public_json = NULL
+                 WHERE id = @entry AND library_id = @library AND deleted_at IS NULL;
+                """, connection, tx);
+            drop.Parameters.AddWithValue("@entry", one.Id);
+            drop.Parameters.AddWithValue("@library", id);
+            drop.Parameters.AddWithValue("@now", now);
+            await drop.ExecuteNonQueryAsync(ctx.RequestAborted);
+            removed.Add(new { entryId = Ids.ToText(one.Id), version = one.Version + 1, updatedAt = now });
+        }
+
         await tx.CommitAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsJsonAsync(new { saved = saved.Count, entries = saved });
+        await ctx.Response.WriteAsJsonAsync(new { saved = saved.Count, entries = saved, removed });
     }
 }

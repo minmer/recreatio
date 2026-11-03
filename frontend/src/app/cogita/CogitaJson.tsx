@@ -27,7 +27,7 @@ export function CogitaJson() {
     <div className="cg">
       <JsonPanel
         summary="Kurs jako JSON — eksport i import"
-        lead={<>Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import dodaje nowe i zmienia istniejące w miejscu; niczego nie usuwa. Przed zapisem widać każdą zmianę: nowe są zaznaczone, a zmiany w tym, co już jest, trzeba przyjąć — każdą można też poprawić.</>}
+        lead={<>Rodzaje, wpisy (także wypowiedzi i pytania), szablony kart, powtórki, przebiegi, zbiory, wyglądy, zasady i wartości jako jeden dokument. Import dodaje nowe i zmienia istniejące w miejscu; usuwa tylko to, co dokument wymienia z „"remove": true”. Przed zapisem widać każdą zmianę: nowe i usunięcia są zaznaczone (każde można odznaczyć), a zmiany w tym, co już jest, trzeba przyjąć — każdą można też poprawić.</>}
         fileName={`kurs-${file}.json`}
         exportDoc={() => exportCourse(lib, name)}
         description={() => courseDescription(lib)}

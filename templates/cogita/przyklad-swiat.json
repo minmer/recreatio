@@ -33,6 +33,35 @@
    ]
   },
   {
+   "ref": "@swiat/pole",
+   "name": "Pole mapy",
+   "label": "{nazwa}",
+   "fields": [
+    {
+     "key": "nazwa",
+     "label": "Nazwa",
+     "type": "line",
+     "says": "Nazwa pola na mapie krajobrazu: „Matematyka”, „Ułamki”. Widać ją w okienku pola i po wskazaniu — nie na samej mapie."
+    },
+    {
+     "key": "nr",
+     "label": "Kolejność",
+     "type": "number",
+     "says": "Miejsce pola wśród pól tego samego poziomu (mniejsze bliżej początku). Puste: na końcu, według nazwy."
+    },
+    {
+     "key": "nad",
+     "label": "Leży w",
+     "type": "ref",
+     "to": [
+      "@swiat/pole"
+     ],
+     "structure": "up",
+     "says": "Pole, w którym to pole leży — o jeden poziom wyżej. Puste: pole najwyższego poziomu. Gałęzie mogą mieć różną głębokość."
+    }
+   ]
+  },
+  {
    "ref": "@swiat/temat",
    "name": "Temat",
    "label": "{nazwa}",
@@ -70,6 +99,15 @@
      ],
      "multi": true,
      "says": "Gdzie temat leży: zwykle jedna, najwęższa pasująca dziedzina („Ruch”, nie „Fizyka”); kilka tylko wtedy, gdy temat naprawdę należy do kilku (historia odkrycia fizycznego: „Historia nauki” i „Ruch”) — wtedy stoi w krajobrazie między nimi."
+    },
+    {
+     "key": "pole",
+     "label": "Pole mapy",
+     "type": "ref",
+     "to": [
+      "@swiat/pole"
+     ],
+     "says": "Najwęższe pole mapy, w którym temat stoi (widok „Krajobraz pól”). Puste: temat stoi na najwyższym poziomie."
     }
    ]
   },
@@ -195,6 +233,113 @@
    }
   },
   {
+   "ref": "@swiat/m-matematyka",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Matematyka",
+    "nr": 1
+   }
+  },
+  {
+   "ref": "@swiat/m-liczby",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Liczby",
+    "nr": 1,
+    "nad": "@swiat/m-matematyka"
+   }
+  },
+  {
+   "ref": "@swiat/m-dzialania",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Działania",
+    "nr": 1,
+    "nad": "@swiat/m-liczby"
+   }
+  },
+  {
+   "ref": "@swiat/m-ulamki",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Ułamki",
+    "nr": 1,
+    "nad": "@swiat/m-dzialania"
+   }
+  },
+  {
+   "ref": "@swiat/m-dziesietne",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Dziesiętne i procenty",
+    "nr": 1,
+    "nad": "@swiat/m-ulamki"
+   }
+  },
+  {
+   "ref": "@swiat/m-algebra",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Algebra",
+    "nr": 2,
+    "nad": "@swiat/m-matematyka"
+   }
+  },
+  {
+   "ref": "@swiat/m-fizyka",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Fizyka",
+    "nr": 2
+   }
+  },
+  {
+   "ref": "@swiat/m-ruch",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Ruch",
+    "nr": 1,
+    "nad": "@swiat/m-fizyka"
+   }
+  },
+  {
+   "ref": "@swiat/m-sily",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Siły",
+    "nr": 2,
+    "nad": "@swiat/m-fizyka"
+   }
+  },
+  {
+   "ref": "@swiat/m-historia",
+   "kinds": [
+    "@swiat/pole"
+   ],
+   "data": {
+    "nazwa": "Historia nauki",
+    "nr": 3
+   }
+  },
+  {
    "ref": "@swiat/t-naturalne",
    "kinds": [
     "@swiat/temat"
@@ -204,7 +349,8 @@
     "czym": "Liczby 0, 1, 2, 3, … — służą do liczenia i porządkowania.",
     "dziedziny": [
      "@swiat/d-liczby"
-    ]
+    ],
+    "pole": "@swiat/m-liczby"
    }
   },
   {
@@ -220,7 +366,8 @@
     ],
     "dziedziny": [
      "@swiat/d-liczby"
-    ]
+    ],
+    "pole": "@swiat/m-dzialania"
    }
   },
   {
@@ -236,7 +383,8 @@
     ],
     "dziedziny": [
      "@swiat/d-liczby"
-    ]
+    ],
+    "pole": "@swiat/m-dzialania"
    }
   },
   {
@@ -252,7 +400,8 @@
     ],
     "dziedziny": [
      "@swiat/d-liczby"
-    ]
+    ],
+    "pole": "@swiat/m-ulamki"
    }
   },
   {
@@ -268,7 +417,8 @@
     ],
     "dziedziny": [
      "@swiat/d-liczby"
-    ]
+    ],
+    "pole": "@swiat/m-dziesietne"
    }
   },
   {
@@ -284,7 +434,8 @@
     ],
     "dziedziny": [
      "@swiat/d-liczby"
-    ]
+    ],
+    "pole": "@swiat/m-dziesietne"
    }
   },
   {
@@ -301,7 +452,8 @@
     "dziedziny": [
      "@swiat/d-liczby",
      "@swiat/d-algebra"
-    ]
+    ],
+    "pole": "@swiat/m-algebra"
    }
   },
   {
@@ -317,7 +469,8 @@
     ],
     "dziedziny": [
      "@swiat/d-algebra"
-    ]
+    ],
+    "pole": "@swiat/m-algebra"
    }
   },
   {
@@ -333,7 +486,8 @@
     ],
     "dziedziny": [
      "@swiat/d-algebra"
-    ]
+    ],
+    "pole": "@swiat/m-algebra"
    }
   },
   {
@@ -349,7 +503,8 @@
     ],
     "dziedziny": [
      "@swiat/d-algebra"
-    ]
+    ],
+    "pole": "@swiat/m-algebra"
    }
   },
   {
@@ -366,7 +521,8 @@
     ],
     "dziedziny": [
      "@swiat/d-algebra"
-    ]
+    ],
+    "pole": "@swiat/m-ulamki"
    }
   },
   {
@@ -382,7 +538,8 @@
     ],
     "dziedziny": [
      "@swiat/d-algebra"
-    ]
+    ],
+    "pole": "@swiat/m-algebra"
    }
   },
   {
@@ -399,7 +556,8 @@
     ],
     "dziedziny": [
      "@swiat/d-jednostki"
-    ]
+    ],
+    "pole": "@swiat/m-fizyka"
    }
   },
   {
@@ -415,7 +573,8 @@
     ],
     "dziedziny": [
      "@swiat/d-ruch"
-    ]
+    ],
+    "pole": "@swiat/m-ruch"
    }
   },
   {
@@ -432,7 +591,8 @@
     ],
     "dziedziny": [
      "@swiat/d-ruch"
-    ]
+    ],
+    "pole": "@swiat/m-ruch"
    }
   },
   {
@@ -448,7 +608,8 @@
     ],
     "dziedziny": [
      "@swiat/d-ruch"
-    ]
+    ],
+    "pole": "@swiat/m-ruch"
    }
   },
   {
@@ -464,7 +625,8 @@
     ],
     "dziedziny": [
      "@swiat/d-sily"
-    ]
+    ],
+    "pole": "@swiat/m-sily"
    }
   },
   {
@@ -480,7 +642,8 @@
     ],
     "dziedziny": [
      "@swiat/d-sily"
-    ]
+    ],
+    "pole": "@swiat/m-sily"
    }
   },
   {
@@ -499,7 +662,8 @@
     "dziedziny": [
      "@swiat/d-sily",
      "@swiat/d-ruch"
-    ]
+    ],
+    "pole": "@swiat/m-sily"
    }
   },
   {
@@ -516,7 +680,8 @@
     "dziedziny": [
      "@swiat/d-historia",
      "@swiat/d-ruch"
-    ]
+    ],
+    "pole": "@swiat/m-historia"
    }
   },
   {
@@ -1038,6 +1203,22 @@
      "due": 0.2,
      "known": 0.1
     }
+   }
+  },
+  {
+   "ref": "@swiat/w-pola",
+   "name": "Krajobraz pól",
+   "mode": "landscape",
+   "steps": [
+    {
+     "type": "source.kind",
+     "config": {
+      "kind": "@swiat/temat"
+     }
+    }
+   ],
+   "landscape": {
+    "nest": "pole"
    }
   },
   {

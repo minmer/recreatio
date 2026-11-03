@@ -869,6 +869,27 @@ Phones stay awake.
   59 ms, heights 11 ms, layout 34 ms; after an answer 14 + 15 ms; zoom p95 16.8 ms per frame.
 - Prepared for later: `positionOf`, `routeTo`, `heightOf`, field marks, an edge filter (avatars, tours, age variants).
 
+#### Nested landscape (2026-11-03)
+
+- **Groups come from the data.** A view with `"landscape": {"nest": "<ref field>"}` (`nestSort`, default `nr`) reads map
+  nodes: entries of any kind with a name, an order and a `structure: "up"` field to the parent node, any depth per
+  branch. A content entry names its node in the ref field; without one it stands at the top (`landscapeNest.readNest`).
+- **One level per screen** (`nestLayout`): the overview shows only the top nodes and top entries; a zoom shows one
+  node's child nodes and its own entries; breadcrumbs = `nestPath`. The engine stays flat (heights, bands, locks per
+  entry) and the level is derived from it.
+- **A node is a field.** Its ring is known / all cards of the subtree. Its band is `known`/`due` when everything
+  inside is learned, `ring` when anything is ready, else `mountain` as high as the nearest thing inside. It is
+  locked when every ring entry inside is locked. Its colour depth comes from the subtree share (`is-k1..4`).
+  Popover: the state in words and ONE primary button: the story button for a story unit; „Ustaw jako cel" (the
+  nearest mountain inside) for a mountain; „Powtórz" (the due cards of the subtree) in the valley; otherwise
+  „Wejdź", which also stays as a link.
+- **Fixed packed places** (`nestSlots`): rings around the learner, in the upper half. Order: the earliest entry inside
+  (depth in the prerequisite chain), then nodes before entries, then the author's order. Never by progress.
+- **Visual language (all landscape views).** Hue = area, intensity = knowledge (due is as deep as known), height =
+  distance. Only two markers: repeat and lock. No text on the map: names only in the hover tip and the popover. Hover
+  highlights the field and its route and dims nothing. There is a small legend. Without `nest` nothing is merged
+  any more (`budget`/`bands` are read and ignored) and empty ground cells are not drawn.
+
 ### Stories that count (2026-11-03, G)
 
 - **One story** = one presentation page + one flow in the base pointing at it (`{"look": "scenes", "presentation":

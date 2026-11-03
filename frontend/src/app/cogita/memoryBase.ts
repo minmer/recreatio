@@ -90,11 +90,21 @@ export class MemoryStore extends LibraryStore {
    */
   failWith: string | null = null;
 
-  override async saveAll(inputs: readonly SaveInput[]): Promise<Entry[]> {
+  /** Zuletzt gelöscht (für Prüfungen: was ein Zapis löschte). */
+  lastRemoved: readonly string[] = [];
+
+  override async saveAll(inputs: readonly SaveInput[], _progress?: (done: number, total: number) => void, remove: readonly string[] = []): Promise<Entry[]> {
     if (this.failWith !== null) throw new WorkspaceError(this.failWith, 'conflict');
+    /* 2026-11-03 — wie der Dienst: nur eigene, nie zugleich gespeichert und gelöscht — sonst nichts. */
+    for (const id of remove) {
+      if (this.own(id) === undefined) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} do usunięcia nie należy do tej biblioteki.`, 'conflict');
+      if (inputs.some((x) => x.id === id)) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} jest i do zapisania, i do usunięcia.`, 'conflict');
+    }
     const made = inputs.map((input) => this.make(input));
     for (const entry of made) this.inside.put(entry);
-    if (made.length > 0) this.inside.changed();
+    for (const id of remove) this.inside.drop(id);
+    this.lastRemoved = [...remove];
+    if (made.length > 0 || remove.length > 0) this.inside.changed();
     return made;
   }
 

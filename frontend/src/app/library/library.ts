@@ -227,10 +227,11 @@ export interface PutEntryRow {
   readonly version: number;
 }
 
+/** 2026-11-03 — `remove`: Einträge, die derselbe Zapis löscht (Kennung und der Stand, den der Browser sah). */
 export const putEntries = (
-  libraryId: string, entries: readonly PutEntryRow[]
-): Promise<{ saved: number; entries: readonly { entryId: string; version: number; updatedAt: string }[] }> =>
-  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries/save`, { method: 'POST', body: JSON.stringify({ entries }) });
+  libraryId: string, entries: readonly PutEntryRow[], remove: readonly { readonly entryId: string; readonly version: number }[] = []
+): Promise<{ saved: number; entries: readonly { entryId: string; version: number; updatedAt: string }[]; removed?: readonly { entryId: string; version: number }[] }> =>
+  call(`/workspace/library/${encodeURIComponent(libraryId)}/entries/save`, { method: 'POST', body: JSON.stringify(remove.length === 0 ? { entries } : { entries, remove }) });
 
 export const removeEntry = (libraryId: string, entryId: string): Promise<{ deleted: boolean }> =>
   call(`/workspace/library/${encodeURIComponent(libraryId)}/entry/${encodeURIComponent(entryId)}`, { method: 'DELETE' });

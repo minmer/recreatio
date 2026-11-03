@@ -706,9 +706,18 @@ export class LibraryStore implements Lookup {
    * Bibliothek, zu gross), ist keiner gespeichert: der Fehler nennt jeden Eintrag, der nicht ging (`problems`), und
    * hier ändert sich nichts. Vorher, im Browser: ein Eintrag einer anderen Bibliothek, eine Kennung zweimal, zu viel.
    */
-  async saveAll(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void): Promise<Entry[]> {
-    if (inputs.length === 0) return [];
-    if (inputs.length > SAVE_ALL_MAX) throw new WorkspaceError(`Nic nie zapisano: ${inputs.length} elementów to za dużo na jeden zapis (najwyżej ${SAVE_ALL_MAX}) — podziel plik na mniejsze części.`);
+  async saveAll(inputs: readonly SaveInput[], progress?: (done: number, total: number) => void, remove: readonly string[] = []): Promise<Entry[]> {
+    if (inputs.length === 0 && remove.length === 0) return [];
+    if (inputs.length + remove.length > SAVE_ALL_MAX) throw new WorkspaceError(`Nic nie zapisano: ${inputs.length + remove.length} elementów to za dużo na jeden zapis (najwyżej ${SAVE_ALL_MAX}) — podziel plik na mniejsze części.`);
+    /* 2026-11-03 — was derselbe Zapis löscht: nur eigene Einträge, mit dem Stand, den dieser Browser kennt. */
+    const gone: { entryId: string; version: number }[] = [];
+    for (const id of remove) {
+      const version = this.entries.get(id)?.version ?? this.heavyRows.get(id)?.version;
+      if (version === undefined) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} do usunięcia nie należy do tej biblioteki.`);
+      if (inputs.some((x) => x.id === id)) throw new WorkspaceError(`Nic nie zapisano: wpis ${id} jest i do zapisania, i do usunięcia.`);
+      gone.push({ entryId: id, version });
+    }
+    const goneFiles = remove.flatMap((id) => this.ownFiles(this.entries.get(id)));
     const newest = await this.writeKey();
     const reserved = new Set<string>();
     const seen = new Set<string>();
@@ -725,7 +734,7 @@ export class LibraryStore implements Lookup {
     }
     let done: Awaited<ReturnType<typeof putEntries>>;
     try {
-      done = await putEntries(this.libraryId, ready.map((r) => r.row));
+      done = await putEntries(this.libraryId, ready.map((r) => r.row), gone);
     } catch (e) {
       if (e instanceof WorkspaceError && e.verdict === 'stale') await this.sync().catch(() => undefined);
       throw e;
@@ -736,8 +745,10 @@ export class LibraryStore implements Lookup {
       if (d === undefined) throw new WorkspaceError(`Usługa nie potwierdziła zapisu ${r.row.entryId}.`);
       return this.land(r, d);
     });
+    for (const id of remove) this.drop(id);
     this.changed();
     this.written();
+    await this.dropFiles(goneFiles);
     return saved;
   }
 

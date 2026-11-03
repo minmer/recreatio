@@ -12,6 +12,7 @@
  *   node scripts/app-landscape-check.mjs
  */
 import { build } from 'esbuild';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,6 +27,7 @@ await writeFile(baseEntry, `
 export { memoryBase } from '${app}cogita/memoryBase';
 export { axisMembersOf, axisValues, groupsOf, readAxis, readGrouping } from '${app}cogita/selection';
 export { landscapeAxis, landscapeInput } from '${app}cogita/landscapeData';
+export * as N from '${app}cogita/landscapeNest';
 `);
 await build({
   entryPoints: { ...Object.fromEntries(names.map((n) => [n, `src/app/cogita/${n}.ts`])), base: baseEntry },
@@ -41,6 +43,7 @@ globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
 const [L, KN, LG, VW, PR, K, D] = await Promise.all(names.map(load));
 const B = await load('base');
+const N = B.N;
 
 let failed = 0;
 let passed = 0;
@@ -414,6 +417,81 @@ function bandWorld() {
   check('10 000 entries: a picture within the budget (singles and "+N" fields)', run.layout.fields.length <= 60 && run.layout.fields.filter((f) => f.kind === 'entry').length >= 30, true);
   check('10 000 entries: the fixed map (graph + cells) under 4 s in node', t1 - t0 < 4000, true);
   check('10 000 entries: after one answer (heights + layout) under 1.5 s in node', t4 - t3 < 1500, true);
+}
+
+/* ── 2026-11-03 — DER VERSCHACHTELTE KRAJOBRAZ (`landscapeNest.ts`) auf dem Beispiel „Świat wiedzy" ────── */
+{
+  const doc = JSON.parse(readFileSync(join(process.cwd(), '../templates/cogita/przyklad-swiat.json'), 'utf8'));
+  const made = await B.memoryBase(doc);
+  if ('error' in made) throw new Error(made.error);
+  const lib = made.lib;
+  const sel = lib.selectContext();
+  const viewDoc = lib.docs('view').find((v) => v.data.name === 'Krajobraz pól');
+  const view = VW.readView(viewDoc.data);
+  check('nest: the view setting reads ("landscape": {"nest": "pole"}) and is written back', [view.landscape?.nest, VW.viewJson(view).landscape?.nest], ['pole', 'pole']);
+  const topics = lib.entities().filter((e) => e.kinds.some((k) => lib.kind(k)?.name === 'Temat'));
+  /* Knoten zuerst: „Matematyka" ist auch eine Dziedzina. */
+  const isNode = (e) => e.kinds.some((k) => lib.kind(k)?.name === 'Pole mapy');
+  const byName = (n) => lib.entities().find((e) => lib.label(e) === n && isNode(e)) ?? lib.entities().find((e) => lib.label(e) === n);
+  const id = (n) => byName(n).id;
+  const input = B.landscapeInput({ select: sel, deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, null, { askable: new Set(topics.map((e) => e.id)) });
+  const tree = N.readNest(lib, input.ids, 'pole');
+  const order = (a, b) => input.ids.indexOf(a) - input.ids.indexOf(b);
+  const at = (n) => input.ids.indexOf(id(n));
+  const levelOf = (k, focus, weak = []) => {
+    const st = { ...state(input, k, weak), cardsKnown: input.ids.map((x) => ((k[x] ?? 0) >= 1 ? 2 : 0)), cardsTotal: input.ids.map(() => 2) };
+    const e = new L.LandscapeEngine(); e.setInput(input); e.setState(st);
+    const base = e.layout({ budget: 1_000_000, focus: [] }).layout;
+    return N.nestLayout(input, base, st, tree, focus === null ? null : id(focus), order);
+  };
+  const labels = (lay) => lay.fields.map((f) => `${f.kind === 'area' ? '▣' : '·'}${f.label}`);
+  const top = levelOf({}, null);
+  check('nest: the overview shows only the top level (three top fields, no topic)', labels(top), ['▣Matematyka', '▣Fizyka', '▣Historia nauki']);
+  check('nest: one zoom opens exactly one level (Matematyka → Liczby, Algebra)', labels(levelOf({}, 'Matematyka')), ['▣Liczby', '▣Algebra']);
+  check('nest: a level mixes nodes and topics standing there directly (Fizyka)', labels(levelOf({}, 'Fizyka')).sort(), ['·Wielkości i jednostki', '▣Ruch', '▣Siły'].sort());
+  const deep = levelOf({}, 'Dziesiętne i procenty');
+  check('nest: the 5-level branch — breadcrumbs from the top to the 5th level', deep.path.map((p) => p.label), ['Matematyka', 'Liczby', 'Działania', 'Ułamki', 'Dziesiętne i procenty']);
+  check('nest: … and the deepest level holds its topics', labels(deep).sort(), ['·Ułamki dziesiętne', '·Procenty'].sort());
+  check('nest: a middle level holds its node and its own topics (Działania)', labels(levelOf({}, 'Działania')).sort(), ['·Dodawanie i odejmowanie', '·Mnożenie i dzielenie', '▣Ułamki'].sort());
+  check('nest: the 2-level branch (Fizyka → Ruch) — breadcrumbs', levelOf({}, 'Ruch').path.map((p) => p.label), ['Fizyka', 'Ruch']);
+  check('nest: back to the top (no focus) — no breadcrumbs', top.path, []);
+  check('nest: no hex without meaning — every cell is a field, every field one cell', [top.land.every((c) => c.field !== null), top.fields.length === top.land.length, levelOf({}, 'Fizyka').land.every((c) => c.field !== null)], [true, true, true]);
+  check('nest: every field of the overview opens (a key, a label)', top.fields.every((f) => typeof f.key === 'string' && f.label !== ''), true);
+  /* Der Ring einer Gruppe: gewusste / alle Karten im GANZEN Teilbaum. */
+  const k1 = { [id('Liczby naturalne')]: 1.4, [id('Dodawanie i odejmowanie')]: 1.4 };
+  const math = levelOf(k1, null).fields.find((f) => f.label === 'Matematyka');
+  const mathTopics = N.nestSubtree(tree, id('Matematyka'), input.ids);
+  check('nest: the subtree of Matematyka holds its 12 topics (all depths)', mathTopics.length, 12);
+  check('nest: a group’s ring = known / all cards of its subtree (2 known topics × 2 cards of 12 × 2)', math.progress, { known: 4, total: 24 });
+  check('nest: … the same sums one level down (Liczby: 7 topics, 2 known)', levelOf(k1, 'Matematyka').fields.find((f) => f.label === 'Liczby').progress, { known: 4, total: 14 });
+  /* Höhe und Band einer Gruppe. */
+  check('nest: something ready inside → the group is level (ring, height 0)', [math.band, math.height], ['ring', 0]);
+  const hist = top.fields.find((f) => f.label === 'Historia nauki');
+  const histLow = Math.min(...N.nestSubtree(tree, id('Historia nauki'), input.ids).map((x) => Math.max(1, Math.round(top.heights[input.ids.indexOf(x)]))));
+  check('nest: nothing ready inside → a mountain as high as the nearest thing inside', [hist.band, hist.missing], ['mountain', histLow]);
+  check('nest: … and a mountain stands higher than a ring field', hist.lift > top.fields.find((f) => f.label === 'Matematyka').lift, true);
+  const all = Object.fromEntries(N.nestSubtree(tree, id('Fizyka'), input.ids).map((x) => [x, 1.4]));
+  const phys = levelOf({ ...k1, ...all }, null).fields.find((f) => f.label === 'Fizyka');
+  check('nest: everything inside known → the group sinks into the valley', [phys.band, phys.lift < 0], ['known', true]);
+  const half = { ...all, [id('Prędkość')]: 0.5 };
+  const physDue = levelOf({ ...k1, ...half }, null).fields.find((f) => f.label === 'Fizyka');
+  check('nest: learned but one due → deep in the valley with the repeat marker (due > 0)', [physDue.band, physDue.lift < 0, physDue.due], ['due', true, 1]);
+  /* Sperre: alles, was darin dran wäre, braucht erst eine Powtórka. */
+  const weakK = { [id('Liczby naturalne')]: 0.5 };
+  const liczby = levelOf(weakK, 'Liczby', [id('Liczby naturalne')]);
+  const dz = liczby.fields.find((f) => f.label === 'Działania');
+  check('nest: a group whose ring entries all need a review first is locked', [dz.band, dz.locked, liczby.locked[at('Dodawanie i odejmowanie')]], ['ring', true, 1]);
+  check('nest: groups not waiting on a review stay open', levelOf({}, null).fields.every((f) => f.locked === false), true);
+  /* Feste Lage: dicht gepackt, unabhängig vom Fortschritt. */
+  const pos = (lay) => lay.fields.map((f) => `${f.key}@${f.q},${f.r}`).sort().join('|');
+  check('nest: positions are fixed — progress does not move fields', pos(levelOf({}, 'Fizyka')), pos(levelOf({ ...k1, ...half }, 'Fizyka')));
+  const slots = N.nestSlots(7);
+  check('nest: slots are packed (ring 1 first, no cell twice, upper half)', [slots.slice(0, 3).every((s) => s.ring === 1), new Set(slots.map((s) => `${s.q},${s.r}`)).size, slots.every((s) => s.y >= -1e-9)], [true, 7, true]);
+  /* Ohne `nest`: der alte Widok („Krajobraz wiedzy", nach Dziedziny), jetzt ohne Zusammenfassen. */
+  const oldView = VW.readView(lib.docs('view').find((v) => v.data.name === 'Krajobraz wiedzy').data);
+  const flatInput = B.landscapeInput({ select: sel, deps: lib.dependencies(), label: (e) => lib.label(e) }, topics, B.landscapeAxis(sel, oldView.group, topics), { askable: new Set(topics.map((e) => e.id)) });
+  const flat = runLayout(flatInput, {}, { budget: 1_000_000 }).run.layout;
+  check('without nest: every topic with cards its own field (nothing merged)', flat.fields.filter((f) => f.kind === 'entry').length, Array.from(flatInput.learnable).filter(Boolean).length);
 }
 
 /* ── Die eine Logik: rel "chain" ────────────────────────────────────────── */

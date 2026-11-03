@@ -702,9 +702,11 @@ export class CogitaLibrary {
    * (`LibraryStore.saveAll` → eine Transaktion des Dienstes), in der Reihenfolge, in der sie kommen. Zuerst wird
    * jedes geprüft (eigene Baza, dieselbe Sorte) — scheitert eines, ist nichts gesendet.
    */
-  async saveBatch(items: readonly BatchItem[], progress?: (done: number, total: number) => void): Promise<Entry[]> {
+  async saveBatch(items: readonly BatchItem[], progress?: (done: number, total: number) => void, remove: readonly string[] = []): Promise<Entry[]> {
+    /* 2026-11-03 — `remove`: Einträge und Dokumente dieser Baza, die derselbe Zapis löscht (alle oder keiner). */
+    for (const id of remove) this.ownOnly(id);
     const inputs = items.map((item) => (item.sort === 'kind' ? this.kindInput(item.def, item.marks) : item.sort === 'entity' ? this.entityInput(item) : this.docInput(item.kind, item.data, item.id)));
-    return this.store.saveAll(inputs, progress);
+    return this.store.saveAll(inputs, progress, remove);
   }
 
   /**

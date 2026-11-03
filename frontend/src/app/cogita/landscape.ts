@@ -1069,6 +1069,9 @@ export interface LsLand {
   readonly subject: number;
   readonly inScope: boolean;
   readonly due: boolean;
+  /** 2026-11-03 — die Zelle eines Knotens (verschachtelter Krajobraz) und wie viel seines Teilbaums sitzt (gewusste / alle Karten). */
+  readonly group?: boolean;
+  readonly share?: number;
 }
 
 export interface LsLayout {
@@ -1126,7 +1129,8 @@ const BACK: readonly (readonly [number, number, number])[] = [[0, 1, 0.45], [1, 
 export function layoutOf(input: LsInput, g: LsGraph, h: LsHeights, options: LsOptions = {}, fixedIn?: LsFixed, state?: LsState): LsLayout {
   const fixed = fixedIn ?? fixedLayout(input, g);
   const dir = fixed.dir;
-  const budget = Math.max(6, Math.min(400, Math.round(options.budget ?? LS_BUDGET)));
+  /* 2026-11-03 — das Budget fasst nichts mehr zusammen (die Ansicht gibt „alles einzeln"); was zusammengehört, sagen Knoten (`landscapeNest.ts`). */
+  const budget = Math.max(6, Math.min(1_000_000, Math.round(options.budget ?? LS_BUDGET)));
   const n = input.ids.length;
   const label = (v: number) => input.labels[v] ?? input.ids[v] ?? '';
   const notes: string[] = [];

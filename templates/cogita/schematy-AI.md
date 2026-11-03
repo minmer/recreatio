@@ -147,7 +147,48 @@ Widok krajobrazu (z przykładu `example-world`, `templates/cogita/przyklad-swiat
  "landscape": {"budget": 60, "bands": {"ring": 0.5, "due": 0.2, "known": 0.1}}}
 ```
 
-`"landscape.budget"` — ile pól najwyżej stoi na ekranie osobno: 6–400, domyślnie 60 (na telefonie i w małym module mniej). `"landscape.bands"` — jak dzieli się budżet: pierścień najwyżej `ring`, to, co do powtórki, i dolina co najmniej `due` i `known` (domyślnie 0,5 / 0,2 / 0,1), góry dostają resztę; czego któremu pasmu nie trzeba, przechodzi kolejno do powtórek, pierścienia, gór i doliny. Obszar, którego pierścień (albo dolina) nie mieści się w budżecie albo w swoim łuku półkola, staje się jednym polem z liczbą („Ruch · 23 do nauki”, „Ruch · 12 umiem”), tak samo góry obszaru, które nie stoją osobno; klik przybliża obszar (głębiej się nie da — pokazuje listę). Cel, następny krok i pierścień na drodze do celu stoją zawsze osobno, dolina jest zawsze widoczna. Każde pole ma własne sześciokątne pole, pierścień stoi na jednym rzędzie, a nazwy obszarów — na zewnętrznym łuku, w ich kolejności; nazwa tematu pojawia się tam, gdzie niczego nie zasłania (zawsze: po najechaniu, po dotknięciu i na liście).
+Każdy temat stoi na mapie we własnym polu — nic nie jest łączone w pola „+N” i nie ma pustych pól. `"landscape.budget"` i `"landscape.bands"` ze starszych baz są czytane, ale nie mają już wpływu. Barwa to obszar, nasycenie to znajomość (głębokie — umiem, najjaśniejsze — nowe), wysokość to odległość; na mapie są tylko dwa znaczniki (powtórka i zamek) i żadnych napisów — nazwa pojawia się po najechaniu i w okienku pola; mała legenda jest zawsze widoczna.
+
+### 2.6 Krajobraz zagnieżdżony: pola mapy z danych (`"landscape": {"nest": …}`)
+
+Przy setkach tematów jedna mapa jest nieczytelna. Wtedy grupy mapy zapisujesz w danych — nigdy nie powstają z obliczeń:
+
+1. **Rodzaj węzła** (np. „Pole mapy”): `nazwa`, `nr` (kolejność wśród rodzeństwa) i pole odwołania do tego samego rodzaju z `"structure": "up"` — węzeł nadrzędny. Puste: węzeł najwyższego poziomu. Gałęzie mogą mieć różną głębokość (jedna 2 poziomy, inna 5).
+2. **Pole odwołania na tematach** (np. `pole`) — najwęższy węzeł, w którym temat stoi. Temat bez węzła stoi na najwyższym poziomie.
+3. **Widok** z `"landscape": {"nest": "<klucz tego pola>"}`; `"nestSort"` — pole kolejności węzłów (domyślnie `"nr"`). Grupowanie (`"group"`) nie jest potrzebne.
+
+Co widzi uczący się: całość pokazuje **tylko najwyższy poziom**; każde przybliżenie (klik → „Wejdź”) pokazuje **dokładnie jeden poziom** — węzły niżej i tematy stojące w tym węźle, razem; okruszki prowadzą z powrotem. **Węzeł jest prawdziwym polem:** pierścień = znane / wszystkie karty całego poddrzewa; kolor głębszy, im więcej w środku umie; wysokość = odległość do najbliższego tematu w środku, którego można się uczyć (0, gdy coś jest gotowe); zapada się w dolinę, gdy w środku wszystko jest opanowane (ze znacznikiem powtórki, gdy coś jest do powtórzenia); zamek, gdy wszystko, co w środku czeka, wymaga najpierw powtórki. Okienko węzła: nazwa, pierścień, stan słowami, jeden główny przycisk — „Wejdź”, „Powtórz” (karty do powtórki w poddrzewie) albo „Ustaw jako cel” (najbliższy temat w środku) — i lista tego, co w środku. Miejsca są stałe: ciasno w pierścieniach wokół uczącego się, bliżej to, co trzeba poznać wcześniej, nigdy według postępów. Jednostka opowieści może być węzłem albo tematem.
+
+Pełny przykład (z `example-world`, `templates/cogita/przyklad-swiat.json` — gałąź Matematyka ma 5 poziomów, Fizyka 2):
+
+```json
+{"kinds": [
+  {"ref": "@swiat/pole", "name": "Pole mapy", "label": "{nazwa}", "fields": [
+    {"key": "nazwa", "label": "Nazwa", "type": "line"},
+    {"key": "nr", "label": "Kolejność", "type": "number"},
+    {"key": "nad", "label": "Leży w", "type": "ref", "to": ["@swiat/pole"], "structure": "up"}]},
+  {"ref": "@swiat/temat", "name": "Temat", "label": "{nazwa}", "fields": [
+    {"key": "nazwa", "label": "Nazwa", "type": "line"},
+    {"key": "wymaga", "label": "Wymaga", "type": "ref", "to": ["@swiat/temat"], "multi": true, "prerequisite": "up"},
+    {"key": "pole", "label": "Pole mapy", "type": "ref", "to": ["@swiat/pole"]}]}],
+ "entities": [
+  {"ref": "@swiat/m-matematyka", "kinds": ["@swiat/pole"], "data": {"nazwa": "Matematyka", "nr": 1}},
+  {"ref": "@swiat/m-liczby", "kinds": ["@swiat/pole"], "data": {"nazwa": "Liczby", "nr": 1, "nad": "@swiat/m-matematyka"}},
+  {"ref": "@swiat/m-dzialania", "kinds": ["@swiat/pole"], "data": {"nazwa": "Działania", "nr": 1, "nad": "@swiat/m-liczby"}},
+  {"ref": "@swiat/m-ulamki", "kinds": ["@swiat/pole"], "data": {"nazwa": "Ułamki", "nr": 1, "nad": "@swiat/m-dzialania"}},
+  {"ref": "@swiat/m-dziesietne", "kinds": ["@swiat/pole"], "data": {"nazwa": "Dziesiętne i procenty", "nr": 1, "nad": "@swiat/m-ulamki"}},
+  {"ref": "@swiat/m-fizyka", "kinds": ["@swiat/pole"], "data": {"nazwa": "Fizyka", "nr": 2}},
+  {"ref": "@swiat/m-ruch", "kinds": ["@swiat/pole"], "data": {"nazwa": "Ruch", "nr": 1, "nad": "@swiat/m-fizyka"}},
+  {"ref": "@swiat/t-procenty", "kinds": ["@swiat/temat"], "data": {"nazwa": "Procenty", "wymaga": ["@swiat/t-dziesietne"], "pole": "@swiat/m-dziesietne"}},
+  {"ref": "@swiat/t-predkosc", "kinds": ["@swiat/temat"], "data": {"nazwa": "Prędkość", "wymaga": ["@swiat/t-droga"], "pole": "@swiat/m-ruch"}},
+  {"ref": "@swiat/t-jednostki", "kinds": ["@swiat/temat"], "data": {"nazwa": "Wielkości i jednostki", "pole": "@swiat/m-fizyka"}}],
+ "views": [
+  {"ref": "@swiat/w-pola", "name": "Krajobraz pól", "mode": "landscape",
+   "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}],
+   "landscape": {"nest": "pole"}}]}
+```
+
+Zasady: węzłów nie wpisuje się do `"steps"` widoku (widok pokazuje tematy, węzły przychodzą przez pole `nest`); węzeł bez żadnego tematu z kartami w poddrzewie nie stoi na mapie; jeden temat — jeden węzeł (pierwsza wartość, gdy pole ma kilka); bez kół w `"structure": "up"` (koło: węzeł, który by je zamknął, staje na górze).
 
 **Cel.** Uczący się wybiera górę i „Ustaw jako cel”: krajobraz pokazuje drogę od podstaw i następny krok. Cel zapamiętuje się dla uczącego się i widoku, w jego pozycjach (`landscape:<id widoku>`) razem z postępami; kto uczy się bez konta, ma go tylko w tej przeglądarce. W schemacie nic o celu nie piszesz.
 
@@ -208,6 +249,8 @@ Powtórka schematu: źródło „widok” od ogółu do szczegółu, filtr `{"ty
 - [ ] Schemat opisuje rodzaj wiedzy i da się go użyć w dwóch zupełnie różnych książkach.
 - [ ] Każde pole ma `"says"` z przykładem.
 - [ ] Kolejność nauki (`"prerequisite"`, `"structure"`) tylko tam, gdzie zrozumienie jej wymaga.
+- [ ] Poprawki do istniejącej bazy: `{"ref": "<id>", "data": {…}}` (tylko wymienione pola) i `{"ref": "<id>", "remove": true}` — jeden dokument, jeden zapis; podgląd wymienia każde usunięcie.
+- [ ] Przy wielu tematach (ponad ~60): węzły „Pole mapy” z hierarchią i `"landscape": {"nest": "pole"}` (§2.6).
 - [ ] Pod krajobraz: wymagania tylko bezpośrednie i bez kół; każdy temat jednym krokiem i z kartami; oś dziedzin z hierarchią (`"structure": "up"`); kilka dziedzin tylko tam, gdzie naprawdę pasują.
 - [ ] Każdy szablon: `"tests"` z wagami z powodem; `"asks"` — wspólna nazwa dokładnie dla kart pytających o to samo.
 - [ ] Warunki w widokach i powtórkach pasmami (`"band": "learned"` dla tego, co wcześniej i wyżej).

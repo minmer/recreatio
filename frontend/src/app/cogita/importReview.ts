@@ -13,12 +13,15 @@
  *   changeSummary(changes)           in Worten: wie viel neu ist und wie viel sich ändert
  * </code>
  *
+ * 2026-11-03 — LÖSCHUNGEN (`"remove": true`): jede einzeln (`x:<id>`), mit ihrem Namen und dem, was einen Verweis darauf
+ * verliert; vorgeschlagen angenommen (das Dokument verlangt sie ausdrücklich), abwählbar. Nichts geht still.
+ *
  * Nichts davon speichert; `applyImport` schreibt den entschiedenen Plan, in einem Zug.
  */
 
 import { blockPlain, blocksIn, type CommentBlock } from '../library/blocks';
 import { DOC_KINDS, DOC_LABEL, kindDoc } from './kinds';
-import { importIds, importProblems, planImport, type ImportPlan } from './json';
+import { importIds, importProblems, planImport, removalEffects, withRemovals, type ImportPlan } from './json';
 import { plural } from '../core/plural';
 import { fieldsOf, fieldText, labelOf, type Entity, type FieldDef, type KindDef, type Lookup } from './schema';
 import type { CogitaLibrary } from './store';
@@ -43,6 +46,8 @@ export interface ImportChange {
   readonly after?: unknown;
   /** Wie sich der vorgeschlagene Wert ändern lässt: als Text, als Absätze, als JSON — oder gar nicht. */
   readonly edit: 'text' | 'number' | 'blocks' | 'json' | null;
+  /** 2026-11-03 — eine Löschung (`x:<id>`): `afterText` sagt, wer seinen Verweis darauf verliert. */
+  readonly remove?: true;
 }
 
 export interface Decisions {
@@ -194,6 +199,19 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
     }
   }
 
+  /* 2026-11-03 — die Löschungen, jede mit dem, was seinen Verweis darauf verliert (auf dem Stand nach dem Import). */
+  const removals = plan.removals ?? [];
+  if (removals.length > 0) {
+    const fx = removalEffects(lib, plan, new Set(removals.map((r) => r.id)));
+    for (const r of removals) {
+      const who = fx.unlinked.get(r.id) ?? [];
+      out.push({
+        id: `x:${r.id}`, target: r.target, targetId: r.id, isNew: false, remove: true, title: r.title, beforeText: '',
+        afterText: who.length === 0 ? 'nic na niego nie wskazuje' : `odwołanie zniknie z: ${who.slice(0, 8).join(', ')}${who.length > 8 ? ` i ${who.length - 8} innych` : ''}`, edit: null
+      });
+    }
+  }
+
   for (const d of plan.docs) {
     const title = `${DOC_LABEL[d.kind]} „${typeof d.data.name === 'string' && d.data.name !== '' ? d.data.name : '—'}”`;
     if (d.isNew) { out.push({ id: `d:${d.id}`, target: 'doc', targetId: d.id, isNew: true, title, beforeText: '', afterText: '', edit: null }); continue; }
@@ -216,7 +234,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
 
 /** Vorgeschlagen: alles Neue an, jede Änderung an Bestehendem aus — sie wird erst angenommen. */
 export function defaultDecisions(changes: readonly ImportChange[]): Decisions {
-  return { accepted: new Set(changes.filter((c) => c.isNew).map((c) => c.id)), edited: new Map() };
+  return { accepted: new Set(changes.filter((c) => c.isNew || c.remove === true).map((c) => c.id)), edited: new Map() };
 }
 
 /* -- Der entschiedene Plan ------------------------------------------------------------------------- */
@@ -242,7 +260,7 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     return read;
   };
   const byTarget = new Map<string, ImportChange[]>();
-  for (const c of changes) if (!c.isNew) byTarget.set(c.targetId, [...(byTarget.get(c.targetId) ?? []), c]);
+  for (const c of changes) if (!c.isNew && c.remove !== true) byTarget.set(c.targetId, [...(byTarget.get(c.targetId) ?? []), c]);
 
   /* Was als Neues abgelehnt ist, mit seinem Namen — darauf darf nichts Angenommenes zeigen (`importProblems`). */
   const unsaved = new Map(changes.filter((c) => c.isNew && !ok(c.id)).map((c) => [c.targetId, c.target === 'entity' ? `wpis „${c.title}”` : c.title.replace(/^Rodzaj /, 'rodzaj ')]));
@@ -316,9 +334,14 @@ export function decidedPlan(lib: CogitaLibrary, plan: ImportPlan, changes: reado
     })
   ].filter(Boolean);
   const titles = new Map(changes.filter((c) => c.target === 'entity').map((c) => [c.targetId, c.title]));
-  const decided: ImportPlan = { kinds, entities: cleanEntities, docs: cleanDocs, lines: lines.length === 0 ? ['Nic do zapisania.'] : lines, warnings: plan.warnings, unsaved, titles };
+  /* 2026-11-03 — nur die angenommenen Löschungen; was darauf zeigt, schreibt derselbe Zapis mit (`withRemovals`). */
+  const removals = (plan.removals ?? []).filter((r) => ok(`x:${r.id}`));
+  if (removals.length > 0) lines.push(`Do usunięcia: ${removals.length}.`);
+  const raw: ImportPlan = { kinds, entities: cleanEntities, docs: cleanDocs, lines: lines.length === 0 ? ['Nic do zapisania.'] : lines, warnings: plan.warnings, unsaved, titles, ...(removals.length === 0 ? {} : { removals }) };
+  const withGone = withRemovals(lib, raw);
+  const decided = withGone.plan;
   const { blocked, kept } = importProblems(lib, decided);
-  return { plan: decided, invalid, blocked, kept };
+  return { plan: decided, invalid, blocked: [...withGone.blocked, ...blocked], kept };
 }
 
 /* -- Ein Dokument, ein Plan ----------------------------------------------------------------------- */
@@ -371,14 +394,16 @@ const TARGET_WORDS: Readonly<Record<ImportChange['target'], readonly [string, st
  */
 export function changeSummary(changes: readonly ImportChange[]): string[] {
   const fresh = changes.filter((c) => c.isNew);
-  const edits = changes.filter((c) => !c.isNew);
-  if (fresh.length === 0 && edits.length === 0) return ['Nic nowego i nic do zmiany — dokument zgadza się z tym, co już jest w bazie.'];
+  const edits = changes.filter((c) => !c.isNew && c.remove !== true);
+  const gone = changes.filter((c) => c.remove === true);
+  if (fresh.length === 0 && edits.length === 0 && gone.length === 0) return ['Nic nowego i nic do zmiany — dokument zgadza się z tym, co już jest w bazie.'];
   const words = (list: readonly ImportChange[]) => (['kind', 'entity', 'doc'] as const)
     .map((t) => { const n = new Set(list.filter((c) => c.target === t).map((c) => c.targetId)).size; return n === 0 ? '' : `${n} ${plural(n, ...TARGET_WORDS[t])}`; })
     .filter(Boolean).join(', ');
   const touched = new Set(edits.map((c) => `${c.target}:${c.targetId}`)).size;
   return [
     fresh.length === 0 ? 'Nowe: nic.' : `Nowe: ${fresh.length} — ${words(fresh)}.`,
-    edits.length === 0 ? 'Zmiany w tym, co już jest: żadnych.' : `Zmiany w tym, co już jest: ${edits.length} w ${touched} ${plural(touched, 'elemencie', 'elementach', 'elementach')} — ${words(edits)}.`
+    edits.length === 0 ? 'Zmiany w tym, co już jest: żadnych.' : `Zmiany w tym, co już jest: ${edits.length} w ${touched} ${plural(touched, 'elemencie', 'elementach', 'elementach')} — ${words(edits)}.`,
+    ...(gone.length === 0 ? [] : [`Do usunięcia: ${gone.length} — ${words(gone)} (każde wymienione niżej, można je odznaczyć).`])
   ];
 }

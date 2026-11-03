@@ -86,6 +86,13 @@ export interface ViewDoc {
 export interface LandscapeDisplay {
   readonly budget: number;
   readonly bands?: Partial<Record<'ring' | 'due' | 'known', number>>;
+  /**
+   * 2026-11-03 — DER VERSCHACHTELTE KRAJOBRAZ (`landscapeNest.ts`): der Schlüssel des Verweisfeldes, mit dem ein Eintrag
+   * seinen Knoten nennt (`"nest": "pole"`). Knoten hängen über ihr Strukturfeld „up" an ihrem Elternknoten, beliebig tief;
+   * jede Ebene ist eine eigene Karte. `nestSort`: das Zahlenfeld der Reihenfolge der Knoten (Vorgabe "nr").
+   */
+  readonly nest?: string;
+  readonly nestSort?: string;
 }
 
 export const LANDSCAPE_BUDGET = 60;
@@ -102,9 +109,13 @@ export function readLandscape(raw: unknown): LandscapeDisplay | null {
       if (Number.isFinite(v)) bands[key] = Math.max(0, Math.min(1, v));
     }
   }
+  const nest = typeof raw.nest === 'string' ? raw.nest.trim() : '';
+  const nestSort = typeof raw.nestSort === 'string' ? raw.nestSort.trim() : '';
   return {
     budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET,
-    ...(Object.keys(bands).length > 0 ? { bands } : {})
+    ...(Object.keys(bands).length > 0 ? { bands } : {}),
+    ...(nest === '' ? {} : { nest }),
+    ...(nestSort === '' ? {} : { nestSort })
   };
 }
 

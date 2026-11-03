@@ -360,6 +360,20 @@ export interface ImportPlan {
   readonly unsaved?: ReadonlyMap<string, string>;
   /** 2026-11-03 — wie die Vorschau die Einträge nannte (ein Eintrag eines abgewählten Rodzaj hat sonst kein Etikett). */
   readonly titles?: ReadonlyMap<string, string>;
+  /**
+   * 2026-11-03 — WAS DERSELBE ZAPIS LÖSCHT (`{"ref": "<kennung>", "remove": true}` in "entities" oder einer Liste von
+   * Dokumenten): eigene Einträge und Dokumente dieser Baza, jedes mit seinem Namen. Verweise darauf: `removalEffects`.
+   */
+  readonly removals?: readonly ImportRemoval[];
+}
+
+/** 2026-11-03 — eine Löschung eines Imports. */
+export interface ImportRemoval {
+  readonly id: string;
+  readonly target: 'entity' | 'doc';
+  /** Bei einem Dokument: seine Art. */
+  readonly kind?: DocKind;
+  readonly title: string;
 }
 
 /**
@@ -513,6 +527,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   for (const raw of Array.isArray(doc.kinds) ? doc.kinds : []) {
     kindAt += 1;
     if (!isObject(raw)) continue;
+    /* 2026-11-03 — ein Rodzaj samt seinen Einträgen geht nur in Schematy → „Usuń rodzaj" (dort steht, was alles mitgeht). */
+    if (raw.remove === true) { warnings.push(`Rodzaj „${str(raw.name) || str(raw.ref) || '—'}”: rodzajów nie usuwa się importem — Schematy → rodzaj → „Usuń rodzaj” pokazuje, co zniknie razem z nim. Pominięte.`); continue; }
     const builtin = str(raw.builtin);
     if (builtin !== '' && isBaseKind(builtin)) {
       placed.push({ raw, id: builtin, isNew: false });
@@ -608,7 +624,10 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   };
 
   /* Einträge: zuerst die Kennungen, dann die Verweise (sie dürfen nach vorn zeigen). */
-  const rawEntities = Array.isArray(doc.entities) ? doc.entities.filter(isObject) : [];
+  const allRows = Array.isArray(doc.entities) ? doc.entities.filter(isObject) : [];
+  /* 2026-11-03 — `"remove": true`: dieser Eintrag wird gelöscht (unten aufgelöst, mit seinem Namen in der Vorschau). */
+  const removeRows = allRows.filter((raw) => raw.remove === true);
+  const rawEntities = allRows.filter((raw) => raw.remove !== true);
   /* Welcher bleibende Name einen vorhandenen Eintrag schon genommen hat — zwei, die zu einem führen (zusammengeführt), werden genannt. */
   const takenBy = new Map<string, string>();
   /*
@@ -660,7 +679,10 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   /* Welche geplanten Einträge eine Zeile mit ihrem eigenen Namen haben (nicht nur über einen mitgetragenen). */
   const primary = new Set<string>();
   rawEntities.forEach((raw, i) => {
-    const entityKinds = (Array.isArray(raw.kinds) ? raw.kinds : [raw.kind]).map(kindId).filter((k): k is string => k !== null);
+    let entityKinds = (Array.isArray(raw.kinds) ? raw.kinds : [raw.kind]).map(kindId).filter((k): k is string => k !== null);
+    /* 2026-11-03 — eine Änderung an einem bestehenden Eintrag (an seiner Kennung) muss seine Rodzaje nicht nennen: er behält sie. */
+    const existing = ids[i]!.isNew ? undefined : lib.entity(ids[i]!.id);
+    if (entityKinds.length === 0 && !('kinds' in raw) && !('kind' in raw) && existing !== undefined) entityKinds = [...existing.kinds];
     if (entityKinds.length === 0) { warnings.push(`Wpis ${str(raw.ref) || i + 1}: nie ma takiego rodzaju — pominięty.`); return; }
     /* 2026-10-25 — dzieła, osoby, cytaty, teksty należą do Biblioteki i Skryptorium: tu się na nie wskazuje. */
     const foreignKind = entityKinds.find((k) => lib.isForeignKind(k));
@@ -718,9 +740,11 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   ];
   type Incoming = { kind: DocKind; raw: Record<string, unknown>; r: string | null; at: number; lastingRef?: string; id?: string; isNew?: boolean; byName?: true };
   const incoming: Incoming[] = [];
+  const docRemoveRows: { kind: DocKind; raw: Record<string, unknown> }[] = [];
   for (const [kind, list] of docLists) {
     for (const raw of Array.isArray(list) ? list : isObject(list) ? [list] : []) {
       if (!isObject(raw)) continue;
+      if (raw.remove === true) { docRemoveRows.push({ kind, raw }); continue; }
       const r = ref(raw.ref ?? raw.id);
       incoming.push({ kind, raw, r, at: incoming.length, ...(r !== null && lasting(r) ? { lastingRef: r.toLowerCase() } : {}) });
     }
@@ -844,6 +868,42 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     else docs.push({ id, kind, data, isNew });
   }
 
+  /*
+    2026-11-03 — LÖSCHEN: `{"ref": "<kennung>" | "@bleibender/name", "remove": true}`. Nur was es in DIESER Baza gibt;
+    was dasselbe Dokument zugleich ändert, wird nur gelöscht (die Änderung fällt weg, mit Warnung). Was darauf zeigt,
+    rechnet `removalEffects` (Vorschau und Speichern).
+  */
+  const removals: ImportRemoval[] = [];
+  const removing = new Set<string>();
+  const label = (raw: Record<string, unknown>) => str(raw.ref) || str(raw.id) || '—';
+  for (const raw of removeRows) {
+    const r = ref(raw.ref ?? raw.id);
+    const byName = r !== null && lasting(r) ? lib.byImportRef(r.toLowerCase(), 'entity')?.id : undefined;
+    const hit = r === null ? undefined : lib.entity(r) ?? (byName === undefined ? undefined : lib.entity(byName));
+    if (r === null || hit === undefined) { warnings.push(`Usuwanie „${label(raw)}”: nie ma takiego wpisu w tej bazie — nie ma czego usunąć.`); continue; }
+    if (!lib.isOwn(hit.id)) { warnings.push(`Usuwanie „${lib.label(hit)}”: ten wpis pochodzi z innej biblioteki — usuwa się go tam. Pominięte.`); continue; }
+    if (removing.has(hit.id)) continue;
+    removing.add(hit.id);
+    removals.push({ id: hit.id, target: 'entity', title: lib.label(hit) || hit.id });
+  }
+  for (const { kind, raw } of docRemoveRows) {
+    const r = ref(raw.ref ?? raw.id);
+    const hit = r === null ? undefined : lib.docs(kind).find((d) => d.id === r) ?? (lasting(r) ? lib.byImportRef(r.toLowerCase(), kind) : undefined);
+    if (r === null || hit === undefined) { warnings.push(`Usuwanie: ${DOC_LABEL[kind]} „${label(raw)}” — nie ma takiego w tej bazie, nie ma czego usunąć.`); continue; }
+    if (!lib.isOwn(hit.id)) { warnings.push(`Usuwanie: ${DOC_LABEL[kind]} „${str(hit.data.name) || hit.id}” pochodzi z innej biblioteki — pominięte.`); continue; }
+    if (removing.has(hit.id)) continue;
+    removing.add(hit.id);
+    removals.push({ id: hit.id, target: 'doc', kind, title: `${DOC_LABEL[kind]} „${str(hit.data.name) || '—'}”` });
+  }
+  for (const list of [entities, docs] as const) {
+    for (let at = list.length - 1; at >= 0; at -= 1) {
+      const one = list[at]!;
+      if (!removing.has(one.id)) continue;
+      warnings.push(`„${removals.find((x) => x.id === one.id)?.title ?? one.id}”: ten sam dokument go zmienia i usuwa — zostanie tylko usunięty.`);
+      list.splice(at, 1);
+    }
+  }
+
   /* 2026-10-25 — fremde Namen: ein anderes Dokument hat diese Einträge angelegt. */
   for (const [owner, names] of foreign) {
     warnings.push(`${names.length} ${plural(names.length, 'nazwa', 'nazwy', 'nazw')} z tego dokumentu ma już wpis z dokumentu „${owner}” (np. „@${names[0]}”) — ten import go zmieni. Jeśli to inna rekonstrukcja tego samego dzieła, nadaj jej inny środkowy człon nazw (np. „calosc-2”).`);
@@ -869,10 +929,11 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
     ...DOC_KINDS.map((k) => {
       const n = docs.filter((d) => d.kind === k);
       return n.length === 0 ? '' : `${DOC_LABEL[k]}: ${n.filter((d) => d.isNew).length} nowych, ${n.filter((d) => !d.isNew).length} do zmiany.`;
-    })
+    }),
+    removals.length === 0 ? '' : `Do usunięcia: ${removals.length}.`
   ].filter(Boolean);
   if (lines.length === 0) return { error: 'W dokumencie nie ma nic do zaimportowania.' };
-  return { kinds, entities, docs, lines, warnings };
+  return { kinds, entities, docs, lines, warnings, ...(removals.length === 0 ? {} : { removals }) };
 }
 
 /**
@@ -1179,6 +1240,120 @@ export function importProblems(lib: CogitaLibrary, plan: ImportPlan): { blocked:
   return { blocked, kept, unchecked };
 }
 
+/**
+ * 2026-11-03 — WAS EINE LÖSCHUNG MIT DEM MACHT, WAS DARAUF ZEIGT — gerechnet auf dem Stand NACH dem Zapis (was bleibt,
+ * mit den Änderungen dieses Plans):
+ * <code>
+ *   Verweisfeld eines Eintrags   (wymaga, pole, about einer Frage, …) der Verweis wird herausgenommen — derselbe Zapis
+ *                                schreibt den Eintrag; die Vorschau nennt jeden je Löschung
+ *   Zbiór                        der gelöschte Eintrag fällt aus seiner Liste
+ *   alles andere                 (ein Schritt eines Ablaufs, ein Widok, eine Powtórka, eine Vorlage, ein Wejście, eine
+ *                                Zelle in einer Aussage …) blockiert: dort ein Stück herauszuschneiden, ändert, was es tut —
+ *                                das Dokument ändert es selbst (im selben Import) oder löscht es mit, oder die Löschung wird
+ *                                abgewählt
+ * </code>
+ * Rein; `withRemovals` wendet es auf einen Plan an.
+ */
+export function removalEffects(lib: CogitaLibrary, plan: Pick<ImportPlan, 'kinds' | 'entities' | 'docs'>, gone: ReadonlySet<string>, titles: ReadonlyMap<string, string> = new Map()): {
+  readonly entities: ReadonlyMap<string, { readonly kinds: readonly string[]; readonly data: Record<string, unknown> }>;
+  readonly docs: ReadonlyMap<string, { readonly kind: DocKind; readonly data: Record<string, unknown> }>;
+  readonly blocked: string[];
+  /** Je gelöschtem: wer seinen Verweis verliert („Etap 2 (Wymaga)"). */
+  readonly unlinked: ReadonlyMap<string, string[]>;
+} {
+  const entities = new Map<string, { kinds: readonly string[]; data: Record<string, unknown> }>();
+  const docs = new Map<string, { kind: DocKind; data: Record<string, unknown> }>();
+  const blocked: string[] = [];
+  const unlinked = new Map<string, string[]>();
+  if (gone.size === 0) return { entities, docs, blocked, unlinked };
+  const kinds = new Map(plan.kinds.map((k) => [k.id, k.def]));
+  const look: Lookup = { kind: (id) => kinds.get(id) ?? lib.kind(id), entity: (id) => lib.entity(id) };
+  const nameOf = (id: string) => titles.get(id) ?? (() => { const e = lib.entity(id); if (e !== undefined) return lib.label(e) || id; const d = DOC_KINDS.flatMap((k) => lib.docs(k)).find((x) => x.id === id); return d === undefined ? id : str(d.data.name) || id; })();
+  const note = (target: string, who: string) => unlinked.set(target, [...(unlinked.get(target) ?? []), who]);
+  /* Ein Wert, irgendwo darin, der auf ein Gelöschtes zeigt. */
+  const hits = (v: unknown, out: Set<string>): void => {
+    if (typeof v === 'string') { if (gone.has(v)) out.add(v); return; }
+    if (Array.isArray(v)) { for (const x of v) hits(x, out); return; }
+    if (isObject(v)) for (const [k, x] of Object.entries(v)) if (!k.startsWith('_')) hits(x, out);
+  };
+  const refValue = (one: unknown): unknown => (isObject(one) && 'value' in one ? one.value : one);
+
+  /* Einträge nach dem Zapis: die eigenen, die bleiben, mit dem, was dieser Plan an ihnen ändert; dazu das Neue. */
+  const after = new Map<string, Entity>();
+  for (const e of lib.entities()) if (lib.isOwn(e.id) && !gone.has(e.id)) after.set(e.id, e);
+  for (const e of plan.entities) if (!gone.has(e.id)) after.set(e.id, { id: e.id, kinds: e.kinds, data: e.data });
+  for (const e of after.values()) {
+    const fields = fieldsOf(e, look);
+    const title = titles.get(e.id) ?? (labelOf(e, look) || e.id);
+    let data: Record<string, unknown> | null = null;
+    for (const [key, value] of Object.entries(e.data)) {
+      if (key.startsWith('_')) continue;
+      const field = fields.find((x) => x.key === key);
+      if (field?.type === 'ref') {
+        const list = Array.isArray(value) ? value : [value];
+        const kept = list.filter((one) => { const v = refValue(one); return !(typeof v === 'string' && gone.has(v)); });
+        if (kept.length === list.length) continue;
+        for (const one of list) { const v = refValue(one); if (typeof v === 'string' && gone.has(v)) note(v, `${title} (${field.label})`); }
+        data ??= { ...e.data };
+        if (kept.length === 0) delete data[key]; else data[key] = Array.isArray(value) ? kept : kept[0];
+        continue;
+      }
+      const found = new Set<string>();
+      hits(value, found);
+      for (const g of found) blocked.push(`Wpis „${title}”, pole „${field?.label ?? key}”: wskazuje w treści na usuwany element „${nameOf(g)}” — popraw to pole w tym samym dokumencie, usuń też ten wpis albo nie usuwaj.`);
+    }
+    if (data !== null) entities.set(e.id, { kinds: e.kinds, data });
+  }
+
+  /* Dokumente nach dem Zapis (ohne Zusammenführungen und Beiträge — die gehören zur Geschichte eines Eintrags). */
+  const afterDocs = new Map<string, { kind: DocKind; data: Readonly<Record<string, unknown>> }>();
+  for (const k of DOC_KINDS) {
+    if (k === 'merge' || k === 'contribution' || k === 'kind') continue;
+    for (const d of lib.docs(k)) if (lib.isOwn(d.id) && !gone.has(d.id)) afterDocs.set(d.id, { kind: k, data: d.data });
+  }
+  for (const d of plan.docs) if (!gone.has(d.id)) afterDocs.set(d.id, { kind: d.kind, data: d.data });
+  for (const [id, d] of afterDocs) {
+    const title = `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”`;
+    if (d.kind === 'collection' && Array.isArray(d.data.list)) {
+      const kept = d.data.list.filter((x) => !(typeof x === 'string' && gone.has(x)));
+      if (kept.length !== d.data.list.length) {
+        for (const x of d.data.list) if (typeof x === 'string' && gone.has(x)) note(x, title);
+        docs.set(id, { kind: d.kind, data: { ...d.data, list: kept } });
+      }
+      const rest = new Set<string>();
+      for (const [key, value] of Object.entries(d.data)) if (key !== 'list' && !key.startsWith('_')) hits(value, rest);
+      for (const g of rest) blocked.push(`${title}: wskazuje na usuwany element „${nameOf(g)}” — popraw go w tym samym dokumencie, usuń go też albo nie usuwaj.`);
+      continue;
+    }
+    for (const [key, value] of Object.entries(d.data)) {
+      if (key.startsWith('_')) continue;
+      const found = new Set<string>();
+      hits(value, found);
+      for (const g of found) blocked.push(`${title}, „${key}”: wskazuje na usuwany element „${nameOf(g)}” — popraw go w tym samym dokumencie, usuń go też albo nie usuwaj.`);
+    }
+  }
+  return { entities, docs, blocked, unlinked };
+}
+
+/**
+ * 2026-11-03 — DER PLAN MIT SEINEN LÖSCHUNGEN ZU ENDE GERECHNET: jeder Eintrag, der einen Verweis auf ein Gelöschtes
+ * verliert, und jeder Zbiór, aus dem es fällt, wird im selben Zapis geschrieben; was blockiert, steht in `blocked`.
+ * Zweimal angewandt ändert es nichts mehr.
+ */
+export function withRemovals(lib: CogitaLibrary, plan: ImportPlan): { plan: ImportPlan; blocked: string[] } {
+  const gone = new Set((plan.removals ?? []).map((r) => r.id));
+  if (gone.size === 0) return { plan, blocked: [] };
+  const fx = removalEffects(lib, plan, gone, plan.titles);
+  const entities = plan.entities.map((e) => { const s = fx.entities.get(e.id); return s === undefined ? e : { ...e, data: s.data }; });
+  for (const [id, s] of fx.entities) {
+    if (entities.some((e) => e.id === id)) continue;
+    entities.push({ id, kinds: [...s.kinds], data: s.data, isNew: false });
+  }
+  const docs = plan.docs.map((d) => { const s = fx.docs.get(d.id); return s === undefined ? d : { ...d, data: s.data }; });
+  for (const [id, s] of fx.docs) if (!docs.some((d) => d.id === id)) docs.push({ id, kind: s.kind, data: s.data, isNew: false });
+  return { plan: { ...plan, entities, docs }, blocked: fx.blocked };
+}
+
 /** In welcher Reihenfolge Dokumente einer Art nach den anderen kommen: was andere nennen, zuerst. */
 const DOC_ORDER: Readonly<Record<DocKind, number>> = {
   collection: 0, template: 1, addform: 1, look: 1, rules: 1, values: 1, settings: 1, reward: 1, kind: 1,
@@ -1193,7 +1368,12 @@ const DOC_ORDER: Readonly<Record<DocKind, number>> = {
  * der Dienst in einer Transaktion schreibt. Scheitert er, ist nichts gespeichert, und der Fehler sagt, woran es lag.
  * Danach entsteht die Abschrift für AI (MCP) gleich neu.
  */
-export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (text: string) => void): Promise<{ lines: string[]; warnings: string[] }> {
+export async function applyImport(lib: CogitaLibrary, planIn: ImportPlan, stage: (text: string) => void): Promise<{ lines: string[]; warnings: string[] }> {
+  /* 2026-11-03 — Löschungen: was darauf zeigt, wird im selben Zapis mitgeschrieben — oder es blockiert. */
+  const removed = withRemovals(lib, planIn);
+  if (removed.blocked.length > 0) throw new ImportBlocked(removed.blocked, 'Nic nie zapisano ani nie usunięto — na usuwane elementy wskazuje coś, co zostaje:');
+  const plan = removed.plan;
+  const gone = (plan.removals ?? []).map((r) => r.id);
   const checked = importProblems(lib, plan);
   if (checked.blocked.length > 0) throw new ImportBlocked(checked.blocked);
   const warnings = [...plan.warnings, ...checked.kept];
@@ -1209,7 +1389,7 @@ export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (
     ...plan.entities.filter((e) => !e.isNew).map(entityItem),
     ...docs.map((d): BatchItem => ({ sort: 'doc', kind: d.kind, id: d.id, data: d.data }))
   ];
-  if (items.length === 0) return { lines: ['Nic do zapisania — dokument zgadza się z tym, co już jest.'], warnings };
+  if (items.length === 0 && gone.length === 0) return { lines: ['Nic do zapisania — dokument zgadza się z tym, co już jest.'], warnings };
 
   /* Wie ein Element heisst — für einen Fehler des Dienstes, der nur Kennungen nennt. */
   const kindLook = new Map(plan.kinds.map((k) => [k.id, k.def]));
@@ -1221,12 +1401,14 @@ export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (
     const e = entityLook.get(id);
     if (e !== undefined) return `Wpis „${labelOf(e, look) || id}”`;
     const d = plan.docs.find((x) => x.id === id);
-    return d === undefined ? id : `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”`;
+    if (d !== undefined) return `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”`;
+    const r = plan.removals?.find((x) => x.id === id);
+    return r === undefined ? id : `${r.title} (do usunięcia)`;
   };
 
-  stage(`Zapisywanie ${items.length} ${plural(items.length, 'elementu', 'elementów', 'elementów')} w jednym zapisie…`);
+  stage(`Zapisywanie ${items.length} ${plural(items.length, 'elementu', 'elementów', 'elementów')}${gone.length === 0 ? '' : ` i usuwanie ${gone.length}`} w jednym zapisie…`);
   try {
-    await lib.saveBatch(items, (done, total) => { if (done === total || done % 50 === 0) stage(`Pieczętowanie ${done} z ${total}…`); });
+    await lib.saveBatch(items, (done, total) => { if (done === total || done % 50 === 0) stage(`Pieczętowanie ${done} z ${total}…`); }, gone);
   } catch (e) {
     const detail = (e as { detail?: unknown }).detail;
     const listed = isObject(detail) && Array.isArray(detail.problems) ? detail.problems.filter(isObject).map((p) => `${nameOf(str(p.entryId))}: ${str(p.error)}`) : [];
@@ -1240,8 +1422,8 @@ export async function applyImport(lib: CogitaLibrary, plan: ImportPlan, stage: (
     const changed = list.length - fresh;
     return list.length === 0 ? '' : `${label} — ${[fresh > 0 ? `nowe: ${fresh}` : '', changed > 0 ? `zmienione: ${changed}` : ''].filter(Boolean).join(', ')}`;
   };
-  const parts = [both('rodzaje', plan.kinds), both('wpisy', plan.entities), ...DOC_KINDS.map((k) => both(DOC_LABEL[k], plan.docs.filter((d) => d.kind === k)))].filter(Boolean);
-  const lines = [`Zapisano wszystko w jednym zapisie (${items.length} ${plural(items.length, 'element', 'elementy', 'elementów')}) — ${parts.join('; ')}.`];
+  const parts = [both('rodzaje', plan.kinds), both('wpisy', plan.entities), ...DOC_KINDS.map((k) => both(DOC_LABEL[k], plan.docs.filter((d) => d.kind === k))), gone.length === 0 ? '' : `usunięte: ${gone.length}`].filter(Boolean);
+  const lines = [`Zapisano wszystko w jednym zapisie (${items.length + gone.length} ${plural(items.length + gone.length, 'element', 'elementy', 'elementów')}) — ${parts.join('; ')}.`];
 
   stage('Odświeżanie kopii dla AI…');
   const ai = await lib.store.refreshAiNow().catch(() => null);
@@ -1408,8 +1590,15 @@ Formaty:
 Wspólne:
   "format", "version": 1, "name" — nazwa
   "ref" — własna nazwa wpisu, np. "@dawid"; inne pola odwołują się do niej tak samo: "@dawid".
-  Istniejące wpisy rozpoznaje się po identyfikatorze (z eksportu) albo po trwałej nazwie; import UZUPEŁNIA je w miejscu: pola, których dokument nie wymienia, zostają, a "pole": null usuwa pole; wpisów nie usuwa. Przed zapisem każdą zmianę w tym, co już jest, trzeba przyjąć (i można ją poprawić).
-  Zapis jest JEDEN: nowe rodzaje (z trwałymi nazwami), zmiany rodzajów, nowe wpisy, zmiany wpisów, potem widoki i reszta — wszystko albo nic. Identyfikatory nowych rzeczy w podglądzie to te, które się zapiszą.
+  Istniejące wpisy rozpoznaje się po identyfikatorze (z eksportu) albo po trwałej nazwie; import UZUPEŁNIA je w miejscu: pola, których dokument nie wymienia, zostają, a "pole": null usuwa pole; pole-lista podana w dokumencie zastępuje całą dotychczasową listę. Przed zapisem każdą zmianę w tym, co już jest, trzeba przyjąć (i można ją poprawić).
+  ZMIANA PO IDENTYFIKATORZE: {"ref": "<identyfikator>", "data": {"nazwa": "Nowa nazwa"}} — "kinds" można pominąć (wpis zachowuje swoje rodzaje); "id" działa tak samo jak "ref".
+  USUWANIE: {"ref": "<identyfikator albo @trwała/nazwa>", "remove": true} — w "entities" (wpis) i w listach dokumentów ("flows", "views", "revisions", "templates", "collections", "forms", "anchors", "looks", "rules", "values", "rewards"); rodzajów import nie usuwa (Schematy → „Usuń rodzaj”).
+    Podgląd wymienia każde usunięcie z nazwą i tym, co na nie wskazuje; każde można odznaczyć; nic nie znika po cichu.
+    Odwołania do usuwanego wpisu w polach-odwołaniach innych wpisów (np. "wymaga", "pole", "about" pytania) i w zbiorach zostają z nich usunięte w tym samym zapisie — podgląd mówi, z których. Jeśli wskazuje na niego coś innego (krok albo "unit" przebiegu, widok, powtórka, szablon, wejście, komórka wypowiedzi), zapis nie przejdzie: popraw to w tym samym dokumencie, usuń to też albo odznacz usunięcie.
+    Odpowiedzi i historia uczących się zostają: karty usuniętych wpisów po prostu się nie liczą (postępy, statystyki, krajobraz); wpis da się przywrócić z historii wersji, a wtedy jego odpowiedzi liczą się znowu.
+    Ten sam wpis zmieniany i usuwany w jednym dokumencie — zostaje tylko usunięty (z ostrzeżeniem).
+  Zapis jest JEDEN: nowe rodzaje (z trwałymi nazwami), zmiany rodzajów, nowe wpisy, zmiany wpisów, widoki i reszta oraz usunięcia — wszystko albo nic. Identyfikatory nowych rzeczy w podglądzie to te, które się zapiszą.
+  Rozmiar: jeden plik do ok. 20 MB JSON (najwyżej 5000 elementów razem z usunięciami; jeden wpis do 4 MB) — plik 4 MB to jeden podgląd i jeden zapis (ok. 6 MB przesyłu).
   Zapis nie przejdzie, jeśli coś wskazywałoby na rodzaj albo wpis, którego nie ma (np. pole "to" z nieznanym rodzajem, wartość z nieistniejącym identyfikatorem, odwołanie do nowej rzeczy odznaczonej w przeglądzie) — lista mówi, który element i które pole.
   Rodzaj można wskazać jego trwałą nazwą ("kinds": ["@wywod/krok"]) — znajdzie się także po zmianie nazwy.
   Nazwa z „/" jest TRWAŁA: zostaje przy wpisie (także przy widoku, wejściu, szablonie, formularzu, rodzaju), a ten sam dokument zaimportowany drugi raz zmienia te same rzeczy zamiast tworzyć nowe; wielkość liter nie ma znaczenia.
@@ -1508,7 +1697,7 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   ścieżka obok opowieści: w Nauce i w module „Kurs / opowieść” mała mapa ścieżki (wpisy kroków w kolejności nauki, gdzie jej nie ma — w kolejności opowieści) idzie za krokiem; wskazana możliwość wyboru podświetla swoją drogę; klik w wolny krok przenosi opowieść do niego; na stronie stoi też osobno jako moduł "path" ({"library", "flow": "<id przebiegu>"} — także dla przebiegu z prezentacji)
   "recreatio.cogita.flow" — JEDEN przebieg razem z tym, co pokazuje (eksport z edytora przebiegów): {"format": "recreatio.cogita.flow", "version": 1, "flow": {przebieg jak wyżej}, "entities": [wpisy, które pokazuje — także postacie i jednostka "unit"]} — importuje się w tym samym miejscu co kurs; wpisy z "ref" łączą się z istniejącymi
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
-"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas|outline|quilt|landscape", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}, "landscape": {"budget": 60}}
+"views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas|outline|quilt|landscape", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}, "landscape": {"nest": "pole"}}
   na początku źródła — kilka pod rząd sumuje się (np. kazania i komentarze): "source.all" | "source.kind" {"kind": "@rodzaj" albo "text" ze skryptorium, "from"} | "source.collection" {"collection": "@zbiór"} | "source.list" {"ids": ["@wpis"]};
   także "source.from" {"entry": "@kazanie"} — to, na co wskazuje wpis (kazanie: jego cytaty, wypowiedzi, słowa ze słownika, miejsca z planu; w powtórce: „Z wpisu" — powtórka z kazania);
   potem "follow" {"field", "back"}, "structure" {"dir": "down|up", "one": true} (po polach struktury — bez "one": do samego końca; "one": true — jeden poziom) i "filter.rule" {"rule"} (źródło po innym kroku zaczyna od nowa);
@@ -1518,9 +1707,11 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   "mode": "quilt" (Mapa postępów) — kafelek na wpis w kolorze tego, jak dobrze uczący się go zna (nowe, uczę się, do powtórki, umiem), pogrupowany jak "group" (np. idee według lekcji pod rozdziałami: {"by": "axis", "kind": "@lekcja", "via": ["lekcja"], "sort": {"field": "nr"}, "group": "rozdzial"}); klik: tekst, pytania, „Ćwicz to”, „Otwórz w źródle”; widać go w Nauka → Postępy (też nauczycielowi) i w module „Widok”
   "mode": "landscape" (Krajobraz) — osobisty krajobraz wiedzy tego, kto patrzy, na STAŁEJ mapie: każdy wpis ma jedno miejsce (sześciokąt w jednej siatce, krawędź przy krawędzi), liczone tylko ze struktury — nigdy ze znajomości, budżetu, przybliżenia ani szerokości ekranu; te same dane dają tę samą mapę, a nowy wpis zajmuje wolne pole i nikogo nie przesuwa (wpisy dochodzą w kolejności powstania); zmienia się tylko wysokość: wysokość to liczba różnych nieopanowanych wpisów w całej kolejności nauki przed nim, on sam też (wspólna podstawa liczy się raz, koło jako jeden krok, wpisy bez pytań są przezroczyste) — to, co umie, zapada się w płaską dolinę, to, czego może się uczyć teraz, jest równiną, dalej góry wysokości n; to, co do powtórki, ma znacznik na swoim polu (pole się nie rusza); „opanowane” = pasmo "learned" (od 10 %) — to, co blednie, zostaje opanowane, dopiero poniżej 10 % brakuje go znowu; na początku „Ty” stoi wśród gór, z nauką doliny rozchodzą się od niego;
     kierunek daje "group" widoku: oś ("by": "axis") z hierarchią wartości przez ich pola struktury (tagi pod tagami, rozdziały przez "teil") — każdy obszar to wycinek od uczącego się na zewnątrz, wszystkie RÓWNEJ szerokości (nie według liczby wpisów — dlatego nowy wpis nie przesuwa obszarów), od lewej w kolejności "sort" osi (bez "sort" sąsiadują te, które często występują razem albo łączy je kolejność nauki), wartość dzieli swój wycinek po równo między swoje wartości niżej; odległość od uczącego się to głębokość w kolejności nauki (ile kroków najdłuższej drogi „Najpierw trzeba znać” jest przed wpisem, także z innych obszarów): najogólniejsze tuż przy nim, każdy poziom dalej, a wpis stoi blisko tego, co wymaga (drogi biegną na zewnątrz); wpis z kilkoma wartościami stoi w obszarze jednej z nich, na brzegu od strony drugiej; wpis bez wartości stoi pośrodku, przy uczącym się (nie jest obszarem); "through" po polu struktury w górę (np. "wymaga") sięga w krajobrazie wszystkich poziomów, także bez "depth": wpis dostaje wartość najbliższego przodka, który ją ma — na każdej drodze w górę osobno (wątek wymagający dwóch etapów stoi między ich obszarami), a wpis z własną wartością ma tylko ją (etap 2, który wymaga etapu 1, zostaje w obszarze 2); także "by": "field" | "kind" | "level"; bez "group" obszary to poddrzewa pod najogólniejszymi wpisami (po polu struktury w górę, inaczej po kolejności nauki; przy jednym korzeniu — niżej, aż drzewo się rozgałęzi), nazwane od swojego najogólniejszego wpisu, ułożone w kolejności nauki;
-    "landscape": {"budget": 60, "bands": {"ring": 0.5, "due": 0.2, "known": 0.1}} — "budget": ile pól na mapie razem z polami „+N” (6–400; na telefonie i w małym module mniej — mapa jest ta sama, tylko mniejsza); budżet decyduje tylko, co stoi pojedynczo: w każdym obszarze i paśmie (do nauki, do powtórki, dolina, góry) najlepsze wpisy pojedynczo (najpierw droga do celu, potem to, co najwięcej odblokowuje, potem kolejność autora), a reszta pasma w tym obszarze to JEDNO pole z liczbą i znakiem pasma („○ 14” do nauki, „◑ 3” do powtórki, „● 5” dolina, „▲ 25” góry), które zajmuje pola swoich wpisów; "bands": jaką część pól pasmo dostaje najpierw (bez "bands": 0,5 / 0,2 / 0,1), czego pasmo nie wykorzysta, przechodzi kolejno: do nauki, do powtórki, dolina, góry — góry pojedynczo dopiero wtedy, gdy nic gotowego do nauki nie jest schowane; gdy pola „+N” zajęłyby ponad połowę budżetu, dolina obszaru jest jednym polem (umiem + do powtórki), a przy jeszcze mniejszym budżecie — cały obszar; klik w pole „+N” przybliża jego obszar: kamera na tych samych polach, wycinki to wartości niżej, więcej stoi pojedynczo (wysokości zostają globalne), inne obszary czekają na brzegu w swojej stronie; cel, następny krok i pierścień na drodze do celu stoją zawsze pojedynczo; wpisy bez pytań się nie pokazują (są tylko etykietami obszarów, jeśli są wartościami osi);
-    najechanie albo klik: nad polem okienko — nazwa, pierścień postępu (znane / wszystkie karty), stan słowami („gotowe do nauki”, „2 kroki dalej”, „do powtórki”), jeden główny przycisk („Zacznij”, „Powtórz” albo „Ustaw jako cel”), mały „Otwórz wpis”, „Co dalej” (co odblokuje jego nauka); na mapie świecą drogi „Najpierw trzeba znać” od pola w dół do równiny i doliny (z numerami kroków), reszta przygasa; cel zapisuje się prywatnie jak postępy, droga podświetla się we wszystkich obszarach; wpis na równinie z już pytanymi, słabymi kartami w drodze przed nim mówi „najpierw powtórz te N kart” i zaczyna lekcję dokładnie z nimi, potem od razu nowe; przybliżenie i wybrane pole są w adresie (wstecz/dalej, odświeżenie);
-    np. {"ref": "@swiat/w-krajobraz", "name": "Krajobraz wiedzy", "mode": "landscape", "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}], "group": {"by": "axis", "kind": "@swiat/tag", "via": ["tagi"]}, "landscape": {"budget": 60}}
+    "landscape": {"nest": "<pole odwołania>", "nestSort": "nr"} — każdy wpis ma na mapie WŁASNE pole (nic nie jest łączone w pola „+N”, nie ma pustych pól: każdy sześciokąt coś znaczy i otwiera okienko); "budget" i "bands" ze starszych baz są czytane i nie mają już wpływu;
+    "nest": KRAJOBRAZ ZAGNIEŻDŻONY — grupy pochodzą z danych, nie z obliczeń: węzeł mapy to zwykły wpis własnego rodzaju (np. „Pole mapy”: "nazwa", "nr" — kolejność, pole odwołania do rodzaju węzłów z "structure": "up" — węzeł nadrzędny; puste: węzeł najwyższy; gałęzie mogą mieć różną głębokość), a wpis treści wskazuje swój węzeł polem odwołania o kluczu z "nest" (bez węzła stoi na najwyższym poziomie); "nestSort" — liczbowe pole kolejności węzłów (domyślnie "nr"); całość pokazuje TYLKO najwyższy poziom, każde przybliżenie dokładnie jeden poziom (węzły niżej i wpisy stojące w tym węźle, razem), okruszki prowadzą z powrotem; węzeł jest prawdziwym polem: pierścień = znane / wszystkie karty całego poddrzewa, kolor z tej znajomości (im więcej umie, tym głębszy), wysokość = odległość do najbliższego wpisu w środku, którego można się uczyć (0, gdy coś w środku jest gotowe), zapada się w dolinę, gdy wszystko w środku jest opanowane (z oznaczeniem powtórki, gdy coś jest do powtórzenia), zamek, gdy wszystko, co w środku czeka na naukę, wymaga najpierw powtórki; okienko węzła: nazwa, pierścień, stan słowami, JEDEN główny przycisk („Wejdź”, „Powtórz” — karty do powtórki w poddrzewie, „Ustaw jako cel” — najbliższy wpis w środku; przy węźle-jednostce opowieści — przycisk opowieści) i lista tego, co w środku; miejsca są stałe: pola poziomu ciasno w pierścieniach wokół uczącego się, bliżej to, czego trzeba się nauczyć wcześniej (najwcześniejszy wpis w środku), potem węzły przed wpisami i kolejność autora — nigdy według postępów; jednostka opowieści może być węzłem albo wpisem treści;
+    język mapy: barwa = obszar (najwyższy węzeł albo obszar osi), nasycenie = znajomość (głębokie — umiem, najjaśniejsze — nowe), wysokość = odległość (dolina — umiem, także to, co do powtórki, równina — teraz, góry — tyle kroków dalej); na mapie tylko dwa znaczniki: powtórka i zamek; żadnych napisów na mapie (nazwa w okienku i w podpowiedzi po najechaniu); najechanie wyróżnia pole i jego drogę, nic nie blednie; mała legenda zawsze widoczna;
+    klik: nad polem okienko — nazwa, pierścień postępu (znane / wszystkie karty), stan słowami („gotowe do nauki”, „2 kroki dalej”, „do powtórki”), jeden główny przycisk („Zacznij”, „Powtórz” albo „Ustaw jako cel”), mały „Otwórz wpis”, „Co dalej” (co odblokuje jego nauka); na mapie świecą drogi „Najpierw trzeba znać” od pola w dół do równiny i doliny (z numerami kroków), nic nie przygasa; cel zapisuje się prywatnie jak postępy, droga podświetla się we wszystkich obszarach; wpis na równinie z już pytanymi, słabymi kartami w drodze przed nim mówi „najpierw powtórz te N kart” i zaczyna lekcję dokładnie z nimi, potem od razu nowe; przybliżenie i wybrane pole są w adresie (wstecz/dalej, odświeżenie);
+    np. {"ref": "@swiat/w-krajobraz", "name": "Krajobraz wiedzy", "mode": "landscape", "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}], "group": {"by": "axis", "kind": "@swiat/tag", "via": ["tagi"]}}; zagnieżdżony: rodzaj węzłów {"ref": "@swiat/pole", "name": "Pole mapy", "label": "{nazwa}", "fields": [{"key": "nazwa", "type": "line"}, {"key": "nr", "type": "number"}, {"key": "nad", "type": "ref", "to": ["@swiat/pole"], "structure": "up"}]}, węzły {"ref": "@swiat/m-ruch", "kinds": ["@swiat/pole"], "data": {"nazwa": "Ruch", "nr": 1, "nad": "@swiat/m-fizyka"}}, temat z polem {"key": "pole", "type": "ref", "to": ["@swiat/pole"]} → "data": {"pole": "@swiat/m-ruch"}, widok {"ref": "@swiat/w-pola", "name": "Krajobraz pól", "mode": "landscape", "steps": [{"type": "source.kind", "config": {"kind": "@swiat/temat"}}], "landscape": {"nest": "pole"}}
   "mode": "outline" (Struktura) rysuje źródła jako korzenie, a pod nimi to, do czego prowadzą kroki; "outline": {"chip": "klucz pola nad każdym krokiem (np. rola)", "order": "tree|text" (bez "order": ostatni wybór czytelnika, a na początek kolejność tekstu u Tomasza i drzewo w innych dziełach), "by": "klucz pola, według którego najpierw układają się kroki jednego poziomu (np. czas — czas opowieści; bez \"by\": według miejsca w dziele)", "tie": "klucz pola przy tym samym miejscu (np. nr)"};
     widok otwarty od wpisu (wejście z Biblioteki) zastępuje tym wpisem wszystko przed pierwszym „Idź po…”; np. {"name": "Wywód", "mode": "outline", "steps": [{"type": "source.kind", "config": {"kind": "@krok"}}, {"type": "filter.rule", "config": {"rule": {"op": "and", "items": [{"field": "nalezy", "cmp": "empty"}]}}}, {"type": "structure", "config": {"dir": "down"}}], "outline": {"chip": "rola", "order": "tree", "tie": "nr"}}
   grupowanie (drzewo "group", wiersze i kolumny "matrix": {"rows": grupowanie, "cols": grupowanie}): {"by": "kind"} | {"by": "field", "field": "klucz"} | {"by": "axis", "kind": "@rodzaj", "via", "through", "depth", "sort", "group"} — OŚ: jej wartości to wpisy rodzaju
@@ -1570,7 +1761,7 @@ const COURSE_USAGE = `## Jak aplikacja używa tych danych
   Nagrody ("rewards"): moduły „Punkty i seria” i „Statystyki na żywo” na stronie oraz Nauka (Motywacja „Punkty i nagrody”, zakładka „Nagrody”) liczą z odpowiedzi punkty, serię, cel dnia, poziom i odznaki — na żywo, przy każdej odpowiedzi; nic z tego nie jest zapisywane.
   Inne bazy wiedzy, które korzystają z tej jako źródła, widzą jej rodzaje, wpisy, szablony, powtórki i przebiegi tylko do odczytu; link dla AI i MCP czytają ją bez zmian.
   Kto czyta: ten, kto czyta jej obszar (w obszarze jawnym — każdy); wpisy są szyfrowane kluczem obszaru.
-  Import niczego nie usuwa i nie dotyka odpowiedzi ani postępów: nowa karta zaczyna bez historii, a karta, której poprawna odpowiedź się zmieniła, zaczyna historię od nowa (zmiana wag "tests" historii nie zmienia).
+  Import usuwa tylko to, co dokument wymienia z "remove": true (podgląd pokazuje każde), i nie dotyka odpowiedzi ani postępów: nowa karta zaczyna bez historii, a karta, której poprawna odpowiedź się zmieniła, zaczyna historię od nowa (zmiana wag "tests" historii nie zmienia).
 `;
 
 /**
