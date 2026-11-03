@@ -113,6 +113,33 @@ const input = { ids: ['U', 'T'] };
 const state = LD.landscapeState(input, KN.EMPTY_GAUGE, new Set(['U']));
 check('a unit whose story is done lies in the valley (knowness 1); the rest as before', [state.knowness[0], state.knowness[1]], [1, 0]);
 
+/* -- 2026-11-03 (Prompt 5): erst der bestandene Przegląd senkt; der Knopf einer Erzählung; die Ziele einer Seite -- */
+{
+  const withGoals = FL.readFlow('fx', { name: 'Deszcz', unit: 'U', review: 'p0', goals: [{ id: 'przeglad', title: 'Przegląd', condition: { type: 'value', value: 'deszcz.przeglad', op: 'ge', than: 3 } }] });
+  const without = FL.readFlow('fy', { name: 'Bez celów', unit: 'V' });
+  check('a flow marks where its review starts ("review")', [withGoals.review, without.review], ['p0', undefined]);
+  check('story stages: new / started / done with a goal missing ("review") / done and every goal ("passed")', [
+    FF.storyStage(withGoals, undefined), FF.storyStage(withGoals, { started: true, done: false, goals: [] }),
+    FF.storyStage(withGoals, { started: true, done: true, goals: [] }), FF.storyStage(withGoals, { started: true, done: true, goals: ['przeglad'] })
+  ], ['new', 'started', 'review', 'passed']);
+  check('flows without goals as before: done = passed (the unit sinks)', [FF.storyStage(without, { started: true, done: true, goals: [] }), FF.storyStage(without, { started: true, done: false, goals: [] })], ['passed', 'started']);
+  check('reached goals while not yet at the end: still "started"', FF.storyStage(withGoals, { started: true, done: false, goals: ['przeglad'] }), 'started');
+  check('the story button by stage', [FF.STORY_BUTTON.new, FF.STORY_BUTTON.started, FF.STORY_BUTTON.review, FF.STORY_BUTTON.passed], ['Zacznij opowieść', 'Kontynuuj opowieść', 'Powtórz przegląd', 'Otwórz opowieść']);
+  check('"Powtórz przegląd" goes to "review", else to the start (a presentation: its first scene, empty)', [
+    FF.reviewStart(withGoals), FF.reviewStart(FL.readFlow('fz', { name: 'G', graph: { nodes: [{ id: 'a', type: 'show', config: {} }], edges: [] }, start: 'a' })), FF.reviewStart(FL.readFlow('fp', { name: 'P', presentation: 'c/abc' }))
+  ], ['p0', 'a', '']);
+  const lib = { docs: () => [
+    { id: 'f1', data: { name: 'Story', unit: 'U' } }, { id: 'f2', data: { name: 'Story with cards', unit: 'W' } }, { id: 'f3', data: { name: 'No unit' } },
+    { id: 'f4', data: { name: 'Page story', presentation: '#/C/Abc', goals: [{ id: 'przeglad', condition: { type: 'value', value: 'opowiesc.przeglad', op: 'ge', than: 3 } }] } }
+  ] };
+  check('story units: a unit a flow points at and that has no cards of its own (one with cards is no story unit)', [...FF.storyUnitsOf(lib, (id) => id === 'W').keys()], ['U']);
+  const fx = (n) => ({ values: { 'opowiesc.przeglad': n }, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0) });
+  check('a page story: the goals of the base flow that points at it, from the page\'s values (path in any case)', [FF.pageGoals(lib, 'c/abc', fx(2)), FF.pageGoals(lib, 'c/abc', fx(3)), FF.pageGoals(lib, 'c/other', fx(3)), FF.pageGoals(lib, null, fx(3))], [[], ['przeglad'], [], []]);
+  const input = { ids: ['U', 'T'] };
+  const lowered = new Set([...FF.storyUnitsOf(lib, () => false).entries()].filter(([, f]) => FF.storyStage(f, { started: true, done: true, goals: [] }) === 'passed').map(([u]) => u));
+  check('a story without goals that is done still lowers its unit', LD.landscapeState(input, KN.EMPTY_GAUGE, lowered).knowness[0], 1);
+}
+
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} checks pass${failed > 0 ? `, ${failed} FAIL` : ''}.`);
 if (failed > 0) process.exit(1);
