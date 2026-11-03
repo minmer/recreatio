@@ -819,8 +819,14 @@ Phones stay awake.
   root before an area moves only that area. One axial hex grid edge to edge: band cells and ground between them; the
   learner at (0,0); entries without a value in the hub around it.
 - **Heights only**: valley −0.55 (known and due, flat; due is a dot on the field), level ground 0 (learnable now),
-  mountain 0.22 + 0.13·min(9, missing). Ground cells take their neighbours' lift (damped) and tone; a cell in front never
-  covers more than a third of the one behind. Learning lowers a field where it stands.
+  mountain 0.22 + 0.13·min(9, missing). Ground cells take their neighbours' lift (damped); a cell in front never covers
+  more than a third of the one behind. Learning lowers a field where it stands.
+- **Colour** (2026-11-03, Prompt 3): the whiter, the less known and the less reachable — known in the full colour of
+  its area, due lighter (with its dot), learnable now light with a dark edge in its colour, mountains nearly white and
+  whiter the higher they are, ground between fields the whitest (it is not knowledge); dark mode fades to the dark
+  surface. Steps (OKLab, all eight colours, light and dark): known → due → ring → first mountain ≥ 5.2 apart; marks and
+  height say it too. A "+N" field's border is drawn cell by cell inside the land (a prism in front covers it), never as
+  a layer over it.
 - **Budget** (B.1): fields = singles + "+N" fields ≤ `budget`. Per area (in a zoom: per sub-area) and band (ring,
   due, valley, mountains) the best stand singly — goal route first, then what unlocks most, then the author's order,
   round-robin over the areas — and the rest of that band is ONE "+N" field on its entries' cells ("○ 14", "◑ 3",
@@ -830,15 +836,31 @@ Phones stay awake.
 - **Zoom** = a camera on the same map: a "+N" field or an area chip opens its area (sub-values become the sectors,
   more stands singly, heights stay global); the learner stays in the picture; surroundings are drawn flat and faded;
   the other areas wait as buttons at the left/right rim in their direction.
-- **Interaction** (C, D): hover (mouse, 120 ms intent; 260 ms grace into the popover) or tap opens a popover at the
-  field — title, progress ring (known/total cards), state in words, ONE primary button (Zacznij / Najpierw powtórz (N) /
-  Powtórz / Ustaw jako cel), a small „Otwórz wpis", the numbered route of a mountain, „Co dalej" (what learning it
-  unlocks; hovering an item lights the path to it). The prerequisite paths ("wymaga", through entries without cards)
-  light up down to the ring and valley, the rest dims. Esc or a click outside closes. No native tooltips. A "+N" field
-  shows its counts per band and „Przybliż". On a phone the popover is a sheet.
-- **Names**: an entry's name only where it covers no other mark (goal, next step, a few ring topics; more in a zoom);
-  area names on the outer arc in order. Test hooks: `data-ls-cell`, `data-ls-owner`, `data-ls-field/-band/-q/-r/-area/
-  -count`, `data-ls-paths`, `data-ls-step`, `data-ls-progress`, `data-landscape-quest/-state/-unlocks/-next-item`,
+- **Interaction** (C, D; Prompt 3): hovering a field (mouse 80 ms intent, keyboard focus) shows ONLY its connections —
+  the prerequisite paths light up down to the ring and valley, what it leads to in the accent colour, the rest dims;
+  hover never opens anything. Selecting it (click, tap, Enter, `pole=` in the address; again or Esc or a click outside
+  closes) opens its popover: title, progress ring, state in words, ONE primary button (Zacznij / Najpierw powtórz (N) /
+  Powtórz / Ustaw jako cel), „Otwórz wpis", „Pokaż ścieżkę" — that head never scrolls away; below it, scrolling, the
+  whole route (every step, the goal last), „Co dalej" and „W środku" (all members; each list at most 12rem high, scrolls
+  inside). No native tooltips.
+- **Popover placement**: in the document (a portal, `position: fixed`), never clipped by the map: above the field when
+  it fits, else below, else right or left — of the placements that fit whole in the window (8 px margin) and leave the
+  field free, the one covering the fewest route numbers and dots, then the fewest route line points; it follows scrolling,
+  hides while its field is off screen. Below 640 px of window a bottom sheet (max 70 vh) — the page gets room under it
+  and scrolls the field above it once per selection.
+- **Routes** (Prompt 3, `landscapeDraw.ts`): ONE graph on the hex grid — every edge between two fields once, routed from
+  cell centre to neighbouring cell centre (A*: own cells 1, ground 1.25, foreign fields 3.5, out of the zoom's camera +8;
+  a piece already laid costs half, so shared stretches lie on each other and are drawn once). A selected mountain shows
+  only its route (its steps and the goal); hover shows all connections. On route fields the step number REPLACES the
+  height label; only the next three steps and the goal (step n+1) carry a number, the rest a dot; a number whose cell is
+  taken moves to a corner of it (with a short leader).
+- **Labels**: one collision pass over the whole map (`placeLabels`): chosen field and the goal of the route, the route
+  numbers, goal and next-step marks, area names, route dots, "+N" fields, ring, valley, mountains (near ones first) — a
+  label that would overlap one already standing is hidden; then entry names where they cover no mark (never shortened
+  below twelve characters). "Ty" and the learner stay free.
+- **Test hooks**: `data-ls-cell`, `data-ls-ci`, `data-ls-owner`, `data-ls-field/-band/-q/-r/-area/-count`, `data-ls-paths`,
+  `data-ls-segs/-seg-keys/-route`, `data-ls-step/-step-cell`, `data-ls-stepdot`, `data-ls-progress`, `data-landscape-quest`
+  (`data-side`: above/below/right/left/sheet), `data-landscape-quest-head/-close/-state/-unlocks/-inside/-next-item/-route-step`,
   `data-landscape-rim`, `data-ls-area-label/-area-index`, `data-landscape-counts`.
 - **Locks**: a ring entry with answered cards below 1 in its chain (`{"type":"knowness","rel":"chain","band":"known"}`)
   offers „Najpierw powtórz" with exactly those cards, then continues with the entry (`RevisionRun.onDone`); the goal

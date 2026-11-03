@@ -3233,3 +3233,28 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   heights, `landscapes` among the sections and as its own section, the note, a current snapshot — and after a
   browser import of a new landscape view a fresh snapshot 2 s later carrying its map. Backend checks pass;
   `npm run app:check` passes.
+
+## C27 — Landscape: popover placement, routes as one graph, labels, colour, borders; the entry editor's side column (2026-11-03, Prompt 3)
+
+- Hover shows only a field's connections; the popover opens on selection (click, tap, Enter, address). It is rendered in
+  the document (`position: fixed`): above, below, right or left — whole in the window, the field free, the fewest route
+  marks covered; head (title, ring, button) fixed, lists scroll (12rem); a bottom sheet under 640 px with room under the
+  page. "W środku" lists every member; the route list every step and the goal.
+- `cogita/landscapeDraw.ts` (new): `hexRoutes` (A* on the grid, shared pieces once), `cellEdges`, `placeLabels` (rank,
+  alternatives), `numberedStep`. Route numbers replace height labels on route fields; next three + goal numbered, the
+  rest dots; badges move to a hex corner when their centre is taken. One collision pass over marks, numbers, area names
+  and names.
+- Colour: whiter = less known/available (known full colour → due → ring → mountains nearly white; ground whitest);
+  group borders drawn per cell inside the land (no overlay layer); ring edges in the area's colour.
+- Entry editor (`.cg-split`): the side column sizes to its content (its cards stretched to the form's height with
+  90–297 px gaps between rows) and the form's track is `minmax(0, 1fr)` with `overflow-wrap: anywhere` (a long value
+  without break opportunities widened the track and ran every field under "Odwołują się tutaj"); `.cg-ref` wraps
+  left-aligned.
+- Checks: `app-landscape-check` 116 (16 new: routes, labels, numbering). Browser (scratchpad `prompt3/`): LAAG
+  "Lernlandschaft" (owner's course JSON in the harness, a ▲20 field selected at 1280/820) 17 — 38/44 route pieces, all
+  unique, all between neighbouring cells; numbers 1, 2, 3, 21, dots 4–20; no overlapping labels; popover whole. Bosko
+  LocalDB 22 — every aggregate near the top edge at 1280/820 (field at the top and in the middle of the window): hover
+  opens nothing, click shows the whole popover with title and button, the field free; "W środku" 69 members in 12rem;
+  route of „Zdrowie ucznia i kleryka (1832–1839)" (5 steps here: 1, 2, 3, 6; 1–4 when 3 steps are missing) without
+  overlaps; whiter = less known in every area; 390 sheet with the field above it. Editor 8 (Edge; old rules forced back
+  reproduce the screenshot). E 53, F 27, G 22 still pass; `npm run app:check` passes.

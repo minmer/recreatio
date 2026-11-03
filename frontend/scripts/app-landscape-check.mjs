@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-landscape-'));
-const names = ['landscape', 'knowing', 'logic', 'views', 'prerequisites', 'knowness'];
+const names = ['landscape', 'knowing', 'logic', 'views', 'prerequisites', 'knowness', 'landscapeDraw'];
 /* 2026-11-03 — dazu eine Baza im Speicher (derselbe Import wie die App): Zugehörigkeit zu einer Achse über die Stufen. */
 const baseEntry = join(workspace, 'base-entry.ts');
 const app = join(process.cwd(), 'src/app/').replace(/\\/g, '/');
@@ -39,7 +39,7 @@ await build({
 });
 globalThis.BroadcastChannel = undefined;
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [L, KN, LG, VW, PR, K] = await Promise.all(names.map(load));
+const [L, KN, LG, VW, PR, K, D] = await Promise.all(names.map(load));
 const B = await load('base');
 
 let failed = 0;
@@ -447,6 +447,48 @@ function bandWorld() {
   check('budget clamped (6–400)', VW.readView({ mode: 'landscape', landscape: { budget: 9999 } }).landscape, { budget: 400 });
   check('old views without landscape stay as they were', VW.viewJson(VW.readView({ name: 'T', mode: 'table' })).landscape, undefined);
   check('mode label', VW.LIST_MODE_LABEL.landscape, 'Krajobraz');
+}
+
+/* ── 2026-11-03 (Prompt 3): die Wege als EIN Graph auf dem Raster, Zeichen ohne Überdeckung, die Zahlen des Weges ── */
+{
+  const cells = [];
+  for (let q = -3; q <= 3; q += 1) for (let r = -3; r <= 3; r += 1) if (Math.abs(q + r) <= 3) cells.push({ q, r });
+  const at = (q, r) => cells.findIndex((c) => c.q === q && c.r === r);
+  const dist = (x, y) => (Math.abs(x.q - y.q) + Math.abs(x.r - y.r) + Math.abs(x.q + x.r - y.q - y.r)) / 2;
+  const one = () => 1;
+  const a = at(0, 0);
+  const b = at(3, 0);
+  const c = at(3, -1);
+  const r1 = D.hexRoutes(cells, [[a, b]], one);
+  check('a route between two fields goes from cell to neighbouring cell', r1.paths[0].every((x, i, p) => i === 0 || dist(cells[p[i - 1]], cells[x]) === 1), true);
+  check('… as short as the grid allows (3 steps: 4 cells)', r1.paths[0].length, 4);
+  check('… each piece once', r1.segments.length, 3);
+  const r2 = D.hexRoutes(cells, [[a, b], [a, c]], one);
+  check('two edges with a common stretch: no piece twice', new Set(r2.segments.map(([x, y]) => D.segmentKey(x, y))).size, r2.segments.length);
+  check('… the second edge takes the stretch already laid (4 pieces, not 6)', r2.segments.length, 4);
+  const wall = new Set([at(1, 0), at(2, 0)]);
+  const r3 = D.hexRoutes(cells, [[a, b]], (i) => (wall.has(i) ? 6 : 1));
+  check('a route goes around foreign fields when that is cheaper', r3.paths[0].some((x) => wall.has(x)), false);
+  check('… and still from neighbour to neighbour', r3.paths[0].every((x, i, p) => i === 0 || dist(cells[p[i - 1]], cells[x]) === 1), true);
+  check('the same input gives the same routes (deterministic)', JSON.stringify(D.hexRoutes(cells, [[a, b], [a, c]], one)), JSON.stringify(r2));
+  check('edges between cells: each pair once, without direction, no self edge, no missing cell', D.cellEdges([[1, 2], [2, 1], [3, 3], [-1, 2], [2, 4]]), [[1, 2], [2, 4]]);
+  const box = (x0, y0, w = 10, h = 10) => ({ x0, x1: x0 + w, y0, y1: y0 + h });
+  const P = D.placeLabels([{ key: 'low', box: box(0, 0), rank: 5 }, { key: 'high', box: box(5, 5), rank: 1 }, { key: 'free', box: box(40, 0), rank: 9 }], [box(100, 100)]);
+  check('labels: the more important stands, the lower one under it goes, a free one stays', [...P.kept].sort(), ['free', 'high']);
+  check('labels: nothing stands on what is taken (the learner, his name)', [...D.placeLabels([{ key: 'x', box: box(100, 100), rank: 0 }], [box(105, 105)]).kept], []);
+  check('labels: equal importance — the first given stays', [...D.placeLabels([{ key: 'a', box: box(0, 0), rank: 2 }, { key: 'b', box: box(3, 3), rank: 2 }]).kept], ['a']);
+  const many = [];
+  let seed = 3;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let i = 0; i < 600; i += 1) many.push({ key: `k${i}`, box: box(rnd() * 800, rnd() * 400, 8 + rnd() * 30, 10), rank: Math.floor(rnd() * 9) });
+  const kept = D.placeLabels(many).kept;
+  const standing = many.filter((m) => kept.has(m.key));
+  let crossing = 0;
+  for (let i = 0; i < standing.length; i += 1) for (let j = i + 1; j < standing.length; j += 1) if (D.boxesOverlap(standing[i].box, standing[j].box)) crossing += 1;
+  check('labels: of 600 random labels, no two that stand overlap', crossing, 0);
+  check('labels: and many stand', standing.length > 100, true);
+  check('route numbers: 20 steps — 1, 2, 3 and the goal (21) carry a number, the rest a dot', Array.from({ length: 21 }, (_, i) => (D.numberedStep(i + 1, 20) ? 'n' : '.')).join(''), 'nnn.................n');
+  check('route numbers: 3 steps — all four carry a number', [1, 2, 3, 4].map((i) => D.numberedStep(i, 3)), [true, true, true, true]);
 }
 
 await rm(workspace, { recursive: true, force: true });

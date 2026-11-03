@@ -10,6 +10,15 @@
 .cg-grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
 .cg-split { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 60rem) { .cg-split { grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr); } }
+/*
+ * 2026-11-03 (Prompt 3) — DER EINTRAG UND DIE SPALTE DANEBEN: das Formular bleibt in seiner Spalte (ein langer Wert ohne
+ * Leerzeichen dehnte seine Spur, und alles lief unter die Spalte daneben), und die Spalte daneben ist so hoch wie ihr
+ * Inhalt (sie zog sich auf die Höhe des Formulars, und ihre Karten bekamen grosse Lücken zwischen den Zeilen).
+ */
+.cg-split > * { min-width: 0; }
+.cg-split > form.cg, .cg-split > aside.cg { grid-template-columns: minmax(0, 1fr); }
+.cg-split > form { overflow-wrap: anywhere; }
+.cg-split > aside { align-self: start; }
 /* Karten, Plättchen und Unterreiter wie im ganzen Arbeitsplatz (ui/ui.css): Cogita ist kein eigenes Produkt. */
 .cg-card {
   border: 1px solid var(--wk-line); border-radius: var(--wk-radius); background: var(--wk-surface);
@@ -77,7 +86,7 @@
 /* -- Auszeichnung --------------------------------------------------------------- */
 .cg-markup p { margin: 0 0 0.5rem; line-height: 1.55; }
 .cg-markup h3 { margin: 0.75rem 0 0.375rem; font-size: var(--wk-text-md); }
-.cg-ref { font: inherit; padding: 0; border: 0; background: none; color: var(--wk-accent); text-decoration: underline dotted; cursor: pointer; }
+.cg-ref { font: inherit; padding: 0; border: 0; background: none; color: var(--wk-accent); text-decoration: underline dotted; cursor: pointer; text-align: start; }
 .cg-cite { font-style: normal; font-size: 0.85em; color: var(--wk-muted); }
 .cg-notes { font-size: var(--wk-text-sm); color: var(--wk-muted); }
 .cg-media { max-width: 100%; border-radius: 4px; display: block; }

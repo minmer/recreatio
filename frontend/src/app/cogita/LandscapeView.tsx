@@ -10,17 +10,21 @@
  *             die anderen Bereiche stehen am Rand in ihrer Richtung.
  *   Felder    das Budget entscheidet, welche festen Gebiete zu EINEM Feld verschmelzen („○ 12", „▲ 45" — dieselben
  *             Zeichen wie einzeln); ein Feld mit vielen Karten trägt einen Ring des Fortschritts (eine Einheit)
- *   Wege      (C) beim Zeigen oder Wählen leuchten die Wege „wymaga" vom Feld hinab bis zum Ring und ins Tal, und wohin
- *             es führt; alles andere tritt zurück; der Weg zu einem Berg ist derselbe Weg, nummeriert
- *   Karte     (D) die Karte eines Feldes steht ÜBER ihm (Zeigen mit der Maus, Tippen am Telefon): Name, Fortschritt,
- *             der Stand in Worten, EIN Knopf (Zacznij, Powtórz, Ustaw jako cel), „Otwórz wpis", „Co dalej"; Esc oder ein
- *             Klick daneben schliesst sie
+ *   Wege      (C) beim Zeigen (nur das) oder Wählen leuchten die Wege „wymaga" vom Feld hinab bis zum Ring und ins Tal,
+ *             und wohin es führt; alles andere tritt zurück; EIN Graph auf dem Raster (`landscapeDraw.ts`); der Weg
+ *             eines gewählten Berges: seine Schritte, die nächsten drei und das Ziel mit Zahl statt der Höhe
+ *   Karte     (D) erst die WAHL öffnet die Karte eines Feldes (Klick, Tippen, Enter), fest im Fenster an ihm — darüber,
+ *             darunter oder daneben, immer ganz zu sehen; am Telefon ein Blatt: Name, Fortschritt, der Stand in Worten,
+ *             EIN Knopf (Zacznij, Powtórz, Ustaw jako cel), „Otwórz wpis"; darunter rollend der ganze Weg, „Co dalej",
+ *             „W środku"; Esc oder ein Klick daneben schliesst sie
+ *   Farbe     je weisser, desto weniger gewusst und erreichbar; kein Zeichen über einem anderen (`placeLabels`)
  *   Bleibt    (A) Zoom, gewähltes Feld und Bildlauf über Reiter, Zurück/Vor und Neuladen (`useKept`)
  *   Tasten    Tab zum Bild, Pfeile von Feld zu Feld, Enter wählt, Esc schliesst; dazu eine Liste für Vorleser
  * </code>
  */
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { Card } from './cardBasics';
 import { gaugeFromMarks, withFlows } from './knowing';
@@ -28,6 +32,7 @@ import { learnerFlows } from './flowFacts';
 import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_BUDGET, LS_FORE, LS_SHRINK, LS_TILE, type LsBand, type LsBands, type LsField, type LsInput, type LsLand, type LsLayout, type LsRun, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
+import { cellEdges, hexRoutes, numberedStep, placeLabels, segmentKey, type DrawLabel } from './landscapeDraw';
 import { answeredCards, renamer, type Learner } from './learn';
 import { gaugeKnow, pathOfEntries, unitMembers } from './PathLearn';
 import { readFlow } from './flow';
@@ -610,6 +615,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return v !== here;
   };
   const zoom = (f: LsField) => { if (!opens(f)) return; setFocus([f.value!]); setSaid(`Pokazano: ${f.label}`); };
+  /* 2026-11-03 (Prompt 3) — aus Liste, Suche und Ziel: das Feld wählen und ins Bild holen (seine Karte steht an ihm). */
+  const showField = (key: string) => {
+    setChosen(key);
+    window.requestAnimationFrame(() => { const el = document.querySelector(`[data-ls-field="${CSS.escape(key)}"]`); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+  };
 
   return host(
     <div className={`cg-ls${compact ? ' is-compact' : ''}`} data-landscape={layout.fields.length} data-landscape-ring={layout.counts.ring}
@@ -617,10 +627,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       {/* 2026-11-03 — es wird neu gerechnet: das Bild bleibt stehen, nur ein kleines Zeichen sagt es. */}
       {(busy || fresh.pending) && <p className="cg-ls-busy" role="status" data-landscape-busy="">liczenie…</p>}
       <TopBar layout={layout} focus={focus} onFocus={setFocus} goalLabel={layout.goal === null ? null : labelOf(layout.goal.id)} nextLabel={(id) => labelOf(id)}
-        onClearGoal={() => setGoal(null)} onShowGoal={() => { if (layout.goal !== null) setChosen(layout.goal.id); }} />
+        onClearGoal={() => setGoal(null)} onShowGoal={() => { if (layout.goal !== null) showField(layout.goal.id); }} />
       {query.trim() !== '' && (
         <SearchHits query={query} ids={input.ids} bandOf={bandOf} heightOf={heightOf} label={labelOf} goal={goal}
-          onShow={(id) => setChosen(id)} onGoal={(id) => { setGoal(id); setSaid(`Cel: ${labelOf(id)}`); }} />
+          onShow={(id) => showField(id)} onGoal={(id) => { setGoal(id); setSaid(`Cel: ${labelOf(id)}`); }} />
       )}
       {layout.notes.map((n) => <p key={n} className="cg-muted cg-ls-note">{n}</p>)}
       <LandscapeMap layout={layout} ids={input.ids} chosen={chosen} onChoose={(f) => setChosen(chosen === f.key ? null : f.key)} onClose={() => setChosen(null)}
@@ -634,7 +644,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         )} />
       {more}
       <p className="cg-sr" aria-live="polite">{said}</p>
-      {!compact && <FieldList layout={layout} onChoose={(f) => setChosen(f.key)} />}
+      {!compact && <FieldList layout={layout} onChoose={(f) => showField(f.key)} />}
     </div>
   );
 }
@@ -720,7 +730,7 @@ function useFonts(svg: RefObject<SVGSVGElement>): { label: Font; sector: Font } 
       if (el === null || el === undefined || typeof getComputedStyle === 'undefined') return FALLBACK_FONT;
       const cs = getComputedStyle(el);
       const px = Number.parseFloat(cs.fontSize) || 12;
-      return { css: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, px };
+      return { css: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, px, family: cs.fontFamily, style: cs.fontStyle };
     };
     const label = read('[data-ls-probe="label"]');
     const sector = read('[data-ls-probe="sector"]');
@@ -809,25 +819,73 @@ function labelsOf(layout: LsLayout, geo: Geo, font: Font, taken: readonly Box[],
 /** Die Kante eines Gebiets: die Seiten seiner Zellen, an denen eine fremde liegt — auf ihren Flächen. */
 function outlineOf(layout: LsLayout, geo: Geo, cells: readonly number[]): string {
   const inside = new Set(cells.map((i) => `${layout.land[i].q},${layout.land[i].r}`));
-  /* Die Nachbarn je Seite (flache Oberseite): Ecke i → i+1 liegt gegenüber dem Nachbarn in dieser Richtung. */
-  const NB: readonly (readonly [number, number])[] = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
   const parts: string[] = [];
   for (const i of cells) {
     const c = layout.land[i];
     const [cx, cy] = screenOf(geo, c.x, c.y, c.lift);
     for (let k = 0; k < 6; k += 1) {
-      const [dq, dr] = NB[k];
+      const [dq, dr] = EDGE_NB[k];
       if (inside.has(`${c.q + dq},${c.r + dr}`)) continue;
-      const a = CORNERS[k];
-      const b = CORNERS[(k + 1) % 6];
-      parts.push(`M${(cx + a[0] * geo.u).toFixed(1)},${(cy - a[1] * geo.u * LS_FORE).toFixed(1)}L${(cx + b[0] * geo.u).toFixed(1)},${(cy - b[1] * geo.u * LS_FORE).toFixed(1)}`);
+      parts.push(sideOf(geo, cx, cy, k));
     }
   }
   return parts.join('');
 }
 
+/** Die Nachbarn je Seite (flache Oberseite): Ecke k → k+1 liegt gegenüber dem Nachbarn in dieser Richtung. */
+const EDGE_NB: readonly (readonly [number, number])[] = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+const sideOf = (geo: Geo, cx: number, cy: number, k: number): string => {
+  const a = CORNERS[k];
+  const b = CORNERS[(k + 1) % 6];
+  return `M${(cx + a[0] * geo.u).toFixed(1)},${(cy - a[1] * geo.u * LS_FORE).toFixed(1)}L${(cx + b[0] * geo.u).toFixed(1)},${(cy - b[1] * geo.u * LS_FORE).toFixed(1)}`;
+};
+
+/**
+ * 2026-11-03 (Prompt 3) — DIE KANTE EINES GEBIETS JE ZELLE, in der Reihenfolge des Landes gezeichnet (mit ihrer Zelle):
+ * eine Säule davor deckt sie, wie sie die Fläche deckt — keine Kante liegt mehr über dem Land davor.
+ */
+function borderOf(layout: LsLayout, geo: Geo, at: ReadonlyMap<string, number>, i: number, lift: number): string {
+  const c = layout.land[i];
+  const [cx, cy] = screenOf(geo, c.x, c.y, lift);
+  let d = '';
+  for (let k = 0; k < 6; k += 1) {
+    const [dq, dr] = EDGE_NB[k];
+    const j = at.get(`${c.q + dq},${c.r + dr}`);
+    if (j !== undefined && layout.land[j].field === c.field) continue;
+    d += sideOf(geo, cx, cy, k);
+  }
+  return d;
+}
+
 /** Wie weit eine Zelle steht (für die Schattierung der Berge: Stufe 1–5). */
 const shade = (c: LsLand): number => (c.band === 'mountain' ? Math.min(5, 1 + Math.floor(Math.log2(1 + c.steps))) : 0);
+
+/** Das Zeichen eines Feldes auf dem Schirm (Text oder Schloss) mit seinen kleinen Zeichen — EIN Kasten (für die Namen ohne Überdeckung). */
+function markBoxOf(f: LsField, x: number, y: number, s: number, markPx: number, font: Font, geo: Geo, fits: boolean): Box | null {
+  const c = CORNER * geo.u;
+  let box: Box | null = null;
+  const add = (b: Box) => { box = box === null ? b : { x0: Math.min(box.x0, b.x0), x1: Math.max(box.x1, b.x1), y0: Math.min(box.y0, b.y0), y1: Math.max(box.y1, b.y1) }; };
+  if (f.locked) add({ x0: x - s * 0.42, x1: x + s * 0.42, y0: y - s * 0.32, y1: y + s * 0.56 });
+  else if (fits) {
+    /* Mit dem Hof der Schrift (3 px). */
+    const w = textWidth(markOf(f), font) + 3;
+    add({ x0: x - w / 2, x1: x + w / 2, y0: y + markPx * 0.36 - markPx * 0.92 - 1.5, y1: y + markPx * 0.36 + markPx * 0.24 + 1.5 });
+  }
+  if (box === null) return null;
+  if (f.due > 0 && f.kind === 'entry') { const r = Math.max(1.6, s * 0.24); add({ x0: x + c * 0.55 - r, x1: x + c * 0.55 + r, y0: y - s * 0.45 - r, y1: y - s * 0.45 + r }); }
+  if (f.goal) add({ x0: x - c * 0.62, x1: x - c * 0.62 + s * 0.6, y0: y - s * 0.55, y1: y + s * 0.55 });
+  if (f.next && !f.goal) { const r = Math.max(1.5, s * 0.3); add({ x0: x + c * 0.62 - r, x1: x + c * 0.62 + r, y0: y - r, y1: y + r }); }
+  return box;
+}
+
+/** Wohin eine Zahl des Weges ausweicht, wenn ihr Feld belegt ist (in Halbmessern): rechts, links, dann die Ecken. */
+const BADGE_AROUND: readonly (readonly [number, number])[] = [[1.5, 0], [-1.5, 0], [1.1, -1.1], [-1.1, -1.1], [1.1, 1.1], [-1.1, 1.1]];
+
+/** Wie breit das Fenster ist (die Karte eines Feldes wird darunter zum Blatt am unteren Rand). */
+const viewportWidth = (fallback: number): number => (typeof window === 'undefined' ? fallback : window.innerWidth);
+const SHEET_BELOW = 640;
+
+type QuestTools = { readonly route: readonly (readonly string[])[] | null; readonly onHover: (id: string | null) => void; readonly close: () => void };
 
 function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, client, onZoom, quest }: {
   layout: LsLayout;
@@ -839,51 +897,130 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
   width: number;
   client: LandscapeClient | null;
   onZoom: (value: string) => void;
-  quest: (f: LsField, paths: { readonly route: readonly (readonly string[])[] | null; readonly onHover: (id: string | null) => void }) => ReactNode;
+  quest: (f: LsField, tools: QuestTools) => ReactNode;
 }) {
   const geo = useMemo(() => geometryOf(layout, width, compact), [layout, width, compact]);
   const svg = useRef<SVGSVGElement>(null);
-  const box = useRef<HTMLDivElement>(null);
   const fonts = useFonts(svg);
   const byKey = useMemo(() => new Map(layout.fields.map((f) => [f.key, f] as const)), [layout]);
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids]);
+  const cellAt = useMemo(() => new Map(layout.land.map((c, i) => [`${c.q},${c.r}`, i] as const)), [layout]);
   const motion = useMemo(() => !still(), []);
-  /* Gezeigt (Maus, mit kurzer Absicht), gewählt (Klick, Tippen, Adresse), und was eine Liste in der Karte zeigt. */
+  const zoomed = layout.path.length > 0;
+  /*
+    2026-11-03 (Prompt 3) — ZEIGEN UND WÄHLEN: Zeigen (Maus, Tastatur) zeigt nur die Verbindungen des Feldes; seine Karte
+    öffnet erst die Wahl (Klick, Tippen, Enter, die Adresse). Was eine Liste in der Karte zeigt (`peek`), zeigt seine Wege.
+  */
   const [hover, setHover] = useState<string | null>(null);
   const [peek, setPeek] = useState<string | null>(null);
   const timers = useRef<{ open: number | null; close: number | null }>({ open: null, close: null });
   const clear = () => { for (const k of ['open', 'close'] as const) if (timers.current[k] !== null) { window.clearTimeout(timers.current[k]!); timers.current[k] = null; } };
   useEffect(() => clear, []);
-  const shown = (chosen !== null ? byKey.get(chosen) : undefined) ?? (hover !== null ? byKey.get(hover) : undefined);
-  /* Der Weg eines Berges (nummeriert auf der Karte, dieselbe Liste in der Karte des Feldes). */
+  const picked = chosen !== null ? byKey.get(chosen) : undefined;
+  const hovered = hover !== null ? byKey.get(hover) : undefined;
+  const focusField = hovered ?? picked;
+  /* Der Weg eines gewählten Berges (nummeriert auf der Karte, dieselbe Liste in seiner Karte). */
   const [route, setRoute] = useState<{ readonly id: string; readonly steps: readonly (readonly string[])[] } | null>(null);
   useEffect(() => {
     let alive = true;
-    if (shown === undefined || shown.kind !== 'entry' || shown.band !== 'mountain' || client === null) { setRoute(null); return undefined; }
-    const id = shown.id!;
+    if (picked === undefined || picked.kind !== 'entry' || picked.band !== 'mountain' || client === null) { setRoute(null); return undefined; }
+    const id = picked.id!;
     void client.route(id).then((r) => { if (alive && r !== null) setRoute({ id, steps: r.steps }); }, () => undefined);
     return () => { alive = false; };
-  }, [shown?.key, shown?.band, client]); // eslint-disable-line react-hooks/exhaustive-deps
-  /* Welcher Eintrag seine Wege zeigt: was die Liste zeigt, sonst das Feld der Karte. */
-  const pathTarget = peek ?? (shown?.kind === 'entry' ? shown.id! : null);
+  }, [picked?.key, picked?.band, client]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Der Weg steht, solange der gewählte Berg gezeigt wird (zeigt die Maus ein anderes Feld, dessen Verbindungen). */
+  const routeOn = route !== null && picked !== undefined && route.id === picked.id && (hovered === undefined || hovered.key === picked.key) && peek === null;
+  const pathTarget = peek ?? (focusField?.kind === 'entry' ? focusField.id! : null);
   const paths = useMemo(() => { const v = pathTarget === null ? undefined : indexOf.get(pathTarget); return v === undefined ? null : pathsOf(layout, v); }, [pathTarget, layout, indexOf]);
+  /* Die Schritte des Weges: Index des Eintrags → Schritt 1…n; das Ziel selbst n+1. */
+  const stepCount = route?.steps.length ?? 0;
   const routeSteps = useMemo(() => {
     const m = new Map<number, number>();
-    if (route === null || shown?.id !== route.id) return m;
+    if (!routeOn || route === null) return m;
     route.steps.forEach((step, i) => { for (const id of step) { const v = indexOf.get(id); if (v !== undefined) m.set(v, i + 1); } });
+    const goal = indexOf.get(route.id);
+    if (goal !== undefined) m.set(goal, route.steps.length + 1);
     return m;
-  }, [route, shown?.id, indexOf]);
+  }, [routeOn, route, indexOf]);
+
+  /* Die Mitte einer Zelle auf dem Schirm, wie sie gezeichnet ist (die Umgebung im Zoom flach). */
+  const centre = (i: number): [number, number] => { const c = layout.land[i]; return screenOf(geo, c.x, c.y, zoomed && !c.inScope ? 0 : c.lift); };
+  /*
+    2026-11-03 (Prompt 3) — DIE WEGE ALS EIN GRAPH AUF DEM RASTER: jede Kante zwischen zwei Feldern einmal, über die Mitten
+    benachbarter Zellen; gemeinsame Strecken einmal. Der Weg eines Berges: nur seine Schritte und das Ziel; sonst hinab
+    bis ins Tal und (in der Akzentfarbe) wohin es führt.
+  */
+  const drawn = useMemo(() => {
+    if (paths === null) return null;
+    const cellOfNode = (v: number) => layout.cellOf[v] ?? -1;
+    const nodes: ReadonlySet<number> = routeOn ? new Set(routeSteps.keys()) : paths.nodes;
+    const down = cellEdges(paths.down.filter(([a, b]) => !routeOn || (nodes.has(a) && nodes.has(b))).map(([a, b]) => [cellOfNode(a), cellOfNode(b)] as const));
+    const up = routeOn ? [] : cellEdges(paths.up.map(([a, b]) => [cellOfNode(a), cellOfNode(b)] as const));
+    const own = new Set([...nodes].map(cellOfNode).filter((i) => i >= 0));
+    /* Im Zoom bleibt ein Weg im Bild, wo er kann (Zellen ausserhalb der Kamera sind nicht gezeichnet). */
+    const cost = (i: number) => { const c = layout.land[i]; return (own.has(i) ? 1 : c.field === null ? 1.25 : 3.5) + (zoomed && !c.inScope ? 1.5 : 0) + (zoomed && !inCamera(layout, c) ? 8 : 0); };
+    const all = hexRoutes(layout.land, [...down, ...up], cost);
+    const downKeys = new Set<string>();
+    for (const p of all.paths.slice(0, down.length)) if (p !== null) for (let i = 1; i < p.length; i += 1) downKeys.add(segmentKey(p[i - 1], p[i]));
+    return {
+      nodes,
+      down: all.segments.filter(([a, b]) => downKeys.has(segmentKey(a, b))),
+      up: all.segments.filter(([a, b]) => !downKeys.has(segmentKey(a, b))),
+      edges: down.length + up.length
+    };
+  }, [paths, routeOn, routeSteps, layout, zoomed]);
+  const segPath = (segs: readonly (readonly [number, number])[]): string => segs.map(([a, b]) => { const p = centre(a); const q = centre(b); return `M${p[0].toFixed(1)},${p[1].toFixed(1)}L${q[0].toFixed(1)},${q[1].toFixed(1)}`; }).join('');
 
   const me = useMemo(() => {
     const [x, y] = screenOf(geo, 0, 0, layout.me.lift);
     return { x, y };
   }, [geo, layout.me.lift]);
   const areaNames = useMemo(() => areaLabelsOf(layout, geo, fonts.sector), [layout, geo, fonts.sector]);
-  const meBox: Box = { x0: me.x - 14, x1: me.x + 14, y0: me.y + FACE_HALF * geo.u, y1: me.y + FACE_HALF * geo.u + fonts.label.px * 1.6 };
-  const zoomed = layout.path.length > 0;
-  const names = useMemo(() => labelsOf(layout, geo, fonts.label, [...areaNames.map((p) => p.box), meBox], zoomed), [layout, geo, fonts.label, areaNames, zoomed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const s = FACE_HALF * geo.u;
+  const meBox: Box = { x0: me.x - 14, x1: me.x + 14, y0: me.y + s, y1: me.y + s + fonts.label.px * 1.6 };
+  const meIcon: Box = { x0: me.x - s * 0.7, x1: me.x + s * 0.7, y0: me.y - s * 0.75, y1: me.y + s * 0.7 };
   const markPx = Math.max(7, Math.min(14, Math.round(FACE_HALF * 2 * geo.u * 0.9)));
   useLayoutEffect(() => { svg.current?.style.setProperty('--ls-mark', `${markPx}px`); }, [markPx]);
+  const markFont: Font = useMemo(() => ({ css: fonts.label.family === '' ? '' : `${fonts.label.style} 700 ${markPx}px ${fonts.label.family}`, px: markPx, family: fonts.label.family, style: fonts.label.style }), [fonts.label, markPx]);
+  const badgeR = Math.max(6.5, markPx * 0.78);
+  /*
+    2026-11-03 (Prompt 3) — KEIN ZEICHEN ÜBER EINEM ANDEREN: das gewählte Feld und das Ziel des Weges zuerst, dann die
+    Zahlen des Weges, Ziel und nächster Schritt, die Namen der Bereiche, die Punkte des Weges, Felder „+N", der Ring, das
+    Tal, die Berge (die nahen zuerst); was sich überdeckt, fällt weg. Auf den Feldern des Weges steht seine Zahl statt der
+    Höhe. Danach die Namen der Einträge, wo sie nichts decken.
+  */
+  const placed = useMemo(() => {
+    const items: DrawLabel[] = [];
+    for (const f of layout.fields) {
+      const v = f.kind === 'entry' ? indexOf.get(f.id!) : undefined;
+      if (v !== undefined && routeSteps.has(v)) continue;
+      const [x, y] = screenOf(geo, f.x, f.y, f.lift);
+      const box = markBoxOf(f, x, y, s, markPx, markFont, geo, f.kind === 'area' || markPx <= s * 2.4);
+      if (box === null) continue;
+      const rank = f.key === chosen ? 0 : f.goal ? 1.5 : f.next ? 1.6 : f.kind === 'area' ? 3 : f.band === 'ring' ? 4 : f.band === 'mountain' ? 6 + Math.min(9, f.missing) / 10 : 5;
+      items.push({ key: `m:${f.key}`, box, rank: rank + (layout.land[f.cells[0]]?.inScope === false ? 10 : 0) });
+    }
+    /* Eine Zahl des Weges steht auf ihrem Feld, sonst an einer seiner Ecken (mit einem kurzen Strich zur Mitte). */
+    const places = new Map<number, (readonly [number, number])[]>();
+    for (const [v, n] of routeSteps) {
+      const i = layout.cellOf[v];
+      if (i === undefined || i < 0) continue;
+      const [x, y] = centre(i);
+      const numbered = numberedStep(n, stepCount);
+      const r = (numbered ? badgeR : 3) + 1;
+      const spots: (readonly [number, number])[] = [[x, y], ...(numbered ? BADGE_AROUND.map(([dx, dy]) => [x + dx * r, y + dy * r] as const) : [])];
+      places.set(v, spots);
+      const boxAt = ([px, py]: readonly [number, number]): Box => ({ x0: px - r, x1: px + r, y0: py - r, y1: py + r });
+      items.push({ key: `s:${v}`, box: boxAt(spots[0]), alts: spots.slice(1).map(boxAt), rank: n === stepCount + 1 ? 0 : numbered ? 1 : 2.5 });
+    }
+    for (const p of areaNames) items.push({ key: `a:${p.key}`, box: p.box, rank: 2 });
+    const done = placeLabels(items, [meBox, meIcon]);
+    const spots = new Map<number, readonly [number, number]>();
+    for (const [v, list] of places) { const k = done.at.get(`s:${v}`); if (k !== undefined) spots.set(v, list[k]); }
+    return { ...done, spots };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, geo, markPx, markFont, routeSteps, stepCount, areaNames, chosen, indexOf, badgeR]);
+  const names = useMemo(() => labelsOf(layout, geo, fonts.label, placed.boxes, zoomed), [layout, geo, fonts.label, placed, zoomed]);
 
   /* Zeigen und Wählen über die Zellen (eine Hand voll Handler für alle). */
   const ownerOf = (target: EventTarget | null): LsField | undefined => {
@@ -896,12 +1033,12 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
     const f = ownerOf(e.target);
     if (f === undefined) return;
     clear();
-    if (hover === null) timers.current.open = window.setTimeout(() => setHover(f.key), 120); else setHover(f.key);
+    if (hover === null) timers.current.open = window.setTimeout(() => setHover(f.key), 80); else setHover(f.key);
   };
   const leave = (e: ReactPointerEvent) => {
     if (e.pointerType !== 'mouse') return;
     clear();
-    timers.current.close = window.setTimeout(() => setHover(null), 260);
+    timers.current.close = window.setTimeout(() => setHover(null), 120);
   };
   const click = (e: { target: EventTarget | null }) => {
     const f = ownerOf(e.target);
@@ -909,18 +1046,20 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
     onChoose(f);
   };
   useEffect(() => {
-    if (chosen === null && hover === null) return undefined;
-    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { setHover(null); onClose(); } };
+    if (chosen === null) return undefined;
+    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { setPeek(null); onClose(); } };
     const outside = (e: PointerEvent) => {
       const t = e.target as Element | null;
       if (t?.closest?.('.cg-ls-quest') || t?.closest?.('[data-ls-owner],[data-ls-field]')) return;
-      setHover(null);
+      setPeek(null);
       onClose();
     };
     window.addEventListener('keydown', esc);
     window.addEventListener('pointerdown', outside);
     return () => { window.removeEventListener('keydown', esc); window.removeEventListener('pointerdown', outside); };
-  }, [chosen, hover, onClose]);
+  }, [chosen, onClose]);
+  /* Eine andere Wahl: was die Liste der alten zeigte, gilt nicht mehr. */
+  useEffect(() => { setPeek(null); }, [chosen]);
 
   const move = (e: KeyboardEvent<SVGSVGElement>) => {
     const el = (e.target as Element).closest('[data-ls-field]');
@@ -949,83 +1088,71 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
     e.preventDefault();
     if (next !== undefined) svg.current?.querySelector<SVGGElement>(`[data-ls-field="${CSS.escape(next.key)}"]`)?.focus();
   };
+  /* Die Tastatur zeigt wie die Maus: das Feld im Fokus zeigt seine Verbindungen. */
+  const focusIn = (e: { target: EventTarget | null }) => { const f = ownerOf(e.target); if (f !== undefined) { clear(); setHover(f.key); } };
+  const focusOut = () => { clear(); setHover(null); };
 
-  const lit = paths?.nodes ?? null;
-  const groupCells = shown !== undefined && shown.kind === 'area' ? new Set(shown.cells) : null;
+  const lit = drawn?.nodes ?? null;
+  const groupCells = focusField !== undefined && focusField.kind === 'area' ? new Set(focusField.cells) : null;
   const dimmed = (i: number, c: LsLand): boolean => (lit !== null ? c.node < 0 || !lit.has(c.node) : groupCells !== null ? !groupCells.has(i) : false);
-  const centreOf = (v: number): [number, number] | null => {
-    const i = layout.cellOf[v];
-    if (i < 0) return null;
-    const c = layout.land[i];
-    return screenOf(geo, c.x, c.y, c.lift);
-  };
-  const edge = (a: number, b: number): string | null => {
-    const p = centreOf(a);
-    const q = centreOf(b);
-    if (p === null || q === null) return null;
-    const mx = (p[0] + q[0]) / 2;
-    const my = Math.min(p[1], q[1]) - Math.abs(p[0] - q[0]) * 0.08 - 4;
-    return `M${p[0].toFixed(1)},${p[1].toFixed(1)}Q${mx.toFixed(1)},${my.toFixed(1)} ${q[0].toFixed(1)},${q[1].toFixed(1)}`;
-  };
-  /* Die Karte eines Feldes steht über ihm (oder darunter, wenn oben kein Platz ist); am Telefon unten im Bild. */
-  const anchor = shown === undefined ? null : screenOf(geo, shown.x, shown.y, shown.lift);
-  const below = anchor !== null && anchor[1] < 230;
-  const sheet = width < 520;
+  /* Die Karte des gewählten Feldes: an ihm, ganz im Fenster (darüber, darunter oder daneben); im schmalen Fenster ein Blatt unten. */
+  const anchor = picked === undefined ? null : screenOf(geo, picked.x, picked.y, picked.lift);
+  const sheet = viewportWidth(width) < SHEET_BELOW;
   /* Die anderen Bereiche im Zoom: am Rand, in ihrer Richtung. */
   /* Links, was links des Fokus liegt (die nächsten oben), rechts, was rechts liegt. */
-  const focusAngle = layout.sectors.length === 0 ? 90 : layout.sectors.reduce((s, x) => s + (x.from + x.to) / 2, 0) / layout.sectors.length;
+  const focusAngle = layout.sectors.length === 0 ? 90 : layout.sectors.reduce((sum, x) => sum + (x.from + x.to) / 2, 0) / layout.sectors.length;
   const leftRims = layout.outside.filter((o) => o.angle < focusAngle).sort((a, b) => b.angle - a.angle);
   const rightRims = layout.outside.filter((o) => o.angle >= focusAngle).sort((a, b) => a.angle - b.angle);
 
   return (
-    <div ref={box} className={`cg-ls-map${compact ? ' is-compact' : ''}`}>
+    <div className={`cg-ls-map${compact ? ' is-compact' : ''}`}>
       <svg ref={svg} className="cg-ls-svg" width={geo.width} height={geo.height} viewBox={`0 0 ${Math.max(1, geo.width)} ${Math.max(1, geo.height)}`} role="group"
-        aria-label="Krajobraz wiedzy: obok Ciebie dolina tego, co umiesz; równina — to, czego możesz się uczyć teraz; góry — tym wyższe, im więcej kroków brakuje."
-        onKeyDown={move} onPointerOver={enter} onPointerOut={leave} onClick={click} data-landscape-svg=""
-        data-ls-arcs={layout.sectors.map((s) => `${s.from.toFixed(2)},${s.to.toFixed(2)}`).join('|')}>
+        aria-label="Krajobraz wiedzy: obok Ciebie dolina tego, co umiesz; równina — to, czego możesz się uczyć teraz; góry — tym wyższe, im więcej kroków brakuje. Im bielsze pole, tym mniej znane i mniej dostępne."
+        onKeyDown={move} onPointerOver={enter} onPointerOut={leave} onClick={click} onFocus={focusIn} onBlur={focusOut} data-landscape-svg=""
+        data-ls-arcs={layout.sectors.map((x) => `${x.from.toFixed(2)},${x.to.toFixed(2)}`).join('|')}>
         <text className="cg-ls-label" data-ls-probe="label" visibility="hidden" x={0} y={-10}>Ag</text>
         <text className="cg-ls-sector" data-ls-probe="sector" visibility="hidden" x={0} y={-10}>Ag</text>
-        {/* Das Land: jede Zelle eine Säule, von hinten nach vorn; die Höhe ist der Stand, der Platz bleibt. */}
+        {/* Das Land: jede Zelle eine Säule, von hinten nach vorn; die Höhe ist der Stand, der Platz bleibt; die Kante eines Gebiets mit ihrer Zelle. */}
         <g className={`cg-ls-land${lit !== null || groupCells !== null ? ' is-lit' : ''}`}>
           {layout.land.map((c, i) => {
             if (zoomed && !inCamera(layout, c)) return null;
-            const shape = prism(geo, c.x, c.y, c.lift, zoomed && !c.inScope);
+            const flat = zoomed && !c.inScope;
+            const shape = prism(geo, c.x, c.y, c.lift, flat);
             const subject = c.subject >= 0 && c.subject < 8 ? c.subject : 'x';
+            const owner = c.field === null ? undefined : byKey.get(c.field);
+            const border = owner !== undefined && owner.kind === 'area' && owner.cells.length > 1 ? borderOf(layout, geo, cellAt, i, flat ? 0 : c.lift) : '';
             return (
               <g key={`${c.q},${c.r}`} className={`cg-ls-cell is-${c.band ?? `ground${c.tone === null ? '' : ` is-tone-${c.tone}`}`} is-s${subject} is-h${shade(c)}${c.inScope ? '' : ' is-out'}${dimmed(i, c) ? ' is-dim' : ''}${motion ? '' : ' is-still'}`}
-                data-ls-cell={`${c.q},${c.r}`} {...(c.field === null ? {} : { 'data-ls-owner': c.field })} data-ls-lift={Number(c.lift.toFixed(3))}>
+                data-ls-cell={`${c.q},${c.r}`} data-ls-ci={i} {...(c.field === null ? {} : { 'data-ls-owner': c.field })} data-ls-lift={Number(c.lift.toFixed(3))}>
                 {shape.sides.map((side, k) => <polygon key={k} className={`cg-ls-side is-${['l', 'f', 'r'][k]}`} points={side} />)}
                 <polygon className="cg-ls-face" points={shape.top} />
+                {border !== '' && <path className="cg-ls-edge" d={border} />}
               </g>
             );
           })}
         </g>
-        {/* Die Gebiete, die ein Feld sind: ihre Kante (durchgehend, nie gestrichelt). */}
-        <g className="cg-ls-outlines" aria-hidden>
-          {layout.fields.filter((f) => f.kind === 'area' && f.cells.length > 1).map((f) => (
-            <path key={f.key} className={`cg-ls-outline is-s${f.subject >= 0 && f.subject < 8 ? f.subject : 'x'}${shown?.key === f.key ? ' is-on' : ''}`} d={outlineOf(layout, geo, f.cells)} />
-          ))}
-          {shown !== undefined && shown.kind === 'entry' && <path className="cg-ls-outline is-on" d={outlineOf(layout, geo, shown.cells)} />}
-        </g>
-        {/* Die Wege (C): hinab bis zum Ring und ins Tal, und wohin es führt. */}
-        {paths !== null && (
-          <g className="cg-ls-paths" aria-hidden data-ls-paths={paths.down.length}>
-            {paths.up.map(([a, b]) => { const d = edge(a, b); return d === null ? null : <path key={`u${a}-${b}`} className="cg-ls-lead" d={d} />; })}
-            {paths.down.map(([a, b]) => { const d = edge(a, b); return d === null ? null : <path key={`d${a}-${b}`} className="cg-ls-path" d={d} />; })}
+        {/* Das gewählte Feld: seine Kante deutlich, über allem. */}
+        {picked !== undefined && <path className="cg-ls-outline is-on" aria-hidden d={outlineOf(layout, geo, picked.cells)} data-ls-chosen-outline={picked.key} />}
+        {/* Die Wege (C): EIN Graph — hinab bis zum Ring und ins Tal (ein Berg: sein Weg), und wohin es führt. */}
+        {drawn !== null && (
+          <g className="cg-ls-paths" aria-hidden data-ls-paths={drawn.edges} data-ls-segs={drawn.down.length + drawn.up.length}
+            data-ls-seg-keys={[...drawn.down, ...drawn.up].map(([a, b]) => `${a}:${b}`).join('|')} data-ls-route={routeOn ? stepCount : 0}>
+            {drawn.up.length > 0 && <path className="cg-ls-lead" d={segPath(drawn.up)} />}
+            {drawn.down.length > 0 && <path className="cg-ls-path" d={segPath(drawn.down)} />}
           </g>
         )}
         {/* Die Zeichen der Felder (über allem Land, damit nichts sie deckt) — und die Ziele für Tastatur und Vorleser. */}
         <g className="cg-ls-marks">
           {layout.fields.map((f) => {
             const [x, y] = screenOf(geo, f.x, f.y, f.lift);
-            const s = FACE_HALF * geo.u;
             const words = fieldWords(f);
             const fits = f.kind === 'area' || markPx <= s * 2.4;
             const ring = f.progress !== undefined && f.progress.total > 1;
             const r = Math.max(4, s * 0.92);
             const share = ring ? f.progress!.known / f.progress!.total : 0;
+            const shown = placed.kept.has(`m:${f.key}`);
             return (
-              <g key={f.key} className={`cg-ls-field is-${f.band}${f.kind === 'area' ? ' is-area' : ''}${shown?.key === f.key ? ' is-on' : ''}${f.goal ? ' is-goal' : ''}${f.next ? ' is-next' : ''}${f.locked ? ' is-locked' : ''}${layout.land[f.cells[0]]?.inScope === false ? ' is-out' : ''}`}
+              <g key={f.key} className={`cg-ls-field is-${f.band}${f.kind === 'area' ? ' is-area' : ''}${chosen === f.key ? ' is-on' : ''}${f.goal ? ' is-goal' : ''}${f.next ? ' is-next' : ''}${f.locked ? ' is-locked' : ''}${layout.land[f.cells[0]]?.inScope === false ? ' is-out' : ''}`}
                 transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} data-ls-field={f.key} data-ls-band={f.band} data-ls-q={f.q} data-ls-r={f.r} data-ls-row={f.row} data-ls-area={f.area}
                 data-ls-height={Number.isFinite(f.height) ? Number(f.height.toFixed(3)) : ''} data-ls-lift={Number(f.lift.toFixed(3))} data-ls-count={f.count}
                 tabIndex={0} role="button" aria-pressed={chosen === f.key} aria-label={words}>
@@ -1036,29 +1163,44 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
                     <circle className="cg-ls-progress-on" r={r} strokeDasharray={`${(2 * Math.PI * r * share).toFixed(1)} ${(2 * Math.PI * r).toFixed(1)}`} transform="rotate(-90)" />
                   </g>
                 )}
-                {f.locked
+                {shown && (f.locked
                   ? <path className="cg-ls-lock" d={`M${-s * 0.42},${-s * 0.1} h${s * 0.84} v${s * 0.66} h${-s * 0.84} z M${-s * 0.24},${-s * 0.1} v${-s * 0.22} a${s * 0.24},${s * 0.24} 0 0 1 ${s * 0.48},0 v${s * 0.22}`} />
-                  : fits && <text className={`cg-ls-mark${f.kind === 'area' ? ' is-count' : ''}`} y={markPx * 0.36} textAnchor="middle">{markOf(f)}</text>}
-                {f.due > 0 && f.kind === 'entry' && <circle className="cg-ls-duedot" cx={CORNER * geo.u * 0.55} cy={-s * 0.45} r={Math.max(1.6, s * 0.24)} />}
-                {f.goal && <path className="cg-ls-goalflag" d={`M${-CORNER * geo.u * 0.62},${s * 0.55} v${-s * 1.1} l${s * 0.6},${s * 0.25} l${-s * 0.6},${s * 0.25}`} />}
-                {f.next && !f.goal && <circle className="cg-ls-nextdot" cx={CORNER * geo.u * 0.62} cy={0} r={Math.max(1.5, s * 0.3)} />}
+                  : fits && <text className={`cg-ls-mark${f.kind === 'area' ? ' is-count' : ''}`} y={markPx * 0.36} textAnchor="middle">{markOf(f)}</text>)}
+                {shown && f.due > 0 && f.kind === 'entry' && <circle className="cg-ls-duedot" cx={CORNER * geo.u * 0.55} cy={-s * 0.45} r={Math.max(1.6, s * 0.24)} />}
+                {shown && f.goal && <path className="cg-ls-goalflag" d={`M${-CORNER * geo.u * 0.62},${s * 0.55} v${-s * 1.1} l${s * 0.6},${s * 0.25} l${-s * 0.6},${s * 0.25}`} />}
+                {shown && f.next && !f.goal && <circle className="cg-ls-nextdot" cx={CORNER * geo.u * 0.62} cy={0} r={Math.max(1.5, s * 0.3)} />}
               </g>
             );
           })}
-          {/* Der Weg eines Berges: seine Schritte, nummeriert, auf ihren Feldern. */}
-          {[...routeSteps].map(([v, n]) => { const p = centreOf(v); return p === null ? null : <text key={`n${v}`} className="cg-ls-step" x={p[0]} y={p[1] - FACE_HALF * geo.u - 2} textAnchor="middle" data-ls-step={n}>{n}</text>; })}
+          {/* Der Weg eines Berges: die nächsten drei Schritte und das Ziel mit Zahl (statt der Höhe), die übrigen ein Punkt. */}
+          {[...routeSteps].map(([v, n]) => {
+            const i = layout.cellOf[v];
+            const at = placed.spots.get(v);
+            if (i === undefined || i < 0 || at === undefined) return null;
+            const [x, y] = at;
+            if (!numberedStep(n, stepCount)) return <circle key={`d${v}`} className="cg-ls-stepdot" cx={x.toFixed(1)} cy={y.toFixed(1)} r={3} data-ls-stepdot={n} />;
+            const [cx, cy] = centre(i);
+            const moved = Math.hypot(cx - x, cy - y) > 0.5;
+            return (
+              <g key={`n${v}`} className={`cg-ls-stepbadge${n === stepCount + 1 ? ' is-goal' : ''}`} data-ls-step={n} data-ls-step-cell={i}>
+                {moved && <line className="cg-ls-stepleader" x1={cx.toFixed(1)} y1={cy.toFixed(1)} x2={x.toFixed(1)} y2={y.toFixed(1)} />}
+                <circle cx={x.toFixed(1)} cy={y.toFixed(1)} r={badgeR.toFixed(1)} />
+                <text x={x.toFixed(1)} y={(y + markPx * 0.36).toFixed(1)} textAnchor="middle">{n}</text>
+              </g>
+            );
+          })}
         </g>
         <g className="cg-ls-me" aria-hidden data-ls-me="" data-ls-lift={Number(layout.me.lift.toFixed(3))}>
           {(() => { const shape = prism(geo, 0, 0, layout.me.lift); return <polygon className="cg-ls-me-face" points={shape.top} />; })()}
-          <circle cx={me.x} cy={me.y - FACE_HALF * geo.u * 0.38} r={FACE_HALF * geo.u * 0.3} />
-          <path d={`M${(me.x - FACE_HALF * geo.u * 0.62).toFixed(1)},${(me.y + FACE_HALF * geo.u * 0.62).toFixed(1)} Q${me.x.toFixed(1)},${(me.y - FACE_HALF * geo.u * 0.25).toFixed(1)} ${(me.x + FACE_HALF * geo.u * 0.62).toFixed(1)},${(me.y + FACE_HALF * geo.u * 0.62).toFixed(1)} Z`} />
+          <circle cx={me.x} cy={me.y - s * 0.38} r={s * 0.3} />
+          <path d={`M${(me.x - s * 0.62).toFixed(1)},${(me.y + s * 0.62).toFixed(1)} Q${me.x.toFixed(1)},${(me.y - s * 0.25).toFixed(1)} ${(me.x + s * 0.62).toFixed(1)},${(me.y + s * 0.62).toFixed(1)} Z`} />
           <text x={me.x} y={meBox.y1 - 4} textAnchor="middle" data-ls-me-label="">Ty</text>
         </g>
         <g className="cg-ls-areanames" aria-hidden>
-          {areaNames.map((p) => {
-            const i = layout.sectors.findIndex((s) => s.value === p.key);
-            const s = layout.sectors[i];
-            return <text key={`a${p.key}`} className={`cg-ls-sector is-s${s !== undefined && s.subject >= 0 && s.subject < 8 ? s.subject : 'x'}`} x={p.x} y={p.y} textAnchor="middle" data-ls-area-label={p.key} data-ls-area-index={i}>{p.text}</text>;
+          {areaNames.filter((p) => placed.kept.has(`a:${p.key}`)).map((p) => {
+            const i = layout.sectors.findIndex((x) => x.value === p.key);
+            const sec = layout.sectors[i];
+            return <text key={`a${p.key}`} className={`cg-ls-sector is-s${sec !== undefined && sec.subject >= 0 && sec.subject < 8 ? sec.subject : 'x'}`} x={p.x} y={p.y} textAnchor="middle" data-ls-area-label={p.key} data-ls-area-index={i}>{p.text}</text>;
           })}
         </g>
         <g className="cg-ls-names" aria-hidden>
@@ -1067,11 +1209,10 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
       </svg>
       {leftRims.length > 0 && <div className="cg-ls-rims is-left">{leftRims.map((o) => <Rim key={o.value} rim={o} side="left" onZoom={onZoom} />)}</div>}
       {rightRims.length > 0 && <div className="cg-ls-rims is-right">{rightRims.map((o) => <Rim key={o.value} rim={o} side="right" onZoom={onZoom} />)}</div>}
-      {shown !== undefined && anchor !== null && (
-        <QuestBox className={`cg-ls-quest${sheet ? ' is-sheet' : below ? ' is-below' : ''}`} label={shown.label} questKey={shown.key}
-          at={sheet ? null : { left: Math.max(8, Math.min(geo.width - 8, anchor[0])), top: below ? anchor[1] + FACE_HALF * geo.u + 10 : anchor[1] - FACE_HALF * geo.u - 10 }}
-          onPointerEnter={() => clear()} onPointerLeave={(e) => { if (e.pointerType === 'mouse' && chosen === null) { clear(); timers.current.close = window.setTimeout(() => setHover(null), 260); } }}>
-          {quest(shown, { route: route !== null && route.id === shown.id ? route.steps : null, onHover: setPeek })}
+      {picked !== undefined && anchor !== null && (
+        <QuestBox svg={svg} geoWidth={geo.width} geoHeight={geo.height} at={{ x: anchor[0], y: anchor[1], half: s + 4, halfW: CORNER * geo.u + 4 }} sheet={sheet} label={picked.label} questKey={picked.key}
+          avoid={[...placed.spots.values()]} avoidLine={drawn === null ? [] : [...drawn.down, ...drawn.up].flatMap(([a, b]) => { const p = centre(a); const q = centre(b); return [p, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] as [number, number]]; })}>
+          {quest(picked, { route: route !== null && route.id === picked.id ? route.steps : null, onHover: setPeek, close: onClose })}
         </QuestBox>
       )}
     </div>
@@ -1092,6 +1233,10 @@ function ProgressRing({ known, total }: { known: number; total: number }) {
   );
 }
 
+/**
+ * DIE KARTE EINES FELDES (D; 2026-11-03, Prompt 3): oben, was immer zu sehen bleibt — Name, Fortschritt, Stand, der Knopf;
+ * darunter, was rollt — was darin liegt, der ganze Weg (jeder Schritt, das Ziel zuletzt), was danach kommt.
+ */
 function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen, unitSize, onUnit }: {
   field: LsField;
   /** 2026-11-03 (F) — wie viele Teile eine Einheit hat; öffnen zeigt ihre Ścieżka gross. */
@@ -1102,7 +1247,7 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
   note: string | null;
   label: (id: string) => string;
   lockCount: (id: string) => number;
-  paths: { readonly route: readonly (readonly string[])[] | null; readonly onHover: (id: string | null) => void };
+  paths: QuestTools;
   onLearn: (id: string) => void;
   onReview: (id: string, band: LsBand) => void;
   onReviewFirst: (id: string) => void;
@@ -1118,60 +1263,85 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
         data-landscape-next-item={id}><TexText text={entityNameTex(lib, id)} /></button>
     </li>
   );
+  const head = (title: ReactNode, rest: ReactNode) => (
+    <div className="cg-ls-qhead" data-landscape-quest-head="">
+      <div className="cg-ls-qtop">
+        <p className="cg-ls-qtitle">{title}</p>
+        <button type="button" className="cg-ls-qclose" aria-label="Zamknij" onClick={paths.close} data-landscape-quest-close="">×</button>
+      </div>
+      {rest}
+    </div>
+  );
   if (f.kind === 'area') {
+    const inside = f.ids ?? [];
     return (
       <div className="cg-ls-q">
-        <p className="cg-ls-qtitle"><strong>{f.label}</strong> <span className="cg-muted">· {f.count}</span></p>
-        <div className="cg-ls-qrow">
-          {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
-          <p className="cg-ls-qstate">
-            {f.ring > 0 && <span>{LS_BAND_MARK.ring} {f.ring} gotowe do nauki</span>}
-            {f.due > 0 && <span>{LS_BAND_MARK.due} {f.due} do powtórki</span>}
-            {f.known > 0 && <span>{LS_BAND_MARK.known} {f.known} umiem</span>}
-            {f.mountain > 0 && <span>{LS_BAND_MARK.mountain} {f.mountain} za górami</span>}
-          </p>
-        </div>
-        <div className="wk-actions">
-          {canZoom && <button type="button" className="wk-btn" onClick={onZoom} data-landscape-zoom="">Przybliż</button>}
-        </div>
-        <p className="cg-ls-qh">W środku</p>
-        <ul className="cg-ls-qlist">{(f.ids ?? []).slice(0, 8).map(item)}</ul>
-        {(f.ids?.length ?? 0) > 8 && <p className="cg-muted">i {(f.ids?.length ?? 0) - 8} więcej — przybliż, żeby zobaczyć wszystkie.</p>}
+        {head(<><strong>{f.label}</strong> <span className="cg-muted">· {f.count}</span></>, (
+          <>
+            <div className="cg-ls-qrow">
+              {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
+              <p className="cg-ls-qstate">
+                {f.ring > 0 && <span>{LS_BAND_MARK.ring} {f.ring} gotowe do nauki</span>}
+                {f.due > 0 && <span>{LS_BAND_MARK.due} {f.due} do powtórki</span>}
+                {f.known > 0 && <span>{LS_BAND_MARK.known} {f.known} umiem</span>}
+                {f.mountain > 0 && <span>{LS_BAND_MARK.mountain} {f.mountain} za górami</span>}
+              </p>
+            </div>
+            {canZoom && <div className="wk-actions"><button type="button" className="wk-btn" onClick={onZoom} data-landscape-zoom="">Przybliż</button></div>}
+          </>
+        ))}
+        {inside.length > 0 && (
+          <div className="cg-ls-qbody">
+            <p className="cg-ls-qh">W środku ({inside.length})</p>
+            <ul className="cg-ls-qlist is-scroll" data-landscape-inside={inside.length}>{inside.map(item)}</ul>
+          </div>
+        )}
       </div>
     );
   }
   const id = f.id!;
   const locks = f.locked ? lockCount(id) : 0;
   const parts = unitSize(id);
+  const way = f.band === 'mountain' && paths.route !== null && paths.route.length > 0 ? paths.route : null;
+  const unlocks = f.unlocks ?? [];
   return (
     <div className="cg-ls-q">
-      <p className="cg-ls-qtitle"><strong><TexText text={entityNameTex(lib, id)} /></strong></p>
-      <div className="cg-ls-qrow">
-        {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
-        <p className="cg-ls-qstate" data-landscape-state={f.band}><span aria-hidden>{markOf(f)} </span>{stateWords(f)}</p>
-      </div>
-      <div className="wk-actions">
-        {canLearn && f.band === 'ring' && !f.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">Zacznij</button>}
-        {canLearn && f.band === 'ring' && f.locked && <button type="button" className="wk-btn" onClick={() => onReviewFirst(id)} data-landscape-review-first="">Najpierw powtórz ({locks})</button>}
-        {canLearn && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">Powtórz</button>}
-        {f.band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? 'Usuń cel' : 'Ustaw jako cel'}</button>}
-        {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">Otwórz wpis</button>}
-        {parts > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>Pokaż ścieżkę ({parts})</button>}
-      </div>
-      {!canLearn && f.band !== 'mountain' && <p className="cg-muted">Uczyć się możesz, gdy ten widok wie, kto się uczy (zalogowanie, osoba strony albo ta przeglądarka).</p>}
-      {note !== null && <p className="wk-note" role="status">{note}</p>}
-      {f.band === 'mountain' && paths.route !== null && paths.route.length > 0 && (
-        <div className="cg-ls-route" data-landscape-route={paths.route.length}>
-          <p className="cg-ls-qh">Droga — od podstaw (na mapie: 1…{paths.route.length})</p>
-          <ol className="cg-ls-qlist">{paths.route.slice(0, 6).map((step, i) => <li key={i}>{step.map((x, j) => <span key={x}>{j > 0 ? ' + ' : ''}<TexText text={entityNameTex(lib, x)} /></span>)}</li>)}</ol>
-          {paths.route.length > 6 && <p className="cg-muted">i {paths.route.length - 6} dalszych kroków.</p>}
-        </div>
-      )}
-      {(f.unlocks?.length ?? 0) > 0 && (
+      {head(<strong><TexText text={entityNameTex(lib, id)} /></strong>, (
         <>
-          <p className="cg-ls-qh">Co dalej</p>
-          <ul className="cg-ls-qlist" data-landscape-unlocks={f.unlocks!.length}>{f.unlocks!.slice(0, 6).map(item)}</ul>
+          <div className="cg-ls-qrow">
+            {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
+            <p className="cg-ls-qstate" data-landscape-state={f.band}><span aria-hidden>{markOf(f)} </span>{stateWords(f)}</p>
+          </div>
+          <div className="wk-actions">
+            {canLearn && f.band === 'ring' && !f.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">Zacznij</button>}
+            {canLearn && f.band === 'ring' && f.locked && <button type="button" className="wk-btn" onClick={() => onReviewFirst(id)} data-landscape-review-first="">Najpierw powtórz ({locks})</button>}
+            {canLearn && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">Powtórz</button>}
+            {f.band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? 'Usuń cel' : 'Ustaw jako cel'}</button>}
+            {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">Otwórz wpis</button>}
+            {parts > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>Pokaż ścieżkę ({parts})</button>}
+          </div>
+          {!canLearn && f.band !== 'mountain' && <p className="cg-muted">Uczyć się możesz, gdy ten widok wie, kto się uczy (zalogowanie, osoba strony albo ta przeglądarka).</p>}
+          {note !== null && <p className="wk-note" role="status">{note}</p>}
         </>
+      ))}
+      {(way !== null || unlocks.length > 0) && (
+        <div className="cg-ls-qbody">
+          {way !== null && (
+            <div className="cg-ls-route" data-landscape-route={way.length}>
+              <p className="cg-ls-qh">Droga — od podstaw ({steps(way.length)}, na mapie 1–{way.length + 1})</p>
+              <ol className="cg-ls-qlist is-scroll">
+                {way.map((step, i) => <li key={i} data-landscape-route-step={i + 1}>{step.map((x, j) => <span key={x}>{j > 0 ? ' + ' : ''}<TexText text={entityNameTex(lib, x)} /></span>)}</li>)}
+                <li className="cg-ls-qgoal" data-landscape-route-step={way.length + 1}><strong><TexText text={entityNameTex(lib, id)} /></strong> — cel</li>
+              </ol>
+            </div>
+          )}
+          {unlocks.length > 0 && (
+            <>
+              <p className="cg-ls-qh">Co dalej</p>
+              <ul className="cg-ls-qlist is-scroll" data-landscape-unlocks={unlocks.length}>{unlocks.map(item)}</ul>
+            </>
+          )}
+        </div>
       )}
       {f.band === 'mountain' && f.unlocks === undefined && label(id) === '' && null}
     </div>
@@ -1213,19 +1383,127 @@ function Rim({ rim, side, onZoom }: { rim: { readonly value: string; readonly la
   );
 }
 
-/** Die Karte eines Feldes über ihm — gesetzt über eine Referenz (keine Stile im JSX). */
-function QuestBox({ className, label, questKey, at, children, onPointerEnter, onPointerLeave }: {
-  className: string; label: string; questKey: string; at: { readonly left: number; readonly top: number } | null; children: ReactNode;
-  onPointerEnter: () => void; onPointerLeave: (e: ReactPointerEvent<HTMLDivElement>) => void;
+/**
+ * 2026-11-03 (Prompt 3) — DIE KARTE EINES FELDES IM FENSTER: an der Seite des Dokuments (nie vom Bild des Krajobraz
+ * beschnitten), fest im Fenster; darüber, wenn oben Platz ist, sonst darunter, sonst daneben — und immer ganz im
+ * Fenster (8 px Rand). Rollt die Seite, geht sie mit; ist das Feld nicht mehr zu sehen, wartet sie unsichtbar. Im
+ * schmalen Fenster ein Blatt am unteren Rand. Gesetzt über eine Referenz (keine Stile im JSX).
+ */
+function QuestBox({ svg, geoWidth, geoHeight, at, sheet, label, questKey, children, avoid = [], avoidLine = [] }: {
+  svg: RefObject<SVGSVGElement>;
+  geoWidth: number;
+  geoHeight: number;
+  /** Die Mitte des Feldes im Bild und wie weit es nach oben/unten und zur Seite reicht (Pixel des Bildes). */
+  at: { readonly x: number; readonly y: number; readonly half: number; readonly halfW: number };
+  /** Was die Karte möglichst nicht deckt: die Zahlen und Punkte des Weges (Pixel des Bildes). */
+  avoid?: readonly (readonly [number, number])[];
+  /** Punkte der Linien des Weges — weniger wichtig als die Zahlen, aber lieber frei. */
+  avoidLine?: readonly (readonly [number, number])[];
+  sheet: boolean;
+  label: string;
+  questKey: string;
+  children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  /* Für welche Wahl die Seite schon gerollt hat (das Blatt am Telefon). */
+  const lifted = useRef<string | null>(null);
   useLayoutEffect(() => {
     const el = ref.current;
-    if (el === null) return;
-    el.style.left = at === null ? '' : `${at.left.toFixed(0)}px`;
-    el.style.top = at === null ? '' : `${at.top.toFixed(0)}px`;
-  }, [at?.left, at?.top]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={ref} className={className} role="dialog" aria-label={label} data-landscape-quest={questKey} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>{children}</div>;
+    if (el === null) return undefined;
+    let frame = 0;
+    const place = () => {
+      frame = 0;
+      const box = svg.current?.getBoundingClientRect();
+      if (sheet || box === undefined) {
+        el.style.left = '';
+        el.style.top = '';
+        el.classList.remove('is-away');
+        el.dataset.side = 'sheet';
+        /*
+          Am Telefon bleibt das Feld über dem Blatt zu sehen: unter der Seite so viel Platz wie das Blatt hoch ist (sonst
+          liesse sich ein Feld unten nicht darüber rollen), und einmal je Wahl rollt die Seite es darüber.
+        */
+        if (sheet) document.body.style.setProperty('padding-bottom', `${Math.ceil(el.offsetHeight)}px`);
+        if (sheet && box !== undefined && lifted.current !== questKey) {
+          lifted.current = questKey;
+          const fy = box.top + (at.y + at.half) * (box.height / Math.max(1, geoHeight));
+          const room = window.innerHeight - el.offsetHeight - 12;
+          if (fy > room) window.scrollBy({ top: fy - room, behavior: 'smooth' });
+        }
+        return;
+      }
+      const kx = box.width / Math.max(1, geoWidth);
+      const ky = box.height / Math.max(1, geoHeight);
+      const ax = box.left + at.x * kx;
+      const ay = box.top + at.y * ky;
+      const half = at.half * ky;
+      const halfW = at.halfW * kx;
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const M = 8;
+      const GAP = 6;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      el.classList.toggle('is-away', ay + half < 0 || ay - half > vh || ax + halfW < 0 || ax - halfW > vw);
+      const clampX = (x: number) => Math.max(M, Math.min(vw - M - w, x));
+      const clampY = (y: number) => Math.max(M, Math.min(vh - M - h, y));
+      /*
+        Darüber, darunter, rechts, links — was ganz ins Fenster passt und das Feld frei lässt; davon, was die wenigsten
+        Zahlen und Punkte des Weges deckt (bei Gleichstand in dieser Reihenfolge). Passt nichts ganz: die Seite mit dem
+        meisten Platz, ins Fenster gerückt.
+      */
+      const marks = avoid.map(([x, y]) => [box.left + x * kx, box.top + y * ky] as const);
+      const line = avoidLine.map(([x, y]) => [box.left + x * kx, box.top + y * ky] as const);
+      const options = [
+        { side: 'above', left: clampX(ax - w / 2), top: ay - half - GAP - h },
+        { side: 'below', left: clampX(ax - w / 2), top: ay + half + GAP },
+        { side: 'right', left: ax + halfW + GAP, top: clampY(ay - h / 2) },
+        { side: 'left', left: ax - halfW - GAP - w, top: clampY(ay - h / 2) }
+      ];
+      const fits = (o: { left: number; top: number }) => o.left >= M - 0.5 && o.top >= M - 0.5 && o.left + w <= vw - M + 0.5 && o.top + h <= vh - M + 0.5;
+      const covers = (o: { left: number; top: number }, x: number, y: number, pad: number) => x >= o.left - pad && x <= o.left + w + pad && y >= o.top - pad && y <= o.top + h + pad;
+      let best: { side: string; left: number; top: number } | null = null;
+      let bestScore = Number.POSITIVE_INFINITY;
+      for (const [k, o] of options.entries()) {
+        if (!fits(o) || covers(o, ax, ay, 0)) continue;
+        const score = marks.filter(([x, y]) => covers(o, x, y, 6)).length * 10 + line.filter(([x, y]) => covers(o, x, y, 2)).length + k * 0.1;
+        if (score < bestScore) { bestScore = score; best = o; }
+      }
+      let left: number;
+      let top: number;
+      let side: string;
+      if (best !== null) ({ left, top, side } = best);
+      else {
+        const roomRight = vw - M - (ax + halfW + GAP);
+        const roomLeft = ax - halfW - GAP - M;
+        side = roomRight >= w || roomRight >= roomLeft ? 'right' : 'left';
+        left = side === 'right' ? Math.min(ax + halfW + GAP, vw - M - w) : Math.max(M, ax - halfW - GAP - w);
+        top = clampY(ay - h / 2);
+      }
+      el.style.left = `${Math.round(left)}px`;
+      el.style.top = `${Math.round(top)}px`;
+      el.dataset.side = side;
+    };
+    place();
+    const soon = () => { if (frame === 0) frame = window.requestAnimationFrame(place); };
+    window.addEventListener('scroll', soon, true);
+    window.addEventListener('resize', soon);
+    const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(soon);
+    watch?.observe(el);
+    return () => {
+      if (sheet) document.body.style.removeProperty('padding-bottom');
+      window.removeEventListener('scroll', soon, true);
+      window.removeEventListener('resize', soon);
+      watch?.disconnect();
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- die Punkte als Text
+  }, [at.x, at.y, at.half, at.halfW, sheet, geoWidth, geoHeight, svg, questKey, avoid.map(([x, y]) => `${x.toFixed(0)},${y.toFixed(0)}`).join('|'), avoidLine.length]);
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div ref={ref} className={`cg-ls-quest${sheet ? ' is-sheet' : ''}`} role="dialog" aria-label={label} data-landscape-quest={questKey}>{children}</div>,
+    document.body
+  );
 }
 
 /* -- Masse und Schrift --------------------------------------------------------------------------------------------- */
@@ -1252,9 +1530,12 @@ function useWidth(initial = 0): [RefObject<HTMLDivElement>, number] {
 interface Font {
   readonly css: string;
   readonly px: number;
+  /** 2026-11-03 (Prompt 3) — Familie und Stil (für die Zeichen der Felder: fett, in ihrer Grösse). */
+  readonly family: string;
+  readonly style: string;
 }
 
-const FALLBACK_FONT: Font = { css: '', px: 12 };
+const FALLBACK_FONT: Font = { css: '', px: 12, family: '', style: 'normal' };
 let measureCanvas: CanvasRenderingContext2D | null | undefined;
 function textWidth(text: string, font: Font): number {
   if (measureCanvas === undefined) measureCanvas = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
@@ -1268,7 +1549,8 @@ function textWidth(text: string, font: Font): number {
 /** Kürzungen eines Namens: ganz (bis `max`), dann kürzer mit „…" — nie unter ein paar Zeichen. */
 function shortened(label: string, max: number): string[] {
   const out: string[] = [];
-  for (const n of [max, 22, 16, 12, 9, 6]) {
+  /* 2026-11-03 (Prompt 3) — nie kürzer als zwölf Zeichen („„Rodz…" sagt nichts): dann lieber kein Name. */
+  for (const n of [max, 22, 16, 12]) {
     if (n > max) continue;
     const t = label.length > n ? `${label.slice(0, n - 1).trimEnd()}…` : label;
     if (!out.includes(t)) out.push(t);
