@@ -15,7 +15,7 @@ import { Blocks, countNotes, MarkupLinks, NoteList, type MarkupLinkTo } from '..
 import { TexText } from '../ui/tex/Tex';
 import type { Who } from '../core/session';
 import { fileUrl } from './files';
-import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType, type KnownessBand } from './logic';
+import { CONDITION_LABEL, CONDITION_TYPES, COMPARE_LABEL, COMPARE_OPS, conditionText, FLOW_CHECK_LABEL, FLOW_CHECKS, KNOWNESS_BAND_LABEL, KNOWNESS_BANDS, readCondition, RELATION_LABEL, RELATIONS, type Action, type CompareOp, type Condition, type ConditionType, type FlowCheck, type KnownessBand } from './logic';
 import type { Learner } from './learn';
 import { runPython } from './python';
 import { viewPath } from '../routes';
@@ -357,6 +357,9 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
 }) {
   const c = value;
   const start: Condition = fresh ?? { type: 'value', value: '', op: 'ge', than: 1 };
+  /* 2026-11-03 (G) — „Przebieg": die Abläufe der Baza zur Wahl (ausserhalb einer Baza: eine Kennung von Hand). */
+  const cogita = useContext(CogitaContext);
+  const flows = cogita === null ? [] : cogita.lib.docs('flow').map((d) => ({ id: d.id, name: String(d.data.name ?? 'Przebieg') }));
   const set = (patch: Partial<Condition>) => onChange(readCondition({ ...(c ?? { type: 'value' }), ...patch }));
   const fields = relations === undefined ? [] : [...new Map(relations.map((f) => [f.key, f])).values()];
   const fieldName = (key: string) => fields.find((f) => f.key === key)?.label ?? key;
@@ -416,6 +419,22 @@ export function ConditionEditor({ value, onChange, name, depth = 0, relations, f
                 <input type="number" step="any" value={c.than ?? ''} onChange={(e) => set({ than: e.target.value === '' ? undefined : Number(e.target.value) })} />
               </>
             )}
+          </>
+        )}
+        {c.type === 'flow' && (
+          <>
+            {flows.length > 0
+              ? (
+                <select value={c.flow ?? ''} aria-label="Który przebieg" data-cond-flow="" onChange={(e) => set({ flow: e.target.value || undefined })}>
+                  <option value="">— przebieg —</option>
+                  {flows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              )
+              : <input value={c.flow ?? ''} placeholder="przebieg" onChange={(e) => set({ flow: e.target.value })} />}
+            <select value={c.state ?? 'done'} aria-label="Co ma być" onChange={(e) => set({ state: e.target.value as FlowCheck })}>
+              {FLOW_CHECKS.map((s) => <option key={s} value={s}>{FLOW_CHECK_LABEL[s]}</option>)}
+            </select>
+            {c.state === 'goal' && <input value={c.goal ?? ''} placeholder="cel (puste: którykolwiek)" onChange={(e) => set({ goal: e.target.value || undefined })} />}
           </>
         )}
         {(c.type === 'answered' || c.type === 'visited' || c.type === 'zone') && (

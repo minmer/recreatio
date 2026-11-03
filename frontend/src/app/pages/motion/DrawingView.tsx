@@ -237,7 +237,7 @@ const LiveLazy = lazy(() => import('./LiveDrawing'));
  * Eine Zeichnung zum Anfassen (Werte, Rechnungen, Simulation — `needsLive`)
  * zeichnet `LiveDrawing`; bis es geladen ist, hält ein leerer Rahmen ihre Grösse.
  */
-export function DrawingView(props: { drawing: Drawing; identity: string; still?: boolean; className?: string }) {
+export function DrawingView(props: { drawing: Drawing; identity: string; still?: boolean; className?: string; onGoal?: () => void }) {
   if (!needsLive(props.drawing)) return <StillDrawing {...props} />;
   const { drawing } = props;
   return (

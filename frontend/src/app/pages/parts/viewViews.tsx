@@ -13,6 +13,7 @@
  * wiedzy"): die Einträge im Nebel des Lernens.
  */
 
+import { answeredCards } from '../../cogita/learn';
 import { useMemo, useState } from 'react';
 
 import type { PartContext } from '../part';
@@ -33,7 +34,8 @@ import { fieldsOf, type Entity } from '../../cogita/schema';
 import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync, useAsyncKeep } from '../../cogita/ui';
 import { cellKey, cellText, groupTitle, needsKnowing, readView, viewColumns, viewGroups, viewList, viewMatrix, withKnowing, type ListMode } from '../../cogita/views';
-import { gaugeFromMarks } from '../../cogita/knowing';
+import { gaugeFromMarks, withFlows } from '../../cogita/knowing';
+import { learnerFlows } from '../../cogita/flowFacts';
 import { answerIndex } from '../../cogita/measures';
 import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
 import { QuiltView } from '../../cogita/QuiltView';
@@ -174,7 +176,8 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
   const knowing = useMemo(() => {
     if (!wants || lib == null || knowCards == null) return null;
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
-    return gaugeFromMarks(knowCards, (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
+    const page = visitor.learner === null ? [] : answeredCards(visitor.learner.progress, new Set(fp.keys()));
+    return withFlows(gaugeFromMarks([...knowCards, ...page], (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), learnerFlows(lib, visitor.learner?.progress.positions));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wants, lib, knowCards, visitor.learner, visitor.learner?.progress]);
   const vlib = useMemo(() => (lib == null ? lib : withKnowing(lib, knowing)), [lib, knowing]);

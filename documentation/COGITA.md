@@ -847,6 +847,35 @@ Phones stay awake.
   59 ms, heights 11 ms, layout 34 ms; after an answer 14 + 15 ms; zoom p95 16.8 ms per frame.
 - Prepared for later: `positionOf`, `routeTo`, `heightOf`, field marks, an edge filter (avatars, tours, age variants).
 
+### Stories that count (2026-11-03, G)
+
+- **One story** = one presentation page + one flow in the base pointing at it (`{"look": "scenes", "presentation":
+  "<path>", "unit": "@lesson"}`); no second graph. Looks as built: `scenes` + `presentation` plays the page's own engine
+  in Nauka (base learner, position `page:<id>` with its `path`); a page module only links to it. Without a
+  presentation `scenes`/`slides` render the step player centred (`cg-flow-slides`), `flashcards` as one card,
+  `reading`/`dialogue`/`map` identically (bubbles only for `line` steps; no map is drawn for `map`).
+- **Answers that count**: a page question names a real question of the story's base (`"question": "@kurs/q"`) — the
+  answer lands on that card (its "O czym", shared history with revisions); an own question with `"about"` records its
+  module card with `about` on the answer (`AnswerRecord.about`) — `answeredCards` turns such answers into cards that
+  count for those entries in views, landscape, path and gates but make nothing askable (`template: '~page'`).
+- **Labs**: checked — nothing recorded before. Physics (`goal` of the scene) and animation (a rule with `goal: true`)
+  now record correctness 1 once per arrival on `question`/`about` or their own goal card (`useStoryGoal`);
+  particles and lab2d have no goal concept (nothing to record).
+- **Gates read entries**: the story run opens its base (`openPageBase`) — knowness of an entry (id or `@name`) from
+  its cards and questions about it, plus page answers; unknown keys stay card keys. A signed-in reader counts as their
+  own person by default and answers go where Nauka puts them (`targetFor`), so Nauka sees them.
+- **Done and goals**: `FlowPosition` keeps `chapters` (`hub:i`, restored), `done` (sticky; a presentation when a scene
+  whose "dalej" ends is reached), `goals` (union), `path` (presentations). Condition `{"type": "flow", "flow": "@ref",
+  "state": "done" | "started" | "goal", "goal"}` via `Facts.flow`, `Gauge.flows` (`learnerFlows`): views
+  (`filter.when`), revisions (`RevisionContext.flows`), landscape view steps. Learners in one tab share fresh answers
+  and positions at once (`SESSION`, `tell` with positions).
+- **A story is a unit field**: the flow's `unit` stands in the landscape even without own cards; done → its field lies
+  in the valley; „Pokaż ścieżkę" shows the story's path (KB flows) or the unit's parts, with „Opowieść: … — ukończona".
+- **Forks**: presentation paths come from the storyboard (`presentationPath.ts`): per scene its `about` (new scene key)
+  plus what its questions/labs count for; the unit itself is no step. In Nauka the path sits over the stage
+  (collapsible): "now" = the scene shown (route-aware), the current branch lit, a tap drives the stage there
+  (`DriveControl.jump`). The page module `path` follows presentation flows too.
+
 ### The path map (2026-11-03, F)
 
 - **One component** (`PathMap.tsx`, model `pathLayout.ts`): nodes bottom (start) to top joined by visible ways, like a

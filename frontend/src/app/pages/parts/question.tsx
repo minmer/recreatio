@@ -48,6 +48,10 @@ export interface QuestionConfig {
   readonly unit: string;
   readonly quantity: string;
   readonly tolerance: number;
+  /** 2026-11-03 (G) — eine echte Frage der Baza der Erzählung (Kennung oder @name): die Antwort liegt auf ihrer Karte. */
+  readonly question: string;
+  /** 2026-11-03 (G) — die eigene Frage zählt zusätzlich für diese Einträge der Baza (Kennungen oder @name). */
+  readonly about: readonly string[];
 }
 
 const lines = (raw: RawConfig, key: string): string[] =>
@@ -67,12 +71,16 @@ export function readQuestion(raw: RawConfig): QuestionConfig {
     unit: text(raw, 'unit'),
     /* geprüft wird die Grösse, wo gerechnet wird (`questionCard`); hier steht sie, wie sie ist */
     quantity: text(raw, 'quantity'),
-    tolerance: Math.max(0, Number((raw.tolerance ?? '').replace(',', '.')) || 0)
+    tolerance: Math.max(0, Number((raw.tolerance ?? '').replace(',', '.')) || 0),
+    question: text(raw, 'question'),
+    about: (raw.about ?? '').split(/[\n,]/).map((one) => one.trim()).filter((one) => one !== '')
   };
 }
 
 /** Was noch fehlt, damit sich die Frage beantworten lässt — oder `null`. */
 export function questionMissing(c: QuestionConfig): string | null {
+  /* 2026-11-03 (G) — eine echte Frage der Baza bringt alles mit. */
+  if (c.question !== '') return null;
   if (c.prompt === '' && c.form !== 'flash') return 'Wpisz pytanie.';
   if (c.form === 'one' || c.form === 'many') {
     if (c.options.length < 2) return 'Dodaj co najmniej dwie możliwości.';
@@ -177,9 +185,9 @@ function QuestionView({ config, ctx }: { config: QuestionConfig; ctx: PartContex
 
 export const questionPart = definePart<QuestionConfig>({
   kind: 'question',
-  example: { form: 'one', prompt: 'Ile jest sakramentów?', options: 'Pięć\nSiedem\nDwanaście', correct: '1', answers: 'siedem\n7', value: 'tak', explain: 'Chrzest, bierzmowanie, Eucharystia, pokuta, namaszczenie chorych, kapłaństwo, małżeństwo.', unit: 'szt.', quantity: 'Dimensionless', tolerance: '0' },
+  example: { form: 'one', prompt: 'Ile jest sakramentów?', options: 'Pięć\nSiedem\nDwanaście', correct: '1', answers: 'siedem\n7', value: 'tak', explain: 'Chrzest, bierzmowanie, Eucharystia, pokuta, namaszczenie chorych, kapłaństwo, małżeństwo.', unit: 'szt.', quantity: 'Dimensionless', tolerance: '0', question: '<puste albo @kurs/pytanie z bazy opowieści>', about: '@kurs/sakramenty' },
   label: 'Pytanie',
-  use: 'Pytanie z odpowiedzią do sprawdzenia. W prezentacji — krok przebiegu: po dobrej i po złej odpowiedzi może prowadzić w inne miejsce, a odpowiedzi liczą się w przeglądarce albo w Cogicie.',
+  use: 'Pytanie z odpowiedzią do sprawdzenia. W prezentacji — krok przebiegu: po dobrej i po złej odpowiedzi może prowadzić w inne miejsce, a odpowiedzi liczą się w przeglądarce albo w Cogicie. W opowieści z bazą wiedzy może to być prawdziwe pytanie z bazy ("question": jego id albo @nazwa) — odpowiedź liczy się wtedy dla tego, o czym jest, i wspólnie z powtórkami; własne pytanie z "about" liczy się dla wymienionych wpisów.',
   box: { colSpan: 4, rowSpan: 3 },
   fields: [],
   extra: [
@@ -192,7 +200,9 @@ export const questionPart = definePart<QuestionConfig>({
     { key: 'explain', shape: 'lines', says: 'wyjaśnienie pokazywane po odpowiedzi' },
     { key: 'unit', shape: 'line', says: 'jednostka dobrych odpowiedzi, np. "N·m" (number)' },
     { key: 'quantity', shape: 'line', says: 'wielkość (number) — np. "Torque" (moment siły), "Energy", "Mass", "Length"; wtedy odpowiedź w innej jednostce tej wielkości jest przeliczana, a jednostka innej wielkości jest błędem ("12 J" na pytanie o moment siły)' },
-    { key: 'tolerance', shape: 'line', says: 'ile wolno się pomylić, w jednostce pytania, np. "0,5" (number)' }
+    { key: 'tolerance', shape: 'line', says: 'ile wolno się pomylić, w jednostce pytania, np. "0,5" (number)' },
+    { key: 'question', shape: 'line', says: 'w opowieści z bazą wiedzy (prezentacja z "story.base"): prawdziwe pytanie z tej bazy — jego id albo @nazwa; wtedy pokazuje się ono samo (pola wyżej są zbędne), a odpowiedź leży na jego karcie: liczy się dla tego, o czym jest ("about" pytania), i wspólnie z powtórkami' },
+    { key: 'about', shape: 'lines', says: 'w opowieści z bazą wiedzy: dla jakich wpisów tej bazy liczy się odpowiedź na to (własne) pytanie — id albo @nazwa, każdy w osobnej linii; znajomość tych wpisów rośnie z dobrą odpowiedzią (krajobraz, ścieżka, warunki)' }
   ],
   read: readQuestion,
   hasContent: (c) => questionMissing(c) === null,

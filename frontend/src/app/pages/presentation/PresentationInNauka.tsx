@@ -15,9 +15,17 @@
  * Seite, mit dem eigenen Zugang (`storyOfPage.ts`).
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import type { Learner } from '../../cogita/learn';
+import type { FlowContent } from '../../cogita/FlowPlayer';
+import { answeredCards, type Learner } from '../../cogita/learn';
+import { gaugeFromMarks } from '../../cogita/knowing';
+import { storyKnow } from '../../cogita/PathLearn';
+import { flowShown } from '../../cogita/flowPath';
+import { PathMap } from '../../cogita/PathMap';
+import { branchOf, pathMarks } from '../../cogita/pathLayout';
+import type { DriveControl } from './usePresentationDrive';
+import { presentationPath } from './presentationPath';
 import { knownessOf } from '../../cogita/knowness';
 import type { Facts } from '../../cogita/logic';
 import { pageSteps, viewPath } from '../../routes';
@@ -30,7 +38,7 @@ import { PagePresentation } from './PagePresentation';
 import { NO_STORY, startValues } from './story';
 import { loadStory, type LoadedStory } from './storyOfPage';
 
-export default function PresentationInNauka({ name, path, learner, onClose, narrator }: {
+export default function PresentationInNauka({ name, path, learner, onClose, narrator, content, unit = null }: {
   /** Der Name des Ablaufs. */
   name: string;
   /** Der Pfad der Seite mit der Präsentation. */
@@ -39,7 +47,14 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
   onClose?: () => void;
   /** Wer gerade erzählt — der Ablauf wählt ihn nach dem, was über den Lernenden bekannt ist. */
   narrator?: (facts: Facts) => ReactNode;
+  /** 2026-11-03 (G) — die Baza des Ablaufs: die Ścieżka der Erzählung neben der Bühne; die Einheit, die die Erzählung ist (kein Schritt). */
+  content?: FlowContent;
+  unit?: string | null;
 }) {
+  /* 2026-11-03 (G) — welche Szene gerade steht, und ein Griff, um zu einer zu fahren (die Ścieżka führt dorthin). */
+  const [active, setActive] = useState(0);
+  const control = useRef<DriveControl | null>(null);
+  const [pathOpen, setPathOpen] = useState(() => { try { return sessionStorage.getItem(`cg-show-path-open:${path}`) !== '0'; } catch { return true; } });
   const [loaded, setLoaded] = useState<LoadedStory | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
   const [, setTick] = useState(0);
@@ -57,6 +72,21 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
   /* Der Erzähler folgt den Werten: neu zeichnen, wenn der Lernende etwas dazulernt. */
   useEffect(() => (learner === null ? undefined : learner.subscribe(() => setTick((n) => n + 1))), [learner]);
 
+  /*
+    DIE ŚCIEŻKA DER ERZÄHLUNG (G): je Szene, wofür ihre Fragen (und Labore mit Ziel) zählen, über den Graphen des
+    Storyboards — jetzt dran ist die Szene, die steht; eine gewählte Spur leuchtet; ein freier Knoten fährt zu seiner Szene.
+  */
+  const told = useMemo(() => {
+    if (loaded === undefined || loaded === null || content === undefined) return null;
+    const refs = {
+      resolve: content.resolve ?? ((r: string) => (content.entity(r) !== null ? r : null)),
+      aboutOf: (id: string) => content.card(id)?.about ?? [],
+      label: content.label ?? ((id: string) => content.entity(id)?.label ?? id),
+      needsOf: content.needsOf ?? (() => [])
+    };
+    return presentationPath(loaded.flow, loaded.show, loaded.parts, refs, `page:${loaded.page.id ?? path}`, unit);
+  }, [loaded, content, path, unit]);
+
   if (loaded === undefined) return <Loading />;
   if (loaded === null) {
     return (
@@ -72,6 +102,27 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
 
   const { page, parts, look, show } = loaded;
   const pageId = page.id ?? null;
+  const storyMap = (() => {
+    if (told === null || told.model.nodes.length < 2 || content === undefined) return null;
+    const all = content.cards ?? [];
+    const fp = new Map(all.map((c) => [c.key, c.fingerprint] as const));
+    const g = gaugeFromMarks([...all, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key)) ?? [], [], Date.now());
+    /* Die Szene, die steht: der Weg der Bühne an dieser Stelle (er kann von der Liste der Szenen abweichen). */
+    const key = control.current?.route?.()[active] ?? show.scenes[active]?.key;
+    const here = key === undefined ? [] : told.fp.entriesAt.get(`s:${key}`) ?? [];
+    const kept = pageId === null ? undefined : learner?.progress.positions.get(`page:${pageId}`);
+    const visited = [...new Set([...(kept?.visited ?? []), ...(key === undefined ? [] : [key])])].map((k) => `s:${k}`);
+    const marks = pathMarks(told.model, storyKnow(g, flowShown(told.fp, visited)), here[0] ?? null);
+    const now = marks.current >= 0 ? told.model.nodes[marks.current].id : null;
+    return (
+      <div className="cg-show-path" data-show-path="">
+        <PathMap model={told.model} marks={marks} size="small" title="Ścieżka" collapsible open={pathOpen}
+          onOpen={(v) => { setPathOpen(v); try { sessionStorage.setItem(`cg-show-path-open:${path}`, v ? '1' : '0'); } catch { /* ohne Speicher */ } }}
+          highlight={now === null ? null : branchOf(told.model, [now])}
+          onPick={(id) => { const step = told.fp.stepOf.get(id); if (step !== undefined && step.startsWith('s:')) control.current?.jump?.(step.slice(2)); }} />
+      </div>
+    );
+  })();
   const facts = (): Facts => {
     const kept = pageId === null ? undefined : learner?.progress.positions.get(`page:${pageId}`);
     return {
@@ -97,6 +148,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
         </span>
       </div>
       {narrator?.(facts())}
+      {storyMap}
     </div>
   );
 
@@ -105,7 +157,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
       <PersonProvider path={loaded.path}>
         <PageSubjectProvider subject={page.subject} path={loaded.path}>
           <PageLogicProvider logic={page.logic}>
-            <PagePresentation parts={parts} look={look} title={page.title} pageId={pageId} learner={learner} extra={over} />
+            <PagePresentation parts={parts} look={look} title={page.title} pageId={pageId} learner={learner} extra={over} pagePath={loaded.path} control={control} onActive={setActive} />
           </PageLogicProvider>
         </PageSubjectProvider>
       </PersonProvider>

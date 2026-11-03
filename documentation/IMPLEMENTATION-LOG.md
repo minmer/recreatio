@@ -3190,3 +3190,30 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   jumps, collapse kept; page modules (story path, lesson path); landscape lesson field with progress ring → „Pokaż
   ścieżkę (14)" → full path in the address → Back to the same scroll; no console errors. Landscape browser test (54)
   still passes. `npm run app:check` and `vite build` pass.
+
+## C25 — Stories that count in Cogita (2026-11-03, Part 2 G)
+
+- Logic: condition `flow` (started / done / goal) — `logic.ts`, condition editor (flow picker), `Facts.flow`,
+  `Gauge.flows`/`withFlows`, `RevisionContext.flows`, `flowFacts.ts` (own position, presentation by path, chapters
+  kept/restored, goals merged); attached in landscape, Wiedza/page views, path runs, revisions, quilt.
+- Positions: `FlowPosition` `done`, `goals`, `path`, `chapters` used; `FlowPlayer` keeps them; `storyRun` keeps done at
+  an ending scene and the page path (`PagePresentation.pagePath`, `PublicPage`, `PresentationInNauka`).
+- Answers: `AnswerRecord.about` (read back), `answeredCards` (`~page`, never askable); `storyCard.ts` (real question,
+  own + about, goal card, `useStoryGoal`); question module keys `question`/`about`; physics/animation `question`/`about` +
+  goal recording (`PhysicsLab.onGoal`, `LiveDrawing.onGoal`); `StoryRun.card/resolve`; the run opens its base and
+  computes entry knowness for gates; signed-in default person + `targetFor` placement (Nauka sees the answers).
+- In-tab sharing: `learn.ts` `SESSION` (answers, snapshots, positions recorded in this tab, absorbed by later learners)
+  and positions told to live learners — fixes Nauka missing a just-finished story.
+- Units: flow `unit`; landscape lowers done units, shows units of stories, unit view tells the story and its state;
+  `landscapeState(…, lowered)`.
+- Presentation paths: scene `about` (reader, writer, page format), `presentationPath.ts`, companion PathMap in Nauka
+  (`DriveControl.jump`, route-aware now), page module `path` for presentation flows, `storyKnow` (steps without cards
+  count when shown).
+- Example: `templates/cogita/przyklad-opowiesc.json` + `przyklad-opowiesc-strona.json` (lesson, start → fork of three
+  → merge, three real questions, gates by knowness, path module, flow with unit, a view filtered by the flow condition).
+- Checks: `app-story-check.mjs` (22) in `app:check`. Browser (scratchpad `story-g/story-browser.mjs`, LocalDB, 22):
+  view empty before; intro gate (not learned → shown); fork with path module "0 z 3"; real question prompt; answer →
+  back to fork, "1 z 3", node done; all three → meeting scene → end; Nauka → Ścieżka topics done; landscape lesson in
+  the valley, unit "ukończona"; flow-condition view filled; second run skips the intro (lesson learned); Nauka
+  presentation with its path (5), tap drives to „Chmury", now follows; no console errors. F (27) and E (54) browser
+  tests still pass; `npm run app:check` passes.

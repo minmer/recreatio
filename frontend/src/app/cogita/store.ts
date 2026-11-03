@@ -34,6 +34,7 @@ import { DOC_KINDS, entityOf, entryData, isBaseKind, isDocKind, kindDefs, kindDo
 import { planKindRemoval, type KindRemoval } from './kindRemoval';
 import type { Dependency, DependencyKind, Mark } from './knowness';
 import type { RevisionContext } from './revision';
+import type { FlowFacts } from './logic';
 import { DEPENDENCY_KINDS } from './knowness';
 import { readDailyGoal } from './lessons';
 import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
@@ -399,8 +400,9 @@ export class CogitaLibrary {
    * Eintrags (auch eines aus einer Bibliothek), Zbiory, Themen, den
    * Fortschritt, und (2026-10-22) woher ein Eintrag kommt.
    */
-  revisionContext(cards: readonly Card[], marks: (key: string) => readonly Mark[], now: number): RevisionContext {
+  revisionContext(cards: readonly Card[], marks: (key: string) => readonly Mark[], now: number, flows?: ReadonlyMap<string, FlowFacts>): RevisionContext {
     return {
+      ...(flows === undefined || flows.size === 0 ? {} : { flows }),
       cards,
       kindsOf: (id) => this.entity(id)?.kinds ?? [],
       collection: (id) => this.members(id),

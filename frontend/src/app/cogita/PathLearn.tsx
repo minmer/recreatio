@@ -9,6 +9,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 
 import type { Card } from './cardBasics';
 import { readGraph } from './graph';
+import { learnerFlows } from './flowFacts';
 import { itemKnowness, type Gauge } from './knowing';
 import { LS_KNOWN, LS_LEARNED } from './landscape';
 import { renamer, type Learner } from './learn';
@@ -45,6 +46,15 @@ export function authorOrder(lib: CogitaLibrary): (a: string, b: string) => numbe
 export const gaugeKnow = (g: Gauge) => (id: string): { learned: boolean; due: boolean } => {
   const k = itemKnowness(g, id);
   return { learned: k >= LS_LEARNED - 1e-12, due: k >= LS_LEARNED - 1e-12 && k < LS_KNOWN };
+};
+
+/**
+ * 2026-11-03 (G) — DER STAND IN EINER ERZÄHLUNG: was Karten hat, nach seiner Kenntnis; was keine hat (eine Einführung,
+ * ein Treffpunkt), ist durch, sobald die Erzählung es gezeigt hat.
+ */
+export const storyKnow = (g: Gauge, shown: ReadonlySet<string>) => {
+  const known = gaugeKnow(g);
+  return (id: string): { learned: boolean; due: boolean } => (g.testing.has(id) ? known(id) : { learned: shown.has(id), due: false });
 };
 
 /** Die Karte über diesen Einträgen (in ihrer Reihenfolge), aus der einen Reihenfolge des Lernens; ohne sie eine Kette. */
@@ -87,7 +97,7 @@ export function usePathRun(lib: CogitaLibrary | null, learner: Learner | null, c
     /* Ein Eintrag mit den Pytania über ihn („O czym") — sie prüfen ihn mit. */
     const ids = run.ids === null ? null : [...new Set(run.ids.flatMap((id) => [id, ...cardsAbout(cards, id).map((c) => c.entity ?? c.question)]))];
     const doc = basicsRevision(ids, run.title);
-    const made = await planOf(readGraph(doc.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now()));
+    const made = await planOf(readGraph(doc.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now(), learnerFlows(lib, learner?.progress.positions)));
     return made.plan === null ? null : { plan: made.plan, cards, deps: lib.dependencies(), title: run.title };
   }, [run, cards, lib, learner]);
   const view = run === null ? null

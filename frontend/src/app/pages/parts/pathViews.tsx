@@ -9,18 +9,20 @@ import { useMemo } from 'react';
 import type { PartContext } from '../part';
 import { answersArea } from '../../cogita/answersTo';
 import { contentOfLibrary, stepEntries } from '../../cogita/FlowPlayer';
-import { flowCurrent, flowPath, flowPathModel } from '../../cogita/flowPath';
+import { flowCurrent, flowPath, flowPathModel, flowShown } from '../../cogita/flowPath';
 import { gaugeFromMarks } from '../../cogita/knowing';
-import { renamer } from '../../cogita/learn';
+import { answeredCards, renamer } from '../../cogita/learn';
 import { usePageBase } from '../../cogita/pageBase';
 import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
-import { authorOrder, gaugeKnow, pathOfEntries, unitMembers, usePathRun } from '../../cogita/PathLearn';
+import { authorOrder, gaugeKnow, pathOfEntries, storyKnow, unitMembers, usePathRun } from '../../cogita/PathLearn';
 import { PathMap } from '../../cogita/PathMap';
 import { EMPTY_PATH, pathMarks, type PathModel } from '../../cogita/pathLayout';
 import { cardsAbout } from '../../cogita/prerequisites';
 import type { CogitaLibrary } from '../../cogita/store';
 import { CogitaContext, useAsync } from '../../cogita/ui';
 import { readView, viewList } from '../../cogita/views';
+import { presentationPath } from '../presentation/presentationPath';
+import { loadStory } from '../presentation/storyOfPage';
 import { Loading } from '../../ui/Loading';
 import type { PathConfig } from './path';
 
@@ -47,11 +49,16 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   const gauge = useMemo(() => {
     if (lib == null || cards == null || rename === null) return null;
     const fp = new Map(cards.map((c) => [c.key, c.fingerprint] as const));
-    return gaugeFromMarks(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
+    const page = learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys()));
+    return gaugeFromMarks([...cards, ...page], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
   }, [lib, lib?.revision, cards, learner, live, rename]);
 
+  /* 2026-11-03 (G) — eine Erzählung, die eine Präsentation ist: ihre Seite (die Szenen) wird geladen. */
+  const shownFlow = useMemo(() => (lib == null || cards == null || config.flow === '' ? undefined : contentOfLibrary(lib, cards).flow(config.flow)), [lib, lib?.revision, cards, config.flow]); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = useAsync(shownFlow?.presentation === undefined ? null : () => loadStory(shownFlow.presentation!).catch(() => null), [shownFlow?.presentation]);
+
   /* Welche Einträge, in welcher Reihenfolge — und wo der Besucher ist. */
-  const made = useMemo((): { model: PathModel; current: string | null; note: string | null } => {
+  const made = useMemo((): { model: PathModel; current: string | null; note: string | null; shown?: ReadonlySet<string> } => {
     if (lib == null || cards == null || gauge === null) return { model: EMPTY_PATH, current: null, note: null };
     const graph = lib.prerequisites();
     const label = (id: string) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
@@ -60,9 +67,19 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
       const content = contentOfLibrary(lib, cards);
       const flow = content.flow(config.flow);
       if (flow === undefined) return { model: EMPTY_PATH, current: null, note: 'Tej opowieści nie ma w bazie wiedzy.' };
+      if (flow.presentation !== undefined) {
+        /* Die Szenen der Präsentation: je Szene, wofür ihre Fragen zählen; jetzt dran ist die Szene, an der er war. */
+        if (shown === undefined) return { model: EMPTY_PATH, current: null, note: null };
+        if (shown === null) return { model: EMPTY_PATH, current: null, note: 'Tej prezentacji nie można tu otworzyć.' };
+        const refs = { resolve: content.resolve!, aboutOf: (id: string) => content.card(id)?.about ?? [], label, needsOf: (id: string) => graph.needs.get(id) ?? [] };
+        const told = presentationPath(shown.flow, shown.show, shown.parts, refs, `page:${shown.page.id ?? ''}`, flow.unit ?? null);
+        const kept = shown.page.id === undefined ? undefined : learner?.progress.positions.get(`page:${shown.page.id}`);
+        const visited = (kept?.visited ?? []).map((k) => `s:${k}`);
+        return { model: told.model, current: kept === undefined ? null : flowCurrent(told.fp, { step: `s:${kept.step}`, visited }), note: null, shown: flowShown(told.fp, visited) };
+      }
       const fp = flowPath(flow, stepEntries(content), label);
       const kept = learner?.progress.positions.get(flow.id);
-      return { model: flowPathModel(fp, (id) => graph.needs.get(id) ?? []), current: kept === undefined ? null : flowCurrent(fp, { step: kept.step, visited: kept.visited }), note: null };
+      return { model: flowPathModel(fp, (id) => graph.needs.get(id) ?? []), current: kept === undefined ? null : flowCurrent(fp, { step: kept.step, visited: kept.visited }), note: null, shown: flowShown(fp, kept?.visited ?? []) };
     }
     const unit = config.entry === '' ? null : entryOf(lib, config.entry);
     if (config.entry !== '' && unit === null) return { model: EMPTY_PATH, current: null, note: 'Tego wpisu nie ma w bazie wiedzy.' };
@@ -78,7 +95,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
       ids = [...graph.level.entries()].filter(([id]) => lib.entity(id) !== undefined && askable(id)).sort((a, b) => a[1] - b[1] || byAuthor(a[0], b[0])).map(([id]) => id);
     }
     return { model: pathOfEntries(ids.map((id) => ({ id, label: label(id) })), graph, unit !== null || config.view !== ''), current: null, note: ids.length === 0 ? 'Tu nie ma jeszcze kroków z pytaniami.' : null };
-  }, [lib, lib?.revision, cards, gauge, config.flow, config.entry, config.view, learner, live]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lib, lib?.revision, cards, gauge, config.flow, config.entry, config.view, learner, live, shown]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = usePathRun(lib ?? null, learner, cards ?? null);
 
@@ -92,7 +109,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   }
   if (cards == null || gauge === null) return <><h2 className="wk-card-title">{title}</h2><Loading label="Liczenie kart…" /></>;
   if (run.view !== null) return <CogitaContext.Provider value={cg}>{run.view}</CogitaContext.Provider>;
-  const marks = pathMarks(made.model, gaugeKnow(gauge), made.current);
+  const marks = pathMarks(made.model, made.shown === undefined ? gaugeKnow(gauge) : storyKnow(gauge, made.shown), made.current);
   const tall = isTall(ctx);
   const label = (id: string) => made.model.nodes[made.model.index.get(id) ?? -1]?.label ?? id;
 

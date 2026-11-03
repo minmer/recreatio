@@ -55,6 +55,29 @@ export interface AnswerRecord {
    * Kennung. Für die Kenntnis zählt sie wie jede; Punkte für „eine Antwort" gibt es nur einmal (`rewards.ts`).
    */
   readonly lead?: string;
+  /**
+   * 2026-11-03 (G) — WOFÜR DIE ANTWORT AUSSERDEM ZÄHLT: die Einträge der Baza, über die eine Frage auf einer Seite ist
+   * (ein Baustein „Pytanie" mit „about", ein Labor mit Ziel) — ihre Karte gehört keiner Baza, die Kenntnis dieser
+   * Einträge rechnet sie mit (`answeredCards`).
+   */
+  readonly about?: readonly string[];
+}
+
+/**
+ * 2026-11-03 (G) — KARTEN AUS ANTWORTEN: was auf einer Seite beantwortet wurde und für Einträge der Baza zählt (`about`),
+ * aber keine Karte der Baza ist — damit die Kenntnis jener Einträge es mitrechnet (Widoki, Krajobraz, Ścieżka, Tore).
+ * Gefragt werden sie nie (`template: '~page'`: sie machen nichts „fragbar").
+ */
+export function answeredCards(progress: Pick<Progress, 'answers'>, have: ReadonlySet<string>): Card[] {
+  const out = new Map<string, Card>();
+  for (const a of progress.answers.values()) {
+    if (a.about === undefined || a.about.length === 0 || have.has(a.key) || out.has(a.key)) continue;
+    out.set(a.key, {
+      question: a.question, direction: a.direction, key: a.key, template: '~page', prompt: [], answer: { form: 'flash', back: [] },
+      explain: [], fingerprint: a.fingerprint, varies: false, requires: [], about: [...a.about]
+    });
+  }
+  return [...out.values()];
 }
 
 
@@ -63,8 +86,15 @@ export interface FlowPosition {
   readonly flow: string;
   readonly step: string;
   readonly visited: readonly string[];
+  /** Kapitel, die durch sind: `<auswahl>:<index>` (2026-11-03: gemerkt und beim Wiederkommen zurückgeholt). */
   readonly chapters?: readonly string[];
   readonly at: number;
+  /** 2026-11-03 (G) — ein Ende erreicht (bleibt, auch wenn er von vorn beginnt). */
+  readonly done?: boolean;
+  /** 2026-11-03 (G) — die erreichten Ziele (einmal erreicht bleibt erreicht). */
+  readonly goals?: readonly string[];
+  /** 2026-11-03 (G) — eine Präsentation (`page:<seite>`): ihr Pfad — so findet der Ablauf der Baza, der auf sie zeigt, ihre Stelle. */
+  readonly path?: string;
 }
 
 export interface Progress {
@@ -113,7 +143,9 @@ function readAnswer(raw: unknown): AnswerRecord | null {
     ...(typeof raw.hints === 'number' && raw.hints > 0 ? { hints: Math.min(20, Math.floor(raw.hints)) } : {}),
     ...(readParams(raw.params) === undefined ? {} : { params: readParams(raw.params)! }),
     ...(readSeed(raw.seed) === undefined ? {} : { seed: readSeed(raw.seed)! }),
-    ...(typeof raw.lead === 'string' && raw.lead !== '' ? { lead: raw.lead } : {})
+    ...(typeof raw.lead === 'string' && raw.lead !== '' ? { lead: raw.lead } : {}),
+    /* 2026-11-03 (G) — wofür eine Antwort auf einer Seite ausserdem zählt. */
+    ...(Array.isArray(raw.about) && raw.about.some((x) => typeof x === 'string' && x !== '') ? { about: raw.about.filter((x): x is string => typeof x === 'string' && x !== '').slice(0, 24) } : {})
   };
 }
 
@@ -429,6 +461,23 @@ export async function flushWaiting(): Promise<number> {
  */
 const LIVE = new Map<string, Set<Learner>>();
 const LIVE_CHANNEL = 'recreatio-cogita-learn';
+
+/*
+ * 2026-11-03 (G) — WAS IN DIESEM FENSTER FESTGEHALTEN WURDE, je Person und Baza (Antworten, Momentaufnahmen, Stellen):
+ * ein Lernender, der erst später entsteht — Nauka nach einer Erzählung auf einer Seite —, sieht es beim Laden sofort,
+ * auch wenn es noch nicht hinaus ist (der Lernende der Seite schickt beim Gehen, der neue lädt vielleicht schon).
+ */
+const SESSION = new Map<string, { answers: AnswerRecord[]; snapshots: Snapshot[]; positions: FlowPosition[] }>();
+function remember(key: string, add: { answers?: readonly AnswerRecord[]; snapshots?: readonly Snapshot[]; positions?: readonly FlowPosition[] }): void {
+  const s = SESSION.get(key) ?? { answers: [], snapshots: [], positions: [] };
+  s.answers.push(...(add.answers ?? []));
+  s.snapshots.push(...(add.snapshots ?? []));
+  s.positions.push(...(add.positions ?? []));
+  if (s.answers.length > 4000) s.answers.splice(0, s.answers.length - 4000);
+  if (s.snapshots.length > 4000) s.snapshots.splice(0, s.snapshots.length - 4000);
+  if (s.positions.length > 400) s.positions.splice(0, s.positions.length - 400);
+  SESSION.set(key, s);
+}
 let channel: BroadcastChannel | null | undefined;
 
 function liveChannel(): BroadcastChannel | null {
@@ -441,7 +490,7 @@ function liveChannel(): BroadcastChannel | null {
   channel?.addEventListener('message', (e: MessageEvent) => {
     const d: unknown = e.data;
     if (!isObject(d) || typeof d.who !== 'string' || !Array.isArray(d.answers)) return;
-    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : []);
+    for (const one of LIVE.get(d.who) ?? []) one.hear(d.answers, Array.isArray(d.snapshots) ? d.snapshots : [], Array.isArray(d.positions) ? d.positions : []);
   });
   return channel;
 }
@@ -521,18 +570,20 @@ export class Learner {
 
   private liveKey(): string { return `${this.libraryId}|${holderKey(this.holder)}`; }
 
-  /** 2026-11-02 — den anderen Lernenden derselben Person sagen, was eben dazukam. */
-  private tell(answers: readonly AnswerRecord[], snapshots: readonly Snapshot[]): void {
-    if (answers.length === 0) return;
-    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots);
-    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
+  /** 2026-11-02 — den anderen Lernenden derselben Person sagen, was eben dazukam (2026-11-03: auch eine neue Stelle). */
+  private tell(answers: readonly AnswerRecord[], snapshots: readonly Snapshot[], positions: readonly FlowPosition[] = []): void {
+    if (answers.length === 0 && positions.length === 0) return;
+    remember(this.liveKey(), { answers, snapshots, positions });
+    for (const other of LIVE.get(this.liveKey()) ?? []) if (other !== this) other.hear(answers, snapshots, positions);
+    try { liveChannel()?.postMessage({ who: this.liveKey(), answers, snapshots, positions }); } catch { /* ein anderer Tab hört es beim nächsten Laden */ }
   }
 
   /** 2026-11-02 — was ein anderer Lernender derselben Person festhielt: nur aufnehmen, nicht senden. */
-  hear(answers: readonly unknown[], snapshots: readonly unknown[]): void {
+  hear(answers: readonly unknown[], snapshots: readonly unknown[], positions: readonly unknown[] = []): void {
     const fresh = answers.filter((a) => isObject(a) && typeof a.id === 'string' && !this.progress.answers.has(a.id));
-    if (fresh.length === 0) return;
-    this.progress = absorb(this.progress, { kind: 'answers', answers: fresh, snapshots });
+    const moved = positions.filter((p) => isObject(p) && typeof p.flow === 'string' && typeof p.at === 'number' && (this.progress.positions.get(p.flow)?.at ?? -1) < p.at);
+    if (fresh.length === 0 && moved.length === 0) return;
+    this.progress = absorb(this.progress, { kind: 'answers', answers: fresh, snapshots, positions: moved });
     this.changed();
   }
 
@@ -574,6 +625,9 @@ export class Learner {
       const body = await openOwn(holder, { ...batch, holderRoleId: batch.holderRoleId ?? null, holderSeatId: null, key: batch.keyForHolder, createdAt: '' });
       this.progress = absorb(this.progress, body);
     }
+    /* 2026-11-03 (G) — was in diesem Fenster schon festgehalten wurde (auch noch nicht hinaus). */
+    const here = SESSION.get(this.liveKey());
+    if (here !== undefined) this.progress = absorb(this.progress, { kind: 'answers', answers: here.answers, snapshots: here.snapshots, positions: here.positions });
     this.waiting = (await pending(holder)).length;
     this.changed();
     void this.flush().catch(() => undefined);
@@ -617,7 +671,7 @@ export class Learner {
   }
 
   /** Eine Antwort festhalten — sofort im Fortschritt, hinaus mit dem nächsten Stapel. */
-  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, ParamValue>>; lead?: string; seed?: string } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
+  record(card: Card, correctness: number, extras: { given?: string; ms?: number; via?: string; hints?: number; params?: Readonly<Record<string, ParamValue>>; lead?: string; seed?: string; about?: readonly string[] } = {}, at = Date.now()): { answer: AnswerRecord; snapshot: Snapshot } {
     const params = readParams(extras.params);
     const answer: AnswerRecord = {
       id: newId(), key: card.key, question: card.question, direction: card.direction, fingerprint: card.fingerprint,
@@ -628,7 +682,8 @@ export class Learner {
       ...(extras.hints === undefined || extras.hints <= 0 ? {} : { hints: Math.floor(extras.hints) }),
       ...(params === undefined ? {} : { params }),
       ...(extras.lead === undefined || extras.lead === '' ? {} : { lead: extras.lead }),
-      ...(readSeed(extras.seed) === undefined ? {} : { seed: readSeed(extras.seed)! })
+      ...(readSeed(extras.seed) === undefined ? {} : { seed: readSeed(extras.seed)! }),
+      ...(extras.about === undefined || extras.about.length === 0 ? {} : { about: [...new Set(extras.about)].slice(0, 24) })
     };
     const marks = [...this.marks(card.key, card.fingerprint), { at, correctness: answer.correctness }];
     const snapshot = snapshotOf(card.question, card.direction, marks, at);
@@ -653,6 +708,8 @@ export class Learner {
   async keepPosition(position: FlowPosition): Promise<void> {
     this.progress = absorb(this.progress, { kind: 'position', positions: [position] });
     this.changed();
+    /* 2026-11-03 (G) — die anderen Lernenden derselben Person hören die neue Stelle gleich (eine Erzählung „ukończona"). */
+    this.tell([], [], [position]);
     await this.send({ v: 1, kind: 'position', positions: [position] });
   }
 

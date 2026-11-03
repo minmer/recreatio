@@ -26,7 +26,7 @@
 
 import type { Card, CardTest } from './cardBasics';
 import { knownessAt, propagate, stateOf, type CardState, type Dependency, type Mark } from './knowness';
-import { holds, type Condition, type Facts } from './logic';
+import { holds, type Condition, type Facts, type FlowFacts } from './logic';
 import { cardEntities, nearestNeeds, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { fieldsOf, valuesOf, type Entity, type Lookup } from './schema';
 import { parentsOf } from './structure';
@@ -53,7 +53,12 @@ export interface Gauge {
   /** Einträge, über die eine Karte ist (ihr Eintrag, „O czym") — nur sie lassen warten. */
   readonly askable: ReadonlySet<string>;
   readonly graph: PrerequisiteGraph;
+  /** 2026-11-03 (G) — die Erzählungen des Lernenden (begonnen, zu Ende, Ziele) — für die Bedingung „Przebieg". */
+  readonly flows?: ReadonlyMap<string, FlowFacts>;
 }
+
+/** 2026-11-03 (G) — dieselbe Kenntnis mit dem, was über die Erzählungen bekannt ist. */
+export const withFlows = (g: Gauge, flows: ReadonlyMap<string, FlowFacts> | undefined): Gauge => (flows === undefined || flows.size === 0 ? g : { ...g, flows });
 
 /**
  * DIE KENNTNIS ALLER KARTEN UND EINTRÄGE zu `now` — `state` gibt den Zustand einer Karte (aus ihren Antworten oder,
@@ -68,7 +73,8 @@ export function gauge(cards: readonly Card[], state: (key: string) => CardState 
   for (const card of cards) {
     if (seen.has(card.key)) continue;
     seen.add(card.key);
-    for (const id of cardEntities(card)) askable.add(id);
+    /* 2026-11-03 (G) — eine Karte aus einer Antwort auf einer Seite zählt mit, macht aber nichts fragbar. */
+    if (card.template !== '~page') for (const id of cardEntities(card)) askable.add(id);
     const tests = cardTests(card).filter((t) => t.weight > 0);
     for (const t of tests) {
       const list = testing.get(t.id);
@@ -246,7 +252,8 @@ export function factsOf(g: Gauge, related: (rel: string) => readonly string[]): 
     },
     visited: new Set(),
     now: new Date(g.now),
-    related
+    related,
+    flow: (id) => g.flows?.get(id)
   };
 }
 

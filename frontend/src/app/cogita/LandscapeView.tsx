@@ -23,12 +23,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 
 import type { Card } from './cardBasics';
-import { gaugeFromMarks } from './knowing';
+import { gaugeFromMarks, withFlows } from './knowing';
+import { learnerFlows } from './flowFacts';
 import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_BUDGET, LS_FORE, LS_SHRINK, LS_TILE, type LsBand, type LsBands, type LsField, type LsInput, type LsLand, type LsLayout, type LsRun, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
-import { renamer, type Learner } from './learn';
+import { answeredCards, renamer, type Learner } from './learn';
 import { gaugeKnow, pathOfEntries, unitMembers } from './PathLearn';
+import { readFlow } from './flow';
+import { contentOfLibrary, stepEntries } from './FlowPlayer';
+import { flowCurrent, flowPath, flowPathModel } from './flowPath';
+import { viewPath } from '../routes';
 import { PathMap } from './PathMap';
 import { pathMarks } from './pathLayout';
 import { practiseGraph, practiseIds } from './quilt';
@@ -439,7 +444,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Während eines Laufs hier drin ruht die Rechnung (sonst bei jeder Antwort die ganze Kenntnis neu) — danach einmal. */
   const live = running === null ? progress : null;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- neu mit jedem Stand des Lernenden (nicht während eines Laufs)
-  const gauge = useMemo(() => gaugeFromMarks(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), [cards, learner, live, fp, rename, lib, lib.revision]);
+  /* 2026-11-03 (G) — mit dem, was über die Erzählungen bekannt ist (die Bedingung „Przebieg" in den Schritten des Widoku). */
+  const flows = useMemo(() => learnerFlows(lib, learner?.progress.positions), [lib, lib.revision, learner, live]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* 2026-11-03 (G) — dazu, was auf Seiten beantwortet wurde und für Einträge dieser Baza zählt („about"). */
+  const gauge = useMemo(() => withFlows(gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), flows), [cards, learner, live, fp, rename, lib, lib.revision, flows]);
   /* Der Widok ohne seine Suche (sie zeigt Treffer, sie schneidet nicht); mit der Kenntnis nur, wenn er sie braucht. */
   const wants = needsKnowing(view);
   const plain = useMemo(() => ({ ...view, query: '' }), [view]);
@@ -449,8 +457,17 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const groupKey = JSON.stringify(view.group);
   /* Die Eingänge ändern sich mit der Baza und dem Widok — nicht mit jeder Antwort (wer Karten hat, sagen die Karten). */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const input = useMemo(() => landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, list, view.group, gauge), [lib, lib.revision, listKey, groupKey, cards]);
-  const state = useMemo(() => landscapeState(input, gauge), [input, gauge]);
+  /*
+    2026-11-03 (G) — ERZÄHLUNGEN ALS FELDER: ein Ablauf mit „unit" ist diese Einheit — sie steht im Krajobraz, auch ohne
+    eigene Karten, und ist sie zu Ende, liegt ihr Feld im Tal.
+  */
+  const stories = useMemo(() => lib.docs('flow').map((d) => ({ doc: d, flow: readFlow(d.id, d.data) })).filter((x) => x.flow.unit !== undefined), [lib, lib.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  const storyOf = (id: string) => stories.find((x) => x.flow.unit === id)?.flow;
+  const lowered = useMemo(() => new Set(stories.filter((x) => flows.get(x.flow.id)?.done === true).map((x) => x.flow.unit!)), [stories, flows]);
+  const shownAskable = useMemo(() => (stories.length === 0 ? gauge : { ...gauge, askable: new Set([...gauge.askable, ...stories.map((x) => x.flow.unit!)]) }), [gauge, stories]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const input = useMemo(() => landscapeInput({ select: lib.selectContext(), deps: lib.dependencies(), label: (e) => lib.label(e) }, list, view.group, shownAskable), [lib, lib.revision, listKey, groupKey, cards, stories]);
+  const state = useMemo(() => landscapeState(input, gauge, lowered), [input, gauge, lowered]);
   const index = useMemo(() => new Map(input.ids.map((id, i) => [id, i] as const)), [input]);
   /* Der Motor lebt mit der Ansicht: im Effekt gebaut und beendet — auch zweimal (StrictMode) richtig. */
   const [client, setClient] = useState<LandscapeClient | null>(null);
@@ -502,7 +519,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* -- Lernen ------------------------------------------------------------------------------------------- */
 
   const planFrom = async (graph: Graph): Promise<Plan | null> => {
-    const ctx = lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now());
+    const ctx = lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now(), flows);
     const made = await planOf(graph, ctx);
     if (made.plan === null) { setNote(made.problems[0] ?? 'Z tego wpisu nie powstają karty do nauki.'); return null; }
     const plan = { ...made.plan, cards: made.plan.cards.filter((c) => !(learner?.progress.suspended.has(c.key) ?? false)) };
@@ -538,18 +555,36 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   }
   /* 2026-11-03 (F) — wie viele Teile eine Einheit hat (ihre Ścieżka), und sie gross statt der Karte. */
   const askable = (id: string) => gauge.askable.has(id);
-  const unitSize = (id: string): number => unitMembers(lib, id, cards, askable).length;
+  /* 2026-11-03 (G) — eine Einheit, die eine Erzählung ist: ihre Ścieżka ist die der Erzählung (jetzt dran: wo er in ihr steht). */
+  const storyPath = (id: string) => {
+    const flow = storyOf(id);
+    /* Eine Präsentation trägt ihre Szenen in der Seite: dann die Teile der Einheit (ihre Fragen zeigen dieselben Einträge). */
+    if (flow === undefined || flow.graph.nodes.length === 0) return null;
+    const content = contentOfLibrary(lib, cards);
+    const fp = flowPath(flow, stepEntries(content), labelOf);
+    const kept = learner?.progress.positions.get(flow.id);
+    return { flow, model: flowPathModel(fp, (x) => lib.prerequisites().needs.get(x) ?? []), current: kept === undefined ? null : flowCurrent(fp, { step: kept.step, visited: kept.visited }) };
+  };
+  const unitSize = (id: string): number => storyPath(id)?.model.nodes.length ?? unitMembers(lib, id, cards, askable).length;
   if (keep.unit !== null) {
-    const members = unitMembers(lib, keep.unit, cards, askable);
-    const model = pathOfEntries(members.map((id) => ({ id, label: labelOf(id) })), lib.prerequisites());
+    const story = storyPath(keep.unit);
+    const told = storyOf(keep.unit);
+    const members = story !== null ? story.model.nodes.map((n) => n.id) : unitMembers(lib, keep.unit, cards, askable);
+    const model = story !== null ? story.model : pathOfEntries(members.map((id) => ({ id, label: labelOf(id) })), lib.prerequisites());
     return host(
       <div className="cg-ls-unit" data-landscape-unit-open={keep.unit}>
         <div className="cg-row-between">
           <button type="button" className="wk-link-btn" onClick={() => keep.setUnit(null)} data-landscape-unit-back="">‹ Krajobraz</button>
           <strong><TexText text={entityNameTex(lib, keep.unit)} /></strong>
         </div>
+        {told !== undefined && (
+          <p className="cg-muted" data-landscape-unit-story={told.id} data-landscape-unit-done={flows.get(told.id)?.done === true ? '1' : '0'}>
+            Opowieść: <strong><TexText text={told.name} /></strong>{flows.get(told.id)?.done === true ? ' — ukończona' : flows.has(told.id) ? ' — w drodze' : ''}
+            {urlScope === '' && <> · <a className="wk-link" href={viewPath('learn', lib.libraryId, 'przebiegi', told.id, 'graj')} data-landscape-unit-play="">{flows.has(told.id) ? 'Wróć do opowieści' : 'Zacznij opowieść'}</a></>}
+          </p>
+        )}
         {members.length === 0 ? <p className="cg-muted">Ta jednostka nie ma jeszcze części z pytaniami.</p> : (
-          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge))} size="full" title="Ścieżka jednostki" name={(id) => <TexText text={entityNameTex(lib, id)} />}
+          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge), story?.current ?? null)} size="full" title={story !== null ? 'Ścieżka opowieści' : 'Ścieżka jednostki'} name={(id) => <TexText text={entityNameTex(lib, id)} />}
             actions={(id, state) => (
               <div className="wk-actions">
                 {learner !== null && <button type="button" className="wk-btn" onClick={() => learnEntry(id, state !== 'done')} data-path-learn={id}>{state === 'done' ? 'Powtórz' : 'Ucz się'}</button>}

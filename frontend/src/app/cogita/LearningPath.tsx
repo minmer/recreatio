@@ -28,7 +28,7 @@ import { useMemo } from 'react';
 import type { Card } from './cardBasics';
 import { gaugeFromMarks, itemKnowness, ownKnowness } from './knowing';
 import { KNOWN } from './knowness';
-import { renamer, type Learner } from './learn';
+import { answeredCards, renamer, type Learner } from './learn';
 import { authorOrder, gaugeKnow, pathOfEntries, usePathRun } from './PathLearn';
 import { PathMap } from './PathMap';
 import { pathMarks } from './pathLayout';
@@ -77,7 +77,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
 
   const now = Date.now();
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const g = gaugeFromMarks(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now);
+  const g = gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now);
   const stateOf = (id: string): { state: State; waits: string[] } => {
     if (!g.askable.has(id)) return { state: 'order', waits: [] };
     if (ownKnowness(g, id) >= KNOWN) return { state: 'known', waits: [] };

@@ -120,6 +120,7 @@ Sceny nie muszą iść po kolei: każda ma jedno wejście i wyjścia — „dale
     "words" — chmura słów w głębi: { "list": ["colligere", …], "prefix": "RE", "count": 39, "seed": 7, "color": null }
     "depth" — { "perspective": 1000, "travel": 2200, "linger": true } — głębia sceny i jak daleko przelatuje kamera; "linger" — zwalnia przy najgłębszym module
     "next" — dokąd prowadzi „dalej” (strzałki, przewijanie): klucz sceny, "end" (tu koniec) albo "link:<id>"; pominięte — następna scena na liście
+    "about" — w opowieści z bazą wiedzy ("story.base"): czego dotyczy scena — wpisy tej bazy, ["@kurs/temat"] (id albo @nazwa); ścieżka opowieści (moduł "path", Nauka) stawia scenę przy nich — tak stoi na mapie także wstęp i miejsce, gdzie drogi się schodzą, choć nie mają pytania (pytania dodają same to, o czym są)
     "volume" — jak głośny jest dźwięk otoczenia ("sound") na tej scenie, 0–1 (pominięte — 1; 0 — cisza); między scenami przechodzi płynnie
 
 "show" modułu:

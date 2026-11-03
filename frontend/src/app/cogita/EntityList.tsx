@@ -30,8 +30,9 @@ import {
   AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LANDSCAPE_BANDS, LANDSCAPE_BUDGET, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
   withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
 } from './views';
-import { gaugeFromMarks } from './knowing';
-import { renamer } from './learn';
+import { gaugeFromMarks, withFlows } from './knowing';
+import { learnerFlows } from './flowFacts';
+import { renamer, answeredCards } from './learn';
 import { answerIndex } from './measures';
 import { QuiltView } from './QuiltView';
 import { LandscapeView } from './LandscapeView';
@@ -142,7 +143,8 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     if (!wants || knowCards === null || knowCards === undefined) return null;
     const rename = renamer(lib.merges());
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
-    return gaugeFromMarks(knowCards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
+    const page = learner === null || learner === undefined ? [] : answeredCards(learner.progress, new Set(fp.keys()));
+    return withFlows(gaugeFromMarks([...knowCards, ...page], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), learnerFlows(lib, learner?.progress.positions));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wants, knowCards, learner, learner?.progress, lib.revision]);
   const vlib = useMemo(() => withKnowing(lib, knowing), [lib, knowing]);

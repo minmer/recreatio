@@ -122,6 +122,11 @@ export interface Facts {
   /** In welchen Zonen er steht (sagt der Dienst im Spiel). */
   readonly zones?: ReadonlySet<string>;
   /**
+   * 2026-11-03 (G) — WO ER IN EINER ERZÄHLUNG STEHT (ein Ablauf der Baza; eine Präsentation über ihren Ablauf): begonnen,
+   * zu Ende, welche Ziele erreicht. Fehlt es: nichts begonnen.
+   */
+  readonly flow?: (id: string) => FlowFacts | undefined;
+  /**
    * 2026-10-30 — WESSEN Kenntnis eine Bedingung mit `rel` prüft, gesehen von dem, was gerade geprüft wird (ein Eintrag
    * in einem Widok, eine Karte in einer Powtórka, `knowing.ts`): die Kennungen (Einträge; Karten mit „#"). Fehlt es,
    * ist die Menge leer.
@@ -193,13 +198,25 @@ export const NO_FACTS: Facts = {
   values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0)
 };
 
-export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
+export const CONDITION_TYPES = ['value', 'knowness', 'answered', 'visited', 'flow', 'time', 'place', 'zone', 'and', 'or', 'not', 'xor'] as const;
 export type ConditionType = (typeof CONDITION_TYPES)[number];
 
 export const CONDITION_LABEL: Record<ConditionType, string> = {
-  value: 'Wartość', knowness: 'Znajomość', answered: 'Odpowiedź', visited: 'Odwiedzone',
+  value: 'Wartość', knowness: 'Znajomość', answered: 'Odpowiedź', visited: 'Odwiedzone', flow: 'Przebieg',
   time: 'Czas', place: 'Miejsce', zone: 'Strefa', and: 'I', or: 'LUB', not: 'NIE', xor: 'ALBO'
 };
+
+/** 2026-11-03 (G) — was über eine Erzählung bekannt ist: begonnen, zu Ende (ein Ende erreicht), welche Ziele erreicht. */
+export interface FlowFacts {
+  readonly started: boolean;
+  readonly done: boolean;
+  readonly goals: readonly string[];
+}
+
+/** 2026-11-03 (G) — was eine Bedingung „Przebieg" prüft: begonnen, zu Ende, ein Ziel (ohne `goal`: irgendeins) erreicht. */
+export const FLOW_CHECKS = ['started', 'done', 'goal'] as const;
+export type FlowCheck = (typeof FLOW_CHECKS)[number];
+export const FLOW_CHECK_LABEL: Record<FlowCheck, string> = { started: 'rozpoczęty', done: 'ukończony', goal: 'cel osiągnięty' };
 
 /**
  * EINE BEDINGUNG als kleiner Baum — so steht sie in einem Ablauf, an einer
@@ -214,6 +231,7 @@ export const CONDITION_LABEL: Record<ConditionType, string> = {
  *   { "type": "knowness", "rel": "before", "band": "learned" }          (2026-11-01) ein Band statt einer Zahl
  *   { "type": "answered", "of": "<pytanie>", "correct": true }
  *   { "type": "visited", "of": "<krok>" }
+ *   { "type": "flow", "flow": "<przebieg>", "state": "done" }          (2026-11-03) started · done · goal (mit "goal": ein bestimmtes)
  *   { "type": "time", "after": "2026-12-24", "before": "2026-12-27", "from": "18:00", "to": "23:00" }
  *   { "type": "place", "lat": 50.06, "lon": 19.94, "radius": 100 }
  *   { "type": "zone", "of": "<strefa>" }
@@ -241,6 +259,10 @@ export interface Condition {
   readonly each?: 'all' | 'any';
   /** 2026-11-01 — „Znajomość" als Band (`KNOWNESS_BANDS`) statt `op`/`than`. */
   readonly band?: KnownessBand;
+  /** 2026-11-03 (G) — „Przebieg": welcher (ein Ablauf der Baza), was gelten soll, und welches Ziel (bei `goal`). */
+  readonly flow?: string;
+  readonly state?: FlowCheck;
+  readonly goal?: string;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -255,6 +277,12 @@ export function readCondition(raw: unknown, depth = 0): Condition | null {
   if (type === 'and' || type === 'or' || type === 'not' || type === 'xor') {
     const items = (Array.isArray(raw.items) ? raw.items : []).map((one) => readCondition(one, depth + 1)).filter((c): c is Condition => c !== null);
     return { type, items: type === 'not' ? items.slice(0, 1) : items };
+  }
+  /* 2026-11-03 (G) — eine Erzählung: begonnen, zu Ende, ein Ziel erreicht ("of" geht auch statt "flow"). */
+  if (type === 'flow') {
+    const flow = str(raw.flow) ?? str(raw.of);
+    const state = (FLOW_CHECKS as readonly string[]).includes(String(raw.state)) ? (raw.state as FlowCheck) : 'done';
+    return { type, ...(flow === undefined ? {} : { flow }), state, ...(state === 'goal' && str(raw.goal) !== undefined ? { goal: str(raw.goal) } : {}) };
   }
   const op = (COMPARE_OPS as readonly string[]).includes(String(raw.op)) ? (raw.op as CompareOp) : undefined;
   /*
@@ -311,6 +339,7 @@ export function conditionText(c: Condition, name: (id: string) => string = (id) 
     }
     case 'answered': return c.correct === true ? `dobrze odpowiedziano na „${name(c.of ?? '')}"` : c.correct === false ? `źle odpowiedziano na „${name(c.of ?? '')}"` : `odpowiedziano na „${name(c.of ?? '')}"`;
     case 'visited': return `widziano krok „${name(c.of ?? '')}"`;
+    case 'flow': return c.state === 'goal' ? (c.goal === undefined ? `w przebiegu „${name(c.flow ?? '')}" osiągnięto cel` : `w przebiegu „${name(c.flow ?? '')}" osiągnięto cel „${c.goal}"`) : `przebieg „${name(c.flow ?? '')}" ${FLOW_CHECK_LABEL[c.state ?? 'done']}`;
     case 'time': return ['czas', c.after === undefined ? '' : `od ${c.after}`, c.before === undefined ? '' : `do ${c.before}`, c.from === undefined ? '' : `godz. ${c.from}–${c.to ?? '24:00'}`].filter(Boolean).join(' ');
     case 'place': return `w promieniu ${c.radius ?? 50} m od ${c.lat ?? '?'}, ${c.lon ?? '?'}`;
     case 'zone': return `w strefie „${name(c.of ?? '')}"`;
@@ -341,6 +370,13 @@ export function holds(c: Condition | null | undefined, facts: Facts): boolean {
       return c.correct === undefined ? true : c.correct ? got >= 0.999 : got < 0.999;
     }
     case 'visited': return facts.visited.has(c.of ?? '');
+    case 'flow': {
+      const f = facts.flow?.(c.flow ?? '');
+      if (f === undefined) return false;
+      if (c.state === 'started') return f.started;
+      if (c.state === 'goal') return c.goal === undefined ? f.goals.length > 0 : f.goals.includes(c.goal);
+      return f.done;
+    }
     case 'time': {
       const now = facts.now;
       if (c.after !== undefined && now < new Date(c.after.length <= 10 ? `${c.after}T00:00:00` : c.after)) return false;

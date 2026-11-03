@@ -25,6 +25,7 @@
  * hoch ganz, bewegt, so breit wie der Baustein (höchstens `max` rem).
  */
 
+import { aboutOf, useStoryGoal } from '../presentation/storyCard';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
 import { drawingIdentity, drawingOf, LIVE_KEYS, motionCount, needsLive, readDrawing, shapeCount, SHAPE_TYPES } from '../motion/drawing';
@@ -49,14 +50,16 @@ const sum = (raw: RawConfig): string => {
   return `${shapeCount(d)} elementów, ${motionCount(d)} ruchów${live}`;
 };
 
-function AnimationView({ raw, strip }: { raw: RawConfig; strip: boolean }) {
+function AnimationView({ raw, strip, moduleId }: { raw: RawConfig; strip: boolean; moduleId: string }) {
   const identity = drawingIdentity(raw);
+  /* 2026-11-03 (G) — ein Ziel des Bildes (eine Regel mit "goal": true) zählt in einer Erzählung wie eine richtige Antwort. */
+  const onGoal = useStoryGoal(raw.question ?? '', aboutOf(raw.about), moduleId, raw.alt ?? 'Rysunek');
   const drawing = useMemo(() => readDrawing(raw), [identity]); // eslint-disable-line react-hooks/exhaustive-deps
   if (drawing.elements.length === 0) return <p className="wk-card-muted">Rysunek jest pusty.</p>;
   const sized = (drawing.max === null ? undefined : { '--an-max': `${drawing.max}rem` }) as CSSProperties | undefined;
   return (
     <div className={`an${strip ? ' is-strip' : ''}`} style={sized}>
-      <DrawingView drawing={drawing} identity={identity} still={strip} />
+      <DrawingView drawing={drawing} identity={identity} still={strip} {...(onGoal === undefined ? {} : { onGoal })} />
     </div>
   );
 }
@@ -309,6 +312,8 @@ const relative = (docs: Record<string, string>, base: string): Record<string, st
  */
 const EXAMPLE = {
   alt: 'Rzut — ustaw kąt, wybierz prędkość i trafiaj w cel',
+  question: '<puste albo @kurs/pytanie z bazy opowieści>',
+  about: '@kurs/rzut-ukosny',
   size: [320, 200],
   max: 32,
   panel: 'below',
@@ -547,6 +552,8 @@ export const animationPart = definePart<Config>({
   fields: [],
   extra: [
     { key: 'alt', shape: 'line', says: 'Opis rysunku dla czytników ekranu (pusty — rysunek tylko ozdobny)' },
+    { key: 'question', shape: 'line', says: 'w opowieści z bazą wiedzy: cel rysunku (reguła z "goal": true) liczy się jak dobra odpowiedź na to pytanie z bazy — id albo @nazwa (puste: własna karta celu)' },
+    { key: 'about', shape: 'lines', says: 'w opowieści z bazą wiedzy: dla jakich wpisów bazy liczy się osiągnięty cel rysunku — id albo @nazwa, każdy w osobnej linii' },
     { key: 'size', shape: 'json', says: 'Wielkość rysunku w jego jednostkach: [szerokość, wysokość] — rysunek rośnie i maleje jako całość z modułem' },
     { key: 'max', shape: 'json', says: 'Najwyżej tyle szerokości w rem (liczba); pominięte — cała szerokość modułu' },
     { key: 'panel', shape: 'line', says: 'Gdzie sterowanie: "below" (pod rysunkiem, zwykle) albo "side" (obok, gdy rysunek jest szeroki; na telefonie zawsze pod)' },
@@ -587,5 +594,5 @@ export const animationPart = definePart<Config>({
     ? `Rysunek (${sum(c.raw)}) — mały, nieruchomy, bez sterowania.`
     : `Rysunek (${sum(c.raw)}) w ruchu, na całą szerokość modułu${readDrawing(c.raw).live === null ? '' : ', ze sterowaniem pod spodem'}.`,
   Editor: AnimationEditor,
-  View: ({ config, ctx }) => <AnimationView raw={config.raw} strip={ctx.size.height === 'strip'} />
+  View: ({ config, ctx }) => <AnimationView raw={config.raw} strip={ctx.size.height === 'strip'} moduleId={ctx.moduleId} />
 });

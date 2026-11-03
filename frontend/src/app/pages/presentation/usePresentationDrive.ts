@@ -60,6 +60,8 @@ export interface DriveControl {
   readonly at: () => number;
   /** 0089 — der Weg, auf dem die Bühne gerade ist (die Kennungen ihrer Szenen) — für einen Vortrag, der dort weitergeht. */
   readonly route?: () => readonly string[];
+  /** 2026-11-03 (G) — zu einer Szene (ihr Schlüssel), wie ein Knopf dorthin: der Weg zweigt ab, wenn sie nicht auf ihm liegt. */
+  readonly jump?: (sceneKey: string) => void;
 }
 
 export interface DriveOptions {

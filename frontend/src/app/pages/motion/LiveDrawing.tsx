@@ -79,9 +79,13 @@ export interface LiveDrawingProps {
   readonly replay?: WorldShot | null;
   /** 2026-10-18 — geprüft wird draussen (Cogita: „Sprawdź" der Karte) — das Bild zeigt keinen eigenen Knopf zum Vermuten. */
   readonly checkOutside?: boolean;
+  /** 2026-11-03 (G) — das Ziel ist erreicht (eine Regel mit "goal": true): in einer Erzählung zählt es. */
+  readonly onGoal?: () => void;
 }
 
-export function LiveDrawing({ drawing, identity, still = false, className, fixed = null, seed = null, onProgram, onProblems, start = false, locked = false, replay = null, checkOutside = false }: LiveDrawingProps) {
+export function LiveDrawing({ drawing, identity, still = false, className, fixed = null, seed = null, onProgram, onProblems, start = false, locked = false, replay = null, checkOutside = false, onGoal }: LiveDrawingProps) {
+  const goalSaid = useRef(onGoal);
+  goalSaid.current = onGoal;
   const svg = useRef<SVGSVGElement | null>(null);
   const panel = useRef<HTMLDivElement | null>(null);
   const say = useRef<HTMLParagraphElement | null>(null);
@@ -186,6 +190,7 @@ export function LiveDrawing({ drawing, identity, still = false, className, fixed
       if (goal !== lastGoal) {
         lastGoal = goal;
         box.current?.classList.toggle('is-solved', goal);
+        if (goal) goalSaid.current?.();
       }
       for (const target of program.takeGos()) clock?.go(target);
     };

@@ -19,6 +19,8 @@ import { questionCard } from '../../cogita/cards';
 import { SlidePhase } from '../motion/MotionBox';
 import type { PartContext } from '../part';
 import { ShowArrival, ShowClock, ShowPieceKey, StoryContext } from '../presentation/showContext';
+import { storyCard } from '../presentation/storyCard';
+import { Loading } from '../../ui/Loading';
 import { questionData, type QuestionConfig } from './question';
 
 export default function QuestionView({ config, ctx }: { config: QuestionConfig; ctx: PartContext }) {
@@ -27,12 +29,16 @@ export default function QuestionView({ config, ctx }: { config: QuestionConfig; 
   const pieceKey = useContext(ShowPieceKey);
   const phase = useContext(SlidePhase);
   const arrival = useContext(ShowArrival);
-  const card = useMemo(() => questionCard({ id: ctx.moduleId, kinds: ['question'], data: questionData(config) }, ''), [config, ctx.moduleId]);
+  const own = useMemo(() => questionCard({ id: ctx.moduleId, kinds: ['question'], data: questionData(config) }, ''), [config, ctx.moduleId]);
+  /* 2026-11-03 (G) — eine echte Frage der Baza (ihre Karte), oder die eigene, die für „about" mitzählt. */
+  const card = useMemo(() => storyCard(story, own, config.question, config.about), [story, own, config.question, config.about.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const waiting = config.question !== '' && story !== null && story.card === undefined;
   const [result, setResult] = useState<boolean | null>(null);
 
   /* Eine neue Ankunft: eine neue Runde. */
   useEffect(() => { setResult(null); }, [arrival]);
 
+  if (waiting) return <Loading />;
   if (card === null) return <p className="wk-card-muted">To pytanie nie jest jeszcze gotowe.</p>;
 
   /* In einer Präsentation: weiter, wohin das Ergebnis auf dieser Szene führt (`story.ts`). */

@@ -71,7 +71,10 @@ function quantity(b: Body, q: GraphOf, g: number): number {
 
 const storeKey = (title: string) => `lab-phys:${title.slice(0, 60)}`;
 
-export function PhysicsLab({ config, whole = false, seed = null }: { config: PhysConfig; whole?: boolean; seed?: string | null }) {
+export function PhysicsLab({ config, whole = false, seed = null, onGoal }: { config: PhysConfig; whole?: boolean; seed?: string | null; onGoal?: () => void }) {
+  /* 2026-11-03 (G) — das Ziel erreicht: in einer Erzählung zählt es (der Baustein sagt, auf welcher Karte). */
+  const goalSaid = useRef(onGoal);
+  goalSaid.current = onGoal;
   const sandbox = config.mode === 'sandbox';
   const [doc, setDoc] = useState<unknown>(() => config.scene ?? SANDBOX_SCENE);
   const configKey = JSON.stringify(config.scene ?? null);
@@ -185,7 +188,7 @@ export function PhysicsLab({ config, whole = false, seed = null }: { config: Phy
         const b = world.bodies.find((x) => x.id === scene.goal?.body);
         if (b !== undefined && b.x > goal[0] && b.x < goal[2] && b.y > goal[1] && b.y < goal[3]) {
           quietGoal += dt * s.speed;
-          if (quietGoal >= scene.goal.for) setGoalHit(true);
+          if (quietGoal >= scene.goal.for) { setGoalHit(true); goalSaid.current?.(); }
         } else quietGoal = 0;
       }
       return busy || dragging;

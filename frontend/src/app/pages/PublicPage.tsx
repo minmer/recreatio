@@ -479,6 +479,7 @@ function ShowBody({ path, parts, theme, title, pageId }: {
       look={look}
       title={title}
       pageId={pageId}
+      pagePath={path}
       extra={<><SeatBar path={path} /><div className="wk-page-top"><PersonPicker /></div><SubjectBar /></>}
     />
   );

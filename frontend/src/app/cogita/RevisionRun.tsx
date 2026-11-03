@@ -15,6 +15,7 @@ import { answerEvidence, redrawCard } from './cards';
 import type { Outcome } from './check';
 import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
+import { learnerFlows } from './flowFacts';
 import { LEVEL_LABEL, type Dependency } from './knowness';
 import { renamer, sendReport, type Learner } from './learn';
 import { answerIndex } from './measures';
@@ -57,7 +58,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   const { cards } = await lib.cards(seed);
   const rename = renamer(lib.merges());
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const result = await planOf(readGraph(entry.data.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], now));
+  const result = await planOf(readGraph(entry.data.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], now, learnerFlows(lib, learner?.progress.positions)));
   const plan = result.plan === null || learner === null ? result.plan : { ...result.plan, cards: result.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
   return { plan, problems: result.problems, cards };
 }

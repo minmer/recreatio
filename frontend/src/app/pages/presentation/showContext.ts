@@ -68,6 +68,13 @@ export interface StoryRun {
   readonly visit: (sceneKey: string) => void;
   /** Wo er zuletzt war — `null`: zum ersten Mal hier. */
   readonly last: () => string | null;
+  /**
+   * 2026-11-03 (G) — DIE BAZA DER ERZÄHLUNG (sobald geladen): die Karte einer echten Frage (Kennung oder @name) — eine
+   * Antwort darauf zählt für das, worüber sie ist, und teilt die Geschichte der Karte mit den Powtórki; und die Kennung
+   * eines Eintrags aus einem Namen. Fehlt sie (keine Baza, noch nicht geladen): `null`.
+   */
+  readonly card?: (ref: string) => Card | null;
+  readonly resolve?: (ref: string) => string | null;
 }
 
 export const StoryContext = createContext<StoryRun | null>(null);

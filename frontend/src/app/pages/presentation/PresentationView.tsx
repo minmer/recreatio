@@ -718,7 +718,13 @@ export function PresentationView({
   });
 
   useEffect(() => {
-    if (control !== undefined) control.current = drive.current === null ? null : { ...drive.current, route: () => routeRef.current };
+    if (control !== undefined) {
+      control.current = drive.current === null ? null : {
+        ...drive.current, route: () => routeRef.current,
+        /* 2026-11-03 (G) — die Ścieżka neben der Bühne fährt zu einer Szene: wie ein Knopf auf der Szene, die gerade steht. */
+        jump: (key: string) => { if (byKey.has(key)) follow({ kind: 'scene', key }, Math.max(0, activeRef.current)); }
+      };
+    }
   });
 
   /* -- 0089: Ausgänge — ein Knopf, „dalej" über den Rand, ein Weg hinaus ------------------- */
@@ -1129,6 +1135,7 @@ export function PresentationView({
         style={vars}
         tabIndex={mode === 'box' && frozen === null ? 0 : undefined}
         aria-label={title ?? undefined}
+        data-pz-story={story === null || story === undefined ? 'none' : story.mode}
       >
         {show.nav === 'labels' && scenes.length > 1 && (
           <nav className="pz-nav" aria-label="Sceny">

@@ -18,6 +18,7 @@
  */
 
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { learnerFlows } from './flowFacts';
 
 import type { Card } from './cardBasics';
 import { TopicIntro, SourceOpen } from './EntityReading';
@@ -162,7 +163,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
     void (async () => {
       const fp = new Map(cards.map((c) => [c.key, c.fingerprint] as const));
       const rename = renamer(lib.merges());
-      const ctx = lib.revisionContext(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now());
+      const ctx = lib.revisionContext(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now(), learnerFlows(lib, learner.progress.positions));
       const made = await planOf(practiseGraph(practiseIds(cards, tile.id), tile.band !== 'known'), ctx);
       const plan = made.plan === null ? null : { ...made.plan, cards: made.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
       if (plan === null || plan.cards.length === 0) { setNote(made.problems[0] ?? 'Do tego wpisu nie ma jeszcze pytań.'); return; }

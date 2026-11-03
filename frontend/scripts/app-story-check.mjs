@@ -1,0 +1,118 @@
+/**
+ * 2026-11-03 (G) — ERZÄHLUNGEN, DIE IN COGITA ZÄHLEN, nachgemessen: die Bedingung „Przebieg" der einen Logik (lesen,
+ * prüfen, in Worten), was über Erzählungen bekannt ist (eigene Stelle, eine Präsentation über ihren Pfad, „ukończony"
+ * bleibt, Ziele vereint), Kapitel, die gemerkt und zurückgeholt werden, Karten aus Antworten auf Seiten (zählen für ihre
+ * Einträge, machen nichts fragbar), worauf ein Baustein antwortet (echte Frage der Baza, eigene mit „about", Ziel eines
+ * Labors), die Ścieżka einer Präsentation (Szenen mit „about" und Fragen, die Einheit ist kein Schritt, eine Gabel aus
+ * Knöpfen), die Einheit eines Ablaufs (`unit`) — und dass eine zu Ende erzählte Einheit im Krajobraz im Tal liegt.
+ *
+ *   node scripts/app-story-check.mjs
+ */
+import { build } from 'esbuild';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const workspace = await mkdtemp(join(tmpdir(), 'app-story-'));
+const entries = {
+  logic: 'src/app/cogita/logic.ts', facts: 'src/app/cogita/flowFacts.ts', learn: 'src/app/cogita/learn.ts', knowing: 'src/app/cogita/knowing.ts',
+  card: 'src/app/pages/presentation/storyCard.ts', show: 'src/app/pages/presentation/presentationPath.ts', flow: 'src/app/cogita/flow.ts',
+  data: 'src/app/cogita/landscapeData.ts', presentation: 'src/app/pages/presentation/presentation.ts'
+};
+await build({
+  entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
+  define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
+});
+globalThis.BroadcastChannel = undefined;
+const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
+const [LG, FF, LN, KN, SC, PP, FL, LD, PR] = await Promise.all(Object.keys(entries).map(load));
+
+let failed = 0;
+let passed = 0;
+const check = (name, got, want) => {
+  const ok = JSON.stringify(got) === JSON.stringify(want);
+  if (ok) { passed += 1; console.log(`ok   ${name}`); }
+  else { failed += 1; console.error(`FAIL ${name}\n  got  ${JSON.stringify(got)}\n  want ${JSON.stringify(want)}`); }
+};
+const facts = (flows) => ({ values: {}, knowness: () => 0, answered: () => null, visited: new Set(), now: new Date(0), flow: (id) => flows[id] });
+
+/* -- Die Bedingung „Przebieg" ------------------------------------------------------------------------------------ */
+check('flow condition reads ("flow", "state"; "of" works too; "done" by default)', [
+  LG.readCondition({ type: 'flow', flow: 'F', state: 'done' }), LG.readCondition({ type: 'flow', of: 'F' }), LG.readCondition({ type: 'flow', flow: 'F', state: 'goal', goal: 'g1' }), LG.readCondition({ type: 'flow', flow: 'F', state: 'started', goal: 'x' })
+], [{ type: 'flow', flow: 'F', state: 'done' }, { type: 'flow', flow: 'F', state: 'done' }, { type: 'flow', flow: 'F', state: 'goal', goal: 'g1' }, { type: 'flow', flow: 'F', state: 'started' }]);
+const F = { F: { started: true, done: false, goals: ['g1'] }, G: { started: true, done: true, goals: [] } };
+check('flow condition holds: started / done / a goal / any goal / unknown flow', [
+  LG.holds(LG.readCondition({ type: 'flow', flow: 'F', state: 'started' }), facts(F)), LG.holds(LG.readCondition({ type: 'flow', flow: 'F', state: 'done' }), facts(F)),
+  LG.holds(LG.readCondition({ type: 'flow', flow: 'G', state: 'done' }), facts(F)), LG.holds(LG.readCondition({ type: 'flow', flow: 'F', state: 'goal', goal: 'g1' }), facts(F)),
+  LG.holds(LG.readCondition({ type: 'flow', flow: 'G', state: 'goal' }), facts(F)), LG.holds(LG.readCondition({ type: 'flow', flow: 'X', state: 'started' }), facts(F))
+], [true, false, true, true, false, false]);
+check('flow condition in words', LG.conditionText(LG.readCondition({ type: 'flow', flow: 'F', state: 'done' }), () => 'Deszcz'), 'przebieg „Deszcz" ukończony');
+check('flow condition listed for the editor', [LG.CONDITION_TYPES.includes('flow'), LG.CONDITION_LABEL.flow], [true, 'Przebieg']);
+check('inside "and" / "not"', LG.holds(LG.readCondition({ type: 'and', items: [{ type: 'flow', flow: 'G' }, { type: 'not', items: [{ type: 'flow', flow: 'F' }] }] }), facts(F)), true);
+
+/* -- Was über Erzählungen bekannt ist --------------------------------------------------------------------------- */
+const positions = new Map([
+  ['flowA', { flow: 'flowA', step: 's3', visited: ['s1', 's3'], at: 10, done: true, goals: ['a'] }],
+  ['page:p1', { flow: 'page:p1', step: 'koniec', visited: ['start', 'koniec'], at: 20, done: true, path: '#/C/Abcd1234' }],
+  ['page:p2', { flow: 'page:p2', step: 'start', visited: ['start'], at: 30, path: 'c/other' }]
+]);
+const known = FF.flowFactsOf(positions, [{ id: 'flowA' }, { id: 'flowB', presentation: 'c/abcd1234' }, { id: 'flowC', presentation: 'c/other' }, { id: 'flowD' }]);
+check('flow facts: own position (done, goals); a presentation found by its path (any case, "#/"); started only; never started', [known.get('flowA'), known.get('flowB'), known.get('flowC'), known.has('flowD')], [
+  { started: true, done: true, goals: ['a'] }, { started: true, done: true, goals: [] }, { started: true, done: false, goals: [] }, false
+]);
+check('goals once reached stay reached', FF.mergeGoals(['a'], ['b', 'a']), ['a', 'b']);
+check('chapters kept and brought back ("<hub>:<index>")', [FF.chaptersKept({ hub: [0, 2], other: [1] }), FF.withChapters({ chapters: {} }, ['hub:0', 'hub:2', 'other:1', 'bad', ':3']).chapters], [['hub:0', 'hub:2', 'other:1'], { hub: [0, 2], other: [1] }]);
+check('flow facts on the gauge reach the conditions (factsOf)', LG.holds(LG.readCondition({ type: 'flow', flow: 'flowA' }), KN.factsOf(KN.withFlows(KN.EMPTY_GAUGE, known), () => [])), true);
+
+/* -- Karten aus Antworten auf Seiten ------------------------------------------------------------------------------ */
+const ans = (id, key, about, correctness = 1, at = Date.now()) => ({ id, key, question: key, direction: '', fingerprint: 'f', at, correctness, ...(about === undefined ? {} : { about }) });
+const progress = { answers: new Map([['a1', ans('a1', 'mod1', ['T1'])], ['a2', ans('a2', 'base-card', ['T2'])], ['a3', ans('a3', 'mod2', undefined)]]) };
+const page = LN.answeredCards(progress, new Set(['base-card']));
+check('page cards: only answers with "about" whose card the base does not have', page.map((c) => [c.key, c.about, c.template]), [['mod1', ['T1'], '~page']]);
+const marks = (key) => [...progress.answers.values()].filter((a) => a.key === key).map((a) => ({ at: a.at, correctness: a.correctness }));
+const g = KN.gaugeFromMarks(page, marks, [], Date.now());
+check('page cards count for their entries but make nothing askable', [KN.itemKnowness(g, 'T1') > 0, g.askable.has('T1'), g.testing.has('T1')], [true, false, true]);
+
+/* -- Worauf ein Baustein antwortet ---------------------------------------------------------------------------------- */
+const own = { question: 'mod', direction: '', key: 'mod', prompt: [{ text: 'P' }], answer: { form: 'flash', back: [] }, explain: [], fingerprint: 'x', varies: false, requires: [] };
+const real = { ...own, question: 'Q1', key: 'Q1', about: ['T9'] };
+const story = { card: (ref) => (ref === '@kurs/q1' || ref === 'Q1' ? real : null), resolve: (ref) => ({ '@kurs/t1': 'T1', T2: 'T2' })[ref] ?? null };
+check('a module naming a real question answers on that question’s card', SC.storyCard(story, own, '@kurs/q1', [])?.key, 'Q1');
+check('an unknown question falls back to the own card, which counts for "about" (resolved, unknown names dropped)', SC.storyCard(story, own, '@kurs/nic', ['@kurs/t1', 'T2', '@kurs/x'])?.about, ['T1', 'T2']);
+check('outside a story (or without its base) the own card, unchanged', [SC.storyCard(null, own, '@kurs/q1', ['T1'])?.key, SC.storyCard(null, own, '', ['T1'])?.about], ['mod', undefined]);
+check('a goal has its own card (lab, drawing)', [SC.goalCard('lab7', 'Kosz').key, SC.goalCard('lab7', 'Kosz').answer.form], ['lab7|goal', 'flash']);
+check('"about" lines (lines or commas)', SC.aboutOf('@a/1\n @a/2 , @a/3'), ['@a/1', '@a/2', '@a/3']);
+
+/* -- Die Ścieżka einer Präsentation ---------------------------------------------------------------------------------- */
+const show = PR.readShow({ scenes: [{ key: 'start' }, { key: 'intro', about: ['@t/start'] }, { key: 'fork' }, { key: 'a' }, { key: 'b' }, { key: 'meet', about: ['@t/meet', '@unit'] }] });
+check('a scene keeps what it is about', [show.scenes[1].about, PR.sceneJson(show.scenes[1]).about], [['@t/start'], ['@t/start']]);
+const part = (id, kind, config, places) => ({ id, kind, config, layout: { show: { places } } });
+const parts = [
+  part('qa', 'question', { question: '@q/a' }, { a: { x: 50, y: 50, w: 50 } }),
+  part('qb', 'question', { prompt: 'B?', about: '@t/b\n@unit' }, { b: { x: 50, y: 50, w: 50 } }),
+  part('txt', 'text', { title: 'x', about: '@t/ignored' }, { fork: { x: 50, y: 50, w: 50 } })
+];
+const ids = { '@t/start': 'start', '@q/a': 'qA', '@t/a': 'ta', '@t/b': 'tb', '@t/meet': 'meet', '@unit': 'U' };
+const refs = { resolve: (r) => ids[r] ?? null, aboutOf: (id) => (id === 'qA' ? ['ta', 'U'] : []), label: (id) => id, needsOf: (id) => ({ ta: ['start'], tb: ['start'], meet: ['ta', 'tb'] })[id] ?? [] };
+check('scene entries: the scene’s own "about", a real question (what it is about), an own question’s "about" — the unit is no step', Object.fromEntries(PP.sceneEntries(parts, refs, show, new Set(['U']))), { intro: ['start'], meet: ['meet'], a: ['ta'], b: ['tb'] });
+/* Das Storyboard als Graph: start → intro → fork; fork mit zwei Knöpfen zu a und b; beide zum Treffpunkt. */
+const node = (id, type, config = {}) => ({ id, type, x: 0, y: 0, config });
+const edge = (from, out, to) => ({ id: `${from}>${out}`, from, out, to, in: 'in' });
+const storyFlow = { start: 's:start', graph: { nodes: ['start', 'intro', 'fork', 'a', 'b', 'meet'].map((k) => node(`s:${k}`, 'scene')).concat([node('end', 'end')]), edges: [
+  edge('s:start', 'next', 's:intro'), edge('s:intro', 'next', 's:fork'), edge('s:fork', 'b0', 's:a'), edge('s:fork', 'b1', 's:b'), edge('s:a', 'right', 's:meet'), edge('s:b', 'right', 's:meet'), edge('s:a', 'wrong', 's:a'), edge('s:meet', 'next', 'end')
+] } };
+const told = PP.presentationPath(storyFlow, show, parts, refs, 'page:p', '@unit');
+const pos = Object.fromEntries(told.model.nodes.map((n) => [n.id, [n.level, n.x]]));
+check('the presentation’s path: start, a fork of two (side by side), the meeting point centred above', [told.model.nodes.length, pos.start, pos.ta, pos.tb, pos.meet], [4, [0, 0], [1, -0.5], [1, 0.5], [2, 0]]);
+check('a tap finds the scene of an entry', [told.sceneOf('tb'), told.sceneOf('meet'), told.sceneOf('nothing')], [4, 5, -1]);
+
+/* -- Die Einheit eines Ablaufs, und im Krajobraz das Tal ------------------------------------------------------------- */
+check('a flow names the unit it is', FL.readFlow('f', { name: 'Deszcz', look: 'scenes', presentation: 'c/abc', unit: 'U' }).unit, 'U');
+const input = { ids: ['U', 'T'] };
+const state = LD.landscapeState(input, KN.EMPTY_GAUGE, new Set(['U']));
+check('a unit whose story is done lies in the valley (knowness 1); the rest as before', [state.knowness[0], state.knowness[1]], [1, 0]);
+
+await rm(workspace, { recursive: true, force: true });
+console.log(`\n${passed} checks pass${failed > 0 ? `, ${failed} FAIL` : ''}.`);
+if (failed > 0) process.exit(1);

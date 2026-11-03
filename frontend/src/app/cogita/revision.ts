@@ -33,9 +33,9 @@
 import { hashOf, rngOf, type Card } from './cardBasics';
 import type { TextRule } from './check';
 import { evaluate, paletteOf, type Graph, type GraphEdge, type GraphNode, type NodeKind, type Port } from './graph';
-import { gateFor, gateHolds, gauge, gaugeFromMarks, waitsFor, CARD_REF, type CardGate, type Gauge, type RelSource } from './knowing';
+import { gateFor, gateHolds, gauge, gaugeFromMarks, waitsFor, CARD_REF, type CardGate, type Gauge, type RelSource, withFlows } from './knowing';
 import { gradeOf, KNOWN, knownessAt, levelOf, levelOfKnowness, levelOfState, shareOf, snapshotOfState, stateOf, step, type CardState, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
-import { readCondition, type Condition } from './logic';
+import { readCondition, type Condition, type FlowFacts } from './logic';
 import { cardEntities, cardLevel, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { fieldsOf, labelOf, valuesOf, type Entity, type Lookup } from './schema';
 import { pick, runSteps, STEP_WORDS, type SelectContext, type Step } from './selection';
@@ -69,6 +69,8 @@ export interface RevisionContext {
   readonly deps?: readonly Dependency[];
   /** 2026-10-30 — die Schritte eines gespeicherten Widoku (Quelle „Widok"). */
   readonly viewSteps?: (id: string) => readonly Step[] | undefined;
+  /** 2026-11-03 (G) — die Erzählungen des Lernenden (die Bedingung „Przebieg" in „filter.when"). */
+  readonly flows?: ReadonlyMap<string, FlowFacts>;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -164,7 +166,7 @@ const BY_FROM: Kind = {
 const planned = new WeakMap<RevisionContext, Gauge>();
 const knowingAt = (ctx: RevisionContext): Gauge => {
   let g = planned.get(ctx);
-  if (g === undefined) { g = gaugeFromMarks(ctx.cards, ctx.marks, ctx.deps ?? [], ctx.now); planned.set(ctx, g); }
+  if (g === undefined) { g = withFlows(gaugeFromMarks(ctx.cards, ctx.marks, ctx.deps ?? [], ctx.now), ctx.flows); planned.set(ctx, g); }
   return g;
 };
 

@@ -74,7 +74,7 @@ function ShowText({ raw, type, first }: { raw: Record<string, string>; type: Tex
 
 export function PagePresentation({
   parts, look, title, extra, after, mode = 'page', frozen = null, boxAspect = null, selected = null, onPick, onStage, onActive, control,
-  presentAt = null, presentRoute = null, onPresentEnd, virtual = null, pageId = null, learner = null
+  presentAt = null, presentRoute = null, onPresentEnd, virtual = null, pageId = null, learner = null, pagePath = null
 }: {
   parts: readonly DraftPart[];
   look: Look;
@@ -106,6 +106,8 @@ export function PagePresentation({
    * der Przebieg läuft (statt der Person oben auf der Seite).
    */
   learner?: Learner | null;
+  /** 2026-11-03 (G) — der Pfad der Seite: mit der Stelle gemerkt, damit der Ablauf der Baza, der auf sie zeigt, sie findet. */
+  pagePath?: string | null;
 }) {
   const logic = usePageLogic();
   /* Ein Vortrag auf dem ganzen Bildschirm — von der Stelle aus, an der die Seite gerade steht; sie selbst steht solange still. */
@@ -122,7 +124,7 @@ export function PagePresentation({
   const show = read.story === null && parts.some((part) => part.kind === 'question') ? { ...read, story: NO_STORY } : read;
   const editing = onPick !== undefined;
   /* 2026-10-21 — der Przebieg im Lauf: im Browser, oder in Cogita (`storyRun.tsx`). */
-  const { run: story, ready } = useStoryRun(show, editing ? null : pageId, learner);
+  const { run: story, ready } = useStoryRun(show, editing ? null : pageId, learner, pagePath);
 
   const hidden = logic?.outcome.hidden ?? new Set<string>();
   const messages = logic?.outcome.messages ?? new Map<string, string>();

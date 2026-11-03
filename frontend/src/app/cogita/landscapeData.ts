@@ -110,7 +110,7 @@ function directionValues(select: SelectContext, list: readonly Entity[], groupin
  * DER STAND DES BETRACHTERS: Kenntnis je Eintrag (mit dem, was darauf aufbaut), schwache beantwortete Karten — und
  * 2026-11-03 (C) je Eintrag, wie viele seiner Karten sitzen, von wie vielen (der Ring des Fortschritts einer Einheit).
  */
-export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge): LsState {
+export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge, lowered?: ReadonlySet<string>): LsState {
   const n = input.ids.length;
   const knowness = new Float64Array(n);
   const weak = new Uint8Array(n);
@@ -119,6 +119,8 @@ export function landscapeState(input: Pick<LsInput, 'ids'>, gauge: Gauge): LsSta
   for (let i = 0; i < n; i += 1) {
     const id = input.ids[i];
     knowness[i] = itemKnowness(gauge, id);
+    /* 2026-11-03 (G) — eine Einheit, deren Erzählung zu Ende ist: gelernt (das Feld sinkt ins Tal). */
+    if (lowered?.has(id) === true) knowness[i] = Math.max(knowness[i], 1);
     const testing = gauge.testing.get(id) ?? [];
     cardsTotal[i] = Math.min(65535, testing.length);
     for (const t of testing) {

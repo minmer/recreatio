@@ -25,6 +25,7 @@ import {
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
 import { flowCurrent, flowPath, flowPathModel, flowShown, type EntriesOfStep } from './flowPath';
+import { chaptersKept, mergeGoals, withChapters } from './flowFacts';
 import type { GraphNode } from './graph';
 import { PathMap } from './PathMap';
 import { branchOf, mergeWords, pathMarks } from './pathLayout';
@@ -53,6 +54,9 @@ export interface FlowContent {
   /** 2026-11-03 (F) — was direkt vor einem Eintrag zu können ist (die eine Reihenfolge des Lernens) und sein Name. */
   readonly needsOf?: (id: string) => readonly string[];
   readonly label?: (id: string) => string;
+  /** 2026-11-03 (G) — ein Eintrag aus Kennung oder @name, und alle Karten der Baza (die Ścieżka einer Präsentation). */
+  readonly resolve?: (ref: string) => string | null;
+  readonly cards?: readonly Card[];
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -72,7 +76,9 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     /* 2026-11-03 (F/G) — wie überall in Cogita: was einen Eintrag prüft, sind seine Karten und die Pytania über ihn. */
     cardsOf: (id) => cardsAbout(cards, id),
     needsOf: (id) => lib.prerequisites().needs.get(id) ?? [],
-    label: (id) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); }
+    label: (id) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); },
+    resolve: (ref) => { const r = ref.trim(); if (r.startsWith('@')) return lib.byImportRef(r.slice(1))?.id ?? null; return lib.entity(r) !== undefined ? r : null; },
+    cards
   };
 }
 
@@ -118,7 +124,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
 }) {
   const flow = useMemo(() => resolveFlow(given, content.flow), [given, content]);
   const saved = learner?.progress.positions.get(flow.id);
-  const [state, setState] = useState<FlowState>(() => startFlow(flow, learner?.progress.values ?? {}, saved?.step ?? null));
+  /* 2026-11-03 (G) — wer wiederkommt, steht, wo er war — mit den Kapiteln, die er schon durch hat. */
+  const [state, setState] = useState<FlowState>(() => withChapters(startFlow(flow, learner?.progress.values ?? {}, saved?.step ?? null), saved?.chapters));
   const [answeredOn, setAnsweredOn] = useState<{ step: string; correct: boolean } | null>(null);
   const keepTimer = useRef<number | null>(null);
   const look: LookType = flow.look;
@@ -157,16 +164,29 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.step, state.flow]);
 
-  /* Wo er steht, bleibt — kurz nach jedem Schritt, nicht bei jedem Klick. */
+  /*
+    Wo er steht, bleibt — kurz nach jedem Schritt, nicht bei jedem Klick. 2026-11-03 (G): mit den Kapiteln, die durch
+    sind, ob er ein Ende erreicht hat (bleibt, auch wenn er von vorn beginnt) und den erreichten Zielen — die Bedingung
+    „Przebieg" liest es in Widoki, Powtórki und im Krajobraz.
+  */
+  const reachedNow = goalsReached(flow, facts(state));
+  const goalsKey = reachedNow.join('|');
   useEffect(() => {
     if (learner === null || state.step === null) return undefined;
     if (keepTimer.current !== null) window.clearTimeout(keepTimer.current);
+    const done = state.ended;
     keepTimer.current = window.setTimeout(() => {
-      void learner.keepPosition({ flow: flow.id, step: state.step ?? '', visited: state.visited, at: Date.now() }).catch(() => undefined);
+      const had = learner.progress.positions.get(flow.id);
+      void learner.keepPosition({
+        flow: flow.id, step: state.step ?? '', visited: state.visited, at: Date.now(),
+        chapters: chaptersKept(state.chapters),
+        ...(done || had?.done === true ? { done: true } : {}),
+        ...(reachedNow.length > 0 || (had?.goals?.length ?? 0) > 0 ? { goals: mergeGoals(had?.goals, reachedNow) } : {})
+      }).catch(() => undefined);
       if (JSON.stringify(state.values) !== JSON.stringify(learner.progress.values)) void learner.keepValues(state.values).catch(() => undefined);
-    }, 1200);
+    }, done ? 0 : 1200);
     return () => { if (keepTimer.current !== null) window.clearTimeout(keepTimer.current); };
-  }, [learner, flow.id, state.step, state.visited, state.values]);
+  }, [learner, flow.id, state.step, state.visited, state.values, state.ended, state.chapters, goalsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (exit?: string) => {
     setAnsweredOn(null);
@@ -177,7 +197,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     });
   };
   const lines = linesNow(flow, state, facts(state));
-  const reached = goalsReached(flow, facts(state));
+  const reached = reachedNow;
 
   const restart = () => setState(startFlow(flow, learner?.progress.values ?? {}));
 
@@ -246,7 +266,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     }
     return (
       <Suspense fallback={<Loading />}>
-        <PresentationInNauka name={flow.name} path={flow.presentation} learner={learner} onClose={onClose}
+        <PresentationInNauka name={flow.name} path={flow.presentation} learner={learner} onClose={onClose} content={content} unit={flow.unit ?? null}
           narrator={flow.narrators.length === 0 ? undefined : (f) => <Narrator who={narratorOf(f)} says={null} />} />
       </Suspense>
     );

@@ -19,6 +19,7 @@ import { definePart, lines, text, type RawConfig } from '../part';
 import { later } from '../../ui/later';
 import { LabEditor } from '../../lab/LabEditor';
 import type { PhysConfig } from '../../lab/physics/PhysicsLab';
+import { aboutOf, useStoryGoal } from '../presentation/storyCard';
 
 interface Config {
   readonly title: string;
@@ -39,6 +40,15 @@ const read = (raw: RawConfig): Config => ({
   scene: parse(raw.scene ?? ''),
   raw
 });
+
+/**
+ * 2026-11-03 (G) — DAS LABOR IN EINER ERZÄHLUNG: erreicht es sein Ziel ("goal" der Szene), zählt das wie eine richtige
+ * Antwort — auf der Frage der Baza ("question") oder der eigenen Karte des Ziels, die für "about" mitzählt.
+ */
+function GoalLab({ config, whole, moduleId }: { config: Config; whole: boolean; moduleId: string }) {
+  const onGoal = useStoryGoal(config.raw.question ?? '', aboutOf(config.raw.about), moduleId, config.title || 'Laboratorium fizyki');
+  return <Lab config={{ title: config.title, text: config.text, mode: config.mode, scene: config.scene }} whole={whole} {...(onGoal === undefined ? {} : { onGoal })} />;
+}
 
 /** Das Labor — erst geladen, wenn es gezeigt wird (eine öffentliche Seite lädt den Motor nicht mit). */
 const Lab = later(() => import('../../lab/physics/PhysicsLab').then((m) => m.PhysicsLab));
@@ -197,19 +207,23 @@ export const physicsPart = definePart<Config>({
         </div>
       );
     }
-    return <Lab config={{ title: config.title, text: config.text, mode: config.mode, scene: config.scene }} whole={ctx.whole === true} />;
+    return <GoalLab config={config} whole={ctx.whole === true} moduleId={ctx.moduleId} />;
   },
   example: {
     title: 'Pływanie ciał',
     text: 'Które ciała pływają, a które toną?\nUruchom i porównaj, jak głęboko zanurzają się korek i lód.',
     mode: 'experiment',
-    scene: JSON.stringify(EXAMPLE_SCENE)
+    scene: JSON.stringify(EXAMPLE_SCENE),
+    question: '<puste albo @kurs/pytanie z bazy opowieści>',
+    about: '@kurs/plywanie'
   },
   extra: [
     { key: 'title', shape: 'line', says: 'Tytuł doświadczenia (nad sceną)' },
     { key: 'text', shape: 'lines', says: 'Tekst dla uczniów — co mają zrobić i zaobserwować (akapity)' },
     { key: 'mode', shape: 'line', says: '"experiment" — dokładnie ta scena (z „Pokaż”), "sandbox" — piaskownica: wszystko wolno, gotowe doświadczenia do wczytania, zapis i eksport JSON' },
-    { key: 'scene', shape: 'json', says: 'Scena: świat, ciała, połączenia, zbiorniki z cieczą, rury, co widać, co wolno, cel i kroki — silnik jest wbudowany, scena mówi, co w nim stoi', inside: SCENE_DOCS }
+    { key: 'scene', shape: 'json', says: 'Scena: świat, ciała, połączenia, zbiorniki z cieczą, rury, co widać, co wolno, cel i kroki — silnik jest wbudowany, scena mówi, co w nim stoi', inside: SCENE_DOCS },
+    { key: 'question', shape: 'line', says: 'w opowieści z bazą wiedzy: osiągnięty cel sceny ("goal") liczy się jak dobra odpowiedź na to pytanie z bazy — id albo @nazwa (puste: własna karta celu)' },
+    { key: 'about', shape: 'lines', says: 'w opowieści z bazą wiedzy: dla jakich wpisów bazy liczy się osiągnięty cel — id albo @nazwa, każdy w osobnej linii' }
   ]
 });
 

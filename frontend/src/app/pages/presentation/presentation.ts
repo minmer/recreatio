@@ -489,6 +489,12 @@ export interface Scene {
   readonly next: string | null;
   /** 2026-10-19 — wie laut der Klang der Umgebung (`show.sound`) auf dieser Szene ist (0–1); `null`: ganz. */
   readonly volume: number | null;
+  /**
+   * 2026-11-03 (G) — WORÜBER DIESE SZENE IST: Einträge der Baza der Erzählung (Kennung oder @name). Die Ścieżka der
+   * Erzählung stellt die Szene dorthin (neben dem, wofür ihre Fragen zählen) — so stehen auch Einführung und Treffpunkt
+   * ohne eigene Frage auf der Karte.
+   */
+  readonly about?: readonly string[];
 }
 
 export const SCENE: Omit<Scene, 'key'> = {
@@ -950,7 +956,10 @@ export function readScene(value: unknown, index: number): Scene {
       linger: depth.linger !== false
     },
     next: typeof one.next === 'string' && one.next.trim() !== '' ? one.next.trim().slice(0, 80) : null,
-    volume: typeof one.volume === 'number' && Number.isFinite(one.volume) ? within(one.volume, [0, 1], 1) : null
+    volume: typeof one.volume === 'number' && Number.isFinite(one.volume) ? within(one.volume, [0, 1], 1) : null,
+    ...(Array.isArray(one.about) && one.about.some((x) => typeof x === 'string' && x.trim() !== '')
+      ? { about: one.about.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim().slice(0, 160)).slice(0, 12) }
+      : {})
   };
 }
 
@@ -1066,6 +1075,7 @@ export function sceneJson(scene: Scene): Record<string, unknown> {
   }
   if (scene.next !== null) out.next = scene.next;
   if (scene.volume !== null) out.volume = roundTo(scene.volume, 3);
+  if (scene.about !== undefined && scene.about.length > 0) out.about = [...scene.about];
   return out;
 }
 

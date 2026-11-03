@@ -184,6 +184,11 @@ export interface Flow {
   readonly narrators: readonly Narrator[];
   /** 2026-10-22 (Schritt 12) — ein Storyboard einer Präsentation (der Pfad der Seite): der Graph kommt aus ihr. */
   readonly presentation?: string;
+  /**
+   * 2026-11-03 (G) — DIE EINHEIT, DIE DIESE ERZÄHLUNG IST (ein Eintrag der Baza): im Krajobraz EIN Feld — seine Ścieżka
+   * ist die der Erzählung, und wer sie zu Ende bringt, senkt das Feld ins Tal.
+   */
+  readonly unit?: string;
 }
 
 export function readFlow(id: string, raw: unknown): Flow {
@@ -208,7 +213,8 @@ export function readFlow(id: string, raw: unknown): Flow {
     goals: (Array.isArray(d.goals) ? d.goals : []).flatMap((g): Goal[] => (isObject(g) && str(g.id) !== '' ? [{ id: str(g.id), title: str(g.title) || str(g.id), condition: readCondition(g.condition) }] : [])),
     lines: (Array.isArray(d.lines) ? d.lines : []).flatMap((l): CharacterLine[] => (isObject(l) && str(l.character) !== '' && str(l.of) !== '' ? [{ character: str(l.character), of: str(l.of), condition: readCondition(l.condition), once: l.once !== false }] : [])),
     narrators: (Array.isArray(d.narrators) ? d.narrators : []).flatMap((n): Narrator[] => (isObject(n) && str(n.character) !== '' ? [{ character: str(n.character), condition: readCondition(n.condition) }] : [])).slice(0, 12),
-    ...(str(d.presentation).trim() === '' ? {} : { presentation: str(d.presentation).trim().replace(/^#?\/?/, '') })
+    ...(str(d.presentation).trim() === '' ? {} : { presentation: str(d.presentation).trim().replace(/^#?\/?/, '') }),
+    ...(str(d.unit).trim() === '' ? {} : { unit: str(d.unit).trim() })
   };
 }
 
