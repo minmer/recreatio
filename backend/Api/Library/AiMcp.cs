@@ -40,7 +40,8 @@ public static class AiMcp
         "read full entries with get_entry and follow arguments with get_related (fields such as grounds/objections). " +
         "A reconstructed argument of a work: a field whose schema says \"structure\": \"up\" links a step to the step above it. Start at the leading question and call get_related with direction \"in\", fields [that field] and depth 3; continue with another call from every node at depth 3. If the result is truncated (at most 60 nodes per call), its edges still name the steps that did not fit: continue from those too. Order steps by the locator of their reference to the work. " +
         "Learning order in a knowledge base: a field whose schema says \"prerequisite\": \"up\" names what must be known first (\"down\": what builds on this); questions are entries of kind \"question\" whose \"form\" is the type of question, \"about\" what they test and \"needs\" what comes before them. " +
-        "What steers learning in a knowledge base — card templates with their weights (tests), revisions, views, flows, collections, anchors, forms, settings, how many cards each template makes and who reads it — comes from get_knowledge_setup, in the shape of the export \"recreatio.cogita.course\" (without entries, without learner progress). " +
+        "What steers learning in a knowledge base — card templates with their weights (tests), revisions, views, flows (in full), collections, anchors, forms, settings, how many cards each template makes, who reads it and the fixed map of every landscape view — comes from get_knowledge_setup, in the shape of the export \"recreatio.cogita.course\" (without entries, without learner progress). It is a snapshot built in the browser of someone who writes there (45 s after the last change while a tab is open, and right after an import): when SnapshotCurrent is false the base changed after it was made. " +
+        "A story that counts in Cogita is a presentation page plus a flow {\"look\": \"scenes\", \"presentation\": \"<page>\", \"unit\": \"@lesson\"}; how to build one: get_import_format guide-stories, a complete example: example-story and example-story-page. " +
         "Full texts of works (books, articles, the Bible, documents) are read with list_texts, read_text (by place such as \"J 21,15-17\", \"nr 24\", \"s. 45\", a page of a separately numbered part written as printed, e.g. \"s. xii\", \"s. 12*\", \"s. 3'\", \"s. A12\", or part by part) and search_text. " +
         "In textbooks, formulas are LaTeX between $…$ (inline) and $$…$$ (displayed, numbered with \\tag{…}); definitions, theorems, lemmas, proofs and examples are blocks of type \"statement\" (their head in bold, their content quoted with \"> \"); read_text also takes such a label as printed (\"Twierdzenie 2.3\", \"(2.4)\", \"Rys. 1.2\"). " +
         "Cite entries by title and url, passages by work and place; quote texts exactly; never invent entries or text. Content is mostly Polish. " +
@@ -544,7 +545,7 @@ public sealed class AiMcpTools
     public sealed record KnowledgeSetupResult(
         string CollectionId, string Collection, string Area, string? SnapshotMadeAt, string? Readers,
         IReadOnlyList<SetupSection> Sections, string? Section, int Offset, int? NextOffset, bool Complete,
-        JsonObject Document, JsonObject? Cards, string Note, bool SnapshotCurrent = true, string? ChangedAt = null);
+        JsonObject Document, JsonObject? Cards, string Note, bool SnapshotCurrent = true, string? ChangedAt = null, JsonArray? Landscapes = null);
 
     /// <summary>Wie viele Zeichen ein Ergebnis höchstens trägt — darüber kommt es abschnitts- und stückweise.</summary>
     public const int SetupBudget = 60_000;
@@ -554,7 +555,9 @@ public sealed class AiMcpTools
     [
         ("settings", "ustawienia"), ("kinds", "rodzaje"), ("templates", "szablony"), ("revisions", "powtórki"), ("views", "widoki"),
         ("flows", "przebiegi"), ("collections", "zbiory"), ("anchors", "wejścia"), ("forms", "formularze"),
-        ("looks", "wygląd"), ("rules", "zasady"), ("values", "wartości")
+        ("looks", "wygląd"), ("rules", "zasady"), ("values", "wartości"),
+        /* 2026-11-03 (H) — kein Abschnitt des Exports: die feste Karte jedes Krajobraz (Zellen, Bereiche, Werte — ohne Höhen). */
+        ("landscapes", "krajobrazy")
     ];
 
     /// <summary>
@@ -586,11 +589,11 @@ public sealed class AiMcpTools
     };
 
     [McpServerTool(Name = "get_knowledge_setup", Title = "Ustawienia nauki bazy wiedzy", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Everything that steers learning in a knowledge base (Cogita), in exactly the shape of its export \"recreatio.cogita.course\" with lasting names (\"@…\") — directly comparable with the import format (get_import_format knowledge-base): card templates (name, kinds, direction, full graph, tests with weights), revisions (full graph: source, learning, filter.when, strategy with all settings), views (mode, steps, group/matrix, columns, sort, outline), flows, collections, anchors, forms, the schema (kinds), looks, rules, values and settings (sources = libraries used, dependencies, offline, motivation). Plus: how many cards each template actually makes (cards) and who reads the base (readers). Entries are not included (search_entries / get_entry; an \"@name\" is accepted as id). No learner progress and no answers. Large bases come in sections: without section it returns everything if it fits, otherwise an overview with the sections; then ask per section and page with nextOffset.")]
+    [Description("Everything that steers learning in a knowledge base (Cogita), in exactly the shape of its export \"recreatio.cogita.course\" with lasting names (\"@…\") — directly comparable with the import format (get_import_format knowledge-base): card templates (name, kinds, direction, full graph, tests with weights), revisions (full graph: source, learning, filter.when, strategy with all settings), views (mode, steps, group/matrix, columns, sort, outline), flows in full (steps and exits, goals, \"unit\", \"presentation\"), collections, anchors, forms, the schema (kinds), looks, rules, values and settings (sources = libraries used, dependencies, offline, motivation). Plus: how many cards each template actually makes (cards), who reads the base (readers) and, for every view in mode \"landscape\", its fixed map (landscapes: cells, areas, regions — no heights; the same for every learner). Entries are not included (search_entries / get_entry; an \"@name\" is accepted as id). No learner progress and no answers. The data is a snapshot built in the browser of someone who writes in the base — 45 s after the last change while a tab is open, and right after an import; SnapshotCurrent = false (and a note starting with STALE SNAPSHOT) means the base changed after it was made. Large bases come in sections: without section it returns everything if it fits, otherwise an overview with the sections; then ask per section (also \"landscapes\") and page with nextOffset.")]
     public static async Task<KnowledgeSetupResult> GetKnowledgeSetup(
         IHttpContextAccessor http, Db db, IConfiguration config,
         [Description("Knowledge base id or name; may be empty when only one knowledge base is authorized.")] string? collection = null,
-        [Description("Only one section: templates, revisions, views, flows, collections, anchors, forms, settings, kinds, looks, rules, values (Polish names work too). Empty: everything when it fits, otherwise an overview.")] string? section = null,
+        [Description("Only one section: templates, revisions, views, flows, collections, anchors, forms, settings, kinds, looks, rules, values, landscapes (Polish names work too). Empty: everything when it fits, otherwise an overview.")] string? section = null,
         [Description("With a section: how many of its items to skip (from nextOffset).")] int offset = 0,
         CancellationToken cancellationToken = default)
     {
@@ -625,20 +628,24 @@ public sealed class AiMcpTools
 
         var course = JsonNode.Parse(courseEl.GetRawText())!.AsObject();
         Scrub(course);
+        /* 2026-11-03 (H) — die feste Karte jedes Widoku „landscape" (aus der Struktur allein; nichts vom Lernen). */
+        var landscapes = p.Setup.TryGetProperty("landscapes", out var landEl) && landEl.ValueKind == JsonValueKind.Array ? JsonNode.Parse(landEl.GetRawText())!.AsArray() : null;
+        if (landscapes is not null) Scrub(landscapes);
         var cards = p.Setup.TryGetProperty("cards", out var cardsEl) && cardsEl.ValueKind == JsonValueKind.Object ? ObjectOf(cardsEl) : null;
         var readers = ReadersText(p.Setup.TryGetProperty("readers", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() : null, p.AreaName);
 
         var sections = course.Where(kv => kv.Value is JsonArray).Select(kv => new SetupSection(kv.Key, ((JsonArray)kv.Value!).Count, kv.Value!.ToJsonString(Json).Length)).ToList();
+        if (landscapes is not null) sections.Add(new SetupSection("landscapes", landscapes.Count, landscapes.ToJsonString(Json).Length));
         JsonObject Header() => new() { ["format"] = course["format"]?.DeepClone(), ["version"] = course["version"]?.DeepClone(), ["name"] = course["name"]?.DeepClone() };
         /* 2026-11-03 — ein Odpis älter als die letzte Änderung sagt es, bevor jemand aus ihm schliesst, ein Import fehle. */
         var stale = p.Current ? "" : $"STALE SNAPSHOT: made at {p.MadeAt}, but the knowledge base changed after that (last change {p.ChangedAt}) — anything saved since is not visible here yet; the snapshot is rebuilt by the browser of someone who writes there (right after an import). ";
-        var about = stale + "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. No learner progress or answers are included.";
+        var about = stale + "Document = the knowledge base's export \"recreatio.cogita.course\" WITHOUT entities, in the same shape and with the same lasting names: \"@name\" is an entry's, kind's or document's name from an import (its \"ref\"), otherwise its id — compare with get_import_format knowledge-base. Flows come in full (graph, goals, unit, presentation). Read entries named by \"@…\" with get_entry (id = \"@name\"). Cards = how many cards each template makes now, counted with only the sources inside this authorization; problems = why some entries make none. Landscapes = the fixed map of each view in mode \"landscape\" (the same for every learner since positions come from structure alone): cells [q, r, \"@entry\", area index] on one axial hex grid, ground = cells between them, areas = the sectors in order (arc in degrees, 0 = left), regions = every value with its parent (what a zoom opens and what a \"+N\" field gathers) — no heights, no bands. No learner progress or answers are included. The snapshot is built in the browser of someone who writes in the base: 45 s after the last change while a tab is open (and right after an import); SnapshotCurrent = false means it is older than the last change.";
 
         if (string.IsNullOrWhiteSpace(section))
         {
-            var whole = course.ToJsonString(Json).Length;
+            var whole = course.ToJsonString(Json).Length + (landscapes?.ToJsonString(Json).Length ?? 0);
             if (whole <= SetupBudget)
-                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about, p.Current, p.ChangedAt);
+                return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, true, course, cards, about, p.Current, p.ChangedAt, landscapes);
             var overview = Header();
             if (course["settings"] is JsonArray settings && settings.ToJsonString(Json).Length <= SetupBudget / 2) overview["settings"] = settings.DeepClone();
             return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, null, 0, null, false, overview, cards,
@@ -648,7 +655,7 @@ public sealed class AiMcpTools
         var asked = AiAccess.Fold(section);
         var key = SetupKeys.FirstOrDefault(k => AiAccess.Fold(k.Key) == asked || AiAccess.Fold(k.Alias) == asked).Key
             ?? throw new McpException($"not_found: nie ma części „{section}”. Części: {string.Join(", ", SetupKeys.Select(k => k.Key))}.");
-        var items = course[key] as JsonArray ?? [];
+        var items = key == "landscapes" ? landscapes ?? [] : course[key] as JsonArray ?? [];
         if (offset < 0) offset = 0;
         var picked = new JsonArray();
         var used = 0;
@@ -661,10 +668,10 @@ public sealed class AiMcpTools
             used += size;
         }
         var doc = Header();
-        doc[key] = picked;
+        if (key != "landscapes") doc[key] = picked;
         int? next = at < items.Count ? at : null;
         return new KnowledgeSetupResult(Ids.ToText(p.LibraryId), p.Name, p.AreaName, p.MadeAt, readers, sections, key, offset, next, offset == 0 && next is null, doc,
-            key == "templates" ? cards : null, about, p.Current, p.ChangedAt);
+            key == "templates" ? cards : null, about, p.Current, p.ChangedAt, key == "landscapes" ? picked : null);
     }
 
     [McpServerTool(Name = "list_import_formats",Title = "Formaty importu JSON", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]

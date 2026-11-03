@@ -876,6 +876,19 @@ Phones stay awake.
   (collapsible): "now" = the scene shown (route-aware), the current branch lit, a tap drives the stage there
   (`DriveControl.jump`). The page module `path` follows presentation flows too.
 
+### For AI (2026-11-03, H)
+
+- Format text (`json.ts`, → `ksiazka-AI.md`, MCP `knowledge-base`): the flows section complete — steps and exits,
+  chapters that merge, goals, narrators, `unit`, presentation flows, the learner's position and the `flow` condition,
+  the path beside a story and the module `path`, and `recreatio.cogita.flow` (one flow with what it shows, its unit).
+- Guide `guide-stories` (`templates/cogita/opowiesci-AI.md`), examples `example-story` (`przyklad-opowiesc.json`) and
+  `example-story-page` (`przyklad-opowiesc-strona.json`) in `ImportFormats.json`.
+- `get_knowledge_setup`: flows in full (as exported); a section `landscapes` (`krajobrazy`) — per landscape view its
+  fixed map from `landscapeExport.ts` (cells `[q, r, "@entry", area]`, ground count, areas, regions; no heights, no
+  bands; filter.when steps ignored), computed in the browser into the snapshot; descriptions and the note state the
+  snapshot rule (browser of a writer, 45 s after the last change while a tab is open, right after an import) and the
+  stale flag. Learner progress never leaves the browser.
+
 ### The path map (2026-11-03, F)
 
 - **One component** (`PathMap.tsx`, model `pathLayout.ts`): nodes bottom (start) to top joined by visible ways, like a

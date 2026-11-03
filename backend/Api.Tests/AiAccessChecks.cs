@@ -175,6 +175,9 @@ internal static class AiAccessChecks
                       "views": [ { "ref": "@fakty/w-ogolne", "name": "Od ogólnego do szczegółu", "steps": [ { "type": "filter.when", "config": { "when": [ { "field": "#knowness", "rel": "before" } ] } } ] } ],
                       "settings": [ { "ref": "@ustawienia", "sources": [], "dependencies": [ { "parent": "@bosko/zycie", "child": "@bosko/turyn", "kind": "prerequisite", "impact": 0.5 } ] } ] },
                     "cards": { "total": 7, "questions": 1, "templates": [ { "ref": "@fakty/t-okres", "name": "Okres → lata", "kinds": ["Okres"], "cards": 6, "entries": 6 } ] },
+                    "landscapes": [ { "view": "@fakty/w-krajobraz", "name": "Krajobraz", "cells": [ [ -1, 2, "@bosko/turyn", 0 ], [ 1, 2, "@bosko/zycie", 1 ] ], "ground": 14,
+                      "areas": [ { "value": "@czas/okres-1", "label": "Młodość", "from": 0, "to": 90, "count": 1 }, { "value": "@czas/okres-2", "label": "Turyn", "from": 90, "to": 180, "count": 1 } ],
+                      "regions": [ { "value": "@czas/okres-1", "label": "Młodość", "parent": null, "from": 0, "to": 90, "count": 1 } ] } ],
                     "readers": "members" } }
                 """);
             var setupSnap = AiAccess.ReadSnapshot(Guid.Parse("01a16af6-5a94-718f-b8b5-abdb3ab69200"), "knowledge", setupDoc.RootElement)!;
@@ -185,6 +188,13 @@ internal static class AiAccessChecks
                 && whole.Cards?["templates"]?[0]?["cards"]?.GetValue<int>() == 6 && whole.Readers == "Czytają ją członkowie obszaru „Parafia” (i ci, którym dali link albo miejsce)."
                 && whole.Sections.Any(x => x.Name == "views" && x.Items == 1) && whole.Note.Contains("No learner progress"),
                 "MCP get_knowledge_setup: the course without entries (templates, revisions with all settings, views, settings), cards per template, who reads");
+            /* 2026-11-03 (H) — die feste Karte jedes Krajobraz: im Ganzen dabei, auch als eigener Abschnitt; nie Höhen. */
+            check(whole.Landscapes?.Count == 1 && whole.Landscapes[0]?["cells"]?.AsArray().Count == 2 && whole.Sections.Any(x => x.Name == "landscapes" && x.Items == 1)
+                && whole.Document["landscapes"] is null && whole.Note.Contains("Landscapes =") && whole.Note.Contains("45 s"),
+                "MCP get_knowledge_setup: the fixed map of every landscape view (cells, areas, regions), and the snapshot rule in the note");
+            var onlyMaps = AiMcpTools.SetupOf(setupSnap, "krajobrazy", 0);
+            check(onlyMaps.Section == "landscapes" && onlyMaps.Landscapes?.Count == 1 && onlyMaps.Document["landscapes"] is null && onlyMaps.Document["views"] is null && onlyMaps.NextOffset is null,
+                "MCP get_knowledge_setup: the landscapes as their own section (Polish name too)");
             var onlyViews = AiMcpTools.SetupOf(setupSnap, "Widoki", 0);
             check(onlyViews.Section == "views" && onlyViews.Document["views"]?.AsArray().Count == 1 && onlyViews.Document["templates"] is null && onlyViews.Cards is null && onlyViews.NextOffset is null,
                 "MCP get_knowledge_setup: one section by its Polish name");

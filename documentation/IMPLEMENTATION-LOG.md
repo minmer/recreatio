@@ -3217,3 +3217,19 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   the valley, unit "ukończona"; flow-condition view filled; second run skips the intro (lesson learned); Nauka
   presentation with its path (5), tap drives to „Chmury", now follows; no console errors. F (27) and E (54) browser
   tests still pass; `npm run app:check` passes.
+
+## C26 — MCP documentation for stories, flows, the path and landscape maps (2026-11-03, Part 2 H)
+
+- `json.ts` flows section rewritten (every step and exit, merging chapters, goals, narrators, `unit`, presentation
+  flows, positions and the condition `flow`, path beside the story, module `path`, `recreatio.cogita.flow`);
+  `exportFlow` carries the unit; `ksiazka-AI.md` and `ImportFormats.json` regenerated.
+- New: `templates/cogita/opowiesci-AI.md` (`guide-stories`), `example-story` + `example-story-page` registered in
+  `scripts/import-formats.mjs`.
+- `cogita/landscapeExport.ts` + `aiSnapshot.ts`: the snapshot carries `landscapes`; `AiMcp.cs`: section
+  `landscapes`/`krajobrazy` (whole result when it fits, own section with paging), descriptions, server instructions
+  and the note (flows in full, fixed maps, snapshot rule, stale flag); `AiAccessChecks.cs` two more checks.
+- Verified on LocalDB (scratchpad `story-g/mcp-check.mjs`, MCP JSON-RPC over the AI link, 10 checks): the flow in
+  full with lasting names, the flow condition kept in its view, the lesson landscape as cells/areas/regions without
+  heights, `landscapes` among the sections and as its own section, the note, a current snapshot — and after a
+  browser import of a new landscape view a fresh snapshot 2 s later carrying its map. Backend checks pass;
+  `npm run app:check` passes.
