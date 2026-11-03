@@ -28,6 +28,9 @@ import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_BUDGET, LS_FORE, LS_SHRINK, 
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
 import { renamer, type Learner } from './learn';
+import { gaugeKnow, pathOfEntries, unitMembers } from './PathLearn';
+import { PathMap } from './PathMap';
+import { pathMarks } from './pathLayout';
 import { practiseGraph, practiseIds } from './quilt';
 import { planOf, readPlan, type Plan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
@@ -238,44 +241,49 @@ interface Memory {
   listed: string | null;
   width: number;
   scroll: number | null;
+  /** 2026-11-03 (F) — die offene Einheit (ihre Ścieżka gross) und wo die Seite vorher stand. */
+  unit: string | null;
+  unitScroll: number | null;
 }
 
 const memories = new Map<string, Memory>();
 const memoryOf = (key: string): Memory => {
   let m = memories.get(key);
   if (m === undefined) {
-    m = { run: null, focus: [], chosen: null, listed: null, width: 0, scroll: null };
+    m = { run: null, focus: [], chosen: null, listed: null, width: 0, scroll: null, unit: null, unitScroll: null };
     try { const raw = sessionStorage.getItem(`cg-ls-scroll:${key}`); if (raw !== null && Number.isFinite(Number(raw))) m.scroll = Number(raw); } catch { /* ohne Speicher des Tabs */ }
     memories.set(key, m);
   }
   return m;
 };
 
-const urlNames = (scope: string) => ({ focus: `${scope}obszar`, chosen: `${scope}pole` });
+const urlNames = (scope: string) => ({ focus: `${scope}obszar`, chosen: `${scope}pole`, unit: `${scope}sciezka` });
 const hashParams = (): { base: string; params: URLSearchParams } => {
   const hash = typeof window === 'undefined' ? '' : window.location.hash;
   const at = hash.indexOf('?');
   return { base: at < 0 ? hash : hash.slice(0, at), params: new URLSearchParams(at < 0 ? '' : hash.slice(at + 1)) };
 };
 
-/** Zoom und Wahl aus der Adresse — `null`: sie nennt nichts davon. */
-function readKept(scope: string): { focus: readonly string[]; chosen: string | null } | null {
+/** Zoom, Wahl und offene Einheit aus der Adresse — `null`: sie nennt nichts davon. */
+function readKept(scope: string): { focus: readonly string[]; chosen: string | null; unit: string | null } | null {
   const { params } = hashParams();
   const names = urlNames(scope);
   const f = params.get(names.focus);
   const c = params.get(names.chosen);
-  if ((f === null || f === '') && (c === null || c === '')) return null;
+  const u = params.get(names.unit);
+  if ((f === null || f === '') && (c === null || c === '') && (u === null || u === '')) return null;
   const focus = f === null || f === '' ? [] : f.split(',').map((x) => { try { return decodeURIComponent(x); } catch { return x; } }).filter((x) => x !== '');
-  return { focus, chosen: c === null || c === '' ? null : c };
+  return { focus, chosen: c === null || c === '' ? null : c, unit: u === null || u === '' ? null : u };
 }
 
 /** Zoom und Wahl in die Adresse: ein Zoom als Schritt der Geschichte (Zurück zoomt hinaus), eine Wahl ersetzend. */
-function writeKept(scope: string, focus: readonly string[], chosen: string | null, step: boolean): void {
+function writeKept(scope: string, focus: readonly string[], chosen: string | null, step: boolean, unit: string | null = null): void {
   if (typeof window === 'undefined') return;
   const { base, params } = hashParams();
   const names = urlNames(scope);
   if (focus.length === 0) params.delete(names.focus); else params.set(names.focus, focus.map((x) => encodeURIComponent(x)).join(','));
   if (chosen === null) params.delete(names.chosen); else params.set(names.chosen, chosen);
+  if (unit === null) params.delete(names.unit); else params.set(names.unit, unit);
   const query = params.toString();
   const next = `${base}${query === '' ? '' : `?${query}`}`;
   if (next === window.location.hash) return;
@@ -293,9 +301,10 @@ function useKept(key: string, scope: string | null) {
   const [focus, setFocusNow] = useState<readonly string[]>(() => start?.focus ?? mem.focus);
   const [chosen, setChosenNow] = useState<string | null>(() => (start !== null ? start.chosen : mem.chosen));
   const [listed, setListedNow] = useState<string | null>(() => (start !== null ? null : mem.listed));
+  const [unit, setUnitNow] = useState<string | null>(() => (start !== null ? start.unit : mem.unit));
   /* Was das Gedächtnis kannte, steht danach auch in der Adresse (ein Neuladen findet es). */
   useEffect(() => {
-    if (scope !== null && start === null && (mem.focus.length > 0 || mem.chosen !== null)) writeKept(scope, mem.focus, mem.chosen, false);
+    if (scope !== null && start === null && (mem.focus.length > 0 || mem.chosen !== null || mem.unit !== null)) writeKept(scope, mem.focus, mem.chosen, false, mem.unit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /* Zurück und Vor: die Adresse sagt, was gilt. */
@@ -307,6 +316,11 @@ function useKept(key: string, scope: string | null) {
       setChosenNow(now?.chosen ?? null);
       mem.focus = now?.focus ?? [];
       mem.chosen = now?.chosen ?? null;
+      /* Zurück aus einer Einheit: der Krajobraz steht wieder, wo er stand. */
+      const was = mem.unit;
+      mem.unit = now?.unit ?? null;
+      setUnitNow(mem.unit);
+      if (was !== null && mem.unit === null) backFromUnit();
     };
     window.addEventListener('popstate', again);
     return () => window.removeEventListener('popstate', again);
@@ -321,9 +335,23 @@ function useKept(key: string, scope: string | null) {
   const setChosen = (next: string | null) => {
     setChosenNow(next);
     mem.chosen = next;
-    if (scope !== null) writeKept(scope, mem.focus, next, false);
+    if (scope !== null) writeKept(scope, mem.focus, next, false, mem.unit);
   };
   const setListed = (next: string | null) => { setListedNow(next); mem.listed = next; };
+  /* 2026-11-03 (F) — eine Einheit öffnen (ihre Ścieżka gross; ein Schritt der Geschichte: Zurück kehrt in den Krajobraz zurück). */
+  const backFromUnit = () => {
+    if (mem.unitScroll !== null) mem.scroll = mem.unitScroll;
+    mem.unitScroll = null;
+    window.requestAnimationFrame(() => restoreScroll());
+  };
+  const setUnit = (next: string | null) => {
+    if (next !== null && mem.unit === null) mem.unitScroll = window.scrollY;
+    const was = mem.unit;
+    mem.unit = next;
+    setUnitNow(next);
+    if (scope !== null) writeKept(scope, mem.focus, mem.chosen, next !== null, next);
+    if (next === null && was !== null) backFromUnit();
+  };
   /* Wo die Seite steht — beim Verlassen schon gemerkt (ein kürzerer Reiter danach setzt den Bildlauf zurück, bevor wir es erfahren). */
   const gone = useRef(false);
   /* Solange der alte Bildlauf zurückgeholt wird, zählt er nicht als neuer (die Seite wächst noch, er bliebe zu kurz stehen). */
@@ -332,10 +360,10 @@ function useKept(key: string, scope: string | null) {
   useEffect(() => {
     let frame = 0;
     const onScroll = () => {
-      if (gone.current || restoring.current || frame !== 0) return;
+      if (gone.current || restoring.current || frame !== 0 || mem.unit !== null) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
-        if (gone.current || restoring.current) return;
+        if (gone.current || restoring.current || mem.unit !== null) return;
         mem.scroll = window.scrollY;
         try { sessionStorage.setItem(`cg-ls-scroll:${key}`, String(Math.round(window.scrollY))); } catch { /* ohne Speicher des Tabs */ }
       });
@@ -362,7 +390,7 @@ function useKept(key: string, scope: string | null) {
     };
     step();
   };
-  return { mem, focus, setFocus, chosen, setChosen, listed, setListed, restoreScroll };
+  return { mem, focus, setFocus, chosen, setChosen, listed, setListed, unit, setUnit, restoreScroll };
 }
 
 /** Wer weniger Bewegung will, bekommt keine. */
@@ -508,6 +536,30 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       </div>
     );
   }
+  /* 2026-11-03 (F) — wie viele Teile eine Einheit hat (ihre Ścieżka), und sie gross statt der Karte. */
+  const askable = (id: string) => gauge.askable.has(id);
+  const unitSize = (id: string): number => unitMembers(lib, id, cards, askable).length;
+  if (keep.unit !== null) {
+    const members = unitMembers(lib, keep.unit, cards, askable);
+    const model = pathOfEntries(members.map((id) => ({ id, label: labelOf(id) })), lib.prerequisites());
+    return host(
+      <div className="cg-ls-unit" data-landscape-unit-open={keep.unit}>
+        <div className="cg-row-between">
+          <button type="button" className="wk-link-btn" onClick={() => keep.setUnit(null)} data-landscape-unit-back="">‹ Krajobraz</button>
+          <strong><TexText text={entityNameTex(lib, keep.unit)} /></strong>
+        </div>
+        {members.length === 0 ? <p className="cg-muted">Ta jednostka nie ma jeszcze części z pytaniami.</p> : (
+          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge))} size="full" title="Ścieżka jednostki" name={(id) => <TexText text={entityNameTex(lib, id)} />}
+            actions={(id, state) => (
+              <div className="wk-actions">
+                {learner !== null && <button type="button" className="wk-btn" onClick={() => learnEntry(id, state !== 'done')} data-path-learn={id}>{state === 'done' ? 'Powtórz' : 'Ucz się'}</button>}
+                {onOpen !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>Otwórz wpis</button>}
+              </div>
+            )} />
+        )}
+      </div>
+    );
+  }
   if (failed !== null) return host(<p className="wk-error" data-landscape-failed="">Krajobraz: {failed}</p>);
   if (run === null || boxWidth === 0) return host(<p className="cg-muted" data-landscape-wait="">Liczenie krajobrazu…</p>);
   const layout = run.layout;
@@ -540,7 +592,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         compact={compact} width={boxWidth} client={client}
         onZoom={(value) => setFocus([value])}
         quest={(f, paths) => (
-          <Quest field={f} goal={goal} canLearn={learner !== null} note={note} label={labelOf} lockCount={lockCount} paths={paths}
+          <Quest field={f} goal={goal} canLearn={learner !== null} note={note} label={labelOf} lockCount={lockCount} paths={paths} unitSize={unitSize} onUnit={(id) => keep.setUnit(id)}
             onLearn={(id) => learnEntry(id)} onReview={(id, band) => learnEntry(id, band !== 'known')} onReviewFirst={(id) => reviewFirst(id)}
             onGoal={(id, on) => { setGoal(on ? id : null); setSaid(on ? `Cel: ${labelOf(id)}` : 'Cel usunięty'); }}
             onZoom={() => zoom(f)} canZoom={opens(f)} {...(onOpen === undefined ? {} : { onOpen })} />
@@ -1005,8 +1057,11 @@ function ProgressRing({ known, total }: { known: number; total: number }) {
   );
 }
 
-function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen }: {
+function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen, unitSize, onUnit }: {
   field: LsField;
+  /** 2026-11-03 (F) — wie viele Teile eine Einheit hat; öffnen zeigt ihre Ścieżka gross. */
+  unitSize: (id: string) => number;
+  onUnit: (id: string) => void;
   goal: string | null;
   canLearn: boolean;
   note: string | null;
@@ -1052,6 +1107,7 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
   }
   const id = f.id!;
   const locks = f.locked ? lockCount(id) : 0;
+  const parts = unitSize(id);
   return (
     <div className="cg-ls-q">
       <p className="cg-ls-qtitle"><strong><TexText text={entityNameTex(lib, id)} /></strong></p>
@@ -1065,6 +1121,7 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
         {canLearn && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">Powtórz</button>}
         {f.band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? 'Usuń cel' : 'Ustaw jako cel'}</button>}
         {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">Otwórz wpis</button>}
+        {parts > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>Pokaż ścieżkę ({parts})</button>}
       </div>
       {!canLearn && f.band !== 'mountain' && <p className="cg-muted">Uczyć się możesz, gdy ten widok wie, kto się uczy (zalogowanie, osoba strony albo ta przeglądarka).</p>}
       {note !== null && <p className="wk-note" role="status">{note}</p>}

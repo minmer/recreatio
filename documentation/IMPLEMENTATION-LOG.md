@@ -3170,3 +3170,23 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   never overlap, area order, no tooltips, no sideways scroll, same cells at every width/budget/zoom, rims by direction,
   zoom in the address, hover intent, paths and route numbers, popover contents, Esc and outside click, „Co dalej"
   hover, phone sheet; no console errors. `npm run app:check` and `vite build` pass.
+
+## C24 — The path map: a course path that forks and merges (2026-11-03, Part 2 F)
+
+- `cogita/pathLayout.ts` (model: effective needs, reduction, levels, centred forks, merges above branches, pooled
+  rows; marks: done/due/available/locked, now, lit ways, merges; `branchOf`), `cogita/PathMap.tsx` + `pathMap.css`
+  (hex nodes, ways with light-up animation, window, collapsible, follows "now"), `cogita/PathLearn.tsx` (author order,
+  gauge states, unit members, „Ucz się" run), `cogita/flowPath.ts` (a story's entries, order, forks, chapters).
+- Nauka → Ścieżka shows the map (list kept as a fold-out); `FlowPlayer` shows it beside/below the story, in sync
+  (now, branch light, tap jumps, chapters done by story or knowledge); page module `path` (registry, page format,
+  `ImportFormats.json` regenerated); landscape unit fields open their path full size with Back to the same place.
+- `contentOfLibrary.cardsOf` = own cards and questions about the entry (`cardsAbout`) — flows' knowness now sees
+  what questions test. `CogitaHome` keeps its cards while recounting (no remount flash).
+- Checks: `app-path-check.mjs` (36: levels, centred forks of 2/3/10, merges, gaps, determinism, states, merge words,
+  branch, transparency, reduction, circles, chain, story order/needs/exits/chapters/now/shown, chapters lead back) in
+  `app:check`. Browser (scratchpad `path-f/story-browser.mjs`, LocalDB „Szlak wody", 27 checks): Ścieżka nodes,
+  states, due, now, fork/merge positions, "2 z 3", lit ways, window, learning a step, its way lights up when coming
+  back; story beside (desktop) / below (390), now, chapters "2 z 3" with only the open path, branch light on hover, tap
+  jumps, collapse kept; page modules (story path, lesson path); landscape lesson field with progress ring → „Pokaż
+  ścieżkę (14)" → full path in the address → Back to the same scroll; no console errors. Landscape browser test (54)
+  still passes. `npm run app:check` and `vite build` pass.

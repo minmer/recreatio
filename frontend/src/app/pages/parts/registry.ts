@@ -62,6 +62,7 @@ import { quotesPart } from './quotes';
 import { writingPart } from './writing';
 import { writingsPart } from './writings';
 import { viewPart } from './view';
+import { pathPart } from './path';
 
 /**
  * 2026-10-22 (Schritt 10) — WAS MAN HINZUFÜGEN KANN: alle ausser den
@@ -127,6 +128,8 @@ export const PARTS: readonly PartModule[] = [
   topicExplorerPart,
   /* 2026-10-22 (Schritt 9) — ein gespeicherter Widok einer Baza: Tabela oder Drzewo, der Zustand je Baustein in der Adresse. */
   viewPart,
+  /* 2026-11-03 (F) — die Ścieżka als Karte: einer Erzählung, einer Einheit, eines Widoku, der ganzen Baza. */
+  pathPart,
 
   /* Was seinen Inhalt woanders herholt. */
   massesPart,

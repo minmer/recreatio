@@ -60,7 +60,7 @@ import { RevisionRun } from './RevisionRun';
 import { accountSources, useSources } from './sources';
 import { SessionsTab } from './Sessions';
 import { TemplateEditor } from './TemplateEditor';
-import { CogitaContext, ForeignOnly, useAsync, useBusy, useCogita, useCtx, type CogitaCtx } from './ui';
+import { CogitaContext, ForeignOnly, useAsyncKeep, useBusy, useCogita, useCtx, type CogitaCtx } from './ui';
 import type { Card } from './cardBasics';
 import { MenuButton } from '../ui/Menu';
 import { Icon } from '../ui/icons';
@@ -112,7 +112,8 @@ function Hub({ trail, part }: { trail: readonly string[]; part: CogitaPart }) {
   /* „Ustawienia" gibt es in beiden Teilen — man bleibt, wo man ist. */
   const go = (...tail: string[]) => { window.location.hash = tail[0] === 'ustawienia' ? viewPath(part, lib.libraryId, ...tail) : href(...tail); };
   /* Karten nur, wo gelernt wird: die Wiedza rechnet keine. */
-  const cards = useAsync(() => (part === 'learn' ? lib.cards('learn').then((r) => r.cards) : Promise.resolve(null)), [lib.revision, part]);
+  /* 2026-11-03 (F) — beim Nachzählen bleiben die alten Karten stehen (nichts fällt kurz auf „Liczenie kart…" zurück). */
+  const [cards] = useAsyncKeep(() => (part === 'learn' ? lib.cards('learn').then((r) => r.cards) : Promise.resolve(null)), [lib.revision, part]);
   const other = part === 'knowledge'
     ? { href: viewPath('learn', lib.libraryId), label: 'Ucz się z tej bazy', icon: 'cap' as const }
     : { href: viewPath('knowledge', lib.libraryId), label: 'Wiedza tej bazy', icon: 'branch' as const };

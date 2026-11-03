@@ -847,6 +847,30 @@ Phones stay awake.
   59 ms, heights 11 ms, layout 34 ms; after an answer 14 + 15 ms; zoom p95 16.8 ms per frame.
 - Prepared for later: `positionOf`, `routeTo`, `heightOf`, field marks, an edge filter (avatars, tours, age variants).
 
+### The path map (2026-11-03, F)
+
+- **One component** (`PathMap.tsx`, model `pathLayout.ts`): nodes bottom (start) to top joined by visible ways, like a
+  course path, but it forks and merges. Built from the one learning order (`prerequisites.ts`) over a set of entries:
+  effective prerequisites through entries outside the set, no detours (transitive reduction), circles cut. Level =
+  longest chain before; a fork's single-parent children side by side, centred over the parent in the author's order
+  (the import's lasting name `_ref`, else the label — ids minted in the same millisecond are random); a merge centred
+  above its branches; per level the fewest moves (pooled blocks, gap ≥ 1). Structure only: progress never moves a node.
+  No order at all: a chain in the given order.
+- **States** as in the landscape: done (≥ 10 %, sunk, ✓), due (marker), available (all before done; raised, glowing),
+  locked (dimmed, lock), "now" (the host's position, else the first open one from below). A way is lit once its start
+  is done; newly lit ways and newly done nodes animate (remembered per map across remounts, 1.6 s). At a merge
+  "2 z 3 ścieżek". Hover (intent) or tap: a window with name, state, cards and the host's actions; Esc/outside closes.
+- **Where**: Nauka → Ścieżka (the whole base; „Ucz się" = basics revision; the level list folds out below); the story
+  player `FlowPlayer` (small, collapsible — beside the story on desktop/landscape, below in portrait; `flowPath.ts`:
+  the story's entries in reading order, its own order where the learning order says nothing, loops and the chapters'
+  done-exit ignored); page module `path` (`{title, library, flow | entry | view, answers}`: a story, a unit's parts
+  or the questions about it, a view, or the whole base); a unit field in the landscape („Pokaż ścieżkę (N)", full size,
+  `sciezka=` in the address, Back returns to the same landscape place).
+- **Story ↔ map**: "now" = the entry of the current step; pointing at a choice/chapter lights its branch; inside a
+  chapter its branch stays lit; tapping an open node jumps the story to the step showing it (entering its chapter);
+  a chapters fork counts a path as done when the story finished it OR every step of it is learned — the story offers
+  only open paths and the same "2 z 3" as the map. Flows' knowness of an entry now counts the questions about it.
+
 ## 13. Access
 
 - **A course in areas** [L1, E10]:

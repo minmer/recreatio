@@ -17,21 +17,24 @@
  *
  * Daneben (`EntityPrerequisites`) die Reihenfolge an einem Eintrag in der Wiedza: was vor ihm kommt,
  * was auf ihm aufbaut, ein Kreis.
+ *
+ * 2026-11-03 (F) — <b>die Ebenen sind jetzt eine Karte</b> (`PathMap`): von unten nach oben, Gabeln und
+ * Zusammenführungen, der Stand wie im Krajobraz; ein Knoten bietet „Ucz się" (mit dem, was davor kommt). Die Liste der
+ * Ebenen bleibt darunter zum Aufklappen (Vorleser, sehr grosse Baza).
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import type { Card } from './cardBasics';
-import { readGraph } from './graph';
 import { gaugeFromMarks, itemKnowness, ownKnowness } from './knowing';
 import { KNOWN } from './knowness';
 import { renamer, type Learner } from './learn';
-import { basicsRevision } from './presets';
+import { authorOrder, gaugeKnow, pathOfEntries, usePathRun } from './PathLearn';
+import { PathMap } from './PathMap';
+import { pathMarks } from './pathLayout';
 import { cardsAbout, levelLabel, nearestNeeds } from './prerequisites';
-import { planOf } from './revision';
-import { RevisionRun } from './RevisionRun';
 import { useRunRewards } from './RewardsEditor';
-import { entityName, entityNameTex, originPath, useAsync, useCtx } from './ui';
+import { entityName, entityNameTex, originPath, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
 import { TexText } from '../ui/tex/Tex';
 
@@ -51,21 +54,12 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const rewards = useRunRewards();
   const graph = lib.prerequisites();
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
-  const [run, setRun] = useState<{ title: string; ids: readonly string[] | null } | null>(null);
-
   /* 2026-10-30 — die Powtórka „Najpierw podstawy" aus allgemeinen Schritten, über die genannten Einträge (oder alles). */
-  const source = useAsync(run === null || cards === null ? null : async () => {
-    const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-    /* Ein Eintrag mit den Pytania über ihn („O czym") — sie prüfen ihn mit. */
-    const ids = run.ids === null ? null : [...new Set(run.ids.flatMap((id) => [id, ...cardsAbout(cards, id).map((c) => c.entity ?? c.question)]))];
-    const doc = basicsRevision(ids, run.title);
-    const made = await planOf(readGraph(doc.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now()));
-    return made.plan === null ? null : { plan: made.plan, cards, deps: lib.dependencies(), title: run.title };
-  }, [run, cards, lib, learner]);
+  const run = usePathRun(lib, learner, cards, rewards);
+  const setRun = (r: { title: string; ids: readonly string[] | null }) => run.start(r.title, r.ids);
 
   if (cards === null) return <Loading label="Liczenie kart…" />;
-  if (run !== null && source === undefined) return <Loading label="Przygotowywanie kart…" />;
-  if (run !== null && source !== null && source !== undefined) return <RevisionRun lib={lib} learner={learner} source={source} onClose={() => setRun(null)} rewards={rewards} />;
+  if (run.view !== null) return <>{run.view}</>;
 
   if (graph.edges.length === 0) {
     return (
@@ -102,6 +96,11 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const name = (id: string) => entityName(lib, id);
   /* 2026-11-01 — gezeigt mit seinen Wzory; `name` bleibt zum Sortieren und für Titel. */
   const shown = (id: string) => entityNameTex(lib, id);
+  /* 2026-11-03 (F) — die Karte: was Karten hat, von den Grundlagen her (Einträge, die nur ordnen, sind durchsichtig), je Ebene in der Reihenfolge des Autors. */
+  const byAuthor = authorOrder(lib);
+  const items = order.flatMap((at) => levels.get(at)!.filter((id) => g.askable.has(id)).sort(byAuthor)).map((id) => ({ id, label: name(id) }));
+  const model = pathOfEntries(items, graph, false);
+  const marks = pathMarks(model, gaugeKnow(g));
 
   return (
     <div className="cg cg-path" data-learning-path={order.length}>
@@ -114,6 +113,18 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
           Koło w kolejności — te zależności nie działają: <TexText text={graph.circles.slice(0, 4).map((d) => `${shown(d.child)} wymaga ${shown(d.parent)}`).join('; ')} />. Popraw je we wpisach.
         </p>
       )}
+      <PathMap model={model} marks={marks} title="Ścieżka" name={(id) => <TexText text={shown(id)} />}
+        detail={(id) => { const n = cardsAbout(cards, id).length; return n === 0 ? null : `${n} ${n === 1 ? 'karta' : 'kart'}`; }}
+        actions={(id, state) => (
+          <div className="wk-actions">
+            <button type="button" className="wk-btn" onClick={() => setRun({ title: name(id), ids: [id] })} data-path-learn={id}>
+              {state === 'done' ? 'Powtórz' : 'Ucz się'}{state !== 'done' && (graph.needs.get(id) ?? []).length > 0 ? ' (z podstawami)' : ''}
+            </button>
+            {lib.origin(id) !== undefined && <a className="wk-link-btn" href={originPath(lib.origin(id)!, id, 'wpisy')}>Otwórz wpis</a>}
+          </div>
+        )} />
+      <details className="cg-path-levels" data-path-levels="">
+        <summary>Jako lista — poziomy ({order.length})</summary>
       {order.map((at) => (
         <section key={at} className="cg-path-level" data-path-level={at}>
           <h3>{levelLabel(at)}</h3>
@@ -139,6 +150,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
           </ul>
         </section>
       ))}
+      </details>
       {outside > 0 && <p className="cg-muted">{outside} {outside === 1 ? 'wpis z kartami nie ma' : 'wpisów z kartami nie ma'} miejsca w kolejności — przychodzą razem z poziomem 1.</p>}
     </div>
   );

@@ -15,17 +15,22 @@
  * (`narrators`) wählen sich nach den Werten und stehen über jedem Schritt.
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { CardFace } from './CardFace';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import {
-  advance, chaptersLeft, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, startFlow, STEP_LABEL,
+  advance, chaptersLeft, follow, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, startFlow, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
+import { flowCurrent, flowPath, flowPathModel, flowShown, type EntriesOfStep } from './flowPath';
+import type { GraphNode } from './graph';
+import { PathMap } from './PathMap';
+import { branchOf, mergeWords, pathMarks } from './pathLayout';
 import type { Learner } from './learn';
 import { knownessOf, average } from './knowness';
+import { cardsAbout } from './prerequisites';
 import type { Facts } from './logic';
 import { publicEntity, type PublicEntity } from './publish';
 import type { MediaRef } from './schema';
@@ -43,8 +48,11 @@ export interface FlowContent {
   readonly card: (id: string) => Card | null;
   readonly flow: (id: string) => Flow | undefined;
   readonly members: (collectionOrKind: string) => readonly string[];
-  /** Karten eines Eintrags — für seine Kenntnis. */
+  /** Karten eines Eintrags — für seine Kenntnis (2026-11-03: seine eigenen und die Pytania über ihn, „O czym"). */
   readonly cardsOf: (id: string) => readonly Card[];
+  /** 2026-11-03 (F) — was direkt vor einem Eintrag zu können ist (die eine Reihenfolge des Lernens) und sein Name. */
+  readonly needsOf?: (id: string) => readonly string[];
+  readonly label?: (id: string) => string;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -61,9 +69,37 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     },
     flow: find,
     members: (x) => [...(lib.members(x) ?? new Set(lib.ofKind(x).map((e) => e.id)))],
-    cardsOf: (id) => cards.filter((c) => c.entity === id || c.question === id)
+    /* 2026-11-03 (F/G) — wie überall in Cogita: was einen Eintrag prüft, sind seine Karten und die Pytania über ihn. */
+    cardsOf: (id) => cardsAbout(cards, id),
+    needsOf: (id) => lib.prerequisites().needs.get(id) ?? [],
+    label: (id) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); }
   };
 }
+
+/** 2026-11-03 (F) — was ein Schritt zeigt oder fragt: ein Eintrag; eine Frage — worüber sie ist (sonst sie selbst). */
+export const stepEntries = (content: Pick<FlowContent, 'card'>): EntriesOfStep => (n: GraphNode) => {
+  const c = n.config;
+  switch (n.type) {
+    case 'show':
+    case 'expand':
+    case 'opening': {
+      const id = typeof c.of === 'string' ? c.of : '';
+      return id === '' ? [] : [id];
+    }
+    case 'question': {
+      const id = typeof c.of === 'string' && c.of !== '' ? c.of : typeof c.card === 'string' ? c.card : '';
+      const card = id === '' ? null : content.card(id);
+      if (card === null) return [];
+      return (card.about ?? []).length > 0 ? [...card.about!] : [card.entity ?? card.question];
+    }
+    default:
+      return [];
+  }
+};
+
+const PATH_OPEN = 'cg-story-path-open:';
+const readOpen = (flow: string): boolean => { try { return sessionStorage.getItem(PATH_OPEN + flow) !== '0'; } catch { return true; } };
+const keepOpen = (flow: string, open: boolean): void => { try { sessionStorage.setItem(PATH_OPEN + flow, open ? '1' : '0'); } catch { /* ohne Speicher: offen */ } };
 
 export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play' }: {
   flow: Flow;
@@ -144,6 +180,51 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const reached = goalsReached(flow, facts(state));
 
   const restart = () => setState(startFlow(flow, learner?.progress.values ?? {}));
+
+  /*
+    2026-11-03 (F) — DIE KARTE NEBEN DER ERZÄHLUNG: ihre Einträge in der Reihenfolge des Lernens (wo sie nichts sagt, in
+    der der Erzählung); jetzt dran ist der Eintrag des Schrittes; über einer Möglichkeit leuchtet ihre Spur; ein freier
+    Knoten bringt die Erzählung zu dem Schritt, der ihn zeigt; an Kapiteln „2 z 3 ścieżek".
+  */
+  const fp = useMemo(() => flowPath(flow, stepEntries(content), content.label ?? ((id) => content.entity(id)?.label ?? id)), [flow, content]);
+  const pathModelNow = useMemo(() => flowPathModel(fp, content.needsOf ?? (() => [])), [fp, content]);
+  const shownNow = flowShown(fp, state.visited);
+  const pathNow = pathMarks(pathModelNow, (id) => {
+    const cards = content.cardsOf(id);
+    if (cards.length === 0 || learner === null) return { learned: shownNow.has(id), due: false };
+    const k = facts(state).knowness(id);
+    return { learned: k >= 0.1 - 1e-12, due: k >= 0.1 - 1e-12 && k < 1 };
+  }, flowCurrent(fp, state));
+  const [hovered, setHovered] = useState<ReadonlySet<string> | null>(null);
+  /* Im Kapitel bleibt seine Spur hervorgehoben. */
+  const inChapter = state.chapter === null ? null : branchOf(pathModelNow, fp.exits.get(state.chapter.hub)?.get(`c${state.chapter.index}`) ?? []);
+  const lightOf = (step: string, exit: string) => ({
+    onPointerEnter: () => setHovered(branchOf(pathModelNow, fp.exits.get(step)?.get(exit) ?? [])),
+    onPointerLeave: () => setHovered(null),
+    onFocus: () => setHovered(branchOf(pathModelNow, fp.exits.get(step)?.get(exit) ?? [])),
+    onBlur: () => setHovered(null)
+  });
+  const [pathOpen, setPathOpen] = useState(() => readOpen(flow.id));
+  const jumpToEntry = (entry: string) => {
+    const step = fp.stepOf.get(entry);
+    if (step === undefined) return;
+    const ch = fp.chapterOf.get(step);
+    setAnsweredOn(null);
+    setHovered(null);
+    setState((s) => ({
+      ...s, flow: flow.id, step, ended: false, stack: [],
+      visited: s.visited.includes(step) ? s.visited : [...s.visited, step],
+      chapter: ch === undefined ? null : { hub: ch.hub, index: Number(ch.exit.slice(1)), start: follow(flow, ch.hub, ch.exit) ?? step }
+    }));
+  };
+  const withPath = (story: ReactNode): ReactNode => (pathModelNow.nodes.length < 2 ? story : (
+    <div className={`cg-story-path has-path${pathOpen ? '' : ' is-closed'}`} data-story-path="">
+      {story}
+      <PathMap model={pathModelNow} marks={pathNow} size="small" title="Ścieżka" collapsible open={pathOpen}
+        onOpen={(v) => { setPathOpen(v); keepOpen(flow.id, v); }} highlight={hovered ?? inChapter}
+        onPick={(id) => { if (fp.stepOf.has(id)) jumpToEntry(id); }} />
+    </div>
+  ));
   /* 2026-10-22 (Schritt 12) — wer gerade erzählt: der erste Erzähler, dessen Bedingung gilt. */
   const narratorOf = (f: Facts): PublicEntity | null => {
     const one = narratorNow(flow, f);
@@ -172,7 +253,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   }
 
   if (state.ended || current === undefined) {
-    return (
+    return withPath(
       <section className={`cg-flow cg-flow-${look}`}>
         <div className="cg-flow-step">
           <h2>Koniec — <TexText text={flow.name} /></h2>
@@ -225,15 +306,33 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       case 'choice':
         return (
           <div className="cg-choices">
-            {optionsOf(current, facts(state)).map((o) => <button key={o.exit} type="button" className="cg-option" onClick={() => go(o.exit)}><TexText text={o.label} /></button>)}
+            {optionsOf(current, facts(state)).map((o) => <button key={o.exit} type="button" className="cg-option" onClick={() => go(o.exit)} {...lightOf(current.id, o.exit)} data-flow-option={o.exit}><TexText text={o.label} /></button>)}
           </div>
         );
-      case 'chapters':
+      case 'chapters': {
+        /*
+          2026-11-03 (F) — eine Gabel, die zusammenkommt: was durch ist — in dieser Erzählung oder auf der Karte (jeder Schritt
+          seiner Spur gelernt): Erzählung und Karte sagen dasselbe —, und die Spuren, die noch offen sind; sind alle durch, weiter.
+        */
+        const all = Array.isArray(c.chapters) ? c.chapters.length : 0;
+        const per = fp.exits.get(current.id);
+        const learnedPath = (exit: string): boolean => {
+          const branch = branchOf(pathModelNow, per?.get(exit) ?? []);
+          return branch.size > 0 && [...branch].every((id) => pathNow.state[pathModelNow.index.get(id) ?? -1] === 'done');
+        };
+        const left = chaptersLeft(current, state).filter((ch) => !learnedPath(ch.exit));
+        const done = all - left.length;
         return (
-          <div className="cg-choices">
-            {chaptersLeft(current, state).map((ch) => <button key={ch.exit} type="button" className="cg-option" onClick={() => go(ch.exit)}><TexText text={ch.title} /></button>)}
-          </div>
+          <>
+            {all > 1 && done > 0 && <p className="cg-muted" data-flow-merge={`${done}/${all}`}>{mergeWords(done, all)} przerobione{left.length > 0 ? ' — zostały:' : ''}</p>}
+            {left.length === 0 ? <Next onNext={() => go('done')} /> : (
+              <div className="cg-choices">
+                {left.map((ch) => <button key={ch.exit} type="button" className="cg-option" onClick={() => go(ch.exit)} {...lightOf(current.id, ch.exit)} data-flow-option={ch.exit}><TexText text={ch.title} /></button>)}
+              </div>
+            )}
+          </>
         );
+      }
       case 'line': {
         const who = typeof c.character === 'string' ? content.entity(c.character) : null;
         const said = typeof c.of === 'string' ? content.entity(c.of) : null;
@@ -263,7 +362,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     }
   })();
 
-  return (
+  return withPath(
     <section className={`cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`}>
       <div className="cg-row-between">
         <strong><TexText text={flow.name} /></strong>

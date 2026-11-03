@@ -1,0 +1,92 @@
+/*
+ * 2026-11-03 (F) — DIE ŚCIEŻKA ALS KARTE (PathMap.tsx). Dieselbe Sprache wie der Krajobraz: gelernt versenkt und satt
+ * (mit ✓), frei erhaben und hell mit Schein, jetzt dran mit Hof, gesperrt blass mit Schloss, zu wiederholen ein Punkt.
+ * Der Stand steht nie nur in der Farbe (Zeichen in jedem Knoten). Ein Weg leuchtet, sobald sein Anfang gelernt ist.
+ */
+
+.cg-pm {
+  --cg-pm-done: #1baf7a;
+  --cg-pm-done-edge: #12805a;
+  --cg-pm-open: #ffffff;
+  --cg-pm-glow: rgb(27 175 122 / 0.32);
+  --cg-pm-lock: #ece8e0;
+  --cg-pm-way: #d9d2c5;
+  --cg-pm-lit: #1baf7a;
+  --cg-pm-due: #eda100;
+  --cg-pm-hl: #2a78d6;
+  display: grid; gap: var(--wk-space-2); min-width: 0; position: relative;
+}
+@media (prefers-color-scheme: dark) {
+  .cg-pm {
+    --cg-pm-done: #199e70;
+    --cg-pm-done-edge: #4fd1a1;
+    --cg-pm-open: #2a2620;
+    --cg-pm-glow: rgb(79 209 161 / 0.28);
+    --cg-pm-lock: #24201a;
+    --cg-pm-way: #4a4338;
+    --cg-pm-lit: #4fd1a1;
+    --cg-pm-due: #f2b705;
+    --cg-pm-hl: #3987e5;
+  }
+}
+
+.cg-pm-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--wk-space-1) var(--wk-space-3); font-size: var(--wk-text-sm); }
+.cg-pm-toggle { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--wk-ink); cursor: pointer; }
+.cg-pm-toggle:focus-visible { outline: 2px solid var(--wk-ring); outline-offset: 2px; border-radius: var(--wk-radius-xs); }
+.cg-pm-scroll { position: relative; overflow: auto; max-height: 70vh; overscroll-behavior: contain; border-radius: var(--wk-radius); background: var(--wk-sunk); }
+.cg-pm.is-small .cg-pm-scroll { max-height: 22rem; }
+.cg-pm-svg { display: block; margin: 0 auto; overflow: visible; }
+
+/* Die Wege: sichtbar, auch wenn sie noch nicht leuchten; ein neu leuchtender läuft kurz vom Anfang zum Ende. */
+.cg-pm-way { fill: none; stroke: var(--cg-pm-way); stroke-width: 4; stroke-linecap: round; }
+.cg-pm.is-small .cg-pm-way { stroke-width: 3; }
+.cg-pm-way.is-lit { stroke: var(--cg-pm-lit); }
+.cg-pm-way.is-new { stroke-dasharray: 1; animation: cg-pm-light 0.8s ease-out both; }
+.cg-pm-way.is-dim { opacity: 0.35; }
+@keyframes cg-pm-light { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+
+/* Die Knoten. */
+.cg-pm-node { cursor: pointer; outline: none; }
+.cg-pm-hex { fill: var(--cg-pm-open); stroke: var(--wk-line-strong); stroke-width: 2; transition: fill 0.3s, stroke 0.3s, transform 0.3s; }
+.cg-pm-node.is-done .cg-pm-hex { fill: var(--cg-pm-done); stroke: var(--cg-pm-done-edge); transform: translateY(2px); }
+.cg-pm-node.is-available .cg-pm-hex { stroke: var(--cg-pm-lit); stroke-width: 2.5; filter: drop-shadow(0 0 6px var(--cg-pm-glow)) drop-shadow(0 3px 2px rgb(0 0 0 / 0.12)); transform: translateY(-2px); }
+.cg-pm-node.is-locked .cg-pm-hex { fill: var(--cg-pm-lock); stroke: var(--wk-line); }
+.cg-pm-node.is-locked { opacity: 0.62; }
+.cg-pm-node.is-dim { opacity: 0.3; }
+.cg-pm-node.is-hl .cg-pm-hex { stroke: var(--cg-pm-hl); stroke-width: 3; }
+.cg-pm-node.is-on .cg-pm-hex, .cg-pm-node:focus-visible .cg-pm-hex { stroke: var(--wk-ink); stroke-width: 3; }
+.cg-pm-node.is-new .cg-pm-hex { animation: cg-pm-sink 0.6s ease-out; }
+@keyframes cg-pm-sink { from { transform: translateY(-4px); } to { transform: translateY(2px); } }
+.cg-pm-halo { fill: none; stroke: var(--cg-pm-hl); stroke-width: 3; animation: cg-pm-pulse 2.4s ease-in-out infinite; }
+@keyframes cg-pm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.cg-pm-check { fill: none; stroke: #ffffff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.cg-pm-lock { fill: none; stroke: var(--wk-muted); stroke-width: 1.6; stroke-linejoin: round; pointer-events: none; }
+.cg-pm-dot { fill: var(--cg-pm-lit); pointer-events: none; }
+.cg-pm-due { fill: var(--cg-pm-due); stroke: var(--wk-surface); stroke-width: 1.5; pointer-events: none; }
+.cg-pm-merge { fill: var(--wk-muted); font-size: var(--wk-text-xs); font-weight: 600; paint-order: stroke; stroke: var(--wk-sunk); stroke-width: 3px; pointer-events: none; }
+.cg-pm-label { fill: var(--wk-ink); font-size: var(--wk-text-xs); paint-order: stroke; stroke: var(--wk-sunk); stroke-width: 3px; pointer-events: none; }
+.cg-pm-node.is-current .cg-pm-label { font-weight: 700; }
+.cg-pm-node.is-locked .cg-pm-label { fill: var(--wk-muted); }
+
+/* Das Fenster über einem Knoten. */
+.cg-pm-pop {
+  position: absolute; z-index: 3; transform: translate(-50%, -100%); width: min(17rem, calc(100% - 1rem)); display: grid; gap: var(--wk-space-2);
+  padding: var(--wk-space-3); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius); background: var(--wk-surface);
+  box-shadow: var(--wk-shadow-pop); font-size: var(--wk-text-sm);
+}
+.cg-pm-pop.is-below { transform: translate(-50%, 0); }
+.cg-pm-pop p { margin: 0; }
+.cg-pm-pop-title { line-height: 1.3; }
+.cg-pm-pop-state { font-weight: 600; }
+
+/* Neben einer Erzählung: unten im Hochformat, daneben im Querformat und am Rechner (zusammenklappbar). */
+.cg-story-path { display: grid; gap: var(--wk-space-3); align-items: start; }
+@media (min-width: 56rem), (orientation: landscape) and (min-width: 36rem) {
+  .cg-story-path.has-path { grid-template-columns: minmax(0, 1fr) minmax(12rem, 18rem); }
+  .cg-story-path.has-path.is-closed { grid-template-columns: minmax(0, 1fr) auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-pm-way.is-new, .cg-pm-node.is-new .cg-pm-hex, .cg-pm-halo { animation: none; }
+  .cg-pm-hex { transition: none; }
+}
