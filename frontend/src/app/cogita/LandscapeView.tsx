@@ -53,6 +53,7 @@ import { entityNameTex, useCtx } from './ui';
 import { needsKnowing, viewList, withKnowing, type ViewDoc } from './views';
 import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
+import { skipStep } from './flowAsk';
 import './landscape.css';
 
 /* -- Die Zeichnung ------------------------------------------------------------------------------------------------ */
@@ -451,12 +452,17 @@ export interface LandscapeProps {
 
 /** Was hier drin läuft: eine Powtórka (RevisionRun) — oder 2026-11-03 (Prompt 5) eine Erzählung im Spieler (an ihrer Stelle oder am Przegląd). */
 type Running =
-  | { readonly key: string; readonly source: RunSource; readonly then?: () => void; readonly story?: undefined }
+  | { readonly key: string; readonly source: RunSource; readonly then?: () => void; readonly story?: undefined; readonly origin?: string }
   | { readonly key: string; readonly story: Flow; readonly jump: { readonly step: string; readonly at: number } | null; readonly source?: undefined };
 
 
 export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
   const { lib } = useCtx();
+  W = words(baseLang(lib));
+  /* 2026-11-04 (Prompt 9) — die Seitenleiste (breit) und was sie ausser dem gewählten Feld zeigt. */
+  const [sideEl, setSideEl] = useState<HTMLElement | null>(null);
+  const [showReady, setShowReady] = useState(false);
+  const [goalDone, setGoalDone] = useState<string | null>(null);
   /* 2026-11-03 — was bleibt (`useKept`): je Baza, Widok und Grösse. */
   const keep = useKept(`${lib.libraryId}:${viewKey}:${compact ? 'small' : 'big'}`, urlScope ?? null);
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
@@ -522,9 +528,16 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const [localGoal, setLocalGoal] = useState<string | null>(null);
   const kept = progress?.positions.get(goalKey)?.step ?? null;
   const goal = learner === null ? localGoal : kept === null || kept === '' ? null : kept;
+  const [localSteps, setLocalSteps] = useState<readonly string[]>([]);
+  /* 2026-11-04 (Prompt 9, 4a) — der Weg zum Ziel bleibt gemerkt (über Sitzungen), damit Erledigtes abgehakt stehen bleibt. */
+  const goalSteps: readonly string[] = learner === null ? localSteps : progress?.positions.get(goalKey)?.visited ?? [];
   const setGoal = (id: string | null) => {
-    if (learner === null) { setLocalGoal(id); return; }
-    void learner.keepPosition({ flow: goalKey, step: id ?? '', visited: [], at: Date.now() }).catch(() => undefined);
+    const keepIt = (steps: readonly string[]) => {
+      if (learner === null) { setLocalGoal(id); setLocalSteps(steps); return; }
+      void learner.keepPosition({ flow: goalKey, step: id ?? '', visited: [...steps], at: Date.now() }).catch(() => undefined);
+    };
+    if (id === null || client === null) { keepIt([]); return; }
+    void client.route(id).then((r) => keepIt([...(r?.steps.flat() ?? []), id]), () => keepIt([id]));
   };
   /* Wie viele Felder einzeln: das Budget des Widoku — auf einem Telefon weniger (die Karte bleibt dieselbe, sie wird nur kleiner). */
   /* 2026-11-03 — jedes Feld einzeln: das Budget fasst nichts mehr zusammen (was zusammengehört, sagen die Knoten). */
@@ -537,6 +550,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const nestFocus = focus[0] ?? null;
   const shownLayout = useMemo(() => (run === null ? null : tree === null ? run.layout : nestLayout(input, run.layout, state, tree, nestFocus, order)), [run, tree, input, state, nestFocus, order]);
   const failed = fresh.failed;
+  useEffect(() => {
+    if (goal === null || run === null) return;
+    const i = index.get(goal);
+    const b = i === undefined ? null : BAND_CODE[run.layout.bands[i]] ?? null;
+    if (b === 'known' || b === 'due') { setGoalDone(goal); setGoal(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goal, run]);
 
   const { chosen, setChosen } = keep;
   /* Wo die Seite stand, als man ging — einmal, sobald das Bild wieder steht. */
@@ -586,9 +606,16 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const next = after ?? (() => learnEntry(id));
     if (list.length === 0) { next(); return; }
     const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true });
-    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `Najpierw powtórka: ${labelOf(id)}` }, then: next });
+    setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}` }, then: next, origin: id });
   };
   const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.length, 0);
+  const lockNames = (id: string): string[] => lockCards(gauge, lib.prerequisites(), id, cards).map((g) => g.entry);
+  /* 2026-11-04 (Prompt 9) — das Ende einer Powtórka hier: das Thema öffnen, die anderen Themen, zurück zur Karte (das Feld bleibt gewählt). */
+  const openTopic = (id: string) => { const flow = storyOf(id); if (flow !== undefined && !gauge.testing.has(id)) { setRunning(null); window.setTimeout(() => openStory(flow, false), 0); return; } learnEntry(id); };
+  const closingFor = (origin: string | null) => ({
+    origin, goal: goalSteps.length > 0 ? goalSteps : null, label: labelOf, openTopic,
+    others: () => { setRunning(null); setShowReady(true); }, back: () => setRunning(null)
+  });
 
   /* Immer in einer Hülle, deren Breite gemessen wird (das Budget hängt an ihr) — auch beim Warten und im Lauf. */
   const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
@@ -603,7 +630,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     }
     return host(
       <div className="cg-ls-run" data-landscape-run={running.key.split(':')[0]}>
-        <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} rewards={rewards}
+        <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} rewards={rewards} closing={closingFor(running.origin ?? null)}
           onClose={() => setRunning(null)} {...(running.then === undefined ? {} : { onDone: running.then })} />
       </div>
     );
@@ -631,9 +658,14 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const sp = storyPathOf(flow, stepWorkOf(stepEntries(content)), labelOf);
     const kept = learner?.progress.positions.get(flow.id);
     const known = gaugeKnow(gauge);
+    /* 2026-11-04 (Prompt 10) — was die Erzählung wirklich fragen würde (gekonnte Fragen übersprungen). */
+    const nodeOf = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
     const marks = storyMarks(sp, {
       visited: kept?.visited ?? [], step: kept?.step ?? null, ended: flows.get(flow.id)?.done === true,
-      ...(learner === null ? {} : { know: (x: string) => (content.cardsOf(x).length === 0 ? { learned: true, due: false } : known(x)) })
+      ...(learner === null ? {} : {
+        know: (x: string) => (content.cardsOf(x).length === 0 ? { learned: true, due: false } : known(x)),
+        knownStep: (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, (c) => learner.marks(c.key, c.fingerprint, content.rename)); }
+      })
     });
     return { flow, sp, model: sp.model, marks };
   };
@@ -657,7 +689,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         )}
         {members.length === 0 ? <p className="cg-muted">Ta jednostka nie ma jeszcze części z pytaniami.</p> : (
           story !== null ? (
-            <PathMap model={story.model} marks={story.marks} size="full" title="Ścieżka opowieści" name={(id) => <TexText text={story.model.nodes[story.model.index.get(id) ?? -1]?.label ?? id} />}
+            <PathMap model={story.model} marks={story.marks} size="full" words={W} title={`${W.pathTitle}: ${W.story}`} name={(id) => <TexText text={story.model.nodes[story.model.index.get(id) ?? -1]?.label ?? id} />}
               onPick={(id) => { const part = story.sp.parts[story.model.index.get(id) ?? -1]; if (part !== undefined && part.first !== null) setRunning({ key: `story:${story.flow.id}:${Date.now()}`, story: story.flow, jump: { step: part.first, at: Date.now() } }); }}
               actions={(id, state) => {
                 const part = story.sp.parts[story.model.index.get(id) ?? -1];
@@ -670,7 +702,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
                 );
               }} />
           ) : (
-          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge), null)} size="full" title="Ścieżka jednostki" name={(id) => <TexText text={entityNameTex(lib, id)} />}
+          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge), null)} size="full" words={W} name={(id) => <TexText text={entityNameTex(lib, id)} />}
             actions={(id, state) => (
               <div className="wk-actions">
                 {learner !== null && <button type="button" className="wk-btn" onClick={() => learnEntry(id, state !== 'done')} data-path-learn={id}>{state === 'done' ? 'Powtórz' : 'Ucz się'}</button>}
@@ -718,8 +750,40 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     window.requestAnimationFrame(() => { const el = document.querySelector(`[data-ls-field="${CSS.escape(key)}"]`); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
   };
 
+  const wide = !compact && boxWidth >= 860;
+  const mapWidth = wide ? Math.max(320, boxWidth - 352) : boxWidth;
+  const fieldKey = (id: string) => layout.fields.find((x) => x.id === id || (x.ids ?? []).includes(id))?.key ?? id;
+  const kindWords = (id: string) => (storyUnit(id) !== undefined ? W.story : W.questions(cardsAbout(cards, id).length));
+  const goalList = goal !== null && goalSteps.length > 0 ? (
+    <section className="cg-ls-goalpanel" data-landscape-goal-list={goalSteps.length}>
+      <p className="cg-ls-qh">{W.goalRoute}</p>
+      {layout.goal !== null && <p className="cg-muted">{W.goalRouteNote(goalSteps.filter((x) => bandOf(x) !== 'known' && bandOf(x) !== 'due').length, layout.goal.steps)}</p>}
+      <ol className="cg-ls-qlist is-scroll cg-ls-goalsteps">
+        {goalSteps.map((id, k) => {
+          const b = bandOf(id);
+          const isDone = b === 'known' || b === 'due';
+          const isNext = !isDone && (layout.goal?.next.includes(id) ?? false);
+          return (
+            <li key={id} className={isDone ? 'is-done' : isNext ? 'is-next' : ''} data-landscape-goal-item={id} data-landscape-goal-state={isDone ? 'done' : isNext ? 'next' : b ?? ''}>
+              <span className="cg-ls-goaltick" aria-hidden>{isDone ? '✓' : k + 1}</span>
+              <button type="button" className="cg-ref" onClick={() => showField(fieldKey(id))}><TexText text={entityNameTex(lib, id)} /></button>
+              <span className="cg-muted"> · {isDone ? W.known : b === null ? '' : stateWords({ band: b, missing: Math.round(heightOf(id)), locked: false })} · {kindWords(id)}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  ) : null;
+  const readyList = showReady ? (
+    <section className="cg-ls-goalpanel" data-landscape-ready-list="">
+      <div className="cg-row-between"><p className="cg-ls-qh">{W.readyList}</p><button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setShowReady(false)}>×</button></div>
+      <ul className="cg-ls-qlist is-scroll">
+        {layout.fields.filter((x) => x.band === 'ring' && x.kind === 'entry').slice(0, 40).map((x) => <li key={x.key}><button type="button" className="cg-ref" onClick={() => showField(x.key)}><TexText text={entityNameTex(lib, x.id!)} /></button></li>)}
+      </ul>
+    </section>
+  ) : null;
   return host(
-    <div className={`cg-ls${compact ? ' is-compact' : ''}`} data-landscape={layout.fields.length} data-landscape-ring={layout.counts.ring}
+    <div className={`cg-ls${compact ? ' is-compact' : ''}${wide ? ' has-side' : ''}`} data-landscape={layout.fields.length} data-landscape-ring={layout.counts.ring}
       data-landscape-ms={`${run.ms.graph.toFixed(1)}/${run.ms.heights.toFixed(1)}/${run.ms.layout.toFixed(1)}`} data-landscape-worker={client?.inWorker === true ? '1' : '0'}>
       {/* 2026-11-03 — es wird neu gerechnet: das Bild bleibt stehen, nur ein kleines Zeichen sagt es. */}
       {(busy || fresh.pending) && <p className="cg-ls-busy" role="status" data-landscape-busy="">liczenie…</p>}
@@ -730,19 +794,35 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
           onShow={(id) => showField(id)} onGoal={(id) => { setGoal(id); setSaid(`Cel: ${labelOf(id)}`); }} />
       )}
       {layout.notes.map((n) => <p key={n} className="cg-muted cg-ls-note">{n}</p>)}
-      <LandscapeMap layout={layout} ids={input.ids} chosen={chosen} onChoose={(f) => setChosen(chosen === f.key ? null : f.key)} onClose={() => setChosen(null)}
-        compact={compact} width={boxWidth} client={client}
+      {goalDone !== null && <p className="wk-note" role="status" data-landscape-goal-done={goalDone}>{W.goalDone(labelOf(goalDone))} <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setGoalDone(null)}>×</button></p>}
+      <div className="cg-ls-body">
+      <div className="cg-ls-main">
+      <LandscapeMap layout={layout} ids={input.ids} chosen={chosen} onChoose={(f) => setChosen(f.key)} onClose={() => setChosen(null)}
+        panel={wide ? sideEl : null} goalRoute={goal !== null && goalSteps.length > 0 ? goalSteps.filter((x) => bandOf(x) !== 'known' && bandOf(x) !== 'due') : null}
+        compact={compact} width={mapWidth} client={client}
         onZoom={(value) => setFocus([value])}
         quest={(f, paths) => (
-          <Quest field={f} goal={goal} canLearn={learner !== null} note={note} label={labelOf} lockCount={lockCount} paths={paths} unitSize={unitSize} onUnit={(id) => keep.setUnit(id)}
+          <Quest field={f} goal={goal} canLearn={learner !== null} note={note} label={labelOf} lockCount={lockCount} lockNames={lockNames} paths={paths} unitSize={unitSize} onUnit={(id) => keep.setUnit(id)}
             story={(() => { const flow = f.kind === 'entry' ? storyUnit(f.id!) : f.value !== undefined ? storyUnit(f.value) : undefined; return flow === undefined ? null : { stage: stageOf(flow), open: (review: boolean) => openStory(flow, review) }; })()}
             onGroupReview={() => reviewGroup(f)} onGroupGoal={() => goalOfGroup(f)}
             onLearn={(id) => learnEntry(id)} onReview={(id, band) => learnEntry(id, band !== 'known')}
             onReviewFirst={(id) => { const flow = storyUnit(id); reviewFirst(id, flow === undefined ? undefined : () => openStory(flow, false)); }}
-            onGoal={(id, on) => { setGoal(on ? id : null); setSaid(on ? `Cel: ${labelOf(id)}` : 'Cel usunięty'); }}
+            onGoal={(id, on) => { setGoal(on ? id : null); setSaid(on ? W.goalSet(labelOf(id)) : W.goalCleared); }}
             onZoom={() => zoom(f)} canZoom={opens(f)} {...(onOpen === undefined ? {} : { onOpen })} />
         )} />
-      <Legend />
+      <Legend goal={goal !== null} ghost />
+      </div>
+      {wide && (
+        <aside className="cg-ls-side" aria-label={W.goal} data-landscape-side="">
+          {chosen === null && <p className="cg-muted cg-ls-side-hint">{W.chooseField}</p>}
+          <div ref={setSideEl} className="cg-ls-side-pick" />
+          {goalList}
+          {readyList}
+        </aside>
+      )}
+      </div>
+      {!wide && goalList}
+      {!wide && readyList}
       {more}
       <p className="cg-sr" aria-live="polite">{said}</p>
       {!compact && <FieldList layout={layout} onChoose={(f) => showField(f.key)} />}
@@ -959,7 +1039,8 @@ function LandscapeMap({ layout: flatLayout, ids, chosen, onChoose, onClose, comp
     void client.route(id).then((r) => { if (alive && r !== null) setRoute({ id, steps: r.steps }); }, () => undefined);
     return () => { alive = false; };
   }, [picked?.key, picked?.band, client]); // eslint-disable-line react-hooks/exhaustive-deps
-  const routeOn = false && route !== null && picked !== undefined && route.id === picked.id && (hovered === undefined || hovered.key === picked.key) && peek === null;
+  /* 2026-11-04 — der Weg eines Berges ist jetzt eine geordnete Linie (`lineIds`), nicht mehr der Graph auf dem Raster. */
+  const routeOn = false as boolean;
   /*
     2026-11-04 — DER WEG ALS EINE LINIE: die Schritte in der Reihenfolge des Lernens (Voraussetzungen zuerst), innerhalb einer
     Stufe der nächste zum vorigen zuerst — so läuft die Linie ohne unnötige Kreuzungen durch die nummerierten Schritte. Für
@@ -1265,7 +1346,7 @@ function ProgressRing({ known, total }: { known: number; total: number }) {
  * DIE KARTE EINES FELDES (D; 2026-11-03, Prompt 3): oben, was immer zu sehen bleibt — Name, Fortschritt, Stand, der Knopf;
  * darunter, was rollt — was darin liegt, der ganze Weg (jeder Schritt, das Ziel zuletzt), was danach kommt.
  */
-function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen, unitSize, onUnit, story = null, onGroupReview, onGroupGoal }: {
+function Quest({ field: f, goal, canLearn, note, label, lockCount, lockNames = () => [], paths, onLearn, onReview, onReviewFirst, onGoal, onZoom, canZoom, onOpen, unitSize, onUnit, story = null, onGroupReview, onGroupGoal }: {
   field: LsField;
   /** 2026-11-03 — eine Gruppe (Knoten): was darin zu wiederholen ist, und das Nächste darin als Ziel. */
   onGroupReview?: () => void;
@@ -1280,6 +1361,8 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
   note: string | null;
   label: (id: string) => string;
   lockCount: (id: string) => number;
+  /** 2026-11-04 — was vor diesem Feld erst wiederholt werden muss (die Einträge mit schwachen Karten), beim Namen. */
+  lockNames?: (id: string) => readonly string[];
   paths: QuestTools;
   onLearn: (id: string) => void;
   onReview: (id: string, band: LsBand) => void;
@@ -1300,7 +1383,7 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
     <div className="cg-ls-qhead" data-landscape-quest-head="">
       <div className="cg-ls-qtop">
         <p className="cg-ls-qtitle">{title}</p>
-        <button type="button" className="cg-ls-qclose" aria-label="Zamknij" onClick={paths.close} data-landscape-quest-close="">×</button>
+        <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={paths.close} data-landscape-quest-close="">×</button>
       </div>
       {rest}
     </div>
@@ -1314,23 +1397,23 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
             <div className="cg-ls-qrow">
               {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
               <p className="cg-ls-qstate">
-                {f.ring > 0 && <span>{LS_BAND_MARK.ring} {f.ring} gotowe do nauki</span>}
-                {f.due > 0 && <span>{LS_BAND_MARK.due} {f.due} do powtórki</span>}
-                {f.known > 0 && <span>{LS_BAND_MARK.known} {f.known} umiem</span>}
-                {f.mountain > 0 && <span>{LS_BAND_MARK.mountain} {f.mountain} za górami</span>}
+                {f.ring > 0 && <span>{f.ring} {W.ready}</span>}
+                {f.due > 0 && <span>{f.due} {W.due}</span>}
+                {f.known > 0 && <span>{f.known} {W.known}</span>}
+                {f.mountain > 0 && <span>{f.mountain} {W.behind}</span>}
               </p>
             </div>
             <p className="cg-muted" data-landscape-group-state={f.band}>{groupWords(f)}</p>
             {(() => {
               /* EIN Knopf: eine Erzählung — ihr Knopf; ein Berg — das Nächste darin als Ziel; im Tal mit Fälligem — Powtórz; sonst Wejdź. */
-              const enter = canZoom ? <button type="button" className="wk-btn" onClick={onZoom} data-landscape-zoom="">Wejdź</button> : null;
-              const enterLink = canZoom ? <button type="button" className="wk-link-btn" onClick={onZoom} data-landscape-zoom="">Wejdź</button> : null;
+              const enter = canZoom ? <button type="button" className="wk-btn" onClick={onZoom} data-landscape-zoom="">{W.enter}</button> : null;
+              const enterLink = canZoom ? <button type="button" className="wk-link-btn" onClick={onZoom} data-landscape-zoom="">{W.enter}</button> : null;
               const primary = canLearn && story !== null
                 ? <button type="button" className="wk-btn" onClick={() => story.open(story.stage === 'review')} data-landscape-story={story.stage}>{STORY_BUTTON[story.stage]}</button>
                 : f.band === 'mountain' && onGroupGoal !== undefined
-                  ? <button type="button" className="wk-btn" onClick={onGroupGoal} data-landscape-set-goal="">Ustaw jako cel</button>
+                  ? <button type="button" className="wk-btn" onClick={onGroupGoal} data-landscape-set-goal="">{W.setGoal}</button>
                   : canLearn && f.due > 0 && (f.band === 'due' || f.band === 'known') && onGroupReview !== undefined
-                    ? <button type="button" className="wk-btn" onClick={onGroupReview} data-landscape-review="">Powtórz</button>
+                    ? <button type="button" className="wk-btn" onClick={onGroupReview} data-landscape-review="">{W.review}</button>
                     : null;
               return <div className="wk-actions">{primary ?? enter}{primary !== null && enterLink}</div>;
             })()}
@@ -1339,7 +1422,7 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
         ))}
         {inside.length > 0 && (
           <div className="cg-ls-qbody">
-            <p className="cg-ls-qh">W środku ({inside.length})</p>
+            <p className="cg-ls-qh">{W.inside(inside.length)}</p>
             <ul className="cg-ls-qlist is-scroll" data-landscape-inside={inside.length}>{inside.map(item)}</ul>
           </div>
         )}
@@ -1357,20 +1440,26 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
         <>
           <div className="cg-ls-qrow">
             {f.progress !== undefined && <ProgressRing known={f.progress.known} total={f.progress.total} />}
-            <p className="cg-ls-qstate" data-landscape-state={f.band}><span aria-hidden>{markOf(f)} </span>{story !== null && story.stage === 'review' ? `Opowieść ${STORY_WORDS.review}` : stateWords(f)}</p>
+            <p className="cg-ls-qstate" data-landscape-state={f.band}>{story !== null && story.stage === 'review' ? `Opowieść ${STORY_WORDS.review}` : stateWords(f)}{f.band === 'mountain' && (f.topics ?? 0) > f.missing ? <span className="cg-muted"> · {W.topics(f.topics ?? 0)}</span> : null}</p>
           </div>
           {story !== null && <p className="cg-muted" data-landscape-story-stage={story.stage}>{story.stage === 'review' ? 'Wróć do przeglądu na końcu opowieści — pole opadnie, gdy go zdasz.' : STORY_WORDS[story.stage] === '' ? 'Opowieść' : `Opowieść — ${STORY_WORDS[story.stage]}`}</p>}
           <div className="wk-actions">
             {canLearn && story !== null && f.band !== 'mountain' && !(f.band === 'ring' && f.locked) && <button type="button" className="wk-btn" onClick={() => story.open(story.stage === 'review')} data-landscape-story={story.stage}>{STORY_BUTTON[story.stage]}</button>}
-            {canLearn && story === null && f.band === 'ring' && !f.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">Zacznij</button>}
-            {canLearn && f.band === 'ring' && f.locked && <button type="button" className="wk-btn" onClick={() => onReviewFirst(id)} data-landscape-review-first="">Najpierw powtórz ({locks})</button>}
-            {canLearn && story === null && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">Powtórz</button>}
-            {f.band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? 'Usuń cel' : 'Ustaw jako cel'}</button>}
+            {canLearn && story === null && f.band === 'ring' && !f.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">{W.start}</button>}
+            {canLearn && f.band === 'ring' && f.locked && <button type="button" className="wk-btn" onClick={() => onReviewFirst(id)} data-landscape-review-first="">{W.reviewFirst(locks)}</button>}
+            {canLearn && story === null && (f.band === 'due' || f.band === 'known') && <button type="button" className={f.band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, f.band)} data-landscape-review="">{W.review}</button>}
+            {f.band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? W.clearGoal : W.setGoal}</button>}
             {canLearn && story !== null && f.band === 'mountain' && <button type="button" className="wk-link-btn" onClick={() => story.open(false)} data-landscape-story="locked">Otwórz opowieść</button>}
-            {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">Otwórz wpis</button>}
-            {parts > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>Pokaż ścieżkę ({parts})</button>}
+            {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">{W.openEntry}</button>}
+            {parts > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>{W.showPath(parts)}</button>}
           </div>
-          {!canLearn && f.band !== 'mountain' && <p className="cg-muted">Uczyć się możesz, gdy ten widok wie, kto się uczy (zalogowanie, osoba strony albo ta przeglądarka).</p>}
+          {!canLearn && f.band !== 'mountain' && <p className="cg-muted">{W.canLearnNote}</p>}
+          {f.locked && lockNames(id).length > 0 && (
+            <div data-landscape-review-first-list="">
+              <p className="cg-ls-qh">{W.reviewFirstWhat}</p>
+              <ul className="cg-ls-qlist is-scroll">{lockNames(id).map(item)}</ul>
+            </div>
+          )}
           {note !== null && <p className="wk-note" role="status">{note}</p>}
         </>
       ))}
@@ -1378,16 +1467,16 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
         <div className="cg-ls-qbody">
           {way !== null && (
             <div className="cg-ls-route" data-landscape-route={way.length}>
-              <p className="cg-ls-qh">Droga — od podstaw ({steps(way.length)}, na mapie 1–{way.length + 1})</p>
+              <p className="cg-ls-qh">{W.goalRoute} ({steps(way.length)})</p>
               <ol className="cg-ls-qlist is-scroll">
                 {way.map((step, i) => <li key={i} data-landscape-route-step={i + 1}>{step.map((x, j) => <span key={x}>{j > 0 ? ' + ' : ''}<TexText text={entityNameTex(lib, x)} /></span>)}</li>)}
-                <li className="cg-ls-qgoal" data-landscape-route-step={way.length + 1}><strong><TexText text={entityNameTex(lib, id)} /></strong> — cel</li>
+                <li className="cg-ls-qgoal" data-landscape-route-step={way.length + 1}><strong><TexText text={entityNameTex(lib, id)} /></strong> — {W.goal}</li>
               </ol>
             </div>
           )}
           {unlocks.length > 0 && (
             <>
-              <p className="cg-ls-qh">Co dalej</p>
+              <p className="cg-ls-qh">{W.unlocks}</p>
               <ul className="cg-ls-qlist is-scroll" data-landscape-unlocks={unlocks.length}>{unlocks.map(item)}</ul>
             </>
           )}
@@ -1598,11 +1687,10 @@ function SearchHits({ query, ids, bandOf, heightOf, label, goal, onShow, onGoal 
         const h = heightOf(id);
         return (
           <li key={id}>
-            <span aria-hidden>{b === null ? '·' : b === 'mountain' ? '▲' : LS_BAND_MARK[b]} </span>
             <button type="button" className="cg-ref" onClick={() => onShow(id)} data-landscape-hit={id}><TexText text={entityNameTex(lib, id)} /></button>
-            <span className="cg-muted"> {b === null ? '' : b === 'mountain' ? `brakuje ${Math.round(h)}` : LS_BAND_LABEL[b]}</span>
-            {(b === 'ring' || b === 'mountain') && goal !== id && <button type="button" className="wk-link-btn" onClick={() => onGoal(id)} data-landscape-hit-goal={id}>Ustaw jako cel</button>}
-            {goal === id && <span className="cg-muted"> · cel</span>}
+            <span className="cg-muted"> {b === null ? '' : b === 'mountain' ? W.away(Math.max(1, Math.round(h))) : b === 'ring' ? W.ready : b === 'due' ? W.due : W.known}</span>
+            {(b === 'ring' || b === 'mountain') && goal !== id && <button type="button" className="wk-link-btn" onClick={() => onGoal(id)} data-landscape-hit-goal={id}>{W.setGoal}</button>}
+            {goal === id && <span className="cg-muted"> · {W.goal}</span>}
           </li>
         );
       })}

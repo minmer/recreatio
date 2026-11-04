@@ -46,6 +46,8 @@ export interface StoryPart {
   readonly questions: number;
   readonly shown: readonly string[];
   readonly asked: readonly string[];
+  /** 2026-11-04 (Prompt 10) — die Schritte, die fragen (gefragt wird davon nur, was der Lernende nicht kann). */
+  readonly questionSteps: readonly string[];
   /** Eine Gabel: Wahl (`choose`) oder Kapitel (`all`) — der Schritt und seine Wege. */
   readonly fork?: { readonly mode: 'choose' | 'all'; readonly step: string; readonly branches: readonly StoryBranch[] };
   /** Nach Kapiteln: frei erst, wenn alle Wege davor durch sind. */
@@ -201,7 +203,7 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
   }
 
   /* Die Teile. */
-  type Draft = { kind: PartKind; label: string; steps: string[]; slides: number; questions: number; shown: string[]; asked: string[]; fork?: { mode: 'choose' | 'all'; step: string; exits: { exit: string; label: string; to: string | null }[] }; needsAll?: boolean };
+  type Draft = { kind: PartKind; label: string; steps: string[]; slides: number; questions: number; shown: string[]; asked: string[]; qsteps?: string[]; fork?: { mode: 'choose' | 'all'; step: string; exits: { exit: string; label: string; to: string | null }[] }; needsAll?: boolean };
   const parts: Draft[] = [{ kind: 'start', label: 'Początek', steps: [], slides: 0, questions: 0, shown: [], asked: [] }];
   const needs: Set<number>[] = [new Set()];
   const partOf = new Map<string, number>();
@@ -240,6 +242,7 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
     d.steps.push(id);
     d.slides += w.slides;
     d.questions += w.questions;
+    if (w.questions > 0) (d.qsteps ??= []).push(id);
     for (const e of w.shown) if (!d.shown.includes(e)) d.shown.push(e);
     for (const e of w.asked) if (!d.asked.includes(e)) d.asked.push(e);
   };
@@ -307,7 +310,7 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
     return endPart();
   };
   const finished: StoryPart[] = parts.map((d) => ({
-    kind: d.kind, label: d.label, steps: d.steps, first: d.steps[0] ?? (d.kind === 'start' ? flow.start : null), slides: d.slides, questions: d.questions, shown: d.shown, asked: d.asked,
+    kind: d.kind, label: d.label, steps: d.steps, first: d.steps[0] ?? (d.kind === 'start' ? flow.start : null), slides: d.slides, questions: d.questions, shown: d.shown, asked: d.asked, questionSteps: d.qsteps ?? [],
     ...(d.fork === undefined ? {} : { fork: { mode: d.fork.mode, step: d.fork.step, branches: d.fork.exits.map((x) => ({ exit: x.exit, label: x.label, to: firstPartAt(x.to) })) } }),
     ...(d.needsAll === true ? { needsAll: true } : {})
   }));
@@ -328,6 +331,8 @@ export interface StoryProgress {
   readonly know?: (id: string) => { readonly learned: boolean; readonly due: boolean };
   /** Je Rozdziały die Kapitel, die in dieser Erzählung durch sind. */
   readonly chapters?: Readonly<Record<string, readonly number[]>>;
+  /** 2026-11-04 (Prompt 10) — ist die Frage dieses Schrittes gekonnt (dann wird sie übersprungen, nicht gefragt)? */
+  readonly knownStep?: (step: string) => boolean;
 }
 
 /** Die Teile einer Spur ab einem Teil, bis zur Zusammenführung (sie nicht mehr) oder zum Ende. */
@@ -348,10 +353,15 @@ export function branchParts(sp: StoryPath, from: number): number[] {
 }
 
 /** Was eine Spur einer Gabel an Arbeit bringt (für die Wahl: „3 slajdy do przeczytania · 5 pytań"). */
-export function branchWork(sp: StoryPath, branch: StoryBranch): { readonly slides: number; readonly questions: number; readonly parts: number } {
+export function branchWork(sp: StoryPath, branch: StoryBranch, knownStep?: (step: string) => boolean): { readonly slides: number; readonly questions: number; readonly parts: number; readonly ask: number } {
   const list = branchParts(sp, branch.to);
-  return { slides: list.reduce((s, v) => s + sp.parts[v].slides, 0), questions: list.reduce((s, v) => s + sp.parts[v].questions, 0), parts: list.length };
+  const ask = list.reduce((s, v) => s + sp.parts[v].questionSteps.filter((x) => knownStep?.(x) !== true).length, 0);
+  return { slides: list.reduce((s, v) => s + sp.parts[v].slides, 0), questions: list.reduce((s, v) => s + sp.parts[v].questions, 0), parts: list.length, ask };
 }
+
+/** 2026-11-04 (Prompt 10) — je Teil: wie viele seiner Fragen wirklich gefragt würden (die gekonnten nicht). */
+export const askCounts = (sp: StoryPath, knownStep?: (step: string) => boolean): number[] =>
+  sp.parts.map((p) => p.questionSteps.filter((x) => knownStep?.(x) !== true).length);
 
 /**
  * DER STAND DER TEILE: Lesen ist durch, wenn alle seine Schritte besucht sind; Fragen, wenn sie gestellt und alles Gefragte
@@ -393,7 +403,9 @@ export function storyMarks(sp: StoryPath, pr: StoryProgress): PathMarks {
     if (f === undefined) continue;
     if (f.mode === 'choose') {
       const taken = new Set(f.branches.filter((b) => seen(b.to) || done[b.to]).map((b) => b.to)).size;
-      forks.set(i, { mode: 'choose', done: taken, total: f.branches.length });
+      /* 2026-11-04 (Prompt 9) — auch eine Wahl sagt, welche ihrer Wege schon zu Ende gegangen sind. */
+      const finished = new Set(f.branches.filter((b) => branchDone(b)).map((b) => b.to)).size;
+      forks.set(i, { mode: 'choose', done: taken, total: f.branches.length, ...(finished > 0 ? { finished } : {}) });
       done[i] = taken > 0;
     } else {
       const told = new Set(pr.chapters?.[f.step] ?? []);
@@ -423,7 +435,7 @@ export function storyMarks(sp: StoryPath, pr: StoryProgress): PathMarks {
   }
   const taken = model.edges.map(([p, c]) => parts[p].fork?.mode === 'choose' && (seen(c) || done[c]));
   return {
-    state, due, current, lit: model.edges.map(([p]) => done[p]), taken, forks,
+    ask: askCounts(sp, pr.knownStep), state, due, current, lit: model.edges.map(([p]) => done[p]), taken, forks,
     done: state.filter((s, v) => s === 'done' && countsAsStep(model.nodes[v])).length, total: model.nodes.filter(countsAsStep).length
   };
 }

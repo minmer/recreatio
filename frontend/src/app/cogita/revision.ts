@@ -519,7 +519,7 @@ export interface Why {
    * weak — do powtórki (ihre Zeit ist da); missed — zuletzt (in einem früheren Lauf) falsch; forgotten — vergessen;
    * ahead — znana, „na zapas" (nichts anderes mehr da).
    */
-  readonly reason: 'queue' | 'fresh' | 'weak' | 'again' | 'missed' | 'forgotten' | 'ahead';
+  readonly reason: 'queue' | 'fresh' | 'weak' | 'again' | 'missed' | 'forgotten' | 'ahead' | 'spacer';
   readonly order: Order;
   readonly pick: PickMode;
   /** Die Ebene der Kolejność nauki (0 = podstawy) — nur bei „najpierw ogólne" in einer Baza mit einer Reihenfolge. */
@@ -695,9 +695,29 @@ function weightOf(s: Internal, key: string, now: number): number {
  * sich verwischt) stehen daneben — sonst hielte eine allgemeine Karte, die nicht sitzen will, alles Freigegebene
  * dahinter für immer auf. Dann streng die nächste nach der Kolejność — oder zufällig, gewogen.
  */
-function pickFrom(s: Internal, active: readonly string[], previous: string | null, now: number, rng: () => number): { key: string | null; among: number } {
+/**
+ * 2026-11-04 (Prompt 10) — EIN PRZERYWNIK: bliebe nur die eben gefragte Karte, kommt zuerst eine gekonnte dazwischen —
+ * vom selben Thema, sonst aus dem Plan, sonst irgendeine gekonnte. `null`: es gibt keine (dann eben dieselbe).
+ */
+function spacerFor(s: Internal, previous: string, now: number): string | null {
+  const prev = s.fixed.byKey.get(previous);
+  const topics = new Set(prev === undefined ? [] : cardEntities(prev).filter((e) => e !== (prev.entity ?? prev.question)));
+  const known = (k: string) => k !== previous && !s.wrongSinceCorrect.has(k) && levelOfState(stateIn(s, k), now) === 'known';
+  const all = [...s.fixed.byKey.values()];
+  return all.find((c) => known(c.key) && cardEntities(c).some((e) => topics.has(e)))?.key
+    ?? s.fixed.unique.find((c) => known(c.key))?.key
+    ?? all.find((c) => known(c.key))?.key
+    ?? null;
+}
+
+function pickFrom(s: Internal, active: readonly string[], previous: string | null, now: number, rng: () => number): { key: string | null; among: number; spacer?: true } {
   if (active.length === 0) return { key: null, among: 0 };
   const others = active.filter((k) => k !== previous);
+  /* Nie dwa razy z rzędu to samo pytanie: zostało tylko to, na które właśnie była odpowiedź — najpierw przerywnik. */
+  if (others.length === 0 && previous !== null && s.wrongSinceCorrect.has(previous)) {
+    const sp = spacerFor(s, previous, now);
+    if (sp !== null) return { key: sp, among: 1, spacer: true };
+  }
   let from = others.length > 0 ? others : active.slice();
   /*
    * 2026-11-01 — was „na zapas" (znane) im Stapel liegt, kommt erst, wenn sonst nichts im Stapel ist. Eine Karte, die in
@@ -741,11 +761,11 @@ function pickFrom(s: Internal, active: readonly string[], previous: string | nul
   return { key: from[from.length - 1], among: from.length };
 }
 
-function whyOf(s: Internal, key: string | null, among: number, now: number, queue: boolean): Why | null {
+function whyOf(s: Internal, key: string | null, among: number, now: number, queue: boolean, spacer = false): Why | null {
   if (key === null) return null;
   const st = stateIn(s, key);
   const level = levelOfState(st, now);
-  const reason: Why['reason'] = queue ? 'queue' : s.wrongSinceCorrect.has(key) ? 'again' : st === null ? 'fresh'
+  const reason: Why['reason'] = spacer ? 'spacer' : queue ? 'queue' : s.wrongSinceCorrect.has(key) ? 'again' : st === null ? 'fresh'
     : level === 'known' ? 'ahead' : level === 'learning' ? 'weak' : gradeOf(st.q) === 'wrong' ? 'missed' : 'forgotten';
   return {
     reason, order: s.plan.order, pick: s.plan.pick,
@@ -826,6 +846,11 @@ export function answer(session: Session, correctness: number, at: number, also: 
   if (key === null) return { session, snapshot: null };
   const card = s.fixed.byKey.get(key);
   const q = Math.max(0, Math.min(1, correctness));
+  if (s.why?.reason === 'spacer' && q >= s.plan.minCorrectness - 1e-9) {
+    const rngS = rngAt(s.seed, s.step + 0.5);
+    const chosen = pickFrom(s, s.active, key, at, rngS);
+    return { session: seal({ ...s, current: chosen.key, why: whyOf(s, chosen.key, chosen.among, at, false, chosen.spacer === true) }), snapshot: null };
+  }
   const state = step(stateIn(s, key), { at, correctness: q });
   const states = new Map(s.states);
   states.set(key, state);
@@ -878,7 +903,7 @@ export function answer(session: Session, correctness: number, at: number, also: 
     const done: Internal = { ...next, levels };
     const active = good || kept.length < s.active.length ? fillLevels(done, kept, levels, asked, at) : kept;
     const chosen = pickFrom(done, active, key, at, rng);
-    return { session: seal({ ...done, active, current: chosen.key, why: whyOf(done, chosen.key, chosen.among, at, false) }), snapshot };
+    return { session: seal({ ...done, active, current: chosen.key, why: whyOf(done, chosen.key, chosen.among, at, false, chosen.spacer === true) }), snapshot };
   }
 
   /*
@@ -888,7 +913,7 @@ export function answer(session: Session, correctness: number, at: number, also: 
   const kept = s.active.filter((k) => !(good && k === key) && !settled.has(k));
   const active = fillTemporal(next, kept, at);
   const chosen = pickFrom(next, active, key, at, rng);
-  return { session: seal({ ...next, active, current: chosen.key, why: whyOf(next, chosen.key, chosen.among, at, false) }), snapshot };
+  return { session: seal({ ...next, active, current: chosen.key, why: whyOf(next, chosen.key, chosen.among, at, false, chosen.spacer === true) }), snapshot };
 }
 
 /** Eine Dauer, kurz: „5 min", „3 h", „2 dni". */
@@ -923,6 +948,7 @@ export function whyText(why: Why, _now: number): string {
     case 'missed': return 'Ostatnio była źle — jeszcze raz';
     case 'forgotten': return `Zapomniana — dawno nie powtarzana (znajomość ${pct})`;
     case 'ahead': return `Na zapas — umiesz (znajomość ${pct}), tę najsłabiej`;
+    case 'spacer': return 'Przerywnik — coś, co umiesz, zanim wróci tamto pytanie';
     default: return `Pora powtórki (znajomość ${pct})`;
   }
 }
@@ -942,6 +968,7 @@ export function whyDetail(why: Why, now: number): string {
     case 'missed': return `Nieznana: ostatnim razem była źle. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.${pickText}`;
     case 'forgotten': return `Nieznana: znajomość spadła do ${pct}${late}. Przychodzi razem z nowymi, gdy nic nie czeka na powtórkę.${pickText}`;
     case 'ahead': return `Znana (${pct}) — nic nie czeka na powtórkę i nie ma nic nowego, więc stos bierze to, co umiesz najsłabiej.${pickText}`;
+    case 'spacer': return 'Przerywnik: zostało tylko pytanie, na które była zła odpowiedź — zanim wróci, jedno, które umiesz. Dobra odpowiedź niczego nie zmienia, zła — jak każda.';
     default: return `Do powtórki: znajomość ${pct}${late}. Najpierw to, co znasz najsłabiej.${pickText}`;
   }
 }
@@ -1008,7 +1035,8 @@ const LESSON_MEMO = new WeakMap<Session, { readonly at: number; readonly value: 
 export function lessonProgress(session: Session, now: number): LessonProgress | null {
   const s = session as Internal;
   const levels = s.plan.mode === 'levels';
-  if (!levels && !(s.plan.mode === 'temporal' && !s.plan.ahead)) return null;
+  /* 2026-11-04 (Prompt 10) — jede Powtórka nach den Bändern zählt, was noch kommt (auch eine, die danach „na zapas" übt). */
+  if (!levels && s.plan.mode !== 'temporal') return null;
   /* Die Wählbarkeit rechnet die Kenntnis aller Karten — einmal je Stand und halber Minute genügt. */
   const had = LESSON_MEMO.get(session);
   if (had !== undefined && Math.abs(now - had.at) < 30_000) return had.value;

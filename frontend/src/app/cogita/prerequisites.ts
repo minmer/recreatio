@@ -138,6 +138,13 @@ export function allBuilds(id: string, graph: PrerequisiteGraph): Set<string> {
 export const cardEntities = (card: Pick<Card, 'entity' | 'question' | 'about'>): string[] =>
   [...new Set([card.entity ?? card.question, ...(card.about ?? [])])];
 
+/**
+ * 2026-11-04 (Prompt 9) — die Pytania, die über etwas fragen (`about`): sie sind Fragen, keine Themen — eine Karte des
+ * Lernens zeigt die Themen (Bosko: 1 371 Knoten, weil jedes Pytanie als Thema zählte).
+ */
+export const questionIds = (cards: readonly Pick<Card, 'entity' | 'question' | 'about' | 'template'>[]): Set<string> =>
+  new Set(cards.filter((c) => c.template === undefined && (c.about ?? []).length > 0).map((c) => c.entity ?? c.question));
+
 /** Die Karten, die einen Eintrag prüfen — seine eigenen und die Pytania über ihn. */
 export const cardsAbout = <C extends Pick<Card, 'entity' | 'question' | 'about'>>(cards: readonly C[], id: string): C[] =>
   cards.filter((c) => cardEntities(c).includes(id));

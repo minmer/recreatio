@@ -317,6 +317,8 @@ export interface PathFork {
   /** Gewählt (`choose`) oder ukończone (`all`). */
   readonly done: number;
   readonly total: number;
+  /** 2026-11-04 — eine Wahl: wie viele ihrer Wege zu Ende gegangen sind. */
+  readonly finished?: number;
 }
 
 export interface PathMarks {
@@ -331,6 +333,8 @@ export interface PathMarks {
   readonly taken: readonly boolean[];
   /** Je Gabel (Index des Knotens): wie viel davon gewählt oder durch ist. */
   readonly forks: ReadonlyMap<number, PathFork>;
+  /** 2026-11-04 (Prompt 10) — je Knoten: wie viele seiner Fragen wirklich gefragt würden (fehlt: alle). */
+  readonly ask?: readonly number[];
   /** Wie viele der gezählten Knoten durch sind — gezählt wird jedes Sechseck (nicht Anfang und Ende). */
   readonly done: number;
   readonly total: number;
@@ -387,14 +391,16 @@ const plural = (n: number, one: string, few: string, many: string): string => {
 export const mergeWords = (done: number, total: number): string => `${done} z ${total} ${total === 1 ? 'ścieżki' : 'ścieżek'}`;
 
 /** Was eine Gabel zählt, in Worten: „wybierz 1 z 3", „wybrano 1 z 3", „ukończono 2 z 3 ścieżek". */
-export const forkWords = (f: PathFork): string => (f.mode === 'choose' ? (f.done === 0 ? `wybierz 1 z ${f.total}` : `wybrano ${f.done} z ${f.total}`) : `ukończono ${mergeWords(f.done, f.total)}`);
+export const forkWords = (f: PathFork): string => (f.mode === 'choose' ? (f.done === 0 ? `wybierz 1 z ${f.total}` : `wybrano ${f.done} z ${f.total}${(f.finished ?? 0) > 0 ? ` · ukończono ${f.finished}` : ''}`) : `ukończono ${mergeWords(f.done, f.total)}`);
 
 /** Was in einem Teil wartet, in Worten: „3 slajdy do przeczytania · 5 pytań do odpowiedzi". */
-export function partWords(nd: Pick<PathNode, 'kind' | 'slides' | 'questions'>): string {
+export function partWords(nd: Pick<PathNode, 'kind' | 'slides' | 'questions'>, ask?: number): string {
   const s = nd.slides ?? 0;
   const q = nd.questions ?? 0;
   const slides = s > 0 ? `${s} ${plural(s, 'slajd', 'slajdy', 'slajdów')} do przeczytania` : '';
-  const questions = q > 0 ? `${q} ${plural(q, 'pytanie', 'pytania', 'pytań')} do odpowiedzi` : '';
+  /* 2026-11-04 (Prompt 10) — gezählt wird, was wirklich gefragt wird: „2 z 5 pytań"; alles gekonnt — nur zum Lesen. */
+  const questions = q === 0 ? '' : ask === undefined || ask >= q ? `${q} ${plural(q, 'pytanie', 'pytania', 'pytań')} do odpowiedzi`
+    : ask === 0 ? 'wszystkie pytania już umiesz — tylko do przeczytania' : `${ask} z ${q} ${plural(q, 'pytania', 'pytań', 'pytań')} do odpowiedzi`;
   switch (nd.kind) {
     case 'start': return 'Początek ścieżki';
     case 'end': return 'Koniec ścieżki';

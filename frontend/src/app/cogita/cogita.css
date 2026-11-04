@@ -970,3 +970,17 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
   .cg-fold > summary::before { transition: none; }
   .cg-tile, .cg-build.is-checked .cg-build-line .cg-tile { transition: none; }
 }
+
+/* 2026-11-04 (Prompt 10) — über jeder Frage: wie viele noch, ein dünner Balken, woher und warum (leise, antippbar). */
+.cg-askhead { display: grid; gap: 0.2rem; margin-bottom: var(--wk-space-2); font-size: var(--wk-text-sm); }
+.cg-askhead-row { display: flex; align-items: center; gap: var(--wk-space-2); }
+.cg-askhead-bar { flex: 1 1 auto; height: 4px; border-radius: var(--wk-radius-xs); background: var(--wk-sunk); overflow: hidden; }
+.cg-askhead-bar i { display: block; height: 100%; background: var(--wk-accent); }
+.cg-askhead-why { justify-self: start; border: 0; background: none; padding: 0; font: inherit; color: var(--wk-muted); text-align: left; cursor: pointer; }
+.cg-askhead[data-ask-spacer="1"] .cg-askhead-why { font-style: italic; }
+
+/* 2026-11-04 (Prompt 9) — das Ende einer Powtórka: was sie freigeschaltet hat und der nächste Schritt. */
+.cg-run-closing { display: grid; gap: var(--wk-space-2); }
+.cg-run-closing-h { margin: 0; font-weight: 600; }
+.cg-run-unlocked { margin: 0; padding-left: var(--wk-space-4); }
+.cg-run-next { font-size: var(--wk-text-md, 1rem); }

@@ -19,7 +19,9 @@ import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
 import { authorOrder, gaugeKnow, pathOfEntries, unitMembers, usePathRun } from '../../cogita/PathLearn';
 import { PathMap } from '../../cogita/PathMap';
 import { EMPTY_PATH, pathMarks, type PathMarks, type PathModel } from '../../cogita/pathLayout';
-import { cardsAbout } from '../../cogita/prerequisites';
+import { cardsAbout, questionIds } from '../../cogita/prerequisites';
+import { skipStep } from '../../cogita/flowAsk';
+import { baseLang, words } from '../../cogita/lang';
 import type { CogitaLibrary } from '../../cogita/store';
 import { CogitaContext, useAsync } from '../../cogita/ui';
 import { readView, viewList } from '../../cogita/views';
@@ -88,7 +90,10 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
       /* 2026-11-04 — die Teile der Erzählung (Lesen, Fragen, Przegląd, Gabeln) und ihr Stand aus der gemerkten Stelle. */
       const sp = storyPath(flow, stepWorkOf(stepEntries(content)), label);
       const kept = learner?.progress.positions.get(flow.id);
-      const marks = storyMarks(sp, { visited: kept?.visited ?? [], step: kept?.step ?? null, ...(learner === null ? {} : { know: storyKnowOf(content.cardsOf) }) });
+      /* 2026-11-04 (Prompt 10) — gezählt wird, was die Erzählung wirklich fragen würde (gekonnte Fragen übersprungen). */
+      const nodeOf = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
+      const knownStep = learner === null ? undefined : (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, (c) => learner.marks(c.key, c.fingerprint, content.rename)); };
+      const marks = storyMarks(sp, { visited: kept?.visited ?? [], step: kept?.step ?? null, ...(learner === null ? {} : { know: storyKnowOf(content.cardsOf), knownStep }) });
       return { model: sp.model, current: null, note: null, sp, marks };
     }
     const unit = config.entry === '' ? null : entryOf(lib, config.entry);
@@ -102,7 +107,8 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
     } else {
       /* Die ganze Baza: was Karten hat, von den Grundlagen her. */
       const byAuthor = authorOrder(lib);
-      ids = [...graph.level.entries()].filter(([id]) => lib.entity(id) !== undefined && askable(id)).sort((a, b) => a[1] - b[1] || byAuthor(a[0], b[0])).map(([id]) => id);
+      const asks = questionIds(cards);
+      ids = [...graph.level.entries()].filter(([id]) => lib.entity(id) !== undefined && askable(id) && !asks.has(id)).sort((a, b) => a[1] - b[1] || byAuthor(a[0], b[0])).map(([id]) => id);
     }
     return { model: pathOfEntries(ids.map((id) => ({ id, label: label(id) })), graph, unit !== null || config.view !== ''), current: null, note: ids.length === 0 ? 'Tu nie ma jeszcze kroków z pytaniami.' : null };
   }, [lib, lib?.revision, cards, gauge, config.flow, config.entry, config.view, learner, live, shown]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -161,7 +167,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
     <CogitaContext.Provider value={cg}>
       <div className="cg" data-path-part={made.model.nodes.length}>
         {made.note !== null && <p className="wk-card-muted">{made.note}</p>}
-        <PathMap model={made.model} marks={marks} size={tall ? 'full' : 'small'} title={title} collapsible={!tall}
+        <PathMap model={made.model} marks={marks} size={tall ? 'full' : 'small'} title={title} collapsible={!tall} words={words(baseLang(lib))}
           detail={(id) => { if (made.sp !== undefined) return null; const n = cardsAbout(cards, id).length; return n === 0 ? null : `${n} ${n === 1 ? 'karta' : 'kart'}`; }}
           actions={(id, state) => (made.sp !== undefined && idsOf(id).length === 0 ? null : (
             <div className="wk-actions">

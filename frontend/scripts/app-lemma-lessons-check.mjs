@@ -136,7 +136,8 @@ while (s.current !== null && guard < 30) {
 }
 check('lesson: ends by itself, every card asked, b twice', order.slice().sort(), ['a', 'b', 'b', 'c', 'd']);
 check('lesson: at the natural end the bar is full', R.lessonProgress(s, t), { done: 4, total: 4, held: 0 });
-check('lesson: a run that never ends by itself has no lesson bar', R.lessonProgress(begin(R.readPlan(cards, { mode: 'temporal', order: 'given', pick: 'next' })), T0), null);
+/* 2026-11-04 (Prompt 10) — jede Powtórka nach den Bändern zählt „Zostało N": auch eine, die danach „na zapas" übt. */
+{ const lp = R.lessonProgress(begin(R.readPlan(cards, { mode: 'temporal', order: 'given', pick: 'next' })), T0); truth('lesson: every temporal run has a counter (Zostało N)', lp !== null && lp.done === 0 && lp.total === 4, lp); }
 check('lesson: a fixed sequence keeps its own bar', R.lessonProgress(begin(R.readPlan(cards, { mode: 'once' })), T0), null);
 check('lesson: once — progress unchanged', R.progress(begin(R.readPlan(cards, { mode: 'once', order: 'given' }))), { answered: 0, total: 4, done: false });
 

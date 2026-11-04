@@ -218,3 +218,45 @@
 @media (prefers-reduced-motion: reduce) {
   .cg-ls-cell, .cg-ls-cell .cg-ls-face { transition: none; }
 }
+
+/*
+ * 2026-11-04 (Prompt 9) — DIE SEITENLEISTE: breit fest rechts neben der Karte (die Karte bleibt ganz zu sehen, das gewählte
+ * Feld umrandet, seine Wege leuchten); schmal ein Blatt unten, höchstens die halbe Höhe. Ein anderes Feld tauscht den Inhalt.
+ */
+.cg-ls-body { display: grid; gap: var(--wk-space-3); min-width: 0; }
+.cg-ls.has-side .cg-ls-body { grid-template-columns: minmax(0, 1fr) 21rem; align-items: start; }
+.cg-ls-main { display: grid; gap: var(--wk-space-2); min-width: 0; }
+.cg-ls-side {
+  position: sticky; top: var(--wk-space-3); display: grid; gap: var(--wk-space-3); align-content: start; max-height: calc(100vh - 2rem); overflow-y: auto;
+  padding: var(--wk-space-3); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius); background: var(--wk-surface); font-size: var(--wk-text-sm);
+}
+.cg-ls-side-pick:empty { display: none; }
+.cg-ls-quest.is-side { position: static; width: auto; max-height: none; border: 0; box-shadow: none; overflow: visible; }
+.cg-ls-quest.is-side .cg-ls-qhead, .cg-ls-quest.is-side .cg-ls-qbody { padding-left: 0; padding-right: 0; }
+.cg-ls-quest.is-sheet { max-height: 45vh; }
+.cg-ls-goalpanel { display: grid; gap: var(--wk-space-1); }
+.cg-ls-goalpanel p { margin: 0; }
+.cg-ls-goalsteps { padding-left: 0; list-style: none; display: grid; gap: 0.2rem; }
+.cg-ls-goalsteps li { display: flex; align-items: baseline; gap: var(--wk-space-1); flex-wrap: wrap; }
+.cg-ls-goalsteps li.is-done { color: var(--wk-muted); }
+.cg-ls-goalsteps li.is-next { font-weight: 600; }
+.cg-ls-goaltick { min-width: 1.4rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--cg-ls-route); }
+
+/* Die Zeichen: alle gleich — ein schwarzer Umriss auf der Farbe des Feldes, in der Mitte seiner Fläche. */
+.cg-ls-mark { fill: none; stroke: var(--wk-ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.cg-ls-legend-icon.is-mark { width: 1rem; }
+
+/* Verdecktes: die Fläche durch die Säulen davor (gestrichelt); gewählt oder gezeigt werden die Säulen davor zu Umrissen. */
+.cg-ls-ghost { fill: none; stroke: var(--wk-ink); stroke-width: 1.4; stroke-dasharray: 3 2; pointer-events: none; }
+.cg-ls-cell.is-xray .cg-ls-face, .cg-ls-cell.is-xray .cg-ls-side { fill: transparent; stroke: color-mix(in oklab, var(--wk-ink) 45%, transparent); }
+
+/* Der Weg zum Ziel: eine Linie durch die Schritte, der nächste grösser; die Nummer beim Antippen. */
+.cg-ls-goalline { fill: none; stroke: var(--cg-ls-route); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; pointer-events: none; }
+.cg-ls-goalstep { fill: var(--wk-surface); stroke: var(--cg-ls-route); stroke-width: 1.6; pointer-events: none; }
+.cg-ls-goalstep.is-next { fill: var(--cg-ls-route); stroke: var(--wk-ink); }
+.cg-ls-stepno circle { fill: var(--wk-surface); stroke: var(--cg-ls-route); stroke-width: 2; }
+.cg-ls-stepno text { fill: var(--wk-ink); font-size: var(--wk-text-xs); font-weight: 700; }
+.cg-ls-rotate {
+  position: absolute; right: var(--wk-space-2); top: var(--wk-space-2); padding: 0.1rem 0.5rem; border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm);
+  background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-xs); cursor: pointer;
+}

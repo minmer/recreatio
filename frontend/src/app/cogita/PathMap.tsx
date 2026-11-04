@@ -17,7 +17,8 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
-import { forkWords, partWords, type PartKind, type PathMarks, type PathModel, type PathState } from './pathLayout';
+import { words as wordsIn, type Words } from './lang';
+import type { PartKind, PathMarks, PathModel, PathState } from './pathLayout';
 import './pathMap.css';
 
 export interface PathMapProps {
@@ -39,6 +40,8 @@ export interface PathMapProps {
   readonly collapsible?: boolean;
   readonly open?: boolean;
   readonly onOpen?: (open: boolean) => void;
+  /** 2026-11-04 — die Worte in der Sprache der Baza (sonst polnisch). */
+  readonly words?: Words;
 }
 
 const HEX = (r: number): string => [-90, -30, 30, 90, 150, 210].map((a) => `${(Math.cos((a * Math.PI) / 180) * r).toFixed(1)},${(Math.sin((a * Math.PI) / 180) * r).toFixed(1)}`).join(' ');
@@ -64,14 +67,19 @@ const SEEN = new Map<string, { readonly lit: ReadonlySet<string>; readonly done:
 
 export const PATH_STATE_WORDS: Readonly<Record<PathState, string>> = { done: 'ukończone', available: 'otwarte — możesz zacząć', locked: 'zamknięte — najpierw to, co niżej' };
 
-const KIND_WORDS: Readonly<Record<PartKind, string>> = {
-  start: 'początek', end: 'koniec', read: 'slajdy do przeczytania', learn: 'pytania do odpowiedzi', mixed: 'slajdy i pytania', review: 'przegląd — aż wszystko umiesz', fork: 'wybór drogi'
-};
 
 /** Vergrössern: jede Stufe doppelt so gross wie eingepasst, bis die Karte in ihrer wirklichen Grösse steht (und eine darüber). */
 const zoomSteps = (fit: number): number => Math.max(1, Math.ceil(Math.log2(1 / Math.max(fit, 1e-3))) + 1);
 
-export function PathMap({ model, marks, highlight = null, actions, onPick, name, detail, size = 'full', title, collapsible = false, open: openIn, onOpen }: PathMapProps) {
+export function PathMap({ model, marks, highlight = null, actions, onPick, name, detail, size = 'full', title: titleIn, collapsible = false, open: openIn, onOpen, words: wordsGiven }: PathMapProps) {
+  const T = wordsGiven ?? wordsIn('pl');
+  const title = titleIn ?? (wordsGiven === undefined ? undefined : T.pathTitle);
+  const stateWords: Readonly<Record<PathState, string>> = { done: T.done, available: T.open, locked: T.locked };
+  /* 2026-11-04 (Prompt 10) — ein Teil, dessen Fragen alle gekonnt sind, ist nur zum Lesen (sein Zeichen auch). */
+  const kindShown = (v: number): PartKind | undefined => {
+    const k = model.nodes[v].kind;
+    return (k === 'learn' || k === 'mixed') && marks.ask?.[v] === 0 ? 'read' : k;
+  };
   const full = size === 'full';
   const R = full ? 20 : 15;
   const CW = full ? 84 : 60;
@@ -258,22 +266,22 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const currentNode = marks.current >= 0 ? model.nodes[marks.current] : undefined;
   const currentLabel = currentNode?.label ?? null;
   const zoomBar = (
-    <span className="cg-pm-tools" role="group" aria-label="Powiększenie ścieżki">
-      <button type="button" className="cg-pm-tool" onClick={() => setZoom((z) => Math.max(0, z - 1))} disabled={zoom === 0} aria-label="Pomniejsz" data-path-zoom="out">−</button>
-      <button type="button" className="cg-pm-tool" onClick={() => setZoom((z) => Math.min(steps - 1, z + 1))} disabled={zoom >= steps - 1} aria-label="Powiększ" data-path-zoom="in">+</button>
-      <button type="button" className="cg-pm-tool is-text" onClick={() => setZoom(0)} disabled={zoom === 0} data-path-zoom="fit">Dopasuj</button>
-      <button type="button" className="cg-pm-tool is-text" onClick={() => { setWhole(!whole); setZoom(0); }} aria-pressed={whole} data-path-whole="">{whole ? 'Zamknij' : 'Pełny ekran'}</button>
+    <span className="cg-pm-tools" role="group" aria-label={T.pathTitle}>
+      <button type="button" className="cg-pm-tool" onClick={() => setZoom((z) => Math.max(0, z - 1))} disabled={zoom === 0} aria-label={T.zoomOut} data-path-zoom="out">−</button>
+      <button type="button" className="cg-pm-tool" onClick={() => setZoom((z) => Math.min(steps - 1, z + 1))} disabled={zoom >= steps - 1} aria-label={T.zoomIn} data-path-zoom="in">+</button>
+      <button type="button" className="cg-pm-tool is-text" onClick={() => setZoom(0)} disabled={zoom === 0} data-path-zoom="fit">{T.fit}</button>
+      <button type="button" className="cg-pm-tool is-text" onClick={() => { setWhole(!whole); setZoom(0); }} aria-pressed={whole} data-path-whole="">{whole ? T.close : T.full}</button>
     </span>
   );
   const head = (title !== undefined || collapsible || open) && (
     <div className="cg-pm-head">
       {collapsible && !whole ? (
         <button type="button" className="cg-pm-toggle" aria-expanded={open} onClick={() => setOpen(!open)} data-path-toggle="">
-          <span aria-hidden>{open ? '▾' : '▸'}</span> {title ?? 'Ścieżka'}
+          <span aria-hidden>{open ? '▾' : '▸'}</span> {title ?? T.pathTitle}
         </button>
-      ) : <strong>{title ?? 'Ścieżka'}</strong>}
+      ) : <strong>{title ?? T.pathTitle}</strong>}
       <span className="cg-muted" data-path-summary={summary}>
-        ukończono {summary}{currentLabel !== null && !open ? <> · teraz: {currentLabel}</> : null}
+        {T.finished} {summary}{currentLabel !== null && !open ? <> · {T.now}: {currentLabel}</> : null}
       </span>
       {open && zoomBar}
     </div>
@@ -291,7 +299,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const words = (v: number): string => {
     const nd = model.nodes[v];
     const f = marks.forks.get(v);
-    return [nd.label, v === marks.current ? 'teraz' : '', nd.kind === undefined ? '' : partWords(nd), PATH_STATE_WORDS[marks.state[v]], marks.due[v] ? 'do powtórki' : '', f === undefined ? '' : forkWords(f)].filter(Boolean).join(' · ');
+    return [nd.label, v === marks.current ? T.now : '', nd.kind === undefined ? '' : T.part(nd, marks.ask?.[v]), stateWords[marks.state[v]], marks.due[v] ? T.dueMark : '', f === undefined ? '' : T.fork(f)].filter(Boolean).join(' · ');
   };
   const nowAt = currentNode === undefined ? null : at[marks.current];
   /*
@@ -315,14 +323,14 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
     <ul className="cg-pm-legend" data-path-legend="">
       {(['start', 'read', 'learn', 'mixed', 'review', 'fork', 'end'] as const).filter((k) => kinds.has(k)).map((k) => (
         <li key={k} data-path-legend-kind={k}>
-          <svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(k, 10)}<path className="cg-pm-icon" d={kindIcon(k, 10)} /></svg>{KIND_WORDS[k]}
+          <svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(k, 10)}<path className="cg-pm-icon" d={kindIcon(k, 10)} /></svg>{T.kinds[k]}
         </li>
       ))}
-      {states.has('done') && <li data-path-legend-state="done"><svg className="cg-pm-legend-icon is-done" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>ukończone</li>}
-      {states.has('available') && <li data-path-legend-state="available"><svg className="cg-pm-legend-icon is-available" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>otwarte</li>}
-      {states.has('locked') && <li data-path-legend-state="locked"><svg className="cg-pm-legend-icon is-locked" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>zamknięte</li>}
-      {marks.current >= 0 && <li data-path-legend-state="current"><svg className="cg-pm-legend-icon is-current" viewBox="-12 -12 24 24" aria-hidden><polygon className="cg-pm-halo" points={HEX(10)} /></svg>teraz (z nazwą)</li>}
-      {marks.due.some(Boolean) && <li data-path-legend-state="due"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><circle className="cg-pm-due" r={5} /></svg>do powtórki</li>}
+      {states.has('done') && <li data-path-legend-state="done"><svg className="cg-pm-legend-icon is-done" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.done}</li>}
+      {states.has('available') && <li data-path-legend-state="available"><svg className="cg-pm-legend-icon is-available" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.open.split(' — ')[0]}</li>}
+      {states.has('locked') && <li data-path-legend-state="locked"><svg className="cg-pm-legend-icon is-locked" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.locked.split(' — ')[0]}</li>}
+      {marks.current >= 0 && <li data-path-legend-state="current"><svg className="cg-pm-legend-icon is-current" viewBox="-12 -12 24 24" aria-hidden><polygon className="cg-pm-halo" points={HEX(10)} /></svg>{T.now}</li>}
+      {marks.due.some(Boolean) && <li data-path-legend-state="due"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><circle className="cg-pm-due" r={5} /></svg>{T.dueMark}</li>}
     </ul>
   );
 
@@ -368,7 +376,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                       <circle className="cg-pm-hit" r={Math.max(rr * 1.1, 12)} />
                       {current && <polygon className="cg-pm-halo" points={HEX(rr + Math.max(3, 5 * s))} />}
                       {shapeOf(nd.kind, rr)}
-                      {nd.kind !== undefined && <path className="cg-pm-icon" d={kindIcon(nd.kind, rr)} />}
+                      {nd.kind !== undefined && <path className="cg-pm-icon" d={kindIcon(kindShown(v), rr)} />}
                       {marks.due[v] && <circle className="cg-pm-due" cx={rr * 0.66} cy={-rr * 0.66} r={Math.max(3, rr * 0.22)} />}
                     </g>
                   );
@@ -377,23 +385,23 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
             </svg>
             {nowAt !== null && currentNode !== undefined && <NowLabel x={nowAt.x} y={nowAt.y} r={r * 1.3} left={sideOf(marks.current, 150) === 'left'}>{name?.(currentNode.id) ?? currentNode.label}</NowLabel>}
             {[...marks.forks].map(([v, f]) => (
-              <ForkCount key={v} x={at[v].x} y={at[v].y} r={r * 1.1} left={v === marks.current ? sideOf(v, 150) !== 'left' : sideOf(v, 110) === 'left'} state={marks.state[v]} data={`${f.done}/${f.total}`}>{forkWords(f)}</ForkCount>
+              <ForkCount key={v} x={at[v].x} y={at[v].y} r={r * 1.1} left={v === marks.current ? sideOf(v, 150) !== 'left' : sideOf(v, 110) === 'left'} state={marks.state[v]} data={`${f.done}/${f.total}`}>{T.fork(f)}</ForkCount>
             ))}
             {pop !== undefined && popAt !== null && (
               <PathPop at={popAt} below={popAt.y < 160} r={r}
                 onPointerEnter={() => clear()} onPointerLeave={(e) => { if (e.pointerType === 'mouse' && chosen === null) { clear(); timers.current.close = window.setTimeout(() => setHover(null), 260); } }}>
                 <p className="cg-pm-pop-title"><strong>{name?.(model.nodes[pop].id) ?? model.nodes[pop].label}</strong></p>
-                {model.nodes[pop].kind !== undefined && <p data-path-pop-kind={model.nodes[pop].kind}>{partWords(model.nodes[pop])}</p>}
+                {model.nodes[pop].kind !== undefined && <p data-path-pop-kind={model.nodes[pop].kind} {...(marks.ask === undefined ? {} : { 'data-path-pop-ask': marks.ask[pop] })}>{T.part(model.nodes[pop], marks.ask?.[pop])}</p>}
                 <p className="cg-pm-pop-state" data-path-pop-state={marks.state[pop]}>
-                  {pop === marks.current ? 'teraz · ' : ''}{PATH_STATE_WORDS[marks.state[pop]]}{marks.due[pop] ? ' · do powtórki' : ''}
+                  {pop === marks.current ? `${T.now} · ` : ''}{stateWords[marks.state[pop]]}{marks.due[pop] ? ` · ${T.dueMark}` : ''}
                 </p>
-                {popFork !== undefined && <p className="cg-muted" data-path-pop-fork="">{forkWords(popFork)}{popFork.mode === 'all' ? ' — wszystkie, w dowolnej kolejności' : ' — wybierasz jedną drogę'}</p>}
+                {popFork !== undefined && <p className="cg-muted" data-path-pop-fork="">{T.fork(popFork)}{popFork.mode === 'all' ? T.forkAll : T.forkOne}</p>}
                 {marks.state[pop] === 'locked' && (
-                  <p className="cg-muted">Najpierw: {model.nodes[pop].needs.filter((q) => marks.state[q] !== 'done').map((q) => model.nodes[q].label).slice(0, 3).join(', ')}</p>
+                  <p className="cg-muted">{T.firstNeeds}: {model.nodes[pop].needs.filter((q) => marks.state[q] !== 'done').map((q) => model.nodes[q].label).slice(0, 3).join(', ')}</p>
                 )}
                 {detail?.(model.nodes[pop].id) != null && <p className="cg-muted">{detail(model.nodes[pop].id)}</p>}
                 {actions?.(model.nodes[pop].id, marks.state[pop])}
-                {onPick !== undefined && chosen === model.nodes[pop].id && (marks.state[pop] !== 'locked' || pop === marks.current) && <p className="cg-muted">Dotknij jeszcze raz, aby otworzyć.</p>}
+                {onPick !== undefined && chosen === model.nodes[pop].id && (marks.state[pop] !== 'locked' || pop === marks.current) && <p className="cg-muted">{T.tapAgain}</p>}
               </PathPop>
             )}
             </div>

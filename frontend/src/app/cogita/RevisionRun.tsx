@@ -7,6 +7,8 @@
  * die nächste fällig ist. Ohne Netz läuft er aus der Abschrift des Geräts.
  */
 
+import { RunClosing, type Closing } from './RunClosing';
+import { baseLang, words } from './lang';
 import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { answerText, CardFace, givenText, storedGiven } from './CardFace';
@@ -25,7 +27,8 @@ import { answersFor, keepOffline, needsFiles, offlineList, type OfflineRevision 
 import { AWAY_HERE } from '../core/away';
 import { keepsKey, type Who } from '../core/session';
 import { toast } from '../ui/dialogs';
-import { answer, lessonProgress, levelsOf, planOf, practicePlan, progress, start, waiting, whyDetail, whyText, type Plan, type Session } from './revision';
+import { answer, lessonProgress, levelsOf, planOf, practicePlan, progress, readPlan, start, waiting, whyDetail, whyText, type Plan, type Session } from './revision';
+import { cardsAbout } from './prerequisites';
 import { conditionText } from './logic';
 import type { CogitaLibrary } from './store';
 import { Bar, CogitaContext, entityNameTex } from './ui';
@@ -63,7 +66,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   return { plan, problems: result.problems, cards };
 }
 
-export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone }: {
+export function RevisionRun({ lib, source: outer, learner, onClose, keep = false, via, onAnswer, onOpenRevision, lesson = false, rewards = null, onDone, closing }: {
   lib: CogitaLibrary | null;
   source: RunSource;
   learner: Learner | null;
@@ -95,6 +98,11 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
    * der Krajobraz: erst die Wiederholung der Kette, dann direkt das Neue.
    */
   onDone?: () => void;
+  /**
+   * 2026-11-04 (Prompt 9) — DAS ENDE EINER POWTÓRKA: was der Gastgeber nach ihr anbietet (der Krajobraz: das Thema, das sie
+   * verlangt hat, der nächste Schritt zum Ziel, die Karte). Ohne: was diese Powtórka freigeschaltet hat, zum Üben hier.
+   */
+  closing?: Closing;
 }) {
   const ctx = useContext(CogitaContext);
   /*
@@ -120,6 +128,11 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   const [note, setNote] = useState<string | null>(null);
   /* 2026-11-01 — „Zakończ”: das Ende des Laufs (Zusammenfassung, Statystyki), auch mitten im Stapel. */
   const [stopped, setStopped] = useState(false);
+  /* 2026-11-04 (Prompt 9) — „Ćwicz dalej": nach dem Ende weiter, mit dem, was man am schwächsten kann („na zapas"). */
+  const [onward, setOnward] = useState(false);
+  const [handing, setHanding] = useState(false);
+  const askedKeys = useRef(new Set<string>());
+  const W = words(lib === null ? 'pl' : baseLang(lib));
   /* 2026-10-31 — die Antwort auf die Karte, die gerade dasteht (für „Zgłoś problem”), und das offene Zgłoszenie. */
   const [last, setLast] = useState<{ readonly outcome: Outcome; readonly given: unknown } | null>(null);
   const [flag, setFlag] = useState<string | null>(null);
@@ -270,15 +283,25 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   }, [lib?.libraryId, source.revisionId, source.plan, round, arrived]);
 
   /* 2026-11-01 — ein Lauf nach den Bändern endet oft nicht von selbst („na zapas”): „Zakończ” zeigt dasselbe Ende. */
-  const finished = state !== null && (state.session.current === null || stopped);
+  /*
+    2026-11-04 (Prompt 9) — EINE POWTÓRKA HAT EIN ENDE: sobald alles, was fällig oder unbekannt war, zugleich gekonnt ist (ab
+    100 %) — dieselbe Regel wie der Przegląd einer Erzählung —, ist sie zu Ende; was sie dann „na zapas" nähme, kommt nur
+    nach „Ćwicz dalej".
+  */
+  const complete = state !== null && state.session.current !== null && state.session.why?.reason === 'ahead' && !onward;
+  const ownEnd = state !== null && !stopped && (state.session.current === null || complete);
+  const finished = state !== null && (state.session.current === null || stopped || complete);
   /* 2026-11-03 — von selbst zu Ende: einmal weitergeben (`onDone`); nach „Zakończ" nicht. */
   const doneFor = useRef<object | null>(null);
   useEffect(() => {
-    if (onDone === undefined || state === null || stopped || state.session.current !== null || doneFor.current === state) return;
+    if (onDone === undefined || state === null || !ownEnd || doneFor.current === state) return undefined;
     doneFor.current = state;
     void learner?.flush().catch(() => undefined);
-    onDone();
-  }, [state, stopped, onDone, learner]);
+    /* 2026-11-04 — kurz sagen, dass sie zu Ende ist, dann gleich weiter zum Thema, das sie verlangt hat (nicht zur Karte). */
+    setHanding(true);
+    const timer = window.setTimeout(onDone, 1300);
+    return () => window.clearTimeout(timer);
+  }, [state, ownEnd, onDone, learner]);
   useEffect(() => {
     if (!finished || learner === null || state === null) return;
     void (async () => {
@@ -321,7 +344,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   if (practice !== null) {
     return (
       <RevisionRun lib={lib} learner={learner} source={{ plan: practice.plan, cards: state.all, ...(source.deps === undefined ? {} : { deps: source.deps }), title: practice.title }}
-        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={() => setPractice(null)} lesson rewards={rewards} />
+        via={via ?? source.revisionId} onAnswer={onAnswer} onClose={onClose ?? (() => setPractice(null))} lesson rewards={rewards} {...(closing === undefined ? {} : { closing })} />
     );
   }
 
@@ -331,7 +354,15 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
   /* 2026-11-01 — eine Lektion (endet von selbst, wenn nichts mehr wartet) zeigt „x z y kart"; Stufen nur beim Üben. */
   const lessonNow = session.plan.mode === 'temporal' || lesson ? lessonProgress(session, Date.now()) : null;
 
-  if (session.current === null || card === undefined || stopped) {
+  if (handing && state !== null) {
+    return (
+      <section className="cg-face" data-run-end="handing" role="status">
+        <h2>{W.runDone(askedKeys.current.size)}</h2>
+        {closing?.origin != null && <p className="cg-muted">{W.nowOpening(closing.label(closing.origin))}</p>}
+      </section>
+    );
+  }
+  if (session.current === null || card === undefined || stopped || complete) {
     const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now());
     /* 2026-10-30 — was noch wartet, weil seine Bedingung (noch) nicht gilt: was zuerst sitzen muss, und andere Bedingungen. */
     const held = waiting(session, Date.now());
@@ -343,8 +374,13 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     /* In einer Sitzung entscheidet die Leitung, was als Nächstes kommt — dort keine „Następna lekcja". */
     const next = lib === null || source.revisionId === undefined || onAnswer !== undefined ? null : nextLesson(lib.docs('revision'), source.revisionId);
     return (
-      <section className="cg-face" data-run-end="">
-        <h2>Koniec powtórki</h2>
+      <section className="cg-face" data-run-end={ownEnd ? 'complete' : 'stopped'}>
+        <h2 data-run-end-title="">{ownEnd ? W.runDone(askedKeys.current.size) : W.runStopped}</h2>
+        {ownEnd && lib !== null && (
+          <RunClosing lib={lib} learner={learner} cards={state.all} asked={[...askedKeys.current]} closing={closing} W={W}
+            onPractise={(id) => setPractice({ plan: readPlan(cardsAbout(state.all, id), { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true }), title: lib.label(lib.entity(id)!) })}
+            onOnward={complete ? () => setOnward(true) : null} onBack={onClose ?? null} />
+        )}
         <p>Odpowiedzi: {stats.answered}, dobrze: {stats.correct}{stats.answered > 0 ? ` (${Math.round((stats.correct / stats.answered) * 100)}%)` : ''}.</p>
         <LessonSummary answers={log.answers} cards={summary.cards} firstTry={summary.firstTry} activeMs={log.activeMs} done={lessonNow} />
         <p className="cg-muted">{(['known', 'learning', 'unseen'] as const).map((l) => `${LEVEL_LABEL[l]}: ${levels[l]}`).join(' · ')}</p>
@@ -432,9 +468,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         <span className="cg-row">
           {/* 2026-11-01 — eine Lektion: wie viele Karten erledigt sind, von allen, die jetzt dazugehören (`lessonProgress`). */}
           {lessonNow !== null ? (
-            <span className="cg-lesson-progress" data-lesson-progress={`${lessonNow.done}/${lessonNow.total}`}>
-              <Bar value={lessonNow.total === 0 ? 1 : lessonNow.done / lessonNow.total} label="Postęp lekcji" />
-              <span className="cg-muted">{lessonNow.done} z {lessonNow.total} kart{lessonNow.held > 0 ? ` · ${lessonNow.held} czeka` : ''}</span>
+            <span className="cg-lesson-progress" data-lesson-progress={`${lessonNow.done}/${lessonNow.total}`} data-ask-left={Math.max(0, lessonNow.total - lessonNow.done)}>
+              <Bar value={lessonNow.total === 0 ? 1 : lessonNow.done / lessonNow.total} label={W.left(Math.max(0, lessonNow.total - lessonNow.done))} />
+              <strong data-ask-counter="">{onward ? W.whyAhead : W.left(Math.max(0, lessonNow.total - lessonNow.done))}</strong>
             </span>
           ) : (
             <>
@@ -472,6 +508,10 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           const from = via ?? source.revisionId;
           /* 2026-11-01 — mit der Antwort: wie viele Podpowiedzi, welche Zahlen gezogen waren. */
           /* 2026-11-03 — und mit welchem Samen: dieselbe Aufgabe lässt sich wieder erzeugen (Postępy, Ćwicz te jeszcze raz). */
+          askedKeys.current.add(card.key);
+          /* 2026-11-04 (Prompt 10) — ein Przerywnik: richtig — nichts wird gespeichert (der Plan der Karte bleibt). */
+          const spacerRight = session.why?.reason === 'spacer' && q >= session.plan.minCorrectness - 1e-9;
+          if (spacerRight) { askedKeys.current.delete(card.key); setPending(answer(session, q, Date.now()).session); return; }
           const main = learner?.record(asked, q, { given: storedGiven(asked, given), ms, via: from, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(asked.params === undefined ? {} : { params: asked.params }), ...(asked.seed === undefined ? {} : { seed: asked.seed }) });
           /* 2026-11-02 — mitgezählt mit dieser Antwort (`lead`): Punkte für „eine Antwort" gibt es nur einmal (`rewards.ts`). */
           for (const p of others) learner?.record(p.card, p.correctness, { ...(p.given === '' ? {} : { given: p.given }), via: from, ...(main === undefined ? {} : { lead: main.answer.id }) });
@@ -507,7 +547,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
           <div className="cg-card-foot">
             <div className="cg-row-between">
               {/* 2026-10-30 — jede Wahl erklärbar: warum gerade diese Karte; 2026-10-31 kurz, das Ganze als Hinweis. */}
-              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{session.why === null ? '' : whyText(session.why, now)}</span>
+              <span className="cg-muted cg-why" data-why={session.why?.reason ?? ''} title={session.why === null ? undefined : whyDetail(session.why, now)}>{card.answer.form === 'flash' ? 'Oceń się sam. ' : ''}{(() => { const id = (card.about ?? [])[0]; const e = id === undefined || lib === null ? undefined : lib.entity(id); return e === undefined || lib === null ? '' : `${W.topicIs}: ${lib.label(e)} · `; })()}{session.why === null ? '' : whyText(session.why, now)}</span>
               <span className="cg-row">
                 {learner !== null && <button type="button" className="wk-link-btn" onClick={() => { void learner.suspend(card.key, true); setNote('Ta karta nie będzie już pytana (możesz to cofnąć w Postępach).'); }}>Nie pytaj o to</button>}
                 {lib !== null && <button type="button" className="wk-link-btn" aria-expanded={flag !== null} data-flag-open="" onClick={() => setFlag((was) => (was === null ? '' : null))}>Zgłoś problem</button>}

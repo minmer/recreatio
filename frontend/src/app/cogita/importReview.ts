@@ -48,6 +48,11 @@ export interface ImportChange {
   readonly edit: 'text' | 'number' | 'blocks' | 'json' | null;
   /** 2026-11-03 — eine Löschung (`x:<id>`): `afterText` sagt, wer seinen Verweis darauf verliert. */
   readonly remove?: true;
+  /**
+   * 2026-11-04 (Prompt 9) — die Änderung füllt nur, was leer war (überschreibt nichts): vorgeschlagen angenommen. Vorher
+   * fiel so ein neues Feld eines bestehenden Ablaufs ("review") still weg, wenn niemand „Przyjmij wszystkie" drückte.
+   */
+  readonly fills?: true;
 }
 
 export interface Decisions {
@@ -188,7 +193,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
       if (sameStored(was, now)) continue;
       const field = fields.get(key);
       out.push({
-        id: `e:${e.id}:${key}`, target: 'entity', targetId: e.id, isNew: false, title, field: key, fieldLabel: field?.label ?? key,
+        id: `e:${e.id}:${key}`, target: 'entity', targetId: e.id, isNew: false, title, field: key, fieldLabel: field?.label ?? key, ...(stored(was) === undefined && now !== undefined ? { fills: true as const } : {}),
         beforeText: valueWords(field, was, look), afterText: now === undefined ? '(pole usunięte)' : valueWords(field, now, look),
         ...(now === undefined ? {} : { after: now }), edit: editOf(field, now)
       });
@@ -223,7 +228,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
       if (sameStored(was, now)) continue;
       const words = (v: unknown) => (v === undefined ? '—' : typeof v === 'string' || typeof v === 'number' ? clip(String(v)) : clip(JSON.stringify(v), 300));
       out.push({
-        id: `d:${d.id}:${key}`, target: 'doc', targetId: d.id, isNew: false, title, field: key, fieldLabel: DOC_KEY_LABEL[key] ?? key,
+        id: `d:${d.id}:${key}`, target: 'doc', targetId: d.id, isNew: false, title, field: key, fieldLabel: DOC_KEY_LABEL[key] ?? key, ...(stored(was) === undefined && now !== undefined ? { fills: true as const } : {}),
         beforeText: words(was), afterText: now === undefined ? '(usunięte)' : words(now), ...(now === undefined ? {} : { after: now }),
         edit: now === undefined ? null : typeof now === 'string' ? 'text' : 'json'
       });
@@ -234,7 +239,7 @@ export function changesOf(lib: CogitaLibrary, plan: ImportPlan): ImportChange[] 
 
 /** Vorgeschlagen: alles Neue an, jede Änderung an Bestehendem aus — sie wird erst angenommen. */
 export function defaultDecisions(changes: readonly ImportChange[]): Decisions {
-  return { accepted: new Set(changes.filter((c) => c.isNew || c.remove === true).map((c) => c.id)), edited: new Map() };
+  return { accepted: new Set(changes.filter((c) => c.isNew || c.remove === true || c.fills === true).map((c) => c.id)), edited: new Map() };
 }
 
 /* -- Der entschiedene Plan ------------------------------------------------------------------------- */

@@ -33,7 +33,7 @@ import { learnerFlows, STORY_BUTTON, storyStage, storyUnitsOf } from './flowFact
 import { authorOrder, gaugeKnow, pathOfEntries, usePathRun } from './PathLearn';
 import { PathMap } from './PathMap';
 import { pathMarks } from './pathLayout';
-import { cardsAbout, levelLabel, nearestNeeds } from './prerequisites';
+import { cardsAbout, levelLabel, nearestNeeds, questionIds } from './prerequisites';
 import { useRunRewards } from './RewardsEditor';
 import { entityName, entityNameTex, originPath, useCtx } from './ui';
 import { Loading } from '../ui/Loading';
@@ -107,7 +107,8 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
   const shown = (id: string) => entityNameTex(lib, id);
   /* 2026-11-03 (F) — die Karte: was Karten hat, von den Grundlagen her (Einträge, die nur ordnen, sind durchsichtig), je Ebene in der Reihenfolge des Autors. */
   const byAuthor = authorOrder(lib);
-  const items = order.flatMap((at) => levels.get(at)!.filter((id) => g.askable.has(id) || stories.has(id)).sort(byAuthor)).map((id) => ({ id, label: name(id) }));
+  const asks = questionIds(cards);
+  const items = order.flatMap((at) => levels.get(at)!.filter((id) => (g.askable.has(id) && !asks.has(id)) || stories.has(id)).sort(byAuthor)).map((id) => ({ id, label: name(id) }));
   const model = pathOfEntries(items, graph, false);
   const known = gaugeKnow(g);
   const marks = pathMarks(model, (id) => { const st = stageOf(id); return st === null ? known(id) : { learned: st === 'passed', due: false }; });

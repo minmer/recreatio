@@ -29,9 +29,10 @@ import { branchIds, branchParts, branchWork, chapterOfSteps, stepWorkOf, storyMa
 import { chaptersKept, mergeGoals, withChapters } from './flowFacts';
 import type { GraphNode } from './graph';
 import { PathMap } from './PathMap';
-import { mergeWords, partWords } from './pathLayout';
-import type { Learner } from './learn';
-import { knownessOf, average } from './knowness';
+import { mergeWords } from './pathLayout';
+import { renamer, type Learner } from './learn';
+import { askedCardOf, cardKnow, cardsInFlow, flowKnowness, isKnown, pickSpacer, questionsLeft, skipStep, type MarksOf } from './flowAsk';
+import { baseLang, words, type Lang } from './lang';
 import { cardsAbout } from './prerequisites';
 import { conditionText, holds, readCondition, type Facts } from './logic';
 import { publicEntity, type PublicEntity } from './publish';
@@ -62,6 +63,10 @@ export interface FlowContent {
   /** 2026-11-03 (G) — ein Eintrag aus Kennung oder @name, und alle Karten der Baza (die Ścieżka einer Präsentation). */
   readonly resolve?: (ref: string) => string | null;
   readonly cards?: readonly Card[];
+  /** 2026-11-04 (Prompt 10) — die Zusammenführungen der Baza: alte Antworten zählen für die neue Karte. */
+  readonly rename?: (key: string) => string;
+  /** 2026-11-04 — die Sprache der Baza (`lang.ts`). */
+  readonly lang?: Lang;
 }
 
 export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): FlowContent {
@@ -83,7 +88,9 @@ export function contentOfLibrary(lib: CogitaLibrary, cards: readonly Card[]): Fl
     needsOf: (id) => lib.prerequisites().needs.get(id) ?? [],
     label: (id) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); },
     resolve: (ref) => { const r = ref.trim(); if (r.startsWith('@')) return lib.byImportRef(r.slice(1))?.id ?? null; return lib.entity(r) !== undefined ? r : null; },
-    cards
+    cards,
+    rename: renamer(lib.merges()),
+    lang: baseLang(lib)
   };
 }
 
@@ -139,13 +146,17 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const current = state.step === null ? undefined : (content.flow(state.flow) ?? flow).graph.nodes.find((n) => n.id === state.step);
   const currentFlow = content.flow(state.flow) ?? flow;
 
+  /*
+    2026-11-04 (Prompt 10) — DIE KENNTNIS AUS DER GANZEN GESCHICHTE: alle Antworten des Lernenden auf diese Karte (aus jeder
+    Erzählung, jeder Powtórka, jedem Üben — mit den Zusammenführungen der Baza), gleich nach jeder Antwort neu. Eine Frage
+    zählt mit IHRER Karte (der, die ihr Schritt fragt), nicht mit dem Mittel über alles, was über sie ist; was keine Karte
+    hat, hält nichts auf. Vorher konnte „Już umie?" so nie wahr werden, und der Przegląd lief im Kreis.
+  */
+  const marksOf: MarksOf | null = learner === null ? null : (card) => learner.marks(card.key, card.fingerprint, content.rename);
+  const ownCard = (id: string): Card | null => { const c = content.card(id); return c !== null && (c.question === id || c.entity === id || c.key === id) ? c : null; };
   const facts = (s: FlowState): Facts => ({
     values: s.values,
-    knowness: (id) => {
-      const cards = content.cardsOf(id);
-      if (cards.length === 0 || learner === null) return 0;
-      return average(cards.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), Date.now())));
-    },
+    knowness: (id) => (marksOf === null ? 0 : flowKnowness(id, ownCard(id), content.cardsOf(id), marksOf)),
     answered: (id) => {
       if (learner === null) return null;
       const card = content.card(id);
@@ -156,12 +167,24 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     visited: new Set(s.visited),
     now: new Date()
   });
-  const ctx: PlayContext = { facts, flows: content.flow, members: content.members };
+  /* Die Regel des Spielers: was der Lernende kann, wird nicht gefragt (still, über „dobrze"). */
+  const ctx: PlayContext = { facts, flows: content.flow, members: content.members, skip: (node) => skipStep(node, content.card, marksOf) };
+  const W = words(content.lang ?? 'pl');
+  /* Wie viele Fragen diese Erzählung schon gestellt hat (für den Balken); was eben gefragt wurde (für den Przerywnik). */
+  const [askedHere, setAskedHere] = useState(0);
+  const [lastAsked, setLastAsked] = useState<{ readonly key: string; readonly wrong: boolean } | null>(null);
+  const [spacerDone, setSpacerDone] = useState<string | null>(null);
 
   useEffect(() => {
     if (jumpTo == null || !flow.graph.nodes.some((n) => n.id === jumpTo.step)) return;
     setState((s) => ({ ...s, flow: flow.id, step: jumpTo.step, ended: false, visited: s.visited.includes(jumpTo.step) ? s.visited : [...s.visited, jumpTo.step] }));
   }, [jumpTo?.at, jumpTo?.step, flow]);
+
+  /* 2026-11-04 (Prompt 10) — steht der Lernende (Anfang, gemerkte Stelle, Sprung) auf einer Frage, die er kann: still weiter. */
+  useEffect(() => {
+    if (current !== undefined && current.type === 'question' && skipStep(current, content.card, marksOf)) setState((s) => advance(currentFlow, s, 'right', ctx));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.step, state.flow]);
 
   /* Unterabläufe, Übergaben und „dla każdego" gehen von selbst hinein. */
   useEffect(() => {
@@ -237,7 +260,10 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     const k = facts(state).knowness(id);
     return { learned: k >= 0.1 - 1e-12, due: k >= 0.1 - 1e-12 && k < 1 };
   };
-  const pathNow = storyMarks(sp, { visited: state.visited, ended: state.ended, step: state.step, ...(knowNow === undefined ? {} : { know: knowNow }), chapters: state.chapters });
+  /* 2026-11-04 (Prompt 10) — gezählt wird, was wirklich gefragt wird: eine gekonnte Frage wird übersprungen. */
+  const stepNode = useMemo(() => new Map(flow.graph.nodes.map((n) => [n.id, n] as const)), [flow]);
+  const knownStep = marksOf === null ? undefined : (s: string): boolean => { const n = stepNode.get(s); return n !== undefined && skipStep(n, content.card, marksOf); };
+  const pathNow = storyMarks(sp, { visited: state.visited, ended: state.ended, step: state.step, ...(knowNow === undefined ? {} : { know: knowNow }), ...(knownStep === undefined ? {} : { knownStep }), chapters: state.chapters });
   const [hovered, setHovered] = useState<ReadonlySet<string> | null>(null);
   /* Im Kapitel bleibt seine Spur hervorgehoben. */
   const inChapter = state.chapter === null ? null : branchIds(sp, state.chapter.hub, `c${state.chapter.index}`);
@@ -278,7 +304,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const withPath = (story: ReactNode): ReactNode => (pathModelNow.nodes.length < 2 ? story : (
     <div className={`cg-story-path has-path${pathOpen ? '' : ' is-closed'}`} data-story-path="">
       {story}
-      <PathMap model={pathModelNow} marks={pathNow} size="small" title="Ścieżka" collapsible open={pathOpen}
+      <PathMap model={pathModelNow} marks={pathNow} size="small" words={W} collapsible open={pathOpen}
         onOpen={(v) => { setPathOpen(v); keepOpen(flow.id, v); }} highlight={hovered ?? inChapter}
         onPick={(id) => { const part = sp.parts[sp.model.index.get(id) ?? -1]; if (part !== undefined && part.kind !== 'end') jumpToStep(part.kind === 'start' ? flow.start : part.first); }} />
     </div>
@@ -416,17 +442,33 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         );
       }
       case 'question': {
-        const card = content.card(typeof c.of === 'string' && c.of !== '' ? c.of : typeof c.card === 'string' ? c.card : '');
+        const card = askedCardOf(current, content.card);
         if (card === null) return <><p className="wk-hint">Tego pytania tu nie ma.</p><Next onNext={() => go('right')} /></>;
+        const left = questionsLeft(currentFlow, current.id, content.card, marksOf).left;
+        /* Dieselbe Frage wie eben, nach einer falschen Antwort: erst ein Przerywnik (eine gekonnte), dann sie wieder. */
+        const spacer = marksOf !== null && lastAsked !== null && lastAsked.key === card.key && lastAsked.wrong && spacerDone !== card.key
+          ? pickSpacer(card, cardsInFlow(currentFlow, content.card), content.cards ?? [], marksOf) : null;
+        const shown = spacer ?? card;
         return (
-          <CardFace card={card}
-            onAnswered={(outcome, given) => {
-              /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). */
-              learner?.record(card, outcome.correctness, { via: flow.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
-              onAnswer?.(current.id, card, outcome.correctness, given);
-              setAnsweredOn({ step: current.id, correct: outcome.correct });
-            }}
-            onNext={() => go(answeredOn?.correct === false ? 'wrong' : 'right')} />
+          <>
+            <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={flow.name} />
+            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}`} card={shown}
+              onAnswered={(outcome, given) => {
+                /* Ein Przerywnik ändert den Plan nur, wenn er falsch beantwortet wird. */
+                if (spacer !== null) { if (!outcome.correct) learner?.record(shown, outcome.correctness, { via: flow.id }); setAnsweredOn({ step: `spacer:${current.id}`, correct: outcome.correct }); return; }
+                /* 2026-11-01 — mit der Antwort: Podpowiedzi und gezogene Werte (wie in einer Powtórka). */
+                learner?.record(card, outcome.correctness, { via: flow.id, ...(outcome.hints === undefined ? {} : { hints: outcome.hints }), ...(card.params === undefined ? {} : { params: card.params }) });
+                onAnswer?.(current.id, card, outcome.correctness, given);
+                setAnsweredOn({ step: current.id, correct: outcome.correct });
+                setAskedHere((n) => n + 1);
+                setLastAsked({ key: card.key, wrong: !outcome.correct });
+              }}
+              onNext={() => {
+                if (spacer !== null) { setSpacerDone(card.key); setAnsweredOn(null); return; }
+                setSpacerDone(null);
+                go(answeredOn?.correct === false ? 'wrong' : 'right');
+              }} />
+          </>
         );
       }
       case 'choice': {
@@ -446,14 +488,18 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
               const exit = `o${i}`;
               const label = (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || `możliwość ${i + 1}`;
               const branch = fork?.branches.find((x) => x.exit === exit);
-              const work = branch === undefined ? null : branchWork(sp, branch);
-              const words = work === null ? '' : partWords({ kind: 'read', slides: work.slides, questions: work.questions });
+              const work = branch === undefined ? null : branchWork(sp, branch, knownStep);
+              const words = work === null ? '' : W.part({ kind: 'read', slides: work.slides, questions: work.questions }, work.ask);
+              /* 2026-11-04 (Prompt 9) — ein Weg, der schon zu Ende gegangen ist, sagt es (er bleibt wählbar). */
+              const parts = branch === undefined ? [] : branchParts(sp, branch.to);
+              const walked = parts.length > 0 && parts.every((v) => pathNow.state[v] === 'done');
               const cond = typeof o === 'object' && o !== null ? readCondition((o as { condition?: unknown }).condition) : null;
               const locked = !open.has(exit);
               return (
                 <button key={exit} type="button" className="cg-option cg-choice-item" disabled={locked} onClick={() => go(exit)} {...lightOf(current.id, exit)} data-flow-option={exit} data-flow-option-locked={locked ? '1' : '0'}>
                   <TexText text={label} />
                   {words !== '' && <span className="cg-muted" data-flow-option-work="">{words}</span>}
+                  {walked && <span className="cg-muted" data-flow-option-done="">{W.done}</span>}
                   {locked && cond !== null && !holds(cond, facts(state)) && (
                     <span className="cg-muted" data-flow-option-why="">
                       {cond.type === 'not' && cond.items?.length === 1 ? `Zamknięte, bo: ${conditionText(cond.items[0], name)}` : `Zamknięte — otworzy się, gdy: ${conditionText(cond, name)}`}
@@ -477,7 +523,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           const list = b === undefined ? [] : branchParts(sp, b.to);
           return list.length > 0 && list.every((v) => pathNow.state[v] === 'done');
         };
-        const workOf = (exit: string): string => { const b = fork?.branches.find((x) => x.exit === exit); if (b === undefined) return ''; const w = branchWork(sp, b); return partWords({ kind: 'read', slides: w.slides, questions: w.questions }); };
+        const workOf = (exit: string): string => { const b = fork?.branches.find((x) => x.exit === exit); if (b === undefined) return ''; const w = branchWork(sp, b, knownStep); return W.part({ kind: 'read', slides: w.slides, questions: w.questions }, w.ask); };
         const left = chaptersLeft(current, state).filter((ch) => !learnedPath(ch.exit));
         const done = all - left.length;
         return (
@@ -553,6 +599,48 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         {body}
       </div>
     </section>
+  );
+}
+
+/**
+ * 2026-11-04 (Prompt 10) — ÜBER JEDER FRAGE: wie viele noch kommen (nur die, die wirklich gefragt werden), ein dünner Balken,
+ * und eine leise Zeile — woher die Frage kommt (Thema, Erzählung) und warum sie jetzt kommt; ein Tippen zeigt mehr.
+ */
+export function AskHead({ W, left, done, card, spacer, marks, topic, story }: {
+  W: ReturnType<typeof words>;
+  left: number;
+  done: number;
+  card: Card;
+  spacer: boolean;
+  marks: MarksOf | null;
+  topic: (id: string) => string;
+  story?: string;
+}) {
+  const [more, setMore] = useState(false);
+  const history = marks === null ? [] : marks(card);
+  const k = marks === null ? 0 : cardKnow(card, marks);
+  const pct = Math.round(Math.min(1, k) * 100);
+  const last = history[history.length - 1];
+  const why = spacer ? W.whySpacer : history.length === 0 ? W.whyNew : last !== undefined && last.correctness < 0.999 && Date.now() - last.at < 30 * 60_000 ? W.whyMissed
+    : marks !== null && isKnown(card, marks) ? W.whyKnown(pct) : k < 0.1 ? W.whyForgotten : W.whyDue(pct);
+  const about = (card.about ?? []).filter(Boolean);
+  const where = [about.length > 0 ? `${W.topicIs}: ${topic(about[0])}` : '', story !== undefined && story !== '' ? `${W.storyIs}: ${story}` : ''].filter(Boolean).join(' · ');
+  const total = Math.max(1, done + left);
+  return (
+    <div className="cg-askhead" data-ask-left={left} data-ask-spacer={spacer ? '1' : '0'}>
+      <div className="cg-askhead-row">
+        <strong data-ask-counter="">{W.left(left)}</strong>
+        <span className="cg-askhead-bar" aria-hidden><i data-ask-share={(done / total).toFixed(2)} ref={(el) => { if (el !== null) el.style.width = `${Math.round((done / total) * 100)}%`; }} /></span>
+      </div>
+      <button type="button" className="cg-askhead-why" onClick={() => setMore(!more)} aria-expanded={more} data-ask-why={spacer ? 'spacer' : ''}>
+        {where !== '' ? `${where} · ` : ''}{why}
+      </button>
+      {more && (
+        <p className="cg-muted" data-ask-more="">
+          {W.lastAnswers}: {history.slice(-5).map((m) => (m.correctness >= 0.999 ? '✓' : m.correctness >= 0.5 ? '½' : '✗')).join(' ') || '—'}
+        </p>
+      )}
+    </div>
   );
 }
 

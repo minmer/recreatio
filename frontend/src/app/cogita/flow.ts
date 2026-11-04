@@ -292,6 +292,11 @@ export interface PlayContext {
   readonly flows: (id: string) => Flow | undefined;
   readonly members: (collectionOrKind: string) => readonly string[];
   readonly limits?: (value: string) => ValueLimit;
+  /**
+   * 2026-11-04 (Prompt 10) — DIE REGEL DES SPIELERS: eine Frage, die der Lernende schon kann, wird still übersprungen —
+   * über ihren Ausgang „dobrze", ohne Antwort und ohne den Plan der Karte zu ändern (`flowAsk.ts`).
+   */
+  readonly skip?: (node: GraphNode, state: FlowState) => boolean;
 }
 
 export function startFlow(flow: Flow, values: Readonly<Record<string, number>> = {}, at?: string | null): FlowState {
@@ -310,7 +315,7 @@ const actionsOf = (raw: unknown): Action[] => (Array.isArray(raw) ? raw.map(read
 
 /** Den Schritt betreten — und, was von selbst weitergeht (Bedingung, Werte, Voraussetzung), gleich weitergehen. */
 function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext, guard = 0): FlowState {
-  if (guard > 64) return { ...state, step: to, ended: to === null };
+  if (guard > 600) return { ...state, step: to, ended: to === null };
   if (to === null) return leave(flow, state, ctx, guard);
   const node = nodeOf(flow, to);
   if (node === undefined) return leave(flow, state, ctx, guard);
@@ -319,6 +324,7 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
   const facts = ctx.facts(here);
   const c = node.config;
 
+  if (node.type === 'question' && ctx.skip?.(node, here) === true) return enter(flow, here, follow(flow, to, 'right'), ctx, guard + 1);
   switch (node.type) {
     case 'condition': {
       const ok = holds(readCondition(c.condition), facts);

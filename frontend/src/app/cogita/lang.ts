@@ -5,6 +5,7 @@
  * seine Seitenleiste, die Ścieżka und das Ende einer Powtórka — der Rest der Anwendung bleibt polnisch.
  */
 
+import { forkWords, partWords, type PartKind, type PathFork } from './pathLayout';
 import type { CogitaLibrary } from './store';
 
 export type Lang = 'pl' | 'de' | 'en';
@@ -138,6 +139,44 @@ export function words(lang: Lang) {
     tapAgain: L('Dotknij jeszcze raz, aby otworzyć.', 'Noch einmal antippen zum Öffnen.', 'Tap again to open.'),
     firstNeeds: L('Najpierw', 'Zuerst', 'First'),
     pathTitle: L('Ścieżka', 'Weg', 'Path'),
+    /* 2026-11-04 (Prompt 10) — wie viele Fragen noch, woher die Frage kommt und warum sie jetzt kommt */
+    left: (n: number) => L(`Zostało ${p3(lang, n, ['pytanie', 'pytania', 'pytań'], ['Frage', 'Fragen'], ['question', 'questions'])}`, `Noch ${n} ${n === 1 ? 'Frage' : 'Fragen'}`, `${n} ${n === 1 ? 'question' : 'questions'} left`),
+    topicIs: L('Temat', 'Thema', 'Topic'),
+    storyIs: L('Opowieść', 'Geschichte', 'Story'),
+    whyNew: L('nowe', 'neu', 'new'),
+    whyDue: (pct: number) => L(`do powtórki (${pct} %)`, `zu wiederholen (${pct} %)`, `due for review (${pct} %)`),
+    whyMissed: L('pomyłka przed chwilą', 'eben falsch beantwortet', 'just answered wrong'),
+    whyForgotten: L('zapomniane', 'vergessen', 'forgotten'),
+    whySpacer: L('przerywnik — coś, co już umiesz, zanim wróci tamto pytanie', 'Zwischenfrage — etwas, das du kannst, bevor die andere Frage wiederkommt', 'spacer — something you know before that question comes back'),
+    whyAhead: L('ćwiczenie na zapas (już umiesz)', 'Üben auf Vorrat (kannst du schon)', 'practising ahead (you know it)'),
+    whyKnown: (pct: number) => L(`umiesz (${pct} %)`, `kannst du (${pct} %)`, `known (${pct} %)`),
+    lastAnswers: L('Ostatnie odpowiedzi', 'Letzte Antworten', 'Last answers'),
+    dueAt: L('Następna powtórka', 'Nächste Wiederholung', 'Next review'),
+    asked: (ask: number, all: number) => L(`${ask} z ${p3(lang, all, ['pytania', 'pytań', 'pytań'], ['Fragen', 'Fragen'], ['questions', 'questions'])} do odpowiedzi`, `${ask} von ${all} Fragen zu beantworten`, `${ask} of ${all} questions to answer`),
+    allKnown: L('wszystkie pytania już umiesz — tylko do przeczytania', 'alle Fragen kannst du schon — nur zum Lesen', 'you know all its questions — reading only'),
+    /** 2026-11-04 — was in einem Teil der Ścieżka wartet (`ask`: wie viele seiner Fragen wirklich gefragt werden). */
+    part: (nd: { readonly kind?: PartKind; readonly slides?: number; readonly questions?: number }, ask?: number): string => {
+      if (lang === 'pl') return partWords(nd, ask);
+      const s = nd.slides ?? 0;
+      const q = nd.questions ?? 0;
+      const slides = s > 0 ? L('', `${s} ${s === 1 ? 'Folie' : 'Folien'} zum Lesen`, `${s} ${s === 1 ? 'slide' : 'slides'} to read`) : '';
+      const qs = q === 0 ? '' : ask === undefined || ask >= q ? L('', `${q} ${q === 1 ? 'Frage' : 'Fragen'} zu beantworten`, `${q} ${q === 1 ? 'question' : 'questions'} to answer`)
+        : ask === 0 ? L('', 'alle Fragen kannst du schon — nur zum Lesen', 'you know all its questions — reading only') : L('', `${ask} von ${q} Fragen zu beantworten`, `${ask} of ${q} questions to answer`);
+      switch (nd.kind) {
+        case 'start': return L('', 'Anfang des Weges', 'Start of the path');
+        case 'end': return L('', 'Ende des Weges', 'End of the path');
+        case 'fork': return L('', 'Hier wählst du den Weg', 'Here you choose the road');
+        case 'review': return L('', `Durchsicht${q > 0 ? `: ${q} ${q === 1 ? 'Frage' : 'Fragen'}` : ''} — bis alles sitzt`, `Review${q > 0 ? `: ${q} ${q === 1 ? 'question' : 'questions'}` : ''} — until all is known`);
+        default: return [slides, qs].filter(Boolean).join(' · ');
+      }
+    },
+    /** Was eine Gabel zählt. */
+    fork: (f: PathFork): string => (lang === 'pl' ? forkWords(f)
+      : f.mode === 'choose' ? (f.done === 0 ? L('', `wähle 1 von ${f.total}`, `choose 1 of ${f.total}`) : L('', `gewählt ${f.done} von ${f.total}`, `chosen ${f.done} of ${f.total}`) + ((f.finished ?? 0) > 0 ? L('', ` · ${f.finished} erledigt`, ` · ${f.finished} done`) : ''))
+      : L('', `${f.done} von ${f.total} Wegen erledigt`, `${f.done} of ${f.total} roads done`)),
+    forkAll: L(' — wszystkie, w dowolnej kolejności', ' — alle, in beliebiger Reihenfolge', ' — all of them, in any order'),
+    forkOne: L(' — wybierasz jedną drogę', ' — du wählst einen Weg', ' — you choose one road'),
+    dueMark: L('do powtórki', 'zu wiederholen', 'due for review'),
     kinds: L(
       { start: 'początek', end: 'koniec', read: 'slajdy do przeczytania', learn: 'pytania do odpowiedzi', mixed: 'slajdy i pytania', review: 'przegląd — aż wszystko umiesz', fork: 'wybór drogi' },
       { start: 'Anfang', end: 'Ende', read: 'Folien zum Lesen', learn: 'Fragen zum Beantworten', mixed: 'Folien und Fragen', review: 'Durchsicht — bis alles sitzt', fork: 'Wahl des Weges' },
