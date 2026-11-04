@@ -272,7 +272,7 @@ function layered(n: number, level: Int32Array, edges: readonly (readonly [number
 }
 
 /** Was ein Knoten einer Erzählung ist (`storyPath.ts`): Anfang, Lesen, Fragen, beides, Przegląd, Gabel, Ende. */
-export type PartKind = 'start' | 'read' | 'learn' | 'mixed' | 'review' | 'fork' | 'end';
+export type PartKind = 'start' | 'read' | 'learn' | 'mixed' | 'review' | 'fork' | 'end' | 'detour';
 
 /** Was ein Knoten über sich weiss (bei einer Erzählung: seine Art und was darin ist). */
 export interface PathNodeInfo {
@@ -361,6 +361,8 @@ export interface PathMarks {
    * gegangen) — blass gezeichnet, nicht gezählt, nie „otwarte".
    */
   readonly optional?: readonly boolean[];
+  /** 2026-11-04 (Prompt 13) — je Knoten: ein Abstecher, an dem der Lernende vorbeiging (zählt als durch, dünn umrandet). */
+  readonly skipped?: readonly boolean[];
   /** Wie viele der gezählten Knoten durch sind — gezählt wird jedes Sechseck (nicht Anfang und Ende). */
   readonly done: number;
   readonly total: number;
@@ -431,6 +433,7 @@ export function partWords(nd: Pick<PathNode, 'kind' | 'slides' | 'questions'>, a
     case 'start': return 'Początek ścieżki';
     case 'end': return 'Koniec ścieżki';
     case 'fork': return 'Tu wybierasz drogę';
+    case 'detour': return 'Zagłębienie w inną opowieść — wchodzisz albo idziesz dalej';
     case 'review':
       if (q > 0 && ask === 0) return 'Przegląd — wszystkie pytania już umiesz';
       return `Przegląd${q > 0 ? `: ${ask === undefined || ask >= q ? `${q} ${plural(q, 'pytanie', 'pytania', 'pytań')}` : `${ask} z ${q} ${plural(q, 'pytania', 'pytań', 'pytań')}`}` : ''} — powtarzasz, aż wszystkie umiesz${s > 0 ? ` (i ${slides})` : ''}`;

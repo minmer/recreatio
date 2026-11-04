@@ -166,6 +166,7 @@ export function words(lang: Lang) {
         case 'start': return L('', 'Anfang des Weges', 'Start of the path');
         case 'end': return L('', 'Ende des Weges', 'End of the path');
         case 'fork': return L('', 'Hier wählst du den Weg', 'Here you choose the road');
+        case 'detour': return L('', 'Abstecher in eine andere Geschichte — hinein oder weiter', 'A detour into another story — enter or go on');
         case 'review': {
           if (q > 0 && ask === 0) return L('', 'Durchsicht — alle Fragen kannst du schon', 'Review — you know all its questions');
           const n = ask === undefined || ask >= q ? `${q}` : L('', `${ask} von ${q}`, `${ask} of ${q}`);
@@ -192,7 +193,7 @@ export function words(lang: Lang) {
       questionsOf: (x: string) => L(`Pytania — ${x}`, `Fragen — ${x}`, `Questions — ${x}`), choiceOn: (x: string) => L(`Wybór: ${x}`, `Wahl: ${x}`, `Choice: ${x}`),
       step: (type: string): string | undefined => ({
         show: L('Slajd', 'Folie', 'Slide'), question: L('Pytanie', 'Frage', 'Question'), line: L('Postać mówi', 'Eine Figur spricht', 'A character speaks'),
-        subflow: L('Inna opowieść', 'Andere Geschichte', 'Another story'), each: L('Dla każdego', 'Für jeden', 'For each'), expand: L('Wyjaśnienie', 'Erklärung', 'Explanation'),
+        subflow: L('Inna opowieść', 'Andere Geschichte', 'Another story'), detour: L('Zagłębienie', 'Abstecher', 'Detour'), each: L('Dla każdego', 'Für jeden', 'For each'), expand: L('Wyjaśnienie', 'Erklärung', 'Explanation'),
         opening: L('Otwarcie', 'Einstieg', 'Opening'), scene: L('Scena', 'Szene', 'Scene')
       } as Record<string, string>)[type]
     },
@@ -216,6 +217,26 @@ export function words(lang: Lang) {
     nextGo: (name: string): string => L(`Dalej: ${name}`, `Weiter: ${name}`, `Next: ${name}`),
     workShort: (slides: number, questions: number): string => [slides > 0 ? p3(lang, slides, ['slajd', 'slajdy', 'slajdów'], ['Folie', 'Folien'], ['slide', 'slides']) : '', questions > 0 ? p3(lang, questions, ['pytanie', 'pytania', 'pytań'], ['Frage', 'Fragen'], ['question', 'questions']) : ''].filter(Boolean).join(' · '),
     inStory: (name: string): string => L(`w opowieści: ${name}`, `in der Geschichte: ${name}`, `in the story: ${name}`),
+    /* 2026-11-04 (Prompt 13) — Abstecher in eine andere Erzählung */
+    detourAsk: (name: string): string => L(`Chcesz wiedzieć więcej? → ${name}`, `Mehr wissen? → ${name}`, `Want to know more? → ${name}`),
+    detourEnter: L('Wejdź', 'Hinein', 'Enter'),
+    detourSkip: L('Dalej bez tego', 'Weiter ohne', 'Go on without it'),
+    detourKnown: L('już znasz', 'kennst du schon', 'you know it already'),
+    detourRemind: L('Przypomnij', 'Auffrischen', 'Refresh'),
+    detourStarted: L('zaczęta — wejdziesz tam, gdzie skończyłeś', 'begonnen — du kommst dorthin, wo du warst', 'started — you go back to where you were'),
+    detourRequired: L('Ta opowieść jest częścią drogi — bez niej nie skończysz tej.', 'Diese Geschichte gehört zum Weg — ohne sie endet diese nicht.', 'This story is part of the road — this one does not end without it.'),
+    detourMissing: L('Tej opowieści tu nie ma.', 'Diese Geschichte gibt es hier nicht.', 'This story is not here.'),
+    detourDeep: L('Tu już nie wejdziesz głębiej — zagłębienia mogą iść najwyżej 3 poziomy.', 'Tiefer geht es hier nicht — höchstens 3 Abstecher ineinander.', 'You cannot go deeper here — at most 3 detours inside each other.'),
+    detourCycle: L('Ta opowieść już trwa wyżej — nie wejdziesz w nią drugi raz.', 'Diese Geschichte läuft schon weiter oben — kein zweites Mal hinein.', 'This story is already running above — you cannot enter it again.'),
+    backTo: (name: string): string => L(`Wróć do: ${name}`, `Zurück zu: ${name}`, `Back to: ${name}`),
+    insidePath: (name: string): string => L(`wewnątrz: ${name}`, `innerhalb von: ${name}`, `inside: ${name}`),
+    crumbs: L('Gdzie jesteś', 'Wo du bist', 'Where you are'),
+    detourSkipped: L('pominięte — liczy się jako przerobione', 'ausgelassen — zählt als erledigt', 'skipped — counts as done'),
+    skippedKind: L('pominięte zagłębienie', 'ausgelassener Abstecher', 'skipped detour'),
+    detourOpen: L('Otwórz', 'Öffnen', 'Open'),
+    detourNote: L('zagłębienie z tej opowieści', 'Abstecher aus dieser Geschichte', 'a detour from this story'),
+    storyFirst: (names: string): string => L(`Najpierw: ${names}`, `Zuerst: ${names}`, `First: ${names}`),
+    requiredLeft: (names: string): string => L(`Do końca brakuje zagłębienia: ${names}`, `Bis zum Ende fehlt der Abstecher: ${names}`, `Still needed before the end: ${names}`),
     returned: (inner: string, outer: string): string => L(`Ukończono „${inner}" — dalej: „${outer}".`, `„${inner}" erledigt — weiter mit „${outer}".`, `“${inner}” done — back to “${outer}”.`),
     storyEnd: L('Koniec', 'Ende', 'End'),
     reviewNotPassed: L('Opowieść ukończona — przegląd jeszcze niezdany.', 'Geschichte beendet — die Durchsicht ist noch nicht bestanden.', 'Story finished — the review is not passed yet.'),
@@ -235,9 +256,9 @@ export function words(lang: Lang) {
     narrow: L('Węziej', 'Schmaler', 'Narrower'),
     chooseRoad: (n: number): string => L(n === 1 ? 'Wybierz drogę (jedna możliwość):' : `Wybierz drogę (1 z ${n}):`, n === 1 ? 'Wähle den Weg (eine Möglichkeit):' : `Wähle den Weg (1 von ${n}):`, n === 1 ? 'Choose the road (one option):' : `Choose the road (1 of ${n}):`),
     kinds: L(
-      { start: 'początek', end: 'koniec', read: 'slajdy do przeczytania', learn: 'pytania do odpowiedzi', mixed: 'slajdy i pytania', review: 'przegląd — aż wszystko umiesz', fork: 'wybór drogi' },
-      { start: 'Anfang', end: 'Ende', read: 'Folien zum Lesen', learn: 'Fragen zum Beantworten', mixed: 'Folien und Fragen', review: 'Durchsicht — bis alles sitzt', fork: 'Wahl des Weges' },
-      { start: 'start', end: 'end', read: 'slides to read', learn: 'questions to answer', mixed: 'slides and questions', review: 'review — until all is known', fork: 'choice of road' }
+      { start: 'początek', end: 'koniec', read: 'slajdy do przeczytania', learn: 'pytania do odpowiedzi', mixed: 'slajdy i pytania', review: 'przegląd — aż wszystko umiesz', fork: 'wybór drogi', detour: 'zagłębienie w inną opowieść' },
+      { start: 'Anfang', end: 'Ende', read: 'Folien zum Lesen', learn: 'Fragen zum Beantworten', mixed: 'Folien und Fragen', review: 'Durchsicht — bis alles sitzt', fork: 'Wahl des Weges', detour: 'Abstecher in eine andere Geschichte' },
+      { start: 'start', end: 'end', read: 'slides to read', learn: 'questions to answer', mixed: 'slides and questions', review: 'review — until all is known', fork: 'choice of road', detour: 'detour into another story' }
     )
   };
 }

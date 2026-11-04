@@ -18,7 +18,7 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-story-'));
 const entries = {
   logic: 'src/app/cogita/logic.ts', facts: 'src/app/cogita/flowFacts.ts', learn: 'src/app/cogita/learn.ts', knowing: 'src/app/cogita/knowing.ts',
   card: 'src/app/pages/presentation/storyCard.ts', show: 'src/app/pages/presentation/presentationPath.ts', flow: 'src/app/cogita/flow.ts',
-  data: 'src/app/cogita/landscapeData.ts', presentation: 'src/app/pages/presentation/presentation.ts', next: 'src/app/cogita/storyNext.ts'
+  data: 'src/app/cogita/landscapeData.ts', presentation: 'src/app/pages/presentation/presentation.ts', next: 'src/app/cogita/storyNext.ts', running: 'src/app/cogita/runningStory.ts'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -168,6 +168,28 @@ check('a unit whose story is done lies in the valley (knowness 1); the rest as b
   const viaTaught = NX.storyNext(input({ unit: 'Z0', taught: ['t1'] }));
   check('a unit with nothing after it: what builds on what the story teaches and leads out of it', viaTaught.next.map((s) => s.id), ['M']);
   check('never from links the story sets itself: a story with no unit and nothing taught has no successor', NX.storyNext(input({ unit: null, taught: [] })).next.length, 0);
+}
+
+/* -- 2026-11-04 (Prompt 13): die Stelle einer Erzählung überlebt Neuladen, „od początku“, ein neues Einspielen ------ */
+{
+  const M = LN.mergePosition;
+  const done = { flow: 'f', step: 'end', visited: ['a', 'b', 'end'], at: 10, done: true, goals: ['g1'], chapters: ['c:0'] };
+  const again = { flow: 'f', step: 'a', visited: ['a'], at: 20 };
+  const m = M(done, again);
+  check('A: a newer place (\"od początku\") keeps \"ukończony\", goals and finished roads', [m.step, m.done, m.goals, m.chapters], ['a', true, ['g1'], ['c:0']]);
+  check('A: … in either order of arrival', JSON.stringify(M(again, done)), JSON.stringify(m));
+  check('A: only an explicit reset removes them', M(done, { ...again, at: 30, reset: true }).done, undefined);
+  const after = LN.absorb(LN.absorb(LN.EMPTY_PROGRESS ?? { answers: new Map(), snapshots: new Map(), suspended: new Set(), positions: new Map(), values: {} }, { kind: 'position', positions: [done] }), { kind: 'position', positions: [again] });
+  check('A: absorbing batches merges the same way', after.positions.get('f').done, true);
+  const byRef = new Map([['old-id', { ...done, ref: 'p/krag' }]]);
+  check('A: a story imported again under a new id finds its place by its lasting ref', LN.positionFor(byRef, { id: 'new-id', ref: 'p/krag' })?.done, true);
+  const flow = FL.readFlow('f', { name: 'F', start: 'n1', graph: { nodes: [{ id: 'n1', type: 'show', config: {} }, { id: 'n2', type: 'show', config: {} }, { id: 'n3', type: 'end', config: {} }], edges: [{ id: 'e1', from: 'n1', out: 'next', to: 'n2' }, { id: 'e2', from: 'n2', out: 'next', to: 'n3' }] } });
+  const ctx = { facts: () => facts({}), flows: () => undefined, members: () => [] };
+  const RS = await import(pathToFileURL(join(workspace, 'running.js')).href);
+  const r1 = RS.startRun(flow, { at: 'n2', visited: ['n1', 'n2'] }, ctx);
+  check('A: resuming restores the step and the visited steps', [r1.state.step, r1.state.visited], ['n2', ['n1', 'n2']]);
+  const r2 = RS.startRun(flow, { at: 'gone', visited: ['n1', 'gone'] }, ctx);
+  check('A: a stored step that no longer exists resumes at the first step not yet visited', [r2.state.step, r2.state.visited], ['n2', ['n1', 'n2']]);
 }
 
 await rm(workspace, { recursive: true, force: true });

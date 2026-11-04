@@ -117,7 +117,7 @@ export interface StoryPathOptions {
 
 const STOPS = new Set(['end', 'return', 'handoff']);
 const FORKS = new Set(['choice', 'chapters']);
-const INNER = new Set(['subflow', 'each']);
+const INNER = new Set(['subflow', 'each', 'detour']);
 /** Ausgänge, die die Antwort wählt, nicht der Lernende. */
 const ANSWER = new Set(['right', 'wrong']);
 
@@ -142,6 +142,7 @@ export function stepWorkOf(entries: (node: GraphNode) => readonly string[]): Wor
         return node.config.question === true ? { slides: 0, questions: 1, shown: [], asked: of } : { slides: 1, questions: 0, shown: of, asked: [] };
       case 'subflow': case 'each':
         return { slides: 1, questions: 0, shown: [], asked: [] };
+      /* 2026-11-04 (Prompt 13) — ein Abstecher bringt hier nichts: seine Erzählung zählt für sich (ein eigener Teil, `detour`). */
       default:
         return { slides: 0, questions: 0, shown: [], asked: [] };
     }
@@ -163,7 +164,7 @@ export function stepName(node: GraphNode, label: (id: string) => string, options
       const topic = of === '' ? null : options.topicName?.(of) ?? null;
       return topic !== null && topic !== '' ? W.questionsOf(topic) : W.questions;
     }
-    if (node.type === 'subflow' || node.type === 'handoff' || node.type === 'each') {
+    if (node.type === 'subflow' || node.type === 'handoff' || node.type === 'each' || node.type === 'detour') {
       const f = str(node.config.flow);
       const named = f === '' ? null : options.flowName?.(f) ?? null;
       if (named !== null && named !== '') return named;
@@ -254,8 +255,9 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
 
   const workCache = new Map<string, StepWork>();
   const workOf = (id: string): StepWork => { let w = workCache.get(id); if (w === undefined) { w = work(nodes.get(id)!); workCache.set(id, w); } return w; };
-  const isContent = (id: string) => { const w = workOf(id); return w.slides + w.questions > 0; };
-  const kindOf = (id: string): PartKind => { const w = workOf(id); return w.questions === 0 ? 'read' : w.slides === 0 ? 'learn' : 'mixed'; };
+  /* 2026-11-04 (Prompt 13) — ein Abstecher ist immer ein eigener Teil (Art `detour`), auch ohne Arbeit hier. */
+  const isContent = (id: string) => { if (typeOf(id) === 'detour') return true; const w = workOf(id); return w.slides + w.questions > 0; };
+  const kindOf = (id: string): PartKind => { if (typeOf(id) === 'detour') return 'detour'; const w = workOf(id); return w.questions === 0 ? 'read' : w.slides === 0 ? 'learn' : 'mixed'; };
   /** Fragen, die dieser Schritt selbst stellt (ein Unterablauf fragt in seiner Erzählung, nicht in einem Przegląd hier). */
   const ownAsks = (id: string): number => { const t = typeOf(id); return t === 'question' || (t === 'scene' && nodes.get(id)?.config.question === true) ? workOf(id).questions : 0; };
 
@@ -434,7 +436,8 @@ export function storyPath(flow: Flow, work: WorkOfStep, label: (id: string) => s
     }
     /* Eine Szene mit mehreren Knöpfen (Wegen, die nicht die Antwort wählt): eine Wahl auf der Szene. */
     const choices = ahead(t).filter((x) => !ANSWER.has(x.exit));
-    if (new Set(choices.map((x) => x.to)).size >= 2) {
+    /* Ein Abstecher wählt nicht: „done" und „skip" sind Ausgänge wie die einer Antwort. */
+    if (n.type !== 'detour' && new Set(choices.map((x) => x.to)).size >= 2) {
       const exits = choices.map((x) => ({ ...x, label: exitsOf(n.type, n.config).find((p) => p.id === x.exit)?.label ?? x.exit }));
       const f = add({ kind: 'fork', label: Wd.choiceOn(nameOf(t)), steps: [], slides: 0, questions: 0, shown: [], asked: [], fork: { mode: 'choose', step: t, exits } });
       link(f, [partOf.get(t)!]);
@@ -512,6 +515,8 @@ export interface StoryProgress {
   readonly chapters?: Readonly<Record<string, readonly number[]>>;
   /** 2026-11-04 (Prompt 10) — ist die Frage dieses Schrittes gekonnt (dann wird sie übersprungen, nicht gefragt)? */
   readonly knownStep?: (step: string) => boolean;
+  /** 2026-11-04 (Prompt 13) — ist dieser Abstecher ausgelassen (vorbei, ohne dass seine Erzählung ukończona ist)? */
+  readonly skipped?: (step: string) => boolean;
 }
 
 /** Die Teile einer Spur ab einem Teil, bis zur Zusammenführung (sie nicht mehr) oder zum Ende. */
@@ -649,8 +654,11 @@ export function storyMarks(sp: StoryPath, pr: StoryProgress): PathMarks {
   }
   const taken = model.edges.map(([p, c]) => { const f = parts[p].fork; return f?.mode === 'choose' && (walkedRoad(f, c) || doneBefore[c]); });
   const counted = (v: number) => countsAsStep(model.nodes[v]) && !optional[v];
+  /* 2026-11-04 (Prompt 13) — ein ausgelassener Abstecher ist durch (er hält nichts auf), aber dünn umrandet. */
+  const skipped = parts.map((p, i) => p.kind === 'detour' && state[i] === 'done' && pr.skipped !== undefined && p.steps.some((s) => pr.skipped!(s)));
   return {
     ask: askCounts(sp, pr.knownStep), state, due, current, lit: model.edges.map(([p]) => done[p]), taken, forks, optional,
+    ...(skipped.some(Boolean) ? { skipped } : {}),
     done: state.filter((s, v) => s === 'done' && counted(v)).length, total: model.nodes.filter((_, v) => counted(v)).length
   };
 }

@@ -9,21 +9,38 @@ import { LandscapeEngine, type LsInput, type LsOptions, type LsState } from './l
 import { landscapeWords } from './landscapeWords';
 import type { Lang } from './lang';
 import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
+import { worldLayout, type WorldLayout } from './worldLayout';
 
 type Request =
   | { readonly id: number; readonly type: 'run'; readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }
   | { readonly id: number; readonly type: 'stand'; readonly input?: LsInput; readonly state?: LsState }
   | { readonly id: number; readonly type: 'route'; readonly target: string }
+  | { readonly id: number; readonly type: 'world'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> }
   | { readonly id: number; readonly type: 'regions'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> };
 
 const engine = new LandscapeEngine();
 let regionsKept: { key: string; tree: RegionTree } | null = null;
+/* 2026-11-04 (Prompt 13) — die eine Landschaft: einmal je Baza (dieselben Gebiete: dieselben Plätze). */
+let worldKept: { key: string; world: WorldLayout } | null = null;
 
 self.addEventListener('message', (event: MessageEvent<Request>) => {
   const msg = event.data;
   try {
     if (msg.type === 'route') {
       self.postMessage({ id: msg.id, ok: true, result: engine.routeTo(msg.target) });
+      return;
+    }
+    if (msg.type === 'world') {
+      if (regionsKept === null || regionsKept.key !== msg.key) {
+        const words = landscapeWords(msg.lang);
+        regionsKept = { key: msg.key, tree: buildRegions(msg.graph, { around: words.around, ...(msg.overrides === undefined ? {} : { overrides: msg.overrides }), ...(msg.previous === undefined ? {} : { previous: msg.previous }) }) };
+      }
+      if (worldKept === null || worldKept.key !== msg.key) {
+        const n = msg.graph.ids.length;
+        const ids = Int32Array.from({ length: n }, (_, i) => i);
+        worldKept = { key: msg.key, world: worldLayout(regionsKept.tree, { graph: msg.graph, node: ids, topicOf: ids }) };
+      }
+      self.postMessage({ id: msg.id, ok: true, result: { tree: regionsKept.tree, world: worldKept.world } });
       return;
     }
     if (msg.type === 'regions') {

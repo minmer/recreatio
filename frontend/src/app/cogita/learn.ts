@@ -99,6 +99,12 @@ export interface FlowPosition {
   readonly reset?: boolean;
   /** 2026-11-04 (Prompt 13) — der bleibende Name des Ablaufs: bekommt er beim Neu-Einspielen eine neue Kennung, findet er die Stelle hierüber. */
   readonly ref?: string;
+  /**
+   * 2026-11-04 (Prompt 13, Abstecher) — offene Abstecher dieser Erzählung: ihr `step` ist der Abstecher, und hier steht, in
+   * welchen Erzählungen der Lernende darunter war (die äusserste zuerst, `{flow, step}`); deren eigene Stellen stehen unter
+   * ihrer Kennung. Wie Schritt und Besuchtes: die jüngere Stelle gilt (fehlt es dort, ist kein Abstecher mehr offen).
+   */
+  readonly inside?: readonly { readonly flow: string; readonly step: string }[];
 }
 
 /** Die Stelle eines Ablaufs: unter seiner Kennung — sonst unter seinem bleibenden Namen (ein neu eingespielter Ablauf). */

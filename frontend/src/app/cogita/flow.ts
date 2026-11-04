@@ -26,6 +26,8 @@
  *   opening     ein Anfang: entdecken (erst fragen) oder erinnern (erst zeigen) [G13]
  *   line        eine Gestalt spricht (ihr Satz ist ein Wissen) [H2]
  *   handoff     weiter in einem anderen Ablauf (eine Übergabe)
+ *   detour      (2026-11-04, Prompt 13) ein Abstecher in eine andere Erzählung, angeboten: „Wejdź" oder „Dalej bez tego";
+ *               Ausgänge „done" (nach ihrem Ende) und „skip" (ausgelassen; fehlt bei "optional": false)
  *   scene       (Schritt 12) eine Szene einer Präsentation — Ausgänge „dalej", die Frage
  *               auf ihr (dobrze / źle), ihre Knöpfe (b0, b1 …)
  *   end · return
@@ -51,7 +53,7 @@ import { apply, holds, readAction, readCondition, type Action, type Condition, t
 
 export const STEP_TYPES = [
   'show', 'question', 'choice', 'condition', 'set', 'chapters', 'chapterEnd', 'restart', 'subflow', 'each',
-  'expand', 'opening', 'line', 'handoff', 'scene', 'end', 'return'
+  'expand', 'opening', 'line', 'handoff', 'detour', 'scene', 'end', 'return'
 ] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
@@ -59,7 +61,7 @@ export const STEP_LABEL: Record<StepType, string> = {
   show: 'Pokaż', question: 'Pytanie', choice: 'Wybór', condition: 'Warunek', set: 'Zmień wartość',
   chapters: 'Rozdziały', chapterEnd: 'Koniec rozdziału', restart: 'Rozdział od nowa', subflow: 'Inny przebieg',
   each: 'Dla każdego', expand: 'Wyjaśnij w miejscu', opening: 'Otwarcie',
-  line: 'Postać mówi', handoff: 'Przekazanie', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
+  line: 'Postać mówi', handoff: 'Przekazanie', detour: 'Zagłębienie', scene: 'Scena prezentacji', end: 'Koniec', return: 'Powrót'
 };
 
 /** Was ein Schritt im Ablauf-Editor bedeutet — ein Satz, auch für die Beschreibung des JSON. */
@@ -78,6 +80,7 @@ export const STEP_SAYS: Record<StepType, string> = {
   opening: 'Otwarcie ("mode": "discovery" — najpierw pytanie, "recall" — najpierw przypomnienie); "next".',
   line: 'Postać ("character") mówi zdanie ("of": wypowiedź — wpis z polem „Treść w blokach”); "mood" — nastrój; "next".',
   handoff: 'Przekazuje do innego przebiegu ("flow") — tamten zaczyna się od początku.',
+  detour: 'Proponuje zagłębienie w inną opowieść ("flow", "label" — „Chcesz wiedzieć więcej: …”): „Wejdź” gra ją i wraca wyjściem "done", „Dalej bez tego” idzie wyjściem "skip"; "optional": false — tylko „Wejdź”.',
   scene: 'Scena prezentacji ("page" — adres strony, "scene" — klucz sceny, "title"); wyjście "next", przy pytaniu na scenie "right" i "wrong", przyciski "b0", "b1", … ("buttons": [{"exit", "label", "target"}]).',
   end: 'Koniec przebiegu.',
   return: 'Wraca z przebiegu wewnętrznego do miejsca, z którego wszedł.'
@@ -94,6 +97,8 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     case 'question': return [port('right', 'dobrze'), port('wrong', 'źle')];
     case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || `możliwość ${i + 1}`));
     case 'condition': return [port('yes', 'tak'), port('no', 'nie')];
+    /* 2026-11-04 (Prompt 13) — ein Abstecher: nach der anderen Erzählung „done", ausgelassen „skip" (nur, wenn er freiwillig ist). */
+    case 'detour': return config.optional === false ? [port('done', 'po opowieści')] : [port('done', 'po opowieści'), port('skip', 'bez tego')];
     case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || `rozdział ${i + 1}`)), port('done', 'wszystkie przerobione')];
     /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */
     case 'scene': return [
@@ -360,6 +365,7 @@ function enter(flow: Flow, state: FlowState, to: string | null, ctx: PlayContext
     case 'subflow':
     case 'each':
     case 'handoff':
+    case 'detour':
       return here;
     case 'return':
     case 'end':
@@ -385,7 +391,27 @@ function leave(_flow: Flow, state: FlowState, ctx: PlayContext, guard: number, h
     }
   }
   const resumed: FlowState = { ...state, flow: back.flow, stack: rest, item: back.item, queue: undefined, chapter: null };
-  return enter(parent, resumed, follow(parent, back.step, 'next'), ctx, guard + 1);
+  return enter(parent, resumed, follow(parent, back.step, exitAfter(parent, back.step)), ctx, guard + 1);
+}
+
+/** 2026-11-04 (Prompt 13) — über welchen Ausgang es nach einer gerufenen Erzählung weitergeht: ein Abstecher „done", sonst „dalej". */
+export const exitAfter = (flow: Flow, step: string): string => (nodeOf(flow, step)?.type === 'detour' ? 'done' : 'next');
+
+/** 2026-11-04 (Prompt 13) — so tief dürfen Abstecher ineinander gehen (ein Abstecher in einem Abstecher in einem Abstecher). */
+export const DETOUR_DEPTH = 3;
+
+/** 2026-11-04 (Prompt 13) — wie viele Abstecher gerade offen sind (Rahmen des Stapels, die an einem „detour" warten). */
+export function detourDepth(state: Pick<FlowState, 'stack'>, flows: (id: string) => Flow | undefined): number {
+  return state.stack.filter((x) => { const f = flows(x.flow); return x.step !== null && f !== undefined && nodeOf(f, x.step)?.type === 'detour'; }).length;
+}
+
+/**
+ * 2026-11-04 (Prompt 13) — DARF DIESER ABSTECHER HINEIN? Nicht in eine Erzählung, die schon läuft oder ihn ruft (ein Kreis
+ * A → B → A), und nicht tiefer als `DETOUR_DEPTH`. `null`: ja; sonst warum nicht.
+ */
+export function detourRefused(state: Pick<FlowState, 'flow' | 'stack'>, target: string, flows: (id: string) => Flow | undefined): 'cycle' | 'deep' | null {
+  if (target === state.flow || state.stack.some((x) => x.flow === target)) return 'cycle';
+  return detourDepth(state, flows) >= DETOUR_DEPTH ? 'deep' : null;
 }
 
 /**
@@ -409,6 +435,20 @@ export function advance(flow: Flow, state: FlowState, exit: string | undefined, 
       ...state, flow: inner.id, chapter: null,
       stack: [...state.stack, { flow: flow.id, step: node.id, ...(state.item === undefined ? {} : { item: state.item }) }],
       ...(node.type === 'each' ? { item, queue } : {})
+    }, inner.start, ctx);
+  }
+
+  /*
+    2026-11-04 (Prompt 13) — EIN ABSTECHER: „enter" (oder kein Ausgang) geht hinein — die andere Erzählung von ihrem Anfang
+    (der Spieler setzt danach ihre gemerkte Stelle); „done" / „skip" gehen weiter wie andere Ausgänge. Kreis oder zu tief: er
+    bleibt stehen.
+  */
+  if (node.type === 'detour' && (exit === undefined || exit === 'enter')) {
+    const inner = ctx.flows(str(c.flow));
+    if (inner === undefined || detourRefused(state, inner.id, ctx.flows) !== null) return state;
+    return enter(inner, {
+      ...state, flow: inner.id, chapter: null, item: undefined, queue: undefined,
+      stack: [...state.stack, { flow: flow.id, step: node.id, ...(state.item === undefined ? {} : { item: state.item }) }]
     }, inner.start, ctx);
   }
 

@@ -19,6 +19,12 @@
  * die Zähler und die Zeile über der Frage zugleich; die Stelle wird für die laufende gemerkt; ein „Koniec" in einer gerufenen
  * Erzählung führt in die rufende zurück. Nach dem Ende: was danach kommt (`storyNext.ts`) — auf der Ścieżka über dem Ende
  * und hier als Knöpfe; die Ścieżka daneben so breit, wie der Lernende will.
+ *
+ * 2026-11-04 (Prompt 13) — ABSTECHER (`detour`, `detour.ts`): eine Karte mit der anderen Erzählung, was dort wartet, „Wejdź" und
+ * „Dalej bez tego" (schon ukończona: „już znasz", „Przypomnij" / „Dalej"); darin folgen Titel, Ścieżka und Zähler der inneren,
+ * darüber die Leiste „Etap 1 › Dom w Becchi" mit „Wróć do: …" jederzeit (zurück an den Abstecher, nicht als ukończona
+ * gemerkt). Die Stelle der eigenen Erzählung merkt sich die offenen Abstecher (`inside`), die der inneren steht unter ihr selbst
+ * — wer neu lädt, steht wieder darin.
  */
 
 import { lazy, Suspense, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -27,16 +33,17 @@ import { CardFace } from './CardFace';
 import { questionCard } from './cards';
 import { type Card } from './cardBasics';
 import {
-  chaptersLeft, follow, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, STEP_LABEL,
+  chaptersLeft, detourRefused, follow, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
+import { detourOf, detourState, openDetours, requiredOpen } from './detour';
 import type { EntriesOfStep } from './flowPath';
 import { branchIds, branchParts, branchWork, chapterOfSteps, stepWorkOf, storyMarks, storyPath, type WorkOfStep } from './storyPath';
 import { chaptersKept, flowFactsOf, mergeGoals } from './flowFacts';
 import type { GraphNode } from './graph';
 import { PathMap, type PathNext } from './PathMap';
 import { mergeWords } from './pathLayout';
-import { positionFor, renamer, type Learner } from './learn';
+import { positionFor, renamer, type FlowPosition, type Learner } from './learn';
 import { askedCardOf, cardKnow, cardsInFlow, flowKnowness, isKnown, pickSpacer, questionsLeft, skipStep, type MarksOf } from './flowAsk';
 import { baseLang, words, type Lang } from './lang';
 import { cardsAbout } from './prerequisites';
@@ -47,8 +54,8 @@ import type { CogitaLibrary } from './store';
 import { CogitaContext, Markup, MediaView, originPath } from './ui';
 import { readPlan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
-import { decideBy, enterAt, startRun, stepRun, type RunStep, type StoryFinished, type StoryRun } from './runningStory';
-import { OPEN_LOCK, storyAround } from './storyLock';
+import { backDepths, backTo, decideBy, detourIn, enterAt, insideOf, resumeInside, startRun, stepRun, type RunStep, type StoryFinished, type StoryRun } from './runningStory';
+import { directStartLock, OPEN_LOCK, storyAround } from './storyLock';
 import { storyWork } from './storyNext';
 import { readView } from './views';
 import { Loading } from '../ui/Loading';
@@ -167,6 +174,10 @@ const keepOpen = (flow: string, open: boolean): void => { try { sessionStorage.s
 const PATH_WIDE = 'cg-story-path-wide';
 const readWide = (): number => { try { const v = localStorage.getItem(PATH_WIDE); return v === '0' ? 0 : v === '2' ? 2 : 1; } catch { return 1; } };
 const keepWide = (v: number): void => { try { localStorage.setItem(PATH_WIDE, String(v)); } catch { /* ohne Speicher: mittel */ } };
+/* 2026-11-04 (Prompt 13) — aus „Co dalej" nach ihrem Überblick geöffnet: ein Abstecher, der später kommt — ohne die Sperre davor (in diesem Tab). */
+const FREE = 'cg-story-free:';
+const isFree = (flow: string): boolean => { try { return sessionStorage.getItem(FREE + flow) === '1'; } catch { return false; } };
+const keepFree = (flow: string): void => { try { sessionStorage.setItem(FREE + flow, '1'); } catch { /* ohne Speicher: mit Sperre */ } };
 
 export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onAnswer, presentationAs = 'play', gate = true }: {
   flow: Flow;
@@ -226,9 +237,15 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
 
   /* 2026-11-04 (Prompt 13) — die Stelle eines Ablaufs, auch nach dem Neu-Einspielen (über seinen bleibenden Namen). */
   const posOf = (id: string) => (learner === null ? undefined : positionFor(learner.progress.positions, flowOf(id) ?? { id }));
-  const saved = posOf(flow.id);
-  /* 2026-11-03 (G) — wer wiederkommt, steht, wo er war — mit den Kapiteln, die er schon durch hat. */
-  const [run, setRun] = useState<StoryRun>(() => startRun(flow, { values: learner?.progress.values ?? {}, at: saved?.step ?? null, chapters: chaptersOf(saved?.chapters), visited: saved?.visited ?? [] }, ctx));
+  /*
+    2026-11-03 (G) — wer wiederkommt, steht, wo er war — mit den Kapiteln, die er schon durch hat. 2026-11-04 (Prompt 13):
+    und in den Abstechern, die offen waren (`inside` — jede innere Erzählung mit ihren eigenen besuchten Schritten).
+  */
+  const openRun = (target: Flow, kept: FlowPosition | undefined, values: Readonly<Record<string, number>>): StoryRun => {
+    const r = startRun(target, { values, at: kept?.step ?? null, chapters: chaptersOf(kept?.chapters), visited: kept?.visited ?? [] }, ctx);
+    return kept?.inside === undefined || kept.inside.length === 0 ? r : resumeInside(r, kept.inside, flowOf, ctx, posOf);
+  };
+  const [run, setRun] = useState<StoryRun>(() => openRun(flow, posOf(flow.id), learner?.progress.values ?? {}));
   const runRef = useRef(run);
   const state = run.state;
   const running = flowOf(state.flow) ?? flow;
@@ -282,7 +299,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (learner === null || moved.current) return;
     const kept = posOf(flow.id);
     if (kept === undefined) return;
-    commit({ run: startRun(flow, { values: learner.progress.values, at: kept.step, chapters: chaptersOf(kept.chapters), visited: kept.visited }, ctx), finished: [] });
+    commit({ run: openRun(flow, kept, learner.progress.values), finished: [] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [learner]);
 
@@ -292,7 +309,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (startedWith.current === flow.id) return;
     startedWith.current = flow.id;
     const kept = posOf(flow.id);
-    commit({ run: startRun(flow, { values: learner?.progress.values ?? {}, at: kept?.step ?? null, chapters: chaptersOf(kept?.chapters), visited: kept?.visited ?? [] }, ctx), finished: [] });
+    commit({ run: openRun(flow, kept, learner?.progress.values ?? {}), finished: [] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
@@ -324,14 +341,22 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   */
   const reachedNow = goalsReached(running, facts(state));
   const goalsKey = reachedNow.join('|');
+  /* 2026-11-04 (Prompt 13) — ist die Erzählung eines Abstechers ukończona (gemerkt oder eben in diesem Lauf)? */
+  const innerDone = (ref: string): boolean => { const f = flowOf(ref); return f !== undefined && (doneHere.current.has(f.id) || posOf(f.id)?.done === true); };
+  /* Ein Pflicht-Abstecher, an dem er vorbeikam, ohne seine Erzählung: das Ende zählt noch nicht. */
+  const requiredLeft = state.ended && state.stack.length === 0 ? requiredOpen(running, state.visited, innerDone) : [];
+  const inside = insideOf(run, flowOf);
+  const insideKey = inside === null ? '' : JSON.stringify(inside);
   useEffect(() => {
     if (learner === null || state.step === null) return undefined;
     /* Nichts getan und schon gemerkt, wo er ist: nichts zu schreiben (ein blosses Öffnen überschreibt nie). */
     const kept = posOf(running.id);
     if (!moved.current && kept !== undefined && kept.step === state.step && state.stack.length === 0) return undefined;
     if (keepTimer.current !== null) window.clearTimeout(keepTimer.current);
-    const done = state.ended && state.stack.length === 0;
+    const done = state.ended && state.stack.length === 0 && requiredLeft.length === 0;
     keepTimer.current = window.setTimeout(() => {
+      /* 2026-11-04 (Prompt 13) — im Abstecher: auch die eigene Erzählung merkt sich, wo sie wartet und worin er steht. */
+      if (inside !== null) void learner.keepPosition({ flow: root.id, step: inside.step, visited: inside.visited, at: Date.now(), inside: inside.inside, ...(root.ref === undefined ? {} : { ref: root.ref }) }).catch(() => undefined);
       const had = posOf(running.id);
       void learner.keepPosition({
         flow: running.id, step: state.step ?? '', visited: state.visited, at: Date.now(), ...(running.ref === undefined ? {} : { ref: running.ref }),
@@ -342,7 +367,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       if (JSON.stringify(state.values) !== JSON.stringify(learner.progress.values)) void learner.keepValues(state.values).catch(() => undefined);
     }, done ? 0 : 200);
     return () => { if (keepTimer.current !== null) window.clearTimeout(keepTimer.current); };
-  }, [learner, running.id, state.step, state.visited, state.values, state.ended, state.chapters, goalsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [learner, running.id, state.step, state.visited, state.values, state.ended, state.chapters, goalsKey, insideKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (exit?: string) => {
     moved.current = true;
@@ -368,6 +393,23 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (s.stack.length === 0) { commit({ run: startRun(running, { values: learner?.progress.values ?? s.values }, ctx), finished: [] }); return; }
     commit({ run: { ...runRef.current, state: enterAt(running, { ...s, visited: [], chapters: {}, chapter: null }, running.start, ctx) }, finished: [] });
   };
+  /* 2026-11-04 (Prompt 13) — „Wróć do …": zurück an den Abstecher (die verlassene Erzählung bleibt, wie sie war — nicht ukończona). */
+  const goBack = (depth: number) => {
+    moved.current = true;
+    setNotice(null);
+    setAnsweredOn(null);
+    setVisit((v) => v + 1);
+    commit({ run: backTo(runRef.current, flowOf, depth), finished: [] });
+  };
+  /* „Wejdź" (dort, wo er in ihr war) / „Przypomnij" (von vorn). */
+  const enterDetour = (inner: Flow, fresh: boolean) => {
+    moved.current = true;
+    setNotice(null);
+    setAnsweredOn(null);
+    setVisit((v) => v + 1);
+    commit(detourIn(runRef.current, flowOf, ctx, fresh ? null : posOf(inner.id) ?? null));
+  };
+  const depths = backDepths(run, flowOf);
   /* 2026-11-04 (Prompt 13) — ausdrücklich vergessen (nach Rückfrage): nur das nimmt „ukończona" und Ziele weg. */
   const forget = () => {
     if (learner === null || !window.confirm(W.forgetAsk(running.name))) return;
@@ -408,7 +450,26 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   /* 2026-11-04 (Prompt 10) — gezählt wird, was wirklich gefragt wird: eine gekonnte Frage wird übersprungen. */
   const stepNode = useMemo(() => new Map(running.graph.nodes.map((n) => [n.id, n] as const)), [running]);
   const knownStep = marksOf === null ? undefined : (s: string): boolean => { const n = stepNode.get(s); return n !== undefined && skipStep(n, content.card, marksOf); };
-  const pathNow = storyMarks(sp, { visited: state.visited, ended: state.ended, step: state.step, ...(knowNow === undefined ? {} : { know: knowNow }), ...(knownStep === undefined ? {} : { knownStep }), chapters: state.chapters });
+  /* 2026-11-04 (Prompt 13) — ein Abstecher, an dem er vorbei ist, ohne seine Erzählung: ausgelassen (zählt als durch). */
+  const visitedNow = new Set(state.visited);
+  const skippedStep = (s: string): boolean => { const n = stepNode.get(s); const d = n === undefined ? null : detourOf(n); return d !== null && detourState(s, visitedNow, state.step, d.flow !== '' && innerDone(d.flow)) === 'skipped'; };
+  const pathNow = storyMarks(sp, { visited: state.visited, ended: state.ended, step: state.step, ...(knowNow === undefined ? {} : { know: knowNow }), ...(knownStep === undefined ? {} : { knownStep }), chapters: state.chapters, skipped: skippedStep });
+  /* Was in der Erzählung eines Abstechers wartet („7 slajdów · 16 pytań") — einmal je Erzählung. */
+  const workMemo = useMemo(() => new Map<string, string>(), [content]);
+  const innerWork = (f: Flow): string => {
+    let w = workMemo.get(f.id);
+    if (w === undefined) { const s = storyWork(storyPathOf(f, content)); w = f.presentation !== undefined ? W.story : W.workShort(s.slides, s.questions); workMemo.set(f.id, w); }
+    return w;
+  };
+  /* Ein Knoten der Ścieżka, der ein Abstecher ist: sein Schritt und seine Erzählung. */
+  const detourAt = (id: string): { readonly step: string; readonly inner: Flow } | null => {
+    const part = sp.parts[sp.model.index.get(id) ?? -1];
+    if (part?.kind !== 'detour' || part.steps.length === 0) return null;
+    const n = stepNode.get(part.steps[0]);
+    const d = n === undefined ? null : detourOf(n);
+    const inner = d === null || d.flow === '' ? undefined : flowOf(d.flow);
+    return inner === undefined ? null : { step: part.steps[0], inner };
+  };
   const [hovered, setHovered] = useState<ReadonlySet<string> | null>(null);
   /* Im Kapitel bleibt seine Spur hervorgehoben. */
   const inChapter = state.chapter === null ? null : branchIds(sp, state.chapter.hub, `c${state.chapter.index}`);
@@ -427,7 +488,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     Erzählung. Wer in der Baza schreibt, darf sie trotzdem ansehen („Podgląd mimo to"). Geprüft wird die eigene Erzählung
     des Laufs (nicht eine, die ein Weg in ihr ruft).
   */
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(() => isFree(flow.id));
   const [lockRun, setLockRun] = useState<{ readonly key: string; readonly source: RunSource; readonly weak: boolean } | null>(null);
   const [lockTick, setLockTick] = useState(0);
   const [goalSet, setGoalSet] = useState(false);
@@ -445,6 +506,12 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     return storyAround(cg.lib, content.cards, learner, lockUnit, after);
   }, [cg, cg?.lib.revision, content.cards, learner, progressNow, lockUnit, lockTick, running, sp, state.stack.length, state.ended]); // eslint-disable-line react-hooks/exhaustive-deps
   const lock = around.lock;
+  /*
+    2026-11-04 (Prompt 13) — DIREKT GEÖFFNET (nicht als Abstecher aus ihrem Überblick): verlangt ihre Einheit die Einheit einer
+    anderen Erzählung, die er noch nicht zu Ende erzählt hat, sagt der Spieler es („Najpierw: Etap 1").
+  */
+  const directFirst = useMemo(() => (lockUnit === null || cg === null || learner === null ? null : directStartLock(cg.lib, learner.progress.positions, root)),
+    [lockUnit, cg, cg?.lib.revision, learner, progressNow, root]); // eslint-disable-line react-hooks/exhaustive-deps
   const jumpToStep = (step: string | null) => {
     if (step === null) return;
     const ch = chapterAt.get(step);
@@ -473,10 +540,10 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (hash.includes(named) && next.id !== run.root) { window.location.hash = hash.replace(named, `/przebiegi/${next.id}/graj`); return; }
     setNotice(null);
     setAnsweredOn(null);
-    setUnlocked(false);
+    setUnlocked(isFree(next.id));
     setLockTick((n) => n + 1);
     const kept = posOf(next.id);
-    commit({ run: startRun(next, { values: runRef.current.state.values, at: kept?.done === true ? null : kept?.step ?? null, chapters: chaptersOf(kept?.chapters), visited: kept?.done === true ? [] : kept?.visited ?? [] }, ctx), finished: [] });
+    commit({ run: kept?.done === true ? startRun(next, { values: runRef.current.state.values, chapters: chaptersOf(kept.chapters) }, ctx) : openRun(next, kept, runRef.current.state.values), finished: [] });
   };
   const startTopic = (id: string) => {
     const all = content.cards ?? [];
@@ -507,13 +574,23 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       ...(ready ? { action: { label: kind === 'story' ? W.startStory : W.learn, run: () => { if (story !== undefined) startStory(story); else startTopic(id); } } } : {})
     };
   };
+  /*
+    2026-11-04 (Prompt 13) — „CO DALEJ" BEGINNT MIT DEN OFFENEN FREIWILLIGEN ABSTECHERN dieser Erzählung (ausgelassen oder nie
+    erreicht, ihre Erzählung nicht ukończona) — geöffnet wie aus dem Überblick (ohne die Sperre davor), dann die anderen.
+  */
+  const startFree = (f: Flow) => { keepFree(f.id); startStory(f); };
+  const detourNext: PathNext[] = ahead === null ? [] : openDetours(running, innerDone, (r) => flowOf(r)?.id ?? null).flatMap((d): PathNext[] => {
+    const f = flowOf(d.target);
+    return f === undefined || f.id === running.id ? [] : [{ id: `detour:${f.id}`, label: f.name, kind: 'story', ready: true, work: innerWork(f), note: W.detourNote, action: { label: W.startStory, run: () => startFree(f) } }];
+  });
   const nextItems: PathNext[] | undefined = ahead === null ? undefined : (() => {
-    const list = ahead.next.map((n) => nextStep(n.id, n.kind, n.ready, n.missing, n.due));
-    if (!ahead.next.some((n) => n.ready)) {
+    const inDetours = new Set(detourNext.map((x) => x.id.slice('detour:'.length)));
+    const list = ahead.next.map((n) => nextStep(n.id, n.kind, n.ready, n.missing, n.due)).filter((x) => { const f = nextWork.get(x.id)?.flow; return f === undefined || !inDetours.has(f.id); });
+    if (!ahead.next.some((n) => n.ready) && detourNext.length === 0) {
       if (ahead.nearest !== null) list.unshift(nextStep(ahead.nearest.id, ahead.nearest.kind, true, [], [], W.nearest));
       else if (onClose !== undefined) list.unshift({ id: '~map', label: W.backToMap, kind: 'map', ready: true, action: { label: W.backToMap, run: onClose } });
     }
-    return list;
+    return [...detourNext, ...list];
   })();
 
   const withPath = (story: ReactNode): ReactNode => (pathModelNow.nodes.length < 2 ? story : (
@@ -521,7 +598,13 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       <div className={`cg-story-path-grid has-path${pathOpen ? '' : ' is-closed'} is-w${pathWide}`}>
         {story}
         <div className="cg-story-path-side">
-          <PathMap model={pathModelNow} marks={pathNow} size="small" words={W} collapsible open={pathOpen} title={`${W.pathTitle}: ${running.name}`}
+          {/* 2026-11-04 (Prompt 13) — im Abstecher: die Ścieżka der inneren Erzählung, darüber, in welcher sie liegt (ein Tippen: zurück). */}
+          {depths.length > 0 && trail.length > 0 && (
+            <button type="button" className="cg-story-path-inside" onClick={() => goBack(depths[0])} data-story-path-inside={trail[trail.length - 1].id}>{W.insidePath(trail[trail.length - 1].name)}</button>
+          )}
+          <PathMap key={running.id} model={pathModelNow} marks={pathNow} size="small" words={W} collapsible open={pathOpen} title={`${W.pathTitle}: ${running.name}`}
+            detail={(id) => { const x = detourAt(id); return x === null ? null : [x.inner.name, innerWork(x.inner), innerDone(x.inner.id) ? W.detourKnown : ''].filter(Boolean).join(' · '); }}
+            actions={(id) => { const x = detourAt(id); return x === null ? null : <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => { jumpToStep(x.step); enterDetour(x.inner, false); }} data-path-detour-open={x.inner.id}>{W.detourOpen}</button></div>; }}
             onOpen={(v) => { setPathOpen(v); keepOpen(flow.id, v); }} highlight={hovered ?? inChapter} {...(nextItems === undefined ? {} : { next: nextItems })}
             tools={(
               <span className="cg-pm-tools cg-story-path-width" role="group" aria-label={W.pathTitle}>
@@ -546,7 +629,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       closing={{ openTopic: (id) => { const story = ahead?.stories.get(id); setTopicRun(null); if (story !== undefined) startStory(story); else startTopic(id); }, back, label: name }} />;
   }
 
-  if ((lock.missing.length > 0 || lock.weak.length > 0) && cg !== null) {
+  if ((lock.missing.length > 0 || lock.weak.length > 0 || directFirst !== null) && cg !== null) {
     /* Nach „Najpierw powtórz" weiter zur Erzählung (wie im Krajobraz); nach „Ucz się" an einem fehlenden Eintrag neu geprüft. */
     const back = () => { const weak = lockRun?.weak === true; setLockRun(null); if (weak) setUnlocked(true); else setLockTick((n) => n + 1); };
     if (lockRun !== null) return <RevisionRun key={lockRun.key} lib={cg.lib} learner={learner} source={lockRun.source} onClose={back} onDone={back} />;
@@ -562,11 +645,12 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       for (const v of landscapes) void learner.keepPosition({ flow: `landscape:${v.id}`, step: root.unit, visited: [], at: Date.now() }).catch(() => undefined);
       setGoalSet(true);
     };
-    const missing = lock.missing.length > 0;
+    const missing = lock.missing.length > 0 || directFirst !== null;
     return (
-      <section className="cg-flow cg-flow-locked" data-flow-locked={missing ? 'missing' : 'weak'}>
+      <section className="cg-flow cg-flow-locked" data-flow-locked={lock.missing.length > 0 ? 'missing' : directFirst !== null ? 'story' : 'weak'}>
         <div className="cg-flow-step">
           <h2><TexText text={root.name} /></h2>
+          {directFirst !== null && <p className="wk-note" data-flow-story-first={directFirst.length}>{W.storyFirst(directFirst.map((x) => `„${x}”`).join(', '))}</p>}
           {missing ? (
             <>
               <p><strong>Ta opowieść jest jeszcze zamknięta.</strong> Otworzy się, gdy poznasz to, co trzeba znać przed nią — od podstaw:</p>

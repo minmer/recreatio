@@ -225,3 +225,25 @@
   .cg-pm-way.is-new, .cg-pm-node.is-new .cg-pm-hex { animation: none; }
   .cg-pm-hex { transition: none; }
 }
+
+/*
+  2026-11-04 (Prompt 13) — ABSTECHER: ein ausgelassener steht dünn umrandet und ohne Füllung (er zählt als durch); während
+  eines Abstechers sagt eine schmale Zeile über der Ścieżka, in welcher Erzählung er liegt — ein Tippen führt zurück.
+*/
+.cg-pm-node.is-skipped .cg-pm-hex, .cg-pm-legend-icon.is-skipped .cg-pm-hex { fill: transparent; stroke: var(--cg-pm-done-edge); stroke-width: 1; stroke-dasharray: none; }
+.cg-pm-node.is-skipped .cg-pm-icon { stroke: var(--wk-muted); }
+.cg-story-path-inside { display: block; width: 100%; margin: 0 0 var(--wk-space-1); padding: 0.2rem 0.5rem; border: 1px dashed var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: transparent; color: var(--wk-muted); font: inherit; font-size: var(--wk-text-xs); text-align: left; cursor: pointer; }
+.cg-story-path-inside:hover, .cg-story-path-inside:focus-visible { color: var(--wk-ink); border-color: var(--wk-ink); }
+
+/* Die Karte des Abstechers im Spieler: wohin er führt, was dort wartet, zwei Knöpfe. */
+.cg-detour { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius); text-align: left; }
+.cg-detour-head { display: flex; gap: var(--wk-space-2); align-items: center; }
+.cg-detour-icon { flex: none; width: 2rem; height: 2rem; }
+.cg-detour-name { font-weight: 600; }
+.cg-detour .cg-muted { font-size: var(--wk-text-sm); }
+.cg-detour.is-known { border-style: dashed; }
+/* Die Leiste „Etap 1 › Dom w Becchi" über einer Erzählung im Abstecher. */
+.cg-flow-crumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; font-size: var(--wk-text-xs); }
+.cg-flow-crumbs ol { display: contents; list-style: none; }
+.cg-flow-crumbs li { display: inline-flex; gap: 0.25rem; align-items: center; }
+.cg-flow-crumbs li + li::before { content: '›'; color: var(--wk-muted); }

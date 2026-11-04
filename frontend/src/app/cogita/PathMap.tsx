@@ -86,6 +86,11 @@ function kindIcon(kind: PartKind | 'auto' | 'map' | undefined, r: number): strin
     case 'end': return `M${f(-0.26)},${f(0.42)} V${f(-0.4)} M${f(-0.26)},${f(-0.4)} h${f(0.52)} l${f(-0.12)},${f(0.18)} l${f(0.12)},${f(0.18)} h${f(-0.52)}`;
     /* Zwei Pfeile, die sich teilen: die App wählt selbst. */
     case 'auto': return `M${f(-0.55)},${f(-0.25)} h${f(0.95)} m${f(-0.3)},${f(-0.25)} l${f(0.3)},${f(0.25)} l${f(-0.3)},${f(0.25)} M${f(0.55)},${f(0.3)} h${f(-0.95)} m${f(0.3)},${f(-0.25)} l${f(-0.3)},${f(0.25)} l${f(0.3)},${f(0.25)}`;
+    /* 2026-11-04 (Prompt 13) — ein Abstecher: ein Pfeil hinunter in ein kleines Sechseck, ein Pfeil wieder hinauf. */
+    case 'detour': {
+      const hex = [-90, -30, 30, 90, 150, 210].map((a, i) => `${i === 0 ? 'M' : 'L'}${f(Math.cos((a * Math.PI) / 180) * 0.2)},${f(0.26 + Math.sin((a * Math.PI) / 180) * 0.2)}`).join(' ');
+      return `M${f(-0.34)},${f(-0.48)} V${f(0.02)} M${f(-0.46)},${f(-0.1)} L${f(-0.34)},${f(0.02)} L${f(-0.22)},${f(-0.1)} M${f(0.34)},${f(0.02)} V${f(-0.48)} M${f(0.22)},${f(-0.36)} L${f(0.34)},${f(-0.48)} L${f(0.46)},${f(-0.36)} ${hex} Z`;
+    }
     case 'map': return `M${f(-0.5)},${f(-0.3)} l${f(0.33)},${f(-0.14)} l${f(0.34)},${f(0.14)} l${f(0.33)},${f(-0.14)} v${f(0.74)} l${f(-0.33)},${f(0.14)} l${f(-0.34)},${f(-0.14)} l${f(-0.33)},${f(0.14)} Z M${f(-0.17)},${f(-0.44)} v${f(0.74)} M${f(0.17)},${f(-0.3)} v${f(0.74)}`;
     default: return '';
   }
@@ -394,7 +399,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
   const states = new Set(marks.state.filter((_, v) => !optional(v)));
   const legendItems = (
     <ul className="cg-pm-legend" data-path-legend="">
-      {(['start', 'read', 'learn', 'mixed', 'review', 'fork', 'end'] as const).filter((k) => kinds.has(k)).map((k) => (
+      {(['start', 'read', 'learn', 'mixed', 'review', 'fork', 'detour', 'end'] as const).filter((k) => kinds.has(k)).map((k) => (
         <li key={k} data-path-legend-kind={k}>
           <svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(k, 10)}<path className="cg-pm-icon" d={kindIcon(k, 10)} /></svg>{T.kinds[k]}
         </li>
@@ -408,6 +413,7 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
       {states.has('done') && <li data-path-legend-state="done"><svg className="cg-pm-legend-icon is-done" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.done}</li>}
       {states.has('available') && <li data-path-legend-state="available"><svg className="cg-pm-legend-icon is-available" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.open.split(' — ')[0]}</li>}
       {states.has('locked') && <li data-path-legend-state="locked"><svg className="cg-pm-legend-icon is-locked" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.locked.split(' — ')[0]}</li>}
+      {(marks.skipped ?? []).some(Boolean) && <li data-path-legend-state="skipped"><svg className="cg-pm-legend-icon is-skipped" viewBox="-12 -12 24 24" aria-hidden>{shapeOf('detour', 10)}<path className="cg-pm-icon" d={kindIcon('detour', 10)} /></svg>{T.skippedKind}</li>}
       {model.nodes.some((_, v) => optional(v)) && <li data-path-legend-state="optional"><svg className="cg-pm-legend-icon is-optional" viewBox="-12 -12 24 24" aria-hidden>{shapeOf(story ? 'read' : undefined, 10)}</svg>{T.optionalKind}</li>}
       {marks.current >= 0 && <li data-path-legend-state="current"><svg className="cg-pm-legend-icon is-current" viewBox="-12 -12 24 24" aria-hidden><polygon className="cg-pm-halo" points={HEX(10)} /></svg>{T.now}</li>}
       {marks.due.some(Boolean) && <li data-path-legend-state="due"><svg className="cg-pm-legend-icon" viewBox="-12 -12 24 24" aria-hidden><circle className="cg-pm-due" r={5} /></svg>{T.dueMark}</li>}
@@ -517,8 +523,8 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
                       const rr = current ? r * 1.3 : r;
                       const opt = optional(v);
                       return (
-                        <g key={nd.id} className={`cg-pm-node is-${opt ? 'optional' : state}${nd.kind === undefined ? '' : ` is-${nd.kind}`}${current ? ' is-current' : ''}${marks.due[v] ? ' is-due' : ''}${glow.done.has(nd.id) ? ' is-new' : ''}${hl?.has(nd.id) === true ? ' is-hl' : ''}${shown === nd.id ? ' is-on' : ''}${nd.auto === true ? ' is-auto' : ''}`}
-                          transform={`translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`} data-path-node={nd.id} data-path-state={opt ? 'optional' : state} data-path-current={current ? '1' : '0'}
+                        <g key={nd.id} className={`cg-pm-node is-${opt ? 'optional' : state}${nd.kind === undefined ? '' : ` is-${nd.kind}`}${current ? ' is-current' : ''}${marks.due[v] ? ' is-due' : ''}${glow.done.has(nd.id) ? ' is-new' : ''}${hl?.has(nd.id) === true ? ' is-hl' : ''}${shown === nd.id ? ' is-on' : ''}${nd.auto === true ? ' is-auto' : ''}${marks.skipped?.[v] === true ? ' is-skipped' : ''}`}
+                          transform={`translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`} data-path-node={nd.id} data-path-state={opt ? 'optional' : marks.skipped?.[v] === true ? 'skipped' : state} data-path-current={current ? '1' : '0'}
                           data-path-kind={nd.kind ?? 'entry'} data-path-level={nd.level} data-path-x={nd.x} {...(nd.auto === true ? { 'data-path-auto': '1' } : {})} {...(loopsOut.has(v) ? { 'data-path-loops': '1' } : {})}
                           tabIndex={0} role="button" aria-label={words(v)} aria-pressed={chosen === nd.id}>
                           <circle className="cg-pm-hit" r={Math.max(rr * 1.1, 12)} />
@@ -557,8 +563,8 @@ export function PathMap({ model, marks, highlight = null, actions, onPick, name,
           <p className="cg-pm-pop-title"><strong>{name?.(model.nodes[pop].id) ?? model.nodes[pop].label}</strong></p>
           {model.nodes[pop].kind !== undefined && <p data-path-pop-kind={model.nodes[pop].kind} {...(marks.ask === undefined ? {} : { 'data-path-pop-ask': marks.ask[pop] })}>{T.part(model.nodes[pop], marks.ask?.[pop])}</p>}
           {model.nodes[pop].auto === true && <p className="cg-muted" data-path-pop-auto="">{T.autoWhy}</p>}
-          <p className="cg-pm-pop-state" data-path-pop-state={optional(pop) ? 'optional' : marks.state[pop]}>
-            {pop === marks.current ? `${T.now} · ` : ''}{optional(pop) ? T.optionalWhy : stateWords[marks.state[pop]]}{marks.due[pop] ? ` · ${T.dueMark}` : ''}
+          <p className="cg-pm-pop-state" data-path-pop-state={optional(pop) ? 'optional' : marks.skipped?.[pop] === true ? 'skipped' : marks.state[pop]}>
+            {pop === marks.current ? `${T.now} · ` : ''}{optional(pop) ? T.optionalWhy : marks.skipped?.[pop] === true ? T.detourSkipped : stateWords[marks.state[pop]]}{marks.due[pop] ? ` · ${T.dueMark}` : ''}
           </p>
           {loopsOut.has(pop) && <p className="cg-muted" data-path-pop-loop="">{T.loopWhy}</p>}
           {popFork !== undefined && <p className="cg-muted" data-path-pop-fork="">{T.fork(popFork)}{popFork.mode === 'all' ? T.forkAll : T.forkOne}</p>}

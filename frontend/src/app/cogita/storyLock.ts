@@ -9,12 +9,12 @@
  */
 
 import type { Card } from './cardBasics';
-import type { Flow } from './flow';
+import { readFlow, type Flow } from './flow';
 import { learnerFlows, storyStage, storyUnitsOf } from './flowFacts';
 import { chainNeeds, gaugeFromMarks, itemKnowness, withFlows, type Gauge } from './knowing';
 import { isLearned } from './landscape';
 import { lockCards } from './landscapeData';
-import { answeredCards, renamer, type Learner } from './learn';
+import { answeredCards, renamer, type FlowPosition, type Learner } from './learn';
 import { authorOrder } from './PathLearn';
 import type { CogitaLibrary } from './store';
 import { storyNext, type StoryNext } from './storyNext';
@@ -110,4 +110,28 @@ function nextWith(c: LockContext, flow: Pick<Flow, 'unit'>, taught: readonly str
     order: (a, b) => (c.graph.level.get(a) ?? 0) - (c.graph.level.get(b) ?? 0) || c.order(a, b)
   });
   return { ...result, stories: c.stories };
+}
+
+/**
+ * 2026-11-04 (Prompt 13) — WELCHE ERZÄHLUNGEN VOR DIESER ZU ENDE SEIN MÜSSEN, wenn sie DIREKT geöffnet wird (nicht als
+ * Abstecher aus ihrem Überblick — der darf immer hinein): die Erzählungen, deren Einheit in der Kette vor ihrer Einheit
+ * steht (ein Feld mit "prerequisite": "up", etwa „Wymaga" → die Einheit des Überblicks) und die der Lernende noch nicht
+ * zu Ende erzählt hat — ihre Namen, die Grundlagen zuerst. `null`: keine. Rein über die Baza und die Stellen des Lernenden
+ * (dieselbe Zeile im Spieler und im Krajobraz: „Najpierw: Etap 1").
+ */
+export function directStartLock(lib: CogitaLibrary, positions: ReadonlyMap<string, FlowPosition> | undefined, flow: Pick<Flow, 'id' | 'unit'>): string[] | null {
+  const unit = flow.unit;
+  if (unit === undefined || lib.entity(unit) === undefined) return null;
+  const graph = lib.prerequisites();
+  const byUnit = new Map<string, Flow>();
+  for (const d of lib.docs('flow')) {
+    const f = readFlow(d.id, d.data);
+    if (f.unit !== undefined && f.id !== flow.id && !byUnit.has(f.unit)) byUnit.set(f.unit, f);
+  }
+  if (byUnit.size === 0) return null;
+  const facts = learnerFlows(lib, positions);
+  const first = chainNeeds([unit], graph)
+    .filter((id) => id !== unit && byUnit.has(id) && facts.get(byUnit.get(id)!.id)?.done !== true)
+    .sort((a, b) => (graph.level.get(a) ?? 0) - (graph.level.get(b) ?? 0));
+  return first.length === 0 ? null : first.map((id) => byUnit.get(id)!.name);
 }

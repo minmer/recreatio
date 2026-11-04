@@ -9,11 +9,15 @@
  *   „Koniec"      in einer gerufenen Erzählung: sie ist zu Ende (gemerkt als ukończona), die rufende geht nach ihr weiter
  *                 („dalej" ihres Schrittes) — ein Weg, der zur Wahl zurückführt, kommt dort wirklich an
  *   Übergabe      die alte Erzählung ist zu Ende, die neue beginnt von vorn und ist nun die eigene
+ *   Abstecher     (2026-11-04, Prompt 13) „Wejdź" geht in die andere Erzählung (dort, wo der Lernende in ihr war; „Przypomnij":
+ *                 von vorn), ihr „Koniec" führt über „done" zurück; „Wróć do …" jederzeit zurück an den Abstecher, ohne
+ *                 sie als ukończona zu merken; nach dem Neuladen baut `resumeInside` den Stapel aus der Stelle der äusseren
+ *                 Erzählung (`inside`) wieder auf
  * </code>
- * Rein (ohne React); `FlowPlayer` benutzt es, `scripts/app-story-check.mjs` prüft es.
+ * Rein (ohne React); `FlowPlayer` benutzt es, `scripts/app-story-check.mjs` und `app-detour-check.mjs` prüfen es.
  */
 
-import { advance, follow, startFlow, type Flow, type FlowState, type PlayContext } from './flow';
+import { advance, detourRefused, exitAfter, follow, startFlow, type Flow, type FlowState, type PlayContext } from './flow';
 import type { GraphNode } from './graph';
 import { holds, readCondition, type Condition, type Facts } from './logic';
 
@@ -102,7 +106,7 @@ function settle(run: StoryRun, flows: (id: string) => Flow | undefined, ctx: Pla
     const parent = flows(back.flow);
     if (parent === undefined || back.step === null) break;
     const resumed: FlowState = { ...s, flow: back.flow, stack: s.stack.slice(0, -1), item: back.item, queue: undefined, chapter: null, ended: false, visited: r.outer[r.outer.length - 1] ?? [] };
-    r = { ...r, outer: r.outer.slice(0, -1), state: enterAt(parent, resumed, follow(parent, back.step, 'next'), ctx) };
+    r = { ...r, outer: r.outer.slice(0, -1), state: enterAt(parent, resumed, follow(parent, back.step, exitAfter(parent, back.step)), ctx) };
   }
   return { run: r, finished };
 }
@@ -118,7 +122,8 @@ export function stepRun(run: StoryRun, flows: (id: string) => Flow | undefined, 
   const node = flow.graph.nodes.find((n) => n.id === s.step);
   const finished: StoryFinished[] = [];
   let next: StoryRun;
-  if (node !== undefined && (node.type === 'subflow' || node.type === 'each' || node.type === 'handoff')) {
+  const into = node !== undefined && (node.type === 'subflow' || node.type === 'each' || node.type === 'handoff' || (node.type === 'detour' && (exit === undefined || exit === 'enter')));
+  if (node !== undefined && into) {
     const moved = advance(flow, { ...s, visited: [] }, exit, ctx);
     const entered = moved.flow !== s.flow || moved.stack.length !== s.stack.length;
     if (!entered) next = { ...run, state: { ...moved, visited: merge(s.visited, moved.visited) } };
@@ -131,7 +136,7 @@ export function stepRun(run: StoryRun, flows: (id: string) => Flow | undefined, 
     if (moved.stack.length < s.stack.length && run.outer.length > 0) {
       const back = s.stack[s.stack.length - 1];
       const parent = flows(back.flow);
-      const target = parent === undefined || back.step === null ? null : follow(parent, back.step, 'next');
+      const target = parent === undefined || back.step === null ? null : follow(parent, back.step, exitAfter(parent, back.step));
       const tail = moved.visited.slice(s.visited.length);
       const at = target === null ? -1 : tail.indexOf(target);
       finished.push({ flow: s.flow, step: s.step, visited: at < 0 ? moved.visited : moved.visited.slice(0, s.visited.length + at) });
@@ -144,6 +149,102 @@ export function stepRun(run: StoryRun, flows: (id: string) => Flow | undefined, 
 /** Die laufende Erzählung, die eigene (geöffnete) und die rufenden dazwischen (die äusserste zuerst). */
 export function runningOf(run: StoryRun, flows: (id: string) => Flow | undefined): { readonly running: Flow | undefined; readonly root: Flow | undefined; readonly trail: readonly Flow[] } {
   return { running: flows(run.state.flow), root: flows(run.root), trail: run.state.stack.map((x) => flows(x.flow)).filter((f): f is Flow => f !== undefined) };
+}
+
+/* -- Abstecher (2026-11-04, Prompt 13) ------------------------------------------------------------------------------- */
+
+/** Ein Rahmen eines offenen Abstechers, wie er an der Stelle der äusseren Erzählung steht: die Erzählung und ihr Schritt. */
+export interface InsideFrame {
+  readonly flow: string;
+  readonly step: string;
+}
+
+const nodeAt = (flows: (id: string) => Flow | undefined, flow: string, step: string | null): GraphNode | undefined =>
+  step === null ? undefined : flows(flow)?.graph.nodes.find((n) => n.id === step);
+const isDetour = (flows: (id: string) => Flow | undefined, frame: { readonly flow: string; readonly step: string | null }) => nodeAt(flows, frame.flow, frame.step)?.type === 'detour';
+
+/**
+ * WAS DIE EIGENE ERZÄHLUNG SICH MERKT, SOLANGE ABSTECHER OFFEN SIND: ihr Schritt ist der Abstecher, ihre besuchten Schritte
+ * warten, und `inside` sagt, in welchen Erzählungen der Lernende darunter steht (die äusserste zuerst, die laufende zuletzt).
+ * `null`: kein Abstecher offen (oder ein anderer Weg hinein — ein Unterablauf merkt sich so nichts).
+ */
+export function insideOf(run: StoryRun, flows: (id: string) => Flow | undefined): { readonly step: string; readonly visited: readonly string[]; readonly inside: readonly InsideFrame[] } | null {
+  const s = run.state;
+  if (s.stack.length === 0 || s.step === null || s.stack[0].flow !== run.root || s.stack[0].step === null) return null;
+  if (!s.stack.every((x) => isDetour(flows, x))) return null;
+  const inside: InsideFrame[] = [...s.stack.slice(1).map((x) => ({ flow: x.flow, step: x.step ?? '' })), { flow: s.flow, step: s.step }];
+  return { step: s.stack[0].step, visited: run.outer[0] ?? [], inside };
+}
+
+/**
+ * WIEDER IM ABSTECHER (nach dem Neuladen, auf einem anderen Gerät): von der Stelle der äusseren Erzählung (ihr Schritt ist
+ * der Abstecher) Rahmen für Rahmen hinein — nur, solange der Schritt wirklich ein Abstecher in genau diese Erzählung ist
+ * (ein neu eingespielter Ablauf: so weit, wie es noch stimmt). Die besuchten Schritte jeder Erzählung kommen aus ihrer eigenen
+ * Stelle (`keptOf`).
+ */
+export function resumeInside(run: StoryRun, inside: readonly InsideFrame[], flows: (id: string) => Flow | undefined, ctx: PlayContext, keptOf: (flow: string) => { readonly visited?: readonly string[] } | undefined): StoryRun {
+  let r = run;
+  for (const frame of inside) {
+    const s = r.state;
+    if (s.ended || s.step === null) break;
+    const node = nodeAt(flows, s.flow, s.step);
+    if (node?.type !== 'detour') break;
+    const inner = flows(typeof node.config.flow === 'string' ? node.config.flow : '');
+    if (inner === undefined || inner.id !== (flows(frame.flow)?.id ?? frame.flow) || detourRefused(s, inner.id, flows) !== null) break;
+    const nodes = new Set(inner.graph.nodes.map((n) => n.id));
+    const visited = (keptOf(inner.id)?.visited ?? []).filter((id) => nodes.has(id));
+    const state = enterAt(inner, {
+      ...s, flow: inner.id, chapter: null, item: undefined, queue: undefined, ended: false, visited,
+      stack: [...s.stack, { flow: s.flow, step: s.step }]
+    }, nodes.has(frame.step) ? frame.step : inner.start, ctx);
+    r = { ...r, outer: [...r.outer, s.visited], state };
+  }
+  return r;
+}
+
+/**
+ * „WEJDŹ" / „PRZYPOMNIJ": in die Erzählung des Abstechers — war der Lernende schon in ihr (und hat sie nicht beendet), dort,
+ * wo er war; sonst (und bei „Przypomnij") von vorn.
+ */
+export function detourIn(run: StoryRun, flows: (id: string) => Flow | undefined, ctx: PlayContext, kept?: { readonly step?: string; readonly visited?: readonly string[]; readonly done?: boolean } | null): RunStep {
+  const step = stepRun(run, flows, 'enter', ctx);
+  const s = step.run.state;
+  if (s.stack.length <= run.state.stack.length || kept == null || kept.done === true || kept.step === undefined || kept.step === '') return step;
+  const inner = flows(s.flow);
+  if (inner === undefined || !inner.graph.nodes.some((n) => n.id === kept.step)) return step;
+  const nodes = new Set(inner.graph.nodes.map((n) => n.id));
+  const visited = (kept.visited ?? []).filter((id) => nodes.has(id));
+  return { ...step, run: { ...step.run, state: enterAt(inner, { ...s, visited, ended: false }, kept.step, ctx) } };
+}
+
+/**
+ * „WRÓĆ DO …": zurück an den Abstecher einer rufenden Erzählung (`depth`: wie viele Rahmen bleiben — 0: die eigene), ohne
+ * die verlassenen als ukończona zu merken. Nur durch Abstecher (ein Unterablauf ginge sonst gleich wieder hinein).
+ */
+export function backTo(run: StoryRun, flows: (id: string) => Flow | undefined, depth: number): StoryRun {
+  let r = run;
+  while (r.state.stack.length > Math.max(0, depth)) {
+    const s = r.state;
+    const back = s.stack[s.stack.length - 1];
+    if (back.step === null || !isDetour(flows, back)) break;
+    const visited = r.outer[r.outer.length - 1] ?? [];
+    r = {
+      ...r, outer: r.outer.slice(0, -1),
+      state: { ...s, flow: back.flow, step: back.step, stack: s.stack.slice(0, -1), item: back.item, queue: undefined, chapter: null, ended: false, visited: visited.includes(back.step) ? visited : [...visited, back.step] }
+    };
+  }
+  return r;
+}
+
+/** Welche Rahmen des Stapels ein Lernender mit „Wróć do …" erreichen kann (die Tiefe, bis zu der alles darüber Abstecher sind). */
+export function backDepths(run: StoryRun, flows: (id: string) => Flow | undefined): number[] {
+  const out: number[] = [];
+  const stack = run.state.stack;
+  for (let d = stack.length - 1; d >= 0; d -= 1) {
+    if (!isDetour(flows, stack[d])) break;
+    out.push(d);
+  }
+  return out;
 }
 
 /* -- Automatische Schritte ------------------------------------------------------------------------------------------- */

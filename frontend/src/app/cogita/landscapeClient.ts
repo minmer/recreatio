@@ -9,6 +9,7 @@ import { LandscapeEngine, type LsInput, type LsOptions, type LsRun, type LsStand
 import type { Lang } from './lang';
 import { landscapeWords } from './landscapeWords';
 import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
+import { worldLayout, type WorldLayout } from './worldLayout';
 
 export interface RegionRequest {
   /** Was die Gebiete bestimmt (dieselben Themen, Kanten und Wünsche: dieselbe Antwort, ohne neu zu rechnen). */
@@ -23,6 +24,8 @@ export interface LandscapeClient {
   run(request: { readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }): Promise<LsRun>;
   stand(request: { readonly input?: LsInput; readonly state?: LsState }): Promise<LsStand>;
   regions(request: RegionRequest): Promise<RegionTree>;
+  /** 2026-11-04 (Prompt 13) — die Gebiete und die eine Landschaft (feste Plätze aller Themen). */
+  world(request: RegionRequest): Promise<{ tree: RegionTree; world: WorldLayout }>;
   route(target: string): Promise<ReturnType<LandscapeEngine['routeTo']>>;
   dispose(): void;
   /** Rechnet ein Worker (sonst der Hauptfaden). */
@@ -68,6 +71,14 @@ function mainThread(): LandscapeClient {
         kept = { key: r.key, tree };
       }
       return kept.tree;
+    },
+    world: async (r) => {
+      if (kept === null || kept.key !== r.key) {
+        const tree = buildRegions(r.graph, { around: landscapeWords(r.lang).around, ...(r.overrides === undefined ? {} : { overrides: r.overrides }), ...(r.previous === undefined ? {} : { previous: r.previous }) });
+        kept = { key: r.key, tree };
+      }
+      const ids = Int32Array.from({ length: r.graph.ids.length }, (_, i) => i);
+      return { tree: kept.tree, world: worldLayout(kept.tree, { graph: r.graph, node: ids, topicOf: ids }) };
     },
     route: async (target) => engine.routeTo(target),
     dispose: () => undefined
@@ -120,6 +131,7 @@ export function landscapeClient(): LandscapeClient {
       return ask<LsStand>({ type: 'stand', input, state });
     },
     regions: (r) => (broken ? viaFallback().regions(r) : ask<RegionTree>({ type: 'regions', ...r })),
+    world: (r) => (broken ? viaFallback().world(r) : ask<{ tree: RegionTree; world: WorldLayout }>({ type: 'world', ...r })),
     route: (target) => (broken ? viaFallback().route(target) : ask({ type: 'route', target })),
     dispose: () => { worker.terminate(); waiting.clear(); }
   };
