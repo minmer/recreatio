@@ -255,7 +255,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const rotateBy = (k: number) => glide({ ...camRef.current, rot: camRef.current.rot + 45 * k }, 300);
   const resetView = () => glide(fitWhole({ ...camRef.current, rot: 0, fore: FORE_START }));
   const regionCam = (key: string) => { const r = world.regions.get(key); return r === undefined ? null : fitCam(camRef.current, width, height, r.x, r.y, r.radius); };
-  const topicCam = (t: number) => { const c = world.cells[t]; return { ...camRef.current, s: Math.max(camRef.current.s, 64 / (2 * 0.57735)), cx: c.x, cy: c.y }; };
+  /* Zu einem Thema: mindestens so nah, dass die Namen in den Kacheln stehen. */
+  const topicCam = (t: number) => { const c = world.cells[t]; return { ...camRef.current, s: Math.max(camRef.current.s, (NAME_PX * 1.25) / (2 * 0.57735)), cx: c.x, cy: c.y }; };
 
   /* Von aussen: „Ganze Karte", ein Gebiet (Brotkrumen), ein Thema (aus dem Panel). */
   const seenCommand = useRef(command?.at ?? 0);
@@ -577,6 +578,26 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return best;
   };
 
+  /** Ein Tippen auf eine Figur, die Fahne oder den Namen eines Gebiets — „true", wenn es etwas traf. */
+  const tapOverlay = (x: number, y: number): boolean => {
+    for (const p of [...shownPieces].reverse()) {
+      const [px0, py0] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
+      if (Math.abs(x - px0) <= pieceH * 0.42 && y >= py0 - pieceH * 1.05 && y <= py0 + pieceH * 0.2) {
+        if (p.region !== null) { const c = regionCam(p.region); if (c !== null) glide(c); } else onPiece(p.t);
+        return true;
+      }
+    }
+    if (goalFlag !== null && goalFlag >= 0 && goalFlag < n) {
+      const fx = screen[goalFlag * 3]; const fy = screen[goalFlag * 3 + 1];
+      if (x >= fx - 4 && x <= fx + pieceH * 0.75 && y >= fy - pieceH * 1.15 && y <= fy + 4) { onFlag(); return true; }
+    }
+    for (const l of labels) {
+      if (!l.shown || !l.key.startsWith('r:')) continue;
+      if (Math.abs(x - l.x) <= l.w / 2 && Math.abs(y - l.y) <= l.h / 2) { const c = regionCam(l.key.slice(2)); if (c !== null) glide(c); return true; }
+    }
+    return false;
+  };
+
   /* -- Bewegen: ziehen, Rad, zwei Finger; Strg + Ziehen neigt und dreht ------------------------------------------- */
   const local = (e: { clientX: number; clientY: number }): [number, number] => {
     const b = canvas.current?.getBoundingClientRect();
@@ -588,7 +609,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const [gx, gy] = toGround(c, width, height, sx, sy);
     const next = { ...c, s };
     const [hx, hy] = toGround(next, width, height, sx, sy);
-    setCam(clamp({ ...next, cx: c.cx + (gx - hx), cy: c.cy + (gy - hy) }));
+    let cam2 = clamp({ ...next, cx: c.cx + (gx - hx), cy: c.cy + (gy - hy) });
+    /* 2026-11-04 (Prompt 14) — liegt unter dem Zeiger eine Säule, bleibt IHRE Oberseite dort (nicht der Boden darunter) — so
+       wandern hohe Säulen beim tiefen Zoomen nicht aus dem Bild. */
+    const t = hit(sx, sy);
+    if (t !== null) {
+      const cell = world.cells[t];
+      const [ox, oy] = toScreen(projection(cam2, width, height, step), cell.x, cell.y, topics[t]?.steps ?? 0);
+      const [ax, ay] = toGround(cam2, width, height, ox, oy);
+      const [bx, by] = toGround(cam2, width, height, sx, sy);
+      cam2 = clamp({ ...cam2, cx: cam2.cx + (ax - bx), cy: cam2.cy + (ay - by) });
+    }
+    setCam(cam2);
   };
   useEffect(() => {
     const el = canvas.current;
@@ -661,6 +693,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (d === null) return;
     if (!d.moved) {
       const [x, y] = local(e);
+      /* Figuren, Fahne und Namen der Gebiete zuerst (sie liegen über der Karte, ein Ziehen auf ihnen bewegt aber die Kamera). */
+      if (tapOverlay(x, y)) return;
       const t = hit(x, y);
       const now = performance.now();
       const double = lastTap.current !== null && now - lastTap.current.at < 380 && Math.hypot(lastTap.current.x - x, lastTap.current.y - y) < 12;
@@ -830,7 +864,6 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const rk = isRegion ? l.key.slice(2) : null;
           return (
             <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}`} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
-              onClick={rk === null ? undefined : () => { const c = regionCam(rk); if (c !== null) glide(c); }}
               ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, 60); } el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
               {rk !== null && conquered.has(rk) && <FlagIcon />}{l.text}
             </span>
@@ -847,8 +880,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           {goalFlag !== null && goalFlag >= 0 && goalFlag < n && (() => {
             const [x, y] = [screen[goalFlag * 3], screen[goalFlag * 3 + 1]];
             return (
-              <g transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} className="cg-wm-hit" role="button" aria-label={T.goalFlagLabel(topics[goalFlag]?.label ?? '')} data-wm-flag={goalFlag}
-                onClick={onFlag}>
+              <g transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} className="cg-wm-hit" aria-label={T.goalFlagLabel(topics[goalFlag]?.label ?? '')} data-wm-flag={goalFlag}>
                 <GoalFlagIcon h={pieceH * 1.1} />
               </g>
             );
@@ -858,9 +890,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
             const [x, y] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
             if (x < -40 || x > width + 40 || y < -40 || y > height + 60) return null;
             return (
-              <g key={p.key} transform={`translate(${x.toFixed(1)},${(y + (p.kind === 'goal' && goalFlag === p.t ? 0 : 0)).toFixed(1)})`} className="cg-wm-hit" role="button" data-wm-piece={p.kind} data-wm-piece-t={p.t} data-wm-piece-count={p.count}
+              <g key={p.key} transform={`translate(${x.toFixed(1)},${(y + (p.kind === 'goal' && goalFlag === p.t ? 0 : 0)).toFixed(1)})`} className="cg-wm-hit" data-wm-piece={p.kind} data-wm-piece-t={p.t} data-wm-piece-count={p.count}
                 aria-label={p.region !== null ? T.piecesHere(p.count, regionName(p.region)) : T.pieceLabel(topics[p.t]?.label ?? '')}
-                onClick={() => { if (p.region !== null) { const c = regionCam(p.region); if (c !== null) glide(c); return; } onPiece(p.t); }}>
+                >
                 <PieceIcon kind={p.kind} h={pieceH} count={p.count} />
               </g>
             );

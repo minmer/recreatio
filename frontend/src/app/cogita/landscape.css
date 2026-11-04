@@ -435,7 +435,7 @@
 .cg-ls-storyline, .cg-ls-regionline { margin: 0; }
 .cg-ls-q .cg-ls-qtop { display: flex; align-items: center; gap: var(--wk-space-2); }
 .cg-wm-stage { position: relative; }
-.cg-wm-label.is-region.is-shown { pointer-events: auto; cursor: zoom-in; }
+.cg-wm-label.is-region.is-shown { pointer-events: none; }
 
 /*
  * 2026-11-04 (Prompt 14) — DIE UMRISSE DES EIGENEN LANDES (orangerot: gekonnt, hellgelb: jetzt lernbar), die Spielfiguren
@@ -447,7 +447,7 @@
 }
 :root[data-theme='dark'] .cg-ls { --cg-ls-land: #ff6a42; --cg-ls-ready: #ffe98a; --cg-ls-goal: #6aaeff; }
 .cg-wm-pieces { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.cg-wm-hit { pointer-events: auto; cursor: pointer; }
+.cg-wm-hit { pointer-events: none; }
 .cg-wm-piece-foot { fill: color-mix(in oklab, var(--wk-ink) 30%, transparent); }
 .cg-wm-piece-body, .cg-wm-piece-head { stroke: var(--wk-surface); stroke-width: 1.4; }
 .cg-wm-piece.is-single .cg-wm-piece-body, .cg-wm-piece.is-single .cg-wm-piece-head { fill: var(--wk-ink); }

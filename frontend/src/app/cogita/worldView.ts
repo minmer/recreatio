@@ -176,7 +176,7 @@ export const NAME_PX = 56;
  */
 const sForTiles = (width: number, height: number, fore: number, tiles: number): number => Math.sqrt((width * height) / (((3 * Math.sqrt(3)) / 2) * HEX_CORNER * HEX_CORNER * Math.max(FORE_MIN, fore) * tiles));
 export const detailPx = (width: number, height: number, fore = 1): number => 2 * HEX_CORNER * sForTiles(width, height, fore, 7);
-export const deepestS = (width: number, height: number, fore = 1): number => Math.max(120, sForTiles(width, height, fore, 3));
+export const deepestS = (width: number, height: number, fore = 1): number => Math.max(120, sForTiles(width, height, fore, 4));
 /** Steiler als so (Neigung) ist die Oberseite nicht mehr zu lesen: kein Text. */
 export const INFO_FORE = 0.5;
 
