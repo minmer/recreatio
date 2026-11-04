@@ -41,7 +41,7 @@ import type { EntityConfig, FlowConfig, LiveConfig, LiveStatsConfig, MapConfig, 
 import { Loading } from '../../ui/Loading';
 import { later } from '../../ui/later';
 import { FogMap } from '../../cogita/FogMap';
-import { renamer } from '../../cogita/learn';
+import { positionFor, renamer } from '../../cogita/learn';
 import { DEFAULT_REWARDS, rewardsFor, type RewardRules } from '../../cogita/rewards';
 import { RewardBoard } from '../../cogita/RewardViews';
 import { usePageRewards, usePlaceRewards } from '../../cogita/pageRewards';
@@ -217,7 +217,7 @@ export function FlowView({ config, ctx }: { config: FlowConfig; ctx: PartContext
       </CogitaContext.Provider>
     );
   }
-  const saved = learner?.progress.positions.get(flow.id) ?? null;
+  const saved = positionFor(learner?.progress.positions, flow) ?? null;
   const questions = flow.graph.nodes.filter((n) => n.type === 'question').length;
   return (
     <>

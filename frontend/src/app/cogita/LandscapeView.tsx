@@ -24,7 +24,7 @@ import { learnerFlows, reviewStart, storyStage, type StoryStage } from './flowFa
 import { BAND_CODE, liftOf, type LsBand, type LsInput, type LsStand, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
-import { answeredCards, renamer, type Learner } from './learn';
+import { answeredCards, positionFor, renamer, type Learner } from './learn';
 import { gaugeKnow, pathOfEntries, unitMembers } from './PathLearn';
 import { readNest } from './landscapeNest';
 import { cardEntities, cardsAbout, questionIds } from './prerequisites';
@@ -771,7 +771,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     /* 2026-11-04 (Prompt 11) — wie im Spieler: ein Warunek, der für diesen Lernenden entschieden ist, zeigt nur seinen Weg. */
     const decide = learner === null ? undefined : decideBy({ ...factsOf(gauge, () => []), flow: (ref: string) => flows.get(content.flowRef?.(ref) ?? ref) });
     const sp = storyPathOf(flow, content, decide);
-    const kept = learner?.progress.positions.get(flow.id);
+    const kept = positionFor(learner?.progress.positions, flow);
     const known = gaugeKnow(gauge);
     const nodeOf = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
     const marks = storyMarks(sp, {

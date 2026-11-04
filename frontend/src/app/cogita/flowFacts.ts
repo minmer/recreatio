@@ -6,7 +6,7 @@
  */
 
 import { goalsReached, readFlow, type Flow, type FlowState } from './flow';
-import type { FlowPosition } from './learn';
+import { positionFor, type FlowPosition } from './learn';
 import type { Facts, FlowFacts } from './logic';
 
 /** Ein Pfad ohne „#/" und gross/klein. */
@@ -15,6 +15,8 @@ const bare = (path: string): string => path.trim().replace(/^#?\/?/, '').replace
 /** Ein Ablauf, wie die Bedingung ihn braucht: seine Kennung, und die Präsentation, auf die er zeigt. */
 export interface FlowRef {
   readonly id: string;
+  /** Der bleibende Name (2026-11-04, Prompt 13): die Stelle eines neu eingespielten Ablaufs. */
+  readonly ref?: string;
   readonly presentation?: string;
 }
 
@@ -29,7 +31,7 @@ export function flowFactsOf(positions: ReadonlyMap<string, FlowPosition> | undef
     if (had === undefined || had.at <= p.at) byPath.set(k, p);
   }
   for (const f of flows) {
-    const found = [positions.get(f.id), f.presentation === undefined ? undefined : byPath.get(bare(f.presentation))].filter((p): p is FlowPosition => p !== undefined);
+    const found = [positionFor(positions, f), f.presentation === undefined ? undefined : byPath.get(bare(f.presentation))].filter((p): p is FlowPosition => p !== undefined);
     if (found.length === 0) continue;
     out.set(f.id, { started: true, done: found.some((p) => p.done === true), goals: [...new Set(found.flatMap((p) => p.goals ?? []))] });
   }
@@ -38,7 +40,7 @@ export function flowFactsOf(positions: ReadonlyMap<string, FlowPosition> | undef
 
 /** Die Abläufe einer Baza (Kennung, Präsentation). */
 export const flowRefsOf = (lib: { docs(kind: 'flow'): readonly { readonly id: string; readonly data: Readonly<Record<string, unknown>> }[] }): FlowRef[] =>
-  lib.docs('flow').map((d) => ({ id: d.id, ...(typeof d.data.presentation === 'string' && d.data.presentation.trim() !== '' ? { presentation: d.data.presentation } : {}) }));
+  lib.docs('flow').map((d) => ({ id: d.id, ...(typeof d.data._ref === 'string' && d.data._ref !== '' ? { ref: d.data._ref } : {}), ...(typeof d.data.presentation === 'string' && d.data.presentation.trim() !== '' ? { presentation: d.data.presentation } : {}) }));
 
 /** Was über die Erzählungen dieses Lernenden in dieser Baza bekannt ist. */
 export const learnerFlows = (lib: Parameters<typeof flowRefsOf>[0], positions: ReadonlyMap<string, FlowPosition> | undefined): Map<string, FlowFacts> =>

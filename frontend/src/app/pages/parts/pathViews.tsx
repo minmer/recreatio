@@ -14,7 +14,7 @@ import type { Flow } from '../../cogita/flow';
 import { storyMarks, type StoryPath } from '../../cogita/storyPath';
 import { factsOf, gaugeFromMarks, withFlows } from '../../cogita/knowing';
 import { decideBy } from '../../cogita/runningStory';
-import { answeredCards, renamer } from '../../cogita/learn';
+import { answeredCards, positionFor, renamer } from '../../cogita/learn';
 import { usePageBase } from '../../cogita/pageBase';
 import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
 import { authorOrder, gaugeKnow, pathOfEntries, unitMembers, usePathRun } from '../../cogita/PathLearn';
@@ -96,7 +96,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
       const known = learner === null ? null : learnerFlows(lib, learner.progress.positions);
       const decide = known === null ? undefined : decideBy({ ...factsOf(withFlows(gauge, known), () => []), flow: (ref: string) => known.get(content.flowRef?.(ref) ?? ref) });
       const sp = storyPathOf(flow, content, decide);
-      const kept = learner?.progress.positions.get(flow.id);
+      const kept = positionFor(learner?.progress.positions, flow);
       /* 2026-11-04 (Prompt 10) — gezählt wird, was die Erzählung wirklich fragen würde (gekonnte Fragen übersprungen). */
       const nodeOf = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
       const knownStep = learner === null ? undefined : (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, (c) => learner.marks(c.key, c.fingerprint, content.rename)); };

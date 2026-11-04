@@ -35,7 +35,8 @@ public static partial class Cogita
 {
     private const int MaxBatch = 512 * 1024;
     private const int MaxBatchesAtOnce = 50;
-    private const int MaxBatchesPerDay = 400;
+    /// <summary>2026-11-04 (Prompt 13): 2000 statt 400 — ein langer Lerntag mit Erzählungen stiess an die Grenze, danach blieb alles in der Ablage.</summary>
+    private const int MaxBatchesPerDay = 2000;
     private const int MaxKey = 2048;
 
     /// <summary>Was ein Stapel sein kann. Die letzten drei gelten nur in ihrer jüngsten Fassung.</summary>

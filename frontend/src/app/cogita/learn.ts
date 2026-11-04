@@ -95,6 +95,36 @@ export interface FlowPosition {
   readonly goals?: readonly string[];
   /** 2026-11-03 (G) — eine Präsentation (`page:<seite>`): ihr Pfad — so findet der Ablauf der Baza, der auf sie zeigt, ihre Stelle. */
   readonly path?: string;
+  /** 2026-11-04 (Prompt 13) — der Lernende setzt die Erzählung ausdrücklich zurück: erst dann fallen „ukończona", Ziele und Kapitel weg. */
+  readonly reset?: boolean;
+  /** 2026-11-04 (Prompt 13) — der bleibende Name des Ablaufs: bekommt er beim Neu-Einspielen eine neue Kennung, findet er die Stelle hierüber. */
+  readonly ref?: string;
+}
+
+/** Die Stelle eines Ablaufs: unter seiner Kennung — sonst unter seinem bleibenden Namen (ein neu eingespielter Ablauf). */
+export function positionFor(positions: ReadonlyMap<string, FlowPosition> | undefined, flow: { readonly id: string; readonly ref?: string }): FlowPosition | undefined {
+  if (positions === undefined) return undefined;
+  const own = positions.get(flow.id);
+  if (own !== undefined || flow.ref === undefined || flow.ref === '') return own;
+  let best: FlowPosition | undefined;
+  for (const p of positions.values()) if (p.ref === flow.ref) best = best === undefined ? p : mergePosition(best, p);
+  return best === undefined ? undefined : { ...best, flow: flow.id };
+}
+
+/**
+ * 2026-11-04 (Prompt 13) — ZWEI STELLEN EINER ERZÄHLUNG ZUSAMMEN: die jüngere sagt, wo er steht (Schritt, Besuchtes,
+ * Pfad); was er erreicht hat, bleibt — ein Ende („ukończona"), die Ziele und die durchlaufenen Kapitel wachsen nur. Nur
+ * ein ausdrückliches Zurücksetzen (`reset`) nimmt sie weg.
+ */
+export function mergePosition(had: FlowPosition | undefined, pos: FlowPosition): FlowPosition {
+  if (had === undefined) return pos;
+  const [older, newer] = had.at <= pos.at ? [had, pos] : [pos, had];
+  if (newer.reset === true) return newer;
+  const done = older.done === true || newer.done === true;
+  const goals = [...new Set([...(older.goals ?? []), ...(newer.goals ?? [])])];
+  const chapters = [...new Set([...(older.chapters ?? []), ...(newer.chapters ?? [])])];
+  const { reset: _r, ...rest } = newer;
+  return { ...rest, ...(done ? { done: true } : {}), ...(goals.length > 0 ? { goals } : {}), ...(chapters.length > 0 ? { chapters } : {}) };
 }
 
 export interface Progress {
@@ -172,8 +202,7 @@ export function absorb(into: Progress, body: unknown): Progress {
   for (const raw of Array.isArray(body.positions) ? body.positions : []) {
     if (!isObject(raw) || typeof raw.flow !== 'string' || typeof raw.step !== 'string') continue;
     const pos = raw as unknown as FlowPosition;
-    const had = positions.get(pos.flow);
-    if (had === undefined || had.at <= pos.at) positions.set(pos.flow, pos);
+    positions.set(pos.flow, mergePosition(positions.get(pos.flow), pos));
   }
   if (body.kind === 'values' && isObject(body.values)) {
     const next: Record<string, number> = {};
@@ -599,6 +628,17 @@ export class Learner {
 
   private localKey(): string { return `local:${this.libraryId}:${holderKey(this.holder)}`; }
 
+  /** Was der Dienst seit dem letzten Holen hat (alle Arten), in den Fortschritt. */
+  private async pull(): Promise<void> {
+    if (this.holder.kind === 'local') return;
+    const holder = this.holder;
+    const { now, batches } = await loadOwnBatches(holder, this.libraryId, this.since);
+    let progress = this.progress;
+    for (const batch of batches) progress = absorb(progress, await openOwn(holder, batch));
+    this.progress = progress;
+    this.since = now;
+  }
+
   /** Laden: was dieser Browser hat, dann was der Dienst seither hat, dann was noch wartet. */
   async load(): Promise<void> {
     if (this.holder.kind === 'local') {
@@ -612,11 +652,7 @@ export class Learner {
     }
     const holder = this.holder;
     try {
-      const { now, batches } = await loadOwnBatches(holder, this.libraryId, this.since);
-      let progress = this.progress;
-      for (const batch of batches) progress = absorb(progress, await openOwn(holder, batch));
-      this.progress = progress;
-      this.since = now;
+      await this.pull();
     } catch (e) {
       if (!(e instanceof WorkspaceError)) throw e;
       /* Ohne Netz: es bleibt, was schon da ist. */
@@ -625,6 +661,9 @@ export class Learner {
       const body = await openOwn(holder, { ...batch, holderRoleId: batch.holderRoleId ?? null, holderSeatId: null, key: batch.keyForHolder, createdAt: '' });
       this.progress = absorb(this.progress, body);
     }
+    /* 2026-11-04 (Prompt 13) — Stellen, die dieser Browser festhielt, aber vielleicht noch nicht hinausgingen (Neuladen, Tab zu). */
+    const kept = this.pendingPositions();
+    if (kept.length > 0) { this.progress = absorb(this.progress, { kind: 'position', positions: kept }); this.positionsDirty = true; }
     /* 2026-11-03 (G) — was in diesem Fenster schon festgehalten wurde (auch noch nicht hinaus). */
     const here = SESSION.get(this.liveKey());
     if (here !== undefined) this.progress = absorb(this.progress, { kind: 'answers', answers: here.answers, snapshots: here.snapshots, positions: here.positions });
@@ -705,12 +744,70 @@ export class Learner {
     await this.send({ v: 1, kind: 'suspend', suspended: [...next] });
   }
 
+  /*
+    2026-11-04 (Prompt 13) — DIE STELLEN IN DEN ERZÄHLUNGEN: der Dienst behält je Halter, Baza und Bereich nur den JÜNGSTEN
+    Stapel „position" — früher ging je Schritt ein Stapel mit EINER Stelle hinaus, und die vorige Erzählung (auch eine
+    „ukończona") war beim nächsten Laden weg; dazu fielen nach 400 Stapeln am Tag die übrigen Schritte aus. Jetzt: jede
+    Stelle sofort in diesen Browser (überlebt Neuladen und Schliessen), und hinaus geht EIN Stapel mit ALLEN Stellen —
+    nachdem geholt ist, was andere Geräte seither schrieben (zusammengeführt mit `mergePosition`): höchstens einmal je
+    Minute, gleich bei einem Ende oder einem Ziel, und wenn der Tab verschwindet (`flush`).
+  */
+  private positionsDirty = false;
+  private positionTimer: ReturnType<typeof setTimeout> | null = null;
+  private positionKey(): string { return `cg-pos:${this.libraryId}:${holderKey(this.holder)}`; }
+  private pendingPositions(): FlowPosition[] {
+    try {
+      const raw = localStorage.getItem(this.positionKey());
+      const list = raw === null ? [] : JSON.parse(raw) as unknown;
+      return Array.isArray(list) ? list.filter((p): p is FlowPosition => isObject(p) && typeof p.flow === 'string' && typeof p.step === 'string' && typeof p.at === 'number') : [];
+    } catch { return []; }
+  }
+  private keepPending(position: FlowPosition): void {
+    try {
+      const list = this.pendingPositions().filter((p) => p.flow !== position.flow);
+      const merged = mergePosition(this.pendingPositions().find((p) => p.flow === position.flow), position);
+      localStorage.setItem(this.positionKey(), JSON.stringify([...list, merged].slice(-300)));
+    } catch { /* ohne Speicher: dann nur aus dem Gedächtnis */ }
+  }
+
   async keepPosition(position: FlowPosition): Promise<void> {
+    const had = this.progress.positions.get(position.flow);
     this.progress = absorb(this.progress, { kind: 'position', positions: [position] });
     this.changed();
     /* 2026-11-03 (G) — die anderen Lernenden derselben Person hören die neue Stelle gleich (eine Erzählung „ukończona"). */
     this.tell([], [], [position]);
-    await this.send({ v: 1, kind: 'position', positions: [position] });
+    this.keepPending(position);
+    this.positionsDirty = true;
+    const now = this.progress.positions.get(position.flow);
+    const won = (now?.done === true && had?.done !== true) || (now?.goals?.length ?? 0) > (had?.goals?.length ?? 0) || position.reset === true;
+    this.positionsSoon(won ? 0 : 60_000);
+  }
+
+  private positionsSoon(ms: number): void {
+    if (this.positionTimer !== null) { if (ms > 0) return; clearTimeout(this.positionTimer); }
+    const timer = setTimeout(() => { this.positionTimer = null; void this.sendPositions().catch(() => undefined); }, ms);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    this.positionTimer = timer;
+  }
+
+  /** Alle Stellen in einem Stapel hinaus — erst holen, was andere Geräte schrieben (der Stapel ersetzt den vorigen beim Dienst). */
+  async sendPositions(): Promise<void> {
+    if (this.positionTimer !== null) { clearTimeout(this.positionTimer); this.positionTimer = null; }
+    if (!this.positionsDirty) return;
+    this.positionsDirty = false;
+    if (this.holder.kind === 'local') { await this.keepLocal(); this.clearPending(); return; }
+    try { await this.pull(); } catch { /* ohne Netz: was wir haben — die Ablage wartet */ }
+    const sentAt = Date.now();
+    const all = [...this.progress.positions.values()].map((p) => (p.visited.length > 400 ? { ...p, visited: p.visited.slice(-400) } : p));
+    await this.send({ v: 1, kind: 'position', positions: all });
+    this.clearPending(sentAt);
+  }
+
+  private clearPending(upTo = Number.POSITIVE_INFINITY): void {
+    try {
+      const left = this.pendingPositions().filter((p) => p.at > upTo);
+      if (left.length === 0) localStorage.removeItem(this.positionKey()); else localStorage.setItem(this.positionKey(), JSON.stringify(left));
+    } catch { /* ohne Speicher */ }
   }
 
   async keepValues(values: Readonly<Record<string, number>>): Promise<void> {
@@ -747,6 +844,7 @@ export class Learner {
   /** Die gesammelten Antworten als Stapel hinaus (und was noch wartete). */
   async flush(): Promise<void> {
     if (this.idle !== null) { clearTimeout(this.idle); this.idle = null; }
+    if (this.positionsDirty) void this.sendPositions().catch(() => undefined);
     const answers = this.fresh;
     const snapshots = [...this.freshSnapshots.values()];
     this.fresh = [];

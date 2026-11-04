@@ -56,10 +56,32 @@ export function enterAt(flow: Flow, state: FlowState, to: string | null, ctx: Pl
   return advance(via, { ...state, flow: flow.id, step: GATE, ended: false }, 'next', ctx);
 }
 
+/** Der erste Schritt, den er noch nicht besucht hat — vom Anfang den Ausgängen nach (Breite zuerst); `null`: der Anfang. */
+function firstOpen(flow: Flow, visited: ReadonlySet<string>): string | null {
+  if (flow.start === null) return null;
+  const seen = new Set<string>([flow.start]);
+  const queue = [flow.start];
+  while (queue.length > 0) {
+    const at = queue.shift()!;
+    if (!visited.has(at)) return at;
+    for (const e of flow.graph.edges) if (e.from === at && e.to !== null && !seen.has(e.to)) { seen.add(e.to); queue.push(e.to); }
+  }
+  return null;
+}
+
 /** Ein Lauf vom Anfang einer Erzählung (oder einer gemerkten Stelle), mit den Kapiteln, die schon durch sind. */
-export function startRun(flow: Flow, from: { readonly values?: Readonly<Record<string, number>>; readonly at?: string | null; readonly chapters?: FlowState['chapters'] }, ctx: PlayContext): StoryRun {
-  const s0 = startFlow(flow, from.values ?? {}, from.at ?? null);
-  const base: FlowState = { ...s0, visited: [], ...(from.chapters === undefined ? {} : { chapters: from.chapters }) };
+export function startRun(flow: Flow, from: { readonly values?: Readonly<Record<string, number>>; readonly at?: string | null; readonly chapters?: FlowState['chapters']; readonly visited?: readonly string[] }, ctx: PlayContext): StoryRun {
+  /*
+    2026-11-04 (Prompt 13) — WIEDER DA, WO ER WAR: mit den schon besuchten Schritten (sonst zeigte der Pfad nach dem Neuladen
+    nichts, und die nächste Stelle überschrieb sie). Gibt es den gemerkten Schritt nicht mehr (der Ablauf wurde neu
+    eingespielt), dann der erste noch nicht besuchte Schritt in der Reihenfolge des Ablaufs, sonst der Anfang.
+  */
+  const nodes = new Set(flow.graph.nodes.map((n) => n.id));
+  const visited = (from.visited ?? []).filter((id) => nodes.has(id));
+  let at = from.at ?? null;
+  if (at !== null && at !== '' && !nodes.has(at)) at = firstOpen(flow, new Set(visited));
+  const s0 = startFlow(flow, from.values ?? {}, at);
+  const base: FlowState = { ...s0, visited, ...(from.chapters === undefined ? {} : { chapters: from.chapters }) };
   return { state: s0.step === null ? s0 : enterAt(flow, base, s0.step, ctx), outer: [], root: flow.id };
 }
 

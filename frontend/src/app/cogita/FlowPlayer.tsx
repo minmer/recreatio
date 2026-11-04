@@ -36,7 +36,7 @@ import { chaptersKept, flowFactsOf, mergeGoals } from './flowFacts';
 import type { GraphNode } from './graph';
 import { PathMap, type PathNext } from './PathMap';
 import { mergeWords } from './pathLayout';
-import { renamer, type Learner } from './learn';
+import { positionFor, renamer, type Learner } from './learn';
 import { askedCardOf, cardKnow, cardsInFlow, flowKnowness, isKnown, pickSpacer, questionsLeft, skipStep, type MarksOf } from './flowAsk';
 import { baseLang, words, type Lang } from './lang';
 import { cardsAbout } from './prerequisites';
@@ -224,9 +224,11 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   /* Die Regel des Spielers: was der Lernende kann, wird nicht gefragt (still, über „dobrze"). */
   const ctx: PlayContext = { facts, flows: flowOf, members: content.members, skip: (node) => skipStep(node, content.card, marksOf) };
 
-  const saved = learner?.progress.positions.get(flow.id);
+  /* 2026-11-04 (Prompt 13) — die Stelle eines Ablaufs, auch nach dem Neu-Einspielen (über seinen bleibenden Namen). */
+  const posOf = (id: string) => (learner === null ? undefined : positionFor(learner.progress.positions, flowOf(id) ?? { id }));
+  const saved = posOf(flow.id);
   /* 2026-11-03 (G) — wer wiederkommt, steht, wo er war — mit den Kapiteln, die er schon durch hat. */
-  const [run, setRun] = useState<StoryRun>(() => startRun(flow, { values: learner?.progress.values ?? {}, at: saved?.step ?? null, chapters: chaptersOf(saved?.chapters) }, ctx));
+  const [run, setRun] = useState<StoryRun>(() => startRun(flow, { values: learner?.progress.values ?? {}, at: saved?.step ?? null, chapters: chaptersOf(saved?.chapters), visited: saved?.visited ?? [] }, ctx));
   const runRef = useRef(run);
   const state = run.state;
   const running = flowOf(state.flow) ?? flow;
@@ -244,10 +246,10 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       doneHere.current.add(f.flow);
       if (learner === null) continue;
       const story = flowOf(f.flow);
-      const had = learner.progress.positions.get(f.flow);
+      const had = posOf(f.flow);
       const reached = story === undefined ? [] : goalsReached(story, facts({ ...after, visited: f.visited }));
       void learner.keepPosition({
-        flow: f.flow, step: f.step, visited: f.visited, at: Date.now(), done: true,
+        flow: f.flow, step: f.step, visited: f.visited, at: Date.now(), done: true, ...(story?.ref === undefined ? {} : { ref: story.ref }),
         ...(reached.length > 0 || (had?.goals?.length ?? 0) > 0 ? { goals: mergeGoals(had?.goals, reached) } : {})
       }).catch(() => undefined);
     }
@@ -268,18 +270,35 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   /* Eine neue Erzählung: ihr eigener Zähler. */
   useEffect(() => { setAskedHere(0); setLastAsked(null); setSpacerDone(null); }, [running.id]);
 
+  /*
+    2026-11-04 (Prompt 13) — DER LERNENDE KOMMT NACH (der Spieler war schon da, sein Fortschritt noch nicht): solange hier
+    noch nichts getan wurde, dorthin, wo er war — sonst schrieb der Spieler den Anfang über die gemerkte Stelle.
+  */
+  const moved = useRef(false);
+  const seenLearner = useRef(learner);
+  useEffect(() => {
+    if (seenLearner.current === learner) return;
+    seenLearner.current = learner;
+    if (learner === null || moved.current) return;
+    const kept = posOf(flow.id);
+    if (kept === undefined) return;
+    commit({ run: startRun(flow, { values: learner.progress.values, at: kept.step, chapters: chaptersOf(kept.chapters), visited: kept.visited }, ctx), finished: [] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learner]);
+
   /* Ein anderer Ablauf von aussen (ohne neuen Spieler): er beginnt, wo der Lernende in ihm war. */
   const startedWith = useRef(flow.id);
   useEffect(() => {
     if (startedWith.current === flow.id) return;
     startedWith.current = flow.id;
-    const kept = learner?.progress.positions.get(flow.id);
-    commit({ run: startRun(flow, { values: learner?.progress.values ?? {}, at: kept?.step ?? null, chapters: chaptersOf(kept?.chapters) }, ctx), finished: [] });
+    const kept = posOf(flow.id);
+    commit({ run: startRun(flow, { values: learner?.progress.values ?? {}, at: kept?.step ?? null, chapters: chaptersOf(kept?.chapters), visited: kept?.visited ?? [] }, ctx), finished: [] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow.id]);
 
   useEffect(() => {
     if (jumpTo == null || !flow.graph.nodes.some((n) => n.id === jumpTo.step)) return;
+    moved.current = true;
     const s = runRef.current.state;
     const mine = s.flow === flow.id && s.stack.length === 0;
     commit({ run: { root: flow.id, outer: [], state: enterAt(flow, { ...s, flow: flow.id, stack: [], chapter: null, queue: undefined, visited: mine ? s.visited : [] }, jumpTo.step, ctx) }, finished: [] });
@@ -307,22 +326,26 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const goalsKey = reachedNow.join('|');
   useEffect(() => {
     if (learner === null || state.step === null) return undefined;
+    /* Nichts getan und schon gemerkt, wo er ist: nichts zu schreiben (ein blosses Öffnen überschreibt nie). */
+    const kept = posOf(running.id);
+    if (!moved.current && kept !== undefined && kept.step === state.step && state.stack.length === 0) return undefined;
     if (keepTimer.current !== null) window.clearTimeout(keepTimer.current);
     const done = state.ended && state.stack.length === 0;
     keepTimer.current = window.setTimeout(() => {
-      const had = learner.progress.positions.get(running.id);
+      const had = posOf(running.id);
       void learner.keepPosition({
-        flow: running.id, step: state.step ?? '', visited: state.visited, at: Date.now(),
+        flow: running.id, step: state.step ?? '', visited: state.visited, at: Date.now(), ...(running.ref === undefined ? {} : { ref: running.ref }),
         chapters: chaptersKept(state.chapters),
         ...(done || had?.done === true ? { done: true } : {}),
         ...(reachedNow.length > 0 || (had?.goals?.length ?? 0) > 0 ? { goals: mergeGoals(had?.goals, reachedNow) } : {})
       }).catch(() => undefined);
       if (JSON.stringify(state.values) !== JSON.stringify(learner.progress.values)) void learner.keepValues(state.values).catch(() => undefined);
-    }, done ? 0 : 1200);
+    }, done ? 0 : 200);
     return () => { if (keepTimer.current !== null) window.clearTimeout(keepTimer.current); };
   }, [learner, running.id, state.step, state.visited, state.values, state.ended, state.chapters, goalsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (exit?: string) => {
+    moved.current = true;
     setAnsweredOn(null);
     setVisit((v) => v + 1);
     const was = runRef.current.state.flow;
@@ -339,16 +362,24 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
 
   /* Von vorn: die laufende Erzählung (eine gerufene: in ihr, die rufende wartet weiter). */
   const restart = () => {
+    moved.current = true;
     setNotice(null);
     const s = runRef.current.state;
     if (s.stack.length === 0) { commit({ run: startRun(running, { values: learner?.progress.values ?? s.values }, ctx), finished: [] }); return; }
     commit({ run: { ...runRef.current, state: enterAt(running, { ...s, visited: [], chapters: {}, chapter: null }, running.start, ctx) }, finished: [] });
   };
+  /* 2026-11-04 (Prompt 13) — ausdrücklich vergessen (nach Rückfrage): nur das nimmt „ukończona" und Ziele weg. */
+  const forget = () => {
+    if (learner === null || !window.confirm(W.forgetAsk(running.name))) return;
+    doneHere.current.delete(running.id);
+    void learner.keepPosition({ flow: running.id, step: running.start ?? '', visited: [], at: Date.now(), reset: true }).catch(() => undefined);
+    restart();
+  };
   /*
     2026-11-03 (Prompt 5) — DER PRZEGLĄD: welche Ziele erreicht sind (gemerkt und jetzt), und „Powtórz przegląd" — zum
     Schritt, an dem er beginnt (`review`), ohne ihn an den Anfang.
   */
-  const goalsHeld = mergeGoals(learner?.progress.positions.get(running.id)?.goals, reachedNow);
+  const goalsHeld = mergeGoals(posOf(running.id)?.goals, reachedNow);
   const reviewOpen = running.goals.length > 0 && !running.goals.every((g) => goalsHeld.includes(g.id));
   const reviewStep = running.review !== undefined && running.graph.nodes.some((n) => n.id === running.review) ? running.review : running.start;
   const toReview = () => {
@@ -444,8 +475,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     setAnsweredOn(null);
     setUnlocked(false);
     setLockTick((n) => n + 1);
-    const kept = learner?.progress.positions.get(next.id);
-    commit({ run: startRun(next, { values: runRef.current.state.values, at: kept?.done === true ? null : kept?.step ?? null, chapters: chaptersOf(kept?.chapters) }, ctx), finished: [] });
+    const kept = posOf(next.id);
+    commit({ run: startRun(next, { values: runRef.current.state.values, at: kept?.done === true ? null : kept?.step ?? null, chapters: chaptersOf(kept?.chapters), visited: kept?.done === true ? [] : kept?.visited ?? [] }, ctx), finished: [] });
   };
   const startTopic = (id: string) => {
     const all = content.cards ?? [];
@@ -608,7 +639,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     const others = choices.filter((x) => x !== first && x.ready && x.action !== undefined);
     const waiting = choices.filter((x) => !x.ready);
     return withPath(
-      <section className={`cg-flow cg-flow-${look}`} data-flow-ended={running.id}>
+      <section className={`cg-flow cg-flow-${look}`} data-flow-ended={running.id} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
         <div className="cg-flow-step">
           <h2 data-flow-title={running.id}>{W.storyEnd} — <TexText text={running.name} /></h2>
           {running.goals.length > 0 && <Goals flow={running} reached={goalsHeld} />}
@@ -639,6 +670,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
           <div className="wk-actions">
             {reviewOpen && choices.length === 0 && <button type="button" className="wk-btn" onClick={toReview} data-flow-review-again="">{W.reviewAgain}</button>}
             <button type="button" className={reviewOpen || first !== undefined ? 'wk-btn wk-btn-line' : 'wk-btn'} onClick={restart}>{W.fromStart}</button>
+            {learner !== null && <button type="button" className="wk-link-btn" onClick={forget} data-flow-forget="">{W.forgetStory}</button>}
             {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.back}</button>}
           </div>
         </div>
@@ -808,7 +840,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   })();
 
   return withPath(
-    <section className={`cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`} data-flow-running={running.id}>
+    <section className={`cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
       <div className="cg-row-between">
         <span className="cg-flow-title">
           {trail.length > 0 && <span className="cg-muted cg-flow-trail" data-flow-trail={trail.length}>{W.inStory(trail.map((f) => f.name).join(' › '))}</span>}
@@ -817,6 +849,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         <span className="cg-row">
           {running.goals.length > 0 && <span className="cg-muted">{W.goal}: {reached.length}/{running.goals.length}</span>}
           <button type="button" className="wk-link-btn" onClick={restart}>{W.fromStart}</button>
+          {learner !== null && <button type="button" className="wk-link-btn" onClick={forget} data-flow-forget="">{W.forgetStory}</button>}
           {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.close}</button>}
         </span>
       </div>

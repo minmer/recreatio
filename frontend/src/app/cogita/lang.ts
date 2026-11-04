@@ -222,6 +222,9 @@ export function words(lang: Lang) {
     reviewPassed: L('Przegląd zdany — opowieść zaliczona.', 'Durchsicht bestanden — Geschichte geschafft.', 'Review passed — story complete.'),
     reviewAgain: L('Powtórz przegląd', 'Durchsicht wiederholen', 'Repeat the review'),
     fromStart: L('Od początku', 'Von vorn', 'From the start'),
+    /* 2026-11-04 (Prompt 13) — das einzige, was „ukończona" und erreichte Ziele wegnimmt */
+    forgetStory: L('Zapomnij postęp', 'Fortschritt vergessen', 'Forget progress'),
+    forgetAsk: (name: string) => L(`Zapomnieć cały postęp w opowieści „${name}”? Ukończenie i osiągnięte cele znikną (odpowiedzi na pytania zostają).`, `Den ganzen Fortschritt in „${name}“ vergessen? Abschluss und erreichte Ziele verschwinden (die Antworten bleiben).`, `Forget all progress in “${name}”? Completion and reached goals are removed (answers stay).`),
     learnWithBasics: L('Ucz się z podstawami', 'Mit den Grundlagen lernen', 'Learn with the basics'),
     goOn: L('Dalej', 'Weiter', 'Next'),
     storyButton: {

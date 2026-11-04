@@ -194,6 +194,8 @@ export interface Flow {
    * einer Szene). „Powtórz przegląd" springt dorthin; ohne ihn an den Anfang.
    */
   readonly review?: string;
+  /** 2026-11-04 (Prompt 13) — der bleibende Name aus dem Import („@bosko/krag"): so findet ein neu eingespielter Ablauf seine Stellen wieder. */
+  readonly ref?: string;
 }
 
 /** Der eine Schritt, zu dem kein Weg führt — `null`, wenn es keinen oder mehrere gibt. */
@@ -213,6 +215,7 @@ export function readFlow(id: string, raw: unknown): Flow {
   if (isObject(d.overrides)) for (const [k, v] of Object.entries(d.overrides)) if (isObject(v)) overrides[k] = v;
   return {
     id,
+    ...(str(d._ref) === '' ? {} : { ref: str(d._ref) }),
     name: str(d.name).trim() || 'Przebieg',
     look: (LOOK_TYPES as readonly string[]).includes(str(d.look)) ? (d.look as LookType) : 'reading',
     ...(str(d.lookId) === '' ? {} : { lookId: str(d.lookId) }),
