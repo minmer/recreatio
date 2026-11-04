@@ -982,5 +982,12 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 /* 2026-11-04 (Prompt 9) — das Ende einer Powtórka: was sie freigeschaltet hat und der nächste Schritt. */
 .cg-run-closing { display: grid; gap: var(--wk-space-2); }
 .cg-run-closing-h { margin: 0; font-weight: 600; }
+/* 2026-11-04 (Prompt 11) — nach „Koniec“: was danach kommt (ein grosser Knopf, die anderen klein, was wartet mit seinem Grund). */
+.cg-flow-next { display: grid; gap: var(--wk-space-2); justify-items: center; }
+.cg-flow-next-work { font-weight: 400; opacity: 0.85; }
+.cg-flow-next-wait { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); font-size: var(--wk-text-sm); }
+/* Der Titel der laufenden Erzählung, darüber leise die rufende. */
+.cg-flow-title { display: grid; gap: 0.1rem; min-width: 0; }
+.cg-flow-trail { font-size: var(--wk-text-xs); }
 .cg-run-unlocked { margin: 0; padding-left: var(--wk-space-4); }
 .cg-run-next { font-size: var(--wk-text-md, 1rem); }

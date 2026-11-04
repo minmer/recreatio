@@ -2,12 +2,27 @@
  * 2026-11-03 — DER WEG ZUM MOTOR DES KRAJOBRAZ: im Worker (`landscape.worker.ts`), wo es einen gibt — sonst (Prüfungen,
  * ein Browser ohne Module-Worker) derselbe Motor im Hauptfaden. Die Ansicht schickt den Graphen nur, wenn er neu ist,
  * den Stand nach jeder Antwort, die Gestalt bei jedem Fokus; veraltete Antworten verwirft sie selbst.
+ * 2026-11-04 (Prompt 11): `stand` (der Stand je Knoten ohne Gestalt) und `regions` (die Gebiete, einmal je Baza).
  */
 
-import { LandscapeEngine, type LsInput, type LsOptions, type LsRun, type LsState } from './landscape';
+import { LandscapeEngine, type LsInput, type LsOptions, type LsRun, type LsStand, type LsState } from './landscape';
+import type { Lang } from './lang';
+import { landscapeWords } from './landscapeWords';
+import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
+
+export interface RegionRequest {
+  /** Was die Gebiete bestimmt (dieselben Themen, Kanten und Wünsche: dieselbe Antwort, ohne neu zu rechnen). */
+  readonly key: string;
+  readonly graph: RegionGraphInput;
+  readonly lang: Lang;
+  readonly overrides?: RegionOverrides;
+  readonly previous?: Readonly<Record<string, readonly string[]>>;
+}
 
 export interface LandscapeClient {
   run(request: { readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }): Promise<LsRun>;
+  stand(request: { readonly input?: LsInput; readonly state?: LsState }): Promise<LsStand>;
+  regions(request: RegionRequest): Promise<RegionTree>;
   route(target: string): Promise<ReturnType<LandscapeEngine['routeTo']>>;
   dispose(): void;
   /** Rechnet ein Worker (sonst der Hauptfaden). */
@@ -34,12 +49,25 @@ function makeWorker(): Worker | null {
 
 function mainThread(): LandscapeClient {
   const engine = new LandscapeEngine();
+  let kept: { key: string; tree: RegionTree } | null = null;
   return {
     inWorker: false,
     run: async ({ input, state, options }) => {
       if (input !== undefined) engine.setInput(input);
       if (state !== undefined) engine.setState(state);
       return engine.layout(options);
+    },
+    stand: async ({ input, state }) => {
+      if (input !== undefined) engine.setInput(input);
+      if (state !== undefined) engine.setState(state);
+      return engine.stand();
+    },
+    regions: async (r) => {
+      if (kept === null || kept.key !== r.key) {
+        const tree = buildRegions(r.graph, { around: landscapeWords(r.lang).around, ...(r.overrides === undefined ? {} : { overrides: r.overrides }), ...(r.previous === undefined ? {} : { previous: r.previous }) });
+        kept = { key: r.key, tree };
+      }
+      return kept.tree;
     },
     route: async (target) => engine.routeTo(target),
     dispose: () => undefined
@@ -76,14 +104,22 @@ export function landscapeClient(): LandscapeClient {
     if (fallback === null) fallback = mainThread();
     return fallback;
   };
+  const again = () => ({ ...(lastInput === undefined ? {} : { input: lastInput }), ...(lastState === undefined ? {} : { state: lastState }) });
   return {
     inWorker: true,
     run: async ({ input, state, options }) => {
       if (input !== undefined) lastInput = input;
       if (state !== undefined) lastState = state;
-      if (broken) return viaFallback().run({ ...(lastInput === undefined ? {} : { input: lastInput }), ...(lastState === undefined ? {} : { state: lastState }), options });
+      if (broken) return viaFallback().run({ ...again(), options });
       return ask<LsRun>({ type: 'run', input, state, options });
     },
+    stand: async ({ input, state }) => {
+      if (input !== undefined) lastInput = input;
+      if (state !== undefined) lastState = state;
+      if (broken) return viaFallback().stand(again());
+      return ask<LsStand>({ type: 'stand', input, state });
+    },
+    regions: (r) => (broken ? viaFallback().regions(r) : ask<RegionTree>({ type: 'regions', ...r })),
     route: (target) => (broken ? viaFallback().route(target) : ask({ type: 'route', target })),
     dispose: () => { worker.terminate(); waiting.clear(); }
   };

@@ -93,6 +93,32 @@ export interface LandscapeDisplay {
    */
   readonly nest?: string;
   readonly nestSort?: string;
+  /**
+   * 2026-11-04 (Prompt 11) — WAS DER BESITZER AN DEN GEBIETEN GEÄNDERT HAT (sie kommen aus den Verbindungen, `regions.ts`):
+   * Namen (mit den Themen, die das Gebiet damals hatte — so findet der Name sein Gebiet wieder, wenn es neu gerechnet
+   * wird) und Themen, die er in ein anderes Gebiet gelegt hat.
+   */
+  readonly regions?: LandscapeRegionEdits;
+}
+
+export interface LandscapeRegionEdits {
+  readonly names?: Readonly<Record<string, { readonly name: string; readonly topics: readonly string[] }>>;
+  readonly moves?: Readonly<Record<string, string>>;
+}
+
+function readRegionEdits(raw: unknown): LandscapeRegionEdits | null {
+  if (!isObject(raw)) return null;
+  const names: Record<string, { name: string; topics: string[] }> = {};
+  if (isObject(raw.names)) {
+    for (const [key, v] of Object.entries(raw.names)) {
+      if (!isObject(v) || typeof v.name !== 'string' || v.name.trim() === '') continue;
+      names[key] = { name: v.name.trim(), topics: Array.isArray(v.topics) ? v.topics.filter((x): x is string => typeof x === 'string') : [] };
+    }
+  }
+  const moves: Record<string, string> = {};
+  if (isObject(raw.moves)) for (const [id, key] of Object.entries(raw.moves)) if (typeof key === 'string' && key !== '') moves[id] = key;
+  if (Object.keys(names).length === 0 && Object.keys(moves).length === 0) return null;
+  return { ...(Object.keys(names).length > 0 ? { names } : {}), ...(Object.keys(moves).length > 0 ? { moves } : {}) };
 }
 
 export const LANDSCAPE_BUDGET = 60;
@@ -111,11 +137,13 @@ export function readLandscape(raw: unknown): LandscapeDisplay | null {
   }
   const nest = typeof raw.nest === 'string' ? raw.nest.trim() : '';
   const nestSort = typeof raw.nestSort === 'string' ? raw.nestSort.trim() : '';
+  const regions = readRegionEdits(raw.regions);
   return {
     budget: Number.isFinite(n) ? Math.max(6, Math.min(400, Math.round(n))) : LANDSCAPE_BUDGET,
     ...(Object.keys(bands).length > 0 ? { bands } : {}),
     ...(nest === '' ? {} : { nest }),
-    ...(nestSort === '' ? {} : { nestSort })
+    ...(nestSort === '' ? {} : { nestSort }),
+    ...(regions === null ? {} : { regions })
   };
 }
 

@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FlowContent } from '../../cogita/FlowPlayer';
 import { answeredCards, type Learner } from '../../cogita/learn';
 import { gaugeFromMarks } from '../../cogita/knowing';
+import { words } from '../../cogita/lang';
 import { storyKnow } from '../../cogita/PathLearn';
 import { PathMap } from '../../cogita/PathMap';
 import { storyMarks } from '../../cogita/storyPath';
@@ -59,6 +60,8 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
   const [loaded, setLoaded] = useState<LoadedStory | null | undefined>(undefined);
   const [failed, setFailed] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  /* 2026-11-04 (Prompt 11) — die Worte der Baza (die Ścieżka spricht ihre Sprache). */
+  const W = words(content?.lang ?? 'pl');
 
   useEffect(() => {
     let alive = true;
@@ -102,7 +105,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
       label: content.label ?? ((id: string) => content.entity(id)?.label ?? id),
       needsOf: content.needsOf ?? (() => [])
     };
-    return presentationPath(loaded.flow, loaded.show, loaded.parts, refs, `page:${loaded.page.id ?? path}`, unit);
+    return presentationPath(loaded.flow, loaded.show, loaded.parts, refs, `page:${loaded.page.id ?? path}`, unit, { words: words(content.lang ?? 'pl').partNames });
   }, [loaded, content, path, unit]);
 
   if (loaded === undefined) return <Loading />;
@@ -134,7 +137,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
     const marks = storyMarks(told.sp, { visited, step: key === undefined ? null : `s:${key}`, ...(learner === null ? {} : { know: (id: string) => (g.testing.has(id) ? known(id) : { learned: true, due: false }) }) });
     return (
       <div className="cg-show-path" data-show-path="">
-        <PathMap model={told.model} marks={marks} size="small" title="Ścieżka" collapsible open={pathOpen}
+        <PathMap model={told.model} marks={marks} size="small" title={W.pathTitle} words={W} collapsible open={pathOpen}
           onOpen={(v) => { setPathOpen(v); try { sessionStorage.setItem(`cg-show-path-open:${path}`, v ? '1' : '0'); } catch { /* ohne Speicher */ } }}
           onPick={(id) => { const step = told.sp.parts[told.model.index.get(id) ?? -1]?.first; if (step !== undefined && step !== null && step.startsWith('s:')) control.current?.jump?.(step.slice(2)); }} />
       </div>
@@ -161,7 +164,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
         <strong>{name}</strong>
         <span className="cg-row">
           {page.editable && <a className="wk-link-btn" href={viewPath('pages', ...pageSteps(loaded.path))}>edytuj w prezentacji</a>}
-          {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>zamknij</button>}
+          {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.close}</button>}
         </span>
       </div>
       {narrator?.(facts())}

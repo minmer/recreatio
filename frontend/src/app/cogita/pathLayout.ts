@@ -33,6 +33,8 @@ export interface PathNode {
   readonly kind?: PartKind;
   readonly slides?: number;
   readonly questions?: number;
+  /** 2026-11-04 (Prompt 11) — ein automatischer Teil: die App wählt selbst einen von zwei Wegen (nach dem, was der Lernende kann). */
+  readonly auto?: boolean;
 }
 
 /** Woher die Reihenfolge kam: die des Lernens; die der Erzählung (wo das Lernen nichts sagt); eine Kette in der gegebenen Reihenfolge. */
@@ -51,9 +53,14 @@ export interface PathModel {
   readonly source: PathSource;
   /** Wie viele Kreuzungen die Zeichnung noch hat (0: keine). */
   readonly crossings: number;
+  /**
+   * 2026-11-04 (Prompt 11) — DIE WEGE ZURÜCK (eine Erzählung): [von, zu] — ein Weg, der wieder zu einer Wahl führt, ist eine
+   * Schleife, kein Ende. Sie zählen nicht für die Stufen; die Karte zeichnet sie als kurzen Bogen in die Gabel.
+   */
+  readonly loops?: readonly (readonly [number, number])[];
 }
 
-export const EMPTY_PATH: PathModel = { nodes: [], index: new Map(), edges: [], routes: [], levels: 0, x0: 0, x1: 0, source: 'none', crossings: 0 };
+export const EMPTY_PATH: PathModel = { nodes: [], index: new Map(), edges: [], routes: [], levels: 0, x0: 0, x1: 0, source: 'none', crossings: 0, loops: [] };
 
 /**
  * Was direkt vor jedem Eintrag des Satzes kommt — durch Einträge ausserhalb hindurch (sie sind durchsichtig), ohne
@@ -170,18 +177,21 @@ interface Layered {
   readonly crossings: number;
 }
 
-function layered(n: number, level: Int32Array, edges: readonly (readonly [number, number])[]): Layered {
+function layered(n: number, level: Int32Array, edges: readonly (readonly [number, number])[], last = -1): Layered {
   const levels = n === 0 ? 0 : Math.max(...level) + 1;
   /* Die Punkte: 0..n-1 die Knoten, danach die Zwischenpunkte. */
   const lv: number[] = [...level];
   const up: number[][] = Array.from({ length: n }, () => []);
   const down: number[][] = Array.from({ length: n }, () => []);
   const chain: number[][] = [];
+  /* Je Zwischenpunkt: wohin sein Weg führt (der Weg zum Ende, das allein oben steht, läuft zuletzt). */
+  const target: number[] = [];
   for (const [p, c] of edges) {
     const pts = [p];
     let at = p;
     for (let L = level[p] + 1; L < level[c]; L += 1) {
       const d = lv.length;
+      target[d] = c;
       lv.push(L);
       up.push([]);
       down.push([]);
@@ -199,8 +209,8 @@ function layered(n: number, level: Int32Array, edges: readonly (readonly [number
   const rows: number[][] = Array.from({ length: levels }, () => []);
   /* Die Reihenfolge zuerst: die des Autors (Knoten), Zwischenpunkte hinter dem, von dem sie kommen. */
   const key = new Float64Array(total);
-  for (let v = 0; v < n; v += 1) key[v] = v;
-  for (let v = n; v < total; v += 1) key[v] = key[down[v][0]] + 0.5;
+  for (let v = 0; v < n; v += 1) key[v] = v === last ? 2 * n + v : v;
+  for (let v = n; v < total; v += 1) key[v] = target[v] === last ? 2 * n : key[down[v][0]] + 0.5;
   for (let v = 0; v < total; v += 1) rows[lv[v]].push(v);
   for (const r of rows) r.sort((a, b) => key[a] - key[b] || a - b);
   const pos = new Float64Array(total);
@@ -269,6 +279,7 @@ export interface PathNodeInfo {
   readonly kind?: PartKind;
   readonly slides?: number;
   readonly questions?: number;
+  readonly auto?: boolean;
 }
 
 /**
@@ -276,7 +287,7 @@ export interface PathNodeInfo {
  * Kante (keine Reihenfolge) und mit `chainIfFlat`: eine Kette in der gegebenen Reihenfolge. `info`: je Knoten seine Art
  * (eine Erzählung); `reduced`: die Wege sind schon ohne Umwege (eine Erzählung — ihre Gabeln und Zusammenführungen bleiben).
  */
-export function pathModel(items: readonly PathItem[], needsIn: readonly (readonly number[])[], options: { readonly source?: PathSource; readonly chainIfFlat?: boolean; readonly info?: readonly PathNodeInfo[]; readonly reduced?: boolean } = {}): PathModel {
+export function pathModel(items: readonly PathItem[], needsIn: readonly (readonly number[])[], options: { readonly source?: PathSource; readonly chainIfFlat?: boolean; readonly info?: readonly PathNodeInfo[]; readonly reduced?: boolean; readonly loops?: readonly (readonly [number, number])[] } = {}): PathModel {
   const n = items.length;
   if (n === 0) return EMPTY_PATH;
   const clean = needsIn.map((l, v) => [...new Set(l.filter((p) => p >= 0 && p < n && p !== v))]);
@@ -291,13 +302,23 @@ export function pathModel(items: readonly PathItem[], needsIn: readonly (readonl
   const { list: order } = topo(needs);
   const level = new Int32Array(n);
   for (const v of order) for (const p of needs[v]) level[v] = Math.max(level[v], level[p] + 1);
+  /*
+    2026-11-04 (Prompt 11) — DAS ENDE STEHT ALLEIN OBEN: alle Wege, die die Erzählung beenden, kommen in ihm zusammen; auf
+    seiner Stufe steht sonst nichts (ein Weg, der früher endet, läuft beiseite hinauf).
+  */
+  const ends = (options.info ?? []).flatMap((x, v) => (x.kind === 'end' && v < n && builds[v].length === 0 ? [v] : []));
+  if (ends.length === 1 && n > 1) {
+    const top = Math.max(...[...level].filter((_, v) => v !== ends[0]));
+    if (level[ends[0]] <= top) level[ends[0]] = top + 1;
+  }
   const levels = Math.max(...level) + 1;
   const edges: [number, number][] = [];
   for (let v = 0; v < n; v += 1) for (const p of needs[v]) edges.push([p, v]);
-  const lay = layered(n, level, edges);
+  const lay = layered(n, level, edges, ends.length === 1 ? ends[0] : -1);
   const nodes: PathNode[] = items.map((it, v) => ({ id: it.id, label: it.label, level: level[v], x: lay.x[v], needs: needs[v], builds: builds[v], ...(options.info?.[v] ?? {}) }));
   const all = [...lay.x, ...lay.routes.flatMap((r) => r.map(([x]) => x))];
-  return { nodes, index: new Map(items.map((it, i) => [it.id, i] as const)), edges, routes: lay.routes, levels, x0: Math.min(...all) - 0.5, x1: Math.max(...all) + 0.5, source, crossings: lay.crossings };
+  const loops = (options.loops ?? []).filter(([a, b]) => a >= 0 && a < n && b >= 0 && b < n && a !== b);
+  return { nodes, index: new Map(items.map((it, i) => [it.id, i] as const)), edges, routes: lay.routes, levels, x0: Math.min(...all) - 0.5, x1: Math.max(...all) + 0.5, source, crossings: lay.crossings, loops };
 }
 
 /** Ohne Kreise, aber MIT allen Wegen (eine Erzählung: eine Gabel, die wieder zusammenkommt, bleibt sichtbar). */
@@ -335,6 +356,11 @@ export interface PathMarks {
   readonly forks: ReadonlyMap<number, PathFork>;
   /** 2026-11-04 (Prompt 10) — je Knoten: wie viele seiner Fragen wirklich gefragt würden (fehlt: alle). */
   readonly ask?: readonly number[];
+  /**
+   * 2026-11-04 (Prompt 11) — je Knoten: nicht gewählt (die Erzählung ist zu Ende, dieser Weg einer Wahl wurde nicht
+   * gegangen) — blass gezeichnet, nicht gezählt, nie „otwarte".
+   */
+  readonly optional?: readonly boolean[];
   /** Wie viele der gezählten Knoten durch sind — gezählt wird jedes Sechseck (nicht Anfang und Ende). */
   readonly done: number;
   readonly total: number;

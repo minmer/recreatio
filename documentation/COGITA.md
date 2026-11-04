@@ -983,6 +983,73 @@ Phones stay awake.
   (`questionIds`) are not nodes.
 - **Import**: a change that only fills an empty field (e.g. a flow's new `review`) is ticked by default.
 
+### After "Koniec", automatic branches, the running story (2026-11-04, Prompt 11)
+
+- **Successors** (`storyNext.ts`, `storyLock.ts` storyAround/nextForStory): what builds on the story's unit in the learning
+  order (through entries without cards, up to 4 steps; else what builds on what the story teaches), only story units or
+  topics with cards, not yet learned. Ready = the same chain lock as before a story (nothing missing, no weak cards);
+  otherwise the missing and the due topics by name. A story says what waits there (its parts, only the questions really
+  asked), a topic "N pytań". None ready: the nearest ready field through the learning graph, else "Wróć do mapy". Shown
+  as a row of nodes above "Koniec" (PathMap `next`) and on the closing screen (one big button, the others smaller, the
+  waiting ones with their reasons). Never from hand-set links.
+- **Automatic branches** (`storyPath.ts` options `decide`): a condition step is never a learner's choice. Decided for this
+  learner (`runningStory.ts` decideBy — knowness, flow and other stable conditions) it contributes only its branch;
+  otherwise both branches up to where they meet become one part marked `auto` (not across a choice, an end or the
+  review). Roads back to a choice are `loops` (a short curved arrow into the fork, outside the levels). The end stands
+  alone on top; "wybierz 1 z N" counts the roads drawn. A finished story counts what applied ("N z N"); roads not walked
+  are `optional` (faded, not counted). Subflow parts are named after their story; a question part after its topic.
+- **The running story** (`runningStory.ts`, `FlowPlayer.tsx`): title, path (parts, TERAZ, counter), "Zostało N pytań" and
+  the question line follow the story that runs; each story keeps its own visited steps (Bosko's colliding step ids put
+  TERAZ on the wrong step); inside a subflow the inner story owns the screen and the outer one is a trail line; an inner
+  "Koniec" returns to the caller's next step; positions are saved for the running story. Starting a successor on
+  `…/przebiegi/<id>/graj` changes the address.
+- **The path panel** (`PathMap.tsx`): sized by its container (ResizeObserver; container queries next to the story), a
+  readable minimum hexagon (13–14 px), scroll and "Pełny ekran" beyond; the popover is portaled and kept inside the panel
+  and the screen (flips); the TERAZ label and fork counters stand in a column beside the graph with leader lines (never
+  on a node); legend entries for automatic parts, loops and roads not taken, folded into "Legenda" when narrow; `noun`
+  ('parts' | 'topics') says what the counter counts, in the base's language. The learner widens or collapses the path
+  next to a story (remembered per browser).
+
+### Regions within regions (2026-11-04, Prompt 11)
+
+- **The world** (`regions.ts`): regions are built from the prerequisite connections, never from chapters. Topics (view
+  entries with cards, never questions; edges through entries without cards — `levelMap.ts` topicGraphOf) are grouped
+  bottom-up into groups of about 5–12 that keep most edges inside, merging only while the group graph stays acyclic
+  (cycles of topics stay together), level by level until 7–20 remain on top. Names: a section/chapter of the base when
+  most topics share it, else "Rund um / Wokół: <central topic>". Computed once per base in the landscape worker;
+  structure only, the same for every learner. A view with `nest` uses the owner's nodes instead (`nestAsRegions`);
+  topics next to sub-nodes go into "Weiteres in …", so no map mixes topics and regions.
+- **Owner edits** (`view.landscape.regions`): a rename keeps the region's topics, so the name finds its region again
+  after a recomputation (best overlap ≥ 50 %); a moved topic is applied by `buildRegions` when it keeps every level acyclic.
+- **One level** (`levelMap.ts` layoutLevel): a fan in front of the learner; ring = depth in the level's own prerequisite
+  graph; in a ring each field takes the free place closest to the mean angle of its prerequisites (and of the gates it
+  connects to), same sections side by side; two or three sweeps swap neighbours when edges get shorter. Gates: the
+  connected regions, at the border in the direction they lie on the map above. `routeOrder` orders a route region by
+  region (ring, then angle at every level) — still a valid learning order, and the line runs outward on every map.
+- **Heights** (`viewScale`): orthographic; one step for the whole view, the largest (≤ 0.3 ground units) at which every
+  top face is at least half visible; otherwise tilt more from above (0.52 → 1), then shorten the columns in front of a
+  hidden field (actionable ones first; hatched cut edge), never below 6 px per step at "Ganze Karte". Recomputed per
+  rotation and level. Valley 0, learnable 1, else the field's Stufen; a region stands as high as the nearest thing it
+  can start.
+- **Two numbers** (`landscapeWords.ts`): Stufen = longest chain of missing topics up to here, this one included (= the
+  height); Themen = topics still to learn up to here, this one included (= the length of the step list). Panel "6 Stufen
+  · 10 Themen", list "10 Themen bis zum Ziel", the goal's badge = Themen. "Teile" is gone; a section entry offers "N Themen
+  in diesem Abschnitt" (its own topics as a path).
+- **The map** (`RegionMap.tsx`): drag with inertia, wheel and pinch around the pointer, "+"/"−" (below the whole level
+  "−" goes up), 60° rotation, kept per learner, base and level. Opens at the level of the next step and follows it until
+  the learner moves. Haze by Stufen, a light rim on what can be started now, at most one sign per field (review first >
+  due; light disc, thin line, lying on the face, hidden when the field is small unless chosen or next), names on the faces
+  only when zoomed in, a faint preview of the level below on regions, a ring (share known) and, when everything inside is
+  learned, a warm colour and a flag ("Gebiet erobert: …" once). The legend folds into "Legende" and lists what is in view.
+- **Around the map** (`LandscapeView.tsx`): breadcrumb, "Zu mir", "Ganze Karte", one sentence "Als Nächstes: X (bereit) ·
+  N Karten zu wiederholen" with two buttons, the tally "k von n Gebieten erobert", a region panel (needs before, opens
+  next, due cards), a topic panel (state, numbers, one main button, "Weg zeigen", step list, "Was danach kommt",
+  "Fragen in diesem Thema" apart from the route, the owner's "In ein anderes Gebiet"). "Weg zeigen" draws one line in
+  the list's order (more than 8 topics: the next 5 and the goal, the rest outlined, "+N weitere") and shows the same
+  topics as a path next to the map (a topic with its own story: the story's path).
+- **For AI**: `landscapeExport.ts` exports the region tree (levels, regions with name, parent, level, topic count, place)
+  and each topic's place on its region's map; the MCP text says so.
+
 ### For AI (2026-11-03, H)
 
 - Format text (`json.ts`, → `ksiazka-AI.md`, MCP `knowledge-base`): the flows section complete — steps and exits,

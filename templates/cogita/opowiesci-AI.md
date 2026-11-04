@@ -81,6 +81,10 @@ Obok opowieści stoi mapa jej **części**, liczona z samego grafu przebiegu —
 - każdy krok osiągalny z początku (bez drugiego początku, bez luźnych kroków);
 - z każdego kroku da się dojść do końca: pytanie ma OBA wyjścia "right" i "wrong", każda możliwość wyboru ma krok, każda pętla ma wyjście.
 
+Kroki "condition" (np. „czy już to umiesz?” przed slajdem) są **automatyczne**: ścieżka rysuje tylko gałąź, która dotyczy uczącego się, a bez uczącego się — obie gałęzie jako jedną część ze znakiem „automatycznie”. Nie są wyborem i nie liczą się do „wybierz 1 z N”. Droga, która wraca do wyboru, ma na ścieżce strzałkę z powrotem do niego (pętla, nie koniec). Ukończona opowieść liczy tylko to, co jej dotyczyło („ukończono N z N”); drogi wyboru, którymi uczący się nie szedł, są bledsze i się nie liczą.
+
+Po „Koniec” ścieżka i ekran zamknięcia same pokazują, co dalej: tematy i opowieści, które w kolejności nauki („Najpierw trzeba znać”) przychodzą po jednostce tej opowieści — gotowe do wybrania, a te, na które jeszcze za wcześnie, bledsze, z tym, czego brakuje albo co trzeba najpierw powtórzyć; gdy nic nie jest gotowe — najbliższe pole, którego można się uczyć, albo „Wróć do mapy”. Nie dodawaj do opowieści ręcznych odnośników „następna opowieść”.
+
 Przy wyborze opowieść się zatrzymuje: uczący się widzi wszystkie drogi z nazwy i z tym, co czeka za każdą („3 slajdy do przeczytania · 5 pytań do odpowiedzi”), zamknięte z powodem (warunek "condition" możliwości; "not" — „Zamknięte, bo: …”), i sam wybiera. Nadaj możliwościom nazwy, które mówią, dokąd prowadzą („Droga A: młodość”), a wyborowi "title".
 
 ## 9. Kolejność importu

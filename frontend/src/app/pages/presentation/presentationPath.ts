@@ -8,7 +8,7 @@
 import type { Flow } from '../../cogita/flow';
 import { flowPath, type FlowPath } from '../../cogita/flowPath';
 import type { PathModel } from '../../cogita/pathLayout';
-import { storyPath, type StoryPath } from '../../cogita/storyPath';
+import { storyPath, type StoryPath, type StoryPathOptions } from '../../cogita/storyPath';
 import type { DraftPart } from '../page';
 import { readPiece, type Show } from './presentation';
 import { aboutOf } from './storyCard';
@@ -66,7 +66,7 @@ export interface PresentationPath {
   readonly sceneOf: (entry: string) => number;
 }
 
-export function presentationPath(story: StoryFlow, show: Show, parts: readonly DraftPart[], refs: StoryRefs, id: string, unit?: string | null): PresentationPath {
+export function presentationPath(story: StoryFlow, show: Show, parts: readonly DraftPart[], refs: StoryRefs, id: string, unit?: string | null, options: StoryPathOptions = {}): PresentationPath {
   const unitId = unit === undefined || unit === null ? null : refs.resolve(unit);
   const entries = sceneEntries(parts, refs, show, new Set(unitId === null ? [] : [unitId]));
   const flow: Flow = { id, name: '', look: 'scenes', start: story.start, graph: story.graph, slots: [], fill: {}, overrides: {}, goals: [], lines: [], narrators: [] };
@@ -84,7 +84,7 @@ export function presentationPath(story: StoryFlow, show: Show, parts: readonly D
     const q = asks.get(key) ?? 0;
     const of = entries.get(key) ?? [];
     return { slides: q === 0 || reads.has(key) ? 1 : 0, questions: q, shown: q === 0 ? of : [], asked: q > 0 ? of : [] };
-  }, (id) => (id.startsWith('s:') ? title.get(id.slice(2)) ?? id : refs.label(id)));
+  }, (id) => (id.startsWith('s:') ? title.get(id.slice(2)) ?? id : refs.label(id)), options);
   const model = sp.model;
 
   const sceneOf = (entry: string): number => {

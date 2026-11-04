@@ -181,6 +181,56 @@ export function words(lang: Lang) {
     forkAll: L(' — wszystkie, w dowolnej kolejności', ' — alle, in beliebiger Reihenfolge', ' — all of them, in any order'),
     forkOne: L(' — wybierasz jedną drogę', ' — du wählst einen Weg', ' — you choose one road'),
     dueMark: L('do powtórki', 'zu wiederholen', 'due for review'),
+    /* 2026-11-04 (Prompt 11) — die Ścieżka: was der Zähler zählt, automatische Teile, Wege zurück, was danach kommt */
+    summary: (done: number, total: number, noun: 'parts' | 'topics' = 'parts'): string => (noun === 'topics'
+      ? L(`ukończono ${done} z ${p3(lang, total, ['tematu', 'tematów', 'tematów'], ['Thema', 'Themen'], ['topic', 'topics'])}`, `${done} von ${total} ${total === 1 ? 'Thema' : 'Themen'} erledigt`, `${done} of ${total} ${total === 1 ? 'topic' : 'topics'} done`)
+      : L(`ukończono ${done} z ${total}`, `${done} von ${total} erledigt`, `${done} of ${total} done`)),
+    pathAria: (summary: string, now: string | null): string => L(`Ścieżka: ${summary}${now === null ? '' : `, teraz: ${now}`}`, `Weg: ${summary}${now === null ? '' : `, jetzt: ${now}`}`, `Path: ${summary}${now === null ? '' : `, now: ${now}`}`),
+    partNames: {
+      start: L('Początek', 'Anfang', 'Start'), end: L('Koniec', 'Ende', 'End'), review: L('Przegląd', 'Durchsicht', 'Review'), choice: L('Wybór', 'Wahl', 'Choice'),
+      chapters: L('Rozdziały', 'Kapitel', 'Chapters'), questions: L('Pytania', 'Fragen', 'Questions'),
+      questionsOf: (x: string) => L(`Pytania — ${x}`, `Fragen — ${x}`, `Questions — ${x}`), choiceOn: (x: string) => L(`Wybór: ${x}`, `Wahl: ${x}`, `Choice: ${x}`),
+      step: (type: string): string | undefined => ({
+        show: L('Slajd', 'Folie', 'Slide'), question: L('Pytanie', 'Frage', 'Question'), line: L('Postać mówi', 'Eine Figur spricht', 'A character speaks'),
+        subflow: L('Inna opowieść', 'Andere Geschichte', 'Another story'), each: L('Dla każdego', 'Für jeden', 'For each'), expand: L('Wyjaśnienie', 'Erklärung', 'Explanation'),
+        opening: L('Otwarcie', 'Einstieg', 'Opening'), scene: L('Scena', 'Szene', 'Scene')
+      } as Record<string, string>)[type]
+    },
+    autoKind: L('automatycznie — aplikacja wybiera', 'automatisch — die App wählt', 'automatic — the app picks'),
+    autoWhy: L('Ten krok wybiera aplikacja sama, według tego, co już umiesz — to nie jest twój wybór.', 'Diesen Schritt wählt die App selbst, nach dem, was du schon kannst — das ist keine Wahl für dich.', 'The app picks this step itself, by what you already know — it is not your choice.'),
+    autoOneOf: (a: string, b: string): string => (a !== '' && b !== '' ? L(`Jedno z dwojga: ${a} albo ${b}.`, `Eins von beiden: ${a} oder ${b}.`, `One of the two: ${a} or ${b}.`)
+      : L(`${a || b} — albo nic, jeśli już to umiesz.`, `${a || b} — oder nichts, wenn du es schon kannst.`, `${a || b} — or nothing if you already know it.`)),
+    loopKind: L('droga wraca do wyboru', 'Weg zurück zur Wahl', 'road back to the choice'),
+    loopWhy: L('Ta droga wraca potem do wyboru — możesz wybrać jeszcze raz.', 'Dieser Weg führt danach zurück zur Wahl — du kannst noch einmal wählen.', 'This road leads back to the choice — you can choose again.'),
+    optionalKind: L('droga niewybrana', 'nicht gewählter Weg', 'road not taken'),
+    optionalWhy: L('Tej drogi nie wybrano — nie liczy się do ukończenia.', 'Dieser Weg wurde nicht gewählt — er zählt nicht.', 'This road was not taken — it does not count.'),
+    legend: L('Legenda', 'Legende', 'Legend'),
+    whatNext: L('Co dalej', 'Wie es weitergeht', 'What comes next'),
+    nearest: L('Najbliższe pole na mapie', 'Nächstes Feld auf der Karte', 'Nearest field on the map'),
+    nextReady: L('możesz zacząć teraz', 'du kannst jetzt beginnen', 'you can start now'),
+    nextNotYet: L('jeszcze nie teraz', 'noch nicht', 'not yet'),
+    needsFirst: (names: string): string => L(`Najpierw poznaj: ${names}`, `Zuerst lernen: ${names}`, `Learn first: ${names}`),
+    dueFirst: (names: string): string => L(`Najpierw powtórz: ${names}`, `Zuerst wiederholen: ${names}`, `Review first: ${names}`),
+    startStory: L('Zacznij opowieść', 'Geschichte beginnen', 'Start the story'),
+    learn: L('Ucz się', 'Lernen', 'Learn'),
+    nextGo: (name: string): string => L(`Dalej: ${name}`, `Weiter: ${name}`, `Next: ${name}`),
+    workShort: (slides: number, questions: number): string => [slides > 0 ? p3(lang, slides, ['slajd', 'slajdy', 'slajdów'], ['Folie', 'Folien'], ['slide', 'slides']) : '', questions > 0 ? p3(lang, questions, ['pytanie', 'pytania', 'pytań'], ['Frage', 'Fragen'], ['question', 'questions']) : ''].filter(Boolean).join(' · '),
+    inStory: (name: string): string => L(`w opowieści: ${name}`, `in der Geschichte: ${name}`, `in the story: ${name}`),
+    returned: (inner: string, outer: string): string => L(`Ukończono „${inner}" — dalej: „${outer}".`, `„${inner}" erledigt — weiter mit „${outer}".`, `“${inner}” done — back to “${outer}”.`),
+    storyEnd: L('Koniec', 'Ende', 'End'),
+    reviewNotPassed: L('Opowieść ukończona — przegląd jeszcze niezdany.', 'Geschichte beendet — die Durchsicht ist noch nicht bestanden.', 'Story finished — the review is not passed yet.'),
+    reviewPassed: L('Przegląd zdany — opowieść zaliczona.', 'Durchsicht bestanden — Geschichte geschafft.', 'Review passed — story complete.'),
+    reviewAgain: L('Powtórz przegląd', 'Durchsicht wiederholen', 'Repeat the review'),
+    fromStart: L('Od początku', 'Von vorn', 'From the start'),
+    learnWithBasics: L('Ucz się z podstawami', 'Mit den Grundlagen lernen', 'Learn with the basics'),
+    goOn: L('Dalej', 'Weiter', 'Next'),
+    storyButton: {
+      new: L('Zacznij opowieść', 'Geschichte beginnen', 'Start the story'), started: L('Kontynuuj opowieść', 'Geschichte fortsetzen', 'Continue the story'),
+      review: L('Powtórz przegląd', 'Durchsicht wiederholen', 'Repeat the review'), passed: L('Otwórz opowieść', 'Geschichte öffnen', 'Open the story')
+    },
+    widen: L('Szerzej', 'Breiter', 'Wider'),
+    narrow: L('Węziej', 'Schmaler', 'Narrower'),
+    chooseRoad: (n: number): string => L(n === 1 ? 'Wybierz drogę (jedna możliwość):' : `Wybierz drogę (1 z ${n}):`, n === 1 ? 'Wähle den Weg (eine Möglichkeit):' : `Wähle den Weg (1 von ${n}):`, n === 1 ? 'Choose the road (one option):' : `Choose the road (1 of ${n}):`),
     kinds: L(
       { start: 'początek', end: 'koniec', read: 'slajdy do przeczytania', learn: 'pytania do odpowiedzi', mixed: 'slajdy i pytania', review: 'przegląd — aż wszystko umiesz', fork: 'wybór drogi' },
       { start: 'Anfang', end: 'Ende', read: 'Folien zum Lesen', learn: 'Fragen zum Beantworten', mixed: 'Folien und Fragen', review: 'Durchsicht — bis alles sitzt', fork: 'Wahl des Weges' },

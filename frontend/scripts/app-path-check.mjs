@@ -16,12 +16,12 @@ import { pathToFileURL } from 'node:url';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-path-'));
 await build({
-  entryPoints: { path: 'src/app/cogita/pathLayout.ts', flow: 'src/app/cogita/flowPath.ts', flowcore: 'src/app/cogita/flow.ts', story: 'src/app/cogita/storyPath.ts', check: 'src/app/cogita/flowCheck.ts' },
+  entryPoints: { path: 'src/app/cogita/pathLayout.ts', flow: 'src/app/cogita/flowPath.ts', flowcore: 'src/app/cogita/flow.ts', story: 'src/app/cogita/storyPath.ts', check: 'src/app/cogita/flowCheck.ts', lang: 'src/app/cogita/lang.ts', run: 'src/app/cogita/runningStory.ts' },
   bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
   define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [P, FP, F, SP, FC] = await Promise.all(['path', 'flow', 'flowcore', 'story', 'check'].map(load));
+const [P, FP, F, SP, FC, LG, RS] = await Promise.all(['path', 'flow', 'flowcore', 'story', 'check', 'lang', 'run'].map(load));
 
 let failed = 0;
 let passed = 0;
@@ -202,7 +202,7 @@ const m1 = SP.storyMarks(B, { visited: visitedTo('s2q1'), step: 's2q1', know: le
 check('Bosko story: "now" is the part of the current step; what is behind is done, what is ahead locked', [m1.current, m1.state.slice(0, 6)], [4, ['done', 'done', 'done', 'done', 'available', 'locked']]);
 check('Bosko story: "X z Y" counts the hexagons drawn (8, not start and end) and the same ones as done', [m1.total, m1.done], [8, 3]);
 const m2 = SP.storyMarks(B, { visited: bnodes.map((n) => n.id), ended: true, know: (id) => ({ learned: true, due: id === 'topic-q-s4q2' }) });
-check('Bosko story: at the end the review is done only when everything sits (one due: open, marker on its part)', [m2.state[7], m2.state[9], m2.due[6]], ['available', 'done', true]);
+check('Bosko story: at the end (Prompt 11) everything that applied is done — „ukończono 8 z 8" — a due marker stays on its parts (the review too)', [m2.state[7], m2.state[9], m2.due[6], m2.due[7], `${m2.done}/${m2.total}`], ['done', 'done', true, true, '8/8']);
 
 /* -- Gabeln: drei Kapitel, eins durch; eine Wahl aus drei ------------------------------------------------------------ */
 
@@ -266,10 +266,138 @@ const tedges = [edge('s1', 'next', 'q1'), edge('q1', 'right', 'rv'), edge('q1', 
 const thread = F.readFlow('t10', { name: 'Wątek', start: 's1', graph: { nodes: tnodes, edges: tedges } });
 const TS = SP.storyPath(thread, SP.stepWorkOf((n) => (typeof n.config.of === 'string' ? [n.config.of] : [])), (id) => id);
 const tf = TS.parts.findIndex((p) => p.kind === 'fork');
-check('a thread story (Bosko t10): the review, „Na koniec" + „Którędy dalej?" as one reading part, then the choice of three roads', [TS.parts.map((p) => p.kind), TS.parts[tf].fork.branches.map((b) => TS.parts[b.to].kind)],
-  [['start', 'read', 'learn', 'review', 'read', 'fork', 'read', 'read', 'read', 'end'], ['read', 'read', 'end']]);
+check('a thread story (Bosko t10): the review, „Na koniec" + „Którędy dalej?" as one reading part, then the choice of three roads (the automatic step and its two slides: one part)', [TS.parts.map((p) => p.kind), TS.parts[tf].fork.branches.map((b) => TS.parts[b.to].kind)],
+  [['start', 'read', 'learn', 'review', 'read', 'fork', 'read', 'read', 'end'], ['read', 'read', 'end']]);
 check('… its path is sound (every road returns to the choice, „Kończę" ends it): no problems', texts(thread), []);
 check('… drawn without crossings', TS.model.crossings, 0);
+
+/* -- 2026-11-04 (Prompt 11): automatische Schritte sind keine Wahl, Wege zurück, das Ende allein oben ------------------ */
+
+/* Eine Erzählung wie Bosko: Bilder mit Fragen, der Przegląd (Schleife „Już umie?"), „Na koniec", „Którędy dalej?", dann eine Wahl. */
+const story11 = (id, name, roads) => {
+  const nodes = [node('s1', 'show', { of: 's1', title: 'Powitanie' }), node('q1', 'question', { of: 'k1' }), node('q2', 'question', { of: 'k2' }), node('s2', 'show', { of: 's2', title: 'Kim był' }), node('q3', 'question', { of: 'k3' }),
+    node('rv', 'show', { of: 'rv', title: 'Przegląd' }), node('rc1', 'condition', { condition: { type: 'knowness', of: 'k1', band: 'known' } }), node('rq1', 'question', { of: 'k1' }),
+    node('rc2', 'condition', { condition: { type: 'knowness', of: 'k2', band: 'known' } }), node('rq2', 'question', { of: 'k2' }), node('rall', 'condition', { condition: { type: 'knowness', of: 'k1', band: 'known' } }),
+    node('koniec', 'show', { of: 'kon', title: 'Na koniec' }), node('rozw', 'show', { of: 'roz', title: 'Którędy dalej?' }),
+    node('wybor', 'choice', { options: [...roads.map((r) => ({ label: r.label })), { label: 'Idę dalej' }] }), node('end', 'end')];
+  const edges = [edge('s1', 'next', 'q1'), edge('q1', 'right', 'q2'), edge('q1', 'wrong', 'q2'), edge('q2', 'right', 's2'), edge('q2', 'wrong', 's2'), edge('s2', 'next', 'q3'), edge('q3', 'right', 'rv'), edge('q3', 'wrong', 'rv'),
+    edge('rv', 'next', 'rc1'), edge('rc1', 'no', 'rq1'), edge('rc1', 'yes', 'rc2'), edge('rq1', 'right', 'rc2'), edge('rq1', 'wrong', 'rc2'), edge('rc2', 'no', 'rq2'), edge('rc2', 'yes', 'rall'),
+    edge('rq2', 'right', 'rall'), edge('rq2', 'wrong', 'rall'), edge('rall', 'no', 'rc1'), edge('rall', 'yes', 'koniec'), edge('koniec', 'next', 'rozw'), edge('rozw', 'next', 'wybor'), edge('wybor', `o${roads.length}`, 'end')];
+  /* Je Weg: vor jeder Erzählung ein „schon erzählt?" — ja: „Wiesz już", nein: die Erzählung selbst (ein Unterablauf); zuletzt zurück zur Wahl. */
+  roads.forEach((r, k) => {
+    r.stories.forEach((st, i) => {
+      const at = `r${k}_${st}`;
+      nodes.push(node(`${at}_k`, 'condition', { condition: { type: 'flow', flow: st, state: 'done' } }), node(`${at}_znane`, 'show', { of: `${st}-znane`, title: 'Wiesz już' }), node(at, 'subflow', { flow: st }));
+      edges.push(edge(`${at}_k`, 'yes', `${at}_znane`), edge(`${at}_k`, 'no', at));
+      const to = i + 1 < r.stories.length ? `r${k}_${r.stories[i + 1]}_k` : 'wybor';
+      edges.push(edge(`${at}_znane`, 'next', to), edge(at, 'next', to));
+      if (i === 0) edges.push(edge('wybor', `o${k}`, `${at}_k`));
+    });
+  });
+  return F.readFlow(id, { name, start: 's1', graph: { nodes, edges } });
+};
+const STORY_NAMES = { 'jan-antoni': 'Jan i Antoni', 'e1-2': 'Sen dziewięciolatka', 'e3-3': 'Sny w Valdocco', 'e5-5': 'Sen o dziesięciu diamentach', 'e6-2': 'Bazylika', 'e7-3': 'Wspomożycielka', 'e8-3': 'Ostatni sen' };
+const flowName = (id) => STORY_NAMES[id] ?? null;
+const work11 = SP.stepWorkOf((n) => (typeof n.config.of === 'string' ? [n.config.of] : []));
+const decided = (exit) => (n) => (n.type === 'condition' && n.config.condition?.type === 'flow' ? exit : null);
+const krag = story11('krag', 'Krąg czytelników. Kim jest ksiądz Bosko?', [{ label: 'Chcę wiedzieć więcej: Jan i Antoni', stories: ['jan-antoni'] }]);
+const K = SP.storyPath(krag, work11, (id) => id, { flowName });
+const kf = K.parts.findIndex((p) => p.kind === 'fork');
+const kEnd = K.parts.findIndex((p) => p.kind === 'end');
+const kAuto = K.parts.findIndex((p) => p.auto !== undefined);
+const aloneOnTop = (S, e) => S.model.nodes[e].level === S.model.levels - 1 && S.model.nodes.filter((nd) => nd.level === S.model.levels - 1).length === 1;
+check('Krąg: a choice of 2 roads — „więcej" (the automatic step and its two slides as ONE part) and „Idę dalej" (the end): exactly 2 nodes above the fork',
+  [SP.roadsOf(K.parts[kf].fork).map((v) => K.parts[v].kind), K.parts[kAuto].label, K.model.nodes[kAuto].auto, K.model.nodes[kf].builds.length], [['read', 'end'], 'Wiesz już / Jan i Antoni', true, 2]);
+check('Krąg: the road „więcej" returns to the choice (one loop into the fork), it is no end', K.loops.map(([a, b]) => [K.parts[a].label, K.parts[b].kind]), [['Wiesz już / Jan i Antoni', 'fork']]);
+check('Krąg: one „Koniec", alone at the top; nothing crosses; „wybierz 1 z 2"', [K.parts.filter((p) => p.kind === 'end').length, aloneOnTop(K, kEnd), K.model.crossings, P.forkWords(SP.storyMarks(K, { visited: ['s1', 'wybor'], step: 'wybor' }).forks.get(kf))], [1, true, 0, 'wybierz 1 z 2']);
+check('Krąg: no step is named after its kind („Inny przebieg") — a subflow is named after its story', K.parts.some((p) => p.label.includes('Inny przebieg')), false);
+const Kyes = SP.storyPath(krag, work11, (id) => id, { flowName, decide: decided('yes') });
+const Kno = SP.storyPath(krag, work11, (id) => id, { flowName, decide: decided('no') });
+const roadOf = (S) => { const f = S.parts.findIndex((p) => p.kind === 'fork'); return SP.roadsOf(S.parts[f].fork).map((v) => `${S.parts[v].label}${S.parts[v].auto === undefined ? '' : ' (auto)'}`); };
+check('Krąg with the learner: only the branch that applies is drawn (already told: „Wiesz już", else the story itself), still 2 roads and the loop', [roadOf(Kyes), roadOf(Kno), Kyes.loops.length, Kno.loops.length], [['Wiesz już', 'Koniec'], ['Jan i Antoni', 'Koniec'], 1, 1]);
+const mainTo = (stop) => { const v = []; for (const id of ['s1', 'q1', 'q2', 's2', 'q3', 'rv', 'rc1', 'rq1', 'rc2', 'rq2', 'rall', 'koniec', 'rozw', 'wybor']) { v.push(id); if (id === stop) break; } return v; };
+const kDone = SP.storyMarks(K, { visited: [...mainTo('wybor'), 'end'], ended: true, know: () => ({ learned: true, due: false }) });
+check('Krąg finished via „Idę dalej": the road not taken is optional (not counted, never „otwarte"), „ukończono N z N", no open node below the end',
+  [kDone.optional[kAuto], kDone.done === kDone.total, kDone.state.filter((st, v) => st !== 'done' && !kDone.optional[v]).length, P.countsAsStep(K.model.nodes[kAuto])], [true, true, 0, true]);
+const kBoth = SP.storyMarks(K, { visited: [...mainTo('wybor'), 'r0_jan-antoni_k', 'r0_jan-antoni_znane', 'end'], ended: true });
+check('Krąg finished after „więcej" and then „Idę dalej": both roads count and are done', [kBoth.optional[kAuto], kBoth.state[kAuto], kBoth.done === kBoth.total], [false, 'done', true]);
+const kWalked = SP.storyMarks(Kyes, { visited: [...mainTo('wybor'), 'r0_jan-antoni_k', 'r0_jan-antoni', 'end'], ended: true });
+check('Krąg finished after the story road, which is now decided „Wiesz już“: the road counts as walked (not optional), N z N, „wybrano 2 z 2“', [kWalked.optional.some(Boolean), kWalked.done === kWalked.total, P.forkWords(kWalked.forks.get(Kyes.parts.findIndex((x) => x.kind === 'fork'))).startsWith('wybrano 2 z 2')], [false, true, true]);
+const kMid = SP.storyMarks(K, { visited: [...mainTo('wybor'), 'r0_jan-antoni_k', 'r0_jan-antoni_znane'], step: 'r0_jan-antoni_znane' });
+check('Krąg on the road „więcej": TERAZ on the automatic part; the fork counts as chosen', [kMid.current, kMid.state[kf]], [kAuto, 'done']);
+
+/* Wie „Wątek: sny i Maryja Wspomożycielka" (t2): zwei Wege, vor jeder Erzählung ein „schon erzählt?", dazu „Kończę". */
+const watek = story11('t2', 'Wątek: sny i Maryja Wspomożycielka', [{ label: 'Droga A: sny, które prowadzą', stories: ['e1-2', 'e3-3', 'e5-5'] }, { label: 'Droga B: Wspomożycielka', stories: ['e6-2', 'e7-3', 'e8-3'] }]);
+const column = (S, from) => { const list = SP.branchParts(S, from); return { n: list.length, xs: [...new Set(list.map((v) => S.model.nodes[v].x))], levels: list.map((v) => S.model.nodes[v].level) }; };
+const threeRoads = (S) => {
+  const f = S.parts.findIndex((p) => p.kind === 'fork');
+  const roads = SP.roadsOf(S.parts[f].fork);
+  const e = S.parts.findIndex((p) => p.kind === 'end');
+  return [roads.length, roads.map((v) => S.parts[v].kind), roads.filter((v) => S.parts[v].kind !== 'end').map((v) => { const c = column(S, v); return [c.n, c.xs.length, c.levels.every((L, i) => i === 0 || L === c.levels[i - 1] + 1)]; }), S.model.crossings, S.loops.length, aloneOnTop(S, e), P.forkWords(SP.storyMarks(S, { visited: ['s1'], step: 'wybor' }).forks.get(f))];
+};
+const Wt = SP.storyPath(watek, work11, (id) => id, { flowName });
+check('Wątek (t2) without a learner: exactly 3 roads above the fork, each road one straight column of 3 automatic parts, no crossings, 2 loops back, the end alone on top, „wybierz 1 z 3"',
+  threeRoads(Wt), [3, ['read', 'read', 'end'], [[3, 1, true], [3, 1, true]], 0, 2, true, 'wybierz 1 z 3']);
+check('… every part on the two roads is automatic and named by both outcomes', SP.branchParts(Wt, SP.roadsOf(Wt.parts[Wt.parts.findIndex((p) => p.kind === 'fork')].fork)[0]).map((v) => [Wt.parts[v].auto !== undefined, Wt.parts[v].label]),
+  [[true, 'Wiesz już / Sen dziewięciolatka'], [true, 'Wiesz już / Sny w Valdocco'], [true, 'Wiesz już / Sen o dziesięciu diamentach']]);
+const Wd = SP.storyPath(watek, work11, (id) => id, { flowName, decide: (n) => (n.type === 'condition' && n.config.condition?.type === 'flow' ? (['e1-2', 'e6-2'].includes(n.config.condition.flow) ? 'yes' : 'no') : null) });
+check('Wątek with the learner (e1-2 and e6-2 already told): 3 roads, straight columns of what applies, no crossings', [threeRoads(Wd), SP.branchParts(Wd, SP.roadsOf(Wd.parts[Wd.parts.findIndex((p) => p.kind === 'fork')].fork)[0]).map((v) => Wd.parts[v].label)],
+  [[3, ['read', 'read', 'end'], [[3, 1, true], [3, 1, true]], 0, 2, true, 'wybierz 1 z 3'], ['Wiesz już', 'Sny w Valdocco', 'Sen o dziesięciu diamentach']]);
+
+/* Ein Warunek vor einer Erklärung („wer es kann, geht weiter"): ein automatischer Teil, den die App überspringen kann. */
+const expl = F.readFlow('ex', { name: 'x', start: 'a', graph: { nodes: [node('a', 'show', { of: 'a', title: 'Wstęp' }), node('c', 'condition', { condition: { type: 'knowness', of: 'pojecie', band: 'known' } }), node('w', 'show', { of: 'w', title: 'Wyjaśnienie pojęcia' }), node('b', 'show', { of: 'b', title: 'Dalej' }), node('end', 'end')],
+  edges: [edge('a', 'next', 'c'), edge('c', 'yes', 'b'), edge('c', 'no', 'w'), edge('w', 'next', 'b'), edge('b', 'next', 'end')] } });
+const EX = SP.storyPath(expl, work11, (id) => id);
+check('a condition before an explanation: one automatic part (the explanation, or nothing) in the chain, then on', [EX.parts.map((p) => `${p.kind}${p.auto === undefined ? '' : '*'}`), EX.parts.find((p) => p.auto !== undefined)?.auto.names], [['start', 'read', 'read*', 'read', 'end'], ['', 'Wyjaśnienie pojęcia']]);
+check('… passing the condition by its empty branch counts the automatic part as done', SP.storyMarks(EX, { visited: ['a', 'c', 'b'], step: 'b' }).state[2], 'done');
+
+/* Namen: eine Frage nie nach ihrem Text; die Teile in der Sprache der Baza; der Zähler sagt, was er zählt. */
+const qFirst = F.readFlow('qf', { name: 'x', start: 'q', graph: { nodes: [node('q', 'question', { of: 'Jak miał na imię ojciec Jana Bosko?' }), node('end', 'end')], edges: [edge('q', 'right', 'end'), edge('q', 'wrong', 'end')] } });
+check('a question is never named by its text (its topic, else „Pytania")', [SP.storyPath(qFirst, work11, (id) => id).parts[1].label, SP.storyPath(qFirst, work11, (id) => id, { topicName: () => 'Rodzina z Becchi' }).parts[1].label], ['Pytania', 'Pytania — Rodzina z Becchi']);
+const DE = LG.words('de');
+const Kde = SP.storyPath(krag, work11, (id) => id, { flowName, words: DE.partNames });
+check('a German base: the parts speak German (start, questions, review, end)', [Kde.parts[0].label, Kde.parts[2].label, Kde.parts.find((p) => p.kind === 'review').label, Kde.parts[kEnd].label], ['Anfang', 'Fragen — Powitanie', 'Durchsicht', 'Ende']);
+check('the counter says what it counts, in the base’s language', [DE.summary(0, 7, 'topics'), LG.words('pl').summary(0, 7, 'topics'), LG.words('en').summary(0, 7, 'topics'), DE.summary(3, 13), LG.words('pl').summary(3, 13), DE.fork({ mode: 'choose', done: 0, total: 2 })],
+  ['0 von 7 Themen erledigt', 'ukończono 0 z 7 tematów', '0 of 7 topics done', '3 von 13 erledigt', 'ukończono 3 z 13', 'wähle 1 von 2']);
+const polish = /(^|\s)(z|teraz|TERAZ|ukończono|wybierz|Pytania|Koniec|Początek|Przegląd)(\s|$)/;
+const deStrings = [DE.summary(2, 5), DE.summary(2, 5, 'topics'), DE.now, DE.pathTitle, DE.legend, DE.autoKind, DE.loopKind, DE.optionalKind, DE.whatNext, DE.nearest, DE.nextReady, DE.nextNotYet, DE.backToMap, DE.storyEnd, DE.fromStart, DE.widen, DE.narrow, DE.pathAria('2 von 5 erledigt', 'X'),
+  ...Object.values(DE.kinds), DE.part({ kind: 'review', questions: 3, slides: 0 }), DE.part({ kind: 'mixed', slides: 2, questions: 3 }, 1), DE.fork({ mode: 'all', done: 1, total: 3 }), DE.workShort(4, 6), DE.chooseRoad(3), DE.inStory('X')];
+check('no Polish words in the German strings of the map, the path and the side panel', deStrings.filter((t) => polish.test(t)), []);
+
+/* -- 2026-11-04 (Prompt 11): die Ścieżka zeigt die Erzählung, die WIRKLICH läuft (`runningStory.ts`) ---------------- */
+
+const inner = F.readFlow('jan-antoni', { name: 'Jan i Antoni', start: 's1', graph: { nodes: [node('s1', 'show', { of: 'ja1', title: 'Dwaj bracia' }), node('q1', 'question', { of: 'ja-q' }), node('s2', 'show', { of: 'ja2', title: 'Kłótnia' }), node('end', 'end')],
+  edges: [edge('s1', 'next', 'q1'), edge('q1', 'right', 's2'), edge('q1', 'wrong', 's2'), edge('s2', 'next', 'end')] } });
+const flows11 = { krag, 'jan-antoni': inner };
+const told = new Set();
+const ctx11 = { facts: (s) => ({ values: s.values, knowness: () => 1, answered: () => null, visited: new Set(s.visited), now: new Date(0), flow: (id) => (told.has(id) ? { started: true, done: true, goals: [] } : undefined) }), flows: (id) => flows11[id], members: () => [] };
+let R = RS.startRun(krag, {}, ctx11);
+const walkTo = (stop, exitOf = () => undefined) => { for (let g = 0; g < 40 && R.run.state.step !== stop; g += 1) { const n = flows11[R.run.state.flow].graph.nodes.find((x) => x.id === R.run.state.step); R = RS.stepRun(R.run, (id) => flows11[id], exitOf(n), ctx11); } };
+R = { run: R, finished: [] };
+walkTo('wybor', (n) => (n.type === 'question' ? 'right' : undefined));
+check('running story: the outer story runs up to its choice', [R.run.state.flow, R.run.state.step, R.run.state.visited.includes('s1')], ['krag', 'wybor', true]);
+R = RS.stepRun(R.run, (id) => flows11[id], 'o0', ctx11);
+check('… „więcej": the automatic step sends the learner into the story (not told yet) — the player stops on the subflow', [R.run.state.flow, R.run.state.step], ['krag', 'r0_jan-antoni']);
+R = RS.stepRun(R.run, (id) => flows11[id], undefined, ctx11);
+const now11 = RS.runningOf(R.run, (id) => flows11[id]);
+check('… inside the inner story: it runs, with ITS visited steps only (the ids collide with the outer ones), the outer one is the trail', [now11.running.id, now11.trail.map((f) => f.id), R.run.state.visited, R.run.root], ['jan-antoni', ['krag'], ['s1'], 'krag']);
+const innerPath = SP.storyPath(now11.running, work11, (id) => id);
+const innerMarks = SP.storyMarks(innerPath, { visited: R.run.state.visited, step: R.run.state.step });
+check('… the path shows the story that is actually running: its parts, TERAZ on its first slide, „ukończono 0 z 2"', [innerPath.parts.map((p) => p.label), innerPath.parts[innerMarks.current].label, `${innerMarks.done} z ${innerMarks.total}`], [['Początek', 'Dwaj bracia', 'Pytania — Dwaj bracia', 'Kłótnia', 'Koniec'], 'Dwaj bracia', '0 z 3']);
+walkTo('s2', (n) => (n.type === 'question' ? 'right' : undefined));
+told.add('jan-antoni');
+R = RS.stepRun(R.run, (id) => flows11[id], 'next', ctx11);
+check('… „Koniec" of the inner story: it is finished (kept as told), the outer one goes on — back at its choice, with its own visited steps again', [R.finished.map((f) => f.flow), R.run.state.flow, R.run.state.step, R.run.state.ended, R.run.state.visited.includes('rozw'), R.run.state.visited.includes('q1'), R.run.outer.length], [['jan-antoni'], 'krag', 'wybor', false, true, true, 0]);
+R = RS.stepRun(R.run, (id) => flows11[id], 'o0', ctx11);
+check('… „więcej" again: now already told — the automatic step shows „Wiesz już"', [R.run.state.flow, R.run.state.step], ['krag', 'r0_jan-antoni_znane']);
+const next11 = RS.startRun(inner, {}, ctx11);
+check('a new story after „Koniec" (or from a link): the run belongs to it alone', [next11.root, next11.state.flow, next11.state.step, next11.outer.length], ['jan-antoni', 'jan-antoni', 's1', 0]);
+const hand = F.readFlow('hand', { name: 'Przekazanie', start: 'a', graph: { nodes: [node('a', 'show', { of: 'a', title: 'A' }), node('h', 'handoff', { flow: 'jan-antoni' })], edges: [edge('a', 'next', 'h')] } });
+flows11.hand = hand;
+let H = RS.stepRun(RS.startRun(hand, {}, ctx11), (id) => flows11[id], 'next', ctx11);
+H = RS.stepRun(H.run, (id) => flows11[id], undefined, ctx11);
+check('a handoff: the old story is finished, the new one is now the own story of the run (title, path, counters follow it)', [H.finished.map((f) => f.flow), H.run.root, H.run.state.flow, H.run.state.visited], [['hand'], 'jan-antoni', 'jan-antoni', ['s1']]);
+check('a condition the learner state already decides (knowness, told stories) — not values or visits', [RS.decideBy(ctx11.facts({ values: {}, visited: [] }))(krag.graph.nodes.find((n) => n.id === 'r0_jan-antoni_k')), RS.decideBy(ctx11.facts({ values: {}, visited: [] }))(node('v', 'condition', { condition: { type: 'value', value: 'x', op: 'ge', than: 1 } }))], ['yes', null]);
 
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} checks pass${failed > 0 ? `, ${failed} FAIL` : ''}.`);

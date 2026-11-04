@@ -3439,3 +3439,48 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - **Checks**: `app-ask-check` (new, 12): the user's case — 10 known + 1 unknown, wrong then right → that question twice,
   one spacer, end — both in a story review and in a review by bands, the counter reaching 0 exactly at the end, path
   counts; `app-lemma-lessons-check` updated (every temporal run has a counter).
+
+## C34 — After "Koniec", automatic branches, and a landscape of regions (2026-11-04, Prompt 11)
+
+- **Story (sections 1–3)**: `storyNext.ts` and `runningStory.ts` (new); `storyPath.ts`, `pathLayout.ts`, `PathMap.tsx`,
+  `pathMap.css`, `FlowPlayer.tsx`, `storyLock.ts`, `pathViews.tsx`, `PresentationInNauka.tsx`, `presentationPath.ts`.
+  - Successors above "Koniec" and on the closing screen, from the learning order and the learner's state (ready, or
+    what is missing / due by name; none → nearest learnable field or "Wróć do mapy").
+  - Condition steps are automatic: decided per learner, or one `auto` part; loops back to a choice; one end on top;
+    fork counts = roads drawn; finished stories count what applied, roads not taken are optional.
+  - The Bosko switch bug: a subflow with colliding step ids sharing `visited`; each story now keeps its own, and title,
+    path, TERAZ, counters and the question line follow the running story.
+  - Popover kept inside panel and screen, path sized by its container with a readable minimum, legend folds.
+- **Landscape (sections 5–9)**: `regions.ts`, `levelMap.ts`, `RegionMap.tsx`, `landscapeWords.ts` (new); `LandscapeView.tsx`
+  rewritten around levels; `landscape.ts` (`stand`, lazy flat map), worker and client (`stand`, `regions`), `views.ts`
+  (`landscape.regions` owner edits), `landscapeExport.ts` (region tree for AI), `EntityList.tsx` (old budget settings out).
+  - Regions from the connections (greedy agglomeration, acyclic group graph, cycles kept whole, 5–12 per group, 7–20 on
+    top, names from the base or "Rund um …", owner renames/moves kept, previous assignment kept per browser).
+  - One level per map (fan, ring = depth — on topic maps the depth in the whole graph —, barycentre, sweeps, gates
+    around the fields in the direction of the map above; `routeOrder` region by region).
+  - One step per view: largest step with every face ≥ 50 % visible, tilt 0.52 → 1, then cut columns (actionable first,
+    hatched), never below 6 px; capped so the tallest column stays near the map's size; orthographic.
+  - Two numbers: Stufen (height, chain incl. itself) and Themen (list length incl. itself); badge = Themen.
+  - Camera: drag with inertia, wheel and pinch around the pointer, "+"/"−" (below the whole level "−" goes up), 60°,
+    "Zu mir", "Ganze Karte"; opens at the next step's level and follows it until the learner moves.
+  - Haze, light rim for "now", one light sign per field (review first > due), names on faces when zoomed in, region
+    ring and preview, conquered regions (warm, flag, "Gebiet erobert" once), tally, the sentence "Als Nächstes …".
+- **Why heights did not match before (6b)**: the old map fitted the step height into a fixed room per map (`geometryOf`:
+  t = (room − ground depth) / tallest), so a deep map or a rotation that made the ground deeper squeezed every step towards
+  1.2 px — towers became about equally high; nest/"+N" fields stood as high as their NEAREST member while their panel spoke
+  of the field's own chain, so a section could look lower than a topic inside it. Now one number per field (Stufen) sets
+  the height with one step per view, for every kind of field.
+- **Checks**: `app-regions-check` (new, 112), `app-levels-check` (new, 34: maps never mix kinds, ≤ 20 fields, rings by
+  depth, every face ≥ 50 % visible in 6 rotations for two learners, more steps never lower, valley 0 / learnable 1, ≥ 6 px
+  per step, §4 above Kongruenz, route to §4 outward, route metrics), `app-path-check` 94, `app-story-check` 39,
+  `app-lemma-lessons-check` unchanged.
+- **LocalDB acceptance** (scratchpad `p11/accept.mjs`, `p11/ls.mjs`, `p11/drag.mjs`, `p11/edit.mjs`, `p11-story/browser.mjs`):
+  LAAG-like (278 fields), the Bosko copy (418 topics) and a generated base of 5 000 topics, each with a learner halfway.
+  - Satz 4.7 for a new learner: the same 7 topics in the list and the path, Repräsentantensystem above; §4 has 11 Stufen,
+    Kongruenz 6.
+  - Route metrics, old flat map → one map of the new world: LAAG 122.0 hex / 16.1 turns → 3.3 / 1.0; Bosko 22.5 / 2.2 →
+    1.9 / 0.2; 5 000 topics 215.0 / 41.5 → 4.6 / 2.3 (a route crosses 7.8, 5.2 and 13.6 maps).
+  - Regions: LAAG 2 levels, top 11, groups 5–8–12 / 2–3–4, inside 60 % / 71 %; Bosko 2 levels, top 9, 5–7–12 / 4–7–8,
+    81 % / 93 %; 5 000 topics 3 levels, top 8, 5–8–12 / 5–9–12 / 6–8–12, 64 % / 89 % / 98 %, 140 ms.
+  - 5 000 topics: map drawn 1.9 s after opening the view; frames while dragging 16.7 ms (95 % ≤ 16.8 ms); wheel, pinch,
+    "Ganze Karte", "Zu mir" work.

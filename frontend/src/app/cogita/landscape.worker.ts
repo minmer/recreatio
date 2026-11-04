@@ -1,16 +1,23 @@
 /**
  * 2026-11-03 — DER KRAJOBRAZ IM WORKER: Graph (einmal je Baza und Widok), Höhen (nach jeder Antwort — die Bitmengen
  * bleiben), Gestalt. Die Ansicht schickt nur, was sich geändert hat (`landscapeClient.ts`); rein gerechnet wird in
- * `landscape.ts`.
+ * `landscape.ts`. 2026-11-04 (Prompt 11): dazu der Stand je Knoten (`stand`) und die Gebiete (`regions`, einmal je
+ * Baza: gemerkt, solange dieselben Themen und Wünsche des Besitzers kommen).
  */
 
 import { LandscapeEngine, type LsInput, type LsOptions, type LsState } from './landscape';
+import { landscapeWords } from './landscapeWords';
+import type { Lang } from './lang';
+import { buildRegions, type RegionGraphInput, type RegionOverrides, type RegionTree } from './regions';
 
 type Request =
   | { readonly id: number; readonly type: 'run'; readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }
-  | { readonly id: number; readonly type: 'route'; readonly target: string };
+  | { readonly id: number; readonly type: 'stand'; readonly input?: LsInput; readonly state?: LsState }
+  | { readonly id: number; readonly type: 'route'; readonly target: string }
+  | { readonly id: number; readonly type: 'regions'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> };
 
 const engine = new LandscapeEngine();
+let regionsKept: { key: string; tree: RegionTree } | null = null;
 
 self.addEventListener('message', (event: MessageEvent<Request>) => {
   const msg = event.data;
@@ -19,8 +26,21 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
       self.postMessage({ id: msg.id, ok: true, result: engine.routeTo(msg.target) });
       return;
     }
+    if (msg.type === 'regions') {
+      if (regionsKept === null || regionsKept.key !== msg.key) {
+        const words = landscapeWords(msg.lang);
+        const tree = buildRegions(msg.graph, { around: words.around, ...(msg.overrides === undefined ? {} : { overrides: msg.overrides }), ...(msg.previous === undefined ? {} : { previous: msg.previous }) });
+        regionsKept = { key: msg.key, tree };
+      }
+      self.postMessage({ id: msg.id, ok: true, result: regionsKept.tree });
+      return;
+    }
     if (msg.input !== undefined) engine.setInput(msg.input);
     if (msg.state !== undefined) engine.setState(msg.state);
+    if (msg.type === 'stand') {
+      self.postMessage({ id: msg.id, ok: true, result: engine.stand() });
+      return;
+    }
     self.postMessage({ id: msg.id, ok: true, result: engine.layout(msg.options) });
   } catch (e) {
     self.postMessage({ id: msg.id, ok: false, error: e instanceof Error ? e.message : String(e) });

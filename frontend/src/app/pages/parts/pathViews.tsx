@@ -8,11 +8,12 @@ import { useMemo, useState } from 'react';
 
 import type { PartContext } from '../part';
 import { answersArea } from '../../cogita/answersTo';
-import { contentOfLibrary, FlowPlayer, stepEntries } from '../../cogita/FlowPlayer';
-import { learnerFlows, reviewStart, STORY_BUTTON, storyStage, storyUnitsOf } from '../../cogita/flowFacts';
+import { contentOfLibrary, FlowPlayer, storyPathOf } from '../../cogita/FlowPlayer';
+import { learnerFlows, reviewStart, storyStage, storyUnitsOf } from '../../cogita/flowFacts';
 import type { Flow } from '../../cogita/flow';
-import { stepWorkOf, storyMarks, storyPath, type StoryPath } from '../../cogita/storyPath';
-import { gaugeFromMarks } from '../../cogita/knowing';
+import { storyMarks, type StoryPath } from '../../cogita/storyPath';
+import { factsOf, gaugeFromMarks, withFlows } from '../../cogita/knowing';
+import { decideBy } from '../../cogita/runningStory';
 import { answeredCards, renamer } from '../../cogita/learn';
 import { usePageBase } from '../../cogita/pageBase';
 import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
@@ -46,7 +47,8 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
   const who = usePageLearner(lib, answersArea(config.answers));
   const learner = who.learner;
   const cards = useAsync(lib == null ? null : () => lib.cards('page').then((r) => r.cards), [lib, lib?.revision]);
-  const title = config.title || 'Ścieżka';
+  const T = words(lib == null ? 'pl' : baseLang(lib));
+  const title = config.title || T.pathTitle;
   const rename = useMemo(() => (lib == null ? null : renamer(lib.merges())), [lib]);
   const live = learner?.progress;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- neu mit jedem Stand des Lernenden
@@ -81,19 +83,24 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
         if (shown === undefined) return { model: EMPTY_PATH, current: null, note: null };
         if (shown === null) return { model: EMPTY_PATH, current: null, note: 'Tej prezentacji nie można tu otworzyć.' };
         const refs = { resolve: content.resolve!, aboutOf: (id: string) => content.card(id)?.about ?? [], label, needsOf: (id: string) => graph.needs.get(id) ?? [] };
-        const told = presentationPath(shown.flow, shown.show, shown.parts, refs, `page:${shown.page.id ?? ''}`, flow.unit ?? null);
+        const told = presentationPath(shown.flow, shown.show, shown.parts, refs, `page:${shown.page.id ?? ''}`, flow.unit ?? null, { words: T.partNames });
         const kept = shown.page.id === undefined ? undefined : learner?.progress.positions.get(`page:${shown.page.id}`);
         const visited = (kept?.visited ?? []).map((k) => `s:${k}`);
         const marks = storyMarks(told.sp, { visited, step: kept === undefined ? null : `s:${kept.step}`, ...(learner === null ? {} : { know: storyKnowOf(content.cardsOf) }) });
         return { model: told.model, current: null, note: null, sp: told.sp, marks };
       }
-      /* 2026-11-04 — die Teile der Erzählung (Lesen, Fragen, Przegląd, Gabeln) und ihr Stand aus der gemerkten Stelle. */
-      const sp = storyPath(flow, stepWorkOf(stepEntries(content)), label);
+      /*
+        2026-11-04 — die Teile der Erzählung (Lesen, Fragen, Przegląd, Gabeln) und ihr Stand aus der gemerkten Stelle.
+        2026-11-04 (Prompt 11) — wie im Spieler: ein Warunek, der für diesen Lernenden schon entschieden ist, zeigt nur seinen Weg.
+      */
+      const known = learner === null ? null : learnerFlows(lib, learner.progress.positions);
+      const decide = known === null ? undefined : decideBy({ ...factsOf(withFlows(gauge, known), () => []), flow: (ref: string) => known.get(content.flowRef?.(ref) ?? ref) });
+      const sp = storyPathOf(flow, content, decide);
       const kept = learner?.progress.positions.get(flow.id);
       /* 2026-11-04 (Prompt 10) — gezählt wird, was die Erzählung wirklich fragen würde (gekonnte Fragen übersprungen). */
       const nodeOf = new Map(flow.graph.nodes.map((n) => [n.id, n] as const));
       const knownStep = learner === null ? undefined : (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, (c) => learner.marks(c.key, c.fingerprint, content.rename)); };
-      const marks = storyMarks(sp, { visited: kept?.visited ?? [], step: kept?.step ?? null, ...(learner === null ? {} : { know: storyKnowOf(content.cardsOf), knownStep }) });
+      const marks = storyMarks(sp, { visited: kept?.visited ?? [], step: kept?.step ?? null, ...(kept?.done === true && ['end', 'return', 'handoff'].includes(nodeOf.get(kept.step)?.type ?? '') ? { ended: true } : {}), ...(learner === null ? {} : { know: storyKnowOf(content.cardsOf), knownStep }) });
       return { model: sp.model, current: null, note: null, sp, marks };
     }
     const unit = config.entry === '' ? null : entryOf(lib, config.entry);
@@ -159,7 +166,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
     const now = marks.current >= 0 ? made.model.nodes[marks.current].label : null;
     return (
       <p className="wk-card-muted" data-path-strip={`${marks.done}/${marks.total}`}>
-        <strong>{title}</strong> · ukończono {marks.done} z {marks.total}{now !== null ? <> · teraz: {now}</> : null}
+        <strong>{title}</strong> · {T.summary(marks.done, marks.total, made.sp === undefined ? 'topics' : 'parts')}{now !== null ? <> · {T.now}: {now}</> : null}
       </p>
     );
   }
@@ -167,17 +174,17 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
     <CogitaContext.Provider value={cg}>
       <div className="cg" data-path-part={made.model.nodes.length}>
         {made.note !== null && <p className="wk-card-muted">{made.note}</p>}
-        <PathMap model={made.model} marks={marks} size={tall ? 'full' : 'small'} title={title} collapsible={!tall} words={words(baseLang(lib))}
-          detail={(id) => { if (made.sp !== undefined) return null; const n = cardsAbout(cards, id).length; return n === 0 ? null : `${n} ${n === 1 ? 'karta' : 'kart'}`; }}
+        <PathMap model={made.model} marks={marks} size={tall ? 'full' : 'small'} title={title} collapsible={!tall} words={T} noun={made.sp === undefined ? 'topics' : 'parts'}
+          detail={(id) => { if (made.sp !== undefined) return null; const n = cardsAbout(cards, id).length; return n === 0 ? null : T.cards(n); }}
           actions={(id, state) => (made.sp !== undefined && idsOf(id).length === 0 ? null : (
             <div className="wk-actions">
               {stageOf(id) !== null ? (
                 <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => openStory(stories.get(id)!, stageOf(id) === 'review')} data-path-story={stageOf(id)!}>
-                  {STORY_BUTTON[stageOf(id)!]}
+                  {T.storyButton[stageOf(id)!]}
                 </button>
               ) : (
                 <button type="button" className="wk-btn" disabled={!who.ready} onClick={() => run.start(label(id), idsOf(id))} data-path-learn={id}>
-                  {state === 'done' ? 'Powtórz' : state === 'locked' ? 'Ucz się z podstawami' : 'Ucz się'}
+                  {state === 'done' ? T.review : state === 'locked' ? T.learnWithBasics : T.learn}
                 </button>
               )}
             </div>

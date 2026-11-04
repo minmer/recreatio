@@ -1492,6 +1492,19 @@ function openBits(g: LsGraph, h: LsHeights, w: number): number {
 
 /* -- Der Motor: Graph, Karte, Stand, Gestalt — getrennt, damit jeder Teil nur rechnet, wenn er sich ändert --------- */
 
+/**
+ * 2026-11-04 (Prompt 11) — DER STAND JE KNOTEN, ohne Gestalt (der Krajobraz der Gebiete zeichnet selbst): das Band
+ * (Index in `BAND_CODE`), wie viele Schritte davor fehlen (`missing`: die längste Kette; die Stufen sind `liftOf`), wie
+ * viele verschiedene Themen davor fehlen (`topics`) und ob ein Ring-Feld erst eine Powtórka braucht (`locked`).
+ */
+export interface LsStand {
+  readonly band: Uint8Array;
+  readonly missing: Int32Array;
+  readonly topics: Int32Array;
+  readonly locked: Uint8Array;
+  readonly ms: number;
+}
+
 export interface LsRun {
   readonly layout: LsLayout;
   /** Millisekunden: Graph und Karte (nur beim ersten Mal oder nach einer Änderung), Höhen, Gestalt. */
@@ -1516,9 +1529,25 @@ export class LandscapeEngine {
     const t = now();
     this.input = input;
     this.graph = buildGraph(input, edgeFilter);
-    this.fixed = fixedLayout(input, this.graph);
+    /* 2026-11-04 (Prompt 11) — die feste flache Karte erst, wenn jemand sie braucht (die Gebiete brauchen sie nicht). */
+    this.fixed = null;
     this.heights = null;
     this.graphMs = now() - t;
+  }
+
+  private fixedNow(): LsFixed | null {
+    if (this.fixed === null && this.input !== null && this.graph !== null) this.fixed = fixedLayout(this.input, this.graph);
+    return this.fixed;
+  }
+
+  /** 2026-11-04 (Prompt 11) — der Stand je Knoten (Band, Schritte, Themen, Sperre) — ohne Gestalt. */
+  stand(): LsStand {
+    if (this.heights === null) throw new Error('Krajobraz: brak stanu.');
+    const t = now();
+    const h = this.heights;
+    const band = new Uint8Array(h.band.length);
+    for (let v = 0; v < h.band.length; v += 1) { const b = h.band[v]; band[v] = b === null ? 0 : BAND_CODE.indexOf(b); }
+    return { band, missing: h.missing, topics: h.topics, locked: h.locked, ms: this.heightsMs + (now() - t) };
   }
 
   setState(state: LsState): void {
@@ -1530,9 +1559,10 @@ export class LandscapeEngine {
   }
 
   layout(options: LsOptions = {}): LsRun {
-    if (this.input === null || this.graph === null || this.fixed === null || this.heights === null) throw new Error('Krajobraz: brak grafu albo stanu.');
+    const fixed = this.fixedNow();
+    if (this.input === null || this.graph === null || fixed === null || this.heights === null) throw new Error('Krajobraz: brak grafu albo stanu.');
     const t = now();
-    const layout = layoutOf(this.input, this.graph, this.heights, options, this.fixed, this.state ?? undefined);
+    const layout = layoutOf(this.input, this.graph, this.heights, options, fixed, this.state ?? undefined);
     this.last = layout;
     const ms = { graph: this.graphMs, heights: this.heightsMs, layout: now() - t };
     this.graphMs = 0;
@@ -1540,7 +1570,7 @@ export class LandscapeEngine {
   }
 
   /** Die feste Karte (Zellen, Bereiche) — ohne Höhen: für die Abschrift für AI und für Prüfungen. */
-  map(): LsFixed | null { return this.fixed; }
+  map(): LsFixed | null { return this.fixedNow(); }
 
   /** Der Weg zu einem Eintrag (Kennungen je Schritt). */
   routeTo(id: string): { readonly steps: readonly (readonly string[])[]; readonly next: readonly string[]; readonly open: boolean } | null {
@@ -1553,11 +1583,12 @@ export class LandscapeEngine {
 
   /** Wo ein Eintrag steht (fest) — für Avatare und Führungen. */
   positionOf(id: string): { readonly x: number; readonly y: number; readonly height: number; readonly field: string | null } | null {
-    if (this.input === null || this.fixed === null) return null;
+    const fixed = this.fixedNow();
+    if (this.input === null || fixed === null) return null;
     const v = this.input.ids.indexOf(id);
-    const i = v < 0 ? -1 : this.fixed.cellOf[v];
+    const i = v < 0 ? -1 : fixed.cellOf[v];
     if (i < 0) return null;
-    const c = this.fixed.cells[i];
+    const c = fixed.cells[i];
     const f = this.last?.fields.find((x) => x.id === id || (x.ids?.includes(id) ?? false)) ?? null;
     return { x: c.x, y: c.y, height: this.heights?.height[v] ?? Number.NaN, field: f?.key ?? null };
   }

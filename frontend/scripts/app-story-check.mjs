@@ -18,7 +18,7 @@ const workspace = await mkdtemp(join(tmpdir(), 'app-story-'));
 const entries = {
   logic: 'src/app/cogita/logic.ts', facts: 'src/app/cogita/flowFacts.ts', learn: 'src/app/cogita/learn.ts', knowing: 'src/app/cogita/knowing.ts',
   card: 'src/app/pages/presentation/storyCard.ts', show: 'src/app/pages/presentation/presentationPath.ts', flow: 'src/app/cogita/flow.ts',
-  data: 'src/app/cogita/landscapeData.ts', presentation: 'src/app/pages/presentation/presentation.ts'
+  data: 'src/app/cogita/landscapeData.ts', presentation: 'src/app/pages/presentation/presentation.ts', next: 'src/app/cogita/storyNext.ts'
 };
 await build({
   entryPoints: entries, bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
@@ -141,6 +141,33 @@ check('a unit whose story is done lies in the valley (knowness 1); the rest as b
   const input = { ids: ['U', 'T'] };
   const lowered = new Set([...FF.storyUnitsOf(lib, () => false).entries()].filter(([, f]) => FF.storyStage(f, { started: true, done: true, goals: [] }) === 'passed').map(([u]) => u));
   check('a story without goals that is done still lowers its unit', LD.landscapeState(input, KN.EMPTY_GAUGE, lowered).knowness[0], 1);
+}
+
+/* -- 2026-11-04 (Prompt 11): was nach dem Ende einer Erzählung kommt (`storyNext.ts`) -------------------------------- */
+{
+  const NX = await load('next');
+  /* U: die Erzählung, die eben zu Ende ging. Danach: N1 (eine Erzählung), N3 und N4 (Themen), durch T (ohne Karten) N2. */
+  const builds = { U: ['T', 'N1', 'N3', 'N4'], T: ['N2'], X: ['N3'], W1: ['V', 'Q'], t1: ['M'] };
+  const needs = { T: ['U'], N1: ['U'], N3: ['U', 'X'], N4: ['U'], N2: ['T'], V: ['W1'], Q: ['W1'], M: ['t1'] };
+  const locks = { N3: { missing: ['X'], due: [] }, N1: { missing: [], due: ['Z'] } };
+  const input = (over = {}) => ({
+    unit: 'U', taught: ['s1', 's2'], needs: (id) => needs[id] ?? [], builds: (id) => builds[id] ?? [],
+    story: (id) => ['U', 'N1', 'V'].includes(id), topic: (id) => ['N2', 'N3', 'N4', 'X', 'Q', 'M'].includes(id),
+    learned: (id) => ['U', 'N4'].includes(id), lock: (id) => locks[id] ?? { missing: [], due: [] }, ...over
+  });
+  const got = NX.storyNext(input());
+  check('after „Koniec": the successors in the learning order (through entries without cards), the ready ones first, learned ones left out', got.next.map((s) => [s.id, s.kind, s.ready]), [['N2', 'topic', true], ['N1', 'story', false], ['N3', 'topic', false]]);
+  check('… a successor not possible yet says why, by name: what is missing, what to review first', got.next.filter((s) => !s.ready).map((s) => [s.id, s.missing, s.due]), [['N1', [], ['Z']], ['N3', ['X'], []]]);
+  check('… with a ready successor there is no detour to the map', got.nearest, null);
+  const none = NX.storyNext(input({ unit: 'V', taught: [] }));
+  check('a story without successors: the nearest learnable field of the map (fewest steps in the learning graph)', [none.next.length, none.nearest?.id, none.nearest?.ready], [0, 'Q', true]);
+  const blocked = NX.storyNext(input({ lock: (id) => (id === 'X' ? { missing: [], due: [] } : { missing: ['X'], due: [] }) }));
+  check('… none possible yet: the nearest field that is possible now (here X, which they all need first)', [blocked.next.every((s) => !s.ready), blocked.nearest?.id], [true, 'X']);
+  const shut = NX.storyNext(input({ lock: () => ({ missing: ['Y0'], due: [] }) }));
+  check('… and when nothing on the map is possible: no field (the host shows „Wróć do mapy")', [shut.next.every((s) => !s.ready), shut.nearest], [true, null]);
+  const viaTaught = NX.storyNext(input({ unit: 'Z0', taught: ['t1'] }));
+  check('a unit with nothing after it: what builds on what the story teaches and leads out of it', viaTaught.next.map((s) => s.id), ['M']);
+  check('never from links the story sets itself: a story with no unit and nothing taught has no successor', NX.storyNext(input({ unit: null, taught: [] })).next.length, 0);
 }
 
 await rm(workspace, { recursive: true, force: true });

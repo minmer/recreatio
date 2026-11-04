@@ -27,7 +27,7 @@ import { RuleEditor } from './RuleEditor';
 import { OriginTag, useAsyncKeep, useBusy, useCtx } from './ui';
 import { axisColumns, ViewSteps } from './ViewSteps';
 import {
-  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LANDSCAPE_BANDS, LANDSCAPE_BUDGET, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
+  AXIS_COLUMN, cellKey, cellText, groupTitle, KNOWING_COLUMNS, LIST_MODE_LABEL, needsKnowing, readView, ruleOf, sourceKind, viewColumns, viewFrom, viewGroups, viewJson, viewList, viewMatrix, viewOutline,
   withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
 } from './views';
 import { gaugeFromMarks, withFlows } from './knowing';
@@ -249,23 +249,8 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
         {view.mode === 'outline' && <OutlineSettings value={view.outline} fields={chooserFields.filter((f) => !f.key.startsWith(AXIS_COLUMN))} onChange={(outline) => setV({ outline })} />}
         {landscape && (
           <div className="cg-row" data-landscape-settings="">
-            <p className="cg-muted">Krajobraz to stała mapa: każdy temat ma swoje miejsce. Obszary (grupowanie z „Wybór i grupy”, w ich kolejności) biegną od Ciebie na zewnątrz; im więcej trzeba znać wcześniej („Najpierw trzeba znać”), tym dalej. Zmienia się tylko wysokość: co możesz zacząć teraz, to równina; dalej góry — tym wyższe, im więcej kroków brakuje; co umiesz, zapada się w dolinę.</p>
-            <label className="wk-field"><span>Ile pól na mapie (z polami „+N”)</span>
-              <input type="number" min={6} max={400} value={view.landscape?.budget ?? LANDSCAPE_BUDGET} data-landscape-budget=""
-                onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setV({ landscape: { ...view.landscape, budget: Math.max(6, Math.min(400, Math.round(n))) } }); }} />
-            </label>
-            <p className="cg-muted">Każde pasmo najpierw dostaje swoją część pól: w każdym obszarze najlepsze tematy stoją pojedynczo, reszta to jedno pole „+N”. Czego pasmo nie wykorzysta, przechodzi dalej — do nauki, do powtórki, dolina, góry; góry pojedynczo dopiero wtedy, gdy nic gotowego do nauki nie jest schowane.</p>
-            {/* 2026-11-03 (B.1) — die Anteile der Bänder; was eines nicht braucht, geht weiter (Ring, Wiederholung, Tal, Berge). */}
-            {([['ring', 'Gotowe do nauki (%)'], ['due', 'Do powtórki (%)'], ['known', 'Dolina (%)']] as const).map(([band, words]) => (
-              <label key={band} className="wk-field"><span>{words}</span>
-                <input type="number" min={0} max={100} step={5} value={Math.round((view.landscape?.bands?.[band] ?? LANDSCAPE_BANDS[band]) * 100)} data-landscape-band={band}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    if (!Number.isFinite(n)) return;
-                    setV({ landscape: { budget: view.landscape?.budget ?? LANDSCAPE_BUDGET, bands: { ...view.landscape?.bands, [band]: Math.max(0, Math.min(1, n / 100)) } } });
-                  }} />
-              </label>
-            ))}
+            {/* 2026-11-04 (Prompt 11) — die Gebiete kommen aus den Verbindungen; Namen und Verschiebungen ändert der Besitzer auf der Karte selbst. */}
+            <p className="cg-muted">Krajobraz to świat obszarów: obszary tworzą się same z tego, co od czego zależy („Najpierw trzeba znać”) — tematy, które wiele łączy, leżą razem. Na każdym poziomie widać kilka do kilkunastu pól; dotknięcie obszaru otwiera jego mapę. Wysokość to liczba stopni do pokonania: dolina — umiesz, jeden stopień — możesz zacząć teraz. Nazwę obszaru zmienisz na mapie („Zmień nazwę”), a temat przeniesiesz do innego obszaru w jego okienku.</p>
           </div>
         )}
         {quilt && <p className="cg-muted" data-quilt-hint="">Mapa postępów: każdy wpis to kafelek w kolorze tego, jak dobrze go znasz — pogrupowany jak w „Wybór i grupy” (np. idee według lekcji, lekcje pod rozdziałami). Uczący się widzą ją w Postępach i w module „Widok” na stronie.</p>}
