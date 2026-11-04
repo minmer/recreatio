@@ -479,3 +479,7 @@
 .cg-ls-legend-ringrest { fill: none; stroke: var(--wk-ink); stroke-width: 1.8; opacity: 0.2; }
 .cg-ls-legend-ringdone { fill: none; stroke: var(--wk-ink); stroke-width: 1.8; stroke-linecap: round; }
 .cg-ls-legend-ringdue { fill: var(--cg-ls-warm); stroke: var(--wk-surface); stroke-width: 1; }
+
+/* 2026-11-05 — ein Krajobraz im Vollbild eines Bausteins (Widok, Krajobraz wiedzy) nimmt das ganze Fenster, nicht 90rem. */
+.wk-full-body > .wk-card.is-whole:has(.cg-ls) { max-width: none; }
+.cg-ls-back { margin: 0 0 var(--wk-space-2); }

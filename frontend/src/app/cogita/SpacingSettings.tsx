@@ -117,6 +117,56 @@ export function SpacingLine({ lib, learner }: { lib: CogitaLibrary; learner: Lea
   );
 }
 
+/**
+ * 2026-11-05 — DIE KURZE WAHL im Baustein „Krajobraz": „Jak często pytać: Częściej · Standard · Lżej · Raz i gotowe · Inne…",
+ * darunter in einem Satz, was die gewählte tut. Nur wenn der Lernende es darf — hat der Bereich es festgelegt, steht nur
+ * da, was gilt. Gespeichert wie in `SpacingLine` (`learner.keepSpacing`): für diese Baza, überall.
+ */
+export function SpacingChoice({ lib, learner }: { lib: CogitaLibrary; learner: Learner | null }) {
+  const W = spacingWords(baseLang(lib));
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (learner === null) return null;
+  const eff = effectiveFor(lib, learner);
+  const chosen = presetOf(eff.spacing);
+  if (!eff.changeable) {
+    return <p className="cg-muted" data-spacing-choice="locked">{W.line(spacingName(eff.spacing, W))} <span>({W.fromArea})</span></p>;
+  }
+  const area = lib.settings().spacing;
+  const from = eff.from === 'own' ? null : eff.from === 'area' ? W.fromArea : W.fromDefault;
+  const keep = (sp: Spacing | null) => {
+    setBusy(true);
+    void learner.keepSpacing(sp).catch(() => undefined).finally(() => setBusy(false));
+  };
+  return (
+    <div className="cg-spacing-choice" data-spacing-choice={chosen ?? 'custom'} data-spacing-from={eff.from}>
+      <div className="cg-row">
+        <span className="cg-muted">{W.ask}:</span>
+        <span className="cg-subtabs" role="radiogroup" aria-label={W.ask}>
+          {SPACING_PRESETS.map((p) => (
+            <button key={p} type="button" role="radio" aria-checked={chosen === p} className={chosen === p ? 'is-on' : ''} disabled={busy}
+              onClick={() => { if (chosen !== p) keep(PRESET_SPACING[p]); }} data-spacing-preset={p}>{W.preset[p]}</button>
+          ))}
+          <button type="button" className={chosen === null ? 'is-on' : ''} aria-expanded={open} onClick={() => setOpen(!open)} data-spacing-other="">{chosen === null ? W.custom : W.other}</button>
+        </span>
+      </div>
+      <p className="cg-muted">
+        {chosen === null ? W.summary(durationText(eff.spacing.first, W), eff.spacing.growth) : W.presetSays[chosen]}
+        {from !== null && <> <span>({from})</span></>}
+      </p>
+      {open && (
+        <section className="cg-card" data-spacing-own="">
+          <SpacingPicker value={eff.spacing} onChange={(sp) => keep(sp)} disabled={busy} W={W} />
+          {eff.from === 'own' && (
+            <button type="button" className="wk-link-btn" disabled={busy} onClick={() => keep(null)} data-spacing-reset="">{area === undefined ? W.useDefault : W.useArea}</button>
+          )}
+          <p className="cg-muted">{W.choiceSays} {W.recompute}</p>
+        </section>
+      )}
+    </div>
+  );
+}
+
 /** FÜR DEN BEREICH (Ustawienia der Baza): die Abstände für alle — und ob die Lernenden sie für sich ändern dürfen. */
 export function AreaSpacingSettings({ lib, busy, onSave }: { lib: CogitaLibrary; busy: boolean; onSave: (spacing: unknown) => void }) {
   const W = spacingWords(baseLang(lib));

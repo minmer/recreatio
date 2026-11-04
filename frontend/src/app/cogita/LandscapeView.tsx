@@ -589,6 +589,16 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (learner === null) { setLocalPieces(list); return; }
     void learner.keepPosition({ flow: piecesKey, step: '', visited: list, at: Date.now() }).catch(() => undefined);
   };
+  /*
+    2026-11-05 — VON EINEM BEGONNENEN FELD ZURÜCKTRETEN: die Figur geht von dort (nur die Figur — die Antworten bleiben, und
+    wer das Thema wieder öffnet, stellt sie wieder hin).
+  */
+  const removePiece = (id: string) => {
+    const list = storedPieces.filter((x) => x !== id);
+    if (list.length === storedPieces.length) return;
+    if (learner === null) { setLocalPieces(list); return; }
+    void learner.keepPosition({ flow: piecesKey, step: '', visited: list, at: Date.now() }).catch(() => undefined);
+  };
 
   /* Erobertes: einmal gesagt, wenn es neu ist. */
   const [won, setWon] = useState<string | null>(null);
@@ -726,15 +736,19 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Immer in einer Hülle, deren Breite gemessen wird. */
   const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
   if (running !== null) {
+    /* 2026-11-05 — immer sichtbar über dem Lauf: zurück zur Karte (die Antworten und die Stelle der Erzählung sind schon gespeichert). */
+    const back = <p className="cg-ls-back"><button type="button" className="wk-link-btn" onClick={() => setRunning(null)} data-landscape-back="">{T.backToMap}</button></p>;
     if (running.story !== undefined) {
       return host(
         <div className="cg-ls-run" data-landscape-run="story" data-landscape-run-flow={running.story.id}>
+          {back}
           <FlowPlayer key={running.key} flow={running.story} content={contentOfLibrary(lib, cards)} learner={learner} onClose={() => setRunning(null)} jumpTo={running.jump} />
         </div>
       );
     }
     return host(
       <div className="cg-ls-run" data-landscape-run={running.key.split(':')[0]}>
+        {back}
         <RevisionRun key={running.key} lib={lib} learner={learner} source={running.source} rewards={rewards} closing={closingFor(running.origin ?? null)}
           onClose={() => setRunning(null)} {...(running.then === undefined ? {} : { onDone: running.then })} />
       </div>
@@ -821,6 +835,23 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (i.band === 'ring') learnEntry(id);
     else if (i.band === 'due' || i.band === 'known') learnEntry(id, i.band !== 'known');
   };
+  /*
+    2026-11-05 — DER WEG DORTHIN, sofort (Doppelklick auf einen Berg, „Prowadź mnie tutaj"): das Thema wird das Ziel, und das
+    erste Thema seines Weges, das jetzt lernbar ist, beginnt (gesperrt: erst wiederholen). `list`: der schon bekannte Weg.
+  */
+  const leadTo = (id: string, list?: readonly string[]) => {
+    setGoal(id);
+    setSaid(W.goalSet(labelOf(id)));
+    if (learner === null) return;
+    const go = (steps: readonly string[]) => {
+      const first = steps.find((x) => x !== id && bandOf(x) === 'ring');
+      if (first === undefined) return;
+      if (infoById(first).locked) reviewFirst(first); else learnEntry(first);
+    };
+    if (list !== undefined) { go(list); return; }
+    if (client === null) return;
+    void client.route(id).then((r) => go((r?.steps.flat() ?? []).filter((x) => !asks.has(x))), () => undefined);
+  };
   /* Ein Thema auf der Karte: gewählt; noch einmal auf das gewählte — beginnen, wenn es geht. */
   const pick = (t: number) => {
     const id = tg.graph.ids[t];
@@ -873,7 +904,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         canLearn={learner !== null} note={note} lockCount={lockCount} bandOf={bandOf} stepsOf={(x) => infoById(x).steps}
         onLearnNow={(x) => { const i = infoById(x); if (i.band === 'ring' && i.locked) reviewFirst(x); else learnEntry(x); }}
         onStart={() => startTopic(chosenId)}
-        onLead={() => { setGoal(chosenId); setSaid(W.goalSet(labelOf(chosenId))); const firstReady = missing.find((x) => bandOf(x) === 'ring'); if (firstReady !== undefined && learner !== null) { const i = infoById(firstReady); if (i.locked) reviewFirst(firstReady); else learnEntry(firstReady); } }}
+        onLead={() => leadTo(chosenId, missing)}
+        /* 2026-11-05 — zurücktreten: trägt das Feld die Figur des Ziels, wird das Ziel aufgegeben; sonst geht die eigene Figur. */
+        resign={goal !== null && goalOpen[0] === chosenId ? { kind: 'goal', onResign: () => { setGoal(null); removePiece(chosenId); } }
+          : storedPieces.includes(chosenId) && chosenInfo.band !== 'known' && chosenInfo.band !== 'due' ? { kind: 'piece', onResign: () => removePiece(chosenId) } : null}
         onShow={showTopic} onPath={() => keep.setUnit(chosenId)} onClose={() => setChosen(null)} onRegion={(k) => zoomTo(k)}
         owner={writes ? {
           ...(onOpen === undefined ? {} : { open: () => onOpen(chosenId) }),
@@ -978,7 +1012,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
               step={step} pieces={mapPieces} goalFlag={goal === null ? null : topicIndex.get(goal) ?? null}
               onPiece={(x) => { const id = tg.graph.ids[x]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }}
               onFlag={() => { if (goal !== null) selectTopic(goal); }}
-              onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner !== null) startTopic(id); }} />
+              /* 2026-11-05 — Doppelklick: auf einen Berg — der Weg dorthin beginnt; sonst das Thema selbst. */
+              onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner === null) return; if (infoById(id).band === 'mountain') leadTo(id); else startTopic(id); }} />
           )}
           {!wide && topicPanel !== null && chosenId !== null && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
           {!wide && regionPanel}
@@ -1026,8 +1061,10 @@ function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'land
 
 /* -- Das gewählte Thema: kurz und zum Handeln ------------------------------------------------------------------- */
 
-function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, region, canLearn, note, lockCount, bandOf, stepsOf, onLearnNow, onStart, onLead, onShow, onPath, onClose, onRegion, owner }: {
+function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, region, canLearn, note, lockCount, bandOf, stepsOf, onLearnNow, onStart, onLead, onShow, onPath, onClose, onRegion, owner, resign }: {
   id: string;
+  /** 2026-11-05 — steht hier eine Figur: zurücktreten (`piece`: die eigene geht; `goal`: auch das Ziel wird aufgegeben). */
+  resign: { readonly kind: 'piece' | 'goal'; readonly onResign: () => void } | null;
   info: TopicInfo;
   /** Was noch fehlt (in der Reihenfolge des Lernens, was jetzt geht zuerst). */
   missing: readonly string[];
@@ -1103,6 +1140,7 @@ function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, r
           {band === 'mountain' && <button type="button" className="wk-btn" onClick={onLead} data-landscape-lead="">{T.leadMe}</button>}
           {band === 'ring' && <button type="button" className="wk-btn" onClick={onStart} data-landscape-learn="">{info.locked ? W.reviewFirst(lockCount(id)) : story !== null ? T.storyButton(story.stage) : T.startIt}</button>}
           {(band === 'due' || band === 'known') && <button type="button" className={band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={onStart} data-landscape-review="">{story !== null && band === 'known' ? T.storyButton(story.stage) : T.reviewIt}</button>}
+          {resign !== null && <button type="button" className="wk-link-btn" onClick={resign.onResign} data-landscape-resign={resign.kind}>{resign.kind === 'goal' ? T.resignGoal : T.resignPiece}</button>}
         </div>
       )}
       {!canLearn && band !== 'mountain' && <p className="cg-muted">{W.canLearnNote}</p>}

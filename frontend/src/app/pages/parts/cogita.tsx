@@ -378,3 +378,82 @@ export const cogitaLiveStatsPart = definePart<LiveStatsConfig>({
     : 'Liczby dnia i wykres punktów dziś — rośnie z każdą odpowiedzią.',
   View: later(() => import('./cogitaViews').then((m) => ({ default: m.LiveStatsView })))
 });
+
+/* == 2026-11-05: Krajobraz — die Landschaft des Wissens als eigener Baustein ===================== */
+
+/** „Co pokazuje" — was der Baustein weglassen darf. */
+const LANDSCAPE_BITS = [
+  { value: 'spacing', label: 'Wybór „Jak często pytać” (gdy uczący się może go zmienić)' },
+  { value: 'learner', label: 'Kto się uczy i gdzie zostają postępy' },
+  { value: 'search', label: 'Szukaj (w pełnym widoku)' }
+] as const;
+
+export interface LandscapeConfig {
+  readonly title: string;
+  readonly library: string;
+  /** Ein gespeicherter Widok (leer: die ganze Baza — wie der Krajobraz in „Wpisy"). */
+  readonly view: string;
+  readonly answers: string;
+  readonly rewards: string;
+  readonly hidden: ReadonlySet<string>;
+}
+
+export const cogitaLandscapePart = definePart<LandscapeConfig>({
+  kind: 'cogita-landscape',
+  example: { title: 'Krajobraz wiedzy', library: '<id-bazy-wiedzy>', view: '<id-widoku albo puste>', answers: '<id-obszaru-kursu>', rewards: '<id-nagród albo puste>', hide: 'search' },
+  label: 'Krajobraz wiedzy',
+  use: 'Krajobraz wiedzy z bazy (Cogita): w środku „Ty”, wokół pola tego, czego możesz się uczyć teraz, dalej góry — tym wyższe, im więcej brakuje; to, co umiesz, staje się lądem. Klik w pole: czytać, uczyć się, powtórzyć, ustawić cel. Uczący się wybiera tu, jak często wracają pytania — częściej, standardowo, rzadziej albo „Raz i gotowe” (raz dobrze i koniec) — o ile prowadzący nie ustalił tego dla wszystkich w ustawieniach bazy. Bez widoku — cała baza; z widokiem — tylko jego wpisy. Widzi go ten, kto może czytać bazę.',
+  box: { colSpan: 6, rowSpan: 5 },
+  fields: [
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: nazwa widoku albo „Krajobraz wiedzy”' },
+    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
+    { key: 'view', label: 'Który widok', kind: 'libraryEntry', of: 'library', entryKinds: ['view'], optional: true, none: 'cała baza wiedzy' },
+    ANSWERS,
+    REWARDS_IN_RUN,
+    { key: 'hide', label: 'Co pokazuje', kind: 'hide', options: LANDSCAPE_BITS }
+  ],
+  read: (raw: RawConfig): LandscapeConfig => ({
+    title: text(raw, 'title'), library: text(raw, 'library'), view: text(raw, 'view'), answers: text(raw, 'answers'), rewards: text(raw, 'rewards'), hidden: hiddenSet(raw)
+  }),
+  hasContent: (c) => c.library !== '',
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy.' : null),
+  strip: { title: 'Krajobraz wiedzy', open: 'Otwórz' },
+  fullscreen: true,
+  shows: (c, size) => {
+    const ask = c.hidden.has('spacing') ? '' : ' Nad nim wybór, jak często pytać (jeśli wolno).';
+    return size.height === 'strip' ? 'Nagłówek i przycisk — krajobraz rozwija się po kliknięciu.'
+      : size.height === 'tall' ? `Cały krajobraz: przybliżanie, obracanie, pola z „Ucz się”, cel i drogi${c.hidden.has('search') ? '' : ', wyszukiwanie'}.${ask}`
+        : `Mały krajobraz — do 24 pól; reszta na pełnym ekranie.${ask}`;
+  },
+  View: later(() => import('./landscapeViews').then((m) => ({ default: m.LandscapeModuleView })))
+});
+
+/* == 2026-11-05: Ustawienia nauki — die eigenen Einstellungen des Lernenden als Baustein ======== */
+
+export interface LearnSettingsConfig {
+  readonly title: string;
+  readonly library: string;
+  /** Wie im Lernbaustein derselben Seite — sonst landet die Einstellung bei einem anderen Lernenden (anderer Bereich). */
+  readonly answers: string;
+  readonly hidden: ReadonlySet<string>;
+}
+
+export const cogitaSettingsPart = definePart<LearnSettingsConfig>({
+  kind: 'cogita-settings',
+  example: { title: 'Jak często pytać', library: '<id-bazy-wiedzy>', answers: '<id-obszaru-kursu>', hide: 'learner' },
+  label: 'Ustawienia nauki',
+  use: 'Ustawienia osoby, która się tu uczy: jak często wracają pytania — częściej, standardowo, rzadziej, „Raz i gotowe” (raz dobrze i koniec) albo własne odstępy. Działa dla całej nauki z tej bazy (krajobraz, powtórki, kursy) — także na innych stronach. Jeśli prowadzący ustalił odstępy dla wszystkich (ustawienia bazy), moduł tylko pokazuje, co obowiązuje. Wskaż ten sam obszar odpowiedzi co w module nauki na stronie.',
+  box: { colSpan: 3, rowSpan: 3 },
+  fields: [
+    { key: 'title', label: 'Nagłówek', kind: 'line', hint: 'puste: „Ustawienia nauki”' },
+    { key: 'library', label: 'Z której bazy wiedzy', kind: 'knowledge' },
+    { ...ANSWERS, hint: 'ten sam co w module nauki na tej stronie — puste: jak w bazie wiedzy' },
+    { key: 'hide', label: 'Co pokazuje', kind: 'hide', options: [{ value: 'learner', label: 'Kto się uczy i gdzie zostają postępy' }] }
+  ],
+  read: (raw: RawConfig): LearnSettingsConfig => ({ title: text(raw, 'title'), library: text(raw, 'library'), answers: text(raw, 'answers'), hidden: hiddenSet(raw) }),
+  hasContent: (c) => c.library !== '',
+  missing: (c) => (c.library === '' ? 'Wybierz bazę wiedzy — tę samą, z której uczy się moduł nauki na stronie.' : null),
+  shows: (_c, size) => size.height === 'strip' ? 'Jedna linia: jak często pytać teraz i „Zmień”.'
+    : 'Jak często pytać — do wyboru jednym kliknięciem, z opisem; „Inne…” ustawia odstępy dokładnie.',
+  View: later(() => import('./landscapeViews').then((m) => ({ default: m.LearnSettingsView })))
+});

@@ -276,16 +276,20 @@ export function spacingWords(lang: Lang) {
     change: L('Zmień', 'Ändern', 'Change'),
     close: L('Zamknij', 'Schliessen', 'Close'),
     preset: L(
-      { standard: 'Standard', lighter: 'Lżej', once: 'Raz i gotowe' },
-      { standard: 'Standard', lighter: 'Leichter', once: 'Einmal und fertig' },
-      { standard: 'Standard', lighter: 'Lighter', once: 'Once and done' }
+      { often: 'Częściej', standard: 'Standard', lighter: 'Lżej', once: 'Raz i gotowe' },
+      { often: 'Öfter', standard: 'Standard', lighter: 'Leichter', once: 'Einmal und fertig' },
+      { often: 'More often', standard: 'Standard', lighter: 'Lighter', once: 'Once and done' }
     ),
     presetSays: L(
-      { standard: 'Karta wraca po kwadransie, potem coraz rzadziej (×3).', lighter: 'Dłuższe odstępy: najwcześniej po dniu, potem ×5.', once: 'Raz dobrze — i praktycznie nigdy więcej (rok, potem ×1000).' },
-      { standard: 'Die Karte kommt nach einer Viertelstunde wieder, dann immer seltener (×3).', lighter: 'Längere Abstände: frühestens nach einem Tag, dann ×5.', once: 'Einmal richtig — und praktisch nie wieder (ein Jahr, dann ×1000).' },
-      { standard: 'A card comes back after a quarter of an hour, then ever less often (×3).', lighter: 'Longer gaps: a day at the earliest, then ×5.', once: 'Right once — and practically never again (a year, then ×1000).' }
+      { often: 'Karta wraca już po 5 minutach, potem za każdym razem dwa razy później (×2).', standard: 'Karta wraca po kwadransie, potem coraz rzadziej (×3).', lighter: 'Dłuższe odstępy: najwcześniej po dniu, potem ×5.', once: 'Raz dobrze — i praktycznie nigdy więcej (rok, potem ×1000).' },
+      { often: 'Die Karte kommt schon nach 5 Minuten wieder, dann jedes Mal doppelt so spät (×2).', standard: 'Die Karte kommt nach einer Viertelstunde wieder, dann immer seltener (×3).', lighter: 'Längere Abstände: frühestens nach einem Tag, dann ×5.', once: 'Einmal richtig — und praktisch nie wieder (ein Jahr, dann ×1000).' },
+      { often: 'A card comes back after just 5 minutes, then each time twice as late (×2).', standard: 'A card comes back after a quarter of an hour, then ever less often (×3).', lighter: 'Longer gaps: a day at the earliest, then ×5.', once: 'Right once — and practically never again (a year, then ×1000).' }
     ),
     custom: L('własne', 'eigene', 'custom'),
+    /* 2026-11-05 — die kurze Wahl im Baustein „Krajobraz" (`SpacingChoice`). */
+    ask: L('Jak często pytać', 'Wie oft fragen', 'How often to ask'),
+    other: L('Inne…', 'Andere…', 'Other…'),
+    choiceSays: L('Dotyczy Twojej nauki z tej bazy — wszędzie, nie tylko tutaj.', 'Gilt für dein Lernen mit dieser Baza — überall, nicht nur hier.', 'Applies to your learning from this base — everywhere, not only here.'),
     advanced: L('Zaawansowane', 'Erweitert', 'Advanced'),
     first: L('Pierwszy odstęp', 'Erster Abstand', 'First interval'),
     firstSays: L('Po tylu czasie od dobrej odpowiedzi (także po złej, a potem dobrej) karta wraca najwcześniej.', 'So lange nach einer richtigen Antwort (auch nach falsch, dann richtig) kommt die Karte frühestens wieder.', 'How long after a correct answer (also after a wrong one followed by a correct one) the card comes back at the earliest.'),

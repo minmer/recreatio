@@ -376,3 +376,31 @@ export function flach7(seed = 7) {
   });
   return assemble(topics, { sections: names, sizes });
 }
+
+/*
+ * 2026-11-04 (Prompt 16) — STERN (wie Bosko in Wahrheit): eine Einführung, auf der acht gleichrangige Etappen aufbauen
+ * (je 6–9 Einheiten, kurze Ketten mit Gabeln), dazu ein paar Einheiten, die aus zwei Etappen schöpfen. Das Fundament ist
+ * nur die Einführung mit den ersten Einheiten der Etappen.
+ */
+export function stern8(seed = 16) {
+  const rnd = random(seed);
+  const topics = [{ id: 'st-0', label: 'Krąg czytelników. Kim jest ksiądz Bosko?', name: 'Wstęp', needs: [] }];
+  const stages = [];
+  for (let s = 0; s < 8; s += 1) {
+    const size = rnd.int(6, 9);
+    const units = [];
+    for (let k = 0; k < size; k += 1) {
+      const idx = topics.length;
+      const needs = k === 0 ? [0] : [units[k - 1 - (k >= 2 && rnd() < 0.3 ? 1 : 0)]];
+      if (k >= 3 && rnd() < 0.2) needs.push(units[rnd.int(0, k - 2)]);
+      topics.push({ id: `st-${s + 1}-${k + 1}`, label: `Etap ${s + 1}: ${k + 1}`, name: `Etap ${s + 1}`, needs });
+      units.push(idx);
+    }
+    stages.push(units);
+  }
+  for (let c = 0; c < 4; c += 1) {
+    const a = stages[(2 * c) % 8]; const b = stages[(2 * c + 1) % 8];
+    topics.push({ id: `st-x${c + 1}`, label: `Etap ${2 * c + 1} i ${2 * c + 2}`, name: `Etap ${2 * c + 2}`, needs: [a[a.length - 1], b[b.length - 1]] });
+  }
+  return assemble(topics, { stages: 8 });
+}

@@ -61,6 +61,9 @@ export interface WorldLayout {
   readonly chain: readonly (readonly string[])[];
   /** Freier Boden um die Flächen (ein Platz breit) — und das Zuhause in der Mitte. */
   readonly ground: readonly WorldCell[];
+  /** 2026-11-04 (Prompt 16) — das Startthema (das Haus in der Mitte, −1 ohne Themen) und das Fundament um es. */
+  readonly home: number;
+  readonly foundation: readonly number[];
   readonly ms: number;
 }
 
@@ -72,8 +75,6 @@ const unkey = (k: number): [number, number] => [Math.floor(k / 16384) - 8192, (k
 /** Der Winkel eines Platzes um das Zuhause (Grad, 0–360). */
 const angleOf = (q: number, r: number): number => { const c = hexCenter(q, r); const a = (Math.atan2(c.y, c.x) * 180) / Math.PI; return a < 0 ? a + 360 : a; };
 const angleGap = (a: number, b: number): number => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
-/** Ist der Winkel `a` im Keil [a0, a0 + span)? */
-const inWedge = (a: number, a0: number, span: number): boolean => (span >= 360 - 1e-9 ? true : ((a - a0 + 720) % 360) < span);
 /** Das Mittel von Winkeln (über Einheitsvektoren). */
 const meanAngle = (list: readonly number[]): number | null => {
   if (list.length === 0) return null;
@@ -123,11 +124,9 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
   const hasRegions = tree !== null && tree.levels > 0 && tree.top.length > 0;
   const chain = g.ids.map((id) => (tree === null ? [] : tree.assignment[id] ?? []));
 
-  /* -- Die Keile: oberste Gebiete nach Verbindungen, dann ihre Teilgebiete im Keil ------------------------------- */
-  const wedgeOf = new Map<string, Wedge>();
+  /* -- Gebiete: wer wie viel miteinander verbunden ist (für die Reihenfolge der Keile bei Gleichstand) -------------- */
   const regionTopics = (k: string) => tree?.regions.get(k)?.topics ?? [];
   const regionRank = (k: string) => Math.min(...regionTopics(k).map(rank), Number.POSITIVE_INFINITY);
-  /* Verbindungen zwischen Gebieten (je Ebene: unter Geschwistern), über die Ketten der Themen. */
   const linkCount = new Map<string, number>();
   g.needs.forEach((list, t) => {
     for (const p of list) {
@@ -141,66 +140,76 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
     }
   });
   const links = (a: string, b: string) => linkCount.get(a < b ? `${a}|${b}` : `${b}|${a}`) ?? 0;
-  const top: string[] = hasRegions ? orderRegions(tree!.top, links, regionRank) : [];
-  /* Der Keil eines Gebiets: seine Geschwister in der Reihenfolge ihrer Verbindungen, die Weite nach der Grösse. */
-  const split = (keys: readonly string[], w: Wedge) => {
-    const total = keys.reduce((s, k) => s + regionTopics(k).length, 0);
-    let a = w.a0;
-    for (const k of keys) {
-      const span = (w.span * regionTopics(k).length) / Math.max(1, total);
-      wedgeOf.set(k, { a0: a % 360, span });
-      a += span;
-    }
-  };
-  if (hasRegions) {
-    /* Der erste Keil beginnt so, dass das erste Gebiet oben in der Mitte steht (die Kamera zeigt es zuerst). */
-    const firstSpan = (360 * regionTopics(top[0]).length) / Math.max(1, n);
-    split(top, { a0: (90 - firstSpan / 2 + 360) % 360, span: 360 });
-    /* Teilgebiete: eine Ebene darunter (tiefer würden die Keile zu Strahlen). */
-    for (const k of top) {
-      const r = tree!.regions.get(k)!;
-      if (r.level <= 1 || r.children.length < 2) continue;
-      const kids = orderRegions(r.children.filter((c) => tree!.regions.has(c)), links, regionRank);
-      split(kids, wedgeOf.get(k)!);
-    }
-  }
-  /* Die Richtung jedes Gebiets bis zu den Blättern (nur als Ziel, keine Grenze): seine Geschwister teilen den Keil darüber. */
-  const dirOfRegion = new Map<string, number>();
-  if (hasRegions) {
-    const walk = (keys: readonly string[], w: Wedge, depth: number) => {
-      if (depth > 12) return;
-      const ordered = orderRegions(keys.filter((k) => tree!.regions.has(k)), links, regionRank);
-      const total = ordered.reduce((s, k) => s + regionTopics(k).length, 0);
-      let a = w.a0;
-      for (const k of ordered) {
-        const span = (w.span * regionTopics(k).length) / Math.max(1, total);
-        dirOfRegion.set(k, (a + span / 2) % 360);
-        const r = tree!.regions.get(k)!;
-        if (r.level > 1) walk(r.children, { a0: a % 360, span }, depth + 1);
-        a += span;
-      }
-    };
-    for (const k of top) { const r = tree!.regions.get(k)!; const w = wedgeOf.get(k)!; dirOfRegion.set(k, (w.a0 + w.span / 2) % 360); if (r.level > 1) walk(r.children, w, 0); }
-  }
-  const leafDir = (t: number): number | null => { const c = chain[t]; return c.length === 0 ? null : dirOfRegion.get(c[c.length - 1]) ?? null; };
-  /* Der Keil eines Themas: das tiefste Gebiet mit eigenem Keil in seiner Kette. */
-  const topicWedge = (t: number): Wedge => {
-    let w: Wedge = { a0: 0, span: 360 };
-    for (const k of chain[t]) { const x = wedgeOf.get(k); if (x !== undefined) w = x; }
-    return w;
-  };
+  const dependents: number[][] = g.ids.map(() => []);
+  g.needs.forEach((list, t) => { for (const p of list) dependents[p]?.push(t); });
 
   /*
-    -- Plätze: Thema für Thema in der Reihenfolge des Lernens, als wachsende Flächen -----------------------------------
-    Jede Stufe hat ihr Band von Ringen: so viele Ringe um das Zuhause, wie die Themen bis zu dieser Stufe brauchen (eine
-    flache Baza: mehrere Ringe je Stufe, eine tiefe: ein Ring je Stufe — sie steigt nach aussen). Ein Thema wächst an die
-    Fläche seines Gebiets an (noch leer: an die des Gebiets darüber, sonst an den innersten freien Platz seines Keils), am
-    liebsten neben das, was es braucht; nie näher am Zuhause als etwas, das es braucht. Bewertet wird jeder freie Platz am
-    Rand dieser Flächen: ausserhalb seines Bandes, fern von seinen Voraussetzungen, quer zu seiner Richtung, ausserhalb
-    seines Keils kostet; viele belegte Nachbarn sparen (keine Löcher).
+    -- 2026-11-04 (Prompt 16, 2) — WIE VIEL VON DER BAZA DURCH EIN THEMA GEHT: je Thema, wie viele Themen (direkt oder über
+    andere) darauf aufbauen. Bitmengen in der Reihenfolge der Stufen, von aussen nach innen (Kreise: die Kante zurück zählt
+    nicht).
   */
+  const words = (n + 31) >>> 5;
+  const below = new Uint32Array(n * words);
+  const byDepthDown = g.ids.map((_, t) => t).sort((a, b) => whole[b] - whole[a] || b - a);
+  for (const t of byDepthDown) {
+    for (const p of g.needs[t] ?? []) {
+      if (whole[p] >= whole[t]) continue;
+      const pb = p * words; const tb = t * words;
+      for (let w = 0; w < words; w += 1) below[pb + w] |= below[tb + w];
+      below[pb + (t >>> 5)] |= 1 << (t & 31);
+    }
+  }
+  const reach = new Int32Array(n);
+  for (let t = 0; t < n; t += 1) { let c = 0; const tb = t * words; for (let w = 0; w < words; w += 1) { let x = below[tb + w]; while (x !== 0) { x &= x - 1; c += 1; } } reach[t] = c; }
+
+  /*
+    -- Schritt 1: was am Haus liegt. Das Startthema: das Thema ohne Voraussetzungen, auf dem am meisten aufbaut (das
+    allgemeinste); der erste Ring: die anderen Themen ohne Voraussetzungen und die, die nur solche brauchen — die
+    tragendsten zuerst, höchstens sechs.
+  */
+  const roots = g.ids.map((_, t) => t).filter((t) => (g.needs[t] ?? []).length === 0);
+  const pool = roots.length > 0 ? roots : g.ids.map((_, t) => t);
+  const start = n === 0 ? -1 : pool.reduce((b, t) => (reach[t] > reach[b] || (reach[t] === reach[b] && rank(t) < rank(b)) ? t : b), pool[0]);
+  const rootSet = new Set(roots);
+  const ringOne = g.ids.map((_, t) => t)
+    .filter((t) => t !== start && ((g.needs[t] ?? []).length === 0 || (g.needs[t] ?? []).every((p) => rootSet.has(p))) && ((g.needs[t] ?? []).length === 0 || (g.needs[t] ?? []).includes(start)))
+    .sort((a, b) => reach[b] - reach[a] || rank(a) - rank(b))
+    .slice(0, 12);
+  /*
+    -- Schritt 2: das Fundament — die Themen nahe dem Start, auf denen der grösste Teil der Baza aufbaut (mindestens ein
+    Drittel), mit allem, was sie brauchen; dazu das Haus und der erste Ring. Höchstens ein Viertel der Baza (die tragendsten
+    zuerst). Tief: oft ein ganzes Gebiet; flach: nur der Start und was direkt darauf folgt.
+  */
+  const inFoundation = new Uint8Array(n);
+  const foundation: number[] = [];
+  const cap = Math.max(7, Math.round(n * 0.25));
+  const addWithNeeds = (t: number): boolean => {
+    const add: number[] = [];
+    const stack = [t];
+    const seen = new Set<number>();
+    while (stack.length > 0) { const u = stack.pop()!; if (seen.has(u) || inFoundation[u] === 1) continue; seen.add(u); add.push(u); for (const p of g.needs[u] ?? []) if (whole[p] < whole[u]) stack.push(p); }
+    if (foundation.length + add.length > cap && foundation.length > 0) return false;
+    for (const u of add) { inFoundation[u] = 1; foundation.push(u); }
+    return true;
+  };
+  if (start >= 0) addWithNeeds(start);
+  for (const t of ringOne) addWithNeeds(t);
+  const carrying = g.ids.map((_, i) => i).filter((i) => reach[i] >= (n - 1) / 3).sort((a, b) => reach[b] - reach[a] || rank(a) - rank(b));
+  for (const t of carrying) addWithNeeds(t);
+  /* Ein Blatt-Gebiet, das schon zur Hälfte tragend ist, kommt ganz ins Fundament (so ist es eine Fläche, kein halbes Gebiet). */
+  {
+    const leafKey = (t: number) => chain[t].join('>');
+    const tally = new Map<string, number[]>();
+    for (let t = 0; t < n; t += 1) { const l = tally.get(leafKey(t)) ?? []; l.push(t); tally.set(leafKey(t), l); }
+    for (const [k, ts] of tally) {
+      if (k === '' || ts.length < 2) continue;
+      const share = ts.filter((t) => inFoundation[t] === 1).length / ts.length;
+      if (share >= 0.5 && share < 1) for (const t of [...ts].sort((a, b) => whole[a] - whole[b])) addWithNeeds(t);
+    }
+  }
+
+  /* -- Plätze ------------------------------------------------------------------------------------------------------ */
   const taken = new Map<number, number>();
-  taken.set(key(0, 0), -1);
   const place = new Int32Array(n * 2);
   const ringOf = new Int32Array(n).fill(-1);
   const angle = new Float64Array(n);
@@ -214,127 +223,330 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
     ringCells.set(r, list);
     return list;
   };
-  /* Die Bänder: bis Stufe d liegen N(≤ d) Themen — so viele Ringe R, dass 3R² + 3R ≥ N(≤ d). */
-  const perDepth = new Map<number, number>();
-  for (let t = 0; t < n; t += 1) perDepth.set(whole[t], (perDepth.get(whole[t]) ?? 0) + 1);
-  const bandTo = new Map<number, number>();
-  {
-    let sum = 0;
-    for (const d of [...perDepth.keys()].sort((a, b) => a - b)) {
-      sum += perDepth.get(d)!;
-      bandTo.set(d, Math.max(1, Math.ceil((-3 + Math.sqrt(9 + 12 * sum)) / 6)));
-    }
-  }
-  const depths = [...bandTo.keys()].sort((a, b) => a - b);
-  const bandFrom = new Map<number, number>();
-  depths.forEach((d, i) => bandFrom.set(d, i === 0 ? 1 : Math.min(bandTo.get(d)!, bandTo.get(depths[i - 1])! + 1)));
-  /* Der Rand jeder Fläche (je Gebiet, für alle Gebiete der Kette; ohne Gebiete eine Fläche ''): freie Nachbarplätze. */
+  /* Die Scheibe: so viele Ringe, wie die Baza braucht (3R² + 3R + 1 ≥ n) — weiter hinaus nur im Notfall. */
+  const disk = Math.max(1, Math.ceil((-3 + Math.sqrt(Math.max(0, 9 - 12 * (1 - n)))) / 6));
+  const freeIn = new Int32Array(disk + 2);
+  for (let r = 1; r <= disk + 1; r += 1) freeIn[r] = 6 * r;
   const rim = new Map<string, Set<number>>();
-  const grown = new Set<string>();
   const occupied = (k: number) => taken.has(k);
   const neighbourKeys = (q: number, r: number) => NEIGHBOURS.map(([dq, dr]) => key(q + dq, r + dr));
   const put = (t: number, q: number, r: number) => {
     const k = key(q, r);
     taken.set(k, t); place[t * 2] = q; place[t * 2 + 1] = r; ringOf[t] = hexDistance(0, 0, q, r); angle[t] = angleOf(q, r);
-    const areas = chain[t].length === 0 ? [''] : chain[t];
-    for (const a of areas) {
-      grown.add(a);
+    if (ringOf[t] <= disk + 1 && ringOf[t] > 0) freeIn[ringOf[t]] -= 1;
+    for (const a of chain[t].length === 0 ? [''] : chain[t]) {
       let s = rim.get(a);
       if (s === undefined) { s = new Set(); rim.set(a, s); }
       s.delete(k);
       for (const nk of neighbourKeys(q, r)) if (!occupied(nk)) s.add(nk);
     }
   };
-  /*
-    Gebiet für Gebiet (die Blätter, nach ihrer frühesten Stufe), darin Thema für Thema nach Stufe: so wächst jede Fläche
-    zusammen, bevor die nächste neben ihr beginnt (sonst schlössen spätere Gebiete eine Fläche ein, die noch wachsen muss).
-  */
-  const dependents: number[][] = g.ids.map(() => []);
-  g.needs.forEach((list, t) => { for (const p of list) dependents[p]?.push(t); });
-  const leafKey = (t: number) => chain[t][chain[t].length - 1] ?? '';
-  const leafStart = new Map<string, number>();
-  for (let t = 0; t < n; t += 1) { const k = leafKey(t); leafStart.set(k, Math.min(leafStart.get(k) ?? Number.POSITIVE_INFINITY, whole[t] * 1e6 + rank(t))); }
+  const lowestFree = () => { let r = 1; while (r <= disk && freeIn[r] <= 0) r += 1; return r; };
   /*
     2026-11-04 (Prompt 15, 1) — EINMAL GERECHNET, GESPEICHERT, WIEDER BENUTZT: stehen alle Themen schon an gespeicherten,
-    verschiedenen Plätzen (ausser dem Zuhause), gelten genau diese — nichts wird neu gelegt.
+    verschiedenen Plätzen, gelten genau diese — nichts wird neu gelegt.
   */
   const fixed = previous !== undefined && previous.size >= n && (() => {
-    const seen = new Set<number>([key(0, 0)]);
+    const seen = new Set<number>();
     for (const id of g.ids) { const c = previous.get(id); if (c === undefined || seen.has(key(c[0], c[1]))) return false; seen.add(key(c[0], c[1])); }
     return true;
   })();
   if (fixed) for (let t = 0; t < n; t += 1) { const c = previous!.get(g.ids[t])!; put(t, c[0], c[1]); }
-  /* Nach einer Änderung: wer seinen gespeicherten Platz noch hat (frei, nicht das Zuhause), steht zuerst dort und bleibt dort. */
+  /* Nach einer Änderung: wer seinen gespeicherten Platz noch hat, steht zuerst dort und bleibt dort (das Haus bleibt in der Mitte). */
   const seeded = new Uint8Array(n);
   if (fixed) seeded.fill(1);
-  else if (previous !== undefined) for (let t = 0; t < n; t += 1) { const c = previous.get(g.ids[t]); if (c === undefined || taken.has(key(c[0], c[1]))) continue; put(t, c[0], c[1]); seeded[t] = 1; }
-  const order = fixed ? [] : g.ids.map((_, t) => t).sort((a, b) => leafStart.get(leafKey(a))! - leafStart.get(leafKey(b))! || (leafKey(a) < leafKey(b) ? -1 : leafKey(a) > leafKey(b) ? 1 : 0) || whole[a] - whole[b] || rank(a) - rank(b) || a - b);
+  else if (previous !== undefined) for (let t = 0; t < n; t += 1) { const c = previous.get(g.ids[t]); if (c === undefined || taken.has(key(c[0], c[1])) || ((c[0] === 0 && c[1] === 0) !== (t === start))) continue; put(t, c[0], c[1]); seeded[t] = 1; }
+
+  /* -- Das Haus und das Fundament: das Startthema in der Mitte, der erste Ring gleichmässig darum, dann rund nach aussen. */
+  if (!fixed && start >= 0 && seeded[start] === 0 && !taken.has(key(0, 0))) put(start, 0, 0);
+  /*
+    Im Fundament bekommt jedes Gebiet, das darin Themen hat, eine Richtung: rund um das Haus in der Reihenfolge ihrer
+    Verbindungen, so breit wie seine Themen darin — so liegen die Fundament-Themen eines Gebiets beisammen, und sein Keil
+    setzt dort an.
+  */
+  const outerOf = (t: number) => chain[t][0] ?? '';
+  const fCount = new Map<string, number>();
+  for (const t of foundation) if (t !== start) fCount.set(outerOf(t), (fCount.get(outerOf(t)) ?? 0) + 1);
+  const fMid = new Map<string, number>();
+  {
+    const keys = orderRegions([...fCount.keys()], links, regionRank);
+    const total = keys.reduce((a, k) => a + fCount.get(k)!, 0);
+    let acc = 0;
+    for (const k of keys) { const sp = (360 * fCount.get(k)!) / Math.max(1, total); fMid.set(k, (90 + acc + sp / 2) % 360); acc += sp; }
+  }
+  if (!fixed) {
+    const nth = new Map<string, number>();
+    const ringOneOrdered = ringOne.filter((t) => seeded[t] === 0).sort((a, b) => (fMid.get(outerOf(a)) ?? 0) - (fMid.get(outerOf(b)) ?? 0) || reach[b] - reach[a]);
+    ringOneOrdered.forEach((t, _i, all) => {
+      const k = outerOf(t); const j = nth.get(k) ?? 0; nth.set(k, j + 1);
+      const want = ((fMid.get(k) ?? 90) + (j % 2 === 0 ? 1 : -1) * Math.ceil(j / 2) * 22 + 360) % 360;
+      let best: [number, number, number] | null = null; let gap = Infinity;
+      /* Mehr als sechs: wer im ersten Ring keinen Platz in seiner Richtung findet, steht im zweiten dahinter. */
+      for (const rg of all.length <= 6 ? [1] : [1, 2]) {
+        for (const c of cellsOfRing(rg)) { if (taken.has(key(c[0], c[1]))) continue; const d = angleGap(c[2], want) + (rg - 1) * 25; if (d < gap) { gap = d; best = c; } }
+      }
+      if (best !== null) put(t, best[0], best[1]);
+    });
+  }
+  /* Der Platz eines Themas: frei, an der Karte, möglichst innen; die Wertung entscheidet unter den Kandidaten. */
+  const placeBy = (t: number, score: (q: number, r: number) => number, extra: Iterable<number>) => {
+    const cand = new Set<number>(extra);
+    for (const p of g.needs[t] ?? []) if (ringOf[p] >= 0) for (const nk of neighbourKeys(place[p * 2], place[p * 2 + 1])) if (!occupied(nk)) cand.add(nk);
+    const low = lowestFree();
+    for (const r of [low, low + 1]) for (const c of cellsOfRing(r)) { const k = key(c[0], c[1]); if (occupied(k)) continue; if (neighbourKeys(c[0], c[1]).some(occupied)) cand.add(k); }
+    let best = -1; let bs = Infinity;
+    for (const k of cand) { if (occupied(k)) continue; const [q, r] = unkey(k); const s = score(q, r); if (s < bs - 1e-9) { bs = s; best = k; } }
+    if (best < 0) {
+      /* Nichts an der Karte (sollte nicht vorkommen): der innerste freie Platz. */
+      for (let r = 1; best < 0 && r < disk + 4000; r += 1) for (const c of cellsOfRing(r)) { const k = key(c[0], c[1]); if (!occupied(k)) { best = k; break; } }
+    }
+    const [q, r] = unkey(best);
+    put(t, q, r);
+  };
+  const occupiedAround = (q: number, r: number) => { let k = 0; for (const nk of neighbourKeys(q, r)) if (occupied(nk)) k += 1; return k; };
+  const nearNeeds = (t: number, q: number, r: number) => { let near = Infinity; for (const p of g.needs[t] ?? []) if (ringOf[p] >= 0) near = Math.min(near, hexDistance(q, r, place[p * 2], place[p * 2 + 1])); return near; };
+  const foundationOrder = foundation.filter((t) => ringOf[t] < 0).sort((a, b) => whole[a] - whole[b] || reach[b] - reach[a] || rank(a) - rank(b));
+  for (const t of foundationOrder) {
+    /* Rund um das Haus: Ring für Ring, neben dem, was es braucht. */
+    /* … und neben seinem eigenen Gebiet im Fundament (so hängt das Gebiet am Fundament mit dem Rest zusammen). */
+    const mineF = (q: number, r: number) => { let k = 0; for (const nk of neighbourKeys(q, r)) { const u = taken.get(nk); if (u !== undefined && u !== start && outerOf(u) === outerOf(t)) k += 1; } return k; };
+    const hasMineF = foundation.some((u) => u !== t && u !== start && ringOf[u] >= 0 && outerOf(u) === outerOf(t));
+    placeBy(t, (q, r) => { const ring = hexDistance(0, 0, q, r); const near = nearNeeds(t, q, r); const dir = fMid.get(outerOf(t)); const off = dir === undefined || ring === 0 ? 0 : 0.8 * (angleGap(angleOf(q, r), dir) / (360 / (6 * ring))); return ring * 6 + off + (near <= 1 || near === Infinity ? 0 : 2 + near) + (hasMineF && mineF(q, r) === 0 ? 4 : 0) - 0.5 * occupiedAround(q, r); }, []);
+  }
+
+  /*
+    -- Schritt 3: die Keile. Jedes oberste Gebiet (ohne seine Themen im Fundament) beginnt am Rand des Fundaments auf der
+    Seite, wo seine Voraussetzungen liegen: seine Richtung ist das Mittel der Richtungen der Fundament-Themen, aus denen
+    seine Themen (direkt oder über andere) schöpfen. Rund um den Kreis nach dieser Richtung geordnet, die Weite nach der
+    Grösse, das Ganze so gedreht, dass jedes Gebiet möglichst in seiner Richtung bleibt.
+  */
+  const pull = new Float64Array(n * 2);
+  for (const t of g.ids.map((_, i) => i).sort((a, b) => whole[a] - whole[b] || a - b)) {
+    if (ringOf[t] >= 0 && inFoundation[t] === 1) {
+      if (ringOf[t] === 0) continue;
+      pull[t * 2] = Math.cos((angle[t] * Math.PI) / 180); pull[t * 2 + 1] = Math.sin((angle[t] * Math.PI) / 180);
+      continue;
+    }
+    let x = 0; let y = 0;
+    for (const p of g.needs[t] ?? []) { if (whole[p] >= whole[t]) continue; x += pull[p * 2]; y += pull[p * 2 + 1]; }
+    const l = Math.hypot(x, y);
+    if (l > 1e-9) { pull[t * 2] = x / l; pull[t * 2 + 1] = y / l; }
+  }
+  const outerKeys = [...new Set(g.ids.map((_, t) => t).filter((t) => inFoundation[t] === 0).map(outerOf))];
+  const size = new Map<string, number>(); const vec = new Map<string, [number, number]>();
+  for (let t = 0; t < n; t += 1) { if (inFoundation[t] === 1) continue; const k = outerOf(t); size.set(k, (size.get(k) ?? 0) + 1); const v = vec.get(k) ?? [0, 0]; v[0] += pull[t * 2]; v[1] += pull[t * 2 + 1]; vec.set(k, v); }
+  const prefer = new Map<string, number | null>();
+  for (const k of outerKeys) { const v = vec.get(k)!; prefer.set(k, Math.hypot(v[0], v[1]) < 1e-6 ? null : ((Math.atan2(v[1], v[0]) * 180) / Math.PI + 360) % 360); }
+  /* Ohne eigene Richtung: neben das Gebiet, mit dem es am meisten verbunden ist (sonst die Reihenfolge des Autors). */
+  const placedKeys = outerKeys.filter((k) => prefer.get(k) !== null).sort((a, b) => prefer.get(a)! - prefer.get(b)! || regionRank(a) - regionRank(b));
+  const loose = orderRegions(outerKeys.filter((k) => prefer.get(k) === null), links, regionRank);
+  const ring: string[] = [...placedKeys];
+  for (const k of loose) {
+    let at = ring.length; let bw = -1;
+    ring.forEach((o, i) => { const w = links(o, k); if (w > bw) { bw = w; at = i + 1; } });
+    ring.splice(at, 0, k);
+  }
+  const totalOuter = ring.reduce((s, k) => s + (size.get(k) ?? 0), 0);
+  const wedgeOf = new Map<string, Wedge>();
+  {
+    const mids: { k: string; mid: number; w: number }[] = [];
+    let acc = 0;
+    for (const k of ring) { const sp = (360 * (size.get(k) ?? 0)) / Math.max(1, totalOuter); mids.push({ k, mid: acc + sp / 2, w: sp }); acc += sp; }
+    let sx = 0; let sy = 0;
+    for (const m of mids) { const want = prefer.get(m.k); if (want === null || want === undefined) continue; sx += m.w * Math.cos(((want - m.mid) * Math.PI) / 180); sy += m.w * Math.sin(((want - m.mid) * Math.PI) / 180); }
+    const turn = Math.hypot(sx, sy) < 1e-9 ? 90 - (mids[0]?.mid ?? 0) : (Math.atan2(sy, sx) * 180) / Math.PI;
+    for (const m of mids) wedgeOf.set(m.k, { a0: (((m.mid - m.w / 2 + turn) % 360) + 360) % 360, span: m.w });
+  }
+  const top: string[] = hasRegions ? [...ring.filter((k) => k !== '' && tree!.regions.has(k)), ...tree!.top.filter((k) => !ring.includes(k))] : [];
+
+  /*
+    -- Schritt 4: eine geschlossene Fläche. Erst das Land jedes Gebiets, dann seine Säulen.
+    Das Land: alle obersten Gebiete wachsen zugleich vom Rand des Fundaments nach aussen, Ring für Ring, jedes nur an sein
+    eigenes Land (ein zusammenhängendes Stück), bis es so viele Plätze hat wie Themen; wer kleiner ist, ist eher fertig,
+    die anderen werden breiter statt länger. Wer eingeschlossen wird, bevor er fertig ist, nimmt dem Nachbarn einen
+    Randplatz (der wächst dafür anderswo weiter). Im Land eines Gebiets teilen sich seine Teilgebiete ebenso auf, bis zu
+    den Blättern. Die Scheibe ist so gross wie nötig — so bleibt kein Loch und kein Arm.
+    Die Säulen: Thema für Thema in der Reihenfolge der Stufen über alle Gebiete, jedes auf einen Platz seines Blattes,
+    so nah am Haus wie erlaubt (nie näher als das, was es braucht), neben dem, was es braucht.
+  */
+  /* Haus und Fundament stehen fest (die späteren Runden tauschen sie nicht). */
+  if (!fixed) for (const t of foundation) seeded[t] = 1;
+  const order = fixed ? [] : g.ids.map((_, t) => t).filter((t) => ringOf[t] < 0).sort((a, b) => whole[a] - whole[b] || rank(a) - rank(b) || a - b);
+  const territory = new Map<string, Set<number>>();
+  /* Die Gruppe eines Themas auf einer Ebene: der Anfang seiner Kette; wer direkt im Gebiet steht (ohne Teilgebiet): eigene Gruppe „·“. */
+  const groupAt = (t: number, depth: number) => (chain[t].length === 0 ? '·' : chain[t].length <= depth ? `${chain[t].join('>')}>·` : chain[t].slice(0, depth + 1).join('>'));
+  const landOf = (t: number) => { const c = chain[t].join('>'); return chain[t].length === 0 ? '·' : territory.has(c) ? c : `${c}>·`; };
+  const grow = (avail: Set<number>, groups: { id: string; need: number; prefer: number | null }[], seedNear: (k: number, id: string) => number, preOwned?: ReadonlyMap<string, readonly number[]>): Map<string, Set<number>> => {
+    const out = new Map<string, Set<number>>();
+    const ownerOf = new Map<number, string>();
+    const frontier = new Map<string, Set<number>>();
+    const need = new Map(groups.map((x) => [x.id, x.need] as const));
+    const preferOf = new Map(groups.map((x) => [x.id, x.prefer] as const));
+    const claim = (id: string, k: number) => {
+      ownerOf.set(k, id);
+      let mine = out.get(id); if (mine === undefined) { mine = new Set(); out.set(id, mine); } mine.add(k);
+      need.set(id, need.get(id)! - 1);
+      let f = frontier.get(id); if (f === undefined) { f = new Set(); frontier.set(id, f); }
+      f.delete(k);
+      const [q, r] = unkey(k);
+      for (const nk of neighbourKeys(q, r)) if (avail.has(nk) && !ownerOf.has(nk)) f.add(nk);
+    };
+    const value = (id: string, k: number) => {
+      const [q, r] = unkey(k);
+      const ringNow = hexDistance(0, 0, q, r);
+      const pref = preferOf.get(id) ?? null;
+      const cellDeg = 360 / (6 * Math.max(1, ringNow));
+      let own = 0;
+      for (const nk of neighbourKeys(q, r)) if (ownerOf.get(nk) === id) own += 1;
+      return ringNow * 3 + (pref === null ? 0 : 0.5 * (angleGap(angleOf(q, r), pref) / cellDeg)) - 0.9 * own;
+    };
+    /* Die Samen: die grössten zuerst, jeder am besten Platz an seinem Anfang (oben: am Rand des Fundaments). */
+    /* Was einem Gebiet schon gehört (seine Themen im Fundament): sein Land wächst von dort aus. */
+    for (const [id, ks] of preOwned ?? []) {
+      if (!need.has(id)) continue;
+      let f = frontier.get(id); if (f === undefined) { f = new Set(); frontier.set(id, f); }
+      for (const k of ks) { ownerOf.set(k, id); const [q, r] = unkey(k); for (const nk of neighbourKeys(q, r)) if (avail.has(nk)) f.add(nk); }
+    }
+    /* Die Samen auseinander (sonst schliessen sie einander gleich ein): mindestens so weit, wie ein Stück breit wird. */
+    const seeds: [number, number][] = [];
+    /* Oben sitzen alle Samen am schmalen Rand des Fundaments: dort reicht ein Platz Abstand. */
+    const minSep = preOwned !== undefined ? 2 : Math.max(2, Math.floor(Math.sqrt(avail.size / Math.max(1, groups.length)) * 0.8));
+    for (const x of [...groups].sort((a, b) => b.need - a.need || (a.id < b.id ? -1 : 1))) {
+      if (x.need <= 0 || (frontier.get(x.id)?.size ?? 0) > 0) continue;
+      let best = -1; let bs = Infinity;
+      for (const k of avail) {
+        if (ownerOf.has(k)) continue;
+        const [q, r] = unkey(k);
+        let close = Infinity;
+        for (const [a, b] of seeds) close = Math.min(close, hexDistance(q, r, a, b));
+        const s = value(x.id, k) + seedNear(k, x.id) + (close < minSep ? 12 * (minSep - close) : 0);
+        if (s < bs) { bs = s; best = k; }
+      }
+      if (best >= 0) { claim(x.id, best); seeds.push(unkey(best)); }
+    }
+    /* Reihum: wer im Verhältnis am wenigsten hat, nimmt seinen besten Randplatz. */
+    const total = new Map(groups.map((x) => [x.id, Math.max(1, x.need)] as const));
+    let guard = 0;
+    for (;;) {
+      const open = groups.filter((x) => (need.get(x.id) ?? 0) > 0);
+      if (open.length === 0 || guard > 8 * avail.size + 64) break;
+      guard += 1;
+      open.sort((a, b) => (1 - need.get(a.id)! / total.get(a.id)!) - (1 - need.get(b.id)! / total.get(b.id)!) || (a.id < b.id ? -1 : 1));
+      const x = open[0];
+      const f = frontier.get(x.id) ?? new Set<number>();
+      let best = -1; let bs = Infinity;
+      for (const k of f) { if (ownerOf.has(k)) { f.delete(k); continue; } const s = value(x.id, k); if (s < bs) { bs = s; best = k; } }
+      if (best >= 0) { claim(x.id, best); continue; }
+      /* Eingeschlossen: einen Randplatz vom Nachbarn, der dabei ganz bleibt (er wächst dafür weiter). */
+      const mine = out.get(x.id) ?? new Set<number>();
+      let stole = false;
+      for (const k of mine) {
+        const [q, r] = unkey(k);
+        for (const nk of neighbourKeys(q, r)) {
+          const y = ownerOf.get(nk);
+          if (y === undefined || y === x.id) continue;
+          const theirs = out.get(y)!;
+          /* Nur von einem, der anderswo weiterwachsen kann (sonst nähmen sich zwei denselben Platz hin und her). */
+          if (theirs.size <= 1 || ![...(frontier.get(y) ?? [])].some((m) => m !== nk && !ownerOf.has(m))) continue;
+          theirs.delete(nk);
+          const first = theirs.values().next().value as number;
+          const seen = new Set([first]); const st = [first];
+          while (st.length > 0) { const c = st.pop()!; const [a, b] = unkey(c); for (const m of neighbourKeys(a, b)) if (theirs.has(m) && !seen.has(m)) { seen.add(m); st.push(m); } }
+          if (seen.size !== theirs.size) { theirs.add(nk); continue; }
+          ownerOf.delete(nk);
+          need.set(y, need.get(y)! + 1);
+          const fy = frontier.get(y)!; fy.add(nk);
+          claim(x.id, nk);
+          stole = true;
+          break;
+        }
+        if (stole) break;
+      }
+      if (stole) continue;
+      /* Gar nichts geht: der nächste freie Platz (selten). */
+      for (const k of avail) if (!ownerOf.has(k)) { claim(x.id, k); stole = true; break; }
+      if (!stole) break;
+    }
+    return out;
+  };
+  if (!fixed) {
+    /* Die Plätze der Scheibe ohne das, was schon steht (Haus, Fundament, gespeicherte Plätze). */
+    const free = new Set<number>();
+    const restCount = order.length;
+    let rings = disk;
+    const capOf = (r: number) => 3 * r * r + 3 * r + 1;
+    while (capOf(rings) - taken.size < restCount) rings += 1;
+    for (let r = 1; r <= rings; r += 1) for (const c of cellsOfRing(r)) { const k = key(c[0], c[1]); if (!taken.has(k)) free.add(k); }
+    /* Ebene für Ebene: die obersten Gebiete im freien Land, dann in jedem Land seine Teilgebiete. */
+    const split = (avail: Set<number>, topics: readonly number[], depth: number, preferBase: number | null, seedNear: (k: number, id: string) => number) => {
+      const groups = new Map<string, number[]>();
+      for (const t of topics) { const id = groupAt(t, depth); const l = groups.get(id) ?? []; l.push(t); groups.set(id, l); }
+      const list = [...groups.entries()].map(([id, ts]) => {
+        let x = 0; let y = 0; for (const t of ts) { x += pull[t * 2]; y += pull[t * 2 + 1]; }
+        const w = depth === 0 ? wedgeOf.get(id.split('>')[0]) : undefined;
+        const pref = w !== undefined ? (w.a0 + w.span / 2) % 360 : Math.hypot(x, y) > 1e-6 ? ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360 : preferBase;
+        return { id, need: ts.length, prefer: pref };
+      });
+      /*
+        Oben wachsen die Keile um das Fundament; darunter teilt sich das Land eines Gebiets in Läufe einer Schlange über
+        seine Ringe (innen beginnend, jeder Ring hin und zurück): jeder Lauf ist ein zusammenhängendes Stück, breit statt
+        lang, und was früher dran ist (die früheste Stufe darin), liegt weiter innen.
+      */
+      const lands = depth === 0 ? grow(avail, list, seedNear, ownF) : (() => {
+        const out = new Map<string, Set<number>>();
+        const cellsIn = [...avail].map((k) => { const [q, r] = unkey(k); return { k, ring: hexDistance(0, 0, q, r), a: angleOf(q, r) }; });
+        const mid0 = meanAngle(cellsIn.map((c) => c.a)) ?? 0;
+        const rel = (a: number) => ((a - mid0 + 540) % 360) - 180;
+        const rings = [...new Set(cellsIn.map((c) => c.ring))].sort((a, b) => a - b);
+        const snake: number[] = [];
+        rings.forEach((rg, i) => { const row = cellsIn.filter((c) => c.ring === rg).sort((a, b) => rel(a.a) - rel(b.a)); if (i % 2 === 1) row.reverse(); for (const c of row) snake.push(c.k); });
+        const firstOf = (id: string) => Math.min(...groups.get(id)!.map((t) => whole[t] * 1e6 + rank(t)));
+        let at = 0;
+        for (const x of [...list].sort((a, b) => firstOf(a.id) - firstOf(b.id) || (a.id < b.id ? -1 : 1))) { out.set(x.id, new Set(snake.slice(at, at + x.need))); at += x.need; }
+        return out;
+      })();
+      for (const { id } of list) {
+        const land = lands.get(id) ?? new Set<number>();
+        const ts = groups.get(id)!;
+        if (depth > 12 || ts.every((t) => chain[t].length <= depth + 1)) { territory.set(id, land); continue; }
+        const mid = meanAngle([...land].map((k) => { const [q, r] = unkey(k); return angleOf(q, r); }));
+        split(land, ts, depth + 1, mid, () => 0);
+      }
+    };
+    const ownF = new Map<string, number[]>();
+    for (const t of foundation) { if (t === start || ringOf[t] < 0) continue; const l = ownF.get(outerOf(t)) ?? []; l.push(key(place[t * 2], place[t * 2 + 1])); ownF.set(outerOf(t), l); }
+    /* Der Anfang eines Gebiets: neben seinen eigenen Themen im Fundament, sonst irgendwo am Fundament. */
+    const placedNear = (k: number, id: string) => {
+      const [q, r] = unkey(k);
+      let any = false; let own = false;
+      for (const nk of neighbourKeys(q, r)) { const u = taken.get(nk); if (u === undefined) continue; any = true; if (outerOf(u) === id) own = true; }
+      const hasOwn = foundation.some((u) => outerOf(u) === id);
+      return own ? 0 : any ? (hasOwn ? 25 : 0) : 50;
+    };
+    split(free, order, 0, null, placedNear);
+  }
   for (const t of order) {
-    if (seeded[t] === 1) continue;
-    const w = topicWedge(t);
+    if (ringOf[t] >= 0) continue;
+    const land = territory.get(landOf(t));
     const needs = (g.needs[t] ?? []).filter((p) => ringOf[p] >= 0);
     const minRing = needs.reduce((m, p) => Math.max(m, ringOf[p]), 1);
-    /* Was es öffnet und schon steht (ein späteres Gebiet greift hierher zurück): nicht weiter aussen als das. */
-    const maxRing = dependents[t].reduce((m, c) => (ringOf[c] >= 0 ? Math.min(m, ringOf[c]) : m), Number.POSITIVE_INFINITY);
-    const b0 = Math.max(minRing, bandFrom.get(whole[t]) ?? 1);
-    const b1 = Math.max(b0, bandTo.get(whole[t]) ?? 1);
-    const dir = leafDir(t) ?? (w.a0 + w.span / 2) % 360;
-    const pre = meanAngle(needs.map((p) => angle[p]));
-    const target = pre === null ? dir : meanAngle([pre, dir]) ?? dir;
-    const areas = chain[t].length === 0 ? [''] : chain[t];
-    const own = areas[areas.length - 1];
-    const ownSet = rim.get(own);
     const score = (q: number, r: number): number => {
-      const ring = hexDistance(0, 0, q, r);
-      if (ring < minRing) return Number.POSITIVE_INFINITY;
-      if (ring > maxRing) return 1e6 + ring;
-      const a = angleOf(q, r);
-      const cellDeg = 360 / (6 * ring);
-      let s = 1.6 * Math.max(0, b0 - ring, ring - b1);
-      s += 0.35 * (angleGap(a, target) / cellDeg);
-      if (!inWedge(a, w.a0, w.span)) s += 2.5 + Math.min(angleGap(a, w.a0), angleGap(a, (w.a0 + w.span) % 360)) / cellDeg;
-      if (needs.length > 0) {
-        let near = Number.POSITIVE_INFINITY;
-        for (const p of needs) near = Math.min(near, hexDistance(q, r, place[p * 2], place[p * 2 + 1]));
-        s += near <= 1 ? 0 : 8 + near;
-      }
-      if (grown.has(own) && ownSet !== undefined && !ownSet.has(key(q, r))) s += 12;
-      let full = 0;
-      for (const nk of neighbourKeys(q, r)) if (occupied(nk)) full += 1;
-      return s - 0.45 * full;
+      const ringNow = hexDistance(0, 0, q, r);
+      let s = ringNow * 3 + (ringNow < minRing ? 3 * (minRing - ringNow) : 0);
+      const near = nearNeeds(t, q, r);
+      if (near !== Infinity && near > 1) s += 1.5 + 0.8 * near;
+      return s - 0.5 * occupiedAround(q, r);
     };
-    /* Die Plätze zur Wahl: der Rand der eigenen Fläche (noch leer: der nächsten Fläche darüber), die Nachbarn der Voraussetzungen. */
-    const cand = new Set<number>();
-    for (let i = areas.length - 1; i >= 0; i -= 1) {
-      const s = rim.get(areas[i]);
-      if (s === undefined || s.size === 0) continue;
-      for (const k of s) { if (occupied(k)) s.delete(k); else cand.add(k); }
-      if (cand.size > 0) break;
-    }
-    for (const p of needs) for (const nk of neighbourKeys(place[p * 2], place[p * 2 + 1])) if (!occupied(nk)) cand.add(nk);
-    let best = -1;
-    let bs = Number.POSITIVE_INFINITY;
-    /* Am eigenen Rand, solange er einen erlaubten Platz hat (die Fläche bleibt ganz); sonst auch daneben. */
-    if (grown.has(own) && ownSet !== undefined) for (const k of ownSet) { if (occupied(k)) continue; const [q, r] = unkey(k); const s = score(q, r); if (s < bs - 1e-9) { bs = s; best = k; } }
-    if (bs >= 1e5) { best = -1; bs = Number.POSITIVE_INFINITY; for (const k of cand) { const [q, r] = unkey(k); const s = score(q, r); if (s < bs - 1e-9) { bs = s; best = k; } } }
-    /* Noch nichts in der Nähe (das erste Thema eines Keils): die freien Plätze seines Bandes im Keil, Ring für Ring. */
-    if (best < 0 || !grown.has(areas[0])) {
-      for (let ring = Math.max(1, b0 - 1); ring <= b1 + 6 || (best < 0 && ring < b1 + 4000); ring += 1) {
-        for (const c of cellsOfRing(ring)) {
-          const k = key(c[0], c[1]);
-          if (occupied(k)) continue;
-          const s = score(c[0], c[1]);
-          if (s < bs - 1e-9) { bs = s; best = k; }
-        }
-      }
-    }
+    const mine = land === undefined ? [] : [...land].filter((k) => !occupied(k));
+    if (mine.length === 0) { placeBy(t, score, []); continue; }
+    let best = -1; let bs = Infinity;
+    for (const k of mine) { const [q, r] = unkey(k); const s = score(q, r); if (s < bs - 1e-9) { bs = s; best = k; } }
     const [q, r] = unkey(best);
     put(t, q, r);
   }
 
   /* -- Wenige feste Runden: Nachbarn desselben Gebiets tauschen, wenn die Verbindungen kürzer werden --------------- */
-  const opens: number[][] = g.ids.map(() => []);
-  g.needs.forEach((list, t) => { for (const p of list) opens[p]?.push(t); });
+  const opens = dependents;
   const leafOf = (t: number) => chain[t][chain[t].length - 1] ?? '';
   const lengthAt = (t: number, q: number, r: number, other: number, oq: number, or: number): number => {
     let s = 0;
@@ -420,7 +632,7 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
           for (const m of main) {
             for (const [dq, dr] of NEIGHBOURS) {
               const u = taken.get(key(place[m * 2] + dq, place[m * 2 + 1] + dr));
-              if (u === undefined || u < 0 || seen.has(u) || leafOf(u) === k || seeded[u] === 1) continue;
+              if (u === undefined || u < 0 || seen.has(u) || leafOf(u) === k || seeded[u] === 1 || outerOf(u) !== outerOf(t)) continue;
               seen.add(u);
               if (!okRing(t, ringOf[u], u, ringOf[t]) || !okRing(u, ringOf[t], t, ringOf[u])) continue;
               const other = leafOf(u);
@@ -575,9 +787,9 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
       regions.set(r.key, { key: r.key, name: r.name, level: r.level, parent: r.parent, top: topKey, topics: r.topics, x, y, radius: radius + 0.6, shade: shade.get(r.key) ?? 0 });
     }
   }
-  /* Der Boden: das Zuhause und ein Platz um alles. */
-  const ground: WorldCell[] = [{ q: 0, r: 0, ...hexCenter(0, 0) }];
-  const seen = new Set<number>([key(0, 0)]);
+  /* Der Boden: ein Platz um alles (das Haus steht auf dem Startthema). */
+  const ground: WorldCell[] = [];
+  const seen = new Set<number>();
   for (const c of cells) {
     for (const [dq, dr] of NEIGHBOURS) {
       const q = c.q + dq; const r = c.r + dr; const k = key(q, r);
@@ -588,5 +800,5 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
   }
 
   const t1 = typeof performance === 'undefined' ? Date.now() : performance.now();
-  return { cells, regions, top: hasRegions ? top : [], chain, ground, ms: t1 - t0 };
+  return { cells, regions, top, chain, ground, home: start, foundation, ms: t1 - t0 };
 }

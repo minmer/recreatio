@@ -103,6 +103,11 @@ export function landscapeWords(lang: Lang) {
     legendRegion: L('kolor: obszar (tematy, które do siebie należą)', 'Farbe: Gebiet (Themen, die zusammengehören)', 'colour: region (topics that belong together)'),
     legendNeeds: L('czego wymaga (ciemniej)', 'was es braucht (dunkler)', 'what it needs (darker)'),
     legendOpens: L('co otwiera (jaśniej)', 'was es öffnet (heller)', 'what it opens (lighter)'),
+    /* 2026-11-05 — über einem Lauf (Powtórka, Erzählung) aus dem Krajobraz: zurück zur Karte; die Antworten bleiben. */
+    backToMap: L('‹ Wróć do mapy', '‹ Zurück zur Karte', '‹ Back to the map'),
+    /* 2026-11-05 — von einem begonnenen Feld zurücktreten: die Figur geht (die Antworten bleiben). */
+    resignPiece: L('Zrezygnuj — zdejmij pionek', 'Aufgeben — Figur wegnehmen', 'Give up — remove the piece'),
+    resignGoal: L('Zrezygnuj z tego celu', 'Dieses Ziel aufgeben', 'Give up this goal'),
     /* 2026-11-04 (Prompt 14) — Spielfiguren, Fahne, die beiden Umrisse, was in einer Kachel steht */
     pieceLabel: (name: string) => L(`Pionek na: ${name} — dalej od miejsca, gdzie przerwano`, `Figur auf: ${name} — weiter, wo du aufgehört hast`, `Piece on: ${name} — continue where you stopped`),
     piecesHere: (n: number, region: string) => L(`${n} pionków w: ${region} — przybliż`, `${n} Figuren in: ${region} — hineinzoomen`, `${n} pieces in: ${region} — zoom in`),

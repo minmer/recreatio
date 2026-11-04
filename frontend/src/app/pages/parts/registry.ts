@@ -31,7 +31,7 @@ import type { PartModule } from '../part';
 import { animationPart } from './animation';
 import { calendarPart } from './calendar';
 import { chatPart } from './chat';
-import { cogitaFlowPart, cogitaLivePart, cogitaLiveStatsPart, cogitaRevisionPart, cogitaRewardsPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
+import { cogitaFlowPart, cogitaLandscapePart, cogitaSettingsPart, cogitaLivePart, cogitaLiveStatsPart, cogitaRevisionPart, cogitaRewardsPart, entityCardPart, entityTablePart, knowledgeMapPart, seatLearnPart, topicExplorerPart } from './cogita';
 import { contactPart } from './contact';
 import { costsPart } from './costs';
 import { entryListPart, entryPanelPart } from './entries';
@@ -128,6 +128,10 @@ export const PARTS: readonly PartModule[] = [
   topicExplorerPart,
   /* 2026-10-22 (Schritt 9) — ein gespeicherter Widok einer Baza: Tabela oder Drzewo, der Zustand je Baustein in der Adresse. */
   viewPart,
+  /* 2026-11-05 — der Krajobraz wiedzy als eigener Baustein, mit der Wahl „Jak często pytać" für den Lernenden. */
+  cogitaLandscapePart,
+  /* 2026-11-05 — die eigenen Einstellungen des Lernenden (Jak często pytać) als eigener Baustein. */
+  cogitaSettingsPart,
   /* 2026-11-03 (F) — die Ścieżka als Karte: einer Erzählung, einer Einheit, eines Widoku, der ganzen Baza. */
   pathPart,
 

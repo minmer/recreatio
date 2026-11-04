@@ -3576,3 +3576,21 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - LocalDB browser checks (`scratchpad/p15/e.mjs`, 18 each):
   - flat, LAAG and 5 000 (light and dark) at 1400 px, flat at 390 px: all pass;
   - dragging 5 000 topics: median frame 16.7 ms.
+
+## C39 — Landscape and settings modules, review choice, map height, back to the map (2026-11-05)
+
+- New page modules (`pages/parts/cogita.tsx`, views in `landscapeViews.tsx`):
+  - `cogita-landscape` „Krajobraz wiedzy": a base (whole base, or one saved view), answers area, rewards, hide
+    `spacing`/`learner`/`search`. Without a view it shares the places of „Wpisy" (key `wpisy`).
+  - `cogita-settings` „Ustawienia nauki": the learner's „Jak często pytać" on its own; give it the same answers area as
+    the learning module, or the choice lands with another learner.
+- `SpacingChoice` (`SpacingSettings.tsx`): one-click presets + „Inne…"; shown only when the area has not locked spacing.
+  New preset „Częściej" (5 min × 2) in `spacing.ts`.
+- Widok: a mode set by the page („Jak pokazać") hides the mode tabs.
+- Landscape: map taller (small up to 620 px / 75 % of the window, big up to 820 px; in a module's fullscreen the
+  window height); a landscape in fullscreen uses the full width; „‹ Wróć do mapy" above every run and story;
+  double-click on a mountain sets the goal and starts the first learnable topic on the way.
+- Giving up a begun tile: the topic panel offers „Zrezygnuj — zdejmij pionek" (`removePiece`, the piece list in
+  `pieces:<view>` loses the topic; answers stay) or, on the goal piece's tile, „Zrezygnuj z tego celu" (goal cleared too).
+- Checks: tsc (only `worldLayout.ts` errors, edited in parallel), app-spacing, app-json (ImportFormats.json
+  regenerated), app-landscape, app-style. Not tried in a browser.

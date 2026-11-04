@@ -80,7 +80,7 @@ const MODE_WORD: Record<PageMode, string> = { table: 'tabela', tree: 'drzewo', m
 const MODE_LABEL: Record<PageMode, string> = { table: 'Tabela', tree: 'Drzewo', matrix: 'Macierz', map: 'Mapa', quilt: 'Postępy', landscape: 'Krajobraz' };
 
 /** Ein Eintrag, aufgeklappt: eine Aussage mit ihren Bausteinen, ein Kazanie ganz, alles andere als Karte. */
-function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
+export function EntryCard({ lib, id, ctx, scope, delivery, onDelivery }: {
   lib: CogitaLibrary; id: string; ctx: PartContext; scope: string; delivery: string | null; onDelivery: (d: string | null) => void;
 }) {
   const entry = lib.entry(id);
@@ -284,13 +284,14 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
       )}
       <div className="cg-row">
         <input type="search" className="cg-search" value={state.q ?? ''} onChange={(e) => setState({ q: e.target.value })} placeholder="Szukaj w widoku…" aria-label={`Szukaj: ${title}`} />
-        <span className="cg-subtabs">
+        {/* 2026-11-05 — hat die Seite die Gestalt gewählt („Jak pokazać"), bleibt sie: keine Knöpfe zum Umschalten. */}
+        {config.mode.trim() === '' && <span className="cg-subtabs">
           {(['table', 'tree', 'matrix', 'map', 'quilt', 'landscape'] as const).filter((m) => m !== 'matrix' || saved.matrix !== null || mode === 'matrix').map((m) => (
             <button key={m} type="button" className={mode === m ? 'is-on' : ''} onClick={() => setState({ u: MODE_WORD[m], c: null })}
               /* 2026-11-03 — die gewählte Gestalt bleibt in der (auf dem Telefon scrollenden) Reihe sichtbar — nur die Reihe scrollt, nie die Seite. */
               ref={mode === m ? (el) => { const row = el?.parentElement; if (el != null && row != null && el.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = el.offsetLeft + el.offsetWidth - row.clientWidth; } : undefined}>{MODE_LABEL[m]}</button>
           ))}
-        </span>
+        </span>}
         <span className="wk-card-muted">{shown.length === list.length ? `${list.length} wpisów` : `${shown.length} z ${list.length}`}</span>
         {shownIds.length > 0 && <button type="button" className="wk-link-btn" onClick={() => setLearning({ ids: shownIds, title: cellIds !== null ? cellWords : title })}>Ucz się tego</button>}
       </div>

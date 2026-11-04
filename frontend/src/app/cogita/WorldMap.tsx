@@ -199,7 +199,16 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   onBackground: () => void;
   legend: (visible: ReadonlySet<string>) => ReactNode;
 }) {
-  const height = Math.round(Math.max(320, Math.min(compact ? 420 : 700, width * (width < 520 ? 1.05 : 0.62))));
+  /*
+   * 2026-11-05 — höher (der Eigentümer: auf einer Seite „zu schmal, sollte höher sein"): klein bis 620 px statt 420,
+   * gross bis 820 statt 700 — aber nie höher als drei Viertel des Fensters (klein) bzw. 85 % (gross), damit unter der
+   * Karte noch etwas zu sehen bleibt.
+   */
+  const winH = typeof window === 'undefined' ? 900 : window.innerHeight;
+  /* Im Vollbild eines Bausteins (`.wk-full`): so hoch, wie das Fenster unter Kopf und Knöpfen Platz lässt. */
+  const [inFull, setInFull] = useState(false);
+  const cap = inFull && !compact ? Math.max(320, winH - 230) : Math.max(320, Math.min(compact ? 620 : 820, winH * (compact ? 0.75 : 0.85)));
+  const height = Math.round(Math.max(320, Math.min(cap, width * (width < 520 ? 1.05 : 0.7))));
   const n = world.cells.length;
   /* Die ganze Karte: Mitte und Halbmesser. */
   const whole = useMemo(() => {
@@ -275,6 +284,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   /* -- Farben ---------------------------------------------------------------------------------------------------- */
   const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => { setInFull(box.current?.closest('.wk-full') != null); }, []);
   const [palette, setPalette] = useState<Palette | null>(null);
   useEffect(() => {
     const el = box.current;

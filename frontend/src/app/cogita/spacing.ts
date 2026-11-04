@@ -7,7 +7,7 @@
  *            frühestens wieder
  *   growth   Wachstum — um so viel wird jeder nächste Abstand nach einer weiteren richtigen Antwort länger
  * </code>
- * Mit Namen: „Standard" (wie bisher), „Lżej" (längere Abstände), „Raz i gotowe" (einmal fragen, praktisch nie wieder:
+ * Mit Namen: „Częściej" (5 Minuten, × 2 — seit 2026-11-05), „Standard" (wie bisher), „Lżej" (längere Abstände), „Raz i gotowe" (einmal fragen, praktisch nie wieder:
  * ein Jahr, × 1000); „Zaawansowane" stellt beide genau.
  *
  * <b>Wer stellt es, wo liegt es</b>:
@@ -31,9 +31,11 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const YEAR = 365 * DAY;
 
-export type SpacingPreset = 'standard' | 'lighter' | 'once';
-export const SPACING_PRESETS: readonly SpacingPreset[] = ['standard', 'lighter', 'once'];
+export type SpacingPreset = 'often' | 'standard' | 'lighter' | 'once';
+/** 2026-11-05 — „Częściej" (5 Min. × 2) davor: kürzere Abstände für wer schnell festigen will (Baustein „Krajobraz"). */
+export const SPACING_PRESETS: readonly SpacingPreset[] = ['often', 'standard', 'lighter', 'once'];
 export const PRESET_SPACING: Readonly<Record<SpacingPreset, Spacing>> = {
+  often: { first: 5 * MINUTE, growth: 2 },
   standard: DEFAULT_SPACING,
   lighter: { first: DAY, growth: 5 },
   once: { first: YEAR, growth: 1000 }
