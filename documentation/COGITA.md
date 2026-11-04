@@ -1098,6 +1098,70 @@ Phones stay awake.
   that no longer exists resumes at the first step not yet visited. The player restores the place when the learner
   arrives late and never writes a place on mere opening. The daily limit is 2000.
 
+### Radial landscape, labels, rings, view modes (2026-11-04, Prompt 15)
+
+Wins over Prompts 13 and 14 where they differ.
+
+- **Radial layout** (`worldLayout.ts`): home in the centre (cell 0,0 stays free), land in all six directions.
+  - Each top region gets a wedge around home, its angle proportional to its topic count. The order around the circle is
+    greedy by connections, starting with the author's earliest region; sub-regions split their wedge one level down.
+  - Rings by distance: a topic's level is its longest prerequisite chain. Each level gets a band of rings sized by the
+    topics up to that level (`3R² + 3R ≥ N`), so a flat base gets several rings per level and a deep one rises outward.
+  - Placement goes leaf region by leaf region (the region that starts earliest first), topic by topic in level order.
+    A topic grows onto the rim of its own region (empty: the region above, else the innermost free cells of its wedge).
+    It prefers a cell next to what it needs and is never closer to home than anything it needs. The scoring penalises
+    leaving the band, the wedge and the direction, and rewards occupied neighbours (no holes).
+  - Then: bounded swap rounds (two steps, same leaf, only if connections get shorter and the ring rule holds), a repair
+    that swaps a cut-off piece of a region back to its main area, and hole filling (a rim topic moves in, or the hole
+    wanders outward).
+- **Compute once, store, reuse**: the base is sealed in the browser, so the service cannot compute places. A writer's
+  browser stores them in the view doc after each change of structure: `landscape.layout = { key, at: { id: [q, r] } }`,
+  where `key` = `r15:<topics+edges hash>:<moved topics>`. Every learner reads them. All places present → used as they are
+  (5 000 topics: about 50 ms instead of about 250 ms). Key changed → recomputed with the stored places as seeds:
+  unchanged topics keep their cells.
+- **Tilt**: drag up = flatter (towards the horizon), drag down = more from above (Ctrl/right button and two fingers). The
+  slider has the icons "z boku" / "z góry".
+- **Region labels**: far away (small tiles, or the whole map in view) every top region is named in its colour (a coloured
+  bar and border). A label that does not fit on its area goes to the edge with a dashed line (`keepLabels`); it is never
+  dropped. Hover or tap highlights the whole region (glow, the others dimmed); a click zooms to its bounding box.
+- **Tiles**: no topic names far or middle. From `NAME_PX` (68 px) each tile shows its name: 1–2 lines, system sans-serif,
+  capped at the page font size, a light halo only. At the deepest zoom at most one status word is added. The "cards" and
+  "opens next" lines are gone.
+- **The ring**: from `RING_PX` (14 px) a ring runs along the hex edge, clockwise from the top. It shows the mean card
+  knowness (each card capped at 1, `ringShare`, the same measure as "known"; 90/90/90/100/100/100 % → 95 %). The rest of the
+  ring is faint; an amber dot at the top marks due reviews.
+- **No signs on fields** at all (the round signs and their legend lines are gone); pieces and flags stay.
+- **View modes** above the map ("Ogólny", "Co umiem", "Do powtórki"), remembered per view in this browser
+  (`cg-wm-mode:<key>`):
+  - "Co umiem" greys everything except known land and the light-yellow frontier.
+  - "Do powtórki" greys everything except topics with due reviews.
+- **Depth order**: outline, ring and name are drawn with their column, so anything in front covers them. A name whose
+  face centre is hidden by a column in front is not drawn. Outlines are full width where visible and redrawn thin (about ⅓,
+  lighter) on top, so the covered parts stay readable. A piece or flag behind a column is replaced by a small dot at that
+  column's top edge.
+- **Colours**: one validated colour-blind-safe hue per top region (neighbouring wedges are consecutive palette slots;
+  checked light and dark). When a top region fills the view, its sub-regions shift hue by 0/+20/−20/+40° by a graph
+  colouring of touching siblings (`shade`); sub-region labels use their own hue. Lightness and saturation stay for
+  knowledge; outlines and ring are independent of region colour.
+- **Answer colours** (`choiceMarks.ts`, `CardFace.tsx`):
+  - correct and chosen: green ✓;
+  - correct and missed: amber "also true", no ✓;
+  - wrong and chosen: red ✗;
+  - wrong and left out: neutral.
+  The score is unchanged.
+- **Minus signs** in generated titles stay (`schema.ts` `tidy`). Titles are rendered, not stored, so the one-time repair
+  (`titleSigns.ts`) only marks the AI snapshot stale once per base.
+- **Review spacing** (`spacing.ts`, `SpacingSettings.tsx`): the first interval and the growth factor.
+  - Presets: Standard (15 min, ×3: the old values exactly), Lżej (1 day, ×5), Raz i gotowe (1 year, ×1000).
+  - Advanced: an amount, a unit and a factor.
+  - The area value lives in the base's `settings` doc (`spacing: {first, growth, locked}`). The learner's own value lives
+    in reserved keys `~spacing.*` of their sealed `values` batch (already per holder × base × area, latest-only, synced
+    across devices), so no new batch kind and no migration.
+  - The effective value is the area's if locked, else the learner's own, else the area's, else the default.
+  - Due dates are never stored (they are replayed from the marks), so a change recomputes every card at once and no answers
+    are lost.
+  - The Nauka start card shows "Powtórki: …" with "Zmień".
+
 ### Landscape polish (2026-11-04, Prompt 14)
 
 Wins over Prompt 13 where they differ.

@@ -442,7 +442,7 @@
   :root:not([data-theme='light']) .cg-ls { --cg-ls-land: #ff6a42; --cg-ls-ready: #ffe98a; --cg-ls-goal: #6aaeff; }
 }
 :root[data-theme='dark'] .cg-ls { --cg-ls-land: #ff6a42; --cg-ls-ready: #ffe98a; --cg-ls-goal: #6aaeff; }
-.cg-wm-pieces { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.cg-wm-pieces { position: absolute; left: 0; top: 0; overflow: hidden; pointer-events: none; }
 .cg-wm-hit { pointer-events: none; }
 .cg-wm-piece-foot { fill: color-mix(in oklab, var(--wk-ink) 30%, transparent); }
 .cg-wm-piece-body, .cg-wm-piece-head { stroke: var(--wk-surface); stroke-width: 1.4; }
@@ -468,7 +468,6 @@
 .cg-wm-mode.is-on { background: color-mix(in oklab, var(--wk-accent) 16%, var(--wk-surface)); font-weight: 600; box-shadow: inset 0 -2px 0 var(--wk-accent); }
 .cg-wm-mode:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
 .cg-wm-label.is-region { --wm-label-c: var(--wk-line-strong); background: color-mix(in oklab, var(--wk-surface) 90%, var(--wm-label-c)); border: 1px solid var(--wm-label-c); border-left: 0.3rem solid var(--wm-label-c); color: var(--wk-ink); }
-.cg-wm-label.is-region.is-top { font-size: var(--wk-text-sm); }
 .cg-wm-label.is-region.is-hot { box-shadow: 0 0 0 2px var(--wm-label-c), 0 0 10px var(--wm-label-c); }
 .cg-wm-leaders { position: absolute; left: 0; top: 0; overflow: visible; }
 .cg-wm-leaders line { stroke: var(--wk-ink); stroke-width: 1.2; stroke-dasharray: 3 3; opacity: 0.65; }

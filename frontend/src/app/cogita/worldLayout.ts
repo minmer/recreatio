@@ -566,8 +566,10 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph, previous?: 
       let x = 0; let y = 0;
       for (const t of r.topics) { x += cells[t].x; y += cells[t].y; }
       x /= Math.max(1, r.topics.length); y /= Math.max(1, r.topics.length);
-      let radius = 0;
-      for (const t of r.topics) radius = Math.max(radius, Math.hypot(cells[t].x - x, cells[t].y - y));
+      /* 2026-11-04 (Prompt 15) — die Weite nach dem umschliessenden Rechteck (ein Keil vom Zuhause zum Rand ist schmal). */
+      let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+      for (const t of r.topics) { x0 = Math.min(x0, cells[t].x); x1 = Math.max(x1, cells[t].x); y0 = Math.min(y0, cells[t].y); y1 = Math.max(y1, cells[t].y); }
+      const radius = r.topics.length === 0 ? 0 : Math.max(x1 - x0, y1 - y0) / 2;
       let topKey = r.key;
       for (let p = r.parent, k = 0; p !== null && k < 64; p = tree.regions.get(p)?.parent ?? null, k += 1) topKey = p;
       regions.set(r.key, { key: r.key, name: r.name, level: r.level, parent: r.parent, top: topKey, topics: r.topics, x, y, radius: radius + 0.6, shade: shade.get(r.key) ?? 0 });

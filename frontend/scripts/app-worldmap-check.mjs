@@ -115,14 +115,15 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   /* Namen nach dem Zoom: fern nur die obersten, näher deren Teilgebiete, nah keine Gebiete. */
   const radius = Math.max(...w.cells.map((c) => Math.hypot(c.x, c.y))) + 2;
   for (const [zoom, s] of [['far', 560 / (2 * radius)], ['middle', 12], ['near', 60]]) {
-    const cam = { s, cx: w.cells[0].x, cy: w.cells[0].y, rot: 0, fore: WV.FORE_START };
+    const cam = zoom === 'far' ? { s, cx: 0, cy: 0, rot: 0, fore: WV.FORE_START } : { s, cx: w.cells[0].x, cy: w.cells[0].y, rot: 0, fore: WV.FORE_START };
     const p = WV.projection(cam, 900, 560);
     const list = [];
     for (const r of w.regions.values()) {
       const d = 2 * r.radius * s;
       const parent = r.parent === null ? null : w.regions.get(r.parent);
       /* Prompt 15: fern (Kacheln unter RING_PX) trägt jedes oberste Gebiet seinen Namen, kein anderes. */
-      const farNow = 2 * 0.57735 * s < WV.RING_PX;
+      /* Fern: kleine Kacheln oder die ganze Karte im Bild (wie in WorldMap). */
+      const farNow = zoom === 'far' || 2 * 0.57735 * s < WV.RING_PX;
       const alpha = farNow ? (r.parent === null ? 1 : 0) : WV.regionLabelAlpha(d, parent === null || parent === undefined ? null : 2 * parent.radius * s, r.level === 1);
       if (alpha <= 0.02) continue;
       const [x, y] = WV.toScreen(p, r.x, r.y);

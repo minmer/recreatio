@@ -251,7 +251,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* 2026-11-04 (Prompt 14) — frei drehen: der Knopf um 45°, sanft (keine Raster mehr). */
   const rotateBy = (k: number) => glide({ ...camRef.current, rot: camRef.current.rot + 45 * k }, 300);
   const resetView = () => glide(fitWhole({ ...camRef.current, rot: 0, fore: FORE_START }));
-  const regionCam = (key: string) => { const r = world.regions.get(key); return r === undefined ? null : fitCam(camRef.current, width, height, r.x, r.y, r.radius); };
+  /* 2026-11-04 (Prompt 15) — zu einem Gebiet: sein Rechteck füllt das Bild (ein Keil reicht vom Zuhause bis zum Rand; um seine Mitte gemessen wäre es fast die ganze Karte). */
+  const regionCam = (key: string) => {
+    const r = world.regions.get(key);
+    if (r === undefined || r.topics.length === 0) return null;
+    let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
+    for (const t of r.topics) { const c = world.cells[t]; x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); }
+    return fitCam(camRef.current, width, height, (x0 + x1) / 2, (y0 + y1) / 2, Math.max(x1 - x0, y1 - y0) / 2 + 0.8);
+  };
   /* Zu einem Thema: mindestens so nah, dass die Namen in den Kacheln stehen. */
   const topicCam = (t: number) => { const c = world.cells[t]; return { ...camRef.current, s: Math.max(camRef.current.s, (NAME_PX * 1.25) / (2 * 0.57735)), cx: c.x, cy: c.y }; };
 
@@ -479,7 +486,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     */
     const ringOn = px >= RING_PX && !far;
     const ring = ringOn ? ringPath(corners, 0.8) : null;
-    const ringW = Math.max(1.4, Math.min(4, px * 0.05));
+    const ringW = Math.max(1.3, Math.min(3.2, px * 0.035));
     const strokeRing = (x: number, y: number, share: number, due: boolean) => {
       if (ring === null) return;
       ctx.beginPath();
@@ -495,7 +502,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           ctx.lineTo(x + ring.pts[k - 1][0] + (ring.pts[k][0] - ring.pts[k - 1][0]) * f, y + ring.pts[k - 1][1] + (ring.pts[k][1] - ring.pts[k - 1][1]) * f);
           break;
         }
-        ctx.strokeStyle = css(P.ink, 0.88); ctx.lineCap = 'round'; ctx.stroke();
+        ctx.strokeStyle = css(P.ink, dark ? 0.8 : 0.62); ctx.lineCap = 'round'; ctx.stroke();
       }
       if (due) {
         ctx.beginPath(); ctx.arc(x + ring.pts[0][0], y + ring.pts[0][1], ringW * 1.35, 0, Math.PI * 2);
@@ -505,7 +512,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Die Namen in der Kachel (nah), nur wenn ihre Mitte nicht von einer Säule davor verdeckt ist. */
     const textOn = palette !== null && px >= NAME_PX && cam.fore >= INFO_FORE && !far;
     const deep = textOn && px >= detailPx(width, height, cam.fore) * 0.98;
-    if (textOn && fontFamily.current === '') { try { fontFamily.current = getComputedStyle(document.body).fontFamily; fontCap.current = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16; } catch { fontFamily.current = 'sans-serif'; } }
+    /* Die normale serifenlose Schrift (nicht die der Überschriften), nie grösser als die Schrift der Seite. */
+    if (textOn && fontFamily.current === '') { fontFamily.current = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'; try { fontCap.current = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16; } catch { fontCap.current = 16; } }
     const ang = (infoAngle(cam.rot) * Math.PI) / 180;
     const ca = Math.cos(ang); const sa = Math.sin(ang);
     const textR = p.s * 0.42;
@@ -745,6 +753,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (drag.current === null && e.pointerType === 'mouse') {
       /* 2026-11-04 (Prompt 15, 3) — über dem Namen eines Gebiets: das ganze Gebiet leuchtet. */
       const over = labels.find((l) => l.shown && l.key.startsWith('r:') && Math.abs(x - l.x) <= l.w / 2 && Math.abs(y - l.y) <= l.h / 2);
+      if (tip.current !== null) { tip.current.style.left = `${Math.round(x)}px`; tip.current.style.top = `${Math.round(y - 16)}px`; }
       if (over !== undefined) { setHoverTopic(null); setHoverRegion(over.key.slice(2)); return; }
       const t = hit(x, y);
       setHoverTopic(px >= PICK_PX ? t : null);

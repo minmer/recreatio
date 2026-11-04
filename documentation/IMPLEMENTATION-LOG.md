@@ -3546,3 +3546,33 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - LocalDB (`scratchpad/p14`): "Flach zz-probe" (59 topics, 7 regions, chains ≤ 3) plus the Prompt 11–13 bases; browser
   checks 18/18 on the flat, linear, branching, LAAG and 5 000-topic bases in light, dark and at 390 px; panning and orbiting
   5 000 topics 16.7 ms per frame.
+
+## C38 — Radial landscape, labels, rings, view modes, answer colours, review spacing (2026-11-04, Prompt 15)
+
+- Files:
+  - `worldLayout.ts`: radial wedges, ring bands, leaf-by-leaf growth, swaps, repair, holes, stored seeds, `shade`.
+  - `worldView.ts`: `fitInfo` name + status, `RING_PX`, `keepLabels`, `NAME_PX` 68.
+  - `WorldMap.tsx`: ring along the edge, painter-order text and outlines, view modes, coloured labels with leaders,
+    hover highlight, inverted tilt, slider icons, hidden pieces, sub-region hues, no signs.
+  - `LandscapeView.tsx`: stored layout, ring = mean knowness, due flag, legend.
+  - `landscapeData.ts` (`ringShare`, `cardsMean`), `landscapeClient.ts`, `landscape.worker.ts` (`places`),
+    `landscapeWords.ts`, `landscape.css`, `json.ts`.
+  - Answer colours and minus signs: `choiceMarks.ts`, `CardFace.tsx`, `schema.ts`, `titleSigns.ts`.
+  - Review spacing: `spacing.ts`, `SpacingSettings.tsx`, `knowness.ts` and its callers.
+  - Checks: `app-worldmap-check.mjs`, `app-choice-check.mjs`, `app-spacing-check.mjs`.
+- Layout measures (`app-worldmap-check`, offline graphs shaped like the LocalDB test bases):
+
+  | Base | Regions in one piece | Neighbouring connections | Connections ≤ 2 hexes | Pieces of known land (10/25/50/75 % learnt in the author's order) | ms |
+  |---|---|---|---|---|---|
+  | flat (59) | 100 % | 100 % | 100 % | 1/1/1/1 | 3 |
+  | Bosko-like (63) | 100 % | 87 % | 94 % | 1/1/1/2 | 5 |
+  | chain (64) | 100 % | 61 % | 83 % | 1/1/1/1 | 5 |
+  | branches (64) | 100 % | 68 % | 89 % | 1/1/2/2 | 3 |
+  | LAAG-like (278) | 74 % (leaves 25/32) | 62 % | 70 % | 2/2/2/1 | 22 |
+  | 5 000 | 65 % (leaves 407/566) | 46 % | 63 % | 11/18/12/6 | 230 |
+
+  A stored layout of 5 000 topics is read in about 50 ms.
+- Not reached: one piece of known land for the deep and the 5 000-topic base; some leaf regions there are split.
+- LocalDB browser checks (`scratchpad/p15/e.mjs`, 18 each):
+  - flat, LAAG and 5 000 (light and dark) at 1400 px, flat at 390 px: all pass;
+  - dragging 5 000 topics: median frame 16.7 ms.

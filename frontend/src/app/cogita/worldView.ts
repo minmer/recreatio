@@ -191,7 +191,7 @@ export function regionLabelAlpha(diameter: number, parentDiameter: number | null
  * Ring läuft am Rand der Kachel (gezeichnet von `WorldMap`, ab der mittleren Nähe). Jede Zeile so breit, wie der Kreis auf
  * der Oberseite auf ihrer Höhe ist (eine Sehne) — nie gestaucht; gedreht wie die Kachel (±30°), zu steil: nichts.
  */
-export const NAME_PX = 56;
+export const NAME_PX = 68;
 /**
  * Wie viele Kacheln bei diesem Zoom ins Bild passen: die Fläche des Bildes durch die Fläche einer Kachel auf dem Schirm
  * (gestaucht mit der Neigung). Daraus: ab wann das Wort zum Stand steht (höchstens etwa sieben Kacheln im Bild) und der
@@ -210,7 +210,7 @@ export interface InfoLine { readonly text: string; readonly y: number; readonly 
  * darunter das eine Wort zum Stand. `cap`: die grösste Schrift (die der Seite). `measure`: Breite eines Textes.
  */
 export function fitInfo(name: string, status: string, deep: boolean, r: number, measure: (text: string, size: number, bold: boolean) => number, cap = 16): { lines: InfoLine[] } {
-  const size = Math.min(cap, Math.max(9, r * (deep ? 0.2 : 0.27)));
+  const size = Math.min(cap, Math.max(10.5, r * (deep ? 0.2 : 0.3)));
   const small = Math.max(8, Math.min(cap * 0.85, size * 0.85));
   const chord = (y: number, h: number) => 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(y) + h / 2) ** 2)) * 0.86;
   const cut = (text: string, width: number, s: number, bold: boolean): string => {
