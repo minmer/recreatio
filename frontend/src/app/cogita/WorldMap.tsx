@@ -19,7 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 
 import type { LsBand } from './landscape';
 import type { WorldLayout } from './worldLayout';
-import { cellPx, depthOf, fitCam, fitInfo, FORE_MAX, FORE_MIN, FORE_START, INFO_FORE, INFO_PX, infoAngle, PICK_PX, placeLabels, projection, regionLabelAlpha, SIGN_PX, toGround, toScreen, type LabelCandidate, type Projection, type WorldCam } from './worldView';
+import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, regionLabelAlpha, SIGN_PX, toGround, toScreen, type LabelCandidate, type Projection, type WorldCam } from './worldView';
 import type { LandscapeWords } from './landscapeWords';
 
 export type SignKind = 'first' | 'due';
@@ -37,6 +37,8 @@ export interface WorldTopic {
   /** 2026-11-04 (Prompt 14) — wie viel seiner Karten sitzt (0–1, der Ring in der Kachel) und was noch zu tun ist („2 brakuje"). */
   readonly share: number;
   readonly todo: string;
+  /** Tief gezoomt: die Einzelheiten (Stufen, Karten …), eine Zeile je Angabe. */
+  readonly detail: readonly string[];
 }
 
 /** Eine Spielfigur: auf einem Thema, das er zu lernen begann (`single`), oder auf dem Weg zu seinem Ziel (`goal`). */
@@ -220,7 +222,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const camRef = useRef(cam);
   const setCam = (c: WorldCam) => { camRef.current = c; setCamNow(c); };
   const sMin = () => fitWhole(camRef.current).s * 0.6;
-  const sMax = () => 220;
+  /* 2026-11-04 (vom Nutzer): tief hinein — bis nur noch zwei, drei Kacheln das Bild füllen. */
+  const sMax = () => deepestS(width, height, camRef.current.fore);
   const clamp = (c: WorldCam): WorldCam => {
     const s = Math.max(sMin(), Math.min(sMax(), c.s));
     const pad = whole.r + 2;
@@ -355,37 +358,41 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     ctx.drawImage(c.canvas, Math.round((dx - c.margin) * dpr), Math.round((dy - c.margin) * dpr));
   };
   /*
-    2026-11-04 (Prompt 14, 3) — WAS IN DEN KACHELN STEHT (nah, nur nahe der Mitte des Bildes): Name, ein Ring mit dem Anteil
-    des Gekonnten und was noch zu tun ist — auf der Oberseite (gestaucht wie sie, gedreht wie die Kachel); zu steil: nichts.
-    Auf das sichtbare Bild gezeichnet (nicht ins verschobene), so folgt es der Mitte des Bildes.
+    2026-11-04 (Prompt 14, 3; vom Nutzer geändert) — WAS IN DEN KACHELN STEHT, für ALLE Kacheln im Bild gleich: ab NAME_PX nur
+    der Name, tief (2–5 Kacheln im Bild) alles (fitInfo) — auf der Oberseite (gestaucht wie sie, gedreht wie die Kachel); zu
+    steil: nichts. Auf das sichtbare Bild gezeichnet (nicht ins verschobene).
   */
   const fontFamily = useRef('');
   const drawInfo = (ctx: CanvasRenderingContext2D, dpr: number) => {
     let drawn = 0;
-    const done = () => { if (box.current !== null) box.current.dataset.wmInfo = String(drawn); };
-    if (palette === null || px < INFO_PX || cam.fore < INFO_FORE) { done(); return; }
+    let inside = 0;
+    let tier = '';
+    const done = () => { const el = box.current; if (el === null) return; el.dataset.wmInfo = String(drawn); el.dataset.wmInfoIn = String(inside); el.dataset.wmTier = tier; el.dataset.wmChosenXy = chosen === null ? '' : `${screen[chosen * 3].toFixed(0)},${screen[chosen * 3 + 1].toFixed(0)}`; };
+    if (palette === null || px < NAME_PX || cam.fore < INFO_FORE) { done(); return; }
+    const deep = px >= detailPx(width, height, cam.fore) * 0.98;
+    tier = deep ? 'deep' : 'names';
     if (fontFamily.current === '') { try { fontFamily.current = getComputedStyle(document.body).fontFamily; } catch { fontFamily.current = 'sans-serif'; } }
     const P = palette;
-    const reach = Math.min(width, height) * 0.36;
     const ang = (infoAngle(cam.rot) * Math.PI) / 180;
     const ca = Math.cos(ang); const sa = Math.sin(ang);
-    const r = proj.s * 0.43;
+    const r = proj.s * 0.45;
     const measure = (text: string, size: number, bold: boolean) => { ctx.font = `${bold ? '600 ' : ''}${size}px ${fontFamily.current}`; return ctx.measureText(text).width; };
     for (let i = 0; i < n; i += 1) {
       const x = screen[i * 3]; const y = screen[i * 3 + 1];
-      if (Math.hypot(x - width / 2, y - height / 2) > reach) continue;
+      if (x < -r || x > width + r || y < -r || y > height + r) continue;
       const t = topics[i];
       if (t === undefined) continue;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const fit = fitInfo(t.label, t.todo, r, measure);
+      const fit = fitInfo(t.label, t.todo, deep ? t.detail : null, r, measure);
       drawn += 1;
+      if (x >= 0 && x <= width && y >= 0 && y <= height) inside += 1;
       /* Auf die Fläche: drehen wie die Kachel, die Tiefe stauchen wie die Neigung. */
       ctx.setTransform(dpr * ca, dpr * sa * cam.fore, -dpr * sa, dpr * ca * cam.fore, x * dpr, y * dpr);
       const regionC = t.subject >= 0 && t.subject < 8 ? P.c[t.subject] : P.cx;
-      ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, 0, Math.PI * 2);
+      if (fit.ring) { ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, 0, Math.PI * 2);
       ctx.lineWidth = Math.max(1.5, fit.ringR * 0.32);
-      ctx.strokeStyle = css(P.surface, 0.75); ctx.stroke();
-      if (t.share > 0) { ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, -Math.PI / 2, -Math.PI / 2 + Math.min(1, t.share) * Math.PI * 2); ctx.strokeStyle = css(mix(regionC, [0, 0, 0], 0.35)); ctx.stroke(); }
+      ctx.strokeStyle = css(P.surface, 0.75); ctx.stroke(); }
+      if (fit.ring && t.share > 0) { ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, -Math.PI / 2, -Math.PI / 2 + Math.min(1, t.share) * Math.PI * 2); ctx.strokeStyle = css(mix(regionC, [0, 0, 0], 0.35)); ctx.stroke(); }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const l of fit.lines) {
         ctx.font = `${l.bold ? '600 ' : ''}${l.size}px ${fontFamily.current}`;
@@ -726,7 +733,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const labels = useMemo(() => {
     const list: LabelCandidate[] = [];
     /* Nah steht alles in den Kacheln: dann keine Namen der Gebiete darüber. */
-    for (const r of px >= INFO_PX ? [] : world.regions.values()) {
+    for (const r of px >= NAME_PX ? [] : world.regions.values()) {
       const d = 2 * r.radius * cam.s;
       const parent = r.parent === null ? null : world.regions.get(r.parent) ?? null;
       const alpha = regionLabelAlpha(d, parent === null ? null : 2 * parent.radius * cam.s, r.level === 1);
@@ -746,7 +753,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   /* Zeichen auf Feldern, mit denen etwas zu tun ist (erst näher). */
   const signs = useMemo(() => {
-    if (px < SIGN_PX) return [];
+    /* Ab den Namen steht alles in den Kacheln: dann keine Zeichen darüber (je Kachel ein Aussehen). */
+    if (px < SIGN_PX || px >= NAME_PX) return [];
     const out: { i: number; x: number; y: number; kind: SignKind }[] = [];
     for (let i = 0; i < n && out.length < 300; i += 1) {
       const s = topics[i]?.sign;

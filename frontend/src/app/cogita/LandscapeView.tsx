@@ -635,6 +635,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* -- 2026-11-04 (Prompt 13): was jedes Thema auf der einen Karte zeigt ---------------------------------- */
   /* Die Farbe eines Themas: die seines obersten Gebiets (benachbarte Gebiete verschieden); ohne Gebiete: sein Abschnitt. */
   const topSubject = useMemo(() => { const m = new Map<string, number>(); (world?.top ?? []).forEach((k, i) => m.set(k, i % 8)); return m; }, [world]);
+  /* Was ein Thema öffnet (die Kanten umgekehrt). */
+  const opensOf = useMemo(() => { const out: number[][] = tg.graph.ids.map(() => []); tg.graph.needs.forEach((list, u) => { for (const p of list) out[p]?.push(u); }); return out; }, [tg]);
   /* Wie viele Karten je Thema fällig sind (was in der Kachel steht). */
   const dueBy = useMemo(() => { const m = new Map<string, number>(); for (const c of dueCards) for (const e of cardEntities(c)) m.set(e, (m.get(e) ?? 0) + 1); return m; }, [dueCards]);
   /* 2026-11-04 (Prompt 14, 6) — die Stufe nach der Baza: ihre längste Kette (eine flache Baza bekommt höhere Stufen). */
@@ -645,9 +647,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const topKey = world?.chain[t]?.[0];
     const todo = band === 'known' ? T.todoKnown : band === 'due' ? T.todoDue(Math.max(1, dueBy.get(id) ?? 1)) : band === 'ring' ? (info.locked ? T.nextFirst : T.todoReady) : T.todoMissing(Math.max(1, info.steps - 1));
     return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked, sign: band === 'ring' && info.locked ? 'first' : band === 'due' ? 'due' : null,
-      share: info.total === 0 ? (band === 'known' || band === 'due' ? 1 : 0) : info.known / info.total, todo };
+      share: info.total === 0 ? (band === 'known' || band === 'due' ? 1 : 0) : info.known / info.total, todo,
+      /* Tief gezoomt: die Einzelheiten — Stufen, Karten, was es öffnet. */
+      detail: [...(band === 'mountain' || band === 'ring' ? [T.stufen(info.steps)] : []), ...(info.total > 0 ? [T.cardsLine(info.known, info.total)] : []), ...((opensOf[t]?.length ?? 0) > 0 ? [T.opensNext(opensOf[t].length)] : [])] };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [tg, stand, state, world, topSubject, colourOf, dueBy, lang]);
+  }), [tg, stand, state, world, topSubject, colourOf, dueBy, lang, opensOf]);
   /* Je Gebiet: wie viel darin gekonnt ist und was jetzt geht. */
   const regionStats = useMemo(() => {
     const m = new Map<string, { all: number; known: number; ready: number }>();
@@ -672,8 +676,6 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     try { localStorage.setItem(wonKey, JSON.stringify([...new Set([...had, ...now])].slice(-400))); } catch { /* ohne Speicher */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wonNow, standFits]);
-  /* Was ein Thema öffnet (die Kanten umgekehrt). */
-  const opensOf = useMemo(() => { const out: number[][] = tg.graph.ids.map(() => []); tg.graph.needs.forEach((list, u) => { for (const p of list) out[p]?.push(u); }); return out; }, [tg]);
   const chosenT = chosenId === null ? null : topicIndex.get(chosenId) ?? null;
   const links = chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] };
   /* Der Weg auf der Karte: zum gewählten Thema, sonst zum Ziel. */

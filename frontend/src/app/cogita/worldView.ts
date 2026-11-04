@@ -157,51 +157,79 @@ export function regionLabelAlpha(diameter: number, parentDiameter: number | null
 }
 
 /*
- * 2026-11-04 (Prompt 14, 3) — WAS IN EINER KACHEL STEHT (nah, nur Felder nahe der Mitte des Bildes): Name und was noch
- * zu tun ist, in einem runden Feld auf der Oberseite. Jede Zeile so breit, wie der Kreis auf ihrer Höhe ist (eine Sehne),
- * gekürzt mit „…" — nie gestaucht, nie in eine Spalte gebrochen. Gezeichnet mit der Neigung (die Höhe gestaucht wie die
- * Fläche) und mit der Drehung der Kachel (höchstens ±30°, die Kachel sieht alle 60° gleich aus — so bleibt es lesbar).
+ * 2026-11-04 (Prompt 14, 3; geändert vom Nutzer) — WAS IN DEN KACHELN STEHT, für ALLE Kacheln im Bild gleich (je Zoom ein
+ * Aussehen):
+ * <code>
+ *   Namen     ab `NAME_PX` je Kachel nur eine Angabe: ihr Name (bis zu zwei Zeilen, gekürzt mit „…")
+ *   tief      ab `DETAIL_PX` (nur noch 2–5 Kacheln im Bild) alles, was es über das Thema zu sagen gibt: ein Ring mit dem
+ *             Anteil des Gekonnten, der Name (bis zu drei Zeilen), was noch zu tun ist und die Einzelheiten (`detail`)
+ * </code>
+ * Jede Zeile so breit, wie der Kreis auf der Oberseite auf ihrer Höhe ist (eine Sehne) — nie gestaucht, nie in eine Spalte
+ * gebrochen. Gezeichnet mit der Neigung (die Höhe gestaucht wie die Fläche) und mit der Drehung der Kachel (höchstens ±30°,
+ * die Kachel sieht alle 60° gleich aus — so bleibt es lesbar); zu steil: nichts.
  */
-export const INFO_PX = 92;
+export const NAME_PX = 56;
+/**
+ * Wie viele Kacheln bei diesem Zoom ins Bild passen: die Fläche des Bildes durch die Fläche einer Kachel auf dem Schirm
+ * (gestaucht mit der Neigung). Daraus: ab wann die Einzelheiten stehen (höchstens etwa sieben Kacheln im Bild) und der
+ * tiefste Zoom (etwa drei).
+ */
+const sForTiles = (width: number, height: number, fore: number, tiles: number): number => Math.sqrt((width * height) / (((3 * Math.sqrt(3)) / 2) * HEX_CORNER * HEX_CORNER * Math.max(FORE_MIN, fore) * tiles));
+export const detailPx = (width: number, height: number, fore = 1): number => 2 * HEX_CORNER * sForTiles(width, height, fore, 7);
+export const deepestS = (width: number, height: number, fore = 1): number => Math.max(120, sForTiles(width, height, fore, 3));
 /** Steiler als so (Neigung) ist die Oberseite nicht mehr zu lesen: kein Text. */
 export const INFO_FORE = 0.5;
 
 export interface InfoLine { readonly text: string; readonly y: number; readonly size: number; readonly bold: boolean }
 
 /**
- * Die Zeilen in einem Kreis vom Halbmesser `r` (Bildpunkte, Mitte 0): oben Platz für den Ring (`ringY`), darunter der Name
- * (höchstens zwei Zeilen), dann was zu tun ist. `measure`: Breite eines Textes bei Grösse und Gewicht.
+ * Die Zeilen in einem Kreis vom Halbmesser `r` (Bildpunkte, Mitte 0). `detail` leer: nur der Name (die Ebene der Namen);
+ * sonst oben der Ring (`ringY`), der Name, was zu tun ist und die Einzelheiten. `measure`: Breite eines Textes.
  */
-export function fitInfo(name: string, todo: string, r: number, measure: (text: string, size: number, bold: boolean) => number): { lines: InfoLine[]; ringY: number; ringR: number } {
-  const size = Math.max(8, Math.min(16, r * 0.24));
-  const small = Math.max(7, size * 0.82);
-  const chord = (y: number, h: number) => 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(y) + h / 2) ** 2)) * 0.92;
+export function fitInfo(name: string, todo: string, detail: readonly string[] | null, r: number, measure: (text: string, size: number, bold: boolean) => number): { lines: InfoLine[]; ringY: number; ringR: number; ring: boolean } {
+  const deep = detail !== null;
+  const size = deep ? Math.max(11, Math.min(30, r * 0.15)) : Math.max(9, Math.min(20, r * 0.27));
+  const small = Math.max(8, size * 0.72);
+  const chord = (y: number, h: number) => 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(y) + h / 2) ** 2)) * 0.9;
   const cut = (text: string, width: number, s: number, bold: boolean): string => {
     if (measure(text, s, bold) <= width) return text;
     let lo = 0; let hi = text.length;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (measure(`${text.slice(0, m).trimEnd()}…`, s, bold) <= width) lo = m; else hi = m - 1; }
     return lo <= 1 ? '' : `${text.slice(0, lo).trimEnd()}…`;
   };
-  const ringR = size * 0.62;
-  const ringY = -r * 0.52;
-  const lines: InfoLine[] = [];
-  /* Der Name: erst versuchen, ihn an Wortgrenzen auf zwei Zeilen zu legen. */
-  const y1 = -size * 0.15;
-  const y2 = y1 + size * 1.15;
-  const w1 = chord(y1, size);
-  const words = name.split(/s+/).filter((w) => w !== '');
-  let first = '';
-  let k = 0;
-  while (k < words.length && measure(first === '' ? words[k] : `${first} ${words[k]}`, size, true) <= w1) { first = first === '' ? words[k] : `${first} ${words[k]}`; k += 1; }
-  if (first === '') { lines.push({ text: cut(name, w1, size, true), y: y1, size, bold: true }); }
-  else {
-    lines.push({ text: first, y: y1, size, bold: true });
-    const rest = words.slice(k).join(' ');
-    if (rest !== '') lines.push({ text: cut(rest, chord(y2, size), size, true), y: y2, size, bold: true });
+  /* Der Name an Wortgrenzen auf höchstens `max` Zeilen ab `y0`; die letzte gekürzt. */
+  const nameLines = (y0: number, max: number): InfoLine[] => {
+    const words = name.split(/\s+/).filter((w) => w !== '');
+    const out: InfoLine[] = [];
+    let k = 0;
+    for (let line = 0; line < max && k < words.length; line += 1) {
+      const y = y0 + line * size * 1.15;
+      const w = chord(y, size);
+      if (line === max - 1) { out.push({ text: cut(words.slice(k).join(' '), w, size, true), y, size, bold: true }); k = words.length; break; }
+      let text = '';
+      while (k < words.length && measure(text === '' ? words[k] : `${text} ${words[k]}`, size, true) <= w) { text = text === '' ? words[k] : `${text} ${words[k]}`; k += 1; }
+      if (text === '') { text = cut(words[k], w, size, true); k += 1; }
+      out.push({ text, y, size, bold: true });
+    }
+    return out;
+  };
+  if (!deep) {
+    /* Nur der Name, in der Mitte der Fläche. */
+    const two = measure(name, size, true) > chord(0, size);
+    const lines = nameLines(two ? -size * 0.58 : 0, 2);
+    return { lines: lines.filter((l) => l.text !== ''), ringY: 0, ringR: 0, ring: false };
   }
-  const yt = (lines.length > 1 ? y2 : y1) + size * 1.25;
-  if (todo !== '') lines.push({ text: cut(todo, chord(yt, small), small, false), y: yt, size: small, bold: false });
-  return { lines: lines.filter((l) => l.text !== ''), ringY, ringR };
+  const ringR = size * 0.75;
+  const ringY = -r * 0.5;
+  const lines = nameLines(-r * 0.2, 3);
+  let y = (lines[lines.length - 1]?.y ?? -r * 0.2) + size * 1.25;
+  for (const text of [todo, ...detail]) {
+    if (text === '' || y > r * 0.78) continue;
+    const s = text === todo ? small * 1.08 : small;
+    lines.push({ text: cut(text, chord(y, s), s, text === todo), y, size: s, bold: text === todo });
+    y += s * 1.3;
+  }
+  return { lines: lines.filter((l) => l.text !== ''), ringY, ringR, ring: true };
 }
 
 /** Der Winkel, um den der Text in einer Kachel gedreht steht: die Drehung der Kamera, auf ±30° gebracht (Grad). */
@@ -212,4 +240,3 @@ export const cellPx = (cam: WorldCam): number => 2 * HEX_CORNER * cam.s;
 /** Ab wann ein Klick ein Thema wählt (sonst zoomt er in das Gebiet), Zeichen und Namen der Themen erscheinen. */
 export const PICK_PX = 44;
 export const SIGN_PX = 14;
-export const NAME_PX = 46;
