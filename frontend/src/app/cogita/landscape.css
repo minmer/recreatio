@@ -458,3 +458,5 @@
 .cg-wm-hit:hover .cg-wm-piece-body, .cg-wm-hit:hover .cg-wm-goalflag-cloth { stroke: var(--wk-accent); stroke-width: 2; }
 .cg-ls-legend-line { display: inline-block; width: 1.1rem; height: 0.6rem; flex: none; border-radius: var(--wk-radius-sm); border: 2px solid var(--cg-ls-land); background: transparent; }
 .cg-ls-legend-line.is-ready { border-color: var(--cg-ls-ready); }
+/* 2026-11-04 (Prompt 14) — die Steuerung der Kamera unter der Karte (über ihr verdeckte sie Felder und Figuren). */
+.cg-wm-view { position: static; margin-top: var(--wk-space-1); justify-self: start; width: fit-content; max-width: 100%; }

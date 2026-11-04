@@ -354,3 +354,25 @@ export function zweige8(seed = 9) {
   section8(rnd, 7, SIZES8[7], topics, [...layer[2].slice(0, 1), ...layer[3].slice(0, 1)]);
   return assemble(topics, { sections: SECTIONS8, sizes: SIZES8 });
 }
+
+/*
+ * 2026-11-04 (Prompt 14) — FLACH: sieben Abschnitte zu 7–10 Themen, die meisten ohne Voraussetzungen, Ketten höchstens drei
+ * lang (wie „Flach zz-probe"): viele Gebiete beginnen zugleich am Anfang.
+ */
+export function flach7(seed = 7) {
+  const rnd = random(seed);
+  const sizes = [7, 9, 9, 7, 8, 10, 9];
+  const names = ['Musikinstrumente', 'Sport und Bewegung', 'Pflanzen im Garten', 'Kochen und Backen', 'Wetter und Klima', 'Europas Länder, Hauptstädte und Landschaften', 'Tiere des Waldes'];
+  const topics = [];
+  const depth = [];
+  sizes.forEach((size, s) => {
+    const first = topics.length;
+    for (let k = 0; k < size; k += 1) {
+      const needs = [];
+      if (k > 0 && rnd() < 0.55) { const p = first + rnd.int(0, k - 1); if (depth[p] < 2) needs.push(p); }
+      depth.push(needs.length === 0 ? 0 : depth[needs[0]] + 1);
+      topics.push({ id: `f${s}-${k}`, label: `${names[s].split(/[ ,]/)[0]} ${k + 1}`, name: names[s], needs });
+    }
+  });
+  return assemble(topics, { sections: names, sizes });
+}

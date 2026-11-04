@@ -204,6 +204,34 @@ function packPieces(pieces: readonly Piece[], domain: (q: number, r: number) => 
       }
     }
     for (const i of round) if (out[i].length === 0) anchor(i);
+    /*
+      2026-11-04 (Prompt 14) — EINGESCHLOSSEN, bevor die Fläche voll war (viele Gebiete ohne Voraussetzungen wachsen zugleich um
+      den Anfang): das Stück noch einmal allein legen — wo seine ganze Fläche Platz hat; geht auch das nicht ganz auf, die
+      nächsten freien Plätze (nie ein Thema ohne Platz).
+    */
+    for (const i of round) {
+      if (out[i].length >= pieces[i].size) continue;
+      for (const [q, r] of out[i]) owner.delete(key(q, r));
+      out[i] = [];
+      if (!anchor(i)) continue;
+      while (out[i].length < pieces[i].size && grow(i, false));
+      if (out[i].length < pieces[i].size) {
+        /* Breite zuerst über alle Plätze vom ersten aus: die nächsten freien im Gebiet. */
+        const [aq, ar] = anchorOf[i];
+        const seen = new Set<number>([key(aq, ar)]);
+        const queue: [number, number][] = [[aq, ar]];
+        while (queue.length > 0 && out[i].length < pieces[i].size) {
+          const [q, r] = queue.shift()!;
+          for (const [dq, dr] of NEIGHBOURS) {
+            const a = q + dq; const b = r + dr; const k = key(a, b);
+            if (seen.has(k) || !domain(a, b)) continue;
+            seen.add(k);
+            if (!owner.has(k) && out[i].length < pieces[i].size) { owner.set(k, i); out[i].push([a, b]); }
+            if (seen.size < 200000) queue.push([a, b]);
+          }
+        }
+      }
+    }
   }
   return out;
 }

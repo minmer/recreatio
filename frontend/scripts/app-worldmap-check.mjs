@@ -4,7 +4,8 @@
  * (`scripts/testGraphs.mjs`):
  *   - jedes Thema genau ein Sechseck, dieselben Plätze bei jedem Rechnen (nur aus der Struktur, nie vom Stand);
  *   - die Themen eines Gebiets bilden (fast immer) eine zusammenhängende Fläche, Teilgebiete Flächen darin;
- *   - zwischen den obersten Gebieten ein Streifen Boden, wo es geht;
+ *   - 2026-11-04 (Prompt 14): Gebiete liegen Kachel an Kachel — keine Streifen, keine Löcher in der Karte;
+ *   - die Stufe nach der Baza (flach: höher), was in den Kacheln steht (nie breiter als der Kreis, nur der Name bei den Namen);
  *   - wie viele Verbindungen benachbarte oder nahe Sechsecke verbinden (berichtet; mindestens die Hälfte nah);
  *   - Namen: nie zwei übereinander, je Gebiet einer, die Zoomstufen fern / näher / nah;
  *   - die Projektion: Schirm → Boden → Schirm ist dasselbe, in jeder Drehung und Neigung; die Stufe ist überall gleich.
@@ -16,7 +17,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { big, boskoLike, kette8, laagLike, zweige8 } from './testGraphs.mjs';
+import { big, boskoLike, flach7, kette8, laagLike, zweige8 } from './testGraphs.mjs';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-worldmap-'));
 const names = { regions: 'regions', world: 'worldLayout', view: 'worldView' };
@@ -45,13 +46,17 @@ const connected = (cells) => {
   return seen.size === cells.length;
 };
 const table = [];
-for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], ['kette8', kette8()], ['zweige8', zweige8()], ['big(5000)', big(5000)]]) {
+for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], ['kette8', kette8()], ['zweige8', zweige8()], ['flach7', flach7()], ['big(5000)', big(5000)]]) {
   const tg = { graph: g, node: Int32Array.from(g.ids.map((_, i) => i)), topicOf: Int32Array.from(g.ids.map((_, i) => i)) };
   const tree = RG.buildRegions(g);
   const w = WL.worldLayout(tree, tg);
   const again = WL.worldLayout(tree, { ...tg });
   truth(`${name}: every topic on exactly one hexagon (${w.cells.length})`, w.cells.length === g.ids.length && new Set(w.cells.map((c) => `${c.q},${c.r}`)).size === w.cells.length);
   truth(`${name}: the same places every time (structure only)`, JSON.stringify(w.cells) === JSON.stringify(again.cells));
+  /* Kein Thema abseits der Karte (keine Insel, keine Reihe am Rand). */
+  const placed = new Set(w.cells.map((c) => `${c.q},${c.r}`));
+  const alone = w.cells.filter((c) => ![[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].some(([dq, dr]) => placed.has(`${c.q + dq},${c.r + dr}`))).length;
+  truth(`${name}: no topic stands apart from the map (${alone})`, alone === 0, alone);
   let whole = 0; let leafWhole = 0; let leaves = 0;
   for (const r of w.regions.values()) { const ok = connected(r.topics.map((t) => w.cells[t])); if (ok) whole += 1; if (r.level === 1) { leaves += 1; if (ok) leafWhole += 1; } }
   const share = whole / Math.max(1, w.regions.size);
@@ -61,7 +66,15 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   const at = new Map(w.cells.map((c, i) => [`${c.q},${c.r}`, i]));
   let touching = 0; let pairs = 0;
   w.cells.forEach((c, i) => { for (const [dq, dr] of [[1, 0], [0, 1], [-1, 1]]) { const j = at.get(`${c.q + dq},${c.r + dr}`); if (j === undefined) continue; pairs += 1; if (topOf(i) !== topOf(j)) touching += 1; } });
-  truth(`${name}: top regions mostly kept apart by a row of ground (${touching} of ${pairs} neighbour pairs cross a top border)`, touching / Math.max(1, pairs) <= 0.05, { touching, pairs });
+  /* Kachel an Kachel: keine leeren Plätze, die rings von der Karte umschlossen sind. */
+  const qs = w.cells.map((c) => c.q); const rs = w.cells.map((c) => c.r);
+  const q0 = Math.min(...qs) - 1; const q1 = Math.max(...qs) + 1; const r0 = Math.min(...rs) - 1; const r1 = Math.max(...rs) + 1;
+  const outside = new Set([`${q0},${r0}`]);
+  const st = [[q0, r0]];
+  while (st.length > 0) { const [q, r] = st.pop(); for (const [dq, dr] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) { const a = q + dq; const b = r + dr; const k = `${a},${b}`; if (a < q0 || a > q1 || b < r0 || b > r1 || outside.has(k) || at.has(k)) continue; outside.add(k); st.push([a, b]); } }
+  let holes = 0;
+  for (let q = q0; q <= q1; q += 1) for (let r = r0; r <= r1; r += 1) { const k = `${q},${r}`; if (!at.has(k) && !outside.has(k)) holes += 1; }
+  truth(`${name}: regions touch hexagon to hexagon (${touching} neighbour pairs across top borders), no holes in the map (${holes})`, holes === 0 && (w.top.length < 2 || touching > 0), { holes, touching, pairs });
   let e = 0; let adj = 0; let near = 0;
   g.needs.forEach((list, t) => list.forEach((p) => { e += 1; const d = hd(w.cells[t], w.cells[p]); if (d <= 1) adj += 1; if (d <= 2) near += 1; }));
   truth(`${name}: connections join neighbouring (${Math.round((adj / e) * 100)} %) or nearby ≤ 2 (${Math.round((near / e) * 100)} %) hexagons`, near / e >= 0.5, { adj, near, e });
@@ -89,6 +102,24 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
     if (zoom === 'far') truth(`${name} far: only top-level region names (${placed.length}), none overlapping`, placed.every((l) => l.top) && overlap === 0 && perRegion, placed.map((l) => l.text));
     else truth(`${name} ${zoom}: names never overlap, one per region (${placed.length} shown)`, overlap === 0 && perRegion, overlap);
   }
+}
+/* Die Stufe nach der Baza: flach höher, tief wie bisher; dieselbe für jedes Feld. */
+truth('step height per base: 3 levels → higher steps, 25 levels → the deep look (0.1)', WV.stepFor(3) > WV.stepFor(10) && WV.stepFor(10) > WV.STEP - 1e-9 && Math.abs(WV.stepFor(25) - WV.STEP) < 1e-9 && WV.stepFor(1) <= 0.6, [WV.stepFor(1), WV.stepFor(3), WV.stepFor(10), WV.stepFor(25)]);
+/* Was in den Kacheln steht: jede Zeile in ihrer Sehne des Kreises, nie gestaucht; bei den Namen nur der Name. */
+{
+  const measure = (text, size, bold) => text.length * size * (bold ? 0.58 : 0.52);
+  let wide = 0; let checked = 0;
+  for (const r of [30, 45, 80, 160, 260]) for (const name of ['Ameisen', 'Europas Länder, Hauptstädte und Landschaften', 'Ein sehr langer Name eines Themas mit vielen Wörtern darin']) {
+    for (const detail of [null, ['5 Stufen', 'Karten: 1 von 3 gekonnt', 'Öffnet danach: 2 Themen']]) {
+      const fit = WV.fitInfo(name, '2 fehlen', detail, r, measure);
+      for (const l of fit.lines) { checked += 1; const chord = 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(l.y) + l.size / 2) ** 2)); if (measure(l.text, l.size, l.bold) > chord + 1e-6) wide += 1; }
+      if (detail === null && fit.lines.some((l) => !l.bold)) wide += 1;
+    }
+  }
+  truth(`in-hexagon text: ${checked} lines, every one fits its chord of the round area; the name level shows only the name`, wide === 0, wide);
+  const deep = WV.deepestS(900, 560, 0.62);
+  const tiles = (900 * 560) / (((3 * Math.sqrt(3)) / 2) * (1 / Math.sqrt(3)) ** 2 * deep * deep * 0.62);
+  truth(`the deepest zoom holds about ${tiles.toFixed(1)} tiles (2–5)`, tiles >= 2 && tiles <= 5.5, tiles);
 }
 /* Die Projektion: hin und zurück, in jeder Drehung und Neigung; die Stufe hängt nicht vom Feld ab. */
 let worst = 0;
