@@ -390,3 +390,8 @@
 .cg-rm-rim { fill: none; stroke: color-mix(in oklab, var(--ls-c) 80%, var(--wk-ink)); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
 .cg-rm-rim.is-lit { stroke: var(--wk-accent); stroke-width: 2.4; }
 .cg-rm-col.is-conquered .cg-rm-rim { stroke: var(--cg-ls-warm); stroke-width: 2.2; }
+/* Am Telefon: lange Namen von Gebieten brechen um (Brotkrumen, Knöpfe), statt die Seite zu verbreitern. */
+.cg-ls-head, .cg-ls-headrow, .cg-ls-headrow > *, .cg-ls-next, .cg-ls-next > * { min-width: 0; max-width: 100%; }
+.cg-ls-crumb { flex-wrap: wrap; min-width: 0; }
+.cg-ls-crumbs .wk-link-btn, .cg-ls-crumbs strong { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.cg-ls-next .wk-btn { white-space: normal; overflow-wrap: anywhere; text-align: left; height: auto; }

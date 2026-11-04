@@ -701,7 +701,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         if (t === undefined) return;
         const info = infoOf(t);
         const band = info.band ?? 'mountain';
-        cells.push({ key: tg.graph.ids[t], x: c.x, y: c.y, steps: info.steps, band, subject: colourOf([t]), glow: band === 'ring' && !info.locked, home: next !== null && next.t === t, part: partOf.indexOf(u), rim: rims.get(mine.indexOf(c)) ?? [] });
+        cells.push({ key: tg.graph.ids[t], x: c.x, y: c.y, steps: info.steps, band, subject, glow: band === 'ring' && !info.locked, home: next !== null && next.t === t, part: partOf.indexOf(u), rim: rims.get(mine.indexOf(c)) ?? [] });
       });
     }
     const state2 = a.learned === a.all ? T.conquered(it.label) : a.ready > 0 ? `${a.ready} ${W.ready}` : a.lockedReady > 0 ? T.nextFirst : T.nextAway(a.steps);

@@ -3484,3 +3484,17 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
     81 % / 93 %; 5 000 topics 3 levels, top 8, 5–8–12 / 5–9–12 / 6–8–12, 64 % / 89 % / 98 %, 140 ms.
   - 5 000 topics: map drawn 1.9 s after opening the view; frames while dragging 16.7 ms (95 % ≤ 16.8 ms); wheel, pinch,
     "Ganze Karte", "Zu mir" work.
+
+## C35 — Regions show their inside, clicks that make sense, a winding layout (2026-11-04, Prompt 12)
+
+- **Files**: `levelMap.ts` (unitsOf, sketchOf, layoutLevel rewritten: pieces, rounds, sectors; boundaryOf/outlineOf,
+  stepRange, faster visibility, groundOf), `RegionMap.tsx` (regions as areas with their relief in a world-space group,
+  border on the tops with the lit share, labels with full names, hover hints, zoom-in/out glide), `LandscapeView.tsx`
+  (budget by width, cells per region, click rules, second click starts, "Als Nächstes hier" lists every learnable
+  topic, route on cells, route shown on selection), `landscapeWords.ts`, `landscape.css`, `json.ts` (format text),
+  `testGraphs.mjs` (kette8, zweige8), `app-levels-check.mjs`; regenerated `ksiazka-AI.md`, `ImportFormats.json`.
+- **Dropped**: the Prompt 11 check "routes turn less often" (a winding chain turns more, on purpose) — replaced by "route
+  steps touch more often"; "the route to §4 runs outward" is now a note (one step goes a ring back inward on LAAG; every
+  prerequisite still stands no further out). The 6 px minimum step holds on topic maps; maps of regions are flatter.
+- **LocalDB** (`scratchpad/p12-bases`): "Kette 8 zz-probe" (8 regions 6–11 topics, a chain) and "Zweige 8 zz-probe"
+  (start, four shallow branches, three deeper), each with a learner halfway; plus the Prompt 11 bases.

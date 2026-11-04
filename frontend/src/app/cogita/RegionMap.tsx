@@ -565,7 +565,9 @@ export function RegionMap({ levelKey, depth, fields, gates, ground, route, chose
       const top = sy(hub.y0);
       const bottom = sy(hub.y1);
       const centre = (top + bottom) / 2;
-      const tries: [number, number][] = [[mid, top - 4 - h / 2], [mid, bottom + 4 + h / 2], [mid - w / 2, top - 4 - h / 2], [mid + w / 2, top - 4 - h / 2], [mid, centre], [mid - w / 2, bottom + 4 + h / 2], [mid + w / 2, bottom + 4 + h / 2], [mid, top + h / 2 + 2]];
+      /* Erst über, unter, neben der Fläche — dann immer weiter aussen im Kreis, bis ein freier Platz gefunden ist. */
+      const tries: [number, number][] = [[mid, top - 4 - h / 2], [mid, bottom + 4 + h / 2], [mid - w / 2, top - 4 - h / 2], [mid + w / 2, top - 4 - h / 2], [mid, centre]];
+      for (let d = 14; d <= 220; d += 14) for (let k = 0; k < 16; k += 1) { const ang = -Math.PI / 2 + (k / 16) * 2 * Math.PI; tries.push([mid + Math.cos(ang) * d * 1.6, centre + Math.sin(ang) * d]); }
       let best: { x: number; y: number; over: number } | null = null;
       for (const [x0, y0] of tries) {
         const x = Math.max(w / 2 + 2, Math.min(width - w / 2 - 2, x0));

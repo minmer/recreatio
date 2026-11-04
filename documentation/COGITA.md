@@ -1050,6 +1050,49 @@ Phones stay awake.
 - **For AI**: `landscapeExport.ts` exports the region tree (levels, regions with name, parent, level, topic count, place)
   and each topic's place on its region's map; the MCP text says so.
 
+### Regions show their inside, clicks, a winding layout (2026-11-04, Prompt 12)
+
+Replaces the parts of "Regions within regions" about how a level is laid out, how a region is drawn and what a click does.
+
+- **A region is an area, not a column** (`levelMap.ts` unitsOf, `RegionMap.tsx`): on a map of regions every region is a
+  slightly raised area with its topics standing on it as their own small columns (own height = Stufen, own colour = how
+  well known — as on the level below). How much fits is a budget of columns per map, by the container width (600 from
+  900 px, 380, 220 on a phone): all topics fit → every topic its column (sub-regions as parts with a faint dashed outline);
+  else each region gets its share — with sub-regions, each part its own relief (all its topics, or a sketch); otherwise one
+  sketch for the region. A sketch (`sketchOf`) is a few real topics standing for the lowest, the highest and what is
+  learnable now (up to a third), the rest spread by height. Never fewer than 3 columns, never one block.
+- **Border, progress, name**: the region's outline runs along the tops of its outer columns in its colour (`boundaryOf`:
+  the loop of outer edges, per cell which edges); the first part of the loop, as long as the known share, is lit in the
+  accent colour; a conquered region's border is warm, its label carries a flag. The name sits in full on a label beside
+  (above, below) the area — wrapped to two lines, wider rather than cut, labels placed without overlapping; the label
+  is the region's button (keyboard, screen readers) and carries the one sign (review first > due).
+- **Clicks** (`LandscapeView.tsx` choose): a region (anything with more than one thing inside) — zoom in smoothly
+  (the new level glides in from further away; going up the other way), no popover; a double-click does the same (the
+  second click is ignored for 450 ms); the side panel shows the region's name, counts and "Als Nächstes hier" — EVERY
+  topic learnable now (free ones first, then "erst wiederholen"). A topic — select it: the panel shows its state, the
+  route, what it unlocks and the buttons, and the route lights up on the map at once; a second click on the selected
+  topic starts it when it can (learn, review first, its story, review). Breadcrumb, "Hinauf", Escape and pinching out go
+  one level up. Hovering shows what a click will do ("hineinzoomen" / "auswählen" / "starten"), the cursor is zoom-in on
+  regions.
+- **Layout** (`layoutLevel`): structure only; start at the learner (front middle of the fan). Items in a valid learning
+  order (depth, then the author), each region as one or more pieces. Round by round (same depth): every piece first
+  takes its start cell — next to what it builds on (a weighted distance), on the lowest free ring, never further in than
+  its prerequisites, only where the whole region has room, a further piece of the same region touching its siblings —
+  then the pieces of the round grow in turns, compact around their start cell. Branches get sectors of the fan by size
+  (a radial tree on each item's strongest prerequisite), so they spread in different directions; a chain has one
+  sector and winds around the start (a serpentine), so it stays compact and round and neighbours along the chain touch.
+  A piece boxed in before it is full is placed again alone; if it can no longer touch its siblings, its whole region is.
+  `routeOrder` now follows the order in which the map was laid out (valid learning order; the line goes neighbour to
+  neighbour).
+- **Heights** (`stepRange`): topic maps as before (never below 6 px per step). Maps of regions are overviews: the tallest
+  column about a third of the map's depth (one step for all, heights in proportion), so nothing at the back hides behind
+  towers. Visibility is measured against near columns only (sorted by x), and bisected when there are many columns.
+- **Speed**: the relief is drawn in world units inside one group that is only translated and scaled while dragging.
+- **Checks** (`app-levels-check`, graphs `kette8`/`zweige8` in `testGraphs.mjs`): every region ≥ 3 columns on one
+  connected area (600 and 220 columns), no cell twice; kette8 winds (≥ 180° of turning along its 8 regions), every
+  region touches one it builds on, no empty pocket wider than one row inside the map's outline; zweige8's four branches
+  over the start spread ≥ 90°; route steps touch more often than on the old flat map.
+
 ### For AI (2026-11-03, H)
 
 - Format text (`json.ts`, → `ksiazka-AI.md`, MCP `knowledge-base`): the flows section complete — steps and exits,

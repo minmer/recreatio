@@ -483,20 +483,31 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
     for (const [dq, dr] of NEIGHBOURS) { const a = q + dq; const b = r + dr; const nk = cellKey(a, b); if (inFan(a, b) && !taken.has(nk)) frontier.add(nk); }
   };
   const decode = (key: number): [number, number] => [Math.floor(key / 8192) - 4096, (key % 8192) - 4096];
+  /** Ob von einem freien Platz aus `need` freie Plätze zusammenhängend zu erreichen sind. */
+  const roomAt = (start: number, need: number): boolean => {
+    const seen = new Set<number>([start]);
+    const stack = [start];
+    while (stack.length > 0 && seen.size < need) {
+      const [q, r] = decode(stack.pop()!);
+      for (const [dq, dr] of NEIGHBOURS) { const a = q + dq; const b = r + dr; const nk = cellKey(a, b); if (!seen.has(nk) && inFan(a, b) && !taken.has(nk)) { seen.add(nk); stack.push(nk); } }
+    }
+    return seen.size >= need;
+  };
   const anchorRing = new Array<number>(units.length).fill(0);
-  /* Wie viele noch ungelegte Stücke auf jedes Stück bauen. */
-  const waiting = new Array<number>(units.length).fill(0);
-  unitNeeds.forEach((w) => { for (const v of w.keys()) waiting[v] += 1; });
   const itemRing = new Array<number>(n).fill(-1);
-  for (const k of unitOrder) {
+  /* Das erste Stück jedes Feldes (sein erster Platz ist der Platz des Feldes). */
+  const firstUnit = new Array<number>(n).fill(-1);
+  for (const k of unitOrder) if (firstUnit[units[k].item] < 0) firstUnit[units[k].item] = k;
+  /** Der erste Platz eines Stücks: neben dem, worauf es baut, auf dem niedrigsten Ring, mit Platz für die ganze Fläche. */
+  const anchorOf = (k: number) => {
     const u = units[k];
     const needs = [...unitNeeds[k].entries()].filter(([v]) => unitCells[v].length > 0);
     const siblings = units.map((_, v) => v).filter((v) => v !== k && units[v].item === u.item && unitCells[v].length > 0);
-    /* Nie weiter innen als, worauf es baut. */
     /* Nie weiter innen als, worauf es baut — das erste Stück eines Feldes auch nicht als die Felder, auf die es baut. */
     const first = siblings.length === 0;
+    const lead = firstUnit[u.item] === k;
     let minRing = needs.reduce((m, [v]) => Math.max(m, anchorRing[v]), 0);
-    if (first) for (const p of prereqs[u.item]) if (itemRing[p] >= 0) minRing = Math.max(minRing, itemRing[p]);
+    if (lead) for (const p of prereqs[u.item]) if (itemRing[p] >= 0) minRing = Math.max(minRing, itemRing[p]);
     let options = taken.size === 0 ? [cellKey(0, 0)] : [...frontier];
     /* Ein weiteres Stück desselben Gebiets: direkt an seine Geschwister (die Fläche bleibt eins). */
     if (!first) {
@@ -505,6 +516,12 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
     }
     const outward = options.filter((key) => { const [q, r] = decode(key); return ringOf(q, r) >= minRing; });
     if (outward.length > 0) options = outward;
+    /* Nur, wo die ganze Fläche Platz hat (keine Lücke, in der sie stecken bliebe). */
+    const need = lead ? itemSize[u.item] : u.size;
+    if (need > 1) {
+      const roomy = options.filter((key) => roomAt(key, need));
+      if (roomy.length > 0) options = roomy;
+    }
     let best = options[0];
     let score = Number.POSITIVE_INFINITY;
     for (const key of options) {
@@ -513,34 +530,86 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
       for (const [v, w] of needs) s += 4 * w * Math.max(0, distTo(q, r, unitCells[v]) - 1);
       for (const v of siblings) s += 6 * Math.max(0, distTo(q, r, unitCells[v]) - 1);
       for (const a of pulls[u.item]) if (ringOf(q, r) >= 2) s += (0.6 * angleGap(angleAt(q, r), a)) / 45;
+      /* Nicht dicht neben den ersten Platz eines Nachbarn derselben Runde (jeder braucht Platz, um zu wachsen). */
+      for (const v of round) if (v !== k && unitCells[v].length > 0) { const d = distTo(q, r, unitCells[v]); if (d <= 2) s += 1.2 * (3 - d); }
       if (s < score - 1e-9) { score = s; best = key; }
     }
     const [aq, ar] = decode(best);
-    for (const v of unitNeeds[k].keys()) waiting[v] -= 1;
     anchorRing[k] = ringOf(aq, ar);
-    if (first) itemRing[u.item] = anchorRing[k];
+    if (lead) itemRing[u.item] = anchorRing[k];
     take(k, aq, ar);
-    /* Wachsen: kompakt um den ersten Platz, im eigenen Sektor. */
-    const local = new Set<number>();
-    const addAround = (q: number, r: number) => { for (const [dq, dr] of NEIGHBOURS) { const a = q + dq; const b = r + dr; const nk = cellKey(a, b); if (inFan(a, b) && !taken.has(nk)) local.add(nk); } };
-    addAround(aq, ar);
-    while (unitCells[k].length < u.size && local.size > 0) {
-      let pick = -1;
-      let ps = Number.POSITIVE_INFINITY;
-      for (const key of local) {
-        if (taken.has(key)) continue;
-        const [q, r] = decode(key);
-        /* Den Rand eines Stücks, auf das noch etwas bauen wird, frei lassen (sonst bliebe dafür kein Platz daneben). */
-        let crowd = 0;
-        for (const [dq, dr] of NEIGHBOURS) { const v = taken.get(cellKey(q + dq, r + dr)); if (v !== undefined && v !== k && waiting[v] > 0) crowd += 1; }
-        const s = hexDistance(q, r, aq, ar) + 0.3 * ringOf(q, r) + 0.8 * sectorPen(k, q, r) + 0.9 * crowd + angleAt(q, r) * 1e-4;
+    anchorAt[k] = [aq, ar];
+  };
+  /** Ein Platz mehr: kompakt um den ersten, im eigenen Sektor. */
+  const growOne = (k: number): boolean => {
+    const [aq, ar] = anchorAt[k];
+    let pick = -1;
+    let ps = Number.POSITIVE_INFINITY;
+    const seen = new Set<number>();
+    for (const c of unitCells[k]) {
+      for (const [dq, dr] of NEIGHBOURS) {
+        const q = c.q + dq;
+        const r = c.r + dr;
+        const key = cellKey(q, r);
+        if (seen.has(key) || !inFan(q, r) || taken.has(key)) continue;
+        seen.add(key);
+        const s = hexDistance(q, r, aq, ar) + 0.3 * ringOf(q, r) + 0.8 * sectorPen(k, q, r) + angleAt(q, r) * 1e-4;
         if (s < ps - 1e-9) { ps = s; pick = key; }
       }
-      if (pick < 0) break;
-      local.delete(pick);
-      const [q, r] = decode(pick);
-      take(k, q, r);
-      addAround(q, r);
+    }
+    if (pick < 0) return false;
+    const [q, r] = decode(pick);
+    take(k, q, r);
+    return true;
+  };
+  /*
+    Runde für Runde (dieselbe Tiefe, dasselbe Stück im Feld): erst wählt jedes seinen ersten Platz, dann wachsen sie
+    abwechselnd — so behält jedes den Rand dessen, worauf es baut, statt dass das erste ihn ganz umschliesst.
+  */
+  const anchorAt: [number, number][] = units.map(() => [0, 0]);
+  let round: number[] = [];
+  for (let at = 0; at < unitOrder.length;) {
+    const k0 = unitOrder[at];
+    const key = (k: number) => `${depth[units[k].item]}:${unitDepth[k]}`;
+    round = [];
+    const stuck: number[] = [];
+    while (at < unitOrder.length && key(unitOrder[at]) === key(k0)) { round.push(unitOrder[at]); at += 1; }
+    for (const k of round) anchorOf(k);
+    /* Ein weiteres Stück, das seine Geschwister nicht mehr erreicht: das Feld wird unten neu gelegt. */
+    for (const k of round) {
+      const sibs = unitOrder.filter((v) => v !== k && units[v].item === units[k].item && unitCells[v].length > 0);
+      if (firstUnit[units[k].item] !== k && sibs.length > 0 && !sibs.some((v) => distTo(unitCells[k][0].q, unitCells[k][0].r, unitCells[v]) <= 1)) stuck.push(k);
+    }
+    let growing = round.filter((k) => unitCells[k].length < units[k].size);
+    while (growing.length > 0) {
+      for (const k of growing) if (!growOne(k) && !stuck.includes(k)) stuck.push(k);
+      growing = growing.filter((k) => unitCells[k].length < units[k].size && !stuck.includes(k));
+    }
+    /* Eingeschlossen, bevor die Fläche voll war: noch einmal legen, allein (wo die ganze Fläche Platz hat). */
+    const release = (k: number) => {
+      for (const c of unitCells[k]) taken.delete(cellKey(c.q, c.r));
+      unitCells[k] = [];
+    };
+    const refresh = () => {
+      frontier.clear();
+      for (const key of taken.keys()) { const [q, r] = decode(key); for (const [dq, dr] of NEIGHBOURS) { const nk = cellKey(q + dq, r + dr); if (inFan(q + dq, r + dr) && !taken.has(nk)) frontier.add(nk); } }
+      if (taken.size === 0) frontier.add(cellKey(0, 0));
+    };
+    const placeAlone = (k: number) => { round = [k]; anchorOf(k); while (unitCells[k].length < units[k].size && growOne(k)); };
+    for (const k of stuck) {
+      release(k);
+      refresh();
+      placeAlone(k);
+      /* Kein Platz neben den Geschwistern mehr: das ganze Feld neu legen (seine Fläche bleibt eins). */
+      const item = units[k].item;
+      const sibs = unitOrder.filter((v) => v !== k && units[v].item === item && unitCells[v].length > 0);
+      const touches = sibs.length === 0 || unitCells[k].some((c) => sibs.some((v) => distTo(c.q, c.r, unitCells[v]) <= 1));
+      if (!touches) {
+        const mine = unitOrder.filter((v) => units[v].item === item && unitCells[v].length > 0);
+        for (const v of mine) release(v);
+        refresh();
+        for (const v of mine) placeAlone(v);
+      }
     }
   }
 
@@ -956,7 +1025,7 @@ export function stepRange(columns: readonly { readonly y: number; readonly steps
   const tallest = Math.max(1, ...columns.map((c) => c.steps));
   const depthSpan = columns.length === 0 ? 1 : Math.max(...columns.map((c) => c.y)) - Math.min(...columns.map((c) => c.y));
   const maxStep = regional ? Math.min(0.3, (0.8 + depthSpan * 0.32) / tallest) : Math.min(0.3, (2.2 + depthSpan * 0.6) / tallest);
-  return { maxStep, minStep: regional ? Math.min(6 / footprint, maxStep * 0.3) : 6 / footprint };
+  return { maxStep, minStep: regional ? Math.min(6 / footprint, maxStep * 0.12) : 6 / footprint };
 }
 
 /* -- Boden und die Gebiete aus den Daten (verschachtelt, `nest`) --------------------------------------------------- */
