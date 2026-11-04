@@ -3532,3 +3532,17 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   joining neighbours / ≤ 2 hexagons: LAAG 58 % / 70 %, Bosko 71 % / 86 %, kette8 61 % / 87 %, zweige8 64 % / 90 %,
   5 000 topics 43 % / 63 %; regions contiguous 88 %, 100 %, 100 %, 100 %, 81 %; layout of 5 000 topics ~700 ms in the worker;
   dragging 5 000 topics 16.7 ms per frame (95 % ≤ 16.8 ms).
+
+## C37 — Landscape polish: pieces, free camera, information in the hexagons (2026-11-04, Prompt 14)
+
+- Files: `WorldMap.tsx` (pieces, flag, outlines, free orbit and twist, in-hexagon text at two levels, overlay taps, faster
+  far drawing), `worldView.ts` (`stepFor`, `fitInfo`, `NAME_PX`, `detailPx`, `deepestS`, `infoAngle`), `worldLayout.ts`
+  (no gap rows, boxed-in regions placed again), `LandscapeView.tsx` (pieces stored as `pieces:<view>`, per-tile share /
+  what is left / details, step per base, legend), `landscapeWords.ts`, `landscape.css`, `json.ts` (format text),
+  `testGraphs.mjs` (`flach7`), `app-worldmap-check.mjs` (no holes, touching regions, no island cells, step per base,
+  text fits its chord, deepest zoom ≈ 4 tiles).
+- Changed by the user during the work: names on ALL tiles in view at one zoom (one look per zoom), and a deep zoom with
+  only 2–5 hexagons and the full information — instead of information only near the centre.
+- LocalDB (`scratchpad/p14`): "Flach zz-probe" (59 topics, 7 regions, chains ≤ 3) plus the Prompt 11–13 bases; browser
+  checks 18/18 on the flat, linear, branching, LAAG and 5 000-topic bases in light, dark and at 390 px; panning and orbiting
+  5 000 topics 16.7 ms per frame.

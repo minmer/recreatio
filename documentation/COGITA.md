@@ -1098,6 +1098,39 @@ Phones stay awake.
   that no longer exists resumes at the first step not yet visited. The player restores the place when the learner
   arrives late and never writes a place on mere opening. The daily limit is 2000.
 
+### Landscape polish (2026-11-04, Prompt 14)
+
+Wins over Prompt 13 where they differ.
+
+- **Pieces** (`WorldMap.tsx` PieceIcon/GoalFlagIcon, `LandscapeView.tsx`): only from the learner's own action. Opening a
+  topic to learn (double-click on the field, "Zacznij", "Ucz się teraz", its story) places a piece; it stays until the topic
+  is known. Stored with the learner's progress as the place `pieces:<view>` (`visited` = the topic ids; same merge and
+  devices as every story place). A goal places a flag on the goal (from the place `landscape:<view>`) and one goal piece
+  on its route at the first topic not yet known — it walks there with a short animation when that changes. Tapping a
+  piece opens the topic (its story resumes where the learner stopped), tapping the flag selects the goal and its route;
+  far away (hexagons under 18 px) the pieces of one top region merge into one with a number (a tap zooms in). Taps on
+  pieces, the flag and region names are found by the map itself, so a drag that starts on them still moves the camera.
+- **Free camera** (`worldView.ts`, `WorldMap.tsx`): Ctrl + drag (or the right button) orbits smoothly around the view
+  centre (sideways) and tilts (up/down); two fingers rotate (twist), tilt and zoom; plain drag pans; the button rotates by
+  45°; the saved view keeps the free angles. Nothing changes the camera automatically. The camera control sits below the
+  map (on top of it it covered fields and pieces).
+- **Information inside the hexagons** (`worldView.ts` fitInfo, NAME_PX, detailPx, deepestS; changed by the user mid-way):
+  one look per zoom for all tiles in view — from 56 px per hexagon every tile shows only its name; at the deepest zoom
+  (about four hexagons fill the view, by area at the current tilt; `deepestS`) every tile shows everything: a ring with
+  the share known, the name (up to three lines), what is left ("2 brakuje", "5 do powtórki", "gotowe"), steps, cards and
+  what it opens. Each line fits its chord of a round area on the top face (shortened with "…", never squeezed into a
+  column); drawn onto the face with the tilt and the face's rotation (±30°); hidden when the tilt is below 0.5. No floating
+  topic names any more; region names only before the name level. Zooming keeps the column under the cursor in place.
+- **Regions touch**: no gap row between top regions, no holes; a region is its colour only.
+- **The learner's land as outlines**: no warm fill — an orange-red outline around everything known, a light-yellow one
+  around what is learnable now (`--cg-ls-land`, `--cg-ls-ready`, light and dark); known topics keep their region colour.
+- **Step height per base** (`stepFor`): from the base's longest chain — `max(0.1, min(0.6, 1.8 / levels))` ground units
+  per step, the same for every field; a flat base (3 levels) gets 0.6, a deep one (18 levels or more) keeps 0.1.
+- **Layout fix**: a region boxed in while many regions start at once (a flat base) is placed again alone, else takes the
+  nearest free cells — no topic ever lands outside the map.
+- **Speed**: far away the sides of a column are one shape; while the angle or zoom changes the picture is drawn directly
+  (the large off-screen picture is rebuilt when the camera rests); fitted texts are cached per tile and size.
+
 ### One landscape with fluid zoom (2026-11-04, Prompt 13, Part C)
 
 Replaces how Prompts 11 and 12 showed the regions (the regions themselves stay).

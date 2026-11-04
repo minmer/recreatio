@@ -466,6 +466,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const now = performance.now();
     /* Welche Seiten nach vorn zeigen (ihre Mitte liegt unter der Mitte der Kachel). */
     const front = [0, 1, 2, 3, 4, 5].filter((k) => (corners[k][1] + corners[(k + 1) % 6][1]) / 2 > 1e-6);
+    /* Dieselben Seiten als zusammenhängende Folge (über die Ecke 5→0 hinweg), für die eine Fläche fern. */
+    const frontRun = (() => { const set = new Set(front); let s0 = front[0] ?? 0; while (set.has((s0 + 5) % 6) && set.size < 6) s0 = (s0 + 5) % 6; const out: number[] = []; for (let k = s0; set.has(k % 6) && out.length < set.size; k += 1) out.push(k % 6); return out.length > 0 ? out : [0]; })();
     const regionHi = hoverRegion;
     const showGlow = px >= 6;
     /* Blass ist im Dunkeln ein mittleres Grau (nicht das dunkle Licht des Stils): ferne Berge bleiben lesbar. */
@@ -489,7 +491,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       else face = mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, t.steps / 28));
       if (regionHi !== null && (world.chain[i] ?? []).includes(regionHi)) face = mix(face, P.surface, 0.28);
       /* Die Seiten (eine Fläche je sichtbarer Seite, dunkler). */
-      if (h > 0.4) {
+      if (h > 0.4 && px < 12) {
+        /* Fern (kleine Kacheln): alle Seiten als EINE Fläche — so bleiben 5 000 Säulen auch beim Drehen flüssig. */
+        const first = frontRun[0]; const last = frontRun[frontRun.length - 1];
+        ctx.beginPath();
+        ctx.moveTo(x + corners[first][0], top + corners[first][1]);
+        for (const k of frontRun) { const b = corners[(k + 1) % 6]; ctx.lineTo(x + b[0], top + b[1]); }
+        ctx.lineTo(x + corners[(last + 1) % 6][0], base + corners[(last + 1) % 6][1]);
+        for (let j = frontRun.length - 1; j >= 0; j -= 1) { const a = corners[frontRun[j]]; ctx.lineTo(x + a[0], base + a[1]); }
+        ctx.closePath();
+        ctx.fillStyle = css(mix(face, [0, 0, 0], 0.24));
+        ctx.fill();
+      } else if (h > 0.4) {
         for (const k of front) {
           const a = corners[k]; const b = corners[(k + 1) % 6];
           ctx.beginPath();
