@@ -7,8 +7,19 @@
 
 import { HEX_CORNER } from './levelMap';
 
-/** Die Höhe eines Schrittes (Bodeneinheiten): eine für alle Felder, bei jedem Zoom und jeder Neigung. */
+/** Die Höhe eines Schrittes (Bodeneinheiten) in einer tiefen Baza — eine für alle Felder, bei jedem Zoom und jeder Neigung. */
 export const STEP = 0.1;
+
+/**
+ * 2026-11-04 (Prompt 14, 6) — DIE STUFE NACH DER BAZA: `levels` ist die längste Kette der Baza (vom Tal bis zum höchsten
+ * Thema). Eine flache Baza (wenige Stufen) bekäme sonst kaum sichtbare Unterschiede: je weniger Stufen, desto höher jede —
+ * so ist das höchste Feld etwa 1,8 Bodeneinheiten hoch, höchstens 0,6 je Stufe. Ab 18 Stufen bleibt es bei `STEP` (eine
+ * tiefe Baza sieht aus wie bisher). Für alle Felder einer Baza dieselbe.
+ */
+export function stepFor(levels: number): number {
+  const n = Math.max(1, Math.round(levels));
+  return Math.max(STEP, Math.min(0.6, 1.8 / n));
+}
 /** Die flachste Neigung (fast von der Seite) und von oben. */
 export const FORE_MIN = 0.25;
 export const FORE_MAX = 1;
@@ -34,6 +45,8 @@ export interface Projection {
   readonly fore: number;
   /** Wie viel einer Höhe zu sehen ist (von oben: nichts). */
   readonly lift: number;
+  /** Die Höhe eines Schrittes dieser Baza (`stepFor`). */
+  readonly step: number;
   readonly s: number;
   readonly ox: number;
   readonly oy: number;
@@ -43,7 +56,7 @@ export interface Projection {
   readonly corners: readonly (readonly [number, number])[];
 }
 
-export function projection(cam: WorldCam, width: number, height: number): Projection {
+export function projection(cam: WorldCam, width: number, height: number, step = STEP): Projection {
   const a = (cam.rot * Math.PI) / 180;
   const ca = Math.cos(a);
   const sa = Math.sin(a);
@@ -56,7 +69,7 @@ export function projection(cam: WorldCam, width: number, height: number): Projec
     const ry = x * sa + y * ca;
     return [rx * cam.s, -ry * fore * cam.s] as const;
   });
-  return { ca, sa, fore, lift, s: cam.s, ox: width / 2, oy: height / 2, cx: cam.cx, cy: cam.cy, corners };
+  return { ca, sa, fore, lift, step, s: cam.s, ox: width / 2, oy: height / 2, cx: cam.cx, cy: cam.cy, corners };
 }
 
 /** Ein Punkt am Boden (mit `steps` Schritten Höhe) auf dem Schirm. */
@@ -65,7 +78,7 @@ export function toScreen(p: Projection, x: number, y: number, steps = 0): [numbe
   const dy = y - p.cy;
   const rx = dx * p.ca - dy * p.sa;
   const ry = dx * p.sa + dy * p.ca;
-  return [p.ox + rx * p.s, p.oy - ry * p.fore * p.s - steps * STEP * p.lift * p.s];
+  return [p.ox + rx * p.s, p.oy - ry * p.fore * p.s - steps * p.step * p.lift * p.s];
 }
 
 /** Wie tief ein Punkt liegt (grösser: weiter vorn) — die Reihenfolge des Zeichnens. */
@@ -142,6 +155,57 @@ export function regionLabelAlpha(diameter: number, parentDiameter: number | null
   const parent = parentDiameter === null ? 1 : Math.max(0, Math.min(1, (parentDiameter - MAX_D + 220) / 220));
   return up * down * parent;
 }
+
+/*
+ * 2026-11-04 (Prompt 14, 3) — WAS IN EINER KACHEL STEHT (nah, nur Felder nahe der Mitte des Bildes): Name und was noch
+ * zu tun ist, in einem runden Feld auf der Oberseite. Jede Zeile so breit, wie der Kreis auf ihrer Höhe ist (eine Sehne),
+ * gekürzt mit „…" — nie gestaucht, nie in eine Spalte gebrochen. Gezeichnet mit der Neigung (die Höhe gestaucht wie die
+ * Fläche) und mit der Drehung der Kachel (höchstens ±30°, die Kachel sieht alle 60° gleich aus — so bleibt es lesbar).
+ */
+export const INFO_PX = 92;
+/** Steiler als so (Neigung) ist die Oberseite nicht mehr zu lesen: kein Text. */
+export const INFO_FORE = 0.5;
+
+export interface InfoLine { readonly text: string; readonly y: number; readonly size: number; readonly bold: boolean }
+
+/**
+ * Die Zeilen in einem Kreis vom Halbmesser `r` (Bildpunkte, Mitte 0): oben Platz für den Ring (`ringY`), darunter der Name
+ * (höchstens zwei Zeilen), dann was zu tun ist. `measure`: Breite eines Textes bei Grösse und Gewicht.
+ */
+export function fitInfo(name: string, todo: string, r: number, measure: (text: string, size: number, bold: boolean) => number): { lines: InfoLine[]; ringY: number; ringR: number } {
+  const size = Math.max(8, Math.min(16, r * 0.24));
+  const small = Math.max(7, size * 0.82);
+  const chord = (y: number, h: number) => 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(y) + h / 2) ** 2)) * 0.92;
+  const cut = (text: string, width: number, s: number, bold: boolean): string => {
+    if (measure(text, s, bold) <= width) return text;
+    let lo = 0; let hi = text.length;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (measure(`${text.slice(0, m).trimEnd()}…`, s, bold) <= width) lo = m; else hi = m - 1; }
+    return lo <= 1 ? '' : `${text.slice(0, lo).trimEnd()}…`;
+  };
+  const ringR = size * 0.62;
+  const ringY = -r * 0.52;
+  const lines: InfoLine[] = [];
+  /* Der Name: erst versuchen, ihn an Wortgrenzen auf zwei Zeilen zu legen. */
+  const y1 = -size * 0.15;
+  const y2 = y1 + size * 1.15;
+  const w1 = chord(y1, size);
+  const words = name.split(/s+/).filter((w) => w !== '');
+  let first = '';
+  let k = 0;
+  while (k < words.length && measure(first === '' ? words[k] : `${first} ${words[k]}`, size, true) <= w1) { first = first === '' ? words[k] : `${first} ${words[k]}`; k += 1; }
+  if (first === '') { lines.push({ text: cut(name, w1, size, true), y: y1, size, bold: true }); }
+  else {
+    lines.push({ text: first, y: y1, size, bold: true });
+    const rest = words.slice(k).join(' ');
+    if (rest !== '') lines.push({ text: cut(rest, chord(y2, size), size, true), y: y2, size, bold: true });
+  }
+  const yt = (lines.length > 1 ? y2 : y1) + size * 1.25;
+  if (todo !== '') lines.push({ text: cut(todo, chord(yt, small), small, false), y: yt, size: small, bold: false });
+  return { lines: lines.filter((l) => l.text !== ''), ringY, ringR };
+}
+
+/** Der Winkel, um den der Text in einer Kachel gedreht steht: die Drehung der Kamera, auf ±30° gebracht (Grad). */
+export const infoAngle = (rot: number): number => { const a = (((-rot % 60) + 60) % 60); return a > 30 ? a - 60 : a; };
 
 /** Wie gross eine Kachel auf dem Schirm ist (Breite, Bildpunkte). */
 export const cellPx = (cam: WorldCam): number => 2 * HEX_CORNER * cam.s;

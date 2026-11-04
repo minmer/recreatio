@@ -277,7 +277,8 @@ export function worldLayout(tree: RegionTree | null, tg: TopicGraph): WorldLayou
       for (const t of r.topics) for (const p of g.needs[t] ?? []) { const v = pieceOfTopic.get(p); if (v !== undefined && v !== i) needs.set(v, (needs.get(v) ?? 0) + 1); }
       return { size: r.topics.length, rank: Math.min(...r.topics.map((t) => g.rank?.[t] ?? t)), needs };
     });
-    const packed = packPieces(pieces, inFan, [0, 0], true, true);
+    /* 2026-11-04 (Prompt 14, 4): Gebiete liegen Kachel an Kachel (kein Streifen Boden) — unterschieden nur durch die Farbe. */
+    const packed = packPieces(pieces, inFan, [0, 0], false, true);
     rs.forEach((r, i) => fill(tree!, tg, r.children, packed[i], packed[i][0] ?? [0, 0], r.level === 1, place, whole));
   }
   /* Themen ohne Platz (sollte nicht vorkommen): am Rand angefügt. */

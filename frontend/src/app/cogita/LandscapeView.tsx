@@ -47,9 +47,10 @@ import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
 import { skipStep } from './flowAsk';
 import { landscapeWords, type LandscapeWords } from './landscapeWords';
-import { nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
+import { globalDepth, nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
+import { stepFor } from './worldView';
 import { worldLayout, type WorldLayout } from './worldLayout';
-import { FlagIcon, SignIcon, WorldMap, type WorldCommand, type WorldTopic } from './WorldMap';
+import { FlagIcon, GoalFlagIcon, PieceIcon, SignIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
 import type { RegionTree } from './regions';
 import './landscape.css';
 
@@ -535,6 +536,20 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* 2026-11-04 (Prompt 12) — ein gewähltes Thema zeigt seinen Weg gleich (auf der Karte und daneben). */
   useEffect(() => { setRouteShown(chosenId); }, [chosenId]);
   const goalOpen = goalSteps.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; });
+  /*
+    2026-11-04 (Prompt 14, 1) — DIE SPIELFIGUREN, gemerkt mit dem Fortschritt des Lernenden (eine Stelle `pieces:<widok>`: die
+    Themen, die er zu lernen begann — so auch nach dem Neuladen und auf einem anderen Gerät). Eine Figur entsteht nur durch
+    sein Tun (ein Thema zum Lernen öffnen) und geht, wenn das Thema gekonnt ist.
+  */
+  const piecesKey = `pieces:${viewKey}`;
+  const [localPieces, setLocalPieces] = useState<readonly string[]>([]);
+  const storedPieces: readonly string[] = learner === null ? localPieces : progress?.positions.get(piecesKey)?.visited ?? [];
+  const addPiece = (id: string) => {
+    if (!topicIndex.has(id)) return;
+    const list = [...storedPieces.filter((x) => x !== id && bandOf(x) !== 'known' && bandOf(x) !== 'due'), id].slice(-40);
+    if (learner === null) { setLocalPieces(list); return; }
+    void learner.keepPosition({ flow: piecesKey, step: '', visited: list, at: Date.now() }).catch(() => undefined);
+  };
 
   /* Erobertes: einmal gesagt, wenn es neu ist. */
   const [won, setWon] = useState<string | null>(null);
@@ -563,6 +578,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   };
   const learnEntry = (id: string, endWhenDone = true) => {
     setNote(null);
+    addPiece(id);
     void (async () => {
       const plan = await planFrom(practiseGraph(practiseIds(cards, id), endWhenDone));
       if (plan !== null) setRunning({ key: `learn:${id}:${Date.now()}`, source: { plan, cards, title: labelOf(id) } });
@@ -575,6 +591,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   };
   const reviewFirst = (id: string, after?: () => void) => {
     setNote(null);
+    addPiece(id);
     const groups = lockCards(gauge, lib.prerequisites(), id, cards);
     const list = groups.flatMap((g) => g.cards).filter((c) => !(learner?.progress.suspended.has(c.key) ?? false));
     const nextUp = after ?? (() => learnEntry(id));
@@ -588,6 +605,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const find = (x: string) => { const d = lib.docs('flow').find((one) => one.id === x); return d === undefined ? undefined : readFlow(d.id, d.data); };
     const full = resolveFlow(flow, find);
     const at = review ? reviewStart(full) : null;
+    if (flow.unit !== undefined) addPiece(flow.unit);
     setRunning({ key: `story:${full.id}:${Date.now()}`, story: full, jump: at === null ? null : { step: at, at: Date.now() } });
   };
   const openTopic = (id: string) => { const flow = storyOf(id); if (flow !== undefined && !gauge.testing.has(id)) { setRunning(null); window.setTimeout(() => openStory(flow, false), 0); return; } learnEntry(id); };
@@ -617,13 +635,19 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* -- 2026-11-04 (Prompt 13): was jedes Thema auf der einen Karte zeigt ---------------------------------- */
   /* Die Farbe eines Themas: die seines obersten Gebiets (benachbarte Gebiete verschieden); ohne Gebiete: sein Abschnitt. */
   const topSubject = useMemo(() => { const m = new Map<string, number>(); (world?.top ?? []).forEach((k, i) => m.set(k, i % 8)); return m; }, [world]);
+  /* Wie viele Karten je Thema fällig sind (was in der Kachel steht). */
+  const dueBy = useMemo(() => { const m = new Map<string, number>(); for (const c of dueCards) for (const e of cardEntities(c)) m.set(e, (m.get(e) ?? 0) + 1); return m; }, [dueCards]);
+  /* 2026-11-04 (Prompt 14, 6) — die Stufe nach der Baza: ihre längste Kette (eine flache Baza bekommt höhere Stufen). */
+  const step = useMemo(() => { const d = globalDepth(tg); let most = 0; for (let i = 0; i < d.length; i += 1) most = Math.max(most, d[i]); return stepFor(most + 1); }, [tg]);
   const worldTopics = useMemo((): WorldTopic[] => tg.graph.ids.map((id, t) => {
     const info = infoOf(t);
     const band = info.band ?? 'mountain';
     const topKey = world?.chain[t]?.[0];
-    return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked, sign: band === 'ring' && info.locked ? 'first' : band === 'due' ? 'due' : null };
+    const todo = band === 'known' ? T.todoKnown : band === 'due' ? T.todoDue(Math.max(1, dueBy.get(id) ?? 1)) : band === 'ring' ? (info.locked ? T.nextFirst : T.todoReady) : T.todoMissing(Math.max(1, info.steps - 1));
+    return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked, sign: band === 'ring' && info.locked ? 'first' : band === 'due' ? 'due' : null,
+      share: info.total === 0 ? (band === 'known' || band === 'due' ? 1 : 0) : info.known / info.total, todo };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [tg, stand, state, world, topSubject, colourOf]);
+  }), [tg, stand, state, world, topSubject, colourOf, dueBy, lang]);
   /* Je Gebiet: wie viel darin gekonnt ist und was jetzt geht. */
   const regionStats = useMemo(() => {
     const m = new Map<string, { all: number; known: number; ready: number }>();
@@ -861,9 +885,15 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       {dueHere.length > 0 && learner !== null && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(W.review + ": " + (here?.name ?? baseName), dueHere)} data-landscape-region-review={dueHere.length}>{T.reviewDue(dueHere.length)}</button></div>}
     </section>
   );
+  /* Die Figuren auf der Karte: die begonnenen Themen (bis sie gekonnt sind) und eine auf dem Weg zum Ziel (das nächste zu lernende). */
+  const goalPieceT = goal !== null && goalOpen.length > 0 ? topicIndex.get(goalOpen[0]) ?? null : null;
+  const mapPieces: WorldPiece[] = [
+    ...storedPieces.map((id) => topicIndex.get(id)).filter((x): x is number => x !== undefined && x !== goalPieceT && worldTopics[x]?.band !== 'known' && worldTopics[x]?.band !== 'due').map((x) => ({ t: x, kind: 'single' as const })),
+    ...(goalPieceT === null ? [] : [{ t: goalPieceT, kind: 'goal' as const }])
+  ];
   /* Die Legende sagt nur, was gerade gilt. */
   const legend = () => (
-    <Legend show={{ due: worldTopics.some((x) => x.sign === 'due'), first: worldTopics.some((x) => x.sign === 'first'), land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null }} folded={compact || !wide} />
+    <Legend show={{ due: worldTopics.some((x) => x.sign === 'due'), first: worldTopics.some((x) => x.sign === 'first'), land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null }} folded={compact || !wide} />
   );
 
   return host(
@@ -903,7 +933,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
           {world !== null && (
             <WorldMap world={world} topics={worldTopics} regionName={regionName} conquered={conquered} chosen={chosenT} flash={flashT} home={next?.t ?? null} links={links} route={routeT}
               width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner?.holder ?? 'me'}`} command={command}
-              onPickTopic={pick} onView={setViewChain} onBackground={() => setChosen(null)} legend={legend} />
+              onPickTopic={pick} onView={setViewChain} onBackground={() => setChosen(null)} legend={legend}
+              step={step} pieces={mapPieces} goalFlag={goal === null ? null : topicIndex.get(goal) ?? null}
+              onPiece={(x) => { const id = tg.graph.ids[x]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }}
+              onFlag={() => { if (goal !== null) selectTopic(goal); }}
+              onStart={(x) => { const id = tg.graph.ids[x]; setChosen(id); if (learner !== null) startTopic(id); }} />
           )}
           {!wide && topicPanel !== null && chosenId !== null && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
           {!wide && regionPanel}
@@ -924,15 +958,17 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
 /* -- Die Legende: nur, was gerade gilt; im Engen zu „Legende" gefaltet ------------------------------------------ */
 
-function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'due' | 'first' | 'land' | 'glow' | 'flag' | 'links', boolean>> }) {
+function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'due' | 'first' | 'land' | 'glow' | 'flag' | 'links' | 'piece' | 'goal', boolean>> }) {
   const [open, setOpen] = useState(!folded);
   useEffect(() => { setOpen(!folded); }, [folded]);
   const body = (
     <ul className="cg-ls-legend" data-landscape-legend="">
       <li><span className="cg-ls-legend-tones" aria-hidden><i /><i /><i /><i /></span>{T.legendRegion}</li>
-      {show.land && <li data-landscape-legend-mark="land"><span className="cg-ls-legend-land" aria-hidden />{T.legendLand}</li>}
+      {show.land && <li data-landscape-legend-mark="land"><span className="cg-ls-legend-line is-land" aria-hidden />{T.legendLandLine}</li>}
       <li data-landscape-legend-height=""><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path d="M-11,6 L-5,6 L-5,2 L1,2 L1,-2 L7,-2 L7,-6 L11,-6" /></svg>{T.legendHeight}</li>
-      {show.glow && <li data-landscape-legend-mark="glow"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><polygon className="cg-ls-legend-glow" points="-8,0 -4,-5 4,-5 8,0 4,5 -4,5" /></svg>{T.legendGlow}</li>}
+      {show.glow && <li data-landscape-legend-mark="glow"><span className="cg-ls-legend-line is-ready" aria-hidden />{T.legendReadyLine}</li>}
+      {show.piece && <li data-landscape-legend-mark="piece"><svg className="cg-ls-legend-icon" viewBox="-12 -16 24 18" aria-hidden><PieceIcon kind="single" h={15} /></svg>{T.legendPiece}</li>}
+      {show.goal && <li data-landscape-legend-mark="goal"><svg className="cg-ls-legend-icon" viewBox="-12 -16 24 18" aria-hidden><g transform="translate(-5,0)"><PieceIcon kind="goal" h={15} /></g><g transform="translate(5,0)"><GoalFlagIcon h={14} /></g></svg>{T.legendGoalPiece}</li>}
       {show.first && <li data-landscape-legend-mark="first"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="first" r={8} /></svg>{T.legendFirst}</li>}
       {show.due && <li data-landscape-legend-mark="repeat"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="due" r={8} /></svg>{T.legendDue}</li>}
       {show.flag && <li data-landscape-legend-mark="flag"><FlagIcon size={14} />{T.legendFlag}</li>}

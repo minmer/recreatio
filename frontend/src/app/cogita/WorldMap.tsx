@@ -19,7 +19,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 
 import type { LsBand } from './landscape';
 import type { WorldLayout } from './worldLayout';
-import { cellPx, depthOf, FORE_MAX, FORE_MIN, FORE_START, fitCam, NAME_PX, PICK_PX, placeLabels, projection, regionLabelAlpha, SIGN_PX, toGround, toScreen, type LabelCandidate, type Projection, type WorldCam } from './worldView';
+import { cellPx, depthOf, fitCam, fitInfo, FORE_MAX, FORE_MIN, FORE_START, INFO_FORE, INFO_PX, infoAngle, PICK_PX, placeLabels, projection, regionLabelAlpha, SIGN_PX, toGround, toScreen, type LabelCandidate, type Projection, type WorldCam } from './worldView';
 import type { LandscapeWords } from './landscapeWords';
 
 export type SignKind = 'first' | 'due';
@@ -34,6 +34,15 @@ export interface WorldTopic {
   readonly subject: number;
   readonly glow: boolean;
   readonly sign: SignKind | null;
+  /** 2026-11-04 (Prompt 14) — wie viel seiner Karten sitzt (0–1, der Ring in der Kachel) und was noch zu tun ist („2 brakuje"). */
+  readonly share: number;
+  readonly todo: string;
+}
+
+/** Eine Spielfigur: auf einem Thema, das er zu lernen begann (`single`), oder auf dem Weg zu seinem Ziel (`goal`). */
+export interface WorldPiece {
+  readonly t: number;
+  readonly kind: 'single' | 'goal';
 }
 
 export interface WorldCommand {
@@ -66,7 +75,7 @@ export function FlagIcon({ size = 12 }: { size?: number }) {
 
 /* -- Farben aus dem Stil (hell und dunkel) -------------------------------------------------------------------------- */
 
-interface Palette { readonly c: readonly number[][]; readonly cx: number[]; readonly light: number[]; readonly haze: number[]; readonly floor: number[]; readonly warm: number[]; readonly glow: number[]; readonly ink: number[]; readonly accent: number[]; readonly surface: number[] }
+interface Palette { readonly c: readonly number[][]; readonly cx: number[]; readonly light: number[]; readonly haze: number[]; readonly floor: number[]; readonly warm: number[]; readonly glow: number[]; readonly ink: number[]; readonly accent: number[]; readonly surface: number[]; readonly land: number[]; readonly ready: number[] }
 function parseColour(v: string): number[] {
   const s = v.trim();
   if (s.startsWith('#')) {
@@ -91,7 +100,8 @@ function readPalette(el: Element): Palette {
   const out: Palette = {
     c: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => get(`--cg-ls-c${i}`, '#8899aa')), cx: get('--cg-ls-cx', '#999999'), light: get('--cg-ls-light', '#ffffff'),
     haze: get('--cg-ls-haze', '#f6f4ef'), floor: get('--cg-ls-floor', '#f3f0ea'), warm: get('--cg-ls-warm', '#f0a020'), glow: get('--cg-ls-glow', '#fff6c2'),
-    ink: get('--wk-ink', '#222222'), accent: get('--wk-accent', '#7a5a2f'), surface: get('--wk-surface', '#ffffff')
+    ink: get('--wk-ink', '#222222'), accent: get('--wk-accent', '#7a5a2f'), surface: get('--wk-surface', '#ffffff'),
+    land: get('--cg-ls-land', '#e0482a'), ready: get('--cg-ls-ready', '#ffe46b')
   };
   probe.remove();
   return out;
@@ -123,18 +133,54 @@ function keptCam(key: string): WorldCam | null {
     const raw = localStorage.getItem(`cg-wm-cam:${key}`);
     if (raw === null) return null;
     const v = JSON.parse(raw) as Partial<WorldCam>;
-    if ([v.s, v.cx, v.cy, v.rot, v.fore].every((x) => typeof x === 'number' && Number.isFinite(x))) return { s: v.s!, cx: v.cx!, cy: v.cy!, rot: ((Math.round(v.rot! / 60) * 60) % 360 + 360) % 360, fore: v.fore! };
+    /* 2026-11-04 (Prompt 14) — der freie Winkel, wie er war (nicht mehr auf 60° gerundet). */
+    if ([v.s, v.cx, v.cy, v.rot, v.fore].every((x) => typeof x === 'number' && Number.isFinite(x))) return { s: v.s!, cx: v.cx!, cy: v.cy!, rot: ((v.rot! % 360) + 360) % 360, fore: v.fore! };
   } catch { /* ohne Speicher */ }
   return null;
 }
 function keepCam(key: string, cam: WorldCam): void {
-  try { localStorage.setItem(`cg-wm-cam:${key}`, JSON.stringify({ ...cam, rot: ((Math.round(cam.rot / 60) * 60) % 360 + 360) % 360 })); } catch { /* ohne Speicher */ }
+  try { localStorage.setItem(`cg-wm-cam:${key}`, JSON.stringify({ ...cam, rot: ((cam.rot % 360) + 360) % 360 })); } catch { /* ohne Speicher */ }
+}
+
+/* -- Spielfiguren und Fahne (SVG, dieselben in der Legende) ---------------------------------------------------------- */
+
+/** Eine Figur (Fuss auf dem Feld bei 0,0): einzeln dunkel, auf dem Weg zum Ziel in der Farbe des Ziels; mit Zahl: mehrere. */
+export function PieceIcon({ kind, h, count = 1 }: { kind: 'single' | 'goal'; h: number; count?: number }) {
+  const r = h * 0.2;
+  return (
+    <g className={`cg-wm-piece is-${kind}`}>
+      <ellipse className="cg-wm-piece-foot" cx={0} cy={0} rx={h * 0.3} ry={h * 0.1} />
+      <path className="cg-wm-piece-body" d={`M${(-h * 0.24).toFixed(2)},0 Q${(-h * 0.2).toFixed(2)},${(-h * 0.5).toFixed(2)} 0,${(-h * 0.62).toFixed(2)} Q${(h * 0.2).toFixed(2)},${(-h * 0.5).toFixed(2)} ${(h * 0.24).toFixed(2)},0 Z`} />
+      <circle className="cg-wm-piece-head" cx={0} cy={-h * 0.78} r={r} />
+      {count > 1 && <text className="cg-wm-piece-count" x={h * 0.34} y={-h * 0.72}>{count}</text>}
+    </g>
+  );
+}
+export function GoalFlagIcon({ h }: { h: number }) {
+  return (
+    <g className="cg-wm-goalflag">
+      <path d={`M0,0 V${(-h).toFixed(2)}`} className="cg-wm-goalflag-pole" />
+      <path d={`M0,${(-h).toFixed(2)} L${(h * 0.62).toFixed(2)},${(-h * 0.8).toFixed(2)} L0,${(-h * 0.58).toFixed(2)} Z`} className="cg-wm-goalflag-cloth" />
+    </g>
+  );
 }
 
 /* -- Die Karte ------------------------------------------------------------------------------------------------- */
 
-export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend }: {
+export function WorldMap({ world, topics, regionName, conquered, chosen, flash, home, links, route, width, compact, T, memoryKey, command, onPickTopic, onView, onBackground, legend, step, pieces, goalFlag, onPiece, onFlag, onStart }: {
   world: WorldLayout;
+  /** Die Höhe eines Schrittes dieser Baza (`stepFor`). */
+  step: number;
+  /** Die Spielfiguren des Lernenden (nur aus seinem eigenen Tun). */
+  pieces: readonly WorldPiece[];
+  /** Die Fahne auf seinem Ziel. */
+  goalFlag: number | null;
+  /** Eine Figur angetippt: das Thema dort, wo er war. */
+  onPiece: (t: number) => void;
+  /** Die Fahne angetippt: das Ziel mit seinem Weg. */
+  onFlag: () => void;
+  /** Ein Doppelklick auf ein Thema (nah): zum Lernen öffnen. */
+  onStart: (t: number) => void;
   topics: readonly WorldTopic[];
   regionName: (key: string) => string;
   /** Gebiete, in denen alles gekonnt ist (erobert). */
@@ -202,7 +248,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     };
     frame.current = requestAnimationFrame(tick);
   };
-  const rotateBy = (k: number) => glide({ ...camRef.current, rot: Math.round(camRef.current.rot / 60) * 60 + 60 * k }, 260);
+  /* 2026-11-04 (Prompt 14) — frei drehen: der Knopf um 45°, sanft (keine Raster mehr). */
+  const rotateBy = (k: number) => glide({ ...camRef.current, rot: camRef.current.rot + 45 * k }, 300);
   const resetView = () => glide(fitWhole({ ...camRef.current, rot: 0, fore: FORE_START }));
   const regionCam = (key: string) => { const r = world.regions.get(key); return r === undefined ? null : fitCam(camRef.current, width, height, r.x, r.y, r.radius); };
   const topicCam = (t: number) => { const c = world.cells[t]; return { ...camRef.current, s: Math.max(camRef.current.s, 64 / (2 * 0.57735)), cx: c.x, cy: c.y }; };
@@ -250,7 +297,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const [hoverTopic, setHoverTopic] = useState<number | null>(null);
   /* Die Mitte der Gebiete einer Ebene, die gerade benannt wird (für Klicks fern): je Thema das Gebiet, das den Namen trägt. */
   const px = cellPx(cam);
-  const proj = useMemo(() => projection(cam, width, height), [cam, width, height]);
+  const proj = useMemo(() => projection(cam, width, height, step), [cam, width, height, step]);
   const regionOfTopicNow = (t: number): string | null => {
     const chain = world.chain[t] ?? [];
     /* Das tiefste Gebiet, das bei diesem Zoom einen Namen trägt oder schon zu gross dafür ist (dessen Kind dann hinein führt). */
@@ -281,7 +328,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
     if (n < 1200 || growing) { draw(ctx, dpr); return; }
     const margin = Math.round(Math.max(width, height) * 0.5);
-    const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height].join('|');
+    const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height, step].join('|');
     let c = cache.current;
     let dx = 0; let dy = 0;
     if (c !== null && c.sig === sig) {
@@ -295,7 +342,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (off.width !== Math.round(cw * dpr) || off.height !== Math.round(ch * dpr)) { off.width = Math.round(cw * dpr); off.height = Math.round(ch * dpr); }
       const octx = off.getContext('2d');
       if (octx === null) { draw(ctx, dpr); return; }
-      const p2 = projection(cam, cw, ch);
+      const p2 = projection(cam, cw, ch, step);
       const scr = new Float32Array(n * 3);
       for (let i = 0; i < n; i += 1) { const w0 = world.cells[i]; const [x, y] = toScreen(p2, w0.x, w0.y, topics[i]?.steps ?? 0); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(p2, w0.x, w0.y); }
       draw(octx, dpr, p2, scr, cw, ch);
@@ -307,8 +354,51 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     ctx.clearRect(0, 0, el.width, el.height);
     ctx.drawImage(c.canvas, Math.round((dx - c.margin) * dpr), Math.round((dy - c.margin) * dpr));
   };
+  /*
+    2026-11-04 (Prompt 14, 3) — WAS IN DEN KACHELN STEHT (nah, nur nahe der Mitte des Bildes): Name, ein Ring mit dem Anteil
+    des Gekonnten und was noch zu tun ist — auf der Oberseite (gestaucht wie sie, gedreht wie die Kachel); zu steil: nichts.
+    Auf das sichtbare Bild gezeichnet (nicht ins verschobene), so folgt es der Mitte des Bildes.
+  */
+  const fontFamily = useRef('');
+  const drawInfo = (ctx: CanvasRenderingContext2D, dpr: number) => {
+    let drawn = 0;
+    const done = () => { if (box.current !== null) box.current.dataset.wmInfo = String(drawn); };
+    if (palette === null || px < INFO_PX || cam.fore < INFO_FORE) { done(); return; }
+    if (fontFamily.current === '') { try { fontFamily.current = getComputedStyle(document.body).fontFamily; } catch { fontFamily.current = 'sans-serif'; } }
+    const P = palette;
+    const reach = Math.min(width, height) * 0.36;
+    const ang = (infoAngle(cam.rot) * Math.PI) / 180;
+    const ca = Math.cos(ang); const sa = Math.sin(ang);
+    const r = proj.s * 0.43;
+    const measure = (text: string, size: number, bold: boolean) => { ctx.font = `${bold ? '600 ' : ''}${size}px ${fontFamily.current}`; return ctx.measureText(text).width; };
+    for (let i = 0; i < n; i += 1) {
+      const x = screen[i * 3]; const y = screen[i * 3 + 1];
+      if (Math.hypot(x - width / 2, y - height / 2) > reach) continue;
+      const t = topics[i];
+      if (t === undefined) continue;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const fit = fitInfo(t.label, t.todo, r, measure);
+      drawn += 1;
+      /* Auf die Fläche: drehen wie die Kachel, die Tiefe stauchen wie die Neigung. */
+      ctx.setTransform(dpr * ca, dpr * sa * cam.fore, -dpr * sa, dpr * ca * cam.fore, x * dpr, y * dpr);
+      const regionC = t.subject >= 0 && t.subject < 8 ? P.c[t.subject] : P.cx;
+      ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1.5, fit.ringR * 0.32);
+      ctx.strokeStyle = css(P.surface, 0.75); ctx.stroke();
+      if (t.share > 0) { ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, -Math.PI / 2, -Math.PI / 2 + Math.min(1, t.share) * Math.PI * 2); ctx.strokeStyle = css(mix(regionC, [0, 0, 0], 0.35)); ctx.stroke(); }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const l of fit.lines) {
+        ctx.font = `${l.bold ? '600 ' : ''}${l.size}px ${fontFamily.current}`;
+        ctx.lineWidth = 3; ctx.strokeStyle = css(P.surface, 0.8); ctx.strokeText(l.text, 0, l.y);
+        ctx.fillStyle = css(P.ink); ctx.fillText(l.text, 0, l.y);
+      }
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    done();
+  };
   useLayoutEffect(() => {
     paint();
+    { const c = canvas.current?.getContext('2d'); if (c != null) drawInfo(c, Math.min(2, window.devicePixelRatio || 1)); }
     /* Solange das Land wächst: weiter zeichnen. */
     const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
     if (growing && animating.current === 0) {
@@ -345,7 +435,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const order: number[] = [];
     for (let i = 0; i < n; i += 1) { const x = scr[i * 3]; const y = scr[i * 3 + 1]; if (x < -margin || x > cw + margin || y < -margin - 400 || y > ch + margin + 200) continue; order.push(i); }
     order.sort((a, b) => scr[a * 3 + 2] - scr[b * 3 + 2]);
-    const lift = p.lift * 0.1 * p.s;
+    const lift = p.lift * p.step * p.s;
     const now = performance.now();
     /* Welche Seiten nach vorn zeigen (ihre Mitte liegt unter der Mitte der Kachel). */
     const front = [0, 1, 2, 3, 4, 5].filter((k) => (corners[k][1] + corners[(k + 1) % 6][1]) / 2 > 1e-6);
@@ -363,11 +453,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const base = top + h;
       const regionC = t.subject >= 0 && t.subject < 8 ? P.c[t.subject] : P.cx;
       let face: number[];
+      /* 2026-11-04 (Prompt 14, 5) — gekonnt: die Farbe des Gebiets, kräftig (kein warmer Überzug — das eigene Land ist ein Umriss). */
       if (t.band === 'known' || t.band === 'due') {
         const since = knownAt.current.get(i);
         const grown = since === undefined ? 1 : Math.min(1, (now - since) / 900);
-        const land = mix(P.warm, regionC, 0.18);
-        face = mix(mix(regionC, pale, 0.5), land, grown);
+        face = mix(mix(regionC, pale, 0.5), regionC, grown);
       } else if (t.band === 'ring') face = mix(regionC, pale, dark ? 0.3 : 0.55);
       else face = mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, t.steps / 28));
       if (regionHi !== null && (world.chain[i] ?? []).includes(regionHi)) face = mix(face, P.surface, 0.28);
@@ -387,33 +477,36 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       ctx.fillStyle = css(face);
       ctx.fill();
       if (px >= 9) { ctx.strokeStyle = css(mix(face, [0, 0, 0], 0.22), 0.7); ctx.lineWidth = 0.6; ctx.stroke(); }
-      /* Was jetzt geht: ein heller Rand (die Grenze des eigenen Landes, wo es weitergeht). */
-      if (showGlow && t.glow) { ctx.strokeStyle = css(P.glow, 0.95); ctx.lineWidth = Math.max(1.2, Math.min(2.4, px / 10)); ctx.stroke(); }
       if (i === chosen || i === flash) { ctx.strokeStyle = css(P.accent); ctx.lineWidth = i === flash ? 3.4 : 2.6; ctx.stroke(); }
     }
-    /* Der weiche Rand des eigenen Landes: wo ein gekonntes Feld an ein nicht gekonntes stösst. */
-    ctx.save();
-    ctx.shadowColor = css(P.warm, 0.8);
-    ctx.shadowBlur = Math.max(2, Math.min(10, px / 3));
-    ctx.strokeStyle = css(P.warm, 0.85);
-    ctx.lineWidth = Math.max(1, Math.min(3, px / 8));
-    ctx.beginPath();
-    const known = (i: number) => { const b = topics[i]?.band; return b === 'known' || b === 'due'; };
+    /*
+      2026-11-04 (Prompt 14, 5) — DAS EIGENE LAND ALS UMRISS: ein orangeroter Umriss um alles Gekonnte, ein hellgelber um das,
+      was jetzt lernbar ist — oben auf den Kacheln, die Farben der Gebiete bleiben darin ganz sichtbar.
+    */
     const at = byCell.current;
-    for (const i of order) {
-      if (!known(i)) continue;
-      const c = world.cells[i];
-      const x = scr[i * 3]; const y = scr[i * 3 + 1];
-      for (let k = 0; k < 6; k += 1) {
-        const [dq, dr] = EDGE_DIR[k];
-        const j = at.get(`${c.q + dq},${c.r + dr}`);
-        if (j !== undefined && known(j)) continue;
-        const a = corners[k]; const b = corners[(k + 1) % 6];
-        ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + b[0], y + b[1]);
+    const outline = (inSet: (i: number) => boolean, colour: number[], widthPx: number) => {
+      ctx.beginPath();
+      for (const i of order) {
+        if (!inSet(i)) continue;
+        const c = world.cells[i];
+        const x = scr[i * 3]; const y = scr[i * 3 + 1];
+        for (let k = 0; k < 6; k += 1) {
+          const [dq, dr] = EDGE_DIR[k];
+          const j = at.get(`${c.q + dq},${c.r + dr}`);
+          if (j !== undefined && inSet(j)) continue;
+          const a = corners[k]; const b = corners[(k + 1) % 6];
+          ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + b[0], y + b[1]);
+        }
       }
-    }
-    ctx.stroke();
-    ctx.restore();
+      ctx.strokeStyle = css(colour, 0.95);
+      ctx.lineWidth = widthPx;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    };
+    const line = Math.max(1.2, Math.min(3.2, px / 9));
+    if (showGlow) outline((i) => topics[i]?.band === 'ring', P.ready, line);
+    outline((i) => { const b = topics[i]?.band; return b === 'known' || b === 'due'; }, P.land, line * 1.15);
     /* Die eigenen Verbindungen des gewählten Themas: weiche Wege (was es braucht dunkler, was es öffnet heller). */
     if (links !== null && chosen !== null) {
       const from: [number, number] = [scr[chosen * 3], scr[chosen * 3 + 1]];
@@ -463,7 +556,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Die ganze Säule zählt (Oberseite und Seiten), die vorderste gewinnt. */
     const half = proj.s * 0.5;
     const face = proj.s * 0.5 * proj.fore;
-    const per = 0.1 * proj.lift * proj.s;
+    const per = proj.step * proj.lift * proj.s;
     let best: number | null = null;
     let depth = -Infinity;
     for (let i = 0; i < n; i += 1) {
@@ -498,16 +591,16 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return () => el.removeEventListener('wheel', wheel);
   });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const drag = useRef<{ x: number; y: number; cam: WorldCam; moved: boolean; orbit: boolean; turned: number; vx: number; vy: number; t: number; two: { d: number; mx: number; my: number; s: number; fore: number } | null } | null>(null);
+  const drag = useRef<{ x: number; y: number; cam: WorldCam; moved: boolean; orbit: boolean; turned: number; vx: number; vy: number; t: number; two: { d: number; mx: number; my: number; s: number; fore: number; ang: number; rot: number } | null } | null>(null);
   const down = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     stop();
     const [x, y] = local(e);
     pointers.current.set(e.pointerId, { x, y });
     canvas.current?.setPointerCapture?.(e.pointerId);
-    if (pointers.current.size === 1) drag.current = { x, y, cam: camRef.current, moved: false, orbit: e.ctrlKey || e.metaKey, turned: 0, vx: 0, vy: 0, t: performance.now(), two: null };
+    if (pointers.current.size === 1) drag.current = { x, y, cam: camRef.current, moved: false, orbit: e.ctrlKey || e.metaKey || e.button === 2 || e.button === 1, turned: 0, vx: 0, vy: 0, t: performance.now(), two: null };
     else if (pointers.current.size === 2 && drag.current !== null) {
       const [a, b] = [...pointers.current.values()];
-      drag.current = { ...drag.current, moved: true, two: { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, s: camRef.current.s, fore: camRef.current.fore } };
+      drag.current = { ...drag.current, moved: true, two: { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, s: camRef.current.s, fore: camRef.current.fore, ang: Math.atan2(b.y - a.y, b.x - a.x), rot: camRef.current.rot } };
     }
   };
   const move = (e: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -529,19 +622,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const mx = (a.x + b.x) / 2; const my = (a.y + b.y) / 2;
       const ddist = Math.abs(dist - d.two.d);
       const dmy = my - d.two.my;
-      /* Beide Finger hoch oder runter (Abstand bleibt): neigen; sonst zoomen. */
+      /* 2026-11-04 (Prompt 14): zwei Finger drehen (Drehen der Finger), neigen (beide hoch oder runter) und zoomen (Abstand) — frei. */
+      const twist = ((Math.atan2(b.y - a.y, b.x - a.x) - d.two.ang) * 180) / Math.PI;
       if (Math.abs(dmy) > ddist * 1.4 && Math.abs(dmy) > 8) setCam(clamp({ ...camRef.current, fore: d.two.fore - dmy / 260 }));
-      else zoomAt((d.two.s * (dist / Math.max(1, d.two.d))) / camRef.current.s, mx, my);
+      else { zoomAt((d.two.s * (dist / Math.max(1, d.two.d))) / camRef.current.s, mx, my); if (Math.abs(twist) > 2) setCam(clamp({ ...camRef.current, rot: d.two.rot - twist })); }
       return;
     }
     if (!d.moved && Math.hypot(x - d.x, y - d.y) < 6) return;
     d.moved = true;
     if (d.orbit) {
-      /* Strg + Ziehen: hoch/runter neigt, quer dreht in 60°-Schritten. */
+      /* 2026-11-04 (Prompt 14) — FREI UM DIE MITTE: Strg + Ziehen (oder mit der rechten Taste): quer dreht stufenlos, hoch/runter neigt. */
       const fore = d.cam.fore - (y - d.y) / 260;
-      const steps = Math.trunc((x - d.x) / 90);
-      if (steps !== d.turned) { rotateBy(steps - d.turned); d.turned = steps; }
-      setCam(clamp({ ...camRef.current, fore }));
+      setCam(clamp({ ...camRef.current, fore, rot: d.cam.rot + (x - d.x) * 0.4 }));
       return;
     }
     const now = performance.now();
@@ -567,6 +659,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const double = lastTap.current !== null && now - lastTap.current.at < 380 && Math.hypot(lastTap.current.x - x, lastTap.current.y - y) < 12;
       lastTap.current = { at: now, x, y };
       if (t === null) { onBackground(); return; }
+      /* 2026-11-04 (Prompt 14) — ein Doppelklick auf ein Thema (nah): zum Lernen öffnen (stellt eine Figur darauf). */
+      if (double && px >= PICK_PX) { onStart(t); return; }
       if (double || px < PICK_PX) {
         /* Ein Gebiet (fern) oder ein Doppelklick: sanft auf das Gebiet, das hier hineinführt. */
         const chain = world.chain[t] ?? [];
@@ -631,7 +725,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* -- Namen: Gebiete nach dem Zoom, nah die Themen ------------------------------------------------------------- */
   const labels = useMemo(() => {
     const list: LabelCandidate[] = [];
-    for (const r of world.regions.values()) {
+    /* Nah steht alles in den Kacheln: dann keine Namen der Gebiete darüber. */
+    for (const r of px >= INFO_PX ? [] : world.regions.values()) {
       const d = 2 * r.radius * cam.s;
       const parent = r.parent === null ? null : world.regions.get(r.parent) ?? null;
       const alpha = regionLabelAlpha(d, parent === null ? null : 2 * parent.radius * cam.s, r.level === 1);
@@ -643,16 +738,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const w = Math.min(tw, 208) + 16;
       list.push({ key: `r:${r.key}`, text, x, y, w, h: 17 * lines + 6, weight: 1000 + r.topics.length + (parent === null ? 5000 : 0), alpha });
     }
-    if (px >= NAME_PX) {
-      const inView: number[] = [];
-      for (let i = 0; i < n; i += 1) { const x = screen[i * 3]; const y = screen[i * 3 + 1]; if (x > 0 && x < width && y > 0 && y < height) inView.push(i); }
-      inView.sort((a, b) => Math.hypot(screen[a * 3] - width / 2, screen[a * 3 + 1] - height / 2) - Math.hypot(screen[b * 3] - width / 2, screen[b * 3 + 1] - height / 2));
-      for (const i of inView.slice(0, 160)) {
-        const t = topics[i];
-        const text = t.label.length > 28 ? `${t.label.slice(0, 27)}…` : t.label;
-        list.push({ key: `t:${i}`, text, x: screen[i * 3], y: screen[i * 3 + 1] + Math.max(8, px * 0.18), w: Math.min(px * 1.6, textWidth(text, false) + 10), h: 18, weight: (i === chosen ? 900 : t.glow ? 500 : 100) - Math.hypot(screen[i * 3] - width / 2, screen[i * 3 + 1] - height / 2) / 100, alpha: Math.min(1, (px - NAME_PX) / 14 + 0.2) });
-      }
-    }
+    /* 2026-11-04 (Prompt 14, 3): keine schwebenden Namen der Themen mehr — nah steht alles in der Kachel (`drawInfo`). */
     /* Die wirkliche Grösse (gemessen, sobald ein Name einmal stand) gilt vor der Schätzung. */
     return placeLabels(list.map((l) => { const m = measured.current.get(`${l.key}|${l.text}`); return m === undefined ? l : { ...l, w: Math.max(l.w, m[0]), h: Math.max(l.h, m[1]) }; }), width, height);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -672,19 +758,64 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return out;
   }, [px, n, topics, screen, width, height]);
 
+  /*
+    2026-11-04 (Prompt 14, 1) — DIE SPIELFIGUREN: wo sie stehen (auf der Oberseite ihres Feldes); fern mehrere in einem Gebiet
+    als eine Figur mit Zahl. Die Figur auf dem Weg zum Ziel geht, wenn ihr Feld wechselt, kurz von Feld zu Feld.
+  */
+  const walk = useRef<{ from: number; to: number; at: number } | null>(null);
+  const goalNow = pieces.find((p) => p.kind === 'goal')?.t ?? null;
+  const goalSeen = useRef<number | null>(goalNow);
+  const [walkTick, setWalkTick] = useState(0);
+  useEffect(() => {
+    const was = goalSeen.current;
+    goalSeen.current = goalNow;
+    if (was === null || goalNow === null || was === goalNow || reduced) return undefined;
+    walk.current = { from: was, to: goalNow, at: performance.now() };
+    let id = 0;
+    const loop = () => { setWalkTick((x) => x + 1); id = walk.current !== null && performance.now() - walk.current.at < 750 ? requestAnimationFrame(loop) : 0; if (id === 0) walk.current = null; };
+    id = requestAnimationFrame(loop);
+    return () => { if (id !== 0) cancelAnimationFrame(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goalNow]);
+  const placeOf = (t: number): [number, number] => {
+    const w = walk.current;
+    if (w !== null && w.to === t) {
+      const k = Math.min(1, (performance.now() - w.at) / 750);
+      const e = 1 - (1 - k) ** 2;
+      const a = world.cells[w.from]; const b = world.cells[w.to];
+      const sa = topics[w.from]?.steps ?? 0; const sb = topics[w.to]?.steps ?? 0;
+      return toScreen(proj, a.x + (b.x - a.x) * e, a.y + (b.y - a.y) * e, sa + (sb - sa) * e + Math.sin(Math.PI * k) * 2);
+    }
+    return [screen[t * 3], screen[t * 3 + 1]];
+  };
+  const pieceH = Math.max(14, Math.min(34, px * 0.45));
+  const shownPieces = useMemo(() => {
+    if (px >= 18) return pieces.map((p) => ({ key: `${p.kind}:${p.t}`, kind: p.kind, t: p.t, region: null as string | null, count: 1 }));
+    /* Fern: je oberstem Gebiet eine Figur mit der Zahl (die Figur zum Ziel bleibt für sich). */
+    const groups = new Map<string, { t: number; count: number; kind: 'single' | 'goal' }>();
+    for (const p of pieces) {
+      const top = world.chain[p.t]?.[0] ?? `t:${p.t}`;
+      const k = `${p.kind}:${top}`;
+      const g = groups.get(k);
+      if (g === undefined) groups.set(k, { t: p.t, count: 1, kind: p.kind }); else g.count += 1;
+    }
+    return [...groups.entries()].map(([k, g]) => ({ key: k, kind: g.kind, t: g.t, region: g.count > 1 ? (world.chain[g.t]?.[0] ?? null) : null, count: g.count }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pieces, px >= 18, world]);
+  void walkTick;
   const tip = useRef<HTMLDivElement>(null);
   const hovered = hoverTopic !== null ? { title: topics[hoverTopic]?.label ?? '', hint: hoverTopic === chosen ? (topics[hoverTopic]?.band === 'mountain' ? '' : T.hintStart) : T.hintSelect } : hoverRegion !== null ? { title: regionName(hoverRegion), hint: T.hintZoom } : null;
   const visible = new Set<string>();
   for (const l of labels) if (l.shown && l.key.startsWith('r:')) visible.add(l.key.slice(2));
-  const rotNow = ((Math.round(cam.rot / 60) * 60) % 360 + 360) % 360;
+  const rotNow = Math.round(((cam.rot % 360) + 360) % 360);
   const tiltPct = Math.round(((cam.fore - FORE_MIN) / (FORE_MAX - FORE_MIN)) * 100);
 
   return (
     <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
-      data-wm-cells={n} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
+      data-wm-cells={n} data-wm-step={step.toFixed(3)} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
       <div className="cg-wm-stage">
       <canvas ref={canvas} className="cg-wm-canvas" width={width} height={height} aria-label={T.mapLabel} role="img"
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => { setHoverRegion(null); setHoverTopic(null); }} data-landscape-svg="" />
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onContextMenu={(e) => e.preventDefault()} onPointerLeave={() => { setHoverRegion(null); setHoverTopic(null); }} data-landscape-svg="" />
       <div className="cg-wm-over" aria-hidden>
         {labels.map((l) => {
           const isRegion = l.key.startsWith('r:');
@@ -703,6 +834,31 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           </svg>
         )}
       </div>
+      {(shownPieces.length > 0 || goalFlag !== null) && (
+        <svg className="cg-wm-pieces" width={width} height={height} data-wm-pieces={shownPieces.length}>
+          {goalFlag !== null && goalFlag >= 0 && goalFlag < n && (() => {
+            const [x, y] = [screen[goalFlag * 3], screen[goalFlag * 3 + 1]];
+            return (
+              <g transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} className="cg-wm-hit" role="button" aria-label={T.goalFlagLabel(topics[goalFlag]?.label ?? '')} data-wm-flag={goalFlag}
+                onClick={onFlag}>
+                <GoalFlagIcon h={pieceH * 1.1} />
+              </g>
+            );
+          })()}
+          {shownPieces.map((p) => {
+            if (p.t < 0 || p.t >= n) return null;
+            const [x, y] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
+            if (x < -40 || x > width + 40 || y < -40 || y > height + 60) return null;
+            return (
+              <g key={p.key} transform={`translate(${x.toFixed(1)},${(y + (p.kind === 'goal' && goalFlag === p.t ? 0 : 0)).toFixed(1)})`} className="cg-wm-hit" role="button" data-wm-piece={p.kind} data-wm-piece-t={p.t} data-wm-piece-count={p.count}
+                aria-label={p.region !== null ? T.piecesHere(p.count, regionName(p.region)) : T.pieceLabel(topics[p.t]?.label ?? '')}
+                onClick={() => { if (p.region !== null) { const c = regionCam(p.region); if (c !== null) glide(c); return; } onPiece(p.t); }}>
+                <PieceIcon kind={p.kind} h={pieceH} count={p.count} />
+              </g>
+            );
+          })}
+        </svg>
+      )}
       {hovered !== null && <div ref={tip} className="cg-rm-tip" role="tooltip" data-landscape-tip="">{hovered.title}{hovered.hint === '' ? '' : <> · <strong>{hovered.hint}</strong></>}</div>}
       <div className="cg-rm-tools" role="group" aria-label={T.mapLabel}>
         <button type="button" className="cg-rm-tool" onClick={() => glide({ ...camRef.current, s: camRef.current.s * 1.6 }, 240)} aria-label={T.zoomIn} title={T.zoomIn} data-rm-zoom="in">+</button>
