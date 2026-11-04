@@ -6,8 +6,9 @@
  */
 
 import type { Flow } from '../../cogita/flow';
-import { flowPath, flowPathModel, type FlowPath } from '../../cogita/flowPath';
+import { flowPath, type FlowPath } from '../../cogita/flowPath';
 import type { PathModel } from '../../cogita/pathLayout';
+import { storyPath, type StoryPath } from '../../cogita/storyPath';
 import type { DraftPart } from '../page';
 import { readPiece, type Show } from './presentation';
 import { aboutOf } from './storyCard';
@@ -58,6 +59,8 @@ export function sceneEntries(parts: readonly DraftPart[], refs: StoryRefs, show?
 
 export interface PresentationPath {
   readonly fp: FlowPath;
+  /** 2026-11-04 — die Teile der Erzählung (Szenen zum Lesen, Szenen mit Fragen, Wahl auf einer Szene). */
+  readonly sp: StoryPath;
   readonly model: PathModel;
   /** Die Szene (Index wie `show.scenes`), die einen Eintrag zuerst zeigt — −1: keine. */
   readonly sceneOf: (entry: string) => number;
@@ -68,10 +71,25 @@ export function presentationPath(story: StoryFlow, show: Show, parts: readonly D
   const entries = sceneEntries(parts, refs, show, new Set(unitId === null ? [] : [unitId]));
   const flow: Flow = { id, name: '', look: 'scenes', start: story.start, graph: story.graph, slots: [], fill: {}, overrides: {}, goals: [], lines: [], narrators: [] };
   const fp = flowPath(flow, (node) => (node.id.startsWith('s:') ? entries.get(node.id.slice(2)) ?? [] : []), refs.label);
-  const model = flowPathModel(fp, refs.needsOf);
+  /* Je Szene: wie viele Bausteine fragen (zählen) und ob sonst etwas zu lesen ist. */
+  const asks = new Map<string, number>();
+  const reads = new Set<string>();
+  for (const part of parts) for (const key of Object.keys(readPiece(part.layout).places)) {
+    if (COUNTING.has(part.kind)) asks.set(key, (asks.get(key) ?? 0) + 1); else reads.add(key);
+  }
+  const title = new Map(show.scenes.map((s) => [s.key, s.label || s.key] as const));
+  const sp = storyPath(flow, (node) => {
+    if (!node.id.startsWith('s:')) return { slides: 0, questions: 0, shown: [], asked: [] };
+    const key = node.id.slice(2);
+    const q = asks.get(key) ?? 0;
+    const of = entries.get(key) ?? [];
+    return { slides: q === 0 || reads.has(key) ? 1 : 0, questions: q, shown: q === 0 ? of : [], asked: q > 0 ? of : [] };
+  }, (id) => (id.startsWith('s:') ? title.get(id.slice(2)) ?? id : refs.label(id)));
+  const model = sp.model;
+
   const sceneOf = (entry: string): number => {
     const step = fp.stepOf.get(entry);
     return step === undefined || !step.startsWith('s:') ? -1 : show.scenes.findIndex((s) => s.key === step.slice(2));
   };
-  return { fp, model, sceneOf };
+  return { fp, sp, model, sceneOf };
 }

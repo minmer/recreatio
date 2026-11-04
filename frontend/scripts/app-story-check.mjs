@@ -104,7 +104,10 @@ const storyFlow = { start: 's:start', graph: { nodes: ['start', 'intro', 'fork',
 ] } };
 const told = PP.presentationPath(storyFlow, show, parts, refs, 'page:p', '@unit');
 const pos = Object.fromEntries(told.model.nodes.map((n) => [n.id, [n.level, n.x]]));
-check('the presentation’s path: start, a fork of two (side by side), the meeting point centred above', [told.model.nodes.length, pos.start, pos.ta, pos.tb, pos.meet], [4, [0, 0], [1, -0.5], [1, 0.5], [2, 0]]);
+/* 2026-11-04 — die Teile: die Szenen zum Lesen, die Wahl auf der Szene (zwei Knöpfe), zwei Szenen mit Fragen nebeneinander, der Treffpunkt, das Ende. */
+const kindsP = told.sp.parts.map((p) => p.kind);
+const at = (step) => pos[told.model.nodes[told.sp.partOfStep.get(step)].id];
+check('the presentation’s path: reading scenes, a choice on the scene (two buttons), two question scenes side by side, the meeting point centred above, one end', [kindsP, told.sp.parts[2].fork.branches.length, at('s:a'), at('s:b'), at('s:meet')], [['start', 'read', 'fork', 'learn', 'learn', 'read', 'end'], 2, [3, -0.5], [3, 0.5], [4, 0]]);
 check('a tap finds the scene of an entry', [told.sceneOf('tb'), told.sceneOf('meet'), told.sceneOf('nothing')], [4, 5, -1]);
 
 /* -- Die Einheit eines Ablaufs, und im Krajobraz das Tal ------------------------------------------------------------- */

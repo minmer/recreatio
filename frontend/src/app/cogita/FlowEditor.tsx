@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { contentOfLibrary, FlowPlayer } from './FlowPlayer';
+import { flowProblems } from './flowCheck';
 import { FLOW_PALETTE, LOOK_LABEL, LOOK_TYPES, proposedDependencies, readFlow, resolveFlow, type CharacterLine, type Flow, type Goal, type LookType, type Narrator, type Slot } from './flow';
 import { GameRulesEditor } from './GamePanel';
 import { readGame, type GameRules } from './game';
@@ -149,6 +150,8 @@ function FlowForm({ id }: { id: string }) {
         </div>
       </details>
 
+      {/* 2026-11-04 — ist die Ścieżka folgerichtig? Ein Anfang, ein Ende, keine Sackgassen — jeder Fehler beim Namen. */}
+      {flow.template === undefined && <FlowProblems flow={flow} label={(x) => { const e = lib.entity(x); return e === undefined ? x : lib.label(e); }} />}
       {flow.template === undefined && (
         <GraphEditor graph={flow.graph} palette={FLOW_PALETTE} cycles readOnly={!writes} start={flow.start}
           onStart={(s) => set({ start: s })} onChange={(g: Graph) => set({ graph: g, start: flow.start ?? g.nodes[0]?.id ?? null })} />
@@ -367,5 +370,18 @@ function PageWithFlow({ id, name, onSaid }: { id: string; name: string; onSaid: 
       </div>
       {failed !== null && <p className="wk-error">{failed}</p>}
     </section>
+  );
+}
+
+/** 2026-11-04 — was an der Ścieżka eines Ablaufs nicht stimmt (`flowCheck.ts`): Fehler zuerst, jeder Schritt beim Namen. */
+function FlowProblems({ flow, label }: { flow: Flow; label: (id: string) => string }) {
+  const list = flowProblems(flow, label);
+  if (list.length === 0) return <p className="cg-muted" data-flow-problems="0">Ścieżka w porządku: jeden początek, jeden koniec, z każdego kroku da się dojść do końca.</p>;
+  const errors = list.filter((p) => p.level === 'error');
+  return (
+    <div className={errors.length > 0 ? 'wk-error' : 'wk-note'} role="status" data-flow-problems={list.length}>
+      <p>{errors.length > 0 ? 'Ten przebieg nie ma początku albo końca — tak się nie zapisze z importu i uczący się utknie:' : 'Ścieżka ma miejsca, w których uczący się utknie albo których nie zobaczy:'}</p>
+      <ul>{[...errors, ...list.filter((p) => p.level === 'warning')].slice(0, 12).map((p, i) => <li key={i}>{p.text}</li>)}{list.length > 12 && <li>… i {list.length - 12} innych</li>}</ul>
+    </div>
   );
 }

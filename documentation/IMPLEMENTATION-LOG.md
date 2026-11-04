@@ -3329,3 +3329,60 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
     untick/tick works, saving reports „usunięte: 1", and the reference is gone.
 - **Limits.** One save holds at most 5000 items (saves + deletions) and 4 MB per entry. The browser caps sealed bytes
   at 24 MB (≈ 20 MB of JSON). The service caps sealed bytes at 40 MB and the request at 64 MB.
+
+## C31 — A readable Ścieżka: story parts, one direction, fit and zoom, real choices (2026-11-04, Prompt 8)
+
+- **Story parts from the flow** (`storyPath.ts`, new). The map of a story is built from its graph, no longer from its
+  entries plus the topics' learning order (that mix caused the unexplained merges, crossings, flipped order and counts):
+  - the start and the end are their own marks;
+  - "slides to read" = consecutive show/line/expand/opening/scene steps;
+  - "questions" = consecutive question steps (or a scene with questions); a step with both shows both counts;
+  - "review" = a loop with ≥ 2 questions, plus the `review` step and a lone slide just before the loop;
+  - "fork" = choice, chapters, or a scene with several buttons;
+  - condition and set steps are transparent.
+
+  `storyMarks`: a part is done once the learner has left it (questions: also learned; review: also everything known);
+  a choice counts as chosen; chapters count when all are done; the part after chapters needs all of them. "X z Y"
+  counts exactly the drawn hexagons. Hosts: `FlowPlayer` (and the choice screen), `LandscapeView` (story unit),
+  `pathViews` (module path), `PresentationInNauka` and `presentationPath` (scenes).
+- **Layout** (`pathLayout.ts`): layered (Sugiyama) layout:
+  - longest-path levels;
+  - dummy points on long edges (`routes`);
+  - 24 barycenter sweeps, alternating down and up, keeping the order with the fewest crossings (`crossings`);
+  - x placement as the mean of neighbours, keeping order and spacing (`placeRow` with gaps);
+  - always bottom → top.
+
+  On entry maps a node with two prerequisites no longer shows a counter: it is no choice.
+- **PathMap.tsx / pathMap.css** (rewritten):
+  - the whole map fits the panel by default; "+" / "−" doubles the scale up to real size, plus "Dopasuj", drag to pan,
+    Ctrl+wheel and "Pełny ekran";
+  - kind icons inside the hexagons; the fork is a diamond, start and end are circles;
+  - "now" is larger, has a strong outline and its name beside it, always inside the panel;
+  - fork counters say „wybierz 1 z 3" / „wybrano 1 z 3" / „ukończono 2 z 3 ścieżek";
+  - names appear only on hover or tap; a second tap opens the part;
+  - a legend lists only the signs present; dark theme works through both prefers-color-scheme and data-theme.
+
+  The orange dot was `cg-pm-due`: learned, but below 100 % (due for review). It is kept and explained in the legend
+  as „do powtórki".
+- **Choice screen** (`FlowPlayer`): every option is listed by name with what waits behind it (`branchWork`); a locked
+  option says why („Zamknięte, bo: …" / „otworzy się, gdy: …"); chapters list every chapter, done ones as „ukończone".
+  CogitaHome keys the player by flow (a direct jump between two stories kept the old state).
+- **Path check** (`flowCheck.ts`, new): no start or no end (errors, the import refuses); a second start, an unreachable
+  step, an exit leading nowhere, or a loop without a way out (warnings, each step by name). It runs in the import
+  preview (`json.ts` flowWarnings / importProblems) and in the flow editor (`FlowProblems`). Without "start",
+  `readFlow` takes the one step nothing leads to.
+  - Real bases: LAAG has no flows.
+  - Bosko has 63 flows. I checked 5 in full through MCP (e1-1, e1-2, e1-3, t10, t11): no problems. They are linear
+    stories with a review loop; the "Wątek" flows end with a choice whose roads return to it and „Kończę" ends.
+  - The other 58 were not checked one by one here; the editor and every import now show it.
+- **Docs**: the `json.ts` flows section and `opowiesci-AI.md` §8a; `ksiazka-AI.md` and `ImportFormats.json` regenerated.
+- **Checks**:
+  - `app-path-check`: 67 (30 new) — no crossings where none are needed, long edges beside the chain, Bosko-like parts
+    and words, counts, three chapters one done „ukończono 1 z 3 ścieżek", a choice of three (stops, roads by name, one
+    locked, taken road), the checker (dead end, second start, loop without exit, no start), the Bosko thread shape;
+  - `app-story-check` presentation path updated to parts;
+  - browser on LocalDB (scratchpad `p8/setup.mjs` + `p8/browser.mjs`): 20 checks — a Bosko-like story fits with
+    nothing clipped, start below the end, „0 z 12", "now" named without covering its node, kinds in the legend, no
+    text on the map, tap popover, phone 390 px (no sideways scroll), dark theme, chapters, a choice of three, the
+    whole-base learning map fits;
+  - `app:check` passes.

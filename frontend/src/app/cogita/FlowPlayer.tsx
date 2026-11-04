@@ -24,15 +24,16 @@ import {
   advance, chaptersLeft, follow, goalsReached, linesNow, markSaid, narratorNow, optionsOf, readFlow, resolveFlow, startFlow, STEP_LABEL,
   type Flow, type FlowState, type LookType, type PlayContext
 } from './flow';
-import { flowCurrent, flowPath, flowPathModel, flowShown, type EntriesOfStep } from './flowPath';
+import type { EntriesOfStep } from './flowPath';
+import { branchIds, branchParts, branchWork, chapterOfSteps, stepWorkOf, storyMarks, storyPath } from './storyPath';
 import { chaptersKept, mergeGoals, withChapters } from './flowFacts';
 import type { GraphNode } from './graph';
 import { PathMap } from './PathMap';
-import { branchOf, mergeWords, pathMarks } from './pathLayout';
+import { mergeWords, partWords } from './pathLayout';
 import type { Learner } from './learn';
 import { knownessOf, average } from './knowness';
 import { cardsAbout } from './prerequisites';
-import type { Facts } from './logic';
+import { conditionText, holds, readCondition, type Facts } from './logic';
 import { publicEntity, type PublicEntity } from './publish';
 import type { MediaRef } from './schema';
 import type { CogitaLibrary } from './store';
@@ -224,22 +225,26 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     der der Erzählung); jetzt dran ist der Eintrag des Schrittes; über einer Möglichkeit leuchtet ihre Spur; ein freier
     Knoten bringt die Erzählung zu dem Schritt, der ihn zeigt; an Kapiteln „2 z 3 ścieżek".
   */
-  const fp = useMemo(() => flowPath(flow, stepEntries(content), content.label ?? ((id) => content.entity(id)?.label ?? id)), [flow, content]);
-  const pathModelNow = useMemo(() => flowPathModel(fp, content.needsOf ?? (() => [])), [fp, content]);
-  const shownNow = flowShown(fp, state.visited);
-  const pathNow = pathMarks(pathModelNow, (id) => {
-    const cards = content.cardsOf(id);
-    if (cards.length === 0 || learner === null) return { learned: shownNow.has(id), due: false };
+  /*
+    2026-11-04 — DIE KARTE AUS DEN TEILEN DER ERZÄHLUNG (`storyPath.ts`): Lesen, Fragen, Przegląd, Gabeln, Anfang und Ende —
+    jetzt dran ist der Teil des Schrittes; über einer Möglichkeit leuchtet ihre Spur; ein zweites Tippen springt dorthin.
+  */
+  const sp = useMemo(() => storyPath(flow, stepWorkOf(stepEntries(content)), content.label ?? ((id) => content.entity(id)?.label ?? id)), [flow, content]);
+  const pathModelNow = sp.model;
+  const chapterAt = useMemo(() => chapterOfSteps(sp), [sp]);
+  const knowNow = learner === null ? undefined : (id: string) => {
+    if (content.cardsOf(id).length === 0) return { learned: true, due: false };
     const k = facts(state).knowness(id);
     return { learned: k >= 0.1 - 1e-12, due: k >= 0.1 - 1e-12 && k < 1 };
-  }, flowCurrent(fp, state));
+  };
+  const pathNow = storyMarks(sp, { visited: state.visited, ended: state.ended, step: state.step, ...(knowNow === undefined ? {} : { know: knowNow }), chapters: state.chapters });
   const [hovered, setHovered] = useState<ReadonlySet<string> | null>(null);
   /* Im Kapitel bleibt seine Spur hervorgehoben. */
-  const inChapter = state.chapter === null ? null : branchOf(pathModelNow, fp.exits.get(state.chapter.hub)?.get(`c${state.chapter.index}`) ?? []);
+  const inChapter = state.chapter === null ? null : branchIds(sp, state.chapter.hub, `c${state.chapter.index}`);
   const lightOf = (step: string, exit: string) => ({
-    onPointerEnter: () => setHovered(branchOf(pathModelNow, fp.exits.get(step)?.get(exit) ?? [])),
+    onPointerEnter: () => setHovered(branchIds(sp, step, exit)),
     onPointerLeave: () => setHovered(null),
-    onFocus: () => setHovered(branchOf(pathModelNow, fp.exits.get(step)?.get(exit) ?? [])),
+    onFocus: () => setHovered(branchIds(sp, step, exit)),
     onBlur: () => setHovered(null)
   });
   const [pathOpen, setPathOpen] = useState(() => readOpen(flow.id));
@@ -259,10 +264,9 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     if (!gate || unlocked || learner === null || flow.unit === undefined || cg === null || content.cards === undefined || cg.lib.entity(flow.unit) === undefined) return OPEN_LOCK;
     return storyLock(cg.lib, content.cards, learner, flow.unit);
   }, [gate, unlocked, learner, progressNow, flow.unit, cg, cg?.lib.revision, content.cards, lockTick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const jumpToEntry = (entry: string) => {
-    const step = fp.stepOf.get(entry);
-    if (step === undefined) return;
-    const ch = fp.chapterOf.get(step);
+  const jumpToStep = (step: string | null) => {
+    if (step === null) return;
+    const ch = chapterAt.get(step);
     setAnsweredOn(null);
     setHovered(null);
     setState((s) => ({
@@ -276,7 +280,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
       {story}
       <PathMap model={pathModelNow} marks={pathNow} size="small" title="Ścieżka" collapsible open={pathOpen}
         onOpen={(v) => { setPathOpen(v); keepOpen(flow.id, v); }} highlight={hovered ?? inChapter}
-        onPick={(id) => { if (fp.stepOf.has(id)) jumpToEntry(id); }} />
+        onPick={(id) => { const part = sp.parts[sp.model.index.get(id) ?? -1]; if (part !== undefined && part.kind !== 'end') jumpToStep(part.kind === 'start' ? flow.start : part.first); }} />
     </div>
   ));
   /* 2026-10-22 (Schritt 12) — wer gerade erzählt: der erste Erzähler, dessen Bedingung gilt. */
@@ -425,31 +429,74 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
             onNext={() => go(answeredOn?.correct === false ? 'wrong' : 'right')} />
         );
       }
-      case 'choice':
+      case 'choice': {
+        /*
+          2026-11-04 — DIE WAHL: jede Möglichkeit beim Namen und mit dem, was hinter ihr wartet („3 slajdy do przeczytania ·
+          5 pytań do odpowiedzi"); eine, deren Bedingung nicht gilt, steht gesperrt da und sagt, was sie öffnet. Die App
+          wählt nie selbst.
+        */
+        const open = new Set(optionsOf(current, facts(state)).map((o) => o.exit));
+        const list = Array.isArray(c.options) ? c.options : [];
+        const fork = sp.parts[sp.partOfStep.get(current.id) ?? -1]?.fork;
+        const name = (id: string) => content.label?.(id) ?? content.entity(id)?.label ?? id;
         return (
-          <div className="cg-choices">
-            {optionsOf(current, facts(state)).map((o) => <button key={o.exit} type="button" className="cg-option" onClick={() => go(o.exit)} {...lightOf(current.id, o.exit)} data-flow-option={o.exit}><TexText text={o.label} /></button>)}
+          <div className="cg-choices cg-choice-list" data-flow-choice={list.length}>
+            <p className="cg-muted">Wybierz drogę ({list.length === 1 ? 'jedna możliwość' : `1 z ${list.length}`}):</p>
+            {list.map((o, i) => {
+              const exit = `o${i}`;
+              const label = (typeof o === 'object' && o !== null && typeof (o as { label?: unknown }).label === 'string' ? (o as { label: string }).label : typeof o === 'string' ? o : '') || `możliwość ${i + 1}`;
+              const branch = fork?.branches.find((x) => x.exit === exit);
+              const work = branch === undefined ? null : branchWork(sp, branch);
+              const words = work === null ? '' : partWords({ kind: 'read', slides: work.slides, questions: work.questions });
+              const cond = typeof o === 'object' && o !== null ? readCondition((o as { condition?: unknown }).condition) : null;
+              const locked = !open.has(exit);
+              return (
+                <button key={exit} type="button" className="cg-option cg-choice-item" disabled={locked} onClick={() => go(exit)} {...lightOf(current.id, exit)} data-flow-option={exit} data-flow-option-locked={locked ? '1' : '0'}>
+                  <TexText text={label} />
+                  {words !== '' && <span className="cg-muted" data-flow-option-work="">{words}</span>}
+                  {locked && cond !== null && !holds(cond, facts(state)) && (
+                    <span className="cg-muted" data-flow-option-why="">
+                      {cond.type === 'not' && cond.items?.length === 1 ? `Zamknięte, bo: ${conditionText(cond.items[0], name)}` : `Zamknięte — otworzy się, gdy: ${conditionText(cond, name)}`}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         );
+      }
       case 'chapters': {
         /*
           2026-11-03 (F) — eine Gabel, die zusammenkommt: was durch ist — in dieser Erzählung oder auf der Karte (jeder Schritt
           seiner Spur gelernt): Erzählung und Karte sagen dasselbe —, und die Spuren, die noch offen sind; sind alle durch, weiter.
         */
         const all = Array.isArray(c.chapters) ? c.chapters.length : 0;
-        const per = fp.exits.get(current.id);
+        const fork = sp.parts[sp.partOfStep.get(current.id) ?? -1]?.fork;
         const learnedPath = (exit: string): boolean => {
-          const branch = branchOf(pathModelNow, per?.get(exit) ?? []);
-          return branch.size > 0 && [...branch].every((id) => pathNow.state[pathModelNow.index.get(id) ?? -1] === 'done');
+          const b = fork?.branches.find((x) => x.exit === exit);
+          const list = b === undefined ? [] : branchParts(sp, b.to);
+          return list.length > 0 && list.every((v) => pathNow.state[v] === 'done');
         };
+        const workOf = (exit: string): string => { const b = fork?.branches.find((x) => x.exit === exit); if (b === undefined) return ''; const w = branchWork(sp, b); return partWords({ kind: 'read', slides: w.slides, questions: w.questions }); };
         const left = chaptersLeft(current, state).filter((ch) => !learnedPath(ch.exit));
         const done = all - left.length;
         return (
           <>
-            {all > 1 && done > 0 && <p className="cg-muted" data-flow-merge={`${done}/${all}`}>{mergeWords(done, all)} przerobione{left.length > 0 ? ' — zostały:' : ''}</p>}
+            <p className="cg-muted" data-flow-merge={`${done}/${all}`}>Ukończono {mergeWords(done, all)}{left.length > 0 ? ' — wybierz następną (wszystkie, w dowolnej kolejności):' : '.'}</p>
             {left.length === 0 ? <Next onNext={() => go('done')} /> : (
-              <div className="cg-choices">
-                {left.map((ch) => <button key={ch.exit} type="button" className="cg-option" onClick={() => go(ch.exit)} {...lightOf(current.id, ch.exit)} data-flow-option={ch.exit}><TexText text={ch.title} /></button>)}
+              <div className="cg-choices cg-choice-list">
+                {(Array.isArray(c.chapters) ? c.chapters : []).map((one, i) => {
+                  const exit = `c${i}`;
+                  const title = (typeof one === 'object' && one !== null && typeof (one as { title?: unknown }).title === 'string' ? (one as { title: string }).title : typeof one === 'string' ? one : '') || `Rozdział ${i + 1}`;
+                  const isLeft = left.some((x) => x.exit === exit);
+                  const words = workOf(exit);
+                  return (
+                    <button key={exit} type="button" className={`cg-option cg-choice-item${isLeft ? '' : ' is-done'}`} disabled={!isLeft} onClick={() => go(exit)} {...lightOf(current.id, exit)} data-flow-option={exit} data-flow-option-done={isLeft ? '0' : '1'}>
+                      <TexText text={title} />
+                      <span className="cg-muted">{isLeft ? words : 'ukończone'}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </>

@@ -196,6 +196,13 @@ export interface Flow {
   readonly review?: string;
 }
 
+/** Der eine Schritt, zu dem kein Weg führt — `null`, wenn es keinen oder mehrere gibt. */
+function entryOf(graph: Graph): string | null {
+  const reached = new Set(graph.edges.filter((e) => e.from !== e.to).map((e) => e.to));
+  const free = graph.nodes.filter((n) => !reached.has(n.id));
+  return free.length === 1 ? free[0].id : null;
+}
+
 export function readFlow(id: string, raw: unknown): Flow {
   const d = isObject(raw) ? raw : {};
   const graph = migratePrerequisites(readGraph(d.graph, true));
@@ -209,7 +216,8 @@ export function readFlow(id: string, raw: unknown): Flow {
     name: str(d.name).trim() || 'Przebieg',
     look: (LOOK_TYPES as readonly string[]).includes(str(d.look)) ? (d.look as LookType) : 'reading',
     ...(str(d.lookId) === '' ? {} : { lookId: str(d.lookId) }),
-    start: graph.nodes.some((n) => n.id === start) ? start : (graph.nodes[0]?.id ?? null),
+    /* 2026-11-04 — ohne gültiges "start": der eine Schritt, zu dem nichts führt (sonst wie bisher der erste). */
+    start: graph.nodes.some((n) => n.id === start) ? start : (entryOf(graph) ?? graph.nodes[0]?.id ?? null),
     graph,
     slots: (Array.isArray(d.slots) ? d.slots : []).flatMap((s): Slot[] => (isObject(s) && str(s.id) !== '' ? [{ id: str(s.id), label: str(s.label) || str(s.id), ...(str(s.kind) === '' ? {} : { kind: str(s.kind) }) }] : [])),
     ...(str(d.template) === '' ? {} : { template: str(d.template) }),

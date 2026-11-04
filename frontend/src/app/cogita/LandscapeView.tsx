@@ -40,10 +40,10 @@ import { cardsAbout } from './prerequisites';
 import { cardKnowness } from './knowing';
 import { readFlow, resolveFlow, type Flow } from './flow';
 import { contentOfLibrary, FlowPlayer, stepEntries } from './FlowPlayer';
-import { flowCurrent, flowPath, flowPathModel } from './flowPath';
+import { stepWorkOf, storyMarks, storyPath as storyPathOf } from './storyPath';
 import { viewPath } from '../routes';
 import { PathMap } from './PathMap';
-import { pathMarks } from './pathLayout';
+import { countsAsStep, pathMarks } from './pathLayout';
 import { practiseGraph, practiseIds } from './quilt';
 import { planOf, readPlan, type Plan } from './revision';
 import { RevisionRun, type RunSource } from './RevisionRun';
@@ -560,6 +560,14 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (plan.cards.length === 0) { setNote('Do tego wpisu nie ma jeszcze pytań.'); return null; }
     return plan;
   };
+  /* 2026-11-04 — ein Teil einer Erzählung lernen: die Karten über alles, wonach er fragt. */
+  const learnParts = (title: string, ids: readonly string[], endWhenDone = true) => {
+    setNote(null);
+    void (async () => {
+      const plan = await planFrom(practiseGraph([...new Set(ids.flatMap((x) => practiseIds(cards, x)))], endWhenDone));
+      if (plan !== null) setRunning({ key: `learn:${title}:${Date.now()}`, source: { plan, cards, title } });
+    })();
+  };
   const learnEntry = (id: string, endWhenDone = true) => {
     setNote(null);
     void (async () => {
@@ -614,16 +622,22 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const flow = storyOf(id);
     /* Eine Präsentation trägt ihre Szenen in der Seite: dann die Teile der Einheit (ihre Fragen zeigen dieselben Einträge). */
     if (flow === undefined || flow.graph.nodes.length === 0) return null;
+    /* 2026-11-04 — die Teile der Erzählung (Lesen, Fragen, Przegląd, Gabeln), ihr Stand aus der gemerkten Stelle. */
     const content = contentOfLibrary(lib, cards);
-    const fp = flowPath(flow, stepEntries(content), labelOf);
+    const sp = storyPathOf(flow, stepWorkOf(stepEntries(content)), labelOf);
     const kept = learner?.progress.positions.get(flow.id);
-    return { flow, model: flowPathModel(fp, (x) => lib.prerequisites().needs.get(x) ?? []), current: kept === undefined ? null : flowCurrent(fp, { step: kept.step, visited: kept.visited }) };
+    const known = gaugeKnow(gauge);
+    const marks = storyMarks(sp, {
+      visited: kept?.visited ?? [], step: kept?.step ?? null, ended: flows.get(flow.id)?.done === true,
+      ...(learner === null ? {} : { know: (x: string) => (content.cardsOf(x).length === 0 ? { learned: true, due: false } : known(x)) })
+    });
+    return { flow, sp, model: sp.model, marks };
   };
-  const unitSize = (id: string): number => storyPath(id)?.model.nodes.length ?? unitMembers(lib, id, cards, askable).length;
+  const unitSize = (id: string): number => { const s = storyPath(id); return s !== null ? s.model.nodes.filter(countsAsStep).length : unitMembers(lib, id, cards, askable).length; };
   if (keep.unit !== null) {
     const story = storyPath(keep.unit);
     const told = storyOf(keep.unit);
-    const members = story !== null ? story.model.nodes.map((n) => n.id) : unitMembers(lib, keep.unit, cards, askable);
+    const members = story !== null ? story.model.nodes.filter(countsAsStep).map((n) => n.id) : unitMembers(lib, keep.unit, cards, askable);
     const model = story !== null ? story.model : pathOfEntries(members.map((id) => ({ id, label: labelOf(id) })), lib.prerequisites());
     return host(
       <div className="cg-ls-unit" data-landscape-unit-open={keep.unit}>
@@ -638,13 +652,28 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
           </p>
         )}
         {members.length === 0 ? <p className="cg-muted">Ta jednostka nie ma jeszcze części z pytaniami.</p> : (
-          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge), story?.current ?? null)} size="full" title={story !== null ? 'Ścieżka opowieści' : 'Ścieżka jednostki'} name={(id) => <TexText text={entityNameTex(lib, id)} />}
+          story !== null ? (
+            <PathMap model={story.model} marks={story.marks} size="full" title="Ścieżka opowieści" name={(id) => <TexText text={story.model.nodes[story.model.index.get(id) ?? -1]?.label ?? id} />}
+              onPick={(id) => { const part = story.sp.parts[story.model.index.get(id) ?? -1]; if (part !== undefined && part.first !== null) setRunning({ key: `story:${story.flow.id}:${Date.now()}`, story: story.flow, jump: { step: part.first, at: Date.now() } }); }}
+              actions={(id, state) => {
+                const part = story.sp.parts[story.model.index.get(id) ?? -1];
+                if (part === undefined || part.kind === 'start' || part.kind === 'end' || part.kind === 'fork') return null;
+                const asked = part.asked.filter((x) => cardsAbout(cards, x).length > 0);
+                return (
+                  <div className="wk-actions">
+                    {learner !== null && asked.length > 0 && <button type="button" className="wk-btn" onClick={() => learnParts(part.label, asked, state !== 'done')} data-path-learn={id}>{state === 'done' ? 'Powtórz' : 'Ucz się'}</button>}
+                  </div>
+                );
+              }} />
+          ) : (
+          <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge), null)} size="full" title="Ścieżka jednostki" name={(id) => <TexText text={entityNameTex(lib, id)} />}
             actions={(id, state) => (
               <div className="wk-actions">
                 {learner !== null && <button type="button" className="wk-btn" onClick={() => learnEntry(id, state !== 'done')} data-path-learn={id}>{state === 'done' ? 'Powtórz' : 'Ucz się'}</button>}
                 {onOpen !== undefined && <button type="button" className="wk-link-btn" onClick={() => onOpen(id)}>Otwórz wpis</button>}
               </div>
             )} />
+          )
         )}
       </div>
     );

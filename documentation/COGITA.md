@@ -940,6 +940,21 @@ Phones stay awake.
   powtórz (N)" with exactly those cards, then the story. Writers get „Podgląd mimo to"; sessions run without it
   (`gate={false}`). The presentation page itself (outside the player) is not gated.
 
+### The Ścieżka of a story (2026-11-04, Prompt 8)
+
+- **Built from the flow, not from entries** (`storyPath.ts`). The map shows:
+  - start and end marks;
+  - parts to read (consecutive show steps), parts with questions (consecutive question steps; both counts when mixed),
+    and the review (a loop over ≥ 2 questions, plus `review` and the lone "Przegląd" slide before it);
+  - forks: choice, chapters, or a scene with several buttons.
+- **Drawn** (`PathMap.tsx`, `pathLayout.ts`): bottom → top, layered with crossing reduction. It fits the panel, with zoom
+  up to real size, pan and full screen. "Now" is larger, outlined and named; other names come on hover or tap; the
+  legend lists only the signs used; fork counters are in words.
+- **Logical** (`flowCheck.ts`): one start, one end, every step reachable and able to reach the end. Problems are named
+  in the import preview and the editor; no start or no end blocks the import.
+- **Choices are the learner's**: the choice screen lists every road with what waits behind it, and locked roads say
+  why. The app never picks a road.
+
 ### For AI (2026-11-03, H)
 
 - Format text (`json.ts`, → `ksiazka-AI.md`, MCP `knowledge-base`): the flows section complete — steps and exits,

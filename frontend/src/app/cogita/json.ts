@@ -25,6 +25,7 @@ import { plural } from '../core/plural';
 import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, VALUE_SEPARATORS } from './addForm';
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
+import { flowProblems } from './flowCheck';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
 import { migrateRevision } from './revision';
 import { readRewards, rewardsData } from './rewards';
@@ -918,6 +919,8 @@ export function planImport(lib: CogitaLibrary, doc: unknown, opts: { readonly id
   if (loose.dangling.length > 0) {
     warnings.push(`Wpisy wskazują w górę na siebie albo na wpis, którego nie ma: ${listed(loose.dangling)} — w drzewie staną jako początek, ale widok, który bierze za początek wpisy z pustym polem (jak „Wywód”), ich nie pokaże. Popraw ich połączenie w strukturze.`);
   }
+  /* 2026-11-04 — die Ścieżka jedes Ablaufs: ein Anfang, ein Ende, keine Sackgassen (`flowCheck.ts`; ohne Anfang oder Ende geht der Zapis nicht). */
+  warnings.push(...flowWarnings(lib, docs));
   /* 2026-11-03 — der Krajobraz: Kreise in der Reihenfolge des Lernens, unbekannte Achsen, keine Reihenfolge (`landscapeImport.ts`). */
   warnings.push(...landscapeImportWarnings(lib, { kinds, entities, docs }));
   /* 2026-11-03 — die Generatoren: übersetzen ihre Ausdrücke, gelingen Proben (mit den Einträgen nach dem Import)? */
@@ -1130,6 +1133,16 @@ export class ImportBlocked extends Error {
   }
 }
 
+/** 2026-11-04 — die Probleme der Ścieżka jedes Ablaufs eines Plans, beim Namen des Ablaufs und des Schrittes. */
+function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs']): { level: 'error' | 'warning'; text: string }[] {
+  const label = (id: string) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
+  return docs.filter((d) => d.kind === 'flow').flatMap((d) => {
+    const flow = readFlow(d.id, d.data);
+    return flowProblems(flow, label, d.data).map((p) => ({ level: p.level, text: `Przebieg „${flow.name}”: ${p.text}` }));
+  });
+}
+const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs']): string[] => flowIssues(lib, docs).map((p) => (p.level === 'error' ? `${p.text} Bez tego zapis się nie uda.` : p.text));
+
 /** Was ein Widok an Rodzajen nennt — nur, was dort sicher ein Rodzaj ist (Quelle, Gruppe, Achse). */
 function viewKindRefs(data: Readonly<Record<string, unknown>>): { where: string; id: string }[] {
   const out: { where: string; id: string }[] = [];
@@ -1207,6 +1220,8 @@ export function importProblems(lib: CogitaLibrary, plan: ImportPlan): { blocked:
       }
     }
   }
+  /* 2026-11-04 — ein Ablauf ohne Anfang oder ohne Ende: kein Zapis (die Warnungen nennen die Schritte). */
+  for (const p of flowIssues(lib, plan.docs)) if (p.level === 'error') blocked.push(p.text);
   for (const d of plan.docs) {
     if (d.kind !== 'view') continue;
     const title = `${DOC_LABEL[d.kind]} „${str(d.data.name) || '—'}”`;
@@ -1673,12 +1688,13 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
     "pick" — wybór ze stosu: "next" (ściśle następna według kolejności) | "weighted" (losowo, częściej to, co słabiej znane i dłużej czeka; domyślnie); przy każdej karcie uczący się widzi, dlaczego przyszła
   „Najpierw podstawy” to zwykłe kroki: {"type": "learning", "config": {"dir": "before", "keep": true}} → {"type": "filter.when", "config": {"when": {"type": "knowness", "rel": "before", "band": "learned"}}} → „Sposób pytania” z "order": "general"; dawny krok "gate" import i eksport zamieniają na nie
 "flows" — przebiegi (opowieści, kursy krok po kroku): {"ref", "name", "look": "reading|slides|scenes|dialogue|flashcards|map", "start", "graph", "goals", "lines", "narrators", "slots", "template", "fill", "overrides", "presentation", "unit", "review"}
-  "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in": "in"}]} — kroki i przejścia ("out" — wyjście kroku); "start": id pierwszego kroku (pominięte — pierwszy węzeł);
+  "graph": {"nodes": [{"id", "type", "x", "y", "config"}], "edges": [{"id", "from", "out", "to", "in": "in"}]} — kroki i przejścia ("out" — wyjście kroku); "start": id pierwszego kroku (pominięte — jedyny krok, do którego nic nie prowadzi);
+  ŚCIEŻKA MUSI BYĆ LOGICZNA: dokładnie jeden początek i jeden koniec (krok "end", "return" albo "handoff"), każdy krok osiągalny z początku, z każdego kroku da się dojść do końca, każde wyjście ("right" I "wrong" pytania, każda możliwość wyboru) prowadzi do kroku; podgląd importu wymienia z nazwy każdy krok, który to łamie (drugi początek, krok nieosiągalny, ślepy zaułek, pętla bez wyjścia), a przebieg bez początku albo bez końca się nie zapisze;
   kroki ("type") i ich wyjścia:
     "show" {"of": "@wpis", "title", "media"} → "next" — pokazuje wpis (wypowiedź z „Treść w blokach” w całości, inne wpisy z polami);
     "question" {"of": "@pytanie"} → "right" | "wrong" — pytanie z bazy; odpowiedź leży na JEGO karcie: liczy się dla tego, o czym jest ("about"), i wspólnie z powtórkami;
-    "choice" {"options": [{"label", "condition", "actions"}]} → "o0", "o1", … — wybór („Którędy dalej?”); możliwość z "condition" pokazuje się tylko, gdy warunek jest spełniony;
-    "chapters" {"chapters": [{"title"}]} → "c0", "c1", … i "done" — ROZWIDLENIE, KTÓRE SIĘ SCHODZI: oferuje tylko drogi jeszcze otwarte (przerobione w tej opowieści albo takie, których każdy krok uczący się już umie, odpadają), pokazuje „2 z 3 ścieżek przerobione”, a gdy wszystkie są za nim — idzie wyjściem "done"; "chapterEnd" — koniec drogi (wraca do wyboru); "restart" — ta droga od nowa;
+    "choice" {"title", "options": [{"label", "condition", "actions"}]} → "o0", "o1", … — wybór („Którędy dalej?”): opowieść zatrzymuje się i pokazuje WSZYSTKIE możliwości z nazwy i z tym, co czeka za każdą („3 slajdy do przeczytania · 5 pytań do odpowiedzi”); możliwość, której "condition" nie jest spełniony, stoi zamknięta i mówi, co ją otworzy (z warunkiem "not" — dlaczego jest zamknięta); aplikacja nigdy nie wybiera sama; drogi mogą wracać do wyboru (wtedy zostają otwarte na później);
+    "chapters" {"title", "chapters": [{"title"}]} → "c0", "c1", … i "done" — ROZWIDLENIE, KTÓRE SIĘ SCHODZI: pokazuje wszystkie drogi z tym, co czeka za każdą; przerobione (w tej opowieści albo takie, których każdy krok uczący się już umie) stoją jako „ukończone”, „Ukończono 2 z 3 ścieżek”, a gdy wszystkie są za nim — idzie wyjściem "done"; "chapterEnd" — koniec drogi (wraca do wyboru); "restart" — ta droga od nowa;
     "condition" {"condition": warunek} → "yes" | "no" — bez ekranu, np. „pomiń, gdy umie”: {"type": "knowness", "of": "@temat", "band": "known"}; "set" {"actions": [{"type": "set"|"add", "value", "to"|"by"}]} → "next";
     "expand" {"of", "threshold"} → "next" (wyjaśnia, gdy jeszcze nie umie); "opening" {"mode": "discovery"|"recall"}; "line" {"character", "of", "mood"}; "subflow" {"flow"}; "each" {"collection"|"kind", "flow"}; "handoff" {"flow"}; "end"; "return"
     krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …
@@ -1694,7 +1710,7 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
   ekran zamknięcia (odtwarzacz przed opowieścią, ta sama logika co krajobraz): brakuje czegoś przed jednostką — lista od podstaw z odnośnikami i „Ucz się” przy każdym, do tego „Ustaw jako cel” (cel w krajobrazie); wszystko poznane, ale w łańcuchu są słabe karty — „Najpierw powtórz (N)” z dokładnie tymi kartami, potem od razu opowieść; kto pisze w bazie, ma „Podgląd mimo to”
   przebieg z prezentacji (JEDNA opowieść = strona-prezentacja + ten przebieg, bez kopii): {"name": "Droga", "look": "scenes", "presentation": "parafia/droga", "unit": "@lekcja", "narrators": […]} — bez własnego "graph": jego mapą jest storyboard strony (sceny, przyciski, pytania, bramki, wartości — "story" w JSON strony, z "base": id tej bazy); w Nauce gra tę prezentację, a odpowiedzi, wartości i miejsce, w którym ktoś skończył, liczą się w tej bazie (to samo miejsce co na stronie); zobaczy ją tylko ten, kto może zobaczyć stronę; pytanie na scenie z "question": "@pytanie" liczy się jak tu krok "question", a "about" sceny mówi, czego scena dotyczy (dla ścieżki); przegląd na stronie: wartość w "story.values", bramki "set" (zero, +1 przy "right") i bramka "condition" z wynikiem, "review": "<klucz sceny początku przeglądu>", "goals" przebiegu jak wyżej (liczą się z wartości strony); strona otwiera się na scenie z adresu "?scena=<klucz>"
   miejsce uczącego się (prywatne, jak postępy; nigdy w eksporcie ani w MCP): krok, odwiedzone, przerobione drogi rozdziałów, „ukończony” (osiągnięty koniec — zostaje także po „od początku”), osiągnięte cele — warunek {"type": "flow", "flow": "@przebieg", "state": "done" | "started" | "goal", "goal": "id celu"} czyta je w widokach ("filter.when"), powtórkach i krokach widoku krajobrazu (np. tematy dopiero po ukończonej opowieści)
-  ścieżka obok opowieści: w Nauce i w module „Kurs / opowieść” mała mapa ścieżki (wpisy kroków w kolejności nauki, gdzie jej nie ma — w kolejności opowieści) idzie za krokiem; wskazana możliwość wyboru podświetla swoją drogę; klik w wolny krok przenosi opowieść do niego; na stronie stoi też osobno jako moduł "path" ({"library", "flow": "<id przebiegu>"} — także dla przebiegu z prezentacji)
+  ścieżka obok opowieści (2026-11-04): mapa CZĘŚCI przebiegu, liczona z samego grafu — początek i koniec jako własne znaki; „slajdy do przeczytania” (kolejne kroki "show"/"line"/"expand"/"opening"/scena bez pytań), „pytania do odpowiedzi” (kolejne "question"/scena z pytaniami; krok z jednym i drugim — oba liczniki), „przegląd” (pętla wracająca do pytań, aż wszystkie umiesz, i krok z "review"; pojedynczy slajd tuż przed nią należy do niej), „wybór drogi” ("choice", "chapters" i scena z kilkoma przyciskami — rysowany jako rozwidlenie z licznikiem „wybierz 1 z 3” / „wybrano 1 z 3” / „ukończono 2 z 3 ścieżek”); kroki "condition"/"set" są przezroczyste; zawsze od dołu (początek) do góry (koniec), cała w ramce (zmniejszona; „+”, „−”, „Dopasuj”, „Pełny ekran”), obecna część większa, obrysowana i z nazwą obok, inne nazwy po wskazaniu (pierwsze dotknięcie — okienko, drugie — otwiera), legenda zawsze pod mapą; „X z Y” liczy dokładnie narysowane sześciokąty; część jest ukończona, gdy ją przeszedł (pytania: i nauczył się, przegląd: i wszystko umie); dawny opis: mała mapa ścieżki idzie za krokiem; wskazana możliwość wyboru podświetla swoją drogę; klik w wolny krok przenosi opowieść do niego; na stronie stoi też osobno jako moduł "path" ({"library", "flow": "<id przebiegu>"} — także dla przebiegu z prezentacji)
   "recreatio.cogita.flow" — JEDEN przebieg razem z tym, co pokazuje (eksport z edytora przebiegów): {"format": "recreatio.cogita.flow", "version": 1, "flow": {przebieg jak wyżej}, "entities": [wpisy, które pokazuje — także postacie i jednostka "unit"]} — importuje się w tym samym miejscu co kurs; wpisy z "ref" łączą się z istniejącymi
 "collections" — zbiory: {"name", "rule": {"op": "and|or", "items": [{"field", "cmp", "value"}]}, "list": ["@wpis"]}
 "views" — widoki (te same kroki co powtórka, po wpisach): {"name", "mode": "table|tree|matrix|map|canvas|outline|quilt|landscape", "steps": [krok, …], "query", "group", "matrix", "columns": ["klucz pola" | "#axis:@oś"], "sort": {"key", "dir": 1|-1}, "landscape": {"nest": "pole"}}

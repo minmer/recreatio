@@ -21,9 +21,8 @@ import type { FlowContent } from '../../cogita/FlowPlayer';
 import { answeredCards, type Learner } from '../../cogita/learn';
 import { gaugeFromMarks } from '../../cogita/knowing';
 import { storyKnow } from '../../cogita/PathLearn';
-import { flowShown } from '../../cogita/flowPath';
 import { PathMap } from '../../cogita/PathMap';
-import { branchOf, pathMarks } from '../../cogita/pathLayout';
+import { storyMarks } from '../../cogita/storyPath';
 import type { DriveControl } from './usePresentationDrive';
 import { presentationPath } from './presentationPath';
 import { knownessOf } from '../../cogita/knowness';
@@ -128,17 +127,16 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
     const g = gaugeFromMarks([...all, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key)) ?? [], [], Date.now());
     /* Die Szene, die steht: der Weg der Bühne an dieser Stelle (er kann von der Liste der Szenen abweichen). */
     const key = control.current?.route?.()[active] ?? show.scenes[active]?.key;
-    const here = key === undefined ? [] : told.fp.entriesAt.get(`s:${key}`) ?? [];
     const kept = pageId === null ? undefined : learner?.progress.positions.get(`page:${pageId}`);
     const visited = [...new Set([...(kept?.visited ?? []), ...(key === undefined ? [] : [key])])].map((k) => `s:${k}`);
-    const marks = pathMarks(told.model, storyKnow(g, flowShown(told.fp, visited)), here[0] ?? null);
-    const now = marks.current >= 0 ? told.model.nodes[marks.current].id : null;
+    /* 2026-11-04 — die Teile der Erzählung; jetzt dran: die Szene, die steht. */
+    const known = storyKnow(g, new Set());
+    const marks = storyMarks(told.sp, { visited, step: key === undefined ? null : `s:${key}`, ...(learner === null ? {} : { know: (id: string) => (g.testing.has(id) ? known(id) : { learned: true, due: false }) }) });
     return (
       <div className="cg-show-path" data-show-path="">
         <PathMap model={told.model} marks={marks} size="small" title="Ścieżka" collapsible open={pathOpen}
           onOpen={(v) => { setPathOpen(v); try { sessionStorage.setItem(`cg-show-path-open:${path}`, v ? '1' : '0'); } catch { /* ohne Speicher */ } }}
-          highlight={now === null ? null : branchOf(told.model, [now])}
-          onPick={(id) => { const step = told.fp.stepOf.get(id); if (step !== undefined && step.startsWith('s:')) control.current?.jump?.(step.slice(2)); }} />
+          onPick={(id) => { const step = told.sp.parts[told.model.index.get(id) ?? -1]?.first; if (step !== undefined && step !== null && step.startsWith('s:')) control.current?.jump?.(step.slice(2)); }} />
       </div>
     );
   })();

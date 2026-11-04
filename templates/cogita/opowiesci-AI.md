@@ -58,6 +58,24 @@ W prezentacji to samo na stronie: wartość w `"story.values"` (`{"id": "deszcz.
 - **Przycisk** (pole w krajobrazie, węzeł w Nauce → Ścieżka i w module "path"): „Zacznij opowieść” (nowa), „Kontynuuj opowieść” (w drodze — od miejsca, w którym uczący się skończył), „Powtórz przegląd” (ukończona, cel nieosiągnięty — od "review"), „Otwórz opowieść” (zaliczona). Nigdy nie ćwiczy kart jednostki.
 - **Ekran zamknięcia** (odtwarzacz przed opowieścią — ta sama logika co krajobraz): czegoś przed jednostką brakuje — lista od podstaw z odnośnikami i „Ucz się” przy każdym, do tego „Ustaw jako cel” (cel w krajobrazie); wszystko poznane, ale w łańcuchu są słabe, już pytane karty — „Najpierw powtórz (N)” z dokładnie tymi kartami, potem od razu opowieść. Kto pisze w bazie, ma „Podgląd mimo to”.
 
+## 8a. Ścieżka: początek, koniec, wybory (2026-11-04)
+
+Obok opowieści stoi mapa jej **części**, liczona z samego grafu przebiegu — od dołu (początek) do góry (koniec):
+
+- **slajdy do przeczytania** — kolejne kroki "show" (i "line", "expand", "opening", sceny bez pytań) to jedna część;
+- **pytania do odpowiedzi** — kolejne "question" (sceny z pytaniami) to jedna część; nazwa: „Pytania — <slajd przed nimi>”;
+- **przegląd** — pętla, która wraca do pytań, aż wszystkie umiesz (jak przegląd na końcu, §7), razem z krokiem "review" i pojedynczym slajdem „Przegląd” tuż przed nią;
+- **wybór drogi** — "choice", "chapters" albo scena z kilkoma przyciskami: rysowany jako rozwidlenie; drogi stoją obok siebie;
+- "condition" i "set" są przezroczyste (należą do części, w której stoją).
+
+Ścieżka musi być logiczna, inaczej import ostrzega z nazwy kroku, a bez początku albo końca w ogóle nie zapisze przebiegu:
+
+- **jeden początek** ("start"; pominięty — jedyny krok, do którego nic nie prowadzi) i **jeden koniec** (krok "end"; drogi wyboru mogą wracać do wyboru, ale jedna możliwość musi prowadzić dalej — np. „Kończę”);
+- każdy krok osiągalny z początku (bez drugiego początku, bez luźnych kroków);
+- z każdego kroku da się dojść do końca: pytanie ma OBA wyjścia "right" i "wrong", każda możliwość wyboru ma krok, każda pętla ma wyjście.
+
+Przy wyborze opowieść się zatrzymuje: uczący się widzi wszystkie drogi z nazwy i z tym, co czeka za każdą („3 slajdy do przeczytania · 5 pytań do odpowiedzi”), zamknięte z powodem (warunek "condition" możliwości; "not" — „Zamknięte, bo: …”), i sam wybiera. Nadaj możliwościom nazwy, które mówią, dokąd prowadzą („Droga A: młodość”), a wyborowi "title".
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.
