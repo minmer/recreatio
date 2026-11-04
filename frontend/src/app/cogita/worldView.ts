@@ -146,6 +146,6 @@ export function regionLabelAlpha(diameter: number, parentDiameter: number | null
 /** Wie gross eine Kachel auf dem Schirm ist (Breite, Bildpunkte). */
 export const cellPx = (cam: WorldCam): number => 2 * HEX_CORNER * cam.s;
 /** Ab wann ein Klick ein Thema wählt (sonst zoomt er in das Gebiet), Zeichen und Namen der Themen erscheinen. */
-export const PICK_PX = 20;
+export const PICK_PX = 44;
 export const SIGN_PX = 14;
 export const NAME_PX = 46;

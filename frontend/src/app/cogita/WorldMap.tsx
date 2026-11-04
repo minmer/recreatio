@@ -99,6 +99,23 @@ function readPalette(el: Element): Palette {
 const mix = (a: readonly number[], b: readonly number[], t: number): number[] => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const css = (c: readonly number[], alpha = 1): string => `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${alpha})`;
 
+/* -- Wie breit ein Name ist (mit der Schrift der Seite gemessen, sonst geschätzt) --------------------------------- */
+
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+let measureFont = '';
+function textWidth(text: string, bold: boolean): number {
+  if (measureCtx === undefined) {
+    try {
+      measureCtx = document.createElement('canvas').getContext('2d');
+      const px = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      measureFont = `${px * 0.75}px ${getComputedStyle(document.body).fontFamily}`;
+    } catch { measureCtx = null; }
+  }
+  if (measureCtx === null || measureCtx === undefined) return text.length * (bold ? 7.2 : 6.8);
+  measureCtx.font = `${bold ? '600 ' : ''}${measureFont}`;
+  return measureCtx.measureText(text).width * 1.06 + 2;
+}
+
 /* -- Kamera, gemerkt je Lernendem und Baza ------------------------------------------------------------------------ */
 
 function keptCam(key: string): WorldCam | null {
@@ -247,18 +264,55 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return pick;
   };
   const animating = useRef(0);
-  useLayoutEffect(() => {
+  /*
+    Ein grösseres Bild im Hintergrund (eine halbe Breite Rand ringsum): beim Ziehen wird es nur verschoben — neu gezeichnet erst,
+    wenn sich Zoom, Winkel oder Daten ändern oder der Rand erreicht ist. So bleibt eine Baza mit 5 000 Themen flüssig.
+  */
+  const cache = useRef<{ canvas: HTMLCanvasElement; cam: WorldCam; sig: string; margin: number } | null>(null);
+  const dataTick = useRef(0);
+  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, route, home, hoverRegion, palette, world]); // eslint-disable-line react-hooks/exhaustive-deps
+  const paint = () => {
     const el = canvas.current;
     if (el === null || palette === null) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (el.width !== Math.round(width * dpr) || el.height !== Math.round(height * dpr)) { el.width = Math.round(width * dpr); el.height = Math.round(height * dpr); }
     const ctx = el.getContext('2d');
     if (ctx === null) return;
-    draw(ctx, dpr);
+    const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
+    if (n < 1200 || growing) { draw(ctx, dpr); return; }
+    const margin = Math.round(Math.max(width, height) * 0.5);
+    const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height].join('|');
+    let c = cache.current;
+    let dx = 0; let dy = 0;
+    if (c !== null && c.sig === sig) {
+      const [ox, oy] = toScreen(proj, c.cam.cx, c.cam.cy);
+      dx = ox - width / 2; dy = oy - height / 2;
+      if (Math.abs(dx) > margin * 0.9 || Math.abs(dy) > margin * 0.9) c = null;
+    } else c = null;
+    if (c === null) {
+      const off = cache.current?.canvas ?? document.createElement('canvas');
+      const cw = width + 2 * margin; const ch = height + 2 * margin;
+      if (off.width !== Math.round(cw * dpr) || off.height !== Math.round(ch * dpr)) { off.width = Math.round(cw * dpr); off.height = Math.round(ch * dpr); }
+      const octx = off.getContext('2d');
+      if (octx === null) { draw(ctx, dpr); return; }
+      const p2 = projection(cam, cw, ch);
+      const scr = new Float32Array(n * 3);
+      for (let i = 0; i < n; i += 1) { const w0 = world.cells[i]; const [x, y] = toScreen(p2, w0.x, w0.y, topics[i]?.steps ?? 0); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(p2, w0.x, w0.y); }
+      draw(octx, dpr, p2, scr, cw, ch);
+      c = { canvas: off, cam, sig, margin };
+      cache.current = c;
+      dx = 0; dy = 0;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, el.width, el.height);
+    ctx.drawImage(c.canvas, Math.round((dx - c.margin) * dpr), Math.round((dy - c.margin) * dpr));
+  };
+  useLayoutEffect(() => {
+    paint();
     /* Solange das Land wächst: weiter zeichnen. */
-    const growing = [...knownAt.current.values()].some((t) => performance.now() - t < 900);
+    const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
     if (growing && animating.current === 0) {
-      const loop = () => { const c = canvas.current?.getContext('2d'); if (c != null) draw(c, Math.min(2, window.devicePixelRatio || 1)); animating.current = [...knownAt.current.values()].some((t) => performance.now() - t < 900) ? requestAnimationFrame(loop) : 0; };
+      const loop = () => { paint(); animating.current = [...knownAt.current.values()].some((x) => performance.now() - x < 900) ? requestAnimationFrame(loop) : 0; };
       animating.current = requestAnimationFrame(loop);
     }
   });
@@ -275,23 +329,22 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return out;
   }, [proj, world, topics, n]);
 
-  function draw(ctx: CanvasRenderingContext2D, dpr: number) {
+  function draw(ctx: CanvasRenderingContext2D, dpr: number, p: Projection = proj, scr: Float32Array = screen, cw = width, ch = height) {
     const P = palette!;
-    const p = proj;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, cw, ch);
     const corners = p.corners;
     const margin = Math.max(30, p.s * 2);
     const hexPath = (x: number, y: number) => { ctx.moveTo(x + corners[0][0], y + corners[0][1]); for (let k = 1; k < 6; k += 1) ctx.lineTo(x + corners[k][0], y + corners[k][1]); ctx.closePath(); };
     /* Der Boden: ein Platz um alles und die Streifen zwischen den Gebieten. */
     ctx.beginPath();
-    for (const g of world.ground) { const [x, y] = toScreen(p, g.x, g.y); if (x < -margin || x > width + margin || y < -margin || y > height + margin) continue; hexPath(x, y); }
+    for (const g of world.ground) { const [x, y] = toScreen(p, g.x, g.y); if (x < -margin || x > cw + margin || y < -margin || y > ch + margin) continue; hexPath(x, y); }
     ctx.fillStyle = css(P.floor);
     ctx.fill();
     /* Von hinten nach vorn. */
     const order: number[] = [];
-    for (let i = 0; i < n; i += 1) { const x = screen[i * 3]; const y = screen[i * 3 + 1]; if (x < -margin || x > width + margin || y < -margin - 400 || y > height + margin + 200) continue; order.push(i); }
-    order.sort((a, b) => screen[a * 3 + 2] - screen[b * 3 + 2]);
+    for (let i = 0; i < n; i += 1) { const x = scr[i * 3]; const y = scr[i * 3 + 1]; if (x < -margin || x > cw + margin || y < -margin - 400 || y > ch + margin + 200) continue; order.push(i); }
+    order.sort((a, b) => scr[a * 3 + 2] - scr[b * 3 + 2]);
     const lift = p.lift * 0.1 * p.s;
     const now = performance.now();
     /* Welche Seiten nach vorn zeigen (ihre Mitte liegt unter der Mitte der Kachel). */
@@ -301,8 +354,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     for (const i of order) {
       const t = topics[i];
       if (t === undefined) continue;
-      const x = screen[i * 3];
-      const top = screen[i * 3 + 1];
+      const x = scr[i * 3];
+      const top = scr[i * 3 + 1];
       const h = t.steps * lift;
       const base = top + h;
       const regionC = t.subject >= 0 && t.subject < 8 ? P.c[t.subject] : P.cx;
@@ -321,7 +374,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const a = corners[k]; const b = corners[(k + 1) % 6];
           ctx.beginPath();
           ctx.moveTo(x + a[0], top + a[1]); ctx.lineTo(x + b[0], top + b[1]); ctx.lineTo(x + b[0], base + b[1]); ctx.lineTo(x + a[0], base + a[1]); ctx.closePath();
-          const shade = 0.16 + 0.14 * Math.abs(Math.cos(((60 * k + 30) * Math.PI) / 180 + (proj.sa >= 0 ? Math.asin(proj.sa) : -Math.asin(-proj.sa))));
+          const shade = 0.16 + 0.14 * Math.abs(Math.cos(((60 * k + 30) * Math.PI) / 180 + (p.sa >= 0 ? Math.asin(p.sa) : -Math.asin(-p.sa))));
           ctx.fillStyle = css(mix(face, [0, 0, 0], shade));
           ctx.fill();
         }
@@ -347,7 +400,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     for (const i of order) {
       if (!known(i)) continue;
       const c = world.cells[i];
-      const x = screen[i * 3]; const y = screen[i * 3 + 1];
+      const x = scr[i * 3]; const y = scr[i * 3 + 1];
       for (let k = 0; k < 6; k += 1) {
         const [dq, dr] = EDGE_DIR[k];
         const j = at.get(`${c.q + dq},${c.r + dr}`);
@@ -360,11 +413,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     ctx.restore();
     /* Die eigenen Verbindungen des gewählten Themas: weiche Wege (was es braucht dunkler, was es öffnet heller). */
     if (links !== null && chosen !== null) {
-      const from: [number, number] = [screen[chosen * 3], screen[chosen * 3 + 1]];
+      const from: [number, number] = [scr[chosen * 3], scr[chosen * 3 + 1]];
       const draw1 = (list: readonly number[], colour: number[], alpha: number) => {
         ctx.beginPath();
         for (const j of list) {
-          const to: [number, number] = [screen[j * 3], screen[j * 3 + 1]];
+          const to: [number, number] = [scr[j * 3], scr[j * 3 + 1]];
           const mx = (from[0] + to[0]) / 2; const my = (from[1] + to[1]) / 2 - Math.min(40, Math.hypot(to[0] - from[0], to[1] - from[1]) * 0.18);
           ctx.moveTo(from[0], from[1]); ctx.quadraticCurveTo(mx, my, to[0], to[1]);
         }
@@ -379,7 +432,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Der Weg zum Ziel: erst, wenn nah genug. */
     if (route !== null && route.length > 1 && px >= SIGN_PX) {
       ctx.beginPath();
-      route.forEach((j, k) => { const x = screen[j * 3]; const y = screen[j * 3 + 1]; if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+      route.forEach((j, k) => { const x = scr[j * 3]; const y = scr[j * 3 + 1]; if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
       ctx.setLineDash([6, 5]);
       ctx.strokeStyle = css(P.accent, 0.85);
       ctx.lineWidth = 2.2;
@@ -388,7 +441,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     /* Hier bist du: leise, am Rand des eigenen Landes. */
     if (home !== null && home >= 0 && home < n) {
-      const x = screen[home * 3]; const y = screen[home * 3 + 1];
+      const x = scr[home * 3]; const y = scr[home * 3 + 1];
       ctx.beginPath();
       ctx.arc(x, y, Math.max(2.5, Math.min(5, px / 6)), 0, Math.PI * 2);
       ctx.fillStyle = css(P.ink, 0.75);
@@ -404,13 +457,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   /* -- Treffen: welche Säule liegt unter dem Zeiger (vorn zuerst) ----------------------------------------------- */
   const hit = (sx: number, sy: number): number | null => {
-    const r = Math.max(4, proj.s * 0.6);
+    /* Die ganze Säule zählt (Oberseite und Seiten), die vorderste gewinnt. */
+    const half = proj.s * 0.5;
+    const face = proj.s * 0.5 * proj.fore;
+    const per = 0.1 * proj.lift * proj.s;
     let best: number | null = null;
     let depth = -Infinity;
     for (let i = 0; i < n; i += 1) {
-      const dx = sx - screen[i * 3];
-      const dy = (sy - screen[i * 3 + 1]) / Math.max(0.3, proj.fore);
-      if (dx * dx + dy * dy > r * r) continue;
+      const x = screen[i * 3];
+      if (sx < x - half || sx > x + half) continue;
+      const top = screen[i * 3 + 1];
+      const base = top + (topics[i]?.steps ?? 0) * per;
+      if (sy < top - face || sy > base + face) continue;
       if (screen[i * 3 + 2] > depth) { depth = screen[i * 3 + 2]; best = i; }
     }
     return best;
@@ -563,6 +621,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cam, screen]);
 
+  const measured = useRef(new Map<string, [number, number]>());
   /* -- Namen: Gebiete nach dem Zoom, nah die Themen ------------------------------------------------------------- */
   const labels = useMemo(() => {
     const list: LabelCandidate[] = [];
@@ -573,9 +632,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (alpha <= 0.02) continue;
       const [x, y] = toScreen(proj, r.x, r.y);
       const text = regionName(r.key);
-      const w = Math.min(220, text.length * 6.6 + 18);
-      const lines = Math.ceil((text.length * 6.6) / 200);
-      list.push({ key: `r:${r.key}`, text, x, y, w, h: 16 * Math.min(2, Math.max(1, lines)) + 4, weight: 1000 + r.topics.length + (parent === null ? 5000 : 0), alpha });
+      const tw = textWidth(text, true) + (conquered.has(r.key) ? 16 : 0);
+      const lines = Math.max(1, Math.ceil(tw / 200));
+      const w = Math.min(tw, 208) + 16;
+      list.push({ key: `r:${r.key}`, text, x, y, w, h: 17 * lines + 6, weight: 1000 + r.topics.length + (parent === null ? 5000 : 0), alpha });
     }
     if (px >= NAME_PX) {
       const inView: number[] = [];
@@ -584,12 +644,13 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       for (const i of inView.slice(0, 160)) {
         const t = topics[i];
         const text = t.label.length > 28 ? `${t.label.slice(0, 27)}…` : t.label;
-        list.push({ key: `t:${i}`, text, x: screen[i * 3], y: screen[i * 3 + 1] + Math.max(8, px * 0.18), w: Math.min(px * 1.6, text.length * 6.2 + 8), h: 15, weight: (i === chosen ? 900 : t.glow ? 500 : 100) - Math.hypot(screen[i * 3] - width / 2, screen[i * 3 + 1] - height / 2) / 100, alpha: Math.min(1, (px - NAME_PX) / 14 + 0.2) });
+        list.push({ key: `t:${i}`, text, x: screen[i * 3], y: screen[i * 3 + 1] + Math.max(8, px * 0.18), w: Math.min(px * 1.6, textWidth(text, false) + 10), h: 18, weight: (i === chosen ? 900 : t.glow ? 500 : 100) - Math.hypot(screen[i * 3] - width / 2, screen[i * 3 + 1] - height / 2) / 100, alpha: Math.min(1, (px - NAME_PX) / 14 + 0.2) });
       }
     }
-    return placeLabels(list, width, height);
+    /* Die wirkliche Grösse (gemessen, sobald ein Name einmal stand) gilt vor der Schätzung. */
+    return placeLabels(list.map((l) => { const m = measured.current.get(`${l.key}|${l.text}`); return m === undefined ? l : { ...l, w: Math.max(l.w, m[0]), h: Math.max(l.h, m[1]) }; }), width, height);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, cam, proj, screen, regionName, topics, chosen, width, height]);
+  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered]);
 
   /* Zeichen auf Feldern, mit denen etwas zu tun ist (erst näher). */
   const signs = useMemo(() => {
@@ -615,7 +676,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   return (
     <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
       data-wm-cells={n} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
-      <canvas ref={canvas} className="cg-wm-canvas" style={undefined} width={width} height={height} aria-label={T.mapLabel} role="img"
+      <div className="cg-wm-stage">
+      <canvas ref={canvas} className="cg-wm-canvas" width={width} height={height} aria-label={T.mapLabel} role="img"
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => { setHoverRegion(null); setHoverTopic(null); }} data-landscape-svg="" />
       <div className="cg-wm-over" aria-hidden>
         {labels.map((l) => {
@@ -623,7 +685,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const rk = isRegion ? l.key.slice(2) : null;
           return (
             <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}`} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
-              ref={(el) => { if (el !== null) { el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.maxWidth = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
+              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.maxWidth = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
               {rk !== null && conquered.has(rk) && <FlagIcon />}{l.text}
             </span>
           );
@@ -646,6 +708,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         <span className="cg-muted" data-wm-angle={rotNow}>{T.viewAngle(rotNow, tiltPct)}</span>
         <input type="range" min={0} max={100} value={tiltPct} aria-label={T.tilt} title={T.tiltHint} onChange={(e) => setCam(clamp({ ...camRef.current, fore: FORE_MIN + (Number(e.target.value) / 100) * (FORE_MAX - FORE_MIN) }))} data-wm-tilt="" />
         <button type="button" className="wk-link-btn" onClick={resetView} data-wm-reset="">{T.resetView}</button>
+      </div>
       </div>
       {legend(visible)}
     </div>

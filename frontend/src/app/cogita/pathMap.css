@@ -237,8 +237,6 @@
 
 /* Die Karte des Abstechers im Spieler: wohin er führt, was dort wartet, zwei Knöpfe. */
 .cg-detour { display: grid; gap: var(--wk-space-2); padding: var(--wk-space-3); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius); text-align: left; }
-.cg-detour-head { display: flex; gap: var(--wk-space-2); align-items: center; }
-.cg-detour-icon { flex: none; width: 2rem; height: 2rem; }
 .cg-detour-name { font-weight: 600; }
 .cg-detour .cg-muted { font-size: var(--wk-text-sm); }
 .cg-detour.is-known { border-style: dashed; }

@@ -1010,6 +1010,38 @@ Phones stay awake.
   ('parts' | 'topics') says what the counter counts, in the base's language. The learner widens or collapses the path
   next to a story (remembered per browser).
 
+### Detours into another story, and back (2026-11-04, Prompt 13 — C36 part B)
+
+- **The ladder**: one general story, short overviews per stage, deeper stories under them. The overview offers a deeper
+  story at the right place with a step `detour` — `{"flow": "@ref", "label": "Chcesz wiedzieć więcej: …", "optional": true}`,
+  exits `done` (after the other story's end) and `skip` (declined; absent with `"optional": false`, the editor writes
+  `"required": true`). Pure helpers in `detour.ts`; running in `runningStory.ts` (`detourIn`, `backTo`, `backDepths`,
+  `insideOf`, `resumeInside`); `flow.ts` `exitAfter` returns to a detour at `done`, `detourRefused` (cycle / deeper than
+  `DETOUR_DEPTH` = 3).
+- **Player** (`FlowPlayer.tsx`): a card with the other story's name, what waits there ("3 slajdy · 1 pytanie"), "Wejdź" and
+  "Dalej bez tego"; already finished — "już znasz", "Przypomnij" (from the start) and "Dalej"; required — only "Wejdź".
+  "Wejdź" continues where the learner was in that story. Inside: title, path and counters are the inner story's; above
+  it a breadcrumb "Etap 1 › Dom w Becchi" (every caller a button) and "Wróć do: Etap 1" — back to the detour step without
+  marking the inner story finished; the path panel says "wewnątrz: Etap 1" (tap: back).
+- **Progress belongs to the stories**: the inner story is finished once, wherever (its own `FlowPosition`); its questions
+  count as usual; the overview's review covers only its own questions. While a detour is open the overview's position
+  holds `step` = the detour, `visited`, and `inside: [{flow, step}, …]` (outermost first; newer place wins in
+  `mergePosition`) — a reload rebuilds the stack (`resumeInside`, as far as the saved steps still fit).
+- **Optional means optional**: a skipped detour blocks nothing; on the path it is done with a thin outline (`skipped`
+  marks) and counts for "ukończono X z Y"; "Co dalej" lists the unfinished optional detours first (opened without the lock,
+  like from the overview), then the successors. A required detour passed by without its story keeps the end from counting
+  ("Do końca brakuje zagłębienia: …").
+- **Path**: one node of kind `detour` (a small arrow down into a hexagon and back; legend "zagłębienie w inną opowieść",
+  "pominięte zagłębienie"), named after its story; the popover shows its story and work, with "Otwórz".
+- **Direct start**: a deeper story whose unit requires another story's unit (`prerequisite: up`) says "Najpierw: „Etap 1”"
+  when opened directly before that story is done (`storyLock.ts` `directStartLock(lib, positions, flow)` → names or `null`);
+  entering it as a detour is always allowed. It stays its own field on the landscape.
+- **Import / editor**: the target must exist (in the base or the document) — otherwise a warning; a detour into itself or a
+  cycle A → B → A (also through subflows) is blocked with both names; a chain deeper than 3 warns. The path check treats
+  `done` and `skip` as normal exits. The editor picks the story from a list and shows the same problems.
+- **Tests**: `scripts/app-detour-check.mjs` (39); LocalDB `scratchpad/p13-detour/setup.mjs` (fresh refs per run — places
+  survive re-import by ref) + `browser.mjs` (17).
+
 ### Regions within regions (2026-11-04, Prompt 11)
 
 - **The world** (`regions.ts`): regions are built from the prerequisite connections, never from chapters. Topics (view

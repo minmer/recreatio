@@ -434,3 +434,4 @@
 .cg-ls-opens > summary { cursor: pointer; color: var(--wk-muted); }
 .cg-ls-storyline, .cg-ls-regionline { margin: 0; }
 .cg-ls-q .cg-ls-qtop { display: flex; align-items: center; gap: var(--wk-space-2); }
+.cg-wm-stage { position: relative; }

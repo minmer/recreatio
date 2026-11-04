@@ -3498,3 +3498,19 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
   prerequisite still stands no further out). The 6 px minimum step holds on topic maps; maps of regions are flatter.
 - **LocalDB** (`scratchpad/p12-bases`): "Kette 8 zz-probe" (8 regions 6–11 topics, a chain) and "Zweige 8 zz-probe"
   (start, four shallow branches, three deeper), each with a learner halfway; plus the Prompt 11 bases.
+
+## C36 (Part B) — Detours into another story, and back (2026-11-04, Prompt 13)
+
+- **Step `detour`** (`flow.ts`, new `detour.ts`): `{"flow": "@ref", "label", "optional": true}`, exits `done` / `skip`
+  (`"optional": false` or the editor's `"required": true`: only `done`). `exitAfter` returns from a called story at `done`;
+  `detourRefused`: cycle or deeper than 3.
+- **Running** (`runningStory.ts`): `detourIn` (where the learner was in it; „Przypomnij“: from the start), `backTo` / `backDepths`
+  („Wróć do: …“ without finishing), `insideOf` / `resumeInside` (the overview's place keeps `inside: [{flow, step}]`;
+  `FlowPosition.inside` in `learn.ts`, newer wins).
+- **Player** (`FlowPlayer.tsx`): the detour card, breadcrumb, „Wróć do“, path header „wewnątrz: …“, skipped marks, the
+  path popover with „Otwórz“, „Co dalej“ with open optional detours first (opened without the lock, `cg-story-free:`),
+  required detours keep the end from counting, the direct-start line „Najpierw: …“ (`storyLock.ts` `directStartLock`).
+- **Path** (`storyPath.ts`, `pathLayout.ts` `PartKind` `detour`, `PathMarks.skipped`, `PathMap.tsx` sign + legend, `pathMap.css`).
+- **Import / editor** (`json.ts` flowIssues, `FlowEditor.tsx`, `nodeFields.ts`): unknown target warns, self/cycle blocks with
+  both names, chains deeper than 3 warn. Docs: `json.ts` flows text, `templates/cogita/opowiesci-AI.md` §8b, COGITA.md.
+- **Tests**: `scripts/app-detour-check.mjs` (39, in `app:check`); LocalDB `scratchpad/p13-detour` setup + browser (17 ok).
