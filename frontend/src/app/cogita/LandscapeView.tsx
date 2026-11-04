@@ -393,11 +393,12 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     Eingaben (Themen, Kanten, verschobene Themen, Fassung des Verfahrens). Passt er nicht, rechnet der Worker neu — mit den
     alten Plätzen als Ausgang (Themen, die bleiben dürfen, bleiben).
   */
-  const layoutKey = `r15:${graphKey(tg)}:${movesKey}`;
+  const layoutKey = `r16:${graphKey(tg)}:${movesKey}`;
   const storedLayout = useMemo(() => readStoredLayout(savedView === undefined ? undefined : (savedView.data as Record<string, unknown>).landscape), [savedView]);
   const placesFit = storedLayout !== null && storedLayout.key === layoutKey;
   const placesRef = useRef(storedLayout?.at);
-  placesRef.current = storedLayout?.at;
+  /* 2026-11-04 (Prompt 16) — Plätze eines älteren Verfahrens sind kein Ausgang (sonst bliebe die alte Karte stehen). */
+  placesRef.current = storedLayout !== null && storedLayout.key.startsWith('r16:') ? storedLayout.at : undefined;
   useEffect(() => {
     if (client === null || nest !== null) return undefined;
     let alive = true;

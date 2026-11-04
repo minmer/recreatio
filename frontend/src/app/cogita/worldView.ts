@@ -145,7 +145,7 @@ export function placeLabels(list: readonly LabelCandidate[], width: number, heig
  * 2026-11-04 (Prompt 15, 3) — NAMEN, DIE NIE WEGFALLEN (`must`: fern die obersten Gebiete): was `placeLabels` ausblenden musste,
  * rückt an den Rand des Bildes (nächst seiner Fläche, frei von den anderen) und bekommt eine Linie zu ihr (`leader`).
  */
-export function keepLabels<T extends PlacedLabel>(placed: readonly T[], must: (l: T) => boolean, width: number, height: number): (T & { readonly leader?: readonly [number, number] })[] {
+export function keepLabels<T extends PlacedLabel>(placed: readonly T[], must: (l: T) => boolean, width: number, height: number, spots?: (l: T) => readonly (readonly [number, number])[]): (T & { readonly leader?: readonly [number, number] })[] {
   const boxes = placed.filter((l) => l.shown).map((l) => ({ x0: l.x - l.w / 2 - 3, x1: l.x + l.w / 2 + 3, y0: l.y - l.h / 2 - 2, y1: l.y + l.h / 2 + 2 }));
   const free = (x: number, y: number, l: T) => {
     const box = { x0: x - l.w / 2 - 3, x1: x + l.w / 2 + 3, y0: y - l.h / 2 - 2, y1: y + l.h / 2 + 2 };
@@ -155,6 +155,21 @@ export function keepLabels<T extends PlacedLabel>(placed: readonly T[], must: (l
   };
   return placed.map((l) => {
     if (l.shown || !must(l)) return l;
+    /* 2026-11-04 (Prompt 16) — zuerst ein freier Platz auf der eigenen Fläche (ohne Linie). */
+    for (const [sx, sy] of spots?.(l) ?? []) {
+      const x = Math.max(l.w / 2 + 4, Math.min(width - l.w / 2 - 4, sx)); const y = Math.max(l.h / 2 + 4, Math.min(height - l.h / 2 - 4, sy));
+      if (Math.abs(x - sx) > 2 || Math.abs(y - sy) > 2) continue;
+      if (free(x, y, l)) return { ...l, x, y, shown: true, alpha: 1 };
+    }
+    /* Zu klein: kurz daneben (höchstens etwa 90 Bildpunkte) mit einer Linie. */
+    for (let d = l.h + 6; d <= 90; d += l.h / 2 + 3) {
+      for (let k = 0; k < 8; k += 1) {
+        const a = (k * Math.PI) / 4;
+        const x = l.x + Math.cos(a) * d * 1.6; const y = l.y + Math.sin(a) * d;
+        if (x < l.w / 2 + 4 || x > width - l.w / 2 - 4 || y < l.h / 2 + 4 || y > height - l.h / 2 - 4) continue;
+        if (free(x, y, l)) return { ...l, x, y, shown: true, alpha: 1, leader: [l.x, l.y] as const };
+      }
+    }
     const cx = Math.max(l.w / 2 + 4, Math.min(width - l.w / 2 - 4, l.x));
     const cy = Math.max(l.h / 2 + 4, Math.min(height - l.h / 2 - 4, l.y));
     for (let k = 0; k < 80; k += 1) {

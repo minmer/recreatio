@@ -483,3 +483,13 @@
 /* 2026-11-05 — ein Krajobraz im Vollbild eines Bausteins (Widok, Krajobraz wiedzy) nimmt das ganze Fenster, nicht 90rem. */
 .wk-full-body > .wk-card.is-whole:has(.cg-ls) { max-width: none; }
 .cg-ls-back { margin: 0 0 var(--wk-space-2); }
+
+/* 2026-11-04 (Prompt 16) — die Höhe der Säulen in drei Stufen neben der Neigung, ein Hinweis auf der Karte („Nic do powtórki“). */
+.cg-wm-heights { display: inline-flex; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); overflow: hidden; }
+.cg-wm-height { appearance: none; border: 0; border-right: 1px solid var(--wk-line); background: transparent; color: var(--wk-ink); font: inherit; font-size: var(--wk-text-xs); display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.4rem; cursor: pointer; min-height: 1.9rem; }
+.cg-wm-height:last-child { border-right: 0; }
+.cg-wm-height.is-on { background: color-mix(in oklab, var(--wk-accent) 16%, var(--wk-surface)); font-weight: 600; }
+.cg-wm-height svg { width: 0.9rem; height: 0.9rem; flex: none; }
+.cg-wm-height svg path { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
+.cg-wm-height:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.cg-wm-note { position: absolute; left: 50%; top: var(--wk-space-3); transform: translateX(-50%); padding: 0.3rem 0.8rem; border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: var(--wk-surface); color: var(--wk-ink); font-size: var(--wk-text-sm); pointer-events: none; max-width: calc(100% - 2rem); text-align: center; }

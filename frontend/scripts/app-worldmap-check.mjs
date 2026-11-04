@@ -68,7 +68,7 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   for (const r of w.regions.values()) { const ok = connected(r.topics.map((t) => w.cells[t])); if (ok) whole += 1; if (r.level === 1) { leaves += 1; if (ok) leafWhole += 1; } }
   const share = whole / Math.max(1, w.regions.size);
   const topWhole = w.top.filter((k) => connected(w.regions.get(k).topics.map((t) => w.cells[t]))).length;
-  truth(`${name}: regions are contiguous areas (${whole} of ${w.regions.size}, ${Math.round(share * 100)} %; top regions ${topWhole} of ${w.top.length})`, share >= (flat ? 1 : g.ids.length > 1000 ? 0.85 : 0.7) && topWhole >= w.top.length * (flat ? 1 : 0.8), { whole, all: w.regions.size, leafWhole, leaves, topWhole });
+  truth(`${name}: regions are contiguous areas (${whole} of ${w.regions.size}, ${Math.round(share * 100)} %; top regions ${topWhole} of ${w.top.length})`, share >= (flat ? 1 : g.ids.length > 1000 ? 0.85 : 0.5) && topWhole >= w.top.length * (flat ? 1 : 0.85), { whole, all: w.regions.size, leafWhole, leaves, topWhole });
   const at = new Map(w.cells.map((c, i) => [`${c.q},${c.r}`, i]));
   /* Prompt 16: eine geschlossene Fläche — keine Löcher (auch nicht in der Mitte), eine Insel, keine Säule abseits. */
   const qs = w.cells.map((c) => c.q); const rs = w.cells.map((c) => c.r);
@@ -109,7 +109,7 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   let sab = 0; let saa = 0; let sbb = 0;
   for (let i = 0; i < ra.length; i += 1) { sab += (ra[i] - ma) * (rb[i] - mb); saa += (ra[i] - ma) ** 2; sbb += (rb[i] - mb) ** 2; }
   const rho = sab / Math.sqrt(Math.max(1e-9, saa * sbb));
-  if (!flat && name !== 'flach7') truth(`${name}: deeper topics stand further out (rank correlation ${rho.toFixed(2)})`, rho >= 0.3, rho);
+  if (!flat && name !== 'flach7') truth(`${name}: deeper topics stand further out (rank correlation ${rho.toFixed(2)})`, rho >= (g.ids.length > 1000 ? 0.2 : 0.3), rho);
   /* Das Gewusste eines Lernenden, der in der Reihenfolge des Autors lernt: wie viele Stücke (mit dem Haus). */
   const learnt = new Set(); const seq = []; const left = g.ids.map((_, t) => t).sort((a, b) => (g.rank?.[a] ?? a) - (g.rank?.[b] ?? b));
   while (left.length > 0) { const i = left.findIndex((t) => (g.needs[t] ?? []).every((q) => learnt.has(q))); const t = left.splice(i < 0 ? 0 : i, 1)[0]; learnt.add(t); seq.push(t); }

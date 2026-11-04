@@ -23,7 +23,10 @@ import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLab
 import type { LandscapeWords } from './landscapeWords';
 
 /** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
-export type WorldMode = 'all' | 'known' | 'due';
+export type WorldMode = 'all' | 'known' | 'discover' | 'due';
+/** 2026-11-04 (Prompt 16, 4) — die Höhe der Säulen: ein Faktor auf die Stufe der Baza (die Verhältnisse bleiben). */
+export type WorldHeight = 'low' | 'mid' | 'high';
+const HEIGHT_FACTOR: Readonly<Record<WorldHeight, number>> = { low: 0.5, mid: 1, high: 2 };
 
 /** Was jedes Thema auf der Karte zeigt (in der Reihenfolge von `WorldLayout.cells`). */
 export interface WorldTopic {
@@ -132,8 +135,13 @@ function keepCam(key: string, cam: WorldCam): void {
 }
 
 function keptMode(key: string): WorldMode {
-  try { const v = localStorage.getItem(`cg-wm-mode:${key}`); if (v === 'known' || v === 'due') return v; } catch { /* ohne Speicher */ }
+  try { const v = localStorage.getItem(`cg-wm-mode:${key}`); if (v === 'known' || v === 'discover' || v === 'due') return v; } catch { /* ohne Speicher */ }
   return 'all';
+}
+
+function keptHeight(key: string): WorldHeight {
+  try { const v = localStorage.getItem(`cg-wm-height:${key}`); if (v === 'low' || v === 'high') return v; } catch { /* ohne Speicher */ }
+  return 'mid';
 }
 
 /* -- Spielfiguren und Fahne (SVG, dieselben in der Legende) ---------------------------------------------------------- */
@@ -215,6 +223,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (n === 0) return { x: 0, y: 0, r: 1 };
     let x0 = Infinity; let x1 = -Infinity; let y0 = Infinity; let y1 = -Infinity;
     for (const c of world.cells) { x0 = Math.min(x0, c.x); x1 = Math.max(x1, c.x); y0 = Math.min(y0, c.y); y1 = Math.max(y1, c.y); }
+    /* 2026-11-04 (Prompt 16, 1) — die ganze Karte um das Haus (die Mitte ist das Startthema). */
+    const h = world.home >= 0 && world.home < n ? world.cells[world.home] : null;
+    if (h !== null) { let r = 0; for (const c of world.cells) r = Math.max(r, Math.hypot(c.x - h.x, c.y - h.y)); return { x: h.x, y: h.y, r: r + 1.2 }; }
     return { x: (x0 + x1) / 2, y: (y0 + y1) / 2, r: Math.max(x1 - x0, y1 - y0) / 2 + 1.2 };
   }, [world, n]);
   const start: WorldCam = { s: 10, cx: whole.x, cy: whole.y, rot: 0, fore: FORE_START };
@@ -233,6 +244,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   /* 2026-11-04 (Prompt 15, 4b) — die Ansicht, gemerkt mit dem Blick. */
   const [mode, setModeNow] = useState<WorldMode>(() => keptMode(memoryKey));
   const setMode = (m: WorldMode) => { setModeNow(m); try { localStorage.setItem(`cg-wm-mode:${memoryKey}`, m); } catch { /* ohne Speicher */ } };
+  /* 2026-11-04 (Prompt 16, 4) — die Höhe der Säulen, gemerkt mit dem Blick. */
+  const [height3, setHeightNow] = useState<WorldHeight>(() => keptHeight(memoryKey));
+  const setHeight = (h: WorldHeight) => { setHeightNow(h); try { localStorage.setItem(`cg-wm-height:${memoryKey}`, h); } catch { /* ohne Speicher */ } };
+  const stepNow = step * HEIGHT_FACTOR[height3];
   /* Das oberste Gebiet, das gerade das Bild füllt (dann tragen seine Teilgebiete eigene Töne). */
   const [focusTop, setFocusTop] = useState<string | null>(null);
   /* Gemerkt, wenn er sich nicht mehr bewegt. */
@@ -315,7 +330,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const [hoverTopic, setHoverTopic] = useState<number | null>(null);
   /* Die Mitte der Gebiete einer Ebene, die gerade benannt wird (für Klicks fern): je Thema das Gebiet, das den Namen trägt. */
   const px = cellPx(cam);
-  const proj = useMemo(() => projection(cam, width, height, step), [cam, width, height, step]);
+  const proj = useMemo(() => projection(cam, width, height, stepNow), [cam, width, height, stepNow]);
   const regionOfTopicNow = (t: number): string | null => {
     const chain = world.chain[t] ?? [];
     /* Das tiefste Gebiet, das bei diesem Zoom einen Namen trägt oder schon zu gross dafür ist (dessen Kind dann hinein führt). */
@@ -348,7 +363,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
     if (n < 1200 || growing) { draw(ctx, dpr); return; }
     const margin = Math.round(Math.max(width, height) * 0.5);
-    const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height, step].join('|');
+    const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height, stepNow].join('|');
     let c = cache.current;
     let dx = 0; let dy = 0;
     /*
@@ -374,7 +389,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (off.width !== Math.round(cw * dpr) || off.height !== Math.round(ch * dpr)) { off.width = Math.round(cw * dpr); off.height = Math.round(ch * dpr); }
       const octx = off.getContext('2d');
       if (octx === null) { draw(ctx, dpr); return; }
-      const p2 = projection(cam, cw, ch, step);
+      const p2 = projection(cam, cw, ch, stepNow);
       const scr = new Float32Array(n * 3);
       for (let i = 0; i < n; i += 1) { const w0 = world.cells[i]; const [x, y] = toScreen(p2, w0.x, w0.y, topics[i]?.steps ?? 0); scr[i * 3] = x; scr[i * 3 + 1] = y; scr[i * 3 + 2] = depthOf(p2, w0.x, w0.y); }
       draw(octx, dpr, p2, scr, cw, ch);
@@ -473,9 +488,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const at = byCell.current;
     const isLand = (i: number) => { const b = topics[i]?.band; return b === 'known' || b === 'due'; };
     const isReady = (i: number) => topics[i]?.band === 'ring';
-    /* 2026-11-04 (Prompt 15, 4b) — die Ansicht: „Co umiem" lässt nur Gekonntes und den Rand, „Do powtórki" nur Fälliges in Farbe. */
-    const greyed = (i: number): boolean => { const t = topics[i]; if (t === undefined) return false; if (mode === 'known') return !(isLand(i) || isReady(i)); if (mode === 'due') return !t.due; return false; };
-    const outlines = mode !== 'due';
+    /*
+      2026-11-04 (Prompt 16, 3) — die Ansicht: „Co umiem" nur Gekonntes in Farbe (mit dem orangeroten Umriss), „Do odkrycia"
+      nur das jetzt Lernbare (mit dem hellgelben Umriss, das Gekonnte blass darum), „Do powtórki" nur Fälliges.
+    */
+    const greyed = (i: number): boolean => { const t = topics[i]; if (t === undefined) return false; if (mode === 'known') return !isLand(i); if (mode === 'discover') return !isReady(i); if (mode === 'due') return !t.due; return false; };
+    const showLand = mode === 'all' || mode === 'known';
+    const showReady = mode === 'all' || mode === 'discover';
+    const outlines = showLand || showReady;
     const line = Math.max(1.2, Math.min(3.2, px / 9));
     /* Die Kanten eines Feldes, an denen die Menge endet (der Rand des eigenen Landes). */
     const edges = (i: number, x: number, y: number, inSet: (j: number) => boolean) => {
@@ -545,7 +565,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         face = mix(mix(regionC, pale, 0.5), regionC, grown);
       } else if (t.band === 'ring') face = mix(regionC, pale, dark ? 0.3 : 0.55);
       else face = mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, t.steps / 28));
-      if (greyed(i)) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; face = mix([l, l, l], P.haze, 0.45); }
+      if (greyed(i)) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; const grey = mix([l, l, l], P.haze, 0.45); face = mode === 'discover' && isLand(i) ? mix(grey, face, 0.4) : grey; }
       /* 2026-11-04 (Prompt 15, 3) — ein Gebiet unter dem Zeiger leuchtet, die anderen treten zurück. */
       if (regionHi !== null) face = (world.chain[i] ?? []).includes(regionHi) ? mix(face, P.surface, 0.16) : mix(face, P.haze, 0.6);
       /* Die Seiten (eine Fläche je sichtbarer Seite, dunkler). */
@@ -580,8 +600,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         2026-11-04 (Prompt 15, 4c) — was auf der Oberseite liegt, in der Reihenfolge der Säulen: Umriss (voll), Ring, Name.
         Eine Säule davor deckt es zu; wo sie es deckt, bleibt der Umriss dünn sichtbar (der zweite Durchgang unten).
       */
-      if (outlines && isLand(i)) { ctx.beginPath(); edges(i, x, top, isLand); strokeEdges(P.land, line * 1.15, 0.95); }
-      if (outlines && showGlow && isReady(i)) { ctx.beginPath(); edges(i, x, top, isReady); strokeEdges(P.ready, line, 0.95); }
+      if (showLand && isLand(i)) { ctx.beginPath(); edges(i, x, top, isLand); strokeEdges(P.land, line * 1.15, 0.95); }
+      if (showReady && showGlow && isReady(i)) { ctx.beginPath(); edges(i, x, top, isReady); strokeEdges(P.ready, line, 0.95); }
+      /* 2026-11-04 (Prompt 16, 1) — das Haus auf dem Startfeld, mit seiner Säule gezeichnet (davor Stehendes deckt es). */
+      if (i === world.home) drawHouse(ctx, x, top, houseSize(), P);
       if (ringOn && (mode !== 'due' || t.due) && !greyed(i)) { strokeRing(x, top, t.share, t.due); rings += 1; }
       if (textOn && x > -textR && x < cw + textR && top > -textR && top < ch + textR) {
         if (coverAt(i, x, top, p, scr) !== null) { hiddenText += 1; continue; }
@@ -604,9 +626,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Wo eine Säule davor den Umriss deckt: dünn (etwa ein Drittel) und etwas heller darüber — der Rand bleibt lesbar. */
     if (outlines) {
       ctx.beginPath();
-      for (const i of order) if (isLand(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isLand);
+      if (showLand) for (const i of order) if (isLand(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isLand);
       strokeEdges(mix(P.land, P.surface, 0.3), Math.max(0.8, line * 0.38), 0.9);
-      if (showGlow) {
+      if (showGlow && showReady) {
         ctx.beginPath();
         for (const i of order) if (isReady(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isReady);
         strokeEdges(mix(P.ready, P.surface, 0.3), Math.max(0.7, line * 0.33), 0.9);
@@ -667,6 +689,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       if (el !== null) {
         el.dataset.wmInfo = String(drawnText); el.dataset.wmInfoIn = String(insideText); el.dataset.wmInfoHidden = String(hiddenText); el.dataset.wmRings = String(rings);
         el.dataset.wmTier = textOn ? (deep ? 'deep' : 'names') : '';
+        el.dataset.wmHomeXy = world.home < 0 ? '' : `${screen[world.home * 3].toFixed(0)},${screen[world.home * 3 + 1].toFixed(0)}`;
         el.dataset.wmChosenXy = chosen === null ? '' : `${screen[chosen * 3].toFixed(0)},${screen[chosen * 3 + 1].toFixed(0)}`;
       }
     }
@@ -694,6 +717,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     return best;
   };
 
+  /** Wie gross das Haus ist: mit dem Zoom, aber nie zu klein, um es zu erkennen. */
+  const houseSize = () => Math.max(13, Math.min(58, px * 0.55));
   /** Ein Tippen auf eine Figur, die Fahne oder den Namen eines Gebiets — „true", wenn es etwas traf. */
   const tapOverlay = (x: number, y: number): boolean => {
     for (const p of [...shownPieces].reverse()) {
@@ -706,6 +731,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (goalFlag !== null && goalFlag >= 0 && goalFlag < n) {
       const fx = screen[goalFlag * 3]; const fy = screen[goalFlag * 3 + 1];
       if (x >= fx - 4 && x <= fx + pieceH * 0.75 && y >= fy - pieceH * 1.15 && y <= fy + 4) { onFlag(); return true; }
+    }
+    /* Das Haus: wählt das Startthema. */
+    if (world.home >= 0 && world.home < n) {
+      const hx = screen[world.home * 3]; const hy = screen[world.home * 3 + 1]; const hs = houseSize();
+      if (Math.abs(x - hx) <= hs * 0.5 && y >= hy - hs * 1.05 && y <= hy + hs * 0.15) { onPickTopic(world.home); return true; }
     }
     for (const l of labels) {
       if (!l.shown || !l.key.startsWith('r:')) continue;
@@ -731,7 +761,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const t = hit(sx, sy);
     if (t !== null) {
       const cell = world.cells[t];
-      const [ox, oy] = toScreen(projection(cam2, width, height, step), cell.x, cell.y, topics[t]?.steps ?? 0);
+      const [ox, oy] = toScreen(projection(cam2, width, height, stepNow), cell.x, cell.y, topics[t]?.steps ?? 0);
       const [ax, ay] = toGround(cam2, width, height, ox, oy);
       const [bx, by] = toGround(cam2, width, height, sx, sy);
       cam2 = clamp({ ...cam2, cx: cam2.cx + (ax - bx), cy: cam2.cy + (ay - by) });
@@ -763,11 +793,13 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     if (drag.current === null && e.pointerType === 'mouse') {
       /* 2026-11-04 (Prompt 15, 3) — über dem Namen eines Gebiets: das ganze Gebiet leuchtet. */
       const over = labels.find((l) => l.shown && l.key.startsWith('r:') && Math.abs(x - l.x) <= l.w / 2 && Math.abs(y - l.y) <= l.h / 2);
+      pointerAt.current = [x, y];
       if (tip.current !== null) { tip.current.style.left = `${Math.round(x)}px`; tip.current.style.top = `${Math.round(y - 16)}px`; }
       if (over !== undefined) { setHoverTopic(null); setHoverRegion(over.key.slice(2)); return; }
       const t = hit(x, y);
       setHoverTopic(px >= PICK_PX ? t : null);
       setHoverRegion(t === null || px >= PICK_PX ? null : regionOfTopicNow(t));
+      pointerAt.current = [x, y];
       if (tip.current !== null) { tip.current.style.left = `${Math.round(x)}px`; tip.current.style.top = `${Math.round(y - 16)}px`; }
       return;
     }
@@ -913,7 +945,16 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const placed = placeLabels(list.map((l) => { const m = measured.current.get(`${l.key}|${l.text}`); return m === undefined ? l : { ...l, w: Math.max(l.w, m[0]), h: Math.max(l.h, m[1]) }; }), width, height);
     if (!far) return placed;
     /* Die obersten, die nicht passten: an den Rand, nächst ihrer Fläche, mit einer Linie hin (`keepLabels`). */
-    return keepLabels(placed, (l) => l.key.startsWith('r:') && world.regions.get(l.key.slice(2))?.parent === null, width, height);
+    /* 2026-11-04 (Prompt 16) — erst auf der eigenen Fläche (ohne Linie), nur wo sie zu klein ist: kurz daneben mit Linie. */
+    const spots = (l: PlacedLabel): [number, number][] => {
+      const r = world.regions.get(l.key.slice(2));
+      if (r === undefined) return [];
+      const step2 = Math.max(1, Math.floor(r.topics.length / 60));
+      const out: [number, number][] = [];
+      for (let k = 0; k < r.topics.length; k += step2) { const t = r.topics[k]; out.push([screen[t * 3], screen[t * 3 + 1]]); }
+      return out.sort((a, b) => Math.hypot(a[0] - l.x, a[1] - l.y) - Math.hypot(b[0] - l.x, b[1] - l.y));
+    };
+    return keepLabels(placed, (l) => l.key.startsWith('r:') && world.regions.get(l.key.slice(2))?.parent === null, width, height, spots);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered, measureTick, far]);
   /* Die Farbe eines Gebiets für seinen Namen (Teilgebiete im gefüllten Gebiet: ihr eigener Ton). */
@@ -970,7 +1011,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pieces, px >= 18, world]);
   void walkTick;
-  const tip = useRef<HTMLDivElement>(null);
+  const tip = useRef<HTMLDivElement | null>(null);
+  /* Wo der Zeiger zuletzt war (der Hinweis erscheint dort, auch wenn er erst nach dem Zeigen entsteht). */
+  const pointerAt = useRef<[number, number]>([0, 0]);
+  const placeTip = (el: HTMLDivElement | null) => { tip.current = el; if (el !== null) { el.style.left = `${Math.round(pointerAt.current[0])}px`; el.style.top = `${Math.round(pointerAt.current[1] - 16)}px`; } };
   const hovered = hoverTopic !== null ? { title: topics[hoverTopic]?.label ?? '', hint: hoverTopic === chosen ? (topics[hoverTopic]?.band === 'mountain' ? '' : T.hintStart) : T.hintSelect } : hoverRegion !== null ? { title: regionName(hoverRegion), hint: T.hintZoom } : null;
   const visible = new Set<string>();
   for (const l of labels) if (l.shown && l.key.startsWith('r:')) visible.add(l.key.slice(2));
@@ -979,10 +1023,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   return (
     <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
-      data-wm-far={far ? '1' : '0'} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={step.toFixed(3)} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
+      data-wm-far={far ? '1' : '0'} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={stepNow.toFixed(3)} data-wm-height={height3} data-wm-home={world.home} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
       <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
-        {(['all', 'known', 'due'] as const).map((m) => (
-          <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : T.modeDue}</button>
+        {(['all', 'known', 'discover', 'due'] as const).map((m) => (
+          <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : m === 'discover' ? T.modeDiscover : T.modeDue}</button>
         ))}
       </div>
       <div className="cg-wm-stage">
@@ -1034,7 +1078,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           })}
         </svg>
       )}
-      {hovered !== null && <div ref={tip} className="cg-rm-tip" role="tooltip" data-landscape-tip="">{hovered.title}{hovered.hint === '' ? '' : <> · <strong>{hovered.hint}</strong></>}</div>}
+      {mode === 'due' && !topics.some((t) => t.due) && <div className="cg-wm-note" role="status" data-wm-note="due">{T.nothingDue}</div>}
+      {mode === 'discover' && !topics.some((t) => t.band === 'ring') && <div className="cg-wm-note" role="status" data-wm-note="discover">{T.nothingReady}</div>}
+      {hovered !== null && <div ref={placeTip} className="cg-rm-tip" role="tooltip" data-landscape-tip="">{hovered.title}{hovered.hint === '' ? '' : <> · <strong>{hovered.hint}</strong></>}</div>}
       <div className="cg-rm-tools" role="group" aria-label={T.mapLabel}>
         <button type="button" className="cg-rm-tool" onClick={() => glide({ ...camRef.current, s: camRef.current.s * 1.6 }, 240)} aria-label={T.zoomIn} title={T.zoomIn} data-rm-zoom="in">+</button>
         <button type="button" className="cg-rm-tool" onClick={() => glide({ ...camRef.current, s: camRef.current.s / 1.6 }, 240)} aria-label={T.zoomOut} title={T.zoomOut} data-rm-zoom="out">−</button>
@@ -1050,6 +1096,14 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           <input type="range" min={0} max={100} value={tiltPct} aria-label={`${T.tilt}: ${T.tiltSide} – ${T.tiltAbove}`} title={T.tiltHint2} onChange={(e) => setCam(clamp({ ...camRef.current, fore: FORE_MIN + (Number(e.target.value) / 100) * (FORE_MAX - FORE_MIN) }))} data-wm-tilt="" />
           <svg className="cg-wm-tilt-icon" viewBox="-9 -9 18 18" aria-hidden data-wm-tilt-above=""><title>{T.tiltAbove}</title><path d="M0,-7 L6,-3.5 L6,3.5 L0,7 L-6,3.5 L-6,-3.5 Z M0,-2.5 L2.2,-1.25 L2.2,1.25 L0,2.5 L-2.2,1.25 L-2.2,-1.25 Z" /></svg>
           <span className="cg-sr">{T.tiltAbove}</span>
+        </span>
+        <span className="cg-wm-heights" role="group" aria-label={T.heightLabel} data-wm-heights={height3}>
+          {(['low', 'mid', 'high'] as const).map((h, k) => (
+            <button key={h} type="button" className={`cg-wm-height${height3 === h ? ' is-on' : ''}`} aria-pressed={height3 === h} onClick={() => setHeight(h)} title={`${T.heightLabel}: ${h === 'low' ? T.heightLow : h === 'mid' ? T.heightMid : T.heightHigh}`} data-wm-height-pick={h}>
+              <svg viewBox="0 0 14 14" aria-hidden><path d={k === 0 ? 'M2,12 V9 H5 V12 M6,12 V8 H9 V12 M10,12 V10 H13 V12' : k === 1 ? 'M2,12 V7 H5 V12 M6,12 V5 H9 V12 M10,12 V8 H13 V12' : 'M2,12 V4 H5 V12 M6,12 V1 H9 V12 M10,12 V5 H13 V12'} /></svg>
+              <span>{h === 'low' ? T.heightLow : h === 'mid' ? T.heightMid : T.heightHigh}</span>
+            </button>
+          ))}
         </span>
         <button type="button" className="wk-link-btn" onClick={resetView} data-wm-reset="">{T.resetView}</button>
       </div>
@@ -1104,6 +1158,28 @@ function shiftHue(c: readonly number[], deg: number): number[] {
   const f = (t: number) => { let x = t; if (x < 0) x += 1; if (x > 1) x -= 1; return x < 1 / 6 ? p0 + (q - p0) * 6 * x : x < 1 / 2 ? q : x < 2 / 3 ? p0 + (q - p0) * (2 / 3 - x) * 6 : p0; };
   return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
 }
+/**
+ * 2026-11-04 (Prompt 16, 1) — DAS HAUS auf dem Startfeld: Wand, Dach und Tür, flach schattiert wie die Säulen (eine helle
+ * Front, eine dunklere Seite), unten auf der Mitte der Oberseite. `hs`: Höhe in Bildpunkten.
+ */
+function drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, hs: number, P: Palette): void {
+  const w = hs * 0.62; const wallH = hs * 0.42; const roofH = hs * 0.36; const side = hs * 0.16;
+  const foot = y + hs * 0.1; const wallTop = foot - wallH; const ridge = wallTop - roofH;
+  const wall = mix(P.surface, P.light, 0.3); const sideC = mix(wall, [0, 0, 0], 0.22); const roof = P.land; const roofSide = mix(P.land, [0, 0, 0], 0.28);
+  ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1, hs * 0.04); ctx.strokeStyle = css(P.ink, 0.85);
+  /* Schatten auf der Oberseite */
+  ctx.beginPath(); ctx.ellipse(x + side * 0.4, foot, w * 0.62, hs * 0.08, 0, 0, Math.PI * 2); ctx.fillStyle = css(P.ink, 0.18); ctx.fill();
+  /* Seite (dunkler) */
+  ctx.beginPath(); ctx.moveTo(x + w / 2, foot); ctx.lineTo(x + w / 2 + side, foot - side * 0.5); ctx.lineTo(x + w / 2 + side, wallTop - side * 0.5); ctx.lineTo(x + w / 2, wallTop); ctx.closePath(); ctx.fillStyle = css(sideC); ctx.fill(); ctx.stroke();
+  /* Front */
+  ctx.beginPath(); ctx.rect(x - w / 2, wallTop, w, wallH); ctx.fillStyle = css(wall); ctx.fill(); ctx.stroke();
+  /* Dach: Seite und Front */
+  ctx.beginPath(); ctx.moveTo(x, ridge); ctx.lineTo(x + side, ridge - side * 0.5); ctx.lineTo(x + w / 2 + side + hs * 0.05, wallTop - side * 0.5); ctx.lineTo(x + w / 2 + hs * 0.05, wallTop); ctx.closePath(); ctx.fillStyle = css(roofSide); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - w / 2 - hs * 0.05, wallTop); ctx.lineTo(x, ridge); ctx.lineTo(x + w / 2 + hs * 0.05, wallTop); ctx.closePath(); ctx.fillStyle = css(roof); ctx.fill(); ctx.stroke();
+  /* Tür */
+  ctx.beginPath(); ctx.rect(x - w * 0.12, foot - wallH * 0.62, w * 0.24, wallH * 0.62); ctx.fillStyle = css(mix(P.ink, P.accent, 0.4), 0.85); ctx.fill();
+}
+
 /** Die Teilgebiete eines Gebiets, in das man hineinzoomt: je Farbklasse ein benachbarter Ton (15–25° auseinander). */
 const SHADE_SHIFT: readonly number[] = [0, 20, -20, 40];
 
