@@ -16,7 +16,7 @@
  */
 
 import type { Card } from './cardBasics';
-import { FORGOTTEN, gradeOf, knownessAt, KNOWN, shareOf, step, type CardState, type Grade, type Mark } from './knowness';
+import { DEFAULT_SPACING, FORGOTTEN, gradeOf, knownessAt, KNOWN, shareOf, step, type CardState, type Grade, type Mark, type Spacing } from './knowness';
 import type { AnswerRecord } from './learn';
 
 export type Band = 'unseen' | 'weak' | 'fading' | 'known' | 'solid';
@@ -107,11 +107,11 @@ export function dayAdd(start: number, n: number): number {
 export const topicOf = (card: Card): string | null => card.about?.[0] ?? card.entity ?? null;
 
 /** Der Zustand nach allen Antworten bis einschliesslich `until`. */
-function stateUntil(list: readonly AnswerRecord[], until: number): CardState | null {
+function stateUntil(list: readonly AnswerRecord[], until: number, sp: Spacing = DEFAULT_SPACING): CardState | null {
   let state: CardState | null = null;
   for (const a of list) {
     if (a.at > until) break;
-    state = step(state, { at: a.at, correctness: a.correctness });
+    state = step(state, { at: a.at, correctness: a.correctness }, sp);
   }
   return state;
 }
@@ -122,7 +122,7 @@ const mean = (xs: readonly number[]): number | null => (xs.length === 0 ? null :
  * DIE ZAHLEN EINES LERNENDEN über `cards`. `answers(card)`: seine Antworten auf diese Karte (wie `answersOf`).
  * `days`: wie viele Tage bis heute die Tageswerte zeigen; `ahead`: wie viele Tage die Vorschau.
  */
-export function knowStats(cards: readonly Card[], answers: (card: Card) => readonly AnswerRecord[], now: number, { days = 30, ahead = 14, hardest = 8 }: { days?: number; ahead?: number; hardest?: number } = {}): KnowStats {
+export function knowStats(cards: readonly Card[], answers: (card: Card) => readonly AnswerRecord[], now: number, { days = 30, ahead = 14, hardest = 8, spacing = DEFAULT_SPACING }: { days?: number; ahead?: number; hardest?: number; spacing?: Spacing } = {}): KnowStats {
   const today = dayStart(now);
   const starts = Array.from({ length: days }, (_, i) => dayAdd(today, i - days + 1));
   const ends = starts.map((s, i) => (i === starts.length - 1 ? now : dayAdd(s, 1) - 1));
@@ -141,7 +141,7 @@ export function knowStats(cards: readonly Card[], answers: (card: Card) => reado
 
   for (const card of cards) {
     const list = [...answers(card)].filter((a) => Number.isFinite(a.at)).sort((a, b) => a.at - b.at);
-    const state = stateUntil(list, now);
+    const state = stateUntil(list, now, spacing);
     const band = bandAt(state, now);
     bands[band] += 1;
     const share = state === null ? 0 : shareOf(knownessAt(state, now));
@@ -165,7 +165,7 @@ export function knowStats(cards: readonly Card[], answers: (card: Card) => reado
     for (let d = 0; d < starts.length; d += 1) {
       for (; k < list.length && list[k]!.at <= ends[d]!; k += 1) {
         const a = list[k]!;
-        st = step(st, { at: a.at, correctness: a.correctness });
+        st = step(st, { at: a.at, correctness: a.correctness }, spacing);
         if (a.at >= starts[d]!) {
           perDay[d]!.answers += 1;
           if (gradeOf(a.correctness) === 'correct') perDay[d]!.right += 1;
@@ -243,8 +243,8 @@ export interface ClassStats {
   readonly hardest: readonly HardCard[];
 }
 
-export function classStats(cards: readonly Card[], learners: readonly { readonly id: string; readonly answers: (card: Card) => readonly AnswerRecord[] }[], now: number, { days = 30, hardest = 10 }: { days?: number; hardest?: number } = {}): { readonly each: ReadonlyMap<string, KnowStats>; readonly all: ClassStats } {
-  const each = new Map(learners.map((l) => [l.id, knowStats(cards, l.answers, now, { days, hardest: 0 })]));
+export function classStats(cards: readonly Card[], learners: readonly { readonly id: string; readonly answers: (card: Card) => readonly AnswerRecord[]; readonly spacing?: Spacing }[], now: number, { days = 30, hardest = 10 }: { days?: number; hardest?: number } = {}): { readonly each: ReadonlyMap<string, KnowStats>; readonly all: ClassStats } {
+  const each = new Map(learners.map((l) => [l.id, knowStats(cards, l.answers, now, { days, hardest: 0, ...(l.spacing === undefined ? {} : { spacing: l.spacing }) })]));
   const weekAgo = now - 7 * DAY;
   const list = [...each.values()];
   const topicIds = new Map<string, number[]>();
@@ -354,11 +354,11 @@ function piece(state: CardState, t0: number, t1: number): { at: number; k: numbe
  * DER VERLAUF EINER KARTE im Zeitraum `from`–`now`, und was ohne Antwort bis `until` käme. Dieselbe Rechnung wie
  * überall (`step`, `knownessAt`) — keine zweite.
  */
-export function cardHistory(marks: readonly Mark[], from: number, now: number, until: number): CardHistory {
+export function cardHistory(marks: readonly Mark[], from: number, now: number, until: number, sp: Spacing = DEFAULT_SPACING): CardHistory {
   const sorted = marks.filter((m) => Number.isFinite(m.at) && m.at <= now).slice().sort((a, b) => a.at - b.at);
   let state: CardState | null = null;
   let i = 0;
-  for (; i < sorted.length && sorted[i]!.at < from; i++) state = step(state, sorted[i]!);
+  for (; i < sorted.length && sorted[i]!.at < from; i++) state = step(state, sorted[i]!, sp);
   const past: { at: number; k: number }[] = [];
   const answers: HistoryAnswer[] = [];
   let t = from;
@@ -366,7 +366,7 @@ export function cardHistory(marks: readonly Mark[], from: number, now: number, u
     const m = sorted[i]!;
     if (state !== null) past.push(...piece(state, t, m.at));
     const before = state === null ? null : knownessAt(state, m.at);
-    state = step(state, m);
+    state = step(state, m, sp);
     const after = knownessAt(state, m.at);
     past.push({ at: m.at, k: after });
     answers.push({ at: m.at, correctness: state.q, grade: gradeOf(state.q), before, after });

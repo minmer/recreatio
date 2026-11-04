@@ -637,6 +637,9 @@ export class LibraryStore implements Lookup {
    * ab, entsteht seine Abschrift neu, wenn Ruhe ist (`aiAccess/aiAccess.ts`,
    * nachgeladen — ein Bereich ohne Link kostet eine Frage je zehn Minuten).
    */
+  /** 2026-11-04 (Prompt 15) — die Abschriften neu, ohne dass etwas geschrieben wurde (eine einmalige Reparatur, `cogita/titleSigns.ts`). */
+  copiesStale(): void { this.written(); }
+
   private written(): void {
     const ring = this.ring;
     if (ring === null) return;

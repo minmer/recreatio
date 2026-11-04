@@ -34,7 +34,7 @@ import { hashOf, rngOf, type Card } from './cardBasics';
 import type { TextRule } from './check';
 import { evaluate, paletteOf, type Graph, type GraphEdge, type GraphNode, type NodeKind, type Port } from './graph';
 import { gateFor, gateHolds, gauge, gaugeFromMarks, waitsFor, CARD_REF, type CardGate, type Gauge, type RelSource, withFlows } from './knowing';
-import { gradeOf, KNOWN, knownessAt, levelOf, levelOfKnowness, levelOfState, shareOf, snapshotOfState, stateOf, step, type CardState, type Dependency, type Level, type Mark, type Snapshot } from './knowness';
+import { DEFAULT_SPACING, gradeOf, KNOWN, knownessAt, levelOf, levelOfKnowness, levelOfState, shareOf, snapshotOfState, stateOf, step, type CardState, type Dependency, type Level, type Mark, type Snapshot, type Spacing } from './knowness';
 import { readCondition, type Condition, type FlowFacts } from './logic';
 import { cardEntities, cardLevel, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { fieldsOf, labelOf, valuesOf, type Entity, type Lookup } from './schema';
@@ -71,6 +71,8 @@ export interface RevisionContext {
   readonly viewSteps?: (id: string) => readonly Step[] | undefined;
   /** 2026-11-03 (G) — die Erzählungen des Lernenden (die Bedingung „Przebieg" in „filter.when"). */
   readonly flows?: ReadonlyMap<string, FlowFacts>;
+  /** 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten (`spacingFor`); fehlt es: die Vorgabe. */
+  readonly spacing?: Spacing;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -166,7 +168,7 @@ const BY_FROM: Kind = {
 const planned = new WeakMap<RevisionContext, Gauge>();
 const knowingAt = (ctx: RevisionContext): Gauge => {
   let g = planned.get(ctx);
-  if (g === undefined) { g = withFlows(gaugeFromMarks(ctx.cards, ctx.marks, ctx.deps ?? [], ctx.now), ctx.flows); planned.set(ctx, g); }
+  if (g === undefined) { g = withFlows(gaugeFromMarks(ctx.cards, ctx.marks, ctx.deps ?? [], ctx.now, undefined, ctx.spacing), ctx.flows); planned.set(ctx, g); }
   return g;
 };
 
@@ -210,9 +212,9 @@ const FILTER: Kind = {
       if (directions.size > 0 && !directions.has(c.direction)) return false;
       if (forms.size > 0 && !forms.has(c.answer.form)) return false;
       const marks = ctx.marks(c.key);
-      if (levels.size > 0 && !levels.has(levelOf(marks, ctx.now))) return false;
+      if (levels.size > 0 && !levels.has(levelOf(marks, ctx.now, ctx.spacing))) return false;
       if (dueOnly) {
-        const state = stateOf(marks);
+        const state = stateOf(marks, ctx.spacing);
         if (state !== null && state.at + state.interval > ctx.now) return false;
       }
       return true;
@@ -561,6 +563,8 @@ export interface Start {
   readonly seed: string;
   /** Stufen aus früheren Läufen (`levels`). */
   readonly levelsBefore?: ReadonlyMap<string, number>;
+  /** 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten; fehlt es: die Vorgabe. */
+  readonly spacing?: Spacing;
 }
 
 interface Internal extends Session {
@@ -571,6 +575,8 @@ interface Internal extends Session {
   readonly graph: PrerequisiteGraph;
   /** Gerechnetes, das sich im Lauf nicht ändert: die Karten des Plans (ohne doppelte), ihre Stelle, Ebene und der Zufall je Karte. */
   readonly fixed: Fixed;
+  /** 2026-11-04 (Prompt 15) — die Abstände dieses Lernenden: jeder Schritt im Lauf rechnet mit ihnen. */
+  readonly spacing: Spacing;
 }
 
 interface Fixed {
@@ -589,7 +595,7 @@ const rngAt = (seed: string, step: number) => rngOf(`${seed}#${step}`);
 function stateIn(s: Internal, key: string): CardState | null {
   const own = s.states.get(key);
   if (own !== undefined) return own;
-  if (!s.fixed.stored.has(key)) s.fixed.stored.set(key, stateOf(s.fallback(key)));
+  if (!s.fixed.stored.has(key)) s.fixed.stored.set(key, stateOf(s.fallback(key), s.spacing));
   return s.fixed.stored.get(key) ?? null;
 }
 
@@ -803,7 +809,7 @@ export function start(input: Start): Session {
   const base: Internal = {
     plan: input.plan, seed: input.seed, step: 0, queue: [], active: [], asked: new Set(),
     levels: new Map(input.levelsBefore ?? []), wrongSinceCorrect: new Set(), states: new Map(), current: null, why: null,
-    all: input.all, fallback: input.marks, deps: input.deps, graph, fixed
+    all: input.all, fallback: input.marks, deps: input.deps, graph, fixed, spacing: input.spacing ?? DEFAULT_SPACING
   };
   const rng = rngAt(input.seed, 0);
 
@@ -851,7 +857,7 @@ export function answer(session: Session, correctness: number, at: number, also: 
     const chosen = pickFrom(s, s.active, key, at, rngS);
     return { session: seal({ ...s, current: chosen.key, why: whyOf(s, chosen.key, chosen.among, at, false, chosen.spacer === true) }), snapshot: null };
   }
-  const state = step(stateIn(s, key), { at, correctness: q });
+  const state = step(stateIn(s, key), { at, correctness: q }, s.spacing);
   const states = new Map(s.states);
   states.set(key, state);
   const asked = new Set(s.asked);
@@ -875,7 +881,7 @@ export function answer(session: Session, correctness: number, at: number, also: 
     if (handled.has(one.key) || !s.fixed.byKey.has(one.key)) continue;
     handled.add(one.key);
     const oq = Math.max(0, Math.min(1, one.correctness));
-    states.set(one.key, step(stateIn(s, one.key), { at, correctness: oq }));
+    states.set(one.key, step(stateIn(s, one.key), { at, correctness: oq }, s.spacing));
     asked.add(one.key);
     const right = oq >= s.plan.minCorrectness - 1e-9;
     if (right) { wrong.delete(one.key); settled.add(one.key); } else wrong.add(one.key);
@@ -1071,8 +1077,8 @@ export function practicePlan(cards: readonly Card[]): Plan {
 }
 
 /** Der Stand jeder Karte des Plans — für die Übersicht vor und nach dem Lauf. */
-export function levelsOf(plan: Plan, marks: (key: string) => readonly Mark[], now: number): Record<Level, number> {
+export function levelsOf(plan: Plan, marks: (key: string) => readonly Mark[], now: number, spacing: Spacing = DEFAULT_SPACING): Record<Level, number> {
   const out: Record<Level, number> = { unseen: 0, learning: 0, known: 0 };
-  for (const card of plan.cards) out[levelOf(marks(card.key), now)] += 1;
+  for (const card of plan.cards) out[levelOf(marks(card.key), now, spacing)] += 1;
   return out;
 }

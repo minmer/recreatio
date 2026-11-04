@@ -12,6 +12,7 @@ import type { Card } from './cardBasics';
 import { readFlow, type Flow } from './flow';
 import { learnerFlows, storyStage, storyUnitsOf } from './flowFacts';
 import { chainNeeds, gaugeFromMarks, itemKnowness, withFlows, type Gauge } from './knowing';
+import { spacingFor } from './spacing';
 import { isLearned } from './landscape';
 import { lockCards } from './landscapeData';
 import { answeredCards, renamer, type FlowPosition, type Learner } from './learn';
@@ -35,7 +36,7 @@ export function learnerGauge(lib: CogitaLibrary, cards: readonly Card[], learner
   const rename = renamer(lib.merges());
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint] as const));
   const all = [...cards, ...answeredCards(learner.progress, new Set(fp.keys()))];
-  return withFlows(gaugeFromMarks(all, (key) => learner.marks(key, fp.get(key), rename), lib.dependencies(), Date.now(), lib.prerequisites()), learnerFlows(lib, learner.progress.positions));
+  return withFlows(gaugeFromMarks(all, (key) => learner.marks(key, fp.get(key), rename), lib.dependencies(), Date.now(), lib.prerequisites(), spacingFor(lib, learner)), learnerFlows(lib, learner.progress.positions));
 }
 
 interface LockContext {

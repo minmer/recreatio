@@ -27,6 +27,7 @@ import { useMemo } from 'react';
 
 import type { Card } from './cardBasics';
 import { gaugeFromMarks, itemKnowness, ownKnowness } from './knowing';
+import { spacingFor } from './spacing';
 import { KNOWN } from './knowness';
 import { answeredCards, renamer, type Learner } from './learn';
 import { learnerFlows, STORY_BUTTON, storyStage, storyUnitsOf } from './flowFacts';
@@ -78,7 +79,7 @@ export function LearningPath({ learner, cards, go }: { learner: Learner | null; 
 
   const now = Date.now();
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const g = gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now);
+  const g = gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), now, undefined, spacingFor(lib, learner));
   /*
     2026-11-03 (Prompt 5) — ERZÄHLUNGEN ALS KNOTEN: eine Einheit, auf die ein Ablauf zeigt und die keine eigenen Karten hat,
     steht auf der Karte (gelernt, wenn ihr Przegląd bestanden ist); ihr Knopf öffnet den Spieler — an der Stelle des

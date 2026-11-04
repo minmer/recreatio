@@ -46,11 +46,12 @@ import { needsKnowing, readLandscape, viewList, withKnowing, type LandscapeRegio
 import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
 import { skipStep } from './flowAsk';
+import { spacingFor } from './spacing';
 import { landscapeWords, type LandscapeWords } from './landscapeWords';
 import { globalDepth, nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
 import { stepFor } from './worldView';
 import { worldLayout, type WorldLayout } from './worldLayout';
-import { FlagIcon, GoalFlagIcon, PieceIcon, SignIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
+import { FlagIcon, GoalFlagIcon, PieceIcon, WorldMap, type WorldCommand, type WorldPiece, type WorldTopic } from './WorldMap';
 import type { RegionTree } from './regions';
 import './landscape.css';
 
@@ -85,6 +86,20 @@ function useStand(client: LandscapeClient | null, input: LsInput, state: LsState
 }
 
 /** Ein kurzer Fingerabdruck der Themen und ihrer Kanten (dieselben: dieselben Gebiete, ohne neu zu rechnen). */
+/** 2026-11-04 (Prompt 15) — die gespeicherten Plätze eines Widoks (`landscape.layout`), oder null. */
+function readStoredLayout(raw: unknown): { key: string; at: Record<string, readonly [number, number]> } | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const l = (raw as Record<string, unknown>).layout;
+  if (typeof l !== 'object' || l === null) return null;
+  const { key, at } = l as Record<string, unknown>;
+  if (typeof key !== 'string' || typeof at !== 'object' || at === null) return null;
+  const out: Record<string, readonly [number, number]> = {};
+  for (const [id, c] of Object.entries(at as Record<string, unknown>)) {
+    if (Array.isArray(c) && c.length === 2 && Number.isInteger(c[0]) && Number.isInteger(c[1])) out[id] = [c[0] as number, c[1] as number];
+  }
+  return { key, at: out };
+}
+
 function graphKey(tg: TopicGraph): string {
   let h = 5381;
   const add = (s: string) => { for (let i = 0; i < s.length; i += 1) h = ((h << 5) + h + s.charCodeAt(i)) | 0; };
@@ -298,6 +313,8 @@ interface TopicInfo {
   readonly locked: boolean;
   readonly known: number;
   readonly total: number;
+  /** 2026-11-04 (Prompt 15, 4b) — die mittlere Kenntnis seiner Karten (0–1): der Ring. */
+  readonly mean: number;
 }
 
 export function LandscapeView({ view, cards, learner, onOpen, compact = false, rewards = null, query = '', viewKey, more, urlScope, busy = false }: LandscapeProps) {
@@ -314,7 +331,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* Während eines Laufs hier drin ruht die Rechnung — danach einmal. */
   const live = running === null ? progress : null;
   const flows = useMemo(() => learnerFlows(lib, learner?.progress.positions), [lib, lib.revision, learner, live]); // eslint-disable-line react-hooks/exhaustive-deps
-  const gauge = useMemo(() => withFlows(gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), flows), [cards, learner, live, fp, rename, lib, lib.revision, flows]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gauge = useMemo(() => withFlows(gaugeFromMarks([...cards, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites(), spacingFor(lib, learner)), flows), [cards, learner, live, fp, rename, lib, lib.revision, flows]); // eslint-disable-line react-hooks/exhaustive-deps
   const wants = needsKnowing(view);
   const plain = useMemo(() => ({ ...view, query: '' }), [view]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -369,6 +386,18 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     Zuordnung dieses Browsers geht mit (`previous`) — ohne die verschobenen Themen (sie folgen den Wünschen des Besitzers).
   */
   const regionsMemKey = `cg-ls-regions:${lib.libraryId}:${viewKey}`;
+  /*
+    2026-11-04 (Prompt 15, 1) — DIE PLÄTZE EINMAL JE BAZA: der Inhalt ist im Browser versiegelt (der Dienst kann nicht
+    rechnen), also rechnet der Browser eines Schreibenden, sobald sich die Struktur ändert, und legt die Plätze in den
+    Widok (`landscape.layout` = { key, at: { Thema: [q, r] } }); jeder Lernende liest sie von dort. `key`: genau die
+    Eingaben (Themen, Kanten, verschobene Themen, Fassung des Verfahrens). Passt er nicht, rechnet der Worker neu — mit den
+    alten Plätzen als Ausgang (Themen, die bleiben dürfen, bleiben).
+  */
+  const layoutKey = `r15:${graphKey(tg)}:${movesKey}`;
+  const storedLayout = useMemo(() => readStoredLayout(savedView === undefined ? undefined : (savedView.data as Record<string, unknown>).landscape), [savedView]);
+  const placesFit = storedLayout !== null && storedLayout.key === layoutKey;
+  const placesRef = useRef(storedLayout?.at);
+  placesRef.current = storedLayout?.at;
   useEffect(() => {
     if (client === null || nest !== null) return undefined;
     let alive = true;
@@ -384,7 +413,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       }
     } catch { /* ohne Speicher: neu gerechnet, aus der Struktur allein */ }
     /* 2026-11-04 (Prompt 13) — dazu die eine Landschaft (feste Plätze aller Themen), im Worker. */
-    void client.world({ key: treeKey, graph: tg.graph, lang, ...(edits?.moves === undefined ? {} : { overrides: { moves: edits.moves } }), ...(previous === undefined ? {} : { previous }) })
+    const places = placesRef.current;
+    void client.world({ key: `${treeKey}:${placesFit ? 'kept' : 'new'}`, graph: tg.graph, lang, ...(edits?.moves === undefined ? {} : { overrides: { moves: edits.moves } }), ...(previous === undefined ? {} : { previous }), ...(places === undefined ? {} : { places }) })
       .then(({ tree, world: made }) => {
         if (!alive) return;
         setComputed({ key: treeKey, tree, world: made });
@@ -392,7 +422,16 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         try { localStorage.setItem(regionsMemKey, JSON.stringify({ moves: edits?.moves ?? {}, assignment: tree.assignment })); } catch { /* zu gross oder ohne Speicher */ }
       }, (e: unknown) => { if (alive) setRegionsFailed(e instanceof Error ? e.message : String(e)); });
     return () => { alive = false; };
-  }, [client, treeKey, nest]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client, treeKey, nest, placesFit]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Ein Schreibender legt neue Plätze ab (einmal je Änderung der Struktur). */
+  useEffect(() => {
+    if (!writes || nest !== null || computed === null || computed.key !== treeKey || placesFit || savedView === undefined) return;
+    const data = savedView.data as Record<string, unknown>;
+    const ls = (typeof data.landscape === 'object' && data.landscape !== null ? data.landscape : {}) as Record<string, unknown>;
+    const at: Record<string, [number, number]> = {};
+    computed.world.cells.forEach((c, t) => { at[tg.graph.ids[t]] = [c.q, c.r]; });
+    void lib.saveDoc('view', { ...data, landscape: { ...ls, layout: { key: layoutKey, at } } }, savedView.id).catch(() => undefined);
+  }, [writes, nest, computed, treeKey, placesFit, layoutKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const tree = useMemo((): RegionTree | null => {
     if (nest !== null) return nestAsRegions(nest, tg, T.otherTopics, T.wholeMap);
     if (computed === null) return null;
@@ -425,9 +464,9 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const labelOf = (id: string): string => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
   const inputIndex = useMemo(() => new Map(input.ids.map((id, i) => [id, i] as const)), [input]);
   const infoOfNode = (v: number | undefined): TopicInfo => {
-    if (v === undefined || !standFits || stand === null) return { band: null, steps: 0, locked: false, known: 0, total: 0 };
+    if (v === undefined || !standFits || stand === null) return { band: null, steps: 0, locked: false, known: 0, total: 0, mean: 0 };
     const band = BAND_CODE[stand.band[v]] ?? null;
-    return { band, steps: band === null ? 0 : liftOf(band, stand.missing[v]), locked: stand.locked[v] === 1, known: Number(state.cardsKnown?.[v] ?? 0), total: Number(state.cardsTotal?.[v] ?? 0) };
+    return { band, steps: band === null ? 0 : liftOf(band, stand.missing[v]), locked: stand.locked[v] === 1, known: Number(state.cardsKnown?.[v] ?? 0), total: Number(state.cardsTotal?.[v] ?? 0), mean: Number(state.cardsMean?.[v] ?? 0) };
   };
   const infoOf = (t: number): TopicInfo => infoOfNode(tg.node[t]);
   const infoById = (id: string): TopicInfo => infoOfNode(inputIndex.get(id));
@@ -562,7 +601,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   /* -- Lernen ------------------------------------------------------------------------------------------- */
   const planFrom = async (graph: Graph): Promise<Plan | null> => {
-    const ctx = lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now(), flows);
+    const ctx = lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now(), flows, spacingFor(lib, learner));
     const made = await planOf(graph, ctx);
     if (made.plan === null) { setNote(made.problems[0] ?? T.noCards); return null; }
     const plan = { ...made.plan, cards: made.plan.cards.filter((c) => !(learner?.progress.suspended.has(c.key) ?? false)) };
@@ -646,10 +685,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const band = info.band ?? 'mountain';
     const topKey = world?.chain[t]?.[0];
     const todo = band === 'known' ? T.todoKnown : band === 'due' ? T.todoDue(Math.max(1, dueBy.get(id) ?? 1)) : band === 'ring' ? (info.locked ? T.nextFirst : T.todoReady) : T.todoMissing(Math.max(1, info.steps - 1));
-    return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked, sign: band === 'ring' && info.locked ? 'first' : band === 'due' ? 'due' : null,
-      share: info.total === 0 ? (band === 'known' || band === 'due' ? 1 : 0) : info.known / info.total, todo,
-      /* Tief gezoomt: die Einzelheiten — Stufen, Karten, was es öffnet. */
-      detail: [...(band === 'mountain' || band === 'ring' ? [T.stufen(info.steps)] : []), ...(info.total > 0 ? [T.cardsLine(info.known, info.total)] : []), ...((opensOf[t]?.length ?? 0) > 0 ? [T.opensNext(opensOf[t].length)] : [])] };
+    return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked,
+      /* 2026-11-04 (Prompt 15, 4b) — der Ring: die mittlere Kenntnis seiner Karten (keine Zeichen auf den Feldern mehr). */
+      share: info.total === 0 ? (band === 'known' || band === 'due' ? 1 : 0) : info.mean, todo,
+      due: band === 'due' || (dueBy.get(id) ?? 0) > 0 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [tg, stand, state, world, topSubject, colourOf, dueBy, lang, opensOf]);
   /* Je Gebiet: wie viel darin gekonnt ist und was jetzt geht. */
@@ -716,7 +755,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       visited: kept?.visited ?? [], step: kept?.step ?? null, ended: flows.get(flow.id)?.done === true,
       ...(learner === null ? {} : {
         know: (x: string) => (content.cardsOf(x).length === 0 ? { learned: true, due: false } : known(x)),
-        knownStep: (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, (c) => learner.marks(c.key, c.fingerprint, content.rename)); }
+        knownStep: (s: string) => { const n = nodeOf.get(s); return n !== undefined && skipStep(n, content.card, Object.assign((c: Card) => learner.marks(c.key, c.fingerprint, content.rename), { spacing: spacingFor(lib, learner) })); }
       })
     });
     return { flow, sp, model: sp.model, marks };
@@ -895,7 +934,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   ];
   /* Die Legende sagt nur, was gerade gilt. */
   const legend = () => (
-    <Legend show={{ due: worldTopics.some((x) => x.sign === 'due'), first: worldTopics.some((x) => x.sign === 'first'), land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null }} folded={compact || !wide} />
+    <Legend show={{ land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null, piece: mapPieces.some((p) => p.kind === 'single'), goal: goal !== null }} folded={compact || !wide} />
   );
 
   return host(
@@ -960,7 +999,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
 /* -- Die Legende: nur, was gerade gilt; im Engen zu „Legende" gefaltet ------------------------------------------ */
 
-function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'due' | 'first' | 'land' | 'glow' | 'flag' | 'links' | 'piece' | 'goal', boolean>> }) {
+function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'land' | 'glow' | 'flag' | 'links' | 'piece' | 'goal', boolean>> }) {
   const [open, setOpen] = useState(!folded);
   useEffect(() => { setOpen(!folded); }, [folded]);
   const body = (
@@ -971,8 +1010,7 @@ function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'due'
       {show.glow && <li data-landscape-legend-mark="glow"><span className="cg-ls-legend-line is-ready" aria-hidden />{T.legendReadyLine}</li>}
       {show.piece && <li data-landscape-legend-mark="piece"><svg className="cg-ls-legend-icon" viewBox="-12 -16 24 18" aria-hidden><PieceIcon kind="single" h={15} /></svg>{T.legendPiece}</li>}
       {show.goal && <li data-landscape-legend-mark="goal"><svg className="cg-ls-legend-icon" viewBox="-12 -16 24 18" aria-hidden><g transform="translate(-5,0)"><PieceIcon kind="goal" h={15} /></g><g transform="translate(5,0)"><GoalFlagIcon h={14} /></g></svg>{T.legendGoalPiece}</li>}
-      {show.first && <li data-landscape-legend-mark="first"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="first" r={8} /></svg>{T.legendFirst}</li>}
-      {show.due && <li data-landscape-legend-mark="repeat"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="due" r={8} /></svg>{T.legendDue}</li>}
+      <li data-landscape-legend-mark="ring"><svg className="cg-ls-legend-icon" viewBox="-10 -10 20 20" aria-hidden><path className="cg-ls-legend-ringrest" d="M0,-8 L6.9,-4 L6.9,4 L0,8 L-6.9,4 L-6.9,-4 Z" /><path className="cg-ls-legend-ringdone" d="M0,-8 L6.9,-4 L6.9,4 L0,8" /><circle className="cg-ls-legend-ringdue" cx={0} cy={-8} r={2} /></svg>{T.legendTileRing}</li>
       {show.flag && <li data-landscape-legend-mark="flag"><FlagIcon size={14} />{T.legendFlag}</li>}
       {show.links && <li data-landscape-legend-mark="links"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path className="cg-ls-legend-needs" d="M-10,4 Q-4,-6 2,2" /><path className="cg-ls-legend-opens" d="M2,2 Q6,-4 11,-2" /></svg>{T.legendNeeds} · {T.legendOpens}</li>}
     </ul>

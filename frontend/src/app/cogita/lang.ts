@@ -263,3 +263,58 @@ export function words(lang: Lang) {
   };
 }
 export type Words = ReturnType<typeof words>;
+
+/**
+ * 2026-11-04 (Prompt 15) — DIE WORTE DER ABSTÄNDE DER WIEDERHOLUNGEN (`spacing.ts`, `SpacingSettings.tsx`) — eigene
+ * Liste, damit die der Lernbildschirme kurz bleibt.
+ */
+export function spacingWords(lang: Lang) {
+  const L = <T>(pl: T, de: T, en: T): T => (lang === 'de' ? de : lang === 'en' ? en : pl);
+  return {
+    title: L('Odstępy powtórek', 'Abstände der Wiederholungen', 'Review spacing'),
+    line: (name: string) => L(`Powtórki: ${name}`, `Wiederholungen: ${name}`, `Reviews: ${name}`),
+    change: L('Zmień', 'Ändern', 'Change'),
+    close: L('Zamknij', 'Schliessen', 'Close'),
+    preset: L(
+      { standard: 'Standard', lighter: 'Lżej', once: 'Raz i gotowe' },
+      { standard: 'Standard', lighter: 'Leichter', once: 'Einmal und fertig' },
+      { standard: 'Standard', lighter: 'Lighter', once: 'Once and done' }
+    ),
+    presetSays: L(
+      { standard: 'Karta wraca po kwadransie, potem coraz rzadziej (×3).', lighter: 'Dłuższe odstępy: najwcześniej po dniu, potem ×5.', once: 'Raz dobrze — i praktycznie nigdy więcej (rok, potem ×1000).' },
+      { standard: 'Die Karte kommt nach einer Viertelstunde wieder, dann immer seltener (×3).', lighter: 'Längere Abstände: frühestens nach einem Tag, dann ×5.', once: 'Einmal richtig — und praktisch nie wieder (ein Jahr, dann ×1000).' },
+      { standard: 'A card comes back after a quarter of an hour, then ever less often (×3).', lighter: 'Longer gaps: a day at the earliest, then ×5.', once: 'Right once — and practically never again (a year, then ×1000).' }
+    ),
+    custom: L('własne', 'eigene', 'custom'),
+    advanced: L('Zaawansowane', 'Erweitert', 'Advanced'),
+    first: L('Pierwszy odstęp', 'Erster Abstand', 'First interval'),
+    firstSays: L('Po tylu czasie od dobrej odpowiedzi (także po złej, a potem dobrej) karta wraca najwcześniej.', 'So lange nach einer richtigen Antwort (auch nach falsch, dann richtig) kommt die Karte frühestens wieder.', 'How long after a correct answer (also after a wrong one followed by a correct one) the card comes back at the earliest.'),
+    growth: L('Mnożnik wzrostu', 'Wachstumsfaktor', 'Growth factor'),
+    growthSays: L('Tyle razy dłuższy staje się każdy kolejny odstęp po następnej dobrej odpowiedzi.', 'So viel länger wird jeder nächste Abstand nach einer weiteren richtigen Antwort.', 'How much longer each next interval becomes after another correct answer.'),
+    unit: L(
+      { minute: 'minut', hour: 'godzin', day: 'dni', week: 'tygodni', month: 'miesięcy', year: 'lat' },
+      { minute: 'Minuten', hour: 'Stunden', day: 'Tage', week: 'Wochen', month: 'Monate', year: 'Jahre' },
+      { minute: 'minutes', hour: 'hours', day: 'days', week: 'weeks', month: 'months', year: 'years' }
+    ),
+    unitOne: L(
+      { minute: 'minuta', hour: 'godzina', day: 'dzień', week: 'tydzień', month: 'miesiąc', year: 'rok' },
+      { minute: 'Minute', hour: 'Stunde', day: 'Tag', week: 'Woche', month: 'Monat', year: 'Jahr' },
+      { minute: 'minute', hour: 'hour', day: 'day', week: 'week', month: 'month', year: 'year' }
+    ),
+    apply: L('Zastosuj', 'Übernehmen', 'Apply'),
+    summary: (first: string, growth: number) => L(`pierwszy odstęp ${first}, potem ×${growth}`, `erster Abstand ${first}, dann ×${growth}`, `first interval ${first}, then ×${growth}`),
+    fromArea: L('ustawione dla wszystkich w tym obszarze', 'für alle in diesem Bereich eingestellt', 'set for everyone in this area'),
+    fromOwn: L('Twoje ustawienie', 'deine Einstellung', 'your setting'),
+    fromDefault: L('domyślne', 'Vorgabe', 'default'),
+    locked: L('Prowadzący ustalił odstępy dla wszystkich — nie można ich zmienić.', 'Die Leitung hat die Abstände für alle festgelegt — sie lassen sich nicht ändern.', 'The teacher has set the spacing for everyone — it cannot be changed.'),
+    useArea: L('Wróć do ustawienia obszaru', 'Zurück zur Einstellung des Bereichs', 'Back to the area setting'),
+    useDefault: L('Wróć do domyślnego', 'Zurück zur Vorgabe', 'Back to the default'),
+    recompute: L('Zmiana liczy od nowa terminy wszystkich kart z dotychczasowych odpowiedzi — żadna odpowiedź nie ginie.', 'Eine Änderung rechnet die Termine aller Karten aus den bisherigen Antworten neu — keine Antwort geht verloren.', 'A change recomputes the due dates of all cards from the answers so far — no answer is lost.'),
+    areaTitle: L('Odstępy powtórek dla uczących się', 'Abstände der Wiederholungen für die Lernenden', 'Review spacing for learners'),
+    areaSays: L('Obowiązuje każdego, kto uczy się z tej bazy, chyba że ustawi własne (jeśli pozwolisz).', 'Gilt für alle, die mit dieser Baza lernen — ausser sie stellen eigene ein (wenn du es erlaubst).', 'Applies to everyone learning from this base unless they set their own (if you allow it).'),
+    mayChange: L('Uczący się mogą to zmienić dla siebie', 'Lernende dürfen es für sich ändern', 'Learners may change it for themselves'),
+    areaNone: L('Bez ustawienia — domyślne (Standard).', 'Ohne Einstellung — die Vorgabe (Standard).', 'No setting — the default (Standard).'),
+    areaClear: L('Usuń ustawienie obszaru', 'Einstellung des Bereichs entfernen', 'Remove the area setting')
+  };
+}
+export type SpacingWords = ReturnType<typeof spacingWords>;

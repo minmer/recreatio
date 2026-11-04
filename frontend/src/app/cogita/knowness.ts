@@ -50,6 +50,24 @@ export const CORRECT_FROM = 0.9;
 /** … unter dieser falsch; dazwischen teilweise. */
 export const WRONG_BELOW = 0.25;
 
+/**
+ * 2026-11-04 (Prompt 15) — DIE ABSTÄNDE SIND EINSTELLBAR (`spacing.ts`: der Lernende, der Bereich, die Vorgabe), der
+ * Algorithmus bleibt derselbe. Zwei Werte:
+ * <code>
+ *   first    der erste Abstand nach einer richtigen Antwort (auch nach falsch, dann richtig) — Vorgabe 15 Minuten
+ *            (MIN_INTERVAL × GROWTH, wie bisher)
+ *   growth   um wie viel jeder weitere Abstand nach einer richtigen Antwort wächst — Vorgabe 3 (GROWTH)
+ * </code>
+ * Mit der Vorgabe ist jeder Abstand genau wie vorher (`app-spacing-check.mjs` vergleicht mit der alten Funktion).
+ */
+export interface Spacing {
+  /** Millisekunden. */
+  readonly first: number;
+  readonly growth: number;
+}
+
+export const DEFAULT_SPACING: Spacing = { first: MIN_INTERVAL * GROWTH, growth: GROWTH };
+
 /** Ab hier sitzt es: am fälligen Termin einer richtigen Antwort steht die Kenntnis genau auf 1. */
 export const KNOWN = 1;
 
@@ -94,12 +112,12 @@ export interface CardState {
   readonly answers: number;
 }
 
-/** EIN SCHRITT: der neue Zustand aus dem alten und der neuen Antwort — sonst nichts. */
-export function step(state: CardState | null, mark: Mark): CardState {
+/** EIN SCHRITT: der neue Zustand aus dem alten und der neuen Antwort — sonst nichts. `sp` (2026-11-04, Prompt 15): die Abstände. */
+export function step(state: CardState | null, mark: Mark, sp: Spacing = DEFAULT_SPACING): CardState {
   const q = clamp01(mark.correctness);
   const grade = gradeOf(q);
   if (state === null) {
-    return { at: mark.at, interval: grade === 'correct' ? MIN_INTERVAL * GROWTH : MIN_INTERVAL, elapsed: 0, best: 0, q, lapsed: grade === 'wrong', answers: 1 };
+    return { at: mark.at, interval: grade === 'correct' ? sp.first : MIN_INTERVAL, elapsed: 0, best: 0, q, lapsed: grade === 'wrong', answers: 1 };
   }
   const elapsed = Math.max(0, mark.at - state.at);
   const answers = state.answers + 1;
@@ -111,15 +129,21 @@ export function step(state: CardState | null, mark: Mark): CardState {
     const interval = Math.max(MIN_INTERVAL, elapsed * PARTIAL, elapsed >= PARTIAL_FLOOR ? PARTIAL_FLOOR : 0);
     return { at: mark.at, interval, elapsed, best: state.best, q, lapsed: state.lapsed, answers };
   }
-  const grown = Math.max(MIN_INTERVAL, elapsed * GROWTH);
-  const interval = state.lapsed ? Math.max(grown, RELEARN * state.best) : Math.max(grown, state.interval);
+  const grown = Math.max(MIN_INTERVAL, elapsed * sp.growth);
+  /*
+   * 2026-11-04 (Prompt 15) — richtig nach einem Fehler: mindestens der erste Abstand — anteilig, wenn früher als nach fünf
+   * Minuten (dem Abstand nach einem Fehler) geantwortet wurde. Mit der Vorgabe ist das nie mehr als `grown`
+   * (15 Min. × t / 5 Min. = 3 · t), also genau wie vorher.
+   */
+  const relearned = Math.max(grown, RELEARN * state.best, sp.first * Math.min(1, elapsed / MIN_INTERVAL));
+  const interval = state.lapsed ? relearned : Math.max(grown, state.interval);
   return { at: mark.at, interval, elapsed, best: state.best, q, lapsed: false, answers };
 }
 
 /** Den Zustand aus den gespeicherten Antworten neu abspielen — dasselbe wie Schritt für Schritt. */
-export function stateOf(marks: readonly Mark[]): CardState | null {
+export function stateOf(marks: readonly Mark[], sp: Spacing = DEFAULT_SPACING): CardState | null {
   let state: CardState | null = null;
-  for (const m of marks.filter((x) => Number.isFinite(x.at)).slice().sort((a, b) => a.at - b.at)) state = step(state, m);
+  for (const m of marks.filter((x) => Number.isFinite(x.at)).slice().sort((a, b) => a.at - b.at)) state = step(state, m, sp);
   return state;
 }
 
@@ -131,17 +155,17 @@ export function knownessAt(state: CardState | null, now: number): number {
 }
 
 /** Die Kenntnis zum Zeitpunkt `now` — 0, solange nie geantwortet wurde. */
-export const knownessOf = (marks: readonly Mark[], now: number): number => knownessAt(stateOf(marks), now);
+export const knownessOf = (marks: readonly Mark[], now: number, sp: Spacing = DEFAULT_SPACING): number => knownessAt(stateOf(marks, sp), now);
 
 /** Wann die Karte wieder dran ist; `null`: noch nie gefragt (also gleich). */
-export function dueAt(marks: readonly Mark[]): number | null {
-  const state = stateOf(marks);
+export function dueAt(marks: readonly Mark[], sp: Spacing = DEFAULT_SPACING): number | null {
+  const state = stateOf(marks, sp);
   return state === null ? null : state.at + state.interval;
 }
 
 /** Der Abstand in Stunden — wie lange es nach der letzten Antwort hält (für „Postępy"). */
-export function stability(marks: readonly Mark[]): number {
-  const state = stateOf(marks);
+export function stability(marks: readonly Mark[], sp: Spacing = DEFAULT_SPACING): number {
+  const state = stateOf(marks, sp);
   return (state === null ? MIN_INTERVAL : state.interval) / HOUR;
 }
 
@@ -164,8 +188,8 @@ export const levelOfKnowness = (k: number, answered = true): Level => (!answered
 /** Das Band eines Zustands jetzt. */
 export const levelOfState = (state: CardState | null, now: number): Level => (state === null ? 'unseen' : levelOfKnowness(knownessAt(state, now)));
 
-export function levelOf(marks: readonly Mark[], now: number): Level {
-  return levelOfState(marks.length === 0 ? null : stateOf(marks), now);
+export function levelOf(marks: readonly Mark[], now: number, sp: Spacing = DEFAULT_SPACING): Level {
+  return levelOfState(marks.length === 0 ? null : stateOf(marks, sp), now);
 }
 
 /** Für Balken und Prozente: über 1 ist „sitzt", mehr als 100 % gibt es nicht. */
@@ -197,8 +221,8 @@ export interface Snapshot {
   readonly best?: number;
 }
 
-export function snapshotOf(question: string, direction: string, marks: readonly Mark[], now: number): Snapshot {
-  return snapshotOfState(question, direction, stateOf(marks), now);
+export function snapshotOf(question: string, direction: string, marks: readonly Mark[], now: number, sp: Spacing = DEFAULT_SPACING): Snapshot {
+  return snapshotOfState(question, direction, stateOf(marks, sp), now);
 }
 
 /** Dasselbe aus dem Zustand, wie ein Lauf ihn Schritt für Schritt nachführt. */

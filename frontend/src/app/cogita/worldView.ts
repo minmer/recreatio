@@ -142,6 +142,34 @@ export function placeLabels(list: readonly LabelCandidate[], width: number, heig
 }
 
 /**
+ * 2026-11-04 (Prompt 15, 3) — NAMEN, DIE NIE WEGFALLEN (`must`: fern die obersten Gebiete): was `placeLabels` ausblenden musste,
+ * rückt an den Rand des Bildes (nächst seiner Fläche, frei von den anderen) und bekommt eine Linie zu ihr (`leader`).
+ */
+export function keepLabels<T extends PlacedLabel>(placed: readonly T[], must: (l: T) => boolean, width: number, height: number): (T & { readonly leader?: readonly [number, number] })[] {
+  const boxes = placed.filter((l) => l.shown).map((l) => ({ x0: l.x - l.w / 2 - 3, x1: l.x + l.w / 2 + 3, y0: l.y - l.h / 2 - 2, y1: l.y + l.h / 2 + 2 }));
+  const free = (x: number, y: number, l: T) => {
+    const box = { x0: x - l.w / 2 - 3, x1: x + l.w / 2 + 3, y0: y - l.h / 2 - 2, y1: y + l.h / 2 + 2 };
+    if (boxes.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) return false;
+    boxes.push(box);
+    return true;
+  };
+  return placed.map((l) => {
+    if (l.shown || !must(l)) return l;
+    const cx = Math.max(l.w / 2 + 4, Math.min(width - l.w / 2 - 4, l.x));
+    const cy = Math.max(l.h / 2 + 4, Math.min(height - l.h / 2 - 4, l.y));
+    for (let k = 0; k < 80; k += 1) {
+      const y = cy + (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * (l.h + 4);
+      if (y < l.h / 2 + 2 || y > height - l.h / 2 - 2) continue;
+      if (free(cx, y, l)) return { ...l, x: cx, y, shown: true, alpha: 1, leader: [l.x, l.y] as const };
+    }
+    /* Kein freier Platz in dieser Spalte: der nächste freie am linken oder rechten Rand. */
+    for (const x of [l.w / 2 + 4, width - l.w / 2 - 4]) {
+      for (let y = l.h / 2 + 4; y <= height - l.h / 2 - 4; y += l.h + 4) if (free(x, y, l)) return { ...l, x, y, shown: true, alpha: 1, leader: [l.x, l.y] as const };
+    }
+    return { ...l, x: cx, y: cy, shown: true, alpha: 1, leader: [l.x, l.y] as const };
+  });
+}
+/**
  * WELCHE GEBIETE EINEN NAMEN TRAGEN: ein Gebiet, das auf dem Schirm gross genug ist (sein Durchmesser über `MIN_D`), solange
  * es nicht so gross ist, dass seine Teilgebiete übernehmen (über `MAX_D`) — und nur, wenn das Gebiet darüber schon so gross
  * ist (sonst trägt jenes den Namen). Fern: nur die obersten; näher: die Teilgebiete im Bild; nah: keine (die Themen selbst).
@@ -157,81 +185,66 @@ export function regionLabelAlpha(diameter: number, parentDiameter: number | null
 }
 
 /*
- * 2026-11-04 (Prompt 14, 3; geändert vom Nutzer) — WAS IN DEN KACHELN STEHT, für ALLE Kacheln im Bild gleich (je Zoom ein
- * Aussehen):
- * <code>
- *   Namen     ab `NAME_PX` je Kachel nur eine Angabe: ihr Name (bis zu zwei Zeilen, gekürzt mit „…")
- *   tief      ab `DETAIL_PX` (nur noch 2–5 Kacheln im Bild) alles, was es über das Thema zu sagen gibt: ein Ring mit dem
- *             Anteil des Gekonnten, der Name (bis zu drei Zeilen), was noch zu tun ist und die Einzelheiten (`detail`)
- * </code>
- * Jede Zeile so breit, wie der Kreis auf der Oberseite auf ihrer Höhe ist (eine Sehne) — nie gestaucht, nie in eine Spalte
- * gebrochen. Gezeichnet mit der Neigung (die Höhe gestaucht wie die Fläche) und mit der Drehung der Kachel (höchstens ±30°,
- * die Kachel sieht alle 60° gleich aus — so bleibt es lesbar); zu steil: nichts.
+ * 2026-11-04 (Prompt 15, 4) — WAS IN DEN KACHELN STEHT (ersetzt Prompt 14): fern und mittel kein Name; nah (ab `NAME_PX`) auf
+ * jeder Kachel ihr Name (eine oder zwei Zeilen, normale Schrift, nie grösser als die Schrift der Seite `cap`), tief (2–5 Kacheln
+ * im Bild) darunter höchstens EIN Wort zum Stand („umiesz", „3 do powtórki"). Keine Zeilen mit Karten oder was es öffnet. Der
+ * Ring läuft am Rand der Kachel (gezeichnet von `WorldMap`, ab der mittleren Nähe). Jede Zeile so breit, wie der Kreis auf
+ * der Oberseite auf ihrer Höhe ist (eine Sehne) — nie gestaucht; gedreht wie die Kachel (±30°), zu steil: nichts.
  */
 export const NAME_PX = 56;
 /**
  * Wie viele Kacheln bei diesem Zoom ins Bild passen: die Fläche des Bildes durch die Fläche einer Kachel auf dem Schirm
- * (gestaucht mit der Neigung). Daraus: ab wann die Einzelheiten stehen (höchstens etwa sieben Kacheln im Bild) und der
- * tiefste Zoom (etwa drei).
+ * (gestaucht mit der Neigung). Daraus: ab wann das Wort zum Stand steht (höchstens etwa sieben Kacheln im Bild) und der
+ * tiefste Zoom (etwa vier).
  */
 const sForTiles = (width: number, height: number, fore: number, tiles: number): number => Math.sqrt((width * height) / (((3 * Math.sqrt(3)) / 2) * HEX_CORNER * HEX_CORNER * Math.max(FORE_MIN, fore) * tiles));
 export const detailPx = (width: number, height: number, fore = 1): number => 2 * HEX_CORNER * sForTiles(width, height, fore, 7);
 export const deepestS = (width: number, height: number, fore = 1): number => Math.max(120, sForTiles(width, height, fore, 4));
 /** Steiler als so (Neigung) ist die Oberseite nicht mehr zu lesen: kein Text. */
 export const INFO_FORE = 0.5;
-
+/** Ab dieser Grösse (Bildpunkte je Kachel) läuft der Ring am Rand (ohne Text). */
+export const RING_PX = 14;
 export interface InfoLine { readonly text: string; readonly y: number; readonly size: number; readonly bold: boolean }
-
 /**
- * Die Zeilen in einem Kreis vom Halbmesser `r` (Bildpunkte, Mitte 0). `detail` leer: nur der Name (die Ebene der Namen);
- * sonst oben der Ring (`ringY`), der Name, was zu tun ist und die Einzelheiten. `measure`: Breite eines Textes.
+ * Die Zeilen in einem Kreis vom Halbmesser `r` (Bildpunkte, Mitte 0): der Name (höchstens zwei Zeilen), tief (`deep`)
+ * darunter das eine Wort zum Stand. `cap`: die grösste Schrift (die der Seite). `measure`: Breite eines Textes.
  */
-export function fitInfo(name: string, todo: string, detail: readonly string[] | null, r: number, measure: (text: string, size: number, bold: boolean) => number): { lines: InfoLine[]; ringY: number; ringR: number; ring: boolean } {
-  const deep = detail !== null;
-  const size = deep ? Math.max(11, Math.min(30, r * 0.15)) : Math.max(9, Math.min(20, r * 0.27));
-  const small = Math.max(8, size * 0.72);
-  const chord = (y: number, h: number) => 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(y) + h / 2) ** 2)) * 0.9;
+export function fitInfo(name: string, status: string, deep: boolean, r: number, measure: (text: string, size: number, bold: boolean) => number, cap = 16): { lines: InfoLine[] } {
+  const size = Math.min(cap, Math.max(9, r * (deep ? 0.2 : 0.27)));
+  const small = Math.max(8, Math.min(cap * 0.85, size * 0.85));
+  const chord = (y: number, h: number) => 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(y) + h / 2) ** 2)) * 0.86;
   const cut = (text: string, width: number, s: number, bold: boolean): string => {
     if (measure(text, s, bold) <= width) return text;
     let lo = 0; let hi = text.length;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (measure(`${text.slice(0, m).trimEnd()}…`, s, bold) <= width) lo = m; else hi = m - 1; }
     return lo <= 1 ? '' : `${text.slice(0, lo).trimEnd()}…`;
   };
-  /* Der Name an Wortgrenzen auf höchstens `max` Zeilen ab `y0`; die letzte gekürzt. */
-  const nameLines = (y0: number, max: number): InfoLine[] => {
+  /* Der Name an Wortgrenzen auf höchstens zwei Zeilen ab `y0`; die letzte gekürzt. */
+  const nameLines = (y0: number): InfoLine[] => {
     const words = name.split(/\s+/).filter((w) => w !== '');
     const out: InfoLine[] = [];
     let k = 0;
-    for (let line = 0; line < max && k < words.length; line += 1) {
-      const y = y0 + line * size * 1.15;
+    for (let line = 0; line < 2 && k < words.length; line += 1) {
+      const y = y0 + line * size * 1.18;
       const w = chord(y, size);
-      if (line === max - 1) { out.push({ text: cut(words.slice(k).join(' '), w, size, true), y, size, bold: true }); k = words.length; break; }
+      if (line === 1) { out.push({ text: cut(words.slice(k).join(' '), w, size, false), y, size, bold: false }); k = words.length; break; }
       let text = '';
-      while (k < words.length && measure(text === '' ? words[k] : `${text} ${words[k]}`, size, true) <= w) { text = text === '' ? words[k] : `${text} ${words[k]}`; k += 1; }
-      if (text === '') { text = cut(words[k], w, size, true); k += 1; }
-      out.push({ text, y, size, bold: true });
+      while (k < words.length && measure(text === '' ? words[k] : `${text} ${words[k]}`, size, false) <= w) { text = text === '' ? words[k] : `${text} ${words[k]}`; k += 1; }
+      if (text === '') { text = cut(words[k], w, size, false); k += 1; }
+      out.push({ text, y, size, bold: false });
     }
     return out;
   };
-  if (!deep) {
-    /* Nur der Name, in der Mitte der Fläche. */
-    const two = measure(name, size, true) > chord(0, size);
-    const lines = nameLines(two ? -size * 0.58 : 0, 2);
-    return { lines: lines.filter((l) => l.text !== ''), ringY: 0, ringR: 0, ring: false };
+  const two = measure(name, size, false) > chord(0, size);
+  const withStatus = deep && status !== '';
+  const top = (two ? -size * 0.59 : 0) - (withStatus ? small * 0.7 : 0);
+  const lines = nameLines(top);
+  if (withStatus) {
+    const y = (lines[lines.length - 1]?.y ?? top) + size * 0.6 + small * 0.9;
+    lines.push({ text: cut(status, chord(y, small), small, true), y, size: small, bold: true });
   }
-  const ringR = size * 0.75;
-  const ringY = -r * 0.5;
-  const lines = nameLines(-r * 0.2, 3);
-  let y = (lines[lines.length - 1]?.y ?? -r * 0.2) + size * 1.25;
-  for (const text of [todo, ...detail]) {
-    if (text === '' || y > r * 0.78) continue;
-    const s = text === todo ? small * 1.08 : small;
-    lines.push({ text: cut(text, chord(y, s), s, text === todo), y, size: s, bold: text === todo });
-    y += s * 1.3;
-  }
-  return { lines: lines.filter((l) => l.text !== ''), ringY, ringR, ring: true };
+  return { lines: lines.filter((l) => l.text !== '') };
 }
-
 /** Der Winkel, um den der Text in einer Kachel gedreht steht: die Drehung der Kamera, auf ±30° gebracht (Grad). */
 export const infoAngle = (rot: number): number => { const a = (((-rot % 60) + 60) % 60); return a > 30 ? a - 60 : a; };
 

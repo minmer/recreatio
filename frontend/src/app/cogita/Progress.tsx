@@ -13,7 +13,8 @@ import { plural } from '../core/plural';
 import { loadIntake, openIntakeKey } from '../forms/intake';
 import { loadSeats } from '../seats/seat';
 import type { Card } from './cardBasics';
-import { average, knownessOf, KNOWN, levelOf, LEVEL_LABEL, shareOf, type Level } from './knowness';
+import { average, DEFAULT_SPACING, knownessOf, KNOWN, levelOf, LEVEL_LABEL, shareOf, type Level, type Spacing } from './knowness';
+import { spacingFor } from './spacing';
 import { gaugeFromMarks, itemDue, itemKnowness, ownKnowness } from './knowing';
 import { adoptLocal, areaProgress, loadAnswerAreas, localProgress, marksOf, renamer, type AnswerArea, type Learner, type LearnerProgress, type Progress as Answers } from './learn';
 import { answerIndex, answersOf, cardStats, holdsText, MODELS, spanText, summarize as statsOf, type CardStat, type Model } from './measures';
@@ -28,13 +29,13 @@ import { ProgressJsonPanel } from './ProgressJsonPanel';
 import { Bar, percent, useAsync, useBusy, useCtx } from './ui';
 
 /** Was sitzt, je Gruppe von Karten — aus den Antworten, gerechnet im Browser [E2, E7]. */
-export function summarize(cards: readonly Card[], marks: (card: Card) => ReturnType<typeof marksOf>, now = Date.now()): { levels: Record<Level, number>; knowness: number } {
+export function summarize(cards: readonly Card[], marks: (card: Card) => ReturnType<typeof marksOf>, now = Date.now(), spacing: Spacing = DEFAULT_SPACING): { levels: Record<Level, number>; knowness: number } {
   const levels: Record<Level, number> = { unseen: 0, learning: 0, known: 0 };
   const values: number[] = [];
   for (const card of cards) {
     const m = marks(card);
-    levels[levelOf(m, now)] += 1;
-    values.push(shareOf(knownessOf(m, now)));
+    levels[levelOf(m, now, spacing)] += 1;
+    values.push(shareOf(knownessOf(m, now, spacing)));
   }
   return { levels, knowness: average(values) };
 }
@@ -57,8 +58,10 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
   if (cards === null) return <p className="wk-hint">Liczenie kart…</p>;
   if (learner === null) return <p className="wk-hint">Bez konta postępy zostają w tej przeglądarce — zaloguj się, żeby je zachować.</p>;
   const marks = (card: Card) => learner.marks(card.key, card.fingerprint, rename);
-  const all = summarize(cards, marks);
-  const byKind = lib.kinds.map((k) => ({ k, s: summarize(cards.filter((c) => c.entity !== undefined && lib.entity(c.entity)?.kinds.includes(k.id) === true), marks), n: cards.filter((c) => c.entity !== undefined && lib.entity(c.entity)?.kinds.includes(k.id) === true).length })).filter((x) => x.n > 0);
+  /* 2026-11-04 (Prompt 15) — die Abstände, die für ihn gelten. */
+  const sp = spacingFor(lib, learner);
+  const all = summarize(cards, marks, Date.now(), sp);
+  const byKind = lib.kinds.map((k) => ({ k, s: summarize(cards.filter((c) => c.entity !== undefined && lib.entity(c.entity)?.kinds.includes(k.id) === true), marks, Date.now(), sp), n: cards.filter((c) => c.entity !== undefined && lib.entity(c.entity)?.kinds.includes(k.id) === true).length })).filter((x) => x.n > 0);
   const suspended = [...learner.progress.suspended];
   return (
     <div className="cg">
@@ -72,14 +75,14 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
       {quilts.length > 0 && byCard !== null && (
         <details className="cg-card" open data-own-quilt="">
           <summary>Mapa postępów</summary>
-          <QuiltMaps cards={cards} answers={byCard} learner={learner} />
+          <QuiltMaps cards={cards} answers={byCard} learner={learner} spacing={sp} />
         </details>
       )}
       {/* 2026-10-31 — Statystyki: wo die Karten stehen, Tag für Tag, was fällig wird, Themen, Rodzaje pytań, das Schwerste. */}
       {byCard !== null && (
         <details className="cg-card" open data-own-stats="">
           <summary>Statystyki — wykresy znajomości</summary>
-          <KnowledgeStats lib={lib} cards={cards} answers={byCard} />
+          <KnowledgeStats lib={lib} cards={cards} answers={byCard} spacing={sp} />
         </details>
       )}
       <div className="cg-grid">
@@ -105,7 +108,7 @@ export function OwnProgress({ learner, cards }: { learner: Learner | null; cards
         <div className="cg-grid">
           {lib.collections().map((c) => {
             const members = lib.members(c.id) ?? new Set<string>();
-            const s = summarize(cards.filter((card) => card.entity !== undefined && members.has(card.entity)), marks);
+            const s = summarize(cards.filter((card) => card.entity !== undefined && members.has(card.entity)), marks, Date.now(), sp);
             return <div key={c.id} className="cg-card"><strong>{c.name}</strong><Bar value={s.knowness} /><span className="cg-muted">umiem {s.levels.known}</span></div>;
           })}
         </div>
@@ -234,7 +237,7 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
   const nameOf = (r: LearnerProgress) => names.get(r.holder) ?? (r.seatId !== null ? `osoba ${r.seatId.slice(-4)}` : `osoba ${r.roleId?.slice(-4) ?? ''}`);
   /* 2026-10-31 — jeder Uczący się mit seinen Antworten nach Karte geordnet: für die Diagramme aller und jedes Einzelnen. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const learners = useMemo(() => (rows ?? []).map((r) => ({ id: r.holder, name: nameOf(r), answers: answerIndex(r.progress, rename) })), [rows, names, rename]);
+  const learners = useMemo(() => (rows ?? []).map((r) => ({ id: r.holder, name: nameOf(r), answers: answerIndex(r.progress, rename), spacing: spacingFor(lib, r) })), [rows, names, rename, lib, lib.revision]);
   /* 2026-11-01 — die Mapy postępów der Baza (Widoki im Modus „Mapa postępów"): die Klasse zusammen und jeder für sich. */
   const quilts = useQuiltViews();
   if (failed !== null) return <p className="wk-hint">{failed}</p>;
@@ -242,7 +245,7 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
   if (rows.length === 0) return <p className="wk-empty">Nikt jeszcze nie odpowiadał w tym obszarze.</p>;
   const now = Date.now();
   const shown = scope.cards ?? cards;
-  const statsFor = (progress: Answers) => cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), now);
+  const statsFor = (progress: Answers) => cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), now, spacingFor(lib, { progress }));
   return (
     <div className="cg" data-office-progress={rows.length}>
       <StatsControls scope={scope} model={model} onModel={setModel} />
@@ -284,12 +287,12 @@ export function OfficeProgress({ cards, area }: { cards: readonly Card[] | null;
                     <tr className="cg-stats-open">
                       <td colSpan={8}>
                         {/* 2026-10-31 — dieselben Diagramme, die der Uczący się selbst sieht. */}
-                        <KnowledgeStats lib={lib} cards={shown} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} />
+                        <KnowledgeStats lib={lib} cards={shown} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} spacing={spacingFor(lib, r)} />
                         {/* 2026-11-01 — und seine Mapa postępów (ohne „Ćwicz to" — üben kann nur er selbst). */}
                         {quilts.length > 0 && (
                           <details className="cg-card" open data-learner-quilt={r.holder}>
                             <summary>Mapa postępów — {nameOf(r)}</summary>
-                            <QuiltMaps cards={cards} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} />
+                            <QuiltMaps cards={cards} answers={learners.find((l) => l.id === r.holder)?.answers ?? (() => [])} spacing={spacingFor(lib, r)} />
                           </details>
                         )}
                         {/* 2026-11-01 — was er geantwortet hat, Antwort für Antwort. */}
@@ -369,7 +372,7 @@ function Stats({ cards, progress }: { cards: readonly Card[]; progress: Answers 
   const scope = useScope(cards);
   const [model, setModel] = useModel();
   const shown = scope.cards ?? cards;
-  const stats = cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), Date.now());
+  const stats = cardStats(shown, cards, (card) => answersOf(progress, card.key, card.fingerprint, rename), model, lib.dependencies(), Date.now(), spacingFor(lib, { progress }));
   const all = statsOf(stats);
   return (
     <div className="cg">
@@ -388,7 +391,7 @@ function ItemTable({ cards, learner, rename }: { cards: readonly Card[]; learner
   const { lib } = useCtx();
   const now = Date.now();
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const g = gaugeFromMarks(cards, (key) => learner.marks(key, fp.get(key), rename), lib.dependencies(), now);
+  const g = gaugeFromMarks(cards, (key) => learner.marks(key, fp.get(key), rename), lib.dependencies(), now, undefined, spacingFor(lib, learner));
   const rows = [...g.testing.entries()].filter(([id]) => lib.entity(id) !== undefined).map(([id, tests]) => ({
     id, own: ownKnowness(g, id), total: itemKnowness(g, id), answered: tests.filter((t) => g.states.has(t.key)).length, all: tests.length, due: itemDue(g, id)
   }));

@@ -32,10 +32,11 @@ import { entityBlocks } from './statements';
 import { type Card } from './cardBasics';
 import { DOC_KINDS, entityOf, entryData, isBaseKind, isDocKind, kindDefs, kindDoc, overrideEntryOf, plainKindOf, textTypeKind, type DocKind } from './kinds';
 import { planKindRemoval, type KindRemoval } from './kindRemoval';
-import type { Dependency, DependencyKind, Mark } from './knowness';
+import type { Dependency, DependencyKind, Mark, Spacing } from './knowness';
 import type { RevisionContext } from './revision';
 import type { FlowFacts } from './logic';
 import { DEPENDENCY_KINDS } from './knowness';
+import { readAreaSpacing, spacingFor, type AreaSpacing } from './spacing';
 import { readDailyGoal } from './lessons';
 import { fieldDependencies, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { labelOf, lookupOf, plainOf, refIndex, replaceRef, tellOf, valuesOf, fieldsOf, type Backlink, type Entity, type KindDef, type Lookup } from './schema';
@@ -89,6 +90,11 @@ export interface CogitaSettings {
   readonly sources: readonly SourceRef[];
   /** 2026-11-04 — in welcher Sprache die Nauka dieser Baza spricht (`lang.ts`); fehlt sie: aus ihren Worten erkannt. */
   readonly language?: 'pl' | 'de' | 'en';
+  /**
+   * 2026-11-04 (Prompt 15) — die Abstände der Wiederholungen für alle, die hier lernen (`spacing.ts`), und ob sie sie
+   * selbst ändern dürfen (`locked`); fehlt es: die Vorgabe (oder die eigene Einstellung des Lernenden).
+   */
+  readonly spacing?: AreaSpacing;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -118,7 +124,8 @@ export function readSettings(raw: unknown): CogitaSettings {
     offline: strings(d.offline),
     ...(str(d.joinPage).trim() === '' ? {} : { joinPage: str(d.joinPage).trim().replace(/^#?\/+/, '') }),
     sources: readSources(d.sources),
-    ...(d.language === 'pl' || d.language === 'de' || d.language === 'en' ? { language: d.language } : {})
+    ...(d.language === 'pl' || d.language === 'de' || d.language === 'en' ? { language: d.language } : {}),
+    ...(readAreaSpacing(d.spacing) === undefined ? {} : { spacing: readAreaSpacing(d.spacing)! })
   };
 }
 
@@ -403,8 +410,10 @@ export class CogitaLibrary {
    * Eintrags (auch eines aus einer Bibliothek), Zbiory, Themen, den
    * Fortschritt, und (2026-10-22) woher ein Eintrag kommt.
    */
-  revisionContext(cards: readonly Card[], marks: (key: string) => readonly Mark[], now: number, flows?: ReadonlyMap<string, FlowFacts>): RevisionContext {
+  revisionContext(cards: readonly Card[], marks: (key: string) => readonly Mark[], now: number, flows?: ReadonlyMap<string, FlowFacts>, spacing?: Spacing): RevisionContext {
     return {
+      /* 2026-11-04 (Prompt 15) — die Abstände des Lernenden (`spacingFor(lib, learner)`); ohne sie die der Baza, sonst die Vorgabe. */
+      spacing: spacing ?? spacingFor(this, null),
       ...(flows === undefined || flows.size === 0 ? {} : { flows }),
       cards,
       kindsOf: (id) => this.entity(id)?.kinds ?? [],

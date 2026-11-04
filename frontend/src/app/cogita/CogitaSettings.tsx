@@ -16,6 +16,7 @@ import { deleteLibrary, libraryKindOf, loadLibraries, openLibraries, renameLibra
 import { viewPath } from '../routes';
 import { BASES_CHANGED } from './sources';
 import { BaseVisibility } from './BaseWho';
+import { AreaSpacingSettings } from './SpacingSettings';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';
 import { intakeOf } from './learn';
 import { DEFAULT_DAILY_GOAL, readDailyGoal } from './lessons';
@@ -85,6 +86,9 @@ export function CogitaSettings() {
         )}
         <p className="wk-hint">Rankingi są tylko w sesjach na żywo.</p>
       </section>
+
+      {/* 2026-11-04 (Prompt 15) — die Abstände der Wiederholungen für alle, die hier lernen (und ob sie sie ändern dürfen). */}
+      <AreaSpacingSettings lib={lib} busy={busy} onSave={(spacing) => void save({ spacing })} />
 
       {/* 2026-11-04 (Prompt 9) — die Sprache der Lernbildschirme (Krajobraz, Ścieżka, Powtórka); ohne Wahl erkannt aus der Baza. */}
       <section className="cg-card" data-settings-language="">

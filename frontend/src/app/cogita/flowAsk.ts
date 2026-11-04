@@ -19,11 +19,14 @@
 import type { Card } from './cardBasics';
 import { follow, type Flow } from './flow';
 import type { GraphNode } from './graph';
-import { average, knownessOf, levelOfKnowness, type Mark } from './knowness';
+import { average, knownessOf, levelOfKnowness, type Mark, type Spacing } from './knowness';
 import { cardEntities } from './prerequisites';
 
 /** Woher die Antworten kommen (die ganze Geschichte des Lernenden). */
-export type MarksOf = (card: Card) => readonly Mark[];
+export type MarksOf = ((card: Card) => readonly Mark[]) & {
+  /** 2026-11-04 (Prompt 15) — die Abstände des Lernenden, dessen Antworten es sind; fehlt es: die Vorgabe. */
+  readonly spacing?: Spacing;
+};
 
 /** Die Karte, die ein Frage-Schritt fragt. */
 export const askedCardOf = (node: GraphNode, cardOf: (id: string) => Card | null): Card | null => {
@@ -34,7 +37,7 @@ export const askedCardOf = (node: GraphNode, cardOf: (id: string) => Card | null
 };
 
 /** Die Kenntnis einer Karte jetzt (0 ohne Antwort). */
-export const cardKnow = (card: Card, marks: MarksOf, now = Date.now()): number => knownessOf([...marks(card)], now);
+export const cardKnow = (card: Card, marks: MarksOf, now = Date.now()): number => knownessOf([...marks(card)], now, marks.spacing);
 
 /** Gekonnt (Band „znane", ab 100 %)? */
 export const isKnown = (card: Card, marks: MarksOf, now = Date.now()): boolean => levelOfKnowness(cardKnow(card, marks, now)) === 'known';

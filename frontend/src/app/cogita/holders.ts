@@ -127,6 +127,8 @@ export function useLearner(lib: CogitaLibrary | null, holder: Holder | null, ove
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lib?.libraryId, key, override]);
   const learner = held !== null && held.key === whose ? held.learner : null;
+  /* 2026-11-04 (Prompt 15) — was die Baza für alle einstellt (die Abstände), immer der jetzige Stand ihrer Ustawienia. */
+  if (learner !== null && lib !== null) learner.areaSpacing = lib.settings().spacing;
   useEffect(() => {
     if (learner === null) return undefined;
     const online = () => { void learner.flush().catch(() => undefined); };

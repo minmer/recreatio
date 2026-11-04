@@ -476,7 +476,7 @@ export function KnowledgeMapView({ config, ctx }: { config: MapConfig; ctx: Part
   const cardsOf = (id: string) => cards.filter((c) => c.entity === id);
   const knowness = (id: string) => {
     const of = cardsOf(id);
-    return of.length === 0 || learner === null ? 0 : average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), now)));
+    return of.length === 0 || learner === null ? 0 : average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), now, learner.spacing)));
   };
   const seen = (id: string) => learner !== null && cardsOf(id).some((c) => learner.marks(c.key, c.fingerprint).length > 0);
   const fog = fogOf(graph.ids.map((id) => ({ id })), graph.edges, knowness, seen);
@@ -570,7 +570,7 @@ function SeatLearn({ seat, config, tall }: { seat: SeatView; config: SeatLearnCo
   const due = cards == null || learner === null ? null : cards.filter((c: Card) => {
     if (learner.progress.suspended.has(c.key)) return false;
     const marks = learner.marks(c.key, c.fingerprint);
-    const at = marks.length === 0 ? null : dueAt(marks);
+    const at = marks.length === 0 ? null : dueAt(marks, learner.spacing);
     return at !== null && at <= now;
   }).length;
   const levels = cards == null || learner === null ? null : levelsOf(readPlan(cards, {}), (key) => learner.marks(key), now);

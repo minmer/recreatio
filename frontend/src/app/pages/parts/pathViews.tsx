@@ -13,6 +13,7 @@ import { learnerFlows, reviewStart, storyStage, storyUnitsOf } from '../../cogit
 import type { Flow } from '../../cogita/flow';
 import { storyMarks, type StoryPath } from '../../cogita/storyPath';
 import { factsOf, gaugeFromMarks, withFlows } from '../../cogita/knowing';
+import { spacingFor } from '../../cogita/spacing';
 import { decideBy } from '../../cogita/runningStory';
 import { answeredCards, positionFor, renamer } from '../../cogita/learn';
 import { usePageBase } from '../../cogita/pageBase';
@@ -56,7 +57,7 @@ export function PathView({ config, ctx }: { config: PathConfig; ctx: PartContext
     if (lib == null || cards == null || rename === null) return null;
     const fp = new Map(cards.map((c) => [c.key, c.fingerprint] as const));
     const page = learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys()));
-    return gaugeFromMarks([...cards, ...page], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites());
+    return gaugeFromMarks([...cards, ...page], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites(), spacingFor(lib, learner));
   }, [lib, lib?.revision, cards, learner, live, rename]);
 
   /* 2026-11-03 (G) — eine Erzählung, die eine Präsentation ist: ihre Seite (die Szenen) wird geladen. */

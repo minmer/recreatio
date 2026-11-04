@@ -35,6 +35,7 @@ import type { CogitaLibrary } from '../../cogita/store';
 import { Bar, CogitaContext, useAsync, useAsyncKeep } from '../../cogita/ui';
 import { cellKey, cellText, groupTitle, needsKnowing, readView, viewColumns, viewGroups, viewList, viewMatrix, withKnowing, type ListMode } from '../../cogita/views';
 import { gaugeFromMarks, withFlows } from '../../cogita/knowing';
+import { spacingFor } from '../../cogita/spacing';
 import { learnerFlows } from '../../cogita/flowFacts';
 import { answerIndex } from '../../cogita/measures';
 import { LearnerLine, usePageLearner } from '../../cogita/pageLearner';
@@ -123,7 +124,7 @@ function MapOf({ lib, list, tall, onOpen, onLearn }: { lib: CogitaLibrary; list:
   if (all == null) return <Loading />;
   const now = Date.now();
   const cardsOf = (id: string): Card[] => all.filter((c) => (c.entity ?? c.question) === id);
-  const knowness = (id: string) => { const of = cardsOf(id); return of.length === 0 || learner === null ? 0 : average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), now))); };
+  const knowness = (id: string) => { const of = cardsOf(id); return of.length === 0 || learner === null ? 0 : average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), now, spacingFor(lib, learner)))); };
   const seen = (id: string) => learner !== null && cardsOf(id).some((c) => learner.marks(c.key, c.fingerprint).length > 0);
   const fog = fogOf(graph.ids.map((id) => ({ id })), graph.edges, knowness, seen);
   const known = graph.ids.filter((id) => fog.get(id) === 'known').length;
@@ -177,7 +178,7 @@ export function ViewView({ config, ctx }: { config: ViewConfig; ctx: PartContext
     if (!wants || lib == null || knowCards == null) return null;
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
     const page = visitor.learner === null ? [] : answeredCards(visitor.learner.progress, new Set(fp.keys()));
-    return withFlows(gaugeFromMarks([...knowCards, ...page], (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), learnerFlows(lib, visitor.learner?.progress.positions));
+    return withFlows(gaugeFromMarks([...knowCards, ...page], (key) => visitor.learner?.marks(key, fp.get(key)) ?? [], lib.dependencies(), Date.now(), lib.prerequisites(), spacingFor(lib, visitor.learner)), learnerFlows(lib, visitor.learner?.progress.positions));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wants, lib, knowCards, visitor.learner, visitor.learner?.progress]);
   const vlib = useMemo(() => (lib == null ? lib : withKnowing(lib, knowing)), [lib, knowing]);

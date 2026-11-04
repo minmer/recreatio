@@ -31,6 +31,7 @@ import {
   withKnowing, withRule, withSourceKind, type OutlineDisplay, type ViewDoc, type ViewLib
 } from './views';
 import { gaugeFromMarks, withFlows } from './knowing';
+import { spacingFor } from './spacing';
 import { learnerFlows } from './flowFacts';
 import { renamer, answeredCards } from './learn';
 import { answerIndex } from './measures';
@@ -144,7 +145,7 @@ export function EntityList({ viewId, startAt = null, onOpen, onView, onAdd, onDe
     const rename = renamer(lib.merges());
     const fp = new Map(knowCards.map((c) => [c.key, c.fingerprint]));
     const page = learner === null || learner === undefined ? [] : answeredCards(learner.progress, new Set(fp.keys()));
-    return withFlows(gaugeFromMarks([...knowCards, ...page], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites()), learnerFlows(lib, learner?.progress.positions));
+    return withFlows(gaugeFromMarks([...knowCards, ...page], (key) => learner?.marks(key, fp.get(key), rename) ?? [], lib.dependencies(), Date.now(), lib.prerequisites(), spacingFor(lib, learner)), learnerFlows(lib, learner?.progress.positions));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wants, knowCards, learner, learner?.progress, lib.revision]);
   const vlib = useMemo(() => withKnowing(lib, knowing), [lib, knowing]);

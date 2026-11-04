@@ -19,6 +19,7 @@ import { TopicIntro } from './EntityReading';
 import { readGraph } from './graph';
 import { learnerFlows } from './flowFacts';
 import { LEVEL_LABEL, type Dependency } from './knowness';
+import { spacingFor } from './spacing';
 import { renamer, sendReport, type Learner } from './learn';
 import { answerIndex } from './measures';
 import { later } from '../ui/later';
@@ -61,7 +62,7 @@ export async function planFor(lib: CogitaLibrary, revisionId: string, learner: L
   const { cards } = await lib.cards(seed);
   const rename = renamer(lib.merges());
   const fp = new Map(cards.map((c) => [c.key, c.fingerprint]));
-  const result = await planOf(readGraph(entry.data.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], now, learnerFlows(lib, learner?.progress.positions)));
+  const result = await planOf(readGraph(entry.data.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], now, learnerFlows(lib, learner?.progress.positions), spacingFor(lib, learner)));
   const plan = result.plan === null || learner === null ? result.plan : { ...result.plan, cards: result.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
   return { plan, problems: result.problems, cards };
 }
@@ -267,7 +268,9 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
         const fp = new Map(all.map((c) => [c.key, c.fingerprint]));
         const session = start({
           plan, all: all.length > 0 ? all : plan.cards, deps: source.deps ?? lib?.dependencies() ?? [], now: Date.now(), seed,
-          marks: (key) => learner?.marks(key, fp.get(key), rename) ?? []
+          marks: (key) => learner?.marks(key, fp.get(key), rename) ?? [],
+          /* 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten: jeder Schritt im Lauf rechnet mit ihnen. */
+          spacing: spacingFor(lib, learner)
         });
         if (alive) {
           setState({ session, all: all.length > 0 ? all : plan.cards });
@@ -363,7 +366,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
     );
   }
   if (session.current === null || card === undefined || stopped || complete) {
-    const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now());
+    const levels = levelsOf(session.plan, (key) => learner?.marks(key, undefined, rename) ?? [], Date.now(), spacingFor(lib, learner));
     /* 2026-10-30 — was noch wartet, weil seine Bedingung (noch) nicht gilt: was zuerst sitzen muss, und andere Bedingungen. */
     const held = waiting(session, Date.now());
     /* 2026-11-01 — was nicht sass (falsch, oder nur mit Podpowiedź), in der Folge, in der es geschah. */
@@ -567,7 +570,7 @@ export function RevisionRun({ lib, source: outer, learner, onClose, keep = false
             )}
             {note !== null && <p className="wk-note" role="status" data-flag-note="">{note}</p>}
             {/* 2026-11-01 — nach der Antwort: die Kenntnis dieser Karte über die Zeit, mit der eben gegebenen Antwort. */}
-            {last !== null && learner !== null && (<div className="cg-card-history" data-card-history=""><CardHistory marks={learner.marks(card.key, card.fingerprint, rename)} /></div>)}
+            {last !== null && learner !== null && (<div className="cg-card-history" data-card-history=""><CardHistory marks={learner.marks(card.key, card.fingerprint, rename)} spacing={spacingFor(lib, learner)} /></div>)}
           </div>
         )}
       />

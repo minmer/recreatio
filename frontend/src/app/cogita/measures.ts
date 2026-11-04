@@ -17,7 +17,7 @@
 
 import type { Card } from './cardBasics';
 import { gaugeFromMarks } from './knowing';
-import { dueAt, knownessOf, KNOWN, stability, type Dependency, type Mark } from './knowness';
+import { DEFAULT_SPACING, dueAt, knownessOf, KNOWN, stability, type Dependency, type Mark, type Spacing } from './knowness';
 import type { AnswerRecord, Progress } from './learn';
 import { cardEntities } from './prerequisites';
 
@@ -96,12 +96,12 @@ export function answerIndex(progress: Progress, rename?: (key: string) => string
  * DIE ZAHLEN JE KARTE nach einem Weg. \`all\`: alle Karten der Baza — die Hierarchie rechnet über sie (wer das
  * Besondere aus einem anderen Teil kann), gezeigt werden nur \`cards\`.
  */
-export function cardStats(cards: readonly Card[], all: readonly Card[], answers: (card: Card) => readonly AnswerRecord[], model: Model, deps: readonly Dependency[], now: number): CardStat[] {
+export function cardStats(cards: readonly Card[], all: readonly Card[], answers: (card: Card) => readonly AnswerRecord[], model: Model, deps: readonly Dependency[], now: number, spacing: Spacing = DEFAULT_SPACING): CardStat[] {
   const marksOf = (card: Card): Mark[] => answers(card).map((a) => ({ at: a.at, correctness: a.correctness }));
   let totals: ReadonlyMap<string, number> = new Map();
   if (model === 'hierarchy') {
     const byKey = new Map(all.map((c) => [c.key, c]));
-    totals = gaugeFromMarks(all, (key) => { const c = byKey.get(key); return c === undefined ? [] : marksOf(c); }, deps, now).totals;
+    totals = gaugeFromMarks(all, (key) => { const c = byKey.get(key); return c === undefined ? [] : marksOf(c); }, deps, now, undefined, spacing).totals;
   }
   return cards.map((card): CardStat => {
     const list = answers(card);
@@ -109,7 +109,7 @@ export function cardStats(cards: readonly Card[], all: readonly Card[], answers:
     const timed = list.filter((a) => typeof a.ms === 'number' && a.ms > 0);
     const msTotal = timed.reduce((sum, a) => sum + (a.ms ?? 0), 0);
     const last = marks.length === 0 ? null : marks[marks.length - 1].correctness;
-    const k = knownessOf(marks, now);
+    const k = knownessOf(marks, now, spacing);
     const known = model === 'last' ? last !== null && last >= 0.999
       : model === 'memory' ? k >= KNOWN
       : k >= KNOWN || cardEntities(card).some((id) => (totals.get(id) ?? 0) >= KNOWN);
@@ -123,9 +123,9 @@ export function cardStats(cards: readonly Card[], all: readonly Card[], answers:
       lastAt: marks.length === 0 ? null : marks[marks.length - 1].at,
       last,
       now: k,
-      inWeek: knownessOf(marks, now + WEEK),
-      holdsHours: marks.length === 0 ? null : stability(marks),
-      due: dueAt(marks),
+      inWeek: knownessOf(marks, now + WEEK, spacing),
+      holdsHours: marks.length === 0 ? null : stability(marks, spacing),
+      due: dueAt(marks, spacing),
       known,
       seen: marks.length > 0
     };

@@ -15,7 +15,7 @@ type Request =
   | { readonly id: number; readonly type: 'run'; readonly input?: LsInput; readonly state?: LsState; readonly options: LsOptions }
   | { readonly id: number; readonly type: 'stand'; readonly input?: LsInput; readonly state?: LsState }
   | { readonly id: number; readonly type: 'route'; readonly target: string }
-  | { readonly id: number; readonly type: 'world'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> }
+  | { readonly id: number; readonly type: 'world'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>>; readonly places?: Readonly<Record<string, readonly [number, number]>> }
   | { readonly id: number; readonly type: 'regions'; readonly key: string; readonly graph: RegionGraphInput; readonly lang: Lang; readonly overrides?: RegionOverrides; readonly previous?: Readonly<Record<string, readonly string[]>> };
 
 const engine = new LandscapeEngine();
@@ -38,7 +38,7 @@ self.addEventListener('message', (event: MessageEvent<Request>) => {
       if (worldKept === null || worldKept.key !== msg.key) {
         const n = msg.graph.ids.length;
         const ids = Int32Array.from({ length: n }, (_, i) => i);
-        worldKept = { key: msg.key, world: worldLayout(regionsKept.tree, { graph: msg.graph, node: ids, topicOf: ids }) };
+        worldKept = { key: msg.key, world: worldLayout(regionsKept.tree, { graph: msg.graph, node: ids, topicOf: ids }, msg.places === undefined ? undefined : new Map(Object.entries(msg.places))) };
       }
       self.postMessage({ id: msg.id, ok: true, result: { tree: regionsKept.tree, world: worldKept.world } });
       return;

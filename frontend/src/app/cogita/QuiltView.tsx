@@ -23,7 +23,8 @@ import { learnerFlows } from './flowFacts';
 import type { Card } from './cardBasics';
 import { TopicIntro, SourceOpen } from './EntityReading';
 import { gaugeFromMarks, type Gauge } from './knowing';
-import { shareOf } from './knowness';
+import { shareOf, type Spacing } from './knowness';
+import { spacingFor } from './spacing';
 import { answerIndex } from './measures';
 import { renamer, type AnswerRecord, type Learner } from './learn';
 import { cardsAbout } from './prerequisites';
@@ -45,9 +46,9 @@ import './quilt.css';
 export type AnswersOf = (card: Card) => readonly AnswerRecord[];
 
 /** Was die Kenntnis aus Antworten macht: je Karte ihre Marken. */
-function gaugeOf(cards: readonly Card[], answers: AnswersOf, deps: Parameters<typeof gaugeFromMarks>[2], now: number): Gauge {
+function gaugeOf(cards: readonly Card[], answers: AnswersOf, deps: Parameters<typeof gaugeFromMarks>[2], now: number, spacing: Spacing): Gauge {
   const byKey = new Map(cards.map((c) => [c.key, c] as const));
-  return gaugeFromMarks(cards, (key) => { const c = byKey.get(key); return c === undefined ? [] : answers(c).map((a) => ({ at: a.at, correctness: a.correctness })); }, deps, now);
+  return gaugeFromMarks(cards, (key) => { const c = byKey.get(key); return c === undefined ? [] : answers(c).map((a) => ({ at: a.at, correctness: a.correctness })); }, deps, now, undefined, spacing);
 }
 
 /** Sanft rollen — ausser wer weniger Bewegung will. */
@@ -120,8 +121,10 @@ function GroupHead({ group, before, count }: { group: QuiltGroup; before: QuiltG
 
 /* -- Für den Lernenden (und die Lehrerin je Uczący się) ----------------------------------------------------------- */
 
-export function QuiltView({ view, cards, answers, learner = null, list, onOpen, compact = false, more }: {
+export function QuiltView({ view, cards, answers, learner = null, list, onOpen, compact = false, more, spacing }: {
   view: ViewDoc;
+  /** 2026-11-04 (Prompt 15) — die Abstände dessen, dessen Karte es ist; fehlt es: `spacingFor(lib, learner)`. */
+  spacing?: Spacing;
   /** Alle Karten der Baza (die Kenntnis eines Eintrags rechnet über alle seine Karten). */
   cards: readonly Card[];
   /** Die Antworten dessen, dessen Karte es ist. */
@@ -139,7 +142,9 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
   const { lib } = useCtx();
   const answered = useMemo(() => cards.reduce((n, c) => n + answers(c).length, 0), [cards, answers]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const gauge = useMemo(() => gaugeOf(cards, answers, lib.dependencies(), Date.now()), [cards, answers, answered, lib, lib.revision]);
+  const sp = spacing ?? spacingFor(lib, learner);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const gauge = useMemo(() => gaugeOf(cards, answers, lib.dependencies(), Date.now(), sp), [cards, answers, answered, lib, lib.revision, sp.first, sp.growth]);
   const vlib = useMemo(() => withKnowing(lib, gauge), [lib, gauge]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const entities = useMemo(() => list ?? viewList(vlib, view), [list, vlib, view, lib.revision]);
@@ -163,7 +168,7 @@ export function QuiltView({ view, cards, answers, learner = null, list, onOpen, 
     void (async () => {
       const fp = new Map(cards.map((c) => [c.key, c.fingerprint] as const));
       const rename = renamer(lib.merges());
-      const ctx = lib.revisionContext(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now(), learnerFlows(lib, learner.progress.positions));
+      const ctx = lib.revisionContext(cards, (key) => learner.marks(key, fp.get(key), rename), Date.now(), learnerFlows(lib, learner.progress.positions), spacingFor(lib, learner));
       const made = await planOf(practiseGraph(practiseIds(cards, tile.id), tile.band !== 'known'), ctx);
       const plan = made.plan === null ? null : { ...made.plan, cards: made.plan.cards.filter((c) => !learner.progress.suspended.has(c.key)) };
       if (plan === null || plan.cards.length === 0) { setNote(made.problems[0] ?? 'Do tego wpisu nie ma jeszcze pytań.'); return; }
@@ -326,7 +331,7 @@ function ViewChooser({ views, value, onChange }: { views: readonly { readonly id
  * DIE MAPY POSTĘPÓW EINER BAZA für eine Person (Nauka → Postępy; die Lehrerin je Uczący się): die Widoki im Modus
  * `quilt`, einer gewählt. Ohne solchen Widok nichts — eine Baza ohne sieht aus wie bisher.
  */
-export function QuiltMaps({ cards, answers, learner = null, onOpen }: { cards: readonly Card[]; answers: AnswersOf; learner?: Learner | null; onOpen?: (id: string) => void }) {
+export function QuiltMaps({ cards, answers, learner = null, onOpen, spacing }: { cards: readonly Card[]; answers: AnswersOf; learner?: Learner | null; onOpen?: (id: string) => void; spacing?: Spacing }) {
   const views = useQuiltViews();
   const [chosen, choose] = useChosenView(views);
   const one = views.find((v) => v.id === chosen);
@@ -334,7 +339,7 @@ export function QuiltMaps({ cards, answers, learner = null, onOpen }: { cards: r
   return (
     <div className="cg" data-quilt-maps={views.length}>
       <ViewChooser views={views} value={one.id} onChange={choose} />
-      <QuiltView key={one.id} view={one.view} cards={cards} answers={answers} learner={learner} {...(onOpen === undefined ? {} : { onOpen })} />
+      <QuiltView key={one.id} view={one.view} cards={cards} answers={answers} learner={learner} {...(onOpen === undefined ? {} : { onOpen })} {...(spacing === undefined ? {} : { spacing })} />
     </div>
   );
 }
@@ -363,6 +368,8 @@ export interface ClassLearner {
   readonly id: string;
   readonly name: string;
   readonly answers: AnswersOf;
+  /** 2026-11-04 (Prompt 15) — seine Abstände (`spacingFor(lib, seinFortschritt)`); fehlt es: die der Baza. */
+  readonly spacing?: Spacing;
 }
 
 /**
@@ -372,7 +379,7 @@ export interface ClassLearner {
  */
 export function ClassQuilt({ view, cards, learners }: { view: ViewDoc; cards: readonly Card[]; learners: readonly ClassLearner[] }) {
   const { lib } = useCtx();
-  const gauges = useMemo(() => { const now = Date.now(); return learners.map((l) => ({ l, g: gaugeOf(cards, l.answers, lib.dependencies(), now) })); }, [learners, cards, lib]);
+  const gauges = useMemo(() => { const now = Date.now(); return learners.map((l) => ({ l, g: gaugeOf(cards, l.answers, lib.dependencies(), now, l.spacing ?? spacingFor(lib, null)) })); }, [learners, cards, lib]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const entities = useMemo(() => viewList(lib, view), [lib, view, lib.revision]);
   const groups: readonly { key: string; label: string; head?: Group['head']; ids: readonly string[] }[] = useMemo(() => {
@@ -580,7 +587,7 @@ export function ClassMaps({ cards, learners }: { cards: readonly Card[]; learner
       </div>
       {who === undefined
         ? <ClassQuilt key={one.id} view={one.view} cards={cards} learners={learners} />
-        : <Fragment key={`${one.id}:${who.id}`}><p className="cg-muted">Mapa: {who.name}</p><QuiltView view={one.view} cards={cards} answers={who.answers} /></Fragment>}
+        : <Fragment key={`${one.id}:${who.id}`}><p className="cg-muted">Mapa: {who.name}</p><QuiltView view={one.view} cards={cards} answers={who.answers} {...(who.spacing === undefined ? {} : { spacing: who.spacing })} /></Fragment>}
     </div>
   );
 }

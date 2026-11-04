@@ -66,7 +66,7 @@ export function ExploreMap({ learner, cards }: { learner: Learner | null; cards:
     /* 2026-10-27 — auch die Pytania über ihn („O czym”). */
     const of = cardsAbout(cards, id);
     if (of.length === 0 || learner === null) return 0;
-    return average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), Date.now())));
+    return average(of.map((c) => knownessOf(learner.marks(c.key, c.fingerprint), Date.now(), learner.spacing)));
   };
   const seen = (id: string) => learner !== null && cardsAbout(cards, id).some((c) => learner.marks(c.key, c.fingerprint).length > 0);
   const fog = fogOf(nodes, edges, knowness, seen);

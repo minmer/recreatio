@@ -48,6 +48,7 @@ import { readFlow, resolveFlow } from './flow';
 import { answersArea } from './answersTo';
 import { holderOfMe, useLearner } from './holders';
 import { dueAt } from './knowness';
+import { SpacingLine } from './SpacingSettings';
 import { AddHub, LearnFrom, SchemaHub } from './KnowledgeParts';
 import type { Learner } from './learn';
 import { renamer } from './learn';
@@ -202,13 +203,15 @@ function LearnTab({ trail, learner, cards, go }: { trail: readonly string[]; lea
       onOpenRevision={(id) => go('nauka', id)} rewards={rewards.on ? rewards.rules : null} />;
   }
   const now = Date.now();
-  const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m); return d !== null && d <= now; }).length;
+  const due = cards === null || learner === null ? null : cards.filter((c) => { const m = learner.marks(c.key, c.fingerprint, rename); const d = dueAt(m, learner.spacing); return d !== null && d <= now; }).length;
   const fresh = cards === null || learner === null ? null : cards.filter((c) => learner.marks(c.key, c.fingerprint, rename).length === 0).length;
   return (
     <div className="cg">
       <div className="cg-card">
         <strong>{cards === null ? 'Liczenie kart…' : `${cards.length} kart w kursie`}</strong>
         {due !== null && <span className="cg-muted">Na teraz: {due} · nowe: {fresh}</span>}
+        {/* 2026-11-04 (Prompt 15) — welche Abstände gelten, und der Weg, sie zu ändern. */}
+        <SpacingLine lib={lib} learner={learner} />
       </div>
       {/* 2026-11-01 — Serie dni nauki (Ustawienia → Motywacja): der Tagesziel, die Woche; 2026-11-02 mit „Punkty i nagrody" die Tafel. */}
       {rewards.on ? <RewardBoard learner={learner} rules={rewards.rules} rename={rename} shape="compact" /> : <DailyGoal lib={lib} learner={learner} />}

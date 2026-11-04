@@ -11,6 +11,7 @@ import type { Card } from './cardBasics';
 import { readGraph } from './graph';
 import { learnerFlows } from './flowFacts';
 import { itemKnowness, type Gauge } from './knowing';
+import { spacingFor } from './spacing';
 import { LS_KNOWN, LS_LEARNED } from './landscape';
 import { renamer, type Learner } from './learn';
 import { effectiveNeeds, pathModel, type PathItem, type PathModel } from './pathLayout';
@@ -97,7 +98,7 @@ export function usePathRun(lib: CogitaLibrary | null, learner: Learner | null, c
     /* Ein Eintrag mit den Pytania über ihn („O czym") — sie prüfen ihn mit. */
     const ids = run.ids === null ? null : [...new Set(run.ids.flatMap((id) => [id, ...cardsAbout(cards, id).map((c) => c.entity ?? c.question)]))];
     const doc = basicsRevision(ids, run.title);
-    const made = await planOf(readGraph(doc.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now(), learnerFlows(lib, learner?.progress.positions)));
+    const made = await planOf(readGraph(doc.graph), lib.revisionContext(cards, (key) => learner?.marks(key, fp.get(key), rename) ?? [], Date.now(), learnerFlows(lib, learner?.progress.positions), spacingFor(lib, learner)));
     return made.plan === null ? null : { plan: made.plan, cards, deps: lib.dependencies(), title: run.title };
   }, [run, cards, lib, learner]);
   const view = run === null ? null

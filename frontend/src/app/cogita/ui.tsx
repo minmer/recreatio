@@ -23,6 +23,7 @@ import { cogitaPath } from './parts';
 import type { SourceState } from './sources';
 import { patternKeys, type Entity, type MediaRef } from './schema';
 import { BOOK_KINDS, CogitaLibrary, lineOf, type Origin } from './store';
+import { repairTitleSignsOnce } from './titleSigns';
 import './cogita.css';
 
 /* -- Der Zusammenhang -------------------------------------------------------------------- */
@@ -66,6 +67,9 @@ export function useCogita(store: LibraryStore | null, writes: boolean): CogitaLi
   }, [store, writes]);
   const [, setTick] = useState(0);
   useEffect(() => (lib === null ? undefined : lib.store.subscribe(() => setTick((n) => n + 1))), [lib]);
+  /* 2026-11-04 (Prompt 15) — einmal je Baza: Titel mit zurückgewonnenem Minus auch in den Abschriften für AI (`titleSigns.ts`). */
+  const revision = lib?.revision ?? 0;
+  useEffect(() => { if (lib !== null) repairTitleSignsOnce(lib); }, [lib, revision]);
   return lib;
 }
 

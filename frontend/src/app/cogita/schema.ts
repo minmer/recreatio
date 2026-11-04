@@ -990,15 +990,19 @@ export function fieldText(entity: Entity, field: FieldDef, look: Lookup, depth =
 /**
  * Was übrig bleibt, wenn ein Muster leere Stellen hatte: kein „ , " und keine
  * leeren Klammern, kein Trenner am Anfang oder Ende.
+ *
+ * 2026-11-04 (Prompt 15) — EIN VORZEICHEN IST KEIN TRENNER: ein Strich, der am Folgenden klebt („-3", „−x", „-(a)"),
+ * bleibt stehen — „(0,-3)" wurde sonst „(0,3)", „{-2,-1,0,1,2}" verlor seine Minus, „-5 to…" das erste. Ein Strich
+ * gilt nur als Trenner, wenn danach Raum, das Ende oder ein weiterer Trenner kommt („A – , B" → „A – B").
  */
-function tidy(text: string): string {
+export function tidy(text: string): string {
   return text
     .replace(/\(\s*\)|\[\s*\]/g, '')
     .replace(/\s+([,.;:)\]])/g, '$1')
     .replace(/([(\[])\s+/g, '$1')
-    .replace(/([,;:–—-])(\s*[,;:–—-])+/g, '$1')
+    .replace(/([,;:–—-])(\s*(?:[,;:]|[–—-](?=\s|$|[,;:–—-])))+/g, '$1')
     .replace(/\s+/g, ' ')
-    .replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, '')
+    .replace(/^(?:[\s,;:]|[–—-](?=\s|$|[,;:–—-]))+|[\s,;:–—-]+$/g, '')
     .trim();
 }
 

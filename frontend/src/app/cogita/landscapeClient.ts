@@ -18,6 +18,8 @@ export interface RegionRequest {
   readonly lang: Lang;
   readonly overrides?: RegionOverrides;
   readonly previous?: Readonly<Record<string, readonly string[]>>;
+  /** 2026-11-04 (Prompt 15) — die gespeicherten Plätze (Thema → [q, r]): gelten sie für alle Themen, wird nichts gerechnet. */
+  readonly places?: Readonly<Record<string, readonly [number, number]>>;
 }
 
 export interface LandscapeClient {
@@ -78,7 +80,7 @@ function mainThread(): LandscapeClient {
         kept = { key: r.key, tree };
       }
       const ids = Int32Array.from({ length: r.graph.ids.length }, (_, i) => i);
-      return { tree: kept.tree, world: worldLayout(kept.tree, { graph: r.graph, node: ids, topicOf: ids }) };
+      return { tree: kept.tree, world: worldLayout(kept.tree, { graph: r.graph, node: ids, topicOf: ids }, r.places === undefined ? undefined : new Map(Object.entries(r.places))) };
     },
     route: async (target) => engine.routeTo(target),
     dispose: () => undefined

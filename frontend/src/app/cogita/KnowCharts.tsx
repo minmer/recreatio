@@ -13,7 +13,8 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Keyb
 
 import type { Card } from './cardBasics';
 import { BAND_LABEL, BAND_SAYS, BANDS, cardHistory, classStats, HISTORY_FLOOR, knowStats, type Band, type GroupStat, type HardCard, type KnowStats } from './knowStats';
-import { FORGOTTEN, KNOWN, LEVEL_LABEL, levelOfKnowness, type Mark } from './knowness';
+import { DEFAULT_SPACING, FORGOTTEN, KNOWN, LEVEL_LABEL, levelOfKnowness, type Mark, type Spacing } from './knowness';
+import { spacingFor } from './spacing';
 import type { AnswerRecord } from './learn';
 import { spanText } from './measures';
 import { QUESTION_TYPES } from './questionTypes';
@@ -356,13 +357,17 @@ const dayTip = (day: number): string => DAY_NAME.format(new Date(day));
  * STATYSTYKI EINES LERNENDEN über `cards` — Kacheln, wo die Karten stehen, wie viele saßen Tag für Tag, Antworten je
  * Tag, was fällig wird, Themen und Rodzaje pytań (das Schwächste zuerst), die schwersten Fragen.
  */
-export function KnowledgeStats({ lib, cards, answers }: {
+export function KnowledgeStats({ lib, cards, answers, spacing }: {
   lib: CogitaLibrary;
   cards: readonly Card[];
   answers: (card: Card) => readonly AnswerRecord[];
+  /** 2026-11-04 (Prompt 15) — die Abstände dieses Lernenden (`spacingFor`); fehlt es: die der Baza. */
+  spacing?: Spacing;
 }) {
   const [days, setDays] = useState(30);
-  const s = useMemo(() => knowStats(cards, answers, Date.now(), { days }), [cards, answers, days]);
+  const sp = spacing ?? spacingFor(lib, null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const s = useMemo(() => knowStats(cards, answers, Date.now(), { days, spacing: sp }), [cards, answers, days, sp.first, sp.growth]);
   return (
     <section className="cg-stats" data-know-stats={s.cards}>
       <div className="cg-stats-filters">
@@ -479,7 +484,7 @@ const heatStep = (share: number): number => Math.min(5, 1 + Math.floor(share * 5
 export function ClassKnowledge({ lib, cards, learners }: {
   lib: CogitaLibrary;
   cards: readonly Card[];
-  learners: readonly { readonly id: string; readonly name: string; readonly answers: (card: Card) => readonly AnswerRecord[] }[];
+  learners: readonly { readonly id: string; readonly name: string; readonly answers: (card: Card) => readonly AnswerRecord[]; readonly spacing?: Spacing }[];
 }) {
   const [days, setDays] = useState(30);
   const { each, all } = useMemo(() => classStats(cards, learners, Date.now(), { days }), [cards, learners, days]);
@@ -603,7 +608,7 @@ const WHEN = new Intl.DateTimeFormat('pl-PL', { day: 'numeric', month: 'long', h
  * (darunter: nieznane) und 100 % (die Pora powtórki) liegen beide gut sichtbar, und das immer langsamere Sinken bleibt
  * lesbar. Jeder Punkt ist der Wert gleich nach einer Antwort; gestrichelt, wie es ohne Antwort weiterginge.
  */
-export function CardHistoryChart({ marks, now: given }: { marks: readonly Mark[]; now?: number }) {
+export function CardHistoryChart({ marks, now: given, spacing = DEFAULT_SPACING }: { marks: readonly Mark[]; now?: number; spacing?: Spacing }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `marks`: eine neue Antwort ist ein neues Jetzt
   const now = useMemo(() => given ?? Date.now(), [given, marks]);
   const first = useMemo(() => marks.reduce<number | null>((m, x) => (Number.isFinite(x.at) && (m === null || x.at < m) ? x.at : m), null), [marks]);
@@ -618,7 +623,7 @@ export function CardHistoryChart({ marks, now: given }: { marks: readonly Mark[]
   const days = HISTORY_RANGES.find((r) => r.key === range)?.days ?? null;
   const from = days !== null ? now - days * H_DAY : Math.min(now - 3_600_000, (first ?? now) - Math.max(60_000, (now - (first ?? now)) * 0.04));
   const until = now + (now - from) * 0.25;
-  const h = useMemo(() => cardHistory(marks, from, now, until), [marks, from, now, until]);
+  const h = useMemo(() => cardHistory(marks, from, now, until, spacing), [marks, from, now, until, spacing]);
 
   const [ref, width] = useWidth();
   const [hover, setAt] = useState<number | null>(null);

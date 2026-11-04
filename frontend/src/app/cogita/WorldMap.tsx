@@ -19,10 +19,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 
 import type { LsBand } from './landscape';
 import type { WorldLayout } from './worldLayout';
-import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, regionLabelAlpha, SIGN_PX, toGround, toScreen, type LabelCandidate, type Projection, type WorldCam } from './worldView';
+import { cellPx, deepestS, depthOf, detailPx, fitCam, fitInfo, FORE_MAX, keepLabels, FORE_MIN, FORE_START, INFO_FORE, infoAngle, NAME_PX, PICK_PX, placeLabels, projection, regionLabelAlpha, RING_PX, toGround, toScreen, type LabelCandidate, type PlacedLabel, type Projection, type WorldCam } from './worldView';
 import type { LandscapeWords } from './landscapeWords';
 
-export type SignKind = 'first' | 'due';
+/** 2026-11-04 (Prompt 15, 4b) — was die Karte zeigt: alles, nur das Gekonnte (mit dem Rand), nur das Fällige. */
+export type WorldMode = 'all' | 'known' | 'due';
 
 /** Was jedes Thema auf der Karte zeigt (in der Reihenfolge von `WorldLayout.cells`). */
 export interface WorldTopic {
@@ -33,12 +34,11 @@ export interface WorldTopic {
   /** Die Farbe seines obersten Gebiets (0–7; −1 grau). */
   readonly subject: number;
   readonly glow: boolean;
-  readonly sign: SignKind | null;
-  /** 2026-11-04 (Prompt 14) — wie viel seiner Karten sitzt (0–1, der Ring in der Kachel) und was noch zu tun ist („2 brakuje"). */
+  /** 2026-11-04 (Prompt 15) — die mittlere Kenntnis seiner Karten (0–1, der Ring am Rand) und ein Wort zum Stand („umiesz"). */
   readonly share: number;
   readonly todo: string;
-  /** Tief gezoomt: die Einzelheiten (Stufen, Karten …), eine Zeile je Angabe. */
-  readonly detail: readonly string[];
+  /** Etwas daran ist fällig (der Punkt am Ring, die Ansicht „Do powtórki"). */
+  readonly due: boolean;
 }
 
 /** Eine Spielfigur: auf einem Thema, das er zu lernen begann (`single`), oder auf dem Weg zu seinem Ziel (`goal`). */
@@ -53,20 +53,7 @@ export interface WorldCommand {
   readonly at: number;
 }
 
-/* -- Die Zeichen (dieselben in der Legende) ----------------------------------------------------------------------- */
-
-const SIGN_PATH: Readonly<Record<SignKind, string>> = {
-  due: 'M0.44,-0.46 A0.62,0.62 0 1 0 0.5,0.4 M0.44,-0.46 L-0.02,-0.5 M0.44,-0.46 L0.52,-0.02',
-  first: 'M-0.26,-0.38 A0.36,0.36 0 1 0 0.06,0.18 M-0.26,-0.38 L-0.06,-0.54 M-0.26,-0.38 L-0.08,-0.22 M0.2,0 L0.8,0 M0.58,-0.2 L0.8,0 L0.58,0.2'
-};
-export function SignIcon({ kind, r, x = 0, y = 0 }: { kind: SignKind; r: number; x?: number; y?: number }) {
-  return (
-    <g className="cg-ls-sign" transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${r.toFixed(2)})`} data-ls-sign={kind}>
-      <circle className="cg-ls-sign-disc" r={1} vectorEffect="non-scaling-stroke" />
-      <path className="cg-ls-sign-line" d={SIGN_PATH[kind]} vectorEffect="non-scaling-stroke" />
-    </g>
-  );
-}
+/* 2026-11-04 (Prompt 15, 4b) — keine Zeichen auf den Feldern mehr (Figuren und Fahnen bleiben). */
 export function FlagIcon({ size = 12 }: { size?: number }) {
   return (
     <svg className="cg-wm-flag" viewBox="-1 -13 10 14" width={size} height={size} aria-hidden data-ls-flag="">
@@ -142,6 +129,11 @@ function keptCam(key: string): WorldCam | null {
 }
 function keepCam(key: string, cam: WorldCam): void {
   try { localStorage.setItem(`cg-wm-cam:${key}`, JSON.stringify({ ...cam, rot: ((cam.rot % 360) + 360) % 360 })); } catch { /* ohne Speicher */ }
+}
+
+function keptMode(key: string): WorldMode {
+  try { const v = localStorage.getItem(`cg-wm-mode:${key}`); if (v === 'known' || v === 'due') return v; } catch { /* ohne Speicher */ }
+  return 'all';
 }
 
 /* -- Spielfiguren und Fahne (SVG, dieselben in der Legende) ---------------------------------------------------------- */
@@ -229,6 +221,11 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const pad = whole.r + 2;
     return { ...c, s, cx: Math.max(whole.x - pad, Math.min(whole.x + pad, c.cx)), cy: Math.max(whole.y - pad, Math.min(whole.y + pad, c.cy)), fore: Math.max(FORE_MIN, Math.min(FORE_MAX, c.fore)) };
   };
+  /* 2026-11-04 (Prompt 15, 4b) — die Ansicht, gemerkt mit dem Blick. */
+  const [mode, setModeNow] = useState<WorldMode>(() => keptMode(memoryKey));
+  const setMode = (m: WorldMode) => { setModeNow(m); try { localStorage.setItem(`cg-wm-mode:${memoryKey}`, m); } catch { /* ohne Speicher */ } };
+  /* Das oberste Gebiet, das gerade das Bild füllt (dann tragen seine Teilgebiete eigene Töne). */
+  const [focusTop, setFocusTop] = useState<string | null>(null);
   /* Gemerkt, wenn er sich nicht mehr bewegt. */
   useEffect(() => { const id = window.setTimeout(() => keepCam(memoryKey, cam), 400); return () => window.clearTimeout(id); }, [cam, memoryKey]);
 
@@ -323,7 +320,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const lastChange = useRef(0);
   const idleRepaint = useRef(0);
   const dataTick = useRef(0);
-  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, route, home, hoverRegion, palette, world]); // eslint-disable-line react-hooks/exhaustive-deps
+  const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, route, home, hoverRegion, palette, world, mode, focusTop]); // eslint-disable-line react-hooks/exhaustive-deps
   const paint = () => {
     const el = canvas.current;
     if (el === null || palette === null) return;
@@ -345,7 +342,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       lastChange.current = performance.now();
       draw(ctx, dpr);
       if (idleRepaint.current !== 0) window.clearTimeout(idleRepaint.current);
-      idleRepaint.current = window.setTimeout(() => { idleRepaint.current = 0; lastChange.current = 0; paint(); const c2 = canvas.current?.getContext('2d'); if (c2 != null) drawInfo(c2, Math.min(2, window.devicePixelRatio || 1)); }, 280);
+      idleRepaint.current = window.setTimeout(() => { idleRepaint.current = 0; lastChange.current = 0; paint(); }, 280);
       return;
     }
     if (c === null || c.sig !== sig) lastChange.current = performance.now();
@@ -373,59 +370,42 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     ctx.drawImage(c.canvas, Math.round((dx - c.margin) * dpr), Math.round((dy - c.margin) * dpr));
   };
   /*
-    2026-11-04 (Prompt 14, 3; vom Nutzer geändert) — WAS IN DEN KACHELN STEHT, für ALLE Kacheln im Bild gleich: ab NAME_PX nur
-    der Name, tief (2–5 Kacheln im Bild) alles (fitInfo) — auf der Oberseite (gestaucht wie sie, gedreht wie die Kachel); zu
-    steil: nichts. Auf das sichtbare Bild gezeichnet (nicht ins verschobene).
+    2026-11-04 (Prompt 15, 4/4c) — WAS IN DEN KACHELN STEHT, gezeichnet mit ihrer Säule (`draw`): eine Säule davor deckt es zu.
+    Gemessen wird einmal je Thema, Grösse und Ebene.
   */
   const fontFamily = useRef('');
+  const fontCap = useRef(16);
   const fitCache = useRef(new Map<string, ReturnType<typeof fitInfo>>());
   useEffect(() => { fitCache.current.clear(); }, [topics]);
-  const drawInfo = (ctx: CanvasRenderingContext2D, dpr: number) => {
-    let drawn = 0;
-    let inside = 0;
-    let tier = '';
-    const done = () => { const el = box.current; if (el === null) return; el.dataset.wmInfo = String(drawn); el.dataset.wmInfoIn = String(inside); el.dataset.wmTier = tier; el.dataset.wmChosenXy = chosen === null ? '' : `${screen[chosen * 3].toFixed(0)},${screen[chosen * 3 + 1].toFixed(0)}`; };
-    if (palette === null || px < NAME_PX || cam.fore < INFO_FORE) { done(); return; }
-    const deep = px >= detailPx(width, height, cam.fore) * 0.98;
-    tier = deep ? 'deep' : 'names';
-    if (fontFamily.current === '') { try { fontFamily.current = getComputedStyle(document.body).fontFamily; } catch { fontFamily.current = 'sans-serif'; } }
-    const P = palette;
-    const ang = (infoAngle(cam.rot) * Math.PI) / 180;
-    const ca = Math.cos(ang); const sa = Math.sin(ang);
-    const r = proj.s * 0.45;
-    const measure = (text: string, size: number, bold: boolean) => { ctx.font = `${bold ? '600 ' : ''}${size}px ${fontFamily.current}`; return ctx.measureText(text).width; };
-    for (let i = 0; i < n; i += 1) {
-      const x = screen[i * 3]; const y = screen[i * 3 + 1];
-      if (x < -r || x > width + r || y < -r || y > height + r) continue;
-      const t = topics[i];
-      if (t === undefined) continue;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      /* Gemessen wird einmal je Thema, Grösse und Ebene (beim Drehen und Ziehen ändert sich nur die Lage). */
-      const fk = `${i}|${Math.round(r)}|${deep ? 1 : 0}|${t.todo}`;
-      let fit = fitCache.current.get(fk);
-      if (fit === undefined) { fit = fitInfo(t.label, t.todo, deep ? t.detail : null, r, measure); if (fitCache.current.size > 6000) fitCache.current.clear(); fitCache.current.set(fk, fit); }
-      drawn += 1;
-      if (x >= 0 && x <= width && y >= 0 && y <= height) inside += 1;
-      /* Auf die Fläche: drehen wie die Kachel, die Tiefe stauchen wie die Neigung. */
-      ctx.setTransform(dpr * ca, dpr * sa * cam.fore, -dpr * sa, dpr * ca * cam.fore, x * dpr, y * dpr);
-      const regionC = t.subject >= 0 && t.subject < 8 ? P.c[t.subject] : P.cx;
-      if (fit.ring) { ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, 0, Math.PI * 2);
-      ctx.lineWidth = Math.max(1.5, fit.ringR * 0.32);
-      ctx.strokeStyle = css(P.surface, 0.75); ctx.stroke(); }
-      if (fit.ring && t.share > 0) { ctx.beginPath(); ctx.arc(0, fit.ringY, fit.ringR, -Math.PI / 2, -Math.PI / 2 + Math.min(1, t.share) * Math.PI * 2); ctx.strokeStyle = css(mix(regionC, [0, 0, 0], 0.35)); ctx.stroke(); }
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      for (const l of fit.lines) {
-        ctx.font = `${l.bold ? '600 ' : ''}${l.size}px ${fontFamily.current}`;
-        ctx.lineWidth = 3; ctx.strokeStyle = css(P.surface, 0.8); ctx.strokeText(l.text, 0, l.y);
-        ctx.fillStyle = css(P.ink); ctx.fillText(l.text, 0, l.y);
-      }
+  /* Die Farbe jedes Themas: der Ton seines obersten Gebiets; im Gebiet, das das Bild füllt, je Teilgebiet ein benachbarter Ton. */
+  const colourOf = useMemo((): number[][] => {
+    if (palette === null) return [];
+    return topics.map((t, i) => {
+      const base = t.subject >= 0 && t.subject < 8 ? palette.c[t.subject] : palette.cx;
+      const chain = world.chain[i] ?? [];
+      if (focusTop === null || chain[0] !== focusTop || chain.length < 2) return base as number[];
+      return shiftHue(base, SHADE_SHIFT[world.regions.get(chain[1])?.shade ?? 0] ?? 0);
+    });
+  }, [palette, topics, world, focusTop]);
+  /** Welche Säule davor deckt den Punkt (sx, sy) auf der Oberseite von i — die Höhe ihrer Oberkante dort, sonst null. */
+  const coverAt = (i: number, sx: number, sy: number, p: Projection, scr: Float32Array): number | null => {
+    const c = world.cells[i];
+    const di = scr[i * 3 + 2];
+    const per = p.lift * p.step * p.s;
+    let best: number | null = null;
+    for (const [dq, dr] of NEAR3) {
+      const j = byCell.current.get(`${c.q + dq},${c.r + dr}`);
+      if (j === undefined || scr[j * 3 + 2] <= di + 1e-9) continue;
+      const span = spanAt(p.corners, sx - scr[j * 3]);
+      if (span === null) continue;
+      const top = scr[j * 3 + 1] + span[0];
+      const bottom = scr[j * 3 + 1] + (topics[j]?.steps ?? 0) * per + span[1];
+      if (sy > top + 0.5 && sy < bottom) best = best === null ? top : Math.min(best, top);
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    done();
+    return best;
   };
   useLayoutEffect(() => {
     paint();
-    { const c = canvas.current?.getContext('2d'); if (c != null) drawInfo(c, Math.min(2, window.devicePixelRatio || 1)); }
     /* Solange das Land wächst: weiter zeichnen. */
     const growing = [...knownAt.current.values()].some((x) => performance.now() - x < 900);
     if (growing && animating.current === 0) {
@@ -453,7 +433,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const corners = p.corners;
     const margin = Math.max(30, p.s * 2);
     const hexPath = (x: number, y: number) => { ctx.moveTo(x + corners[0][0], y + corners[0][1]); for (let k = 1; k < 6; k += 1) ctx.lineTo(x + corners[k][0], y + corners[k][1]); ctx.closePath(); };
-    /* Der Boden: ein Platz um alles und die Streifen zwischen den Gebieten. */
+    /* Der Boden: das Zuhause und ein Platz um alles. */
     ctx.beginPath();
     for (const g of world.ground) { const [x, y] = toScreen(p, g.x, g.y); if (x < -margin || x > cw + margin || y < -margin || y > ch + margin) continue; hexPath(x, y); }
     ctx.fillStyle = css(P.floor);
@@ -473,6 +453,64 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Blass ist im Dunkeln ein mittleres Grau (nicht das dunkle Licht des Stils): ferne Berge bleiben lesbar. */
     const dark = (P.floor[0] + P.floor[1] + P.floor[2]) / 3 < 90;
     const pale = dark ? [128, 126, 122] : P.light;
+    const at = byCell.current;
+    const isLand = (i: number) => { const b = topics[i]?.band; return b === 'known' || b === 'due'; };
+    const isReady = (i: number) => topics[i]?.band === 'ring';
+    /* 2026-11-04 (Prompt 15, 4b) — die Ansicht: „Co umiem" lässt nur Gekonntes und den Rand, „Do powtórki" nur Fälliges in Farbe. */
+    const greyed = (i: number): boolean => { const t = topics[i]; if (t === undefined) return false; if (mode === 'known') return !(isLand(i) || isReady(i)); if (mode === 'due') return !t.due; return false; };
+    const outlines = mode !== 'due';
+    const line = Math.max(1.2, Math.min(3.2, px / 9));
+    /* Die Kanten eines Feldes, an denen die Menge endet (der Rand des eigenen Landes). */
+    const edges = (i: number, x: number, y: number, inSet: (j: number) => boolean) => {
+      const c = world.cells[i];
+      for (let k = 0; k < 6; k += 1) {
+        const [dq, dr] = EDGE_DIR[k];
+        const j = at.get(`${c.q + dq},${c.r + dr}`);
+        if (j !== undefined && inSet(j)) continue;
+        const a = corners[k]; const b = corners[(k + 1) % 6];
+        ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + b[0], y + b[1]);
+      }
+    };
+    const strokeEdges = (colour: number[], w: number, alpha: number) => { ctx.strokeStyle = css(colour, alpha); ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); };
+    /*
+      2026-11-04 (Prompt 15, 4) — DER RING AM RAND DER KACHEL: auf einem etwas kleineren Sechseck, von oben im Uhrzeigersinn;
+      kräftig, was sitzt (mittlere Kenntnis der Karten), blass der Rest, ein Punkt oben: etwas ist fällig. Unabhängig von der
+      Farbe des Gebiets. Für alle Kacheln derselbe Weg (eine Kamera): einmal je Bild gerechnet.
+    */
+    const ringOn = px >= RING_PX && !far;
+    const ring = ringOn ? ringPath(corners, 0.8) : null;
+    const ringW = Math.max(1.4, Math.min(4, px * 0.05));
+    const strokeRing = (x: number, y: number, share: number, due: boolean) => {
+      if (ring === null) return;
+      ctx.beginPath();
+      ring.pts.forEach(([rx, ry], k) => { if (k === 0) ctx.moveTo(x + rx, y + ry); else ctx.lineTo(x + rx, y + ry); });
+      ctx.strokeStyle = css(P.ink, dark ? 0.22 : 0.16); ctx.lineWidth = ringW; ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.stroke();
+      const len = Math.max(0, Math.min(1, share)) * ring.total;
+      if (len > 0.5) {
+        ctx.beginPath();
+        ctx.moveTo(x + ring.pts[0][0], y + ring.pts[0][1]);
+        for (let k = 1; k < ring.pts.length; k += 1) {
+          if (ring.acc[k] <= len) { ctx.lineTo(x + ring.pts[k][0], y + ring.pts[k][1]); continue; }
+          const f = (len - ring.acc[k - 1]) / Math.max(1e-9, ring.acc[k] - ring.acc[k - 1]);
+          ctx.lineTo(x + ring.pts[k - 1][0] + (ring.pts[k][0] - ring.pts[k - 1][0]) * f, y + ring.pts[k - 1][1] + (ring.pts[k][1] - ring.pts[k - 1][1]) * f);
+          break;
+        }
+        ctx.strokeStyle = css(P.ink, 0.88); ctx.lineCap = 'round'; ctx.stroke();
+      }
+      if (due) {
+        ctx.beginPath(); ctx.arc(x + ring.pts[0][0], y + ring.pts[0][1], ringW * 1.35, 0, Math.PI * 2);
+        ctx.fillStyle = css(P.warm); ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = css(P.surface, 0.9); ctx.stroke();
+      }
+    };
+    /* Die Namen in der Kachel (nah), nur wenn ihre Mitte nicht von einer Säule davor verdeckt ist. */
+    const textOn = palette !== null && px >= NAME_PX && cam.fore >= INFO_FORE && !far;
+    const deep = textOn && px >= detailPx(width, height, cam.fore) * 0.98;
+    if (textOn && fontFamily.current === '') { try { fontFamily.current = getComputedStyle(document.body).fontFamily; fontCap.current = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16; } catch { fontFamily.current = 'sans-serif'; } }
+    const ang = (infoAngle(cam.rot) * Math.PI) / 180;
+    const ca = Math.cos(ang); const sa = Math.sin(ang);
+    const textR = p.s * 0.42;
+    const measure = (text: string, size: number, bold: boolean) => { ctx.font = `${bold ? '600 ' : ''}${size}px ${fontFamily.current}`; return ctx.measureText(text).width; };
+    let drawnText = 0; let insideText = 0; let hiddenText = 0; let rings = 0;
     for (const i of order) {
       const t = topics[i];
       if (t === undefined) continue;
@@ -480,16 +518,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const top = scr[i * 3 + 1];
       const h = t.steps * lift;
       const base = top + h;
-      const regionC = t.subject >= 0 && t.subject < 8 ? P.c[t.subject] : P.cx;
+      const regionC = colourOf[i] ?? P.cx;
       let face: number[];
-      /* 2026-11-04 (Prompt 14, 5) — gekonnt: die Farbe des Gebiets, kräftig (kein warmer Überzug — das eigene Land ist ein Umriss). */
+      /* Hell und satt sind für das Wissen: gekonnt kräftig, lernbar mittel, fern blass (die Farbe nur für das Gebiet). */
       if (t.band === 'known' || t.band === 'due') {
         const since = knownAt.current.get(i);
         const grown = since === undefined ? 1 : Math.min(1, (now - since) / 900);
         face = mix(mix(regionC, pale, 0.5), regionC, grown);
       } else if (t.band === 'ring') face = mix(regionC, pale, dark ? 0.3 : 0.55);
       else face = mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, t.steps / 28));
-      if (regionHi !== null && (world.chain[i] ?? []).includes(regionHi)) face = mix(face, P.surface, 0.28);
+      if (greyed(i)) { const l = face[0] * 0.3 + face[1] * 0.59 + face[2] * 0.11; face = mix([l, l, l], P.haze, 0.45); }
+      /* 2026-11-04 (Prompt 15, 3) — ein Gebiet unter dem Zeiger leuchtet, die anderen treten zurück. */
+      if (regionHi !== null) face = (world.chain[i] ?? []).includes(regionHi) ? mix(face, P.surface, 0.16) : mix(face, P.haze, 0.6);
       /* Die Seiten (eine Fläche je sichtbarer Seite, dunkler). */
       if (h > 0.4 && px < 12) {
         /* Fern (kleine Kacheln): alle Seiten als EINE Fläche — so bleiben 5 000 Säulen auch beim Drehen flüssig. */
@@ -518,35 +558,52 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       ctx.fill();
       if (px >= 9) { ctx.strokeStyle = css(mix(face, [0, 0, 0], 0.22), 0.7); ctx.lineWidth = 0.6; ctx.stroke(); }
       if (i === chosen || i === flash) { ctx.strokeStyle = css(P.accent); ctx.lineWidth = i === flash ? 3.4 : 2.6; ctx.stroke(); }
-    }
-    /*
-      2026-11-04 (Prompt 14, 5) — DAS EIGENE LAND ALS UMRISS: ein orangeroter Umriss um alles Gekonnte, ein hellgelber um das,
-      was jetzt lernbar ist — oben auf den Kacheln, die Farben der Gebiete bleiben darin ganz sichtbar.
-    */
-    const at = byCell.current;
-    const outline = (inSet: (i: number) => boolean, colour: number[], widthPx: number) => {
-      ctx.beginPath();
-      for (const i of order) {
-        if (!inSet(i)) continue;
-        const c = world.cells[i];
-        const x = scr[i * 3]; const y = scr[i * 3 + 1];
-        for (let k = 0; k < 6; k += 1) {
-          const [dq, dr] = EDGE_DIR[k];
-          const j = at.get(`${c.q + dq},${c.r + dr}`);
-          if (j !== undefined && inSet(j)) continue;
-          const a = corners[k]; const b = corners[(k + 1) % 6];
-          ctx.moveTo(x + a[0], y + a[1]); ctx.lineTo(x + b[0], y + b[1]);
+      /*
+        2026-11-04 (Prompt 15, 4c) — was auf der Oberseite liegt, in der Reihenfolge der Säulen: Umriss (voll), Ring, Name.
+        Eine Säule davor deckt es zu; wo sie es deckt, bleibt der Umriss dünn sichtbar (der zweite Durchgang unten).
+      */
+      if (outlines && isLand(i)) { ctx.beginPath(); edges(i, x, top, isLand); strokeEdges(P.land, line * 1.15, 0.95); }
+      if (outlines && showGlow && isReady(i)) { ctx.beginPath(); edges(i, x, top, isReady); strokeEdges(P.ready, line, 0.95); }
+      if (ringOn && (mode !== 'due' || t.due) && !greyed(i)) { strokeRing(x, top, t.share, t.due); rings += 1; }
+      if (textOn && x > -textR && x < cw + textR && top > -textR && top < ch + textR) {
+        if (coverAt(i, x, top, p, scr) !== null) { hiddenText += 1; continue; }
+        const fk = `${i}|${Math.round(textR)}|${deep ? 1 : 0}|${t.todo}`;
+        let fit = fitCache.current.get(fk);
+        if (fit === undefined) { fit = fitInfo(t.label, t.todo, deep, textR, measure, fontCap.current); if (fitCache.current.size > 6000) fitCache.current.clear(); fitCache.current.set(fk, fit); }
+        drawnText += 1;
+        if (x >= 0 && x <= cw && top >= 0 && top <= ch) insideText += 1;
+        /* Auf die Fläche: drehen wie die Kachel, die Tiefe stauchen wie die Neigung. */
+        ctx.setTransform(dpr * ca, dpr * sa * cam.fore, -dpr * sa, dpr * ca * cam.fore, x * dpr, top * dpr);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        for (const l of fit.lines) {
+          ctx.font = `${l.bold ? '600 ' : ''}${l.size}px ${fontFamily.current}`;
+          ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.strokeStyle = css(P.surface, 0.42); ctx.strokeText(l.text, 0, l.y);
+          ctx.fillStyle = css(P.ink); ctx.fillText(l.text, 0, l.y);
         }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
-      ctx.strokeStyle = css(colour, 0.95);
-      ctx.lineWidth = widthPx;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-    };
-    const line = Math.max(1.2, Math.min(3.2, px / 9));
-    if (showGlow) outline((i) => topics[i]?.band === 'ring', P.ready, line);
-    outline((i) => { const b = topics[i]?.band; return b === 'known' || b === 'due'; }, P.land, line * 1.15);
+    }
+    /* Wo eine Säule davor den Umriss deckt: dünn (etwa ein Drittel) und etwas heller darüber — der Rand bleibt lesbar. */
+    if (outlines) {
+      ctx.beginPath();
+      for (const i of order) if (isLand(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isLand);
+      strokeEdges(mix(P.land, P.surface, 0.3), Math.max(0.8, line * 0.38), 0.9);
+      if (showGlow) {
+        ctx.beginPath();
+        for (const i of order) if (isReady(i)) edges(i, scr[i * 3], scr[i * 3 + 1], isReady);
+        strokeEdges(mix(P.ready, P.surface, 0.3), Math.max(0.7, line * 0.33), 0.9);
+      }
+    }
+    /* Das Gebiet unter dem Zeiger: sein Rand leuchtet. */
+    if (regionHi !== null) {
+      const r = world.regions.get(regionHi);
+      if (r !== undefined) {
+        const inR = (j: number) => (world.chain[j] ?? []).includes(regionHi);
+        ctx.beginPath();
+        for (const i of r.topics) edges(i, scr[i * 3], scr[i * 3 + 1], inR);
+        strokeEdges(P.surface, line * 2.2, 0.85);
+      }
+    }
     /* Die eigenen Verbindungen des gewählten Themas: weiche Wege (was es braucht dunkler, was es öffnet heller). */
     if (links !== null && chosen !== null) {
       const from: [number, number] = [scr[chosen * 3], scr[chosen * 3 + 1]];
@@ -566,7 +623,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       draw1(links.needs, P.ink, 0.6);
     }
     /* Der Weg zum Ziel: erst, wenn nah genug. */
-    if (route !== null && route.length > 1 && px >= SIGN_PX) {
+    if (route !== null && route.length > 1 && px >= RING_PX) {
       ctx.beginPath();
       route.forEach((j, k) => { const x = scr[j * 3]; const y = scr[j * 3 + 1]; if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
       ctx.setLineDash([6, 5]);
@@ -585,6 +642,15 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       ctx.lineWidth = 1.2;
       ctx.strokeStyle = css(P.surface, 0.9);
       ctx.stroke();
+    }
+    /* Für Prüfungen: was im sichtbaren Bild steht. */
+    {
+      const el = box.current;
+      if (el !== null) {
+        el.dataset.wmInfo = String(drawnText); el.dataset.wmInfoIn = String(insideText); el.dataset.wmInfoHidden = String(hiddenText); el.dataset.wmRings = String(rings);
+        el.dataset.wmTier = textOn ? (deep ? 'deep' : 'names') : '';
+        el.dataset.wmChosenXy = chosen === null ? '' : `${screen[chosen * 3].toFixed(0)},${screen[chosen * 3 + 1].toFixed(0)}`;
+      }
     }
   }
   /* Welches Thema an welchem Platz liegt (Nachbarn für den Rand des Landes). */
@@ -677,6 +743,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const move = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     const [x, y] = local(e);
     if (drag.current === null && e.pointerType === 'mouse') {
+      /* 2026-11-04 (Prompt 15, 3) — über dem Namen eines Gebiets: das ganze Gebiet leuchtet. */
+      const over = labels.find((l) => l.shown && l.key.startsWith('r:') && Math.abs(x - l.x) <= l.w / 2 && Math.abs(y - l.y) <= l.h / 2);
+      if (over !== undefined) { setHoverTopic(null); setHoverRegion(over.key.slice(2)); return; }
       const t = hit(x, y);
       setHoverTopic(px >= PICK_PX ? t : null);
       setHoverRegion(t === null || px >= PICK_PX ? null : regionOfTopicNow(t));
@@ -695,7 +764,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const dmy = my - d.two.my;
       /* 2026-11-04 (Prompt 14): zwei Finger drehen (Drehen der Finger), neigen (beide hoch oder runter) und zoomen (Abstand) — frei. */
       const twist = ((Math.atan2(b.y - a.y, b.x - a.x) - d.two.ang) * 180) / Math.PI;
-      if (Math.abs(dmy) > ddist * 1.4 && Math.abs(dmy) > 8) setCam(clamp({ ...camRef.current, fore: d.two.fore - dmy / 260 }));
+      /* 2026-11-04 (Prompt 15, 2): hoch — flacher (zum Horizont), runter — mehr von oben. */
+      if (Math.abs(dmy) > ddist * 1.4 && Math.abs(dmy) > 8) setCam(clamp({ ...camRef.current, fore: d.two.fore + dmy / 260 }));
       else { zoomAt((d.two.s * (dist / Math.max(1, d.two.d))) / camRef.current.s, mx, my); if (Math.abs(twist) > 2) setCam(clamp({ ...camRef.current, rot: d.two.rot - twist })); }
       return;
     }
@@ -703,7 +773,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     d.moved = true;
     if (d.orbit) {
       /* 2026-11-04 (Prompt 14) — FREI UM DIE MITTE: Strg + Ziehen (oder mit der rechten Taste): quer dreht stufenlos, hoch/runter neigt. */
-      const fore = d.cam.fore - (y - d.y) / 260;
+      /* 2026-11-04 (Prompt 15, 2): nach oben ziehen — flacher (zum Horizont), nach unten — mehr von oben. */
+      const fore = d.cam.fore + (y - d.y) / 260;
       setCam(clamp({ ...camRef.current, fore, rot: d.cam.rot + (x - d.x) * 0.4 }));
       return;
     }
@@ -786,6 +857,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const chain: string[] = [];
       if (best >= 0) for (const k of world.chain[best] ?? []) { const r = world.regions.get(k); if (r === undefined) break; if (2 * r.radius * cam.s < Math.min(width, height) * 0.75) break; chain.push(k); }
       if (chain.join('|') !== viewChain.current.join('|')) { viewChain.current = chain; onView(chain); }
+      setFocusTop(chain[0] ?? null);
     }, 220);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -796,13 +868,19 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   const [measureTick, setMeasureTick] = useState(0);
   const measureSoon = useRef(0);
   /* -- Namen: Gebiete nach dem Zoom, nah die Themen ------------------------------------------------------------- */
-  const labels = useMemo(() => {
+  /*
+    2026-11-04 (Prompt 15, 3) — fern trägt JEDES oberste Gebiet seinen Namen (in seiner Farbe); passt er nicht auf seine
+    Fläche, steht er am Rand des Bildes mit einer Linie zu ihr — nie fällt er weg.
+  */
+  /* Fern: kleine Kacheln oder die ganze Karte im Bild (eine kleine Baza ist ganz gezeigt schon gross) — Namen der Gebiete, keine in den Kacheln. */
+  const far = px < RING_PX || cam.s <= fitWhole(cam).s * 1.08;
+  const labels = useMemo((): (PlacedLabel & { readonly leader?: readonly [number, number] })[] => {
     const list: LabelCandidate[] = [];
     /* Nah steht alles in den Kacheln: dann keine Namen der Gebiete darüber. */
-    for (const r of px >= NAME_PX ? [] : world.regions.values()) {
+    for (const r of px >= NAME_PX && !far ? [] : world.regions.values()) {
       const d = 2 * r.radius * cam.s;
       const parent = r.parent === null ? null : world.regions.get(r.parent) ?? null;
-      const alpha = regionLabelAlpha(d, parent === null ? null : 2 * parent.radius * cam.s, r.level === 1);
+      const alpha = far ? (parent === null ? 1 : 0) : regionLabelAlpha(d, parent === null ? null : 2 * parent.radius * cam.s, r.level === 1);
       if (alpha <= 0.02) continue;
       const [x, y] = toScreen(proj, r.x, r.y);
       const text = regionName(r.key);
@@ -813,24 +891,20 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     }
     /* 2026-11-04 (Prompt 14, 3): keine schwebenden Namen der Themen mehr — nah steht alles in der Kachel (`drawInfo`). */
     /* Die wirkliche Grösse (gemessen, sobald ein Name einmal stand) gilt vor der Schätzung. */
-    return placeLabels(list.map((l) => { const m = measured.current.get(`${l.key}|${l.text}`); return m === undefined ? l : { ...l, w: Math.max(l.w, m[0]), h: Math.max(l.h, m[1]) }; }), width, height);
+    const placed = placeLabels(list.map((l) => { const m = measured.current.get(`${l.key}|${l.text}`); return m === undefined ? l : { ...l, w: Math.max(l.w, m[0]), h: Math.max(l.h, m[1]) }; }), width, height);
+    if (!far) return placed;
+    /* Die obersten, die nicht passten: an den Rand, nächst ihrer Fläche, mit einer Linie hin (`keepLabels`). */
+    return keepLabels(placed, (l) => l.key.startsWith('r:') && world.regions.get(l.key.slice(2))?.parent === null, width, height);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered, measureTick]);
-
-  /* Zeichen auf Feldern, mit denen etwas zu tun ist (erst näher). */
-  const signs = useMemo(() => {
-    /* Ab den Namen steht alles in den Kacheln: dann keine Zeichen darüber (je Kachel ein Aussehen). */
-    if (px < SIGN_PX || px >= NAME_PX) return [];
-    const out: { i: number; x: number; y: number; kind: SignKind }[] = [];
-    for (let i = 0; i < n && out.length < 300; i += 1) {
-      const s = topics[i]?.sign;
-      if (s == null) continue;
-      const x = screen[i * 3]; const y = screen[i * 3 + 1];
-      if (x < 0 || x > width || y < 0 || y > height) continue;
-      out.push({ i, x, y, kind: s });
-    }
-    return out;
-  }, [px, n, topics, screen, width, height]);
+  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered, measureTick, far]);
+  /* Die Farbe eines Gebiets für seinen Namen (Teilgebiete im gefüllten Gebiet: ihr eigener Ton). */
+  const labelColour = (key: string): string => {
+    const r = world.regions.get(key);
+    if (r === undefined || palette === null) return '';
+    const i = world.top.indexOf(r.top);
+    const base = i < 0 ? palette.cx : palette.c[i % 8];
+    return css(r.parent !== null && r.top === focusTop ? shiftHue(base, SHADE_SHIFT[r.shade] ?? 0) : base);
+  };
 
   /*
     2026-11-04 (Prompt 14, 1) — DIE SPIELFIGUREN: wo sie stehen (auf der Oberseite ihres Feldes); fern mehrere in einem Gebiet
@@ -886,7 +960,12 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
   return (
     <div ref={box} className={`cg-wm${compact ? ' is-compact' : ''}`} tabIndex={-1} onKeyDown={keys} data-wm-scale={cam.s.toFixed(2)} data-wm-px={px.toFixed(1)} data-wm-rot={rotNow} data-wm-fore={cam.fore.toFixed(2)}
-      data-wm-cells={n} data-wm-step={step.toFixed(3)} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
+      data-wm-far={far ? '1' : '0'} data-wm-tops={world.top.length} data-wm-hot={hoverRegion ?? ''} data-wm-cells={n} data-wm-step={step.toFixed(3)} data-wm-labels={labels.filter((l) => l.shown).map((l) => l.key).join('|')} data-wm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(3)).join(',')}>
+      <div className="cg-wm-modes" role="group" aria-label={T.modeLabel} data-wm-modes={mode}>
+        {(['all', 'known', 'due'] as const).map((m) => (
+          <button key={m} type="button" className={`cg-wm-mode${mode === m ? ' is-on' : ''}`} aria-pressed={mode === m} onClick={() => setMode(m)} data-wm-mode={m}>{m === 'all' ? T.modeAll : m === 'known' ? T.modeKnown : T.modeDue}</button>
+        ))}
+      </div>
       <div className="cg-wm-stage">
       <canvas ref={canvas} className="cg-wm-canvas" width={width} height={height} aria-label={T.mapLabel} role="img"
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onContextMenu={(e) => e.preventDefault()} onPointerLeave={() => { setHoverRegion(null); setHoverTopic(null); }} data-landscape-svg="" />
@@ -895,15 +974,15 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const isRegion = l.key.startsWith('r:');
           const rk = isRegion ? l.key.slice(2) : null;
           return (
-            <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}`} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
-              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, 60); } el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
+            <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}${rk !== null && rk === hoverRegion ? ' is-hot' : ''}${rk !== null && world.regions.get(rk)?.parent === null ? ' is-top' : ''}`} data-wm-leader={l.leader === undefined ? undefined : ''} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
+              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, 60); } if (rk !== null) el.style.setProperty('--wm-label-c', labelColour(rk)); el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
               {rk !== null && conquered.has(rk) && <FlagIcon />}{l.text}
             </span>
           );
         })}
-        {signs.length > 0 && (
-          <svg className="cg-wm-signs" width={width} height={height}>
-            {signs.map((s) => <SignIcon key={s.i} kind={s.kind} r={Math.max(5, Math.min(9, px / 6))} x={s.x} y={s.y} />)}
+        {labels.some((l) => l.shown && l.leader !== undefined) && (
+          <svg className="cg-wm-leaders" width={width} height={height}>
+            {labels.filter((l) => l.shown && l.leader !== undefined).map((l) => <line key={l.key} x1={l.x} y1={l.y} x2={l.leader![0]} y2={l.leader![1]} />)}
           </svg>
         )}
       </div>
@@ -911,6 +990,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         <svg className="cg-wm-pieces" width={width} height={height} data-wm-pieces={shownPieces.length}>
           {goalFlag !== null && goalFlag >= 0 && goalFlag < n && (() => {
             const [x, y] = [screen[goalFlag * 3], screen[goalFlag * 3 + 1]];
+            const hidden = coverAt(goalFlag, x, y, proj, screen);
+            if (hidden !== null) return <circle className="cg-wm-piece-behind is-flag" cx={x} cy={hidden} r={3.2} data-wm-flag-behind={goalFlag} />;
             return (
               <g transform={`translate(${x.toFixed(1)},${y.toFixed(1)})`} className="cg-wm-hit" aria-label={T.goalFlagLabel(topics[goalFlag]?.label ?? '')} data-wm-flag={goalFlag}>
                 <GoalFlagIcon h={pieceH * 1.1} />
@@ -921,6 +1002,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
             if (p.t < 0 || p.t >= n) return null;
             const [x, y] = p.region !== null ? (() => { const r = world.regions.get(p.region!); return r === undefined ? placeOf(p.t) : toScreen(proj, r.x, r.y); })() : placeOf(p.t);
             if (x < -40 || x > width + 40 || y < -40 || y > height + 60) return null;
+            /* 2026-11-04 (Prompt 15, 4c) — eine Säule davor verdeckt die Figur: nur ein kleines Zeichen an ihrer Oberkante. */
+            const hidden = p.region === null ? coverAt(p.t, x, y, proj, screen) : null;
+            if (hidden !== null) return <circle key={p.key} className="cg-wm-piece-behind" cx={x} cy={hidden} r={3.2} data-wm-piece-behind={p.t} />;
             return (
               <g key={p.key} transform={`translate(${x.toFixed(1)},${(y + (p.kind === 'goal' && goalFlag === p.t ? 0 : 0)).toFixed(1)})`} className="cg-wm-hit" data-wm-piece={p.kind} data-wm-piece-t={p.t} data-wm-piece-count={p.count}
                 aria-label={p.region !== null ? T.piecesHere(p.count, regionName(p.region)) : T.pieceLabel(topics[p.t]?.label ?? '')}
@@ -941,7 +1025,13 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       </div>
       <div className="cg-wm-view" data-wm-view="">
         <span className="cg-muted" data-wm-angle={rotNow}>{T.viewAngle(rotNow, tiltPct)}</span>
-        <input type="range" min={0} max={100} value={tiltPct} aria-label={T.tilt} title={T.tiltHint} onChange={(e) => setCam(clamp({ ...camRef.current, fore: FORE_MIN + (Number(e.target.value) / 100) * (FORE_MAX - FORE_MIN) }))} data-wm-tilt="" />
+        <span className="cg-wm-tilt">
+          <svg className="cg-wm-tilt-icon" viewBox="-9 -7 18 14" aria-hidden data-wm-tilt-side=""><title>{T.tiltSide}</title><path d="M-8,4 L8,4 M-5,4 L-5,-1 L-1,-1 L-1,4 M1,4 L1,-4 L5,-4 L5,4" /></svg>
+          <span className="cg-sr">{T.tiltSide}</span>
+          <input type="range" min={0} max={100} value={tiltPct} aria-label={`${T.tilt}: ${T.tiltSide} – ${T.tiltAbove}`} title={T.tiltHint2} onChange={(e) => setCam(clamp({ ...camRef.current, fore: FORE_MIN + (Number(e.target.value) / 100) * (FORE_MAX - FORE_MIN) }))} data-wm-tilt="" />
+          <svg className="cg-wm-tilt-icon" viewBox="-9 -9 18 18" aria-hidden data-wm-tilt-above=""><title>{T.tiltAbove}</title><path d="M0,-7 L6,-3.5 L6,3.5 L0,7 L-6,3.5 L-6,-3.5 Z M0,-2.5 L2.2,-1.25 L2.2,1.25 L0,2.5 L-2.2,1.25 L-2.2,-1.25 Z" /></svg>
+          <span className="cg-sr">{T.tiltAbove}</span>
+        </span>
         <button type="button" className="wk-link-btn" onClick={resetView} data-wm-reset="">{T.resetView}</button>
       </div>
       </div>
@@ -952,5 +1042,50 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
 
 /** Die Kante k (Ecke k → k+1) stösst an den Nachbarn in dieser Richtung (Achsen q, r). */
 const EDGE_DIR: readonly (readonly [number, number])[] = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+
+
+/* -- 2026-11-04 (Prompt 15) — Ring, Verdecken, Farbtöne ------------------------------------------------------------ */
+
+/** Der Ring am Rand: die Ecken (verkleinert um `k`) von oben im Uhrzeigersinn, mit der Länge bis zu jedem Punkt. */
+function ringPath(corners: readonly (readonly [number, number])[], k: number): { pts: [number, number][]; acc: number[]; total: number } {
+  const span = spanAt(corners, 0);
+  const topY = (span === null ? -1 : span[0]) * k;
+  const angle = (x: number, y: number) => { const a = Math.atan2(y, x) + Math.PI / 2; return a < 0 ? a + 2 * Math.PI : a; };
+  const list = corners.map(([x, y]) => [x * k, y * k] as [number, number]).map((c) => ({ c, a: angle(c[0], c[1]) })).filter((e) => e.a > 1e-6).sort((a, b) => a.a - b.a);
+  const pts: [number, number][] = [[0, topY], ...list.map((e) => e.c), [0, topY]];
+  const acc = [0];
+  for (let i = 1; i < pts.length; i += 1) acc.push(acc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  return { pts, acc, total: acc[acc.length - 1] };
+}
+/** Wie weit ein (konvexes) Sechseck auf dem Schirm bei der waagrechten Lage `dx` (von der Mitte) nach oben und unten reicht. */
+function spanAt(corners: readonly (readonly [number, number])[], dx: number): [number, number] | null {
+  let lo = Infinity; let hi = -Infinity;
+  for (let k = 0; k < corners.length; k += 1) {
+    const a = corners[k]; const b = corners[(k + 1) % corners.length];
+    const x0 = Math.min(a[0], b[0]); const x1 = Math.max(a[0], b[0]);
+    if (dx < x0 - 1e-9 || dx > x1 + 1e-9) continue;
+    const y = Math.abs(b[0] - a[0]) < 1e-9 ? Math.min(a[1], b[1]) : a[1] + ((dx - a[0]) / (b[0] - a[0])) * (b[1] - a[1]);
+    const y2 = Math.abs(b[0] - a[0]) < 1e-9 ? Math.max(a[1], b[1]) : y;
+    lo = Math.min(lo, y, y2); hi = Math.max(hi, y, y2);
+  }
+  return lo <= hi ? [lo, hi] : null;
+}
+/** Die Plätze bis drei Schritte weit (eine hohe Säule davor kann so weit decken). */
+const NEAR3: readonly (readonly [number, number])[] = (() => { const out: [number, number][] = []; for (let q = -3; q <= 3; q += 1) for (let r = -3; r <= 3; r += 1) { const d = (Math.abs(q) + Math.abs(r) + Math.abs(q + r)) / 2; if (d >= 1 && d <= 3) out.push([q, r]); } return out; })();
+/** Ein Farbton gedreht (Grad), Helligkeit und Sättigung bleiben (sie gehören dem Wissen). */
+function shiftHue(c: readonly number[], deg: number): number[] {
+  if (deg === 0) return [...c];
+  const r = c[0] / 255; const g = c[1] / 255; const b = c[2] / 255;
+  const max = Math.max(r, g, b); const min = Math.min(r, g, b); const l = (max + min) / 2;
+  if (max - min < 1e-6) return [...c];
+  const d = max - min; const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (((h * 60 + deg) % 360) + 360) % 360 / 360;
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s; const p0 = 2 * l - q;
+  const f = (t: number) => { let x = t; if (x < 0) x += 1; if (x > 1) x -= 1; return x < 1 / 6 ? p0 + (q - p0) * 6 * x : x < 1 / 2 ? q : x < 2 / 3 ? p0 + (q - p0) * (2 / 3 - x) * 6 : p0; };
+  return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
+}
+/** Die Teilgebiete eines Gebiets, in das man hineinzoomt: je Farbklasse ein benachbarter Ton (15–25° auseinander). */
+const SHADE_SHIFT: readonly number[] = [0, 20, -20, 40];
 
 export type { Projection };

@@ -881,6 +881,12 @@ span.cg-wy-twist { cursor: auto; min-height: 0; margin: 0; }
 .cg-option-said.is-right .cg-option-mark { color: var(--wk-free-ink); }
 .cg-option-said.is-wrong { border-left-color: var(--wk-danger); }
 .cg-option-said.is-wrong .cg-option-mark { color: var(--wk-shut-ink); }
+/* 2026-11-04 (Prompt 15) — „Kilka z kilku": eine übersehene richtige Möglichkeit ist bernsteinfarben und ohne ✓; eine
+   richtig weggelassene bleibt neutral, mit einem leisen Wort (`choiceMarks.ts`). Die Farben aus den Tokens — hell und dunkel. */
+.cg-option.is-missed { border-color: var(--wk-held-line); border-style: dashed; background: var(--wk-held-bg); }
+.cg-option-note { display: block; margin-top: var(--wk-space-1); font-size: var(--wk-text-sm); font-weight: 600; color: var(--wk-held-ink); }
+.cg-option-note.is-quiet { font-weight: 400; color: var(--wk-muted); }
+.cg-option-said.is-missed { border-left-color: var(--wk-held-line); }
 .cg-option-said .cg-markup p { margin: 0; }
 /* Wzory in Möglichkeiten dürfen umbrechen; ein breiter Wzór rollt in sich, nicht die Seite. */
 .cg-option-text .tex.is-display, .cg-order-text .tex.is-display { max-width: 100%; }

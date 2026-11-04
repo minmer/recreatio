@@ -25,7 +25,7 @@
  */
 
 import type { Card, CardTest } from './cardBasics';
-import { knownessAt, propagate, stateOf, type CardState, type Dependency, type Mark } from './knowness';
+import { DEFAULT_SPACING, knownessAt, propagate, stateOf, type CardState, type Dependency, type Mark, type Spacing } from './knowness';
 import { holds, type Condition, type Facts, type FlowFacts } from './logic';
 import { cardEntities, nearestNeeds, prerequisiteGraph, type PrerequisiteGraph } from './prerequisites';
 import { fieldsOf, valuesOf, type Entity, type Lookup } from './schema';
@@ -97,10 +97,11 @@ export function gauge(cards: readonly Card[], state: (key: string) => CardState 
 
 /**
  * Dasselbe aus den gespeicherten Antworten je Karte. `graph` (2026-11-03): der schon gerechnete Graph der Baza
- * (`CogitaLibrary.prerequisites()`) — ohne ihn wird er bei jedem Aufruf neu gebaut.
+ * (`CogitaLibrary.prerequisites()`) — ohne ihn wird er bei jedem Aufruf neu gebaut. `spacing` (2026-11-04, Prompt 15): die
+ * Abstände, die für diesen Lernenden gelten (`spacingFor`) — ohne sie die Vorgabe.
  */
-export const gaugeFromMarks = (cards: readonly Card[], marks: (key: string) => readonly Mark[], deps: readonly Dependency[], now: number, graph?: PrerequisiteGraph): Gauge =>
-  gauge(cards, (key) => stateOf(marks(key)), deps, now, graph ?? prerequisiteGraph(deps));
+export const gaugeFromMarks = (cards: readonly Card[], marks: (key: string) => readonly Mark[], deps: readonly Dependency[], now: number, graph?: PrerequisiteGraph, spacing: Spacing = DEFAULT_SPACING): Gauge =>
+  gauge(cards, (key) => stateOf(marks(key), spacing), deps, now, graph ?? prerequisiteGraph(deps));
 
 /** Ohne Karten und Antworten — wer nichts gelernt hat. */
 export const EMPTY_GAUGE: Gauge = { now: 0, states: new Map(), own: new Map(), totals: new Map(), testing: new Map(), askable: new Set(), graph: prerequisiteGraph([]) };

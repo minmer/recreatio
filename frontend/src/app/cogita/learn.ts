@@ -24,7 +24,8 @@ import { idbDelete, idbGet, idbKeys, idbPut } from '../core/idb';
 import { newId } from '../core/ids';
 import { call, Unreachable, WorkspaceError } from '../core/session';
 import { readParams, readSeed, type Card, type ParamValue } from './cardBasics';
-import { dueAt, snapshotOf, type Mark, type Snapshot } from './knowness';
+import { dueAt, snapshotOf, type Mark, type Snapshot, type Spacing } from './knowness';
+import { effectiveSpacing, OWN_PREFIX, ownSpacing, withOwnSpacing, type AreaSpacing } from './spacing';
 
 /* -- Was gespeichert wird ---------------------------------------------------------------- */
 
@@ -731,7 +732,7 @@ export class Learner {
       ...(extras.about === undefined || extras.about.length === 0 ? {} : { about: [...new Set(extras.about)].slice(0, 24) })
     };
     const marks = [...this.marks(card.key, card.fingerprint), { at, correctness: answer.correctness }];
-    const snapshot = snapshotOf(card.question, card.direction, marks, at);
+    const snapshot = snapshotOf(card.question, card.direction, marks, at, this.spacing);
     this.progress = absorb(this.progress, { kind: 'answers', answers: [answer], snapshots: [snapshot] });
     this.fresh.push(answer);
     this.freshSnapshots.set(card.key, snapshot);
@@ -817,10 +818,34 @@ export class Learner {
   }
 
   async keepValues(values: Readonly<Record<string, number>>): Promise<void> {
-    this.progress = { ...this.progress, values: { ...values } };
+    /*
+     * 2026-11-04 (Prompt 15) — die Werte der Anwendung (`~…`, die eigenen Abstände) bleiben, wie sie HIER stehen: eine
+     * Erzählung, die ihre Werte beim Öffnen las, schreibt sonst eine alte Einstellung zurück.
+     */
+    const next: Record<string, number> = {};
+    for (const [k, v] of Object.entries(values)) if (!k.startsWith(OWN_PREFIX)) next[k] = v;
+    for (const [k, v] of Object.entries(this.progress.values)) if (k.startsWith(OWN_PREFIX)) next[k] = v;
+    this.progress = { ...this.progress, values: next };
     this.changed();
-    await this.send({ v: 1, kind: 'values', values });
+    await this.send({ v: 1, kind: 'values', values: next });
   }
+
+  /**
+   * 2026-11-04 (Prompt 15) — DIE EIGENEN ABSTÄNDE DER WIEDERHOLUNGEN in dieser Baza (`spacing.ts`); `null`: keine eigenen
+   * (dann die des Bereichs, sonst die Vorgabe). Mit den übrigen Werten in einem Stapel `values`.
+   */
+  async keepSpacing(sp: Spacing | null): Promise<void> {
+    const next = withOwnSpacing(this.progress.values, sp);
+    this.progress = { ...this.progress, values: next };
+    this.changed();
+    await this.send({ v: 1, kind: 'values', values: next });
+  }
+
+  /** 2026-11-04 (Prompt 15) — was der Bereich (die Baza) einstellt; setzt `useLearner` aus den Ustawienia der Baza. */
+  areaSpacing: AreaSpacing | undefined;
+
+  /** 2026-11-04 (Prompt 15) — die Abstände, die für diesen Lernenden gelten (für Momentaufnahmen und den Termin). */
+  get spacing(): Spacing { return effectiveSpacing(this.areaSpacing, ownSpacing(this.progress.values)).spacing; }
 
   private async keepLocal(): Promise<void> {
     await idbPut('progress', this.localKey(), {
@@ -872,7 +897,7 @@ export class Learner {
       if (this.progress.suspended.has(card.key)) continue;
       const marks = this.marks(card.key, card.fingerprint, rename);
       if (marks.length === 0) continue;
-      const due = dueAt(marks);
+      const due = dueAt(marks, this.spacing);
       if (due === null) continue;
       if (due <= now) count += 1;
       if (next === null || due < next) next = due;

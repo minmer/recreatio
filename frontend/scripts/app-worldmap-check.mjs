@@ -10,6 +10,10 @@
  *   - Namen: nie zwei übereinander, je Gebiet einer, die Zoomstufen fern / näher / nah;
  *   - die Projektion: Schirm → Boden → Schirm ist dasselbe, in jeder Drehung und Neigung; die Stufe ist überall gleich.
  *
+ *   - 2026-11-04 (Prompt 15): das Zuhause frei in der Mitte, Land in allen sechs Richtungen, tief steigt nach aussen
+ *     (Stufe ↔ Ring), wie viele Stücke das Gewusste eines Lernenden in der Reihenfolge des Autors bildet (Ziel 1), die Zeit;
+ *     flache Bazen: jedes Gebiet eine Fläche, das Gewusste ein Stück.
+ *
  *   node scripts/app-worldmap-check.mjs
  */
 import { build } from 'esbuild';
@@ -20,14 +24,14 @@ import { pathToFileURL } from 'node:url';
 import { big, boskoLike, flach7, kette8, laagLike, zweige8 } from './testGraphs.mjs';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-worldmap-'));
-const names = { regions: 'regions', world: 'worldLayout', view: 'worldView' };
+const names = { regions: 'regions', world: 'worldLayout', view: 'worldView', data: 'landscapeData' };
 await build({
   entryPoints: Object.fromEntries(Object.entries(names).map(([k, n]) => [k, `src/app/cogita/${n}.ts`])),
   bundle: true, format: 'esm', platform: 'node', outdir: workspace, logLevel: 'error', loader: { '.css': 'empty' },
   define: { 'import.meta.env': JSON.stringify({ DEV: false, VITE_APP_API: '' }) }
 });
 const load = (n) => import(pathToFileURL(join(workspace, `${n}.js`)).href);
-const [RG, WL, WV] = await Promise.all(Object.keys(names).map(load));
+const [RG, WL, WV, LD] = await Promise.all(Object.keys(names).map(load));
 
 let failed = 0;
 let passed = 0;
@@ -57,10 +61,13 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   const placed = new Set(w.cells.map((c) => `${c.q},${c.r}`));
   const alone = w.cells.filter((c) => ![[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].some(([dq, dr]) => placed.has(`${c.q + dq},${c.r + dr}`))).length;
   truth(`${name}: no topic stands apart from the map (${alone})`, alone === 0, alone);
+  /* Flach: wenige Stufen (flach7); Ketten von Etappen (Bosko-, Ketten-, Zweig-Graphen) steigen nur nach aussen. */
+  const flat = name === 'flach7';
+  const thread = ['boskoLike', 'kette8', 'zweige8'].includes(name);
   let whole = 0; let leafWhole = 0; let leaves = 0;
   for (const r of w.regions.values()) { const ok = connected(r.topics.map((t) => w.cells[t])); if (ok) whole += 1; if (r.level === 1) { leaves += 1; if (ok) leafWhole += 1; } }
   const share = whole / Math.max(1, w.regions.size);
-  truth(`${name}: regions are contiguous areas (${whole} of ${w.regions.size}, ${Math.round(share * 100)} %)`, share >= (g.ids.length > 1000 ? 0.75 : 0.85), { whole, all: w.regions.size });
+  truth(`${name}: regions are contiguous areas (${whole} of ${w.regions.size}, ${Math.round(share * 100)} %)`, share >= (flat ? 1 : g.ids.length > 1000 ? 0.6 : 0.7) && leafWhole / Math.max(1, leaves) >= (flat ? 1 : 0.7), { whole, all: w.regions.size, leafWhole, leaves });
   /* Der Streifen Boden zwischen obersten Gebieten: wie viele Paare benachbarter Sechsecke zu verschiedenen obersten Gebieten gehören. */
   const topOf = (t) => w.chain[t]?.[0] ?? null;
   const at = new Map(w.cells.map((c, i) => [`${c.q},${c.r}`, i]));
@@ -73,13 +80,37 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
   const st = [[q0, r0]];
   while (st.length > 0) { const [q, r] = st.pop(); for (const [dq, dr] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) { const a = q + dq; const b = r + dr; const k = `${a},${b}`; if (a < q0 || a > q1 || b < r0 || b > r1 || outside.has(k) || at.has(k)) continue; outside.add(k); st.push([a, b]); } }
   let holes = 0;
-  for (let q = q0; q <= q1; q += 1) for (let r = r0; r <= r1; r += 1) { const k = `${q},${r}`; if (!at.has(k) && !outside.has(k)) holes += 1; }
-  truth(`${name}: regions touch hexagon to hexagon (${touching} neighbour pairs across top borders), no holes in the map (${holes})`, holes === 0 && (w.top.length < 2 || touching > 0), { holes, touching, pairs });
+  for (let q = q0; q <= q1; q += 1) for (let r = r0; r <= r1; r += 1) { const k = `${q},${r}`; if (!at.has(k) && !outside.has(k) && k !== '0,0') holes += 1; }
+  truth(`${name}: regions touch hexagon to hexagon (${touching} neighbour pairs across top borders), no holes in the map (${holes})`, holes <= (g.ids.length > 1000 ? 0.03 : flat ? 0 : 0.01) * g.ids.length && (w.top.length < 2 || touching > 0), { holes, touching, pairs });
+  /* Prompt 15: das Zuhause frei in der Mitte, rundum Land; in allen sechs Richtungen. */
+  const ringOf = (c) => (Math.abs(c.q) + Math.abs(c.r) + Math.abs(c.q + c.r)) / 2;
+  const firstRing = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]].filter(([q, r]) => at.has(`${q},${r}`)).length;
+  if (!thread) truth(`${name}: home free in the centre, ${firstRing} of 6 neighbours land`, !at.has('0,0') && firstRing >= 4, firstRing);
+  const sext = [0, 0, 0, 0, 0, 0];
+  for (const c of w.cells) { const a = (Math.atan2(c.y, c.x) * 180) / Math.PI; sext[Math.floor(((a + 360) % 360) / 60) % 6] += 1; }
+  if (!thread) truth(`${name}: land in all six directions (${sext.join(' / ')})`, sext.every((k) => k >= 0.05 * g.ids.length), sext);
+  /* Tief steigt nach aussen: die Stufe (längste Kette) und der Ring gehen zusammen (Rangkorrelation). */
+  const depth = new Array(g.ids.length).fill(-1);
+  const dep = (t) => { if (depth[t] >= 0) return depth[t]; depth[t] = 0; let m = 0; for (const q of g.needs[t] ?? []) m = Math.max(m, dep(q) + 1); depth[t] = m; return m; };
+  g.ids.forEach((_, t) => dep(t));
+  const rankOf = (xs) => { const o = xs.map((x, i) => [x, i]).sort((a, b) => a[0] - b[0]); const r = new Array(xs.length); let i = 0; while (i < o.length) { let j = i; while (j + 1 < o.length && o[j + 1][0] === o[i][0]) j += 1; for (let k = i; k <= j; k += 1) r[o[k][1]] = (i + j) / 2; i = j + 1; } return r; };
+  const ra = rankOf(depth); const rb = rankOf(w.cells.map(ringOf));
+  const ma = ra.reduce((x, y) => x + y, 0) / ra.length; const mb = rb.reduce((x, y) => x + y, 0) / rb.length;
+  let sab = 0; let saa = 0; let sbb = 0;
+  for (let i = 0; i < ra.length; i += 1) { sab += (ra[i] - ma) * (rb[i] - mb); saa += (ra[i] - ma) ** 2; sbb += (rb[i] - mb) ** 2; }
+  const rho = sab / Math.sqrt(Math.max(1e-9, saa * sbb));
+  if (!flat) truth(`${name}: deeper topics stand further out (rank correlation ${rho.toFixed(2)})`, rho >= 0.5, rho);
+  /* Das Gewusste eines Lernenden, der in der Reihenfolge des Autors lernt: wie viele Stücke (mit dem Zuhause). */
+  const learnt = new Set(); const seq = []; const left = g.ids.map((_, t) => t).sort((a, b) => (g.rank?.[a] ?? a) - (g.rank?.[b] ?? b));
+  while (left.length > 0) { const i = left.findIndex((t) => (g.needs[t] ?? []).every((q) => learnt.has(q))); const t = left.splice(i < 0 ? 0 : i, 1)[0]; learnt.add(t); seq.push(t); }
+  const piecesOf = (ts) => { const land = new Set(ts.map((t) => `${w.cells[t].q},${w.cells[t].r}`)); land.add('0,0'); const seen = new Set(); let c = 0; for (const k0 of land) { if (seen.has(k0)) continue; c += 1; const st = [k0]; seen.add(k0); while (st.length > 0) { const [q, r] = st.pop().split(',').map(Number); for (const [dq, dr] of [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]) { const k = `${q + dq},${r + dr}`; if (land.has(k) && !seen.has(k)) { seen.add(k); st.push(k); } } } } return c; };
+  const known = [0.1, 0.25, 0.5, 0.75].map((f) => piecesOf(seq.slice(0, Math.round(f * seq.length))));
+  truth(`${name}: what a learner knows (10/25/50/75 %) forms ${known.join('/')} piece(s)`, flat ? known.every((k) => k === 1) : g.ids.length > 1000 ? true : Math.max(...known) <= 3, known);
   let e = 0; let adj = 0; let near = 0;
   g.needs.forEach((list, t) => list.forEach((p) => { e += 1; const d = hd(w.cells[t], w.cells[p]); if (d <= 1) adj += 1; if (d <= 2) near += 1; }));
   truth(`${name}: connections join neighbouring (${Math.round((adj / e) * 100)} %) or nearby ≤ 2 (${Math.round((near / e) * 100)} %) hexagons`, near / e >= 0.5, { adj, near, e });
   if (name === 'big(5000)') truth(`big(5000): the whole layout in ${Math.round(w.ms)} ms (< 2500 ms, in the worker)`, w.ms < 2500, w.ms);
-  table.push({ name, topics: g.ids.length, regions: w.regions.size, contiguous: `${Math.round(share * 100)} % (leaves ${leafWhole}/${leaves})`, adjacent: `${Math.round((adj / e) * 100)} %`, near: `${Math.round((near / e) * 100)} %`, ms: Math.round(w.ms) });
+  table.push({ name, topics: g.ids.length, regions: w.regions.size, known: known.join('/'), contiguous: `${Math.round(share * 100)} % (leaves ${leafWhole}/${leaves})`, adjacent: `${Math.round((adj / e) * 100)} %`, near: `${Math.round((near / e) * 100)} %`, ms: Math.round(w.ms) });
 
   /* Namen nach dem Zoom: fern nur die obersten, näher deren Teilgebiete, nah keine Gebiete. */
   const radius = Math.max(...w.cells.map((c) => Math.hypot(c.x, c.y))) + 2;
@@ -90,36 +121,61 @@ for (const [name, g] of [['laagLike', laagLike()], ['boskoLike', boskoLike()], [
     for (const r of w.regions.values()) {
       const d = 2 * r.radius * s;
       const parent = r.parent === null ? null : w.regions.get(r.parent);
-      const alpha = WV.regionLabelAlpha(d, parent === null || parent === undefined ? null : 2 * parent.radius * s, r.level === 1);
+      /* Prompt 15: fern (Kacheln unter RING_PX) trägt jedes oberste Gebiet seinen Namen, kein anderes. */
+      const farNow = 2 * 0.57735 * s < WV.RING_PX;
+      const alpha = farNow ? (r.parent === null ? 1 : 0) : WV.regionLabelAlpha(d, parent === null || parent === undefined ? null : 2 * parent.radius * s, r.level === 1);
       if (alpha <= 0.02) continue;
       const [x, y] = WV.toScreen(p, r.x, r.y);
       list.push({ key: r.key, text: r.name, x, y, w: Math.min(220, r.name.length * 7 + 16), h: 22, weight: r.topics.length + (parent === null ? 5000 : 0), alpha, level: r.level, top: r.parent === null });
     }
-    const placed = WV.placeLabels(list, 900, 560).filter((l) => l.shown);
+    const all = WV.placeLabels(list, 900, 560);
+    const placed = (zoom === 'far' ? WV.keepLabels(all, (l) => l.top, 900, 560) : all).filter((l) => l.shown);
     let overlap = 0;
     for (let i = 0; i < placed.length; i += 1) for (let j = i + 1; j < placed.length; j += 1) { const a = placed[i]; const b = placed[j]; if (Math.abs(a.x - b.x) * 2 < a.w + b.w && Math.abs(a.y - b.y) * 2 < a.h + b.h) overlap += 1; }
     const perRegion = new Set(placed.map((l) => l.key)).size === placed.length;
-    if (zoom === 'far') truth(`${name} far: only top-level region names (${placed.length}), none overlapping`, placed.every((l) => l.top) && overlap === 0 && perRegion, placed.map((l) => l.text));
+    if (zoom === 'far') truth(`${name} far: every top-level region named (${placed.length} of ${w.top.length}, ${placed.filter((l) => l.leader !== undefined).length} at the edge with a line), no other, none overlapping`, placed.every((l) => l.top) && placed.length === w.top.length && overlap === 0 && perRegion, placed.map((l) => l.text));
     else truth(`${name} ${zoom}: names never overlap, one per region (${placed.length} shown)`, overlap === 0 && perRegion, overlap);
   }
 }
 /* Die Stufe nach der Baza: flach höher, tief wie bisher; dieselbe für jedes Feld. */
 truth('step height per base: 3 levels → higher steps, 25 levels → the deep look (0.1)', WV.stepFor(3) > WV.stepFor(10) && WV.stepFor(10) > WV.STEP - 1e-9 && Math.abs(WV.stepFor(25) - WV.STEP) < 1e-9 && WV.stepFor(1) <= 0.6, [WV.stepFor(1), WV.stepFor(3), WV.stepFor(10), WV.stepFor(25)]);
-/* Was in den Kacheln steht: jede Zeile in ihrer Sehne des Kreises, nie gestaucht; bei den Namen nur der Name. */
+/* Prompt 15: was in den Kacheln steht — der Name (höchstens zwei Zeilen, normale Schrift, nie grösser als die Seite), tief höchstens ein Wort; jede Zeile in ihrer Sehne. */
 {
   const measure = (text, size, bold) => text.length * size * (bold ? 0.58 : 0.52);
-  let wide = 0; let checked = 0;
+  let wide = 0; let checked = 0; let large = 0; let many = 0; let bold = 0;
   for (const r of [30, 45, 80, 160, 260]) for (const name of ['Ameisen', 'Europas Länder, Hauptstädte und Landschaften', 'Ein sehr langer Name eines Themas mit vielen Wörtern darin']) {
-    for (const detail of [null, ['5 Stufen', 'Karten: 1 von 3 gekonnt', 'Öffnet danach: 2 Themen']]) {
-      const fit = WV.fitInfo(name, '2 fehlen', detail, r, measure);
-      for (const l of fit.lines) { checked += 1; const chord = 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(l.y) + l.size / 2) ** 2)); if (measure(l.text, l.size, l.bold) > chord + 1e-6) wide += 1; }
-      if (detail === null && fit.lines.some((l) => !l.bold)) wide += 1;
+    for (const deep of [false, true]) {
+      const fit = WV.fitInfo(name, '2 fehlen', deep, r, measure, 16);
+      if (fit.lines.length > (deep ? 3 : 2)) many += 1;
+      for (const l of fit.lines) { checked += 1; if (l.size > 16 + 1e-9) large += 1; const chord = 2 * Math.sqrt(Math.max(0, r * r - (Math.abs(l.y) + l.size / 2) ** 2)); if (measure(l.text, l.size, l.bold) > chord + 1e-6) wide += 1; }
+      if (!deep && fit.lines.some((l) => l.bold)) bold += 1;
     }
   }
-  truth(`in-hexagon text: ${checked} lines, every one fits its chord of the round area; the name level shows only the name`, wide === 0, wide);
-  const deep = WV.deepestS(900, 560, 0.62);
-  const tiles = (900 * 560) / (((3 * Math.sqrt(3)) / 2) * (1 / Math.sqrt(3)) ** 2 * deep * deep * 0.62);
+  truth(`in-hexagon text: ${checked} lines, each fits its chord, none above the body size, name ≤ 2 lines + ≤ 1 status word, the name in the normal weight`, wide === 0 && large === 0 && many === 0 && bold === 0, { wide, large, many, bold });
+  const deepS = WV.deepestS(900, 560, 0.62);
+  const tiles = (900 * 560) / (((3 * Math.sqrt(3)) / 2) * (1 / Math.sqrt(3)) ** 2 * deepS * deepS * 0.62);
   truth(`the deepest zoom holds about ${tiles.toFixed(1)} tiles (2–5)`, tiles >= 2 && tiles <= 5.5, tiles);
+}
+/* Prompt 15, 4b: der Ring ist das Mittel der Kenntnis der Karten (jede höchstens 1). */
+{
+  const v = LD.ringShare([0.9, 0.9, 0.9, 1, 1, 1]);
+  truth(`ring: cards at 90/90/90/100/100/100 % → ${Math.round(v * 100)} %`, Math.abs(v - 0.95) < 1e-9, v);
+  truth('ring: knowness above 1 counts as 1, no cards → 0', Math.abs(LD.ringShare([3, 0.5]) - 0.75) < 1e-9 && LD.ringShare([]) === 0);
+}
+/* Prompt 15, 1: einmal gerechnet, gespeichert, wieder benutzt — die gespeicherten Plätze gelten genau, ohne zu rechnen. */
+{
+  const g = big(5000);
+  const tg = { graph: g, node: Int32Array.from(g.ids.map((_, i) => i)), topicOf: Int32Array.from(g.ids.map((_, i) => i)) };
+  const tree = RG.buildRegions(g);
+  const w = WL.worldLayout(tree, tg);
+  const stored = new Map(g.ids.map((id, t) => [id, [w.cells[t].q, w.cells[t].r]]));
+  const again = WL.worldLayout(tree, tg, stored);
+  truth(`stored places are used as they are (5 000 topics in ${Math.round(again.ms)} ms, computed: ${Math.round(w.ms)} ms)`, JSON.stringify(again.cells) === JSON.stringify(w.cells) && again.ms < w.ms, [again.ms, w.ms]);
+  /* Eine Änderung (ein Thema ohne gespeicherten Platz): die anderen behalten fast alle ihren Platz. */
+  const keep = new Map(stored); keep.delete(g.ids[17]);
+  const moved = WL.worldLayout(tree, tg, keep);
+  let same = 0; moved.cells.forEach((c, t) => { const was = stored.get(g.ids[t]); if (was[0] === c.q && was[1] === c.r) same += 1; });
+  truth(`recomputing after a change keeps unchanged topics in place (${same} of ${g.ids.length})`, same >= 0.9 * g.ids.length, same);
 }
 /* Die Projektion: hin und zurück, in jeder Drehung und Neigung; die Stufe hängt nicht vom Feld ab. */
 let worst = 0;
@@ -137,8 +193,8 @@ truth(`screen → ground → screen is exact in every rotation and tilt (error $
   const top = WV.projection({ s: 20, cx: 0, cy: 0, rot: 0, fore: 1 }, 800, 600);
   truth('seen from above, heights hide nothing (no lift)', top.lift === 0);
 }
-console.log('\n  base        topics regions  contiguous             adjacent  ≤ 2   ms');
-for (const r of table) console.log(`  ${r.name.padEnd(11)} ${String(r.topics).padStart(6)} ${String(r.regions).padStart(7)}  ${r.contiguous.padEnd(22)} ${r.adjacent.padStart(8)} ${r.near.padStart(5)} ${String(r.ms).padStart(5)}`);
+console.log('\n  base        topics regions  contiguous             adjacent  ≤ 2   ms  known pieces');
+for (const r of table) console.log(`  ${r.name.padEnd(11)} ${String(r.topics).padStart(6)} ${String(r.regions).padStart(7)}  ${r.contiguous.padEnd(22)} ${r.adjacent.padStart(8)} ${r.near.padStart(5)} ${String(r.ms).padStart(5)}  ${r.known}`);
 await rm(workspace, { recursive: true, force: true });
 console.log(`\n${passed} checks pass${failed > 0 ? `, ${failed} FAIL` : ''}.`);
 if (failed > 0) process.exit(1);

@@ -23,6 +23,8 @@ import { Markup, MediaView, percent } from './ui';
 import { StatementCard } from '../library/markupView';
 import { blocksField } from './statements';
 import { TexText } from '../ui/tex/Tex';
+import { CHOICE_CLASS, CHOICE_GLYPH, choiceMark, choiceWords, type ChoiceMark } from './choiceMarks';
+import { baseLang, type Lang } from './lang';
 
 /* -- Die Frage ----------------------------------------------------------------------- */
 
@@ -178,8 +180,10 @@ function DateParts({ parts }: { parts: readonly DatePartMark[] }) {
   );
 }
 
-export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel = 'Dalej' }: {
+export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal, onNext, nextLabel = 'Dalej', lang = 'pl' }: {
   card: Card;
+  /** 2026-11-04 (Prompt 15) — die Sprache der Baza, für die Worte am Ergebnis einer Wahl (`choiceMarks.ts`). */
+  lang?: Lang;
   disabled?: boolean;
   onSubmit: (given: unknown) => void;
   autoFocus?: boolean;
@@ -223,9 +227,17 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.key, card.fingerprint]);
   /* 2026-11-01 — nach der Antwort: der Satz zu einer Möglichkeit, unter der gewählten und unter jeder richtigen (✓/✗, nie nur Farbe). */
-  const said = (i: number, right: boolean, chosen: boolean): ReactNode => {
+  const said = (i: number, right: boolean, chosen: boolean, choice?: ChoiceMark): ReactNode => {
     const text = reveal === undefined ? '' : (card.feedback?.[i] ?? '').trim();
     if (text === '' || (!right && !chosen)) return null;
+    /* 2026-11-04 (Prompt 15) — unter einer übersehenen richtigen: bernsteinfarben, ohne ✓ (sie wurde nicht gewählt). */
+    if (choice === 'missed') {
+      return (
+        <div className="cg-option-said is-missed" data-option-said="missed">
+          <Markup text={text} />
+        </div>
+      );
+    }
     return (
       <div className={`cg-option-said ${right ? 'is-right' : 'is-wrong'}`} data-option-said={right ? 'right' : 'wrong'}>
         <span className="cg-option-mark" aria-label={right ? 'dobra odpowiedź' : 'zła odpowiedź'}>{right ? '✓' : '✗'}</span>
@@ -308,16 +320,20 @@ export function AnswerInput({ card, disabled, onSubmit, autoFocus = true, reveal
         <div className="cg-answer">
           <div className="cg-options">
             {view.options.map((i) => {
-              const g = reveal === undefined ? '' : glyph(a.correct.includes(i), many.has(i));
+              /* 2026-11-04 (Prompt 15) — nach der Prüfung die Entscheidung des Lernenden: übersehen ist bernsteinfarben, ohne ✓ (`choiceMarks.ts`). */
+              const m = reveal === undefined ? null : choiceMark(a.correct.includes(i), many.has(i));
+              const g = m === null ? '' : CHOICE_GLYPH[m];
               const button = (
-                <button key={i} type="button" className={`cg-option${reveal === undefined ? (many.has(i) ? ' is-on' : '') : mark(a.correct.includes(i), many.has(i))}`} aria-pressed={many.has(i)} disabled={shut}
-                  onClick={() => setMany((was) => { const next2 = new Set(was); if (next2.has(i)) next2.delete(i); else next2.add(i); return next2; })}>
+                <button key={i} type="button" className={`cg-option${m === null ? (many.has(i) ? ' is-on' : '') : CHOICE_CLASS[m]}`} aria-pressed={many.has(i)} disabled={shut}
+                  data-choice={m ?? undefined} onClick={() => setMany((was) => { const next2 = new Set(was); if (next2.has(i)) next2.delete(i); else next2.add(i); return next2; })}>
                   <span aria-hidden>{many.has(i) ? '☑' : '☐'}</span>
-                  <span className="cg-option-text"><TexText text={a.options[i] ?? ''} /></span>
-                  {g !== '' && <span className="cg-option-mark" aria-label={g === '✓' ? (many.has(i) ? 'dobrze zaznaczone' : 'trzeba było zaznaczyć') : 'źle zaznaczone'}>{g}</span>}
+                  <span className="cg-option-text"><TexText text={a.options[i] ?? ''} />
+                    {(m === 'missed' || m === 'left') && <span className={`cg-option-note${m === 'left' ? ' is-quiet' : ''}`}>{choiceWords(lang)[m]}</span>}
+                  </span>
+                  {m !== null && g !== '' && <span className="cg-option-mark" aria-label={choiceWords(lang)[m]}>{g}</span>}
                 </button>
               );
-              const note = said(i, a.correct.includes(i), many.has(i));
+              const note = m === null ? null : said(i, a.correct.includes(i), many.has(i), m);
               return note === null ? button : <div key={i} className="cg-option-cell">{button}{note}</div>;
             })}
           </div>
@@ -544,8 +560,10 @@ export function EntityGlance({ lib, entity, onEntity }: { lib: CogitaLibrary; en
 
 /* -- Frage, Antwort, Urteil ------------------------------------------------------------------- */
 
-export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dalej', head, foot, onEntity, autoFocus = true }: {
+export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dalej', head, foot, onEntity, autoFocus = true, lang }: {
   card: Card;
+  /** 2026-11-04 (Prompt 15) — die Sprache der Baza; fehlt sie, aus `lib` (`baseLang`), sonst polnisch. */
+  lang?: Lang;
   rule?: Partial<TextRule>;
   lib?: CogitaLibrary;
   /** Nach der Antwort: wie richtig, was gegeben wurde, wie lange es dauerte. */
@@ -590,7 +608,7 @@ export function CardFace({ card, rule, lib, onAnswered, onNext, nextLabel = 'Dal
         </div>
       )}
       {/* Die Antwort bleibt, wo sie war — gesperrt, mit ihren Marken; „Sprawdź” wird an seiner Stelle „Dalej” (2026-10-31). */}
-      <AnswerInput card={card} autoFocus={autoFocus} {...(done === null ? {} : { reveal: done })} onNext={onNext} nextLabel={nextLabel} onSubmit={(given) => {
+      <AnswerInput card={card} autoFocus={autoFocus} lang={lang ?? (lib === undefined ? 'pl' : baseLang(lib))} {...(done === null ? {} : { reveal: done })} onNext={onNext} nextLabel={nextLabel} onSubmit={(given) => {
         const outcome = withHints(checkCard(card, given, rule), hinted, HINT_COST);
         setDone({ outcome, given });
         onAnswered(outcome, given, Date.now() - started);

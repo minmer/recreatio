@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 
 import type { Card } from './cardBasics';
 import { gaugeFromMarks, itemKnowness, type Gauge } from './knowing';
+import { spacingFor } from './spacing';
 import { LS_LEARNED } from './landscape';
 import { lockCards } from './landscapeData';
 import type { Words } from './lang';
@@ -57,8 +58,9 @@ export function RunClosing({ lib, learner, cards, asked, closing, W, onPractise,
     const askedSet = new Set(asked);
     const runStart = Math.min(...asked.flatMap((k) => marksAll(k).map((m) => m.at)).filter((at) => now - at < 6 * 3_600_000), now);
     const marksBefore = (key: string) => marksAll(key).filter((m) => m.at < runStart);
-    const before = gaugeFromMarks(cards, marksBefore, lib.dependencies(), now, graph);
-    const after = gaugeFromMarks(cards, marksAll, lib.dependencies(), now, graph);
+    const sp = spacingFor(lib, learner);
+    const before = gaugeFromMarks(cards, marksBefore, lib.dependencies(), now, graph, sp);
+    const after = gaugeFromMarks(cards, marksAll, lib.dependencies(), now, graph, sp);
     const learned = (g: Gauge, id: string) => itemKnowness(g, id) >= LS_LEARNED - 1e-12;
     const stories = storyUnitsOf(lib, (id) => after.testing.has(id));
     const ready = (g: Gauge, id: string) => !learned(g, id) && (graph.needs.get(id) ?? []).every((p) => learned(g, p)) && lockCards(g, graph, id, cards).length === 0;

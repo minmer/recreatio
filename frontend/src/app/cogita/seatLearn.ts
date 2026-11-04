@@ -125,5 +125,5 @@ export async function learnedShare(lib: CogitaLibrary, learner: Learner, revisio
   }
   if (cards.length === 0) cards = (await lib.cards('step')).cards;
   if (cards.length === 0) return { share: 0, cards };
-  return { share: average(cards.map((c) => shareOf(knownessOf(learner.marks(c.key, c.fingerprint), now)))), cards };
+  return { share: average(cards.map((c) => shareOf(knownessOf(learner.marks(c.key, c.fingerprint), now, learner.spacing)))), cards };
 }

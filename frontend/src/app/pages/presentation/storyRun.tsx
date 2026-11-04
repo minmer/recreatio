@@ -200,7 +200,7 @@ export function useStoryRun(show: Show, pageId: string | null, given: CogitaLear
       const fp = new Map(baseOpen.cards.map((c) => [c.key, c.fingerprint] as const));
       const all = [...baseOpen.cards, ...loaded.learn.answeredCards(learner.progress, new Set(fp.keys()))];
       gaugeMemo = loaded.knowing.withFlows(
-        loaded.knowing.gaugeFromMarks(all, (key) => learner.marks(key, fp.get(key)), baseOpen.lib.dependencies(), Date.now(), baseOpen.lib.prerequisites()),
+        loaded.knowing.gaugeFromMarks(all, (key) => learner.marks(key, fp.get(key)), baseOpen.lib.dependencies(), Date.now(), baseOpen.lib.prerequisites(), learner.spacing),
         loaded.flowFacts.learnerFlows(baseOpen.lib, learner.progress.positions)
       );
       return gaugeMemo;
@@ -215,7 +215,7 @@ export function useStoryRun(show: Show, pageId: string | null, given: CogitaLear
       const g = gaugeNow();
       const ref = id.startsWith('@') ? resolve(id) ?? id : id;
       if (g !== null && (g.testing.has(ref) || g.totals.has(ref))) return loaded.knowing.itemKnowness(g, ref);
-      return knowness.knownessOf(learner.marks(ref), Date.now());
+      return knowness.knownessOf(learner.marks(ref), Date.now(), learner.spacing);
     };
     const lastOf = (id: string): number | null => {
       const marks = learner.marks(id);

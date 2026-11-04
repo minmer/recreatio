@@ -70,6 +70,8 @@ export interface LsState {
   /** 2026-11-03 (C) — je Knoten: wie viele seiner Karten sitzen (Kenntnis ≥ 1), von wie vielen — der Ring des Fortschritts. */
   readonly cardsKnown?: ArrayLike<number>;
   readonly cardsTotal?: ArrayLike<number>;
+  /** 2026-11-04 (Prompt 15, 4b) — je Knoten die mittlere Kenntnis seiner Karten (je Karte höchstens 1; dasselbe Mass wie „gekonnt") — der Ring in der Kachel. */
+  readonly cardsMean?: ArrayLike<number>;
 }
 
 /**

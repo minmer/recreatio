@@ -309,9 +309,6 @@
 .cg-rm-preview circle { fill: color-mix(in oklab, var(--ls-c) 30%, var(--cg-ls-light)); stroke: color-mix(in oklab, var(--ls-c) 50%, #000000); stroke-width: 0.4; pointer-events: none; }
 .cg-rm-preview circle.is-known, .cg-rm-preview circle.is-due { fill: var(--ls-c); }
 /* Die Zeichen (dieselben in der Legende): eine helle Scheibe, ein dünner dunkler Rand, eine dünne Linie — nie gefüllt. */
-.cg-ls-sign { pointer-events: none; }
-.cg-ls-sign-disc { fill: var(--cg-ls-sign-bg); stroke: var(--cg-ls-sign-rim); stroke-width: 1.1; }
-.cg-ls-sign-line { fill: none; stroke: var(--cg-ls-sign-ink); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .cg-ls-flagmark path { fill: color-mix(in oklab, var(--cg-ls-warm) 85%, var(--cg-ls-light)); stroke: var(--cg-ls-sign-ink); stroke-width: 1.3; stroke-linejoin: round; pointer-events: none; }
 .cg-ls-meicon { pointer-events: none; }
 .cg-ls-meicon circle, .cg-ls-meicon path { fill: var(--wk-ink); stroke: var(--wk-surface); stroke-width: 1; }
@@ -412,7 +409,6 @@
 }
 .cg-wm-label.is-region { font-weight: 600; background: color-mix(in oklab, var(--wk-surface) 78%, transparent); }
 .cg-wm-label.is-topic { color: var(--wk-ink); text-shadow: 0 0 3px var(--wk-surface), 0 0 2px var(--wk-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cg-wm-signs { position: absolute; left: 0; top: 0; overflow: visible; }
 .cg-wm-flag { flex: none; }
 .cg-wm-flag path, .cg-ls-flagmark path { fill: color-mix(in oklab, var(--cg-ls-warm) 85%, var(--cg-ls-light)); stroke: var(--cg-ls-sign-ink); stroke-width: 1.2; stroke-linejoin: round; }
 .cg-wm-view {
@@ -460,3 +456,27 @@
 .cg-ls-legend-line.is-ready { border-color: var(--cg-ls-ready); }
 /* 2026-11-04 (Prompt 14) — die Steuerung der Kamera unter der Karte (über ihr verdeckte sie Felder und Figuren). */
 .cg-wm-view { position: static; margin-top: var(--wk-space-1); justify-self: start; width: fit-content; max-width: 100%; }
+
+/*
+ * 2026-11-04 (Prompt 15) — die drei Ansichten über der Karte, die Namen der Gebiete in ihrer Farbe (ein Balken und Rand im Ton
+ * des Gebiets, der Text in der Schrift der Seite — lesbar hell und dunkel), Linien zu Namen am Rand, die Neigung mit Zeichen,
+ * verdeckte Figuren, die Legende des Rings. Keine Zeichen auf den Feldern mehr.
+ */
+.cg-wm-modes { display: inline-flex; flex-wrap: wrap; margin-bottom: var(--wk-space-1); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); overflow: hidden; max-width: 100%; }
+.cg-wm-mode { appearance: none; border: 0; border-right: 1px solid var(--wk-line); background: var(--wk-surface); color: var(--wk-ink); font: inherit; font-size: var(--wk-text-sm); padding: 0.25rem 0.7rem; cursor: pointer; min-height: 2.25rem; }
+.cg-wm-mode:last-child { border-right: 0; }
+.cg-wm-mode.is-on { background: color-mix(in oklab, var(--wk-accent) 16%, var(--wk-surface)); font-weight: 600; box-shadow: inset 0 -2px 0 var(--wk-accent); }
+.cg-wm-mode:focus-visible { outline: 2px solid var(--wk-accent); outline-offset: -2px; }
+.cg-wm-label.is-region { --wm-label-c: var(--wk-line-strong); background: color-mix(in oklab, var(--wk-surface) 90%, var(--wm-label-c)); border: 1px solid var(--wm-label-c); border-left: 0.3rem solid var(--wm-label-c); color: var(--wk-ink); }
+.cg-wm-label.is-region.is-top { font-size: var(--wk-text-sm); }
+.cg-wm-label.is-region.is-hot { box-shadow: 0 0 0 2px var(--wm-label-c), 0 0 10px var(--wm-label-c); }
+.cg-wm-leaders { position: absolute; left: 0; top: 0; overflow: visible; }
+.cg-wm-leaders line { stroke: var(--wk-ink); stroke-width: 1.2; stroke-dasharray: 3 3; opacity: 0.65; }
+.cg-wm-tilt { display: inline-flex; align-items: center; gap: var(--wk-space-1); }
+.cg-wm-tilt-icon { width: 1.1rem; height: 1.1rem; flex: none; }
+.cg-wm-tilt-icon path { fill: none; stroke: var(--wk-ink); stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
+.cg-wm-piece-behind { fill: var(--wk-ink); stroke: var(--wk-surface); stroke-width: 1.2; }
+.cg-wm-piece-behind.is-flag { fill: var(--cg-ls-goal); }
+.cg-ls-legend-ringrest { fill: none; stroke: var(--wk-ink); stroke-width: 1.8; opacity: 0.2; }
+.cg-ls-legend-ringdone { fill: none; stroke: var(--wk-ink); stroke-width: 1.8; stroke-linecap: round; }
+.cg-ls-legend-ringdue { fill: var(--cg-ls-warm); stroke: var(--wk-surface); stroke-width: 1; }

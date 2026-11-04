@@ -209,7 +209,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     zählt mit IHRER Karte (der, die ihr Schritt fragt), nicht mit dem Mittel über alles, was über sie ist; was keine Karte
     hat, hält nichts auf. Vorher konnte „Już umie?" so nie wahr werden, und der Przegląd lief im Kreis.
   */
-  const marksOf: MarksOf | null = learner === null ? null : (card) => learner.marks(card.key, card.fingerprint, content.rename);
+  /* 2026-11-04 (Prompt 15) — mit den Abständen des Lernenden. */
+  const marksOf: MarksOf | null = learner === null ? null : Object.assign((card: Card) => learner.marks(card.key, card.fingerprint, content.rename), { spacing: learner.spacing });
   const ownCard = (id: string): Card | null => { const c = content.card(id); return c !== null && (c.question === id || c.entity === id || c.key === id) ? c : null; };
   /* 2026-11-04 (Prompt 11) — in diesem Lauf zu Ende erzählt: die Bedingung „Przebieg" sieht es sofort. */
   const doneHere = useRef(new Set<string>());
@@ -808,7 +809,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return (
           <>
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={running.name} />
-            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown}
+            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown} lang={W.lang}
               onAnswered={(outcome, given) => {
                 /* Ein Przerywnik ändert den Plan nur, wenn er falsch beantwortet wird. */
                 if (spacer !== null) { if (!outcome.correct) learner?.record(shown, outcome.correctness, { via: running.id }); setAnsweredOn({ step: `spacer:${current.id}`, correct: outcome.correct }); return; }

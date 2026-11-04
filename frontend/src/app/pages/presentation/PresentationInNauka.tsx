@@ -127,7 +127,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
     if (told === null || told.model.nodes.length < 2 || content === undefined) return null;
     const all = content.cards ?? [];
     const fp = new Map(all.map((c) => [c.key, c.fingerprint] as const));
-    const g = gaugeFromMarks([...all, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key)) ?? [], [], Date.now());
+    const g = gaugeFromMarks([...all, ...(learner === null ? [] : answeredCards(learner.progress, new Set(fp.keys())))], (key) => learner?.marks(key, fp.get(key)) ?? [], [], Date.now(), undefined, learner?.spacing);
     /* Die Szene, die steht: der Weg der Bühne an dieser Stelle (er kann von der Liste der Szenen abweichen). */
     const key = control.current?.route?.()[active] ?? show.scenes[active]?.key;
     const kept = pageId === null ? undefined : learner?.progress.positions.get(`page:${pageId}`);
@@ -147,7 +147,7 @@ export default function PresentationInNauka({ name, path, learner, onClose, narr
     const kept = pageId === null ? undefined : learner?.progress.positions.get(`page:${pageId}`);
     return {
       values: startValues(show.story ?? NO_STORY, learner?.progress.values ?? {}),
-      knowness: (id) => (learner === null ? 0 : knownessOf(learner.marks(id), Date.now())),
+      knowness: (id) => (learner === null ? 0 : knownessOf(learner.marks(id), Date.now(), learner.spacing)),
       answered: (id) => {
         const marks = learner?.marks(id) ?? [];
         return marks.length === 0 ? null : marks[marks.length - 1].correctness;
