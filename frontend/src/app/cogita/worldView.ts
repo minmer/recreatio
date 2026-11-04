@@ -134,10 +134,10 @@ export function placeLabels(list: readonly LabelCandidate[], width: number, heig
  * ist (sonst trägt jenes den Namen). Fern: nur die obersten; näher: die Teilgebiete im Bild; nah: keine (die Themen selbst).
  * `alpha` blendet an den Grenzen weich ein und aus.
  */
-export const MIN_D = 90;
+export const MIN_D = 64;
 export const MAX_D = 820;
 export function regionLabelAlpha(diameter: number, parentDiameter: number | null, leaf: boolean): number {
-  const up = Math.max(0, Math.min(1, (diameter - MIN_D) / 50));
+  const up = Math.max(0, Math.min(1, (diameter - MIN_D) / 30));
   const down = Math.max(0, Math.min(1, (MAX_D * (leaf ? 1.6 : 1) - diameter) / 220));
   const parent = parentDiameter === null ? 1 : Math.max(0, Math.min(1, (parentDiameter - MAX_D + 220) / 220));
   return up * down * parent;

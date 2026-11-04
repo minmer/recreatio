@@ -31,6 +31,7 @@ import { cardEntities, cardsAbout, questionIds } from './prerequisites';
 import { readFlow, resolveFlow, type Flow } from './flow';
 import { contentOfLibrary, FlowPlayer, storyPathOf } from './FlowPlayer';
 import { decideBy } from './runningStory';
+import { directStartLock } from './storyLock';
 import { storyMarks } from './storyPath';
 import { viewPath } from '../routes';
 import { PathMap } from './PathMap';
@@ -792,9 +793,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const flow = storyUnit(chosenId);
     const story = flow === undefined ? null : (() => {
       const sp = storyPath(chosenId);
-      if (sp === null) return { parts: 0, done: 0, stage: stageOf(flow) };
+      const first = directStartLock(lib, learner?.progress.positions, flow);
+      if (sp === null) return { parts: 0, done: 0, stage: stageOf(flow), first };
       const counted = sp.model.nodes.filter(countsAsStep);
-      return { parts: counted.length, done: counted.filter((nd) => sp.marks.state[sp.model.index.get(nd.id) ?? -1] === 'done').length, stage: stageOf(flow) };
+      return { parts: counted.length, done: counted.filter((nd) => sp.marks.state[sp.model.index.get(nd.id) ?? -1] === 'done').length, stage: stageOf(flow), first };
     })();
     const leaf = world?.chain[chosenT]?.[world.chain[chosenT].length - 1];
     const leafRegion = leaf === undefined ? undefined : tree.regions.get(leaf);
@@ -956,7 +958,7 @@ function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, r
   /** Der Weg ist gerechnet (sonst steht die Liste noch aus). */
   missingKnown: boolean;
   opens: readonly string[];
-  story: { readonly parts: number; readonly done: number; readonly stage: StoryStage } | null;
+  story: { readonly parts: number; readonly done: number; readonly stage: StoryStage; readonly first: readonly string[] | null } | null;
   dueCount: number;
   region: { readonly key: string; readonly name: string; readonly all: number; readonly known: number } | null;
   canLearn: boolean;
@@ -1036,7 +1038,7 @@ function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, r
         </details>
       )}
       {story !== null && (
-        <p className="cg-muted cg-ls-storyline" data-landscape-story={story.stage}>{T.storyLine(story.parts, story.done)} · <button type="button" className="wk-link-btn" onClick={onPath} data-landscape-show-path="">{T.showPath}</button></p>
+        <p className="cg-muted cg-ls-storyline" data-landscape-story={story.stage}>{T.storyLine(story.parts, story.done)} · <button type="button" className="wk-link-btn" onClick={onPath} data-landscape-show-path="">{T.showPath}</button>{story.first !== null && story.first.length > 0 && <> · <span data-landscape-story-first="">{W.storyFirst(story.first.map((n) => `„${n}”`).join(', '))}</span></>}</p>
       )}
       {region !== null && <p className="cg-muted cg-ls-regionline"><button type="button" className="wk-link-btn" onClick={() => onRegion(region.key)} data-landscape-topic-region={region.key}>{T.regionLine(region.name, region.all, region.known)}</button></p>}
     </div>

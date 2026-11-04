@@ -1082,6 +1082,51 @@ Phones stay awake.
 - **For AI**: `landscapeExport.ts` exports the region tree (levels, regions with name, parent, level, topic count, place)
   and each topic's place on its region's map; the MCP text says so.
 
+### Story progress survives a reload (2026-11-04, Prompt 13, Part A)
+
+- **The cause**: the service keeps only the newest batch of kind `position` per holder, base and area (`Cogita.cs`
+  `Latest`), but the browser sent one batch per story with ONE place — starting the next story deleted the place of the
+  previous one (also a finished one); after a reload only the last story was known. On top: 400 batches a day (each step
+  was one), a player that rendered before the learner was loaded and then saved the start over the real place, and a
+  resumed run that started with no visited steps.
+- **Now** (`learn.ts`): every place is kept in this browser at once (localStorage `cg-pos:<base>:<holder>`, survives
+  reload and tab close) and goes out as ONE batch with ALL places of the base (kind `position`, sealed like answers), after
+  fetching what other devices sent: at most once a minute, at once when a story ends or a goal is reached, and when the
+  tab is hidden. `mergePosition`: the newer place says where the learner stands; "ukończony", goals and finished roads
+  only grow — only an explicit "Zapomnij postęp" (`reset`) removes them. Places carry the flow's lasting ref
+  (`positionFor`): a story imported again under a new id finds its place. `startRun` restores the visited steps; a step
+  that no longer exists resumes at the first step not yet visited. The player restores the place when the learner
+  arrives late and never writes a place on mere opening. The daily limit is 2000.
+
+### One landscape with fluid zoom (2026-11-04, Prompt 13, Part C)
+
+Replaces how Prompts 11 and 12 showed the regions (the regions themselves stay).
+
+- **One map** (`worldLayout.ts`, computed in the landscape worker with the regions): every topic one hexagon at a fixed
+  place. The top regions are areas in the fan (rounds of anchors next to what they build on, sectors per branch, one row
+  of ground between them); inside, the sub-regions as areas (same packer, no gap), down to the topics: each topic on the
+  free cell of its region nearest to what it needs. Structure only; nothing moves on zoom or click.
+- **Drawing** (`WorldMap.tsx`): a canvas (all columns; for bases over 1 200 topics an off-screen picture with half a
+  screen of margin that is only shifted while panning), an overlay for names and signs. Colour = the top region, height =
+  steps (one fixed `STEP` for every field), known topics = the learner's land (warm, saturated, soft edge; it grows with
+  a short animation), learnable topics a light rim, "you are here" a small dot. No outlines or lines between regions.
+- **Zoom** (`worldView.ts`): continuous; region names fade in while a region is 64–820 px wide on screen and its parent
+  is already larger (far: only top regions; closer: sub-regions in view; near: topic names from 46 px per hexagon), placed
+  by weight without overlap (measured sizes); signs from 14 px. A click selects a topic from 44 px per hexagon, otherwise
+  it zooms to the region (as does a double-click and a click on a region's name). The breadcrumb is the chain of regions
+  that fill the view; a crumb zooms out to it; Escape one level out.
+- **Camera**: the learner's — Ctrl + drag (two fingers up/down) tilts between side and top view, Ctrl + drag sideways or
+  the button rotates in 60° steps; a control shows rotation and tilt with "Ansicht zurücksetzen"; kept per learner and
+  base (`cg-wm-cam:*`). Nothing changes the angle automatically.
+- **Selected topic**: its own connections as soft curves (needs darker, opens lighter). The panel (`LandscapeView.tsx`
+  TopicPanel): name, one state sentence, "Najpierw potrzebujesz:" (up to 5, ready ones first, "Ucz się teraz"), "Prowadź mnie
+  tutaj" (goal + first missing step) or "Zacznij", "Otwiera dalej: N tematów" folded, one story line with "Pokaż ścieżkę"
+  (the path opens in its own large view) and "Najpierw: …" from `directStartLock`, one region line; owner tools in "⋯".
+- **Summary**: "Dein Gebiet: N Themen · k von n Gebieten erobert · r bereit · d zu wiederholen" with two buttons.
+- **For AI**: `landscapeExport.ts` gives each topic its one place on the single map and each region the centre of its area.
+- **Checks**: `app-worldmap-check` (one hexagon each, same places every time, regions contiguous, top regions apart,
+  connection lengths, label rules at three zooms, projection exact, one step height).
+
 ### Regions show their inside, clicks, a winding layout (2026-11-04, Prompt 12)
 
 Replaces the parts of "Regions within regions" about how a level is laid out, how a region is drawn and what a click does.

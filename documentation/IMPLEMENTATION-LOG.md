@@ -3514,3 +3514,21 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
 - **Import / editor** (`json.ts` flowIssues, `FlowEditor.tsx`, `nodeFields.ts`): unknown target warns, self/cycle blocks with
   both names, chains deeper than 3 warn. Docs: `json.ts` flows text, `templates/cogita/opowiesci-AI.md` §8b, COGITA.md.
 - **Tests**: `scripts/app-detour-check.mjs` (39, in `app:check`); LocalDB `scratchpad/p13-detour` setup + browser (17 ok).
+
+## C36 — Progress that survives a reload, detours, one landscape (2026-11-04, Prompt 13)
+
+- **Part A** — cause: the service keeps only the newest `position` batch per holder/base/area, the browser sent one per
+  story; plus the 400-a-day limit, a player that saved its start before the learner was loaded, and no visited steps on
+  resume. Fix in `learn.ts` (local pending places `cg-pos:*`, one full-set batch after pulling other devices,
+  `mergePosition`, `positionFor` by lasting ref, `reset`), `runningStory.ts` (`startRun` with visited, missing step →
+  first open step), `FlowPlayer.tsx` (restore when the learner arrives, no write on opening, "Zapomnij postęp"),
+  `flow.ts` (`ref`), `flowFacts.ts`, path views; `Cogita.cs` limit 2000/day. Checks in `app-story-check`; browser on
+  LocalDB: halfway + reload, finished + reload, "od początku" + reload, another story, second browser, re-import with a
+  changed graph (same id and deleted + new id) — all pass.
+- **Part B** — see "C36 (Part B)" above (detour step, nested runs, path node, import/editor/docs; `app-detour-check`).
+- **Part C** — `worldLayout.ts`, `worldView.ts`, `WorldMap.tsx` (new; `RegionMap.tsx` removed), worker/client `world`,
+  `LandscapeView.tsx` (one map, breadcrumb by zoom, summary, short TopicPanel, Legend), `landscapeWords.ts`,
+  `landscape.css`, `landscapeExport.ts`, `AiMcp.cs` text, `json.ts` format text; `app-worldmap-check` (44). Connections
+  joining neighbours / ≤ 2 hexagons: LAAG 58 % / 70 %, Bosko 71 % / 86 %, kette8 61 % / 87 %, zweige8 64 % / 90 %,
+  5 000 topics 43 % / 63 %; regions contiguous 88 %, 100 %, 100 %, 100 %, 81 %; layout of 5 000 topics ~700 ms in the worker;
+  dragging 5 000 topics 16.7 ms per frame (95 % ≤ 16.8 ms).

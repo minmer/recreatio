@@ -7,9 +7,9 @@
  * <code>
  *   levels    wie viele Ebenen von Gebieten (0: die oberste Ebene zeigt die Themen selbst)
  *   regions   je Gebiet: Schlüssel, Name (vom Besitzer, aus einem Abschnitt, sonst „Rund um …"), das Gebiet darüber, seine
- *             Ebene (1: darin stehen Themen), wie viele Themen darin sind und sein Platz [q, r] auf der Karte darüber
- *   topics    [q, r, "@thema", "gebiet"] — jedes Thema auf der Karte seines Gebiets (axial; jede Karte ein Fächer vor dem
- *             Lernenden, der Abstand von ihm ist die Tiefe in der Kette der Voraussetzungen auf dieser Ebene)
+ *             Ebene (1: darin stehen Themen), wie viele Themen darin sind und die Mitte seiner Fläche [x, y] (Bodeneinheiten)
+ *   topics    [q, r, "@thema", "gebiet"] — 2026-11-04 (Prompt 13): jedes Thema auf seinem festen Platz der EINEN Landschaft
+ *             (axial; die Themen eines Gebiets liegen als eine Fläche beisammen, `worldLayout.ts`)
  *   top       die oberste Ebene (Gebiete oder Themen)
  * </code>
  * Gerechnet im Browser beim Bau des Odpis (`aiSnapshot.ts`), mit denselben Bausteinen wie die Ansicht.
@@ -21,7 +21,8 @@ import { landscapeInput } from './landscapeData';
 import { readNest } from './landscapeNest';
 import { landscapeWords } from './landscapeWords';
 import { baseLang } from './lang';
-import { gateAnglesFor, layoutLevel, levelItems, nestAsRegions, topicGraphOf, type LevelLayout } from './levelMap';
+import { nestAsRegions, topicGraphOf } from './levelMap';
+import { worldLayout } from './worldLayout';
 import { cardEntities, questionIds } from './prerequisites';
 import { readFlow } from './flow';
 import { buildRegions, type RegionTree } from './regions';
@@ -65,21 +66,11 @@ export function landscapeLayouts(lib: CogitaLibrary, cards: readonly Card[]): La
     const tg = topicGraphOf(input, (id) => asks.has(id));
     const nest = view.landscape?.nest === undefined ? null : readNest(lib, list.map((e) => e.id), view.landscape.nest, view.landscape.nestSort ?? 'nr');
     const tree: RegionTree = nest !== null ? nestAsRegions(nest, tg, words.otherTopics, words.wholeMap) : buildRegions(tg.graph, { around: words.around, ...(view.landscape?.regions?.moves === undefined ? {} : { overrides: { moves: view.landscape.regions.moves } }) });
-    const cache = new Map<string, LevelLayout>();
-    const layoutOf = (open: string | null): LevelLayout => {
-      const k = open ?? '';
-      const had = cache.get(k);
-      if (had !== undefined) return had;
-      const made = layoutLevel(levelItems(tree, open, tg), tg, tree, open, gateAnglesFor(tree, open, layoutOf));
-      cache.set(k, made);
-      return made;
-    };
+    /* 2026-11-04 (Prompt 13) — die eine Landschaft: jedes Thema sein Platz, jedes Gebiet die Mitte seiner Fläche. */
+    const world = worldLayout(tree, tg);
     const regionAt = new Map<string, readonly [number, number]>();
-    const topicAt = new Map<string, readonly [number, number]>();
-    for (const open of [null, ...tree.regions.keys()]) {
-      const layout = layoutOf(open);
-      layout.items.forEach((it, i) => { (it.kind === 'region' ? regionAt : topicAt).set(it.key, [layout.place[i].q, layout.place[i].r]); });
-    }
+    for (const r of world.regions.values()) regionAt.set(r.key, [Math.round(r.x * 100) / 100, Math.round(r.y * 100) / 100]);
+    const topicAt = new Map<string, readonly [number, number]>(tg.graph.ids.map((id, t) => [id, [world.cells[t].q, world.cells[t].r]] as const));
     out.push({
       view: ref(doc.id), name: view.name, levels: tree.levels,
       top: tree.top.map((k) => (tree.regions.has(k) ? k : ref(k))),

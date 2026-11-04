@@ -351,6 +351,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const front = [0, 1, 2, 3, 4, 5].filter((k) => (corners[k][1] + corners[(k + 1) % 6][1]) / 2 > 1e-6);
     const regionHi = hoverRegion;
     const showGlow = px >= 6;
+    /* Blass ist im Dunkeln ein mittleres Grau (nicht das dunkle Licht des Stils): ferne Berge bleiben lesbar. */
+    const dark = (P.floor[0] + P.floor[1] + P.floor[2]) / 3 < 90;
+    const pale = dark ? [128, 126, 122] : P.light;
     for (const i of order) {
       const t = topics[i];
       if (t === undefined) continue;
@@ -364,9 +367,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
         const since = knownAt.current.get(i);
         const grown = since === undefined ? 1 : Math.min(1, (now - since) / 900);
         const land = mix(P.warm, regionC, 0.18);
-        face = mix(mix(regionC, P.light, 0.5), land, grown);
-      } else if (t.band === 'ring') face = mix(regionC, P.light, 0.55);
-      else face = mix(mix(regionC, P.light, 0.78), P.haze, Math.min(0.55, t.steps / 28));
+        face = mix(mix(regionC, pale, 0.5), land, grown);
+      } else if (t.band === 'ring') face = mix(regionC, pale, dark ? 0.3 : 0.55);
+      else face = mix(mix(regionC, pale, dark ? 0.55 : 0.78), P.haze, Math.min(dark ? 0.35 : 0.55, t.steps / 28));
       if (regionHi !== null && (world.chain[i] ?? []).includes(regionHi)) face = mix(face, P.surface, 0.28);
       /* Die Seiten (eine Fläche je sichtbarer Seite, dunkler). */
       if (h > 0.4) {
