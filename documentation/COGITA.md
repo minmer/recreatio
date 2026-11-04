@@ -955,6 +955,34 @@ Phones stay awake.
 - **Choices are the learner's**: the choice screen lists every road with what waits behind it, and locked roads say
   why. The app never picks a road.
 
+### A review ends; the player asks only what is not known (2026-11-04, Prompts 9–10)
+
+- **The player rule** (`flowAsk.ts`, `flow.ts` `PlayContext.skip`): a question step whose own card is known (band
+  "znane", ≥ 100 %, from the learner's whole history with merges) is skipped silently through "right": nothing is recorded
+  and the card's plan stays. Slides are always shown. It holds for every base and flow, without condition steps.
+  Condition steps read a question's knowness from its own card (`flowKnowness`); an id without cards counts as known.
+- **Spacer**: when the next question would be the one just answered wrong, a known question comes first (same topic,
+  else this story, else any known). It does not count, and only a wrong answer to it is recorded. The same holds in the
+  revision engine (`revision.ts`, reason `spacer`).
+- **Counter and reason** (`AskHead` in the player, `RevisionRun`): „Zostało N pytań" with a thin bar counts only questions
+  really asked and reaches 0 when the run ends; the line below names the topic (and story) and the reason; tapping it
+  shows the last answers and the next review.
+- **A review ends** (`RevisionRun`): as soon as everything due or unknown is known at once, it stops and shows
+  `RunClosing` — „Powtórka zakończona: N kart…", what it unlocked (by name and kind), one big button (the topic that asked
+  for it, else the next goal step, else the first unlocked), „Inne tematy", „Wróć do mapy" and a quiet „Ćwicz dalej"
+  (then it practises ahead). Started from „Najpierw powtórz (N)" it says so briefly and opens that topic.
+- **Ścieżka counts** (`storyPath.ts` `questionSteps`, `askCounts`; `PathMarks.ask`): „2 z 5 pytań do odpowiedzi"; a part
+  whose questions are all known is reading only (icon and words). A choice counts finished roads too.
+- **Language** (`lang.ts`): the learning screens (landscape and its side panel, Ścieżka, review end, counters) speak the
+  base's language — the setting „Język nauki" (`settings.language`), else detected from the base's own names. LAAG speaks
+  German, Bosko Polish. The rest of the app stays Polish.
+- **Landscape**: side panel on wide screens (bottom sheet on phones), goal as an ordered step list kept until reached,
+  height = longest chain of open prerequisites (equal steps, no cap, scaled to fit), centred markers, "repeat, then go on"
+  instead of the lock, ghost outlines and x-ray for hidden fields, rotation in 60° steps.
+- **Learning map of a whole base** (`LearningPath`, module path): topics only — questions about something
+  (`questionIds`) are not nodes.
+- **Import**: a change that only fills an empty field (e.g. a flow's new `review`) is ticked by default.
+
 ### For AI (2026-11-03, H)
 
 - Format text (`json.ts`, → `ksiazka-AI.md`, MCP `knowledge-base`): the flows section complete — steps and exits,

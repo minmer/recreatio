@@ -1040,7 +1040,8 @@ export function lessonProgress(session: Session, now: number): LessonProgress | 
   /* Die Wählbarkeit rechnet die Kenntnis aller Karten — einmal je Stand und halber Minute genügt. */
   const had = LESSON_MEMO.get(session);
   if (had !== undefined && Math.abs(now - had.at) < 30_000) return had.value;
-  const stack = new Set([...s.active, ...(s.current === null ? [] : [s.current])]);
+  /* Ein Przerywnik zählt nicht mit (er ist gekonnt und kommt nur dazwischen). */
+  const stack = new Set([...s.active, ...(s.current === null || s.why?.reason === 'spacer' ? [] : [s.current])]);
   const open = new Set(eligible(s, now).map((c) => c.key));
   let done = 0;
   let held = 0;

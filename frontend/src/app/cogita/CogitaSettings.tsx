@@ -19,6 +19,7 @@ import { BaseVisibility } from './BaseWho';
 import { DEPENDENCY_KINDS, DEPENDENCY_LABEL, type DependencyKind } from './knowness';
 import { intakeOf } from './learn';
 import { DEFAULT_DAILY_GOAL, readDailyGoal } from './lessons';
+import { baseLang, LANG_LABEL, LANGS } from './lang';
 import { LOOK_LABEL, LOOK_TYPES, type LookType } from './flow';
 import { DEFAULT_RULES, describeRules, PRESETS, readRules, type LiveRules } from './rules';
 import { MOTIVATION_LABEL, MOTIVATIONS, type DependencyEdge, type Motivation, type SourceRef } from './store';
@@ -83,6 +84,16 @@ export function CogitaSettings() {
           </div>
         )}
         <p className="wk-hint">Rankingi są tylko w sesjach na żywo.</p>
+      </section>
+
+      {/* 2026-11-04 (Prompt 9) — die Sprache der Lernbildschirme (Krajobraz, Ścieżka, Powtórka); ohne Wahl erkannt aus der Baza. */}
+      <section className="cg-card" data-settings-language="">
+        <h3>Język nauki</h3>
+        <p className="cg-muted">W tym języku mówią ekrany nauki: krajobraz, ścieżka, powtórka i jej zakończenie. Bez wyboru — rozpoznany z nazw w bazie (teraz: {LANG_LABEL[baseLang(lib)]}).</p>
+        <select value={settings.language ?? ''} disabled={busy} onChange={(e) => void save({ language: e.target.value || undefined })}>
+          <option value="">— rozpoznaj z bazy —</option>
+          {LANGS.map((l) => <option key={l} value={l}>{LANG_LABEL[l]}</option>)}
+        </select>
       </section>
 
       {/* 2026-10-23 (Schritt 5) — Perspektywy und Tematy gibt es nicht mehr; eine Baza mit alten Perspektywy hört es hier einmal. */}

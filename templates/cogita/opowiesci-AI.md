@@ -53,6 +53,13 @@ Opowieść kończy się krótkim przeglądem tego, czego uczyła — W TYM SAMYM
 
 W prezentacji to samo na stronie: wartość w `"story.values"` (`{"id": "deszcz.przeglad", "label", "start": 0, "min": 0, "max": 3}`), bramki "set" (zero na początku, +1 przy "right") i bramka "condition" z wynikiem, przyciski sceny „Jeszcze nie” z `"go"`. Cel przebiegu w bazie liczy się z wartości strony. Strona otwiera się na scenie z adresu `?scena=<klucz>`.
 
+### 7a. Odtwarzacz pyta tylko o to, czego uczący się nie umie (2026-11-04)
+
+- Pytanie, którego karta jest już **znana** (od 100 %, z całej historii uczącego się — opowieści, powtórki, ćwiczenia), odtwarzacz pomija po cichu wyjściem "right": bez odpowiedzi, bez zmiany planu karty. Slajdy pokazuje zawsze. **Nie dopisuj warunków „pomiń, gdy umie”** — reguła dotyczy każdej bazy i każdego przebiegu.
+- Licznik przeglądu (§7) i tak rośnie: pominięte pytanie idzie przez "right" i jego krok "+1". Przegląd, w którym wszystko jest znane, kończy się od razu; opowieść z samymi znanymi pytaniami można przeczytać.
+- Po złej odpowiedzi to samo pytanie nie wraca od razu: najpierw jedno znane („przerywnik” — z tego samego tematu albo opowieści). Przerywnik się nie liczy i nic nie zmienia, chyba że odpowiedź jest zła.
+- Nad pytaniem: „Zostało N pytań” (tylko te, które naprawdę padną) i powód („nowe”, „do powtórki (78 %)”, „pomyłka przed chwilą”, „przerywnik”). Na ścieżce: „2 z 5 pytań do odpowiedzi”; część z samymi znanymi pytaniami — „tylko do przeczytania”.
+
 ## 8. Przycisk opowieści i ekran zamknięcia
 
 - **Przycisk** (pole w krajobrazie, węzeł w Nauce → Ścieżka i w module "path"): „Zacznij opowieść” (nowa), „Kontynuuj opowieść” (w drodze — od miejsca, w którym uczący się skończył), „Powtórz przegląd” (ukończona, cel nieosiągnięty — od "review"), „Otwórz opowieść” (zaliczona). Nigdy nie ćwiczy kart jednostki.

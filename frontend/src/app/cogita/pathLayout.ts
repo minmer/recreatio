@@ -405,7 +405,9 @@ export function partWords(nd: Pick<PathNode, 'kind' | 'slides' | 'questions'>, a
     case 'start': return 'Początek ścieżki';
     case 'end': return 'Koniec ścieżki';
     case 'fork': return 'Tu wybierasz drogę';
-    case 'review': return `Przegląd${q > 0 ? `: ${q} ${plural(q, 'pytanie', 'pytania', 'pytań')}` : ''} — powtarzasz, aż wszystkie umiesz${s > 0 ? ` (i ${slides})` : ''}`;
+    case 'review':
+      if (q > 0 && ask === 0) return 'Przegląd — wszystkie pytania już umiesz';
+      return `Przegląd${q > 0 ? `: ${ask === undefined || ask >= q ? `${q} ${plural(q, 'pytanie', 'pytania', 'pytań')}` : `${ask} z ${q} ${plural(q, 'pytania', 'pytań', 'pytań')}`}` : ''} — powtarzasz, aż wszystkie umiesz${s > 0 ? ` (i ${slides})` : ''}`;
     default: return [slides, questions].filter(Boolean).join(' · ');
   }
 }

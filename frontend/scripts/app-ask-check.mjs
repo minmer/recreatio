@@ -111,10 +111,12 @@ const sp = SP.storyPath(flow, SP.stepWorkOf((n) => (typeof n.config.of === 'stri
 const knownStep = (s) => { const n = flow.graph.nodes.find((x) => x.id === s); return n !== undefined && A.skipStep(n, cardOf, marks, now); };
 const marksNow = SP.storyMarks(sp, { visited: [], step: null, knownStep });
 const qi = sp.parts.findIndex((p) => p.questions > 0);
-check('the path: a part with 11 questions, 2 of them unknown — „2 z 11 pytań do odpowiedzi"', [sp.parts[qi].questions, marksNow.ask[qi], P.partWords(sp.parts[qi], marksNow.ask[qi])], [11, 2, '2 z 11 pytań do odpowiedzi']);
+check('the path: the review part with 11 questions, 2 of them unknown — „2 z 11 pytań"', [sp.parts[qi].kind, sp.parts[qi].questions, marksNow.ask[qi], P.partWords(sp.parts[qi], marksNow.ask[qi])], ['review', 11, 2, 'Przegląd: 2 z 11 pytań — powtarzasz, aż wszystkie umiesz']);
+check('… a learning part says it the same way', P.partWords({ kind: 'learn', slides: 0, questions: 5 }, 2), '2 z 5 pytań do odpowiedzi');
 for (const id of ['q4', 'q9']) history.set(`k-${id}`, [...knownHistory]);
 const allKnown = SP.storyMarks(sp, { visited: [], step: null, knownStep });
-check('… all known — reading only', [allKnown.ask[qi], P.partWords(sp.parts[qi], allKnown.ask[qi])], [0, 'wszystkie pytania już umiesz — tylko do przeczytania']);
+check('… all known — the review says so; a learning part is reading only', [allKnown.ask[qi], P.partWords(sp.parts[qi], allKnown.ask[qi]), P.partWords({ kind: 'mixed', slides: 2, questions: 3 }, 0)],
+  [0, 'Przegląd — wszystkie pytania już umiesz', '2 slajdy do przeczytania · wszystkie pytania już umiesz — tylko do przeczytania']);
 
 /* ── Dieselbe Regel in einer Powtórka ───────────────────────────────── */
 history.delete('k-q11');

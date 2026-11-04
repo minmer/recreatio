@@ -166,7 +166,11 @@ export function words(lang: Lang) {
         case 'start': return L('', 'Anfang des Weges', 'Start of the path');
         case 'end': return L('', 'Ende des Weges', 'End of the path');
         case 'fork': return L('', 'Hier wählst du den Weg', 'Here you choose the road');
-        case 'review': return L('', `Durchsicht${q > 0 ? `: ${q} ${q === 1 ? 'Frage' : 'Fragen'}` : ''} — bis alles sitzt`, `Review${q > 0 ? `: ${q} ${q === 1 ? 'question' : 'questions'}` : ''} — until all is known`);
+        case 'review': {
+          if (q > 0 && ask === 0) return L('', 'Durchsicht — alle Fragen kannst du schon', 'Review — you know all its questions');
+          const n = ask === undefined || ask >= q ? `${q}` : L('', `${ask} von ${q}`, `${ask} of ${q}`);
+          return L('', `Durchsicht${q > 0 ? `: ${n} ${q === 1 ? 'Frage' : 'Fragen'}` : ''} — bis alles sitzt`, `Review${q > 0 ? `: ${n} ${q === 1 ? 'question' : 'questions'}` : ''} — until all is known`);
+        }
         default: return [slides, qs].filter(Boolean).join(' · ');
       }
     },

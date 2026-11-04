@@ -3386,3 +3386,56 @@ fields showed bare numbers; nothing showed how topics connect; the panels under 
     text on the map, tap popover, phone 390 px (no sideways scroll), dark theme, chapters, a choice of three, the
     whole-base learning map fits;
   - `app:check` passes.
+
+## C32 — A review has an end; side panel; landscape heights and goal list (2026-11-04, Prompt 9)
+
+- **Review end** (`RevisionRun.tsx`, `RunClosing.tsx` new): the run ends by itself when the engine would only practise
+  ahead (`why.reason === 'ahead'`). Closing: „Powtórka zakończona: N kart, wszystkie na co najmniej 100 %", the topics it
+  unlocked (ready now, not before; two levels behind what it asked; story or N questions), one big button (origin topic →
+  next goal step → first unlocked), „Inne tematy", „Wróć do mapy", quiet „Ćwicz dalej". From „Najpierw powtórz (N)" a
+  short message, then the topic opens (`onDone` after 1.3 s). Mistake practice „Wróć" goes to the host's exit.
+- **Side panel** (`LandscapeView.tsx`, `landscape.css`): ≥ 860 px a fixed panel on the right (portal), else a sheet of at
+  most 45vh; the map stays visible with the field outlined and its route lit; another tap switches the content. The
+  content names the topics to review first, says what numbers count („Najpierw powtórz 5 kart", „Pokaż ścieżkę (5
+  części)") and drops the unexplained ○.
+- **Language** (`lang.ts` new): pl/de/en words for the learning screens; `settings.language` („Język nauki" in Ustawienia,
+  kept in the setup export), else detected from the base's names.
+- **Follow-ups to Prompt 8**:
+  - the lost `review` key: re-importing over existing flows made it a change to an existing document, and those started
+    unticked, so saving with defaults dropped it. Now a change that only fills an empty field starts ticked
+    (`importReview.ts` `fills`);
+  - the 1,371 nodes: the whole-base learning map counted every question (an entity with cards) as a topic. Questions
+    about something (`questionIds`) are no longer nodes (`LearningPath`, module path);
+  - a choice counts finished roads („wybrano 1 z 3 · ukończono 1"); the option says „ukończone"; taken roads stay lit.
+- **Landscape**:
+  - 4a goal: an ordered list of steps (state, kind, ✓ when done) kept in the goal position until reached (message) or
+    cleared; the closing button becomes „Dalej do celu: X"; route steps are marked, numbered when chosen;
+  - 4c height: longest chain of open prerequisites (`chainComp`), equal steps, no cap; the map scales to fit; legend
+    „wysokość = ile kroków jeszcze"; `topics` keeps the old distinct count for the panel;
+  - 4d markers centred in one style; the lock became „najpierw powtórz, potem dalej"; both in the legend;
+  - 4e hidden actionable fields: a ghost outline drawn on top, and the columns in front of the hovered or chosen field go
+    see-through (x-ray); rotation in 60° steps; tapping a name in the step list brings the field into view. Ghost +
+    x-ray was chosen over lowering front fields because heights carry meaning and must not change on hover.
+- **Checks**: `app-landscape-check` 142 (new height semantics, equal steps), `app-import-check` 69.
+
+## C33 — Ask only what is not known; counter, reason, spacer (2026-11-04, Prompt 10)
+
+- **Player rule** (`flowAsk.ts` new, `flow.ts` `PlayContext.skip`, `FlowPlayer.tsx`): a known question (own card ≥ 100 %,
+  whole history with merges) is skipped through "right" with no record; slides always shown; every base and flow.
+- **Why the story review never ended** (not reproduced on production data — tests run on LocalDB only): the knowness
+  formula itself is right (correct answers do reach 100 %). The condition „Wszystkie naraz opanowane?" read a question
+  entry through all cards about it (without the merges rename), and ids without cards as 0 — either keeps it false
+  although every asked card is known. Now a question reads its own card (`flowKnowness`), ids without cards count as known, and known questions
+  are skipped, so the loop only asks what is open. The flow guard was raised from 64 to 600 skipped steps.
+- **Spacer** (`pickSpacer`, `revision.ts` `spacerFor`): never the same question twice in a row; a known one comes first,
+  „przerywnik", not counted, recorded only when wrong.
+- **Counter and reason** (`AskHead`, `RevisionRun`): „Zostało N" with a bar wherever questions are asked (story question
+  steps, every temporal review, free practice, mistake practice); `lessonProgress` now works for every temporal plan and
+  leaves the spacer out. The reason line names the topic and why.
+- **Path counts** (`storyPath.ts` `questionSteps`/`askCounts`/`knownStep`, `PathMarks.ask`, `PathMap` `words`): „2 z 5 pytań
+  do odpowiedzi", all known — reading only (icon too); hosts: player, landscape story panel, module path.
+- **Not covered**: presentation stories (`storyRun.tsx`) still ask every question of a question scene; live sessions
+  (`Sessions.tsx`) keep their own order on purpose.
+- **Checks**: `app-ask-check` (new, 12): the user's case — 10 known + 1 unknown, wrong then right → that question twice,
+  one spacer, end — both in a story review and in a review by bands, the counter reaching 0 exactly at the end, path
+  counts; `app-lemma-lessons-check` updated (every temporal run has a counter).
