@@ -44,6 +44,7 @@ import type { GraphNode } from './graph';
 import { PathMap, type PathNext } from './PathMap';
 import { mergeWords } from './pathLayout';
 import { positionFor, renamer, type FlowPosition, type Learner } from './learn';
+import { ask } from '../ui/dialogs';
 import { askedCardOf, cardKnow, cardsInFlow, flowKnowness, isKnown, pickSpacer, questionsLeft, skipStep, type MarksOf } from './flowAsk';
 import { baseLang, words, type Lang } from './lang';
 import { cardsAbout } from './prerequisites';
@@ -412,10 +413,14 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const depths = backDepths(run, flowOf);
   /* 2026-11-04 (Prompt 13) — ausdrücklich vergessen (nach Rückfrage): nur das nimmt „ukończona" und Ziele weg. */
   const forget = () => {
-    if (learner === null || !window.confirm(W.forgetAsk(running.name))) return;
-    doneHere.current.delete(running.id);
-    void learner.keepPosition({ flow: running.id, step: running.start ?? '', visited: [], at: Date.now(), reset: true }).catch(() => undefined);
-    restart();
+    if (learner === null) return;
+    const who = learner;
+    void ask({ title: W.forgetAsk(running.name), confirm: W.forgetStory, danger: true }).then((yes) => {
+      if (!yes) return;
+      doneHere.current.delete(running.id);
+      void who.keepPosition({ flow: running.id, step: running.start ?? '', visited: [], at: Date.now(), reset: true }).catch(() => undefined);
+      restart();
+    });
   };
   /*
     2026-11-03 (Prompt 5) — DER PRZEGLĄD: welche Ziele erreicht sind (gemerkt und jetzt), und „Powtórz przegląd" — zum
@@ -727,6 +732,12 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         <div className="cg-flow-step">
           <h2 data-flow-title={running.id}>{W.storyEnd} — <TexText text={running.name} /></h2>
           {running.goals.length > 0 && <Goals flow={running} reached={goalsHeld} />}
+          {requiredLeft.length > 0 && (
+            <p className="wk-note" data-flow-required-left={requiredLeft.length}>
+              {W.requiredLeft(requiredLeft.map((s) => { const n = stepNode.get(s); const d = n === undefined ? null : detourOf(n); return `„${(d === null ? undefined : flowOf(d.flow))?.name ?? s}”`; }).join(', '))}
+              {' '}<button type="button" className="wk-link-btn" onClick={() => jumpToStep(requiredLeft[0])} data-flow-required-go="">{W.detourEnter}</button>
+            </p>
+          )}
           {running.goals.length > 0 && (
             <p className={reviewOpen ? 'wk-note' : 'cg-muted'} data-flow-review={reviewOpen ? 'open' : 'passed'}>
               {reviewOpen ? W.reviewNotPassed : W.reviewPassed}
@@ -907,6 +918,46 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         return <Next label={W.goOn} onNext={() => go(holds(readCondition(c.condition), facts(state)) ? 'yes' : 'no')} />;
       case 'set':
         return <Next label={W.goOn} onNext={() => go('next')} />;
+      /*
+        2026-11-04 (Prompt 13) — EIN ABSTECHER: die andere Erzählung beim Namen, was dort wartet, „Wejdź" und „Dalej bez tego";
+        schon ukończona — „już znasz", „Przypomnij" und „Dalej"; Pflicht ("optional": false) — nur „Wejdź".
+      */
+      case 'detour': {
+        const d = detourOf(current)!;
+        const inner = d.flow === '' ? undefined : flowOf(d.flow);
+        const on = (exit: 'done' | 'skip') => go(exit);
+        if (inner === undefined) return <><p className="wk-note" data-flow-detour-missing="">{W.detourMissing}</p><Next label={W.goOn} onNext={() => on(d.optional ? 'skip' : 'done')} /></>;
+        const refused = detourRefused(state, inner.id, flowOf);
+        const known = innerDone(inner.id);
+        const kept = posOf(inner.id);
+        const started = !known && kept !== undefined && (kept.visited.length > 1 || (kept.inside?.length ?? 0) > 0);
+        return (
+          <div className={`cg-detour${known ? ' is-known' : ''}`} data-flow-detour={inner.id} data-flow-detour-state={known ? 'known' : started ? 'started' : 'new'} data-flow-detour-optional={d.optional ? '1' : '0'}>
+            <p className="cg-muted">{d.label !== '' ? <TexText text={d.label} /> : W.detourAsk(inner.name)}</p>
+            <p className="cg-detour-name"><TexText text={inner.name} /></p>
+            <p className="cg-muted" data-flow-detour-work="">{[innerWork(inner), known ? W.detourKnown : started ? W.detourStarted : ''].filter(Boolean).join(' · ')}</p>
+            {refused !== null ? (
+              <>
+                <p className="wk-note" data-flow-detour-refused={refused}>{refused === 'cycle' ? W.detourCycle : W.detourDeep}</p>
+                <Next label={W.goOn} onNext={() => on(d.optional ? 'skip' : 'done')} />
+              </>
+            ) : known ? (
+              <div className="wk-actions">
+                <button type="button" className="wk-btn" onClick={() => on('done')} autoFocus data-flow-detour-on="">{W.goOn}</button>
+                <button type="button" className="wk-btn wk-btn-line" onClick={() => enterDetour(inner, true)} data-flow-detour-remind="">{W.detourRemind}</button>
+              </div>
+            ) : (
+              <>
+                {!d.optional && <p className="cg-muted" data-flow-detour-required="">{W.detourRequired}</p>}
+                <div className="wk-actions">
+                  <button type="button" className="wk-btn" onClick={() => enterDetour(inner, false)} autoFocus data-flow-detour-enter="">{W.detourEnter}</button>
+                  {d.optional && <button type="button" className="wk-btn wk-btn-line" onClick={() => on('skip')} data-flow-detour-skip="">{W.detourSkip}</button>}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      }
       /* 2026-10-22 (Schritt 12) — eine Szene einer Präsentation in einem gewöhnlichen Ablauf: ihr Name und der Weg zu ihr. */
       case 'scene': {
         const page = typeof c.page === 'string' ? c.page.replace(/^#?\/?/, '') : '';
@@ -927,11 +978,20 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
     <section className={`cg-flow cg-flow-${look === 'slides' || look === 'scenes' ? 'slides' : look === 'flashcards' ? 'cards' : 'reading'}`} data-flow-running={running.id} data-flow-step={state.step ?? ''} data-flow-visited={state.visited.length} data-flow-depth={state.stack.length} data-flow-kept-done={posOf(running.id)?.done === true ? '1' : '0'} data-flow-kept-goals={posOf(running.id)?.goals?.length ?? 0}>
       <div className="cg-row-between">
         <span className="cg-flow-title">
-          {trail.length > 0 && <span className="cg-muted cg-flow-trail" data-flow-trail={trail.length}>{W.inStory(trail.map((f) => f.name).join(' › '))}</span>}
+          {/* 2026-11-04 (Prompt 13) — im Abstecher: die Leiste „Etap 1 › Dom w Becchi" (jede rufende Erzählung führt zurück). */}
+          {trail.length > 0 && depths.length > 0 ? (
+            <nav className="cg-muted cg-flow-crumbs cg-flow-trail" aria-label={W.crumbs} data-flow-trail={trail.length} data-flow-crumbs={trail.length}>
+              <ol>
+                {trail.map((f, i) => <li key={`${f.id}:${i}`}>{depths.includes(i) ? <button type="button" className="wk-link-btn" onClick={() => goBack(i)} data-flow-crumb={i}><TexText text={f.name} /></button> : <TexText text={f.name} />}</li>)}
+                <li aria-current="page"><TexText text={running.name} /></li>
+              </ol>
+            </nav>
+          ) : trail.length > 0 && <span className="cg-muted cg-flow-trail" data-flow-trail={trail.length}>{W.inStory(trail.map((f) => f.name).join(' › '))}</span>}
           <strong data-flow-title={running.id}><TexText text={running.name} /></strong>
         </span>
         <span className="cg-row">
           {running.goals.length > 0 && <span className="cg-muted">{W.goal}: {reached.length}/{running.goals.length}</span>}
+          {depths.length > 0 && trail.length > 0 && <button type="button" className="wk-link-btn" onClick={() => goBack(depths[0])} data-flow-back-detour={trail[trail.length - 1].id}>{W.backTo(trail[trail.length - 1].name)}</button>}
           <button type="button" className="wk-link-btn" onClick={restart}>{W.fromStart}</button>
           {learner !== null && <button type="button" className="wk-link-btn" onClick={forget} data-flow-forget="">{W.forgetStory}</button>}
           {onClose !== undefined && <button type="button" className="wk-link-btn" onClick={onClose}>{W.close}</button>}

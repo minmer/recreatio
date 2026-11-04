@@ -395,3 +395,42 @@
 .cg-ls-crumb { flex-wrap: wrap; min-width: 0; }
 .cg-ls-crumbs .wk-link-btn, .cg-ls-crumbs strong { white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .cg-ls-next .wk-btn { white-space: normal; overflow-wrap: anywhere; text-align: left; height: auto; }
+
+/*
+ * 2026-11-04 (Prompt 13) — DIE EINE LANDSCHAFT (WorldMap.tsx): eine Leinwand mit allen Säulen, darüber Namen (blenden mit dem
+ * Zoom ein und aus) und Zeichen; unten links die Kamera des Lernenden (Neigung, Drehung, zurücksetzen). Keine Linien um
+ * Gebiete. Das kurze Panel eines Themas.
+ */
+.cg-wm { position: relative; min-width: 0; outline: none; }
+.cg-wm-canvas { display: block; max-width: 100%; touch-action: none; user-select: none; cursor: grab; border-radius: var(--wk-radius-sm); background: var(--cg-ls-floor); }
+.cg-wm-canvas:active { cursor: grabbing; }
+.cg-wm-over { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.cg-wm-label {
+  position: absolute; transform: translate(-50%, -50%); padding: 0.05rem 0.4rem; border-radius: var(--wk-radius-sm);
+  font-size: var(--wk-text-xs); line-height: 1.25; text-align: center; color: var(--wk-ink); opacity: 0; transition: opacity 0.25s ease;
+  overflow-wrap: anywhere; display: inline-flex; align-items: center; gap: 0.2rem; white-space: normal;
+}
+.cg-wm-label.is-region { font-weight: 600; background: color-mix(in oklab, var(--wk-surface) 78%, transparent); }
+.cg-wm-label.is-topic { color: var(--wk-ink); text-shadow: 0 0 3px var(--wk-surface), 0 0 2px var(--wk-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-wm-signs { position: absolute; left: 0; top: 0; overflow: visible; }
+.cg-wm-flag { flex: none; }
+.cg-wm-flag path, .cg-ls-flagmark path { fill: color-mix(in oklab, var(--cg-ls-warm) 85%, var(--cg-ls-light)); stroke: var(--cg-ls-sign-ink); stroke-width: 1.2; stroke-linejoin: round; }
+.cg-wm-view {
+  position: absolute; left: var(--wk-space-2); bottom: var(--wk-space-2); display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2);
+  padding: 0.15rem 0.5rem; border: 1px solid var(--wk-line); border-radius: var(--wk-radius-sm); background: color-mix(in oklab, var(--wk-surface) 88%, transparent); font-size: var(--wk-text-xs);
+}
+.cg-wm-view input[type='range'] { width: 5.5rem; }
+.cg-ls-legend-land { display: inline-block; width: 1.1rem; height: 0.75rem; flex: none; border-radius: var(--wk-radius-sm); background: var(--cg-ls-warm); box-shadow: 0 0 4px var(--cg-ls-warm); }
+.cg-ls-legend-needs { fill: none; stroke: var(--wk-ink); stroke-width: 1.8; opacity: 0.7; }
+.cg-ls-legend-opens { fill: none; stroke: color-mix(in oklab, var(--wk-accent) 55%, var(--cg-ls-light)); stroke-width: 1.8; }
+.cg-ls-need { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--wk-space-1); }
+.cg-ls-need li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wk-space-1) var(--wk-space-2); }
+.cg-ls-need li.is-ready .cg-ref { font-weight: 600; }
+.wk-btn.is-small { padding: 0.1rem 0.5rem; font-size: var(--wk-text-xs); min-height: 0; }
+.cg-ls-more { position: relative; margin-left: auto; }
+.cg-ls-more > summary { list-style: none; cursor: pointer; padding: 0 0.4rem; border-radius: var(--wk-radius-sm); }
+.cg-ls-more > summary::-webkit-details-marker { display: none; }
+.cg-ls-more-body { position: absolute; right: 0; z-index: 3; display: grid; gap: var(--wk-space-1); min-width: 14rem; padding: var(--wk-space-2); border: 1px solid var(--wk-line-strong); border-radius: var(--wk-radius-sm); background: var(--wk-surface); }
+.cg-ls-opens > summary { cursor: pointer; color: var(--wk-muted); }
+.cg-ls-storyline, .cg-ls-regionline { margin: 0; }
+.cg-ls-q .cg-ls-qtop { display: flex; align-items: center; gap: var(--wk-space-2); }

@@ -98,7 +98,7 @@ export function exitsOf(type: string, config: Readonly<Record<string, unknown>>)
     case 'choice': return (Array.isArray(config.options) ? config.options : []).map((o, i) => port(`o${i}`, str(isObject(o) ? o.label : o) || `możliwość ${i + 1}`));
     case 'condition': return [port('yes', 'tak'), port('no', 'nie')];
     /* 2026-11-04 (Prompt 13) — ein Abstecher: nach der anderen Erzählung „done", ausgelassen „skip" (nur, wenn er freiwillig ist). */
-    case 'detour': return config.optional === false ? [port('done', 'po opowieści')] : [port('done', 'po opowieści'), port('skip', 'bez tego')];
+    case 'detour': return config.optional === false || config.required === true ? [port('done', 'po opowieści')] : [port('done', 'po opowieści'), port('skip', 'bez tego')];
     case 'chapters': return [...(Array.isArray(config.chapters) ? config.chapters : []).map((c, i) => port(`c${i}`, str(isObject(c) ? c.title : c) || `rozdział ${i + 1}`)), port('done', 'wszystkie przerobione')];
     /* 2026-10-22 (Schritt 12) — eine Szene: „dalej", die Frage auf ihr, ihre Knöpfe. */
     case 'scene': return [

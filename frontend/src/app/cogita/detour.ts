@@ -24,7 +24,7 @@ export interface DetourConfig {
   readonly flow: string;
   /** Wie der Abstecher angeboten wird („Chcesz wiedzieć więcej: …"); leer: der Spieler sagt es selbst. */
   readonly label: string;
-  /** Freiwillig (Vorgabe) — `false`: nur „Wejdź", das Ende braucht ihn. */
+  /** Freiwillig (Vorgabe) — `false` (oder `"required": true`, so setzt es der Editor): nur „Wejdź", das Ende braucht ihn. */
   readonly optional: boolean;
 }
 
@@ -32,7 +32,7 @@ const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 export function detourOf(node: Pick<GraphNode, 'type' | 'config'>): DetourConfig | null {
   if (node.type !== 'detour') return null;
-  return { flow: str(node.config.flow), label: str(node.config.label), optional: node.config.optional !== false };
+  return { flow: str(node.config.flow), label: str(node.config.label), optional: node.config.optional !== false && node.config.required !== true };
 }
 
 /** Die Abstecher eines Ablaufs, in der Reihenfolge seiner Schritte. */

@@ -26,6 +26,7 @@ import { addFormDoc, COLUMN_SEPARATORS, KEY_ACTIONS, mapFormRefs, readAddForm, V
 import { readTemplate } from './cards';
 import { migratePrerequisites, readFlow } from './flow';
 import { flowProblems } from './flowCheck';
+import { detourProblems } from './detour';
 import { graphJson, readGraph, type Graph, type GraphNode } from './graph';
 import { migrateRevision } from './revision';
 import { readRewards, rewardsData } from './rewards';
@@ -1136,9 +1137,23 @@ export class ImportBlocked extends Error {
 /** 2026-11-04 — die Probleme der Ścieżka jedes Ablaufs eines Plans, beim Namen des Ablaufs und des Schrittes. */
 function flowIssues(lib: CogitaLibrary, docs: ImportPlan['docs']): { level: 'error' | 'warning'; text: string }[] {
   const label = (id: string) => { const e = lib.entity(id); return e === undefined ? id : lib.label(e); };
+  /*
+    2026-11-04 (Prompt 13) — die Abstecher: gegen alle Abläufe nach dem Zapis (die des Dokuments ersetzen die der Baza). Eine
+    andere Erzählung, die es nicht gibt: Warnung; ein Kreis A → B → A: blockiert, beide beim Namen (einmal je Kreis).
+  */
+  const planned = docs.filter((d) => d.kind === 'flow').map((d) => readFlow(d.id, d.data));
+  const all = [...planned, ...lib.docs('flow').filter((e) => !planned.some((f) => f.id === e.id)).map((e) => readFlow(e.id, e.data))];
+  const resolve = (ref: string): string | null => {
+    const r = ref.trim();
+    if (all.some((f) => f.id === r)) return r;
+    const name = r.startsWith('@') ? r.slice(1) : r;
+    return all.find((f) => f.ref !== undefined && f.ref.toLowerCase() === name.toLowerCase())?.id ?? lib.byImportRef(name, 'flow')?.id ?? null;
+  };
+  const said = new Set<string>();
   return docs.filter((d) => d.kind === 'flow').flatMap((d) => {
     const flow = readFlow(d.id, d.data);
-    return flowProblems(flow, label, d.data).map((p) => ({ level: p.level, text: `Przebieg „${flow.name}”: ${p.text}` }));
+    const detours = detourProblems(flow, all, resolve).filter((p) => { if (p.step !== undefined) return true; if (said.has(p.text)) return false; said.add(p.text); return true; });
+    return [...flowProblems(flow, label, d.data), ...detours].map((p) => ({ level: p.level, text: `Przebieg „${flow.name}”: ${p.text}` }));
   });
 }
 const flowWarnings = (lib: CogitaLibrary, docs: ImportPlan['docs']): string[] => flowIssues(lib, docs).map((p) => (p.level === 'error' ? `${p.text} Bez tego zapis się nie uda.` : p.text));
@@ -1696,7 +1711,8 @@ Znajomość — liczy ją aplikacja, tak samo wszędzie (nie ustawia się jej w 
     "choice" {"title", "options": [{"label", "condition", "actions"}]} → "o0", "o1", … — wybór („Którędy dalej?”): opowieść zatrzymuje się i pokazuje WSZYSTKIE możliwości z nazwy i z tym, co czeka za każdą („3 slajdy do przeczytania · 5 pytań do odpowiedzi”); możliwość, której "condition" nie jest spełniony, stoi zamknięta i mówi, co ją otworzy (z warunkiem "not" — dlaczego jest zamknięta); aplikacja nigdy nie wybiera sama; drogi mogą wracać do wyboru (wtedy zostają otwarte na później);
     "chapters" {"title", "chapters": [{"title"}]} → "c0", "c1", … i "done" — ROZWIDLENIE, KTÓRE SIĘ SCHODZI: pokazuje wszystkie drogi z tym, co czeka za każdą; przerobione (w tej opowieści albo takie, których każdy krok uczący się już umie) stoją jako „ukończone”, „Ukończono 2 z 3 ścieżek”, a gdy wszystkie są za nim — idzie wyjściem "done"; "chapterEnd" — koniec drogi (wraca do wyboru); "restart" — ta droga od nowa;
     "condition" {"condition": warunek} → "yes" | "no" — bez ekranu, np. „pomiń, gdy umie”: {"type": "knowness", "of": "@temat", "band": "known"}; na ścieżce NIGDY nie jest wyborem uczącego się: rysuje się tylko gałąź, która go teraz dotyczy, a gdy tego jeszcze nie wiadomo — obie razem jako jedna część ze znakiem „automatycznie”; droga, która wraca do wyboru, ma na ścieżce krótką strzałkę z powrotem; ścieżka ma jeden „Koniec” na górze, a nad nim to, co w kolejności nauki przychodzi po tej opowieści (bez ręcznych odnośników); "set" {"actions": [{"type": "set"|"add", "value", "to"|"by"}]} → "next";
-    "expand" {"of", "threshold"} → "next" (wyjaśnia, gdy jeszcze nie umie); "opening" {"mode": "discovery"|"recall"}; "line" {"character", "of", "mood"}; "subflow" {"flow"}; "each" {"collection"|"kind", "flow"}; "handoff" {"flow"}; "end"; "return"
+    "expand" {"of", "threshold"} → "next" (wyjaśnia, gdy jeszcze nie umie); "opening" {"mode": "discovery"|"recall"}; "line" {"character", "of", "mood"}; "subflow" {"flow"}; "each" {"collection"|"kind", "flow"}; "handoff" {"flow"}; "detour" {"flow": "@inna-opowiesc", "label": "Chcesz wiedzieć więcej: …", "optional": true} → "done" | "skip"; "end"; "return"
+    ZAGŁĘBIENIE ("detour") — opowieści układaj jak drabinę: jedna ogólna, pod nią krótkie przeglądy etapów, pod nimi głębsze opowieści; PRZEGLĄD ZOSTAW KRÓTKI, głębszą treść daj do WŁASNEJ opowieści (własny przebieg, zwykle z własnym "unit") i połącz ją krokiem "detour" z "optional": true w miejscu, w którym pasuje; odtwarzacz pokazuje kartę: nazwę tamtej opowieści, co w niej czeka („7 slajdów · 16 pytań”), „Wejdź” i „Dalej bez tego” (gdy już ukończona: „już znasz”, „Przypomnij” i „Dalej”); „Wejdź” gra ją w środku (tytuł, ścieżka i liczniki są wtedy jej, nad nią pasek „Etap 1 › Dom w Becchi” z „Wróć do: Etap 1” — powrót na krok zagłębienia bez ukończenia), jej koniec wraca wyjściem "done", „Dalej bez tego” idzie wyjściem "skip" (zwykle oba do tego samego następnego kroku); postęp należy do opowieści: tamta jest ukończona raz, gdziekolwiek ją skończono, a jej pytania liczą się jak zawsze; pominięte zagłębienie niczego nie blokuje, na ścieżce liczy się jako przerobione (cienki obrys), a w „Co dalej” po końcu opowieści stoi jako pierwsze; przegląd opowieści obejmuje tylko jej własne pytania; "optional": false (rzadko) — tylko „Wejdź”, a koniec opowieści go wymaga (wtedy bez wyjścia "skip"); najwyżej 3 zagłębienia jedno w drugim; KOŁO (A → B → A) import odrzuca z nazwami obu; głębsza opowieść, której "unit" wymaga (pole z "prerequisite": "up") jednostki przeglądu, otwarta wprost przed ukończeniem przeglądu mówi „Najpierw: Etap 1” — z przeglądu wchodzi się zawsze; przykład: {"id": "z1", "type": "detour", "config": {"flow": "@bosko/becchi", "label": "Chcesz wiedzieć więcej: Dom w Becchi bez ojca", "optional": true}}, krawędzie {"from": "z1", "out": "done", "to": "s5"} i {"from": "z1", "out": "skip", "to": "s5"}
     krok "scene" {"page": "adres/strony", "scene": "klucz sceny", "title"} — scena prezentacji; wyjścia "next", przy pytaniu na scenie "right" / "wrong", przyciski "b0", "b1", …
   "goals": [{"id", "title", "condition"}] — cele (przebieg z celami to zadanie); osiągnięte zapisują się przy miejscu uczącego się i zostają osiągnięte; przebieg z celami opuszcza swoją jednostkę do doliny dopiero, gdy jest ukończony I każdy cel osiągnięty (bez celów: gdy ukończony);
   PRZEGLĄD NA KOŃCU OPOWIEŚCI (w tym samym przebiegu, te same pytania co w opowieści — ta sama historia kart, nigdy kopie): licznik z nazwą opowieści na początku ("deszcz.przeglad" — wartości należą do uczącego się, nie do jednej opowieści); krok "set" zeruje go na początku przeglądu, a "review": "<id tego kroku>" mówi, dokąd prowadzi „Powtórz przegląd” (bez "review": na początek); każde pytanie "right" → krok "set" {"actions": [{"type": "add", "value": "deszcz.przeglad", "by": 1}]} → następne pytanie, "wrong" → od razu następne pytanie; na końcu "condition" {"type": "value", "value": "deszcz.przeglad", "op": "ge", "than": 3} — "yes" → koniec, "no" → wraca na początek przeglądu (albo do wyboru „Spróbuj jeszcze raz” / „Zakończ na razie”: zakończona bez zdanego przeglądu opowieść zostaje na równinie jako „przegląd jeszcze niezdany”); cel z TYM SAMYM warunkiem: "goals": [{"id": "przeglad", "title": "Przegląd zdany", "condition": {"type": "value", "value": "deszcz.przeglad", "op": "ge", "than": 3}}]

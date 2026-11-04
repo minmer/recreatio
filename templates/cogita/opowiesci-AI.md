@@ -87,6 +87,24 @@ Po „Koniec” ścieżka i ekran zamknięcia same pokazują, co dalej: tematy i
 
 Przy wyborze opowieść się zatrzymuje: uczący się widzi wszystkie drogi z nazwy i z tym, co czeka za każdą („3 slajdy do przeczytania · 5 pytań do odpowiedzi”), zamknięte z powodem (warunek "condition" możliwości; "not" — „Zamknięte, bo: …”), i sam wybiera. Nadaj możliwościom nazwy, które mówią, dokąd prowadzą („Droga A: młodość”), a wyborowi "title".
 
+## 8b. Drabina opowieści i zagłębienia (2026-11-04)
+
+Opowieści układaj jak drabinę: **jedna ogólna** („Kim jest ksiądz Bosko?”), pod nią **krótkie przeglądy** etapów („Etap 1: Dzieciństwo i szkoły”), pod nimi **głębsze opowieści** („Dom w Becchi bez ojca”, …). Przegląd zostaw krótki. Głębszą treść daj do **własnej opowieści** (własny przebieg, zwykle z własnym "unit") i połącz ją w przeglądzie krokiem **"detour"** w miejscu, w którym pasuje:
+
+```json
+{"id": "z1", "type": "detour", "config": {"flow": "@bosko/becchi", "label": "Chcesz wiedzieć więcej: Dom w Becchi bez ojca", "optional": true}}
+```
+
+z krawędziami `{"from": "z1", "out": "done", "to": "s5"}` i `{"from": "z1", "out": "skip", "to": "s5"}` (zwykle oba wyjścia do tego samego następnego kroku).
+
+- **W odtwarzaczu** krok pokazuje kartę: nazwę tamtej opowieści, co w niej czeka („7 slajdów · 16 pytań”), „Wejdź” i „Dalej bez tego”. Gdy tamta jest już ukończona — „już znasz”, „Przypomnij” i „Dalej”.
+- **„Wejdź”** gra tamtą w środku: tytuł, ścieżka i liczniki są wtedy jej, nad nią pasek „Etap 1 › Dom w Becchi bez ojca” z „Wróć do: Etap 1” (powrót na krok zagłębienia, bez ukończenia). Jej „Koniec” wraca do przeglądu wyjściem "done". Kto wyjdzie z aplikacji w środku, po powrocie jest znów w środku.
+- **Postęp należy do opowieści**, nie do drogi: głębsza jest ukończona raz, gdziekolwiek ją skończono (wprost albo przez zagłębienie); jej pytania liczą się jak zawsze. Przegląd przeglądu obejmuje tylko jego własne pytania.
+- **Pominięte** ("optional": true, domyślnie) niczego nie blokuje — ani końca przeglądu, ani tego, co po nim; na ścieżce stoi jako przerobione (cienki obrys), a w „Co dalej” po końcu przeglądu jako pierwsze.
+- **"optional": false** (rzadko) — tylko „Wejdź”, bez wyjścia "skip"; koniec przeglądu go wymaga.
+- Najwyżej **3 zagłębienia** jedno w drugim. **Koło** (A → B → A) import odrzuca z nazwami obu opowieści.
+- Głębsza opowieść jest też **własnym polem** w krajobrazie i można ją zacząć wprost. Jeśli jej jednostka wymaga jednostki przeglądu (pole z "prerequisite": "up", np. „Wymaga” → jednostka etapu), otwarta wprost przed ukończeniem przeglądu mówi „Najpierw: „Etap 1””; z przeglądu wchodzi się zawsze.
+
 ## 9. Kolejność importu
 
 1. Utwórz stronę (sam adres), jeśli opowieść jest prezentacją — przebieg musi znać jej adres.
@@ -125,3 +143,5 @@ Jeden dokument może też zmieniać i usuwać to, co już jest — wszystko w je
 - Rozwidlenie bez powrotu — po pierwszej drodze opowieść idzie dalej i reszta dróg przepada; użyj bramki z powrotem albo "chapters".
 - Kopia storyboardu w "graph" przebiegu — dwa grafy rozjeżdżają się; wystarczy "presentation".
 - Sceny wstępu i spotkania bez "about" — ścieżka nie ma ich kroków.
+- Długi przegląd z całą głęboką treścią w środku — rozdziel: przegląd krótki, głębsze w osobnych opowieściach przez "detour".
+- Zagłębienie bez krawędzi "done" (albo "skip" przy "optional": true) — ścieżka ma ślepy zaułek; dwie opowieści, które przez zagłębienia wchodzą jedna w drugą — import odrzuca koło.

@@ -46,8 +46,9 @@ import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
 import { skipStep } from './flowAsk';
 import { landscapeWords, type LandscapeWords } from './landscapeWords';
-import { gateAnglesFor, groundOf, layoutLevel, levelItems, boundaryOf, nestAsRegions, outlineOf, regionPath, sketchOf, topicGraphOf, type LevelItem, type LevelLayout, type TopicGraph } from './levelMap';
-import { RegionMap, SignIcon, type MapCell, type MapCommand, type MapField, type MapGate, type MapRoute } from './RegionMap';
+import { nestAsRegions, topicGraphOf, type TopicGraph } from './levelMap';
+import { worldLayout, type WorldLayout } from './worldLayout';
+import { FlagIcon, SignIcon, WorldMap, type WorldCommand, type WorldTopic } from './WorldMap';
 import type { RegionTree } from './regions';
 import './landscape.css';
 
@@ -57,14 +58,6 @@ import './landscape.css';
 let W: Words = words('pl');
 let T: LandscapeWords = landscapeWords('pl');
 
-
-/** Der Stand eines Themas in Worten. */
-function stateWords(band: LsBand, steps: number, locked: boolean): string {
-  if (band === 'ring') return locked ? `${W.ready} — ${W.reviewFirstState}` : W.ready;
-  if (band === 'mountain') return T.nextAway(steps);
-  if (band === 'due') return W.due;
-  return W.youKnow;
-}
 
 /* -- Daten ------------------------------------------------------------------------------------------------------- */
 
@@ -310,7 +303,6 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const lang = baseLang(lib);
   W = words(lang);
   T = landscapeWords(lang);
-  const [sideEl, setSideEl] = useState<HTMLElement | null>(null);
   const [goalDone, setGoalDone] = useState<string | null>(null);
   const keep = useKept(`${lib.libraryId}:${viewKey}:${compact ? 'small' : 'big'}`, urlScope ?? null);
   const rename = useMemo(() => renamer(lib.merges()), [lib]);
@@ -367,7 +359,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   // eslint-disable-next-line react-hooks/exhaustive-deps -- dieselben Wünsche: dasselbe Objekt (sonst rechnete jede Zeichnung neu)
   const edits = useMemo(() => editsNow, [editsJson]);
   const movesKey = JSON.stringify(edits?.moves ?? null);
-  const [computed, setComputed] = useState<{ key: string; tree: RegionTree } | null>(null);
+  const [computed, setComputed] = useState<{ key: string; tree: RegionTree; world: WorldLayout } | null>(null);
   const [regionsFailed, setRegionsFailed] = useState<string | null>(null);
   const treeKey = `${graphKey(tg)}:${movesKey}:${lang}`;
   /*
@@ -389,10 +381,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         }
       }
     } catch { /* ohne Speicher: neu gerechnet, aus der Struktur allein */ }
-    void client.regions({ key: treeKey, graph: tg.graph, lang, ...(edits?.moves === undefined ? {} : { overrides: { moves: edits.moves } }), ...(previous === undefined ? {} : { previous }) })
-      .then((tree) => {
+    /* 2026-11-04 (Prompt 13) — dazu die eine Landschaft (feste Plätze aller Themen), im Worker. */
+    void client.world({ key: treeKey, graph: tg.graph, lang, ...(edits?.moves === undefined ? {} : { overrides: { moves: edits.moves } }), ...(previous === undefined ? {} : { previous }) })
+      .then(({ tree, world: made }) => {
         if (!alive) return;
-        setComputed({ key: treeKey, tree });
+        setComputed({ key: treeKey, tree, world: made });
         setRegionsFailed(null);
         try { localStorage.setItem(regionsMemKey, JSON.stringify({ moves: edits?.moves ?? {}, assignment: tree.assignment })); } catch { /* zu gross oder ohne Speicher */ }
       }, (e: unknown) => { if (alive) setRegionsFailed(e instanceof Error ? e.message : String(e)); });
@@ -405,27 +398,12 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nest, tg, computed, edits, lang]);
 
-  /*
-    2026-11-04 (Prompt 12) — wie viele Säulen eine Karte von Gebieten trägt (nach der Breite, in Stufen — so bleibt die Lage
-    beim Ändern der Breite stehen): passen alle Themen, steht jedes; sonst Teilgebiete oder eine Skizze je Gebiet.
-  */
-  const budget = boxWidth === 0 ? 0 : boxWidth < 560 ? 220 : boxWidth < 900 ? 380 : 600;
-  /* Eine Ebene (gemerkt je Baum): ihre Felder und Tore, aus der Struktur. */
-  const layoutFor = useMemo(() => {
-    const cache = new Map<string, LevelLayout>();
-    const fn = (open: string | null): LevelLayout => {
-      const k = open ?? '';
-      const had = cache.get(k);
-      if (had !== undefined) return had;
-      const empty: LevelLayout = { open, items: [], place: [], edges: [], depth: [], gates: [], gateEdges: [], rings: 0, cells: [], units: [], tiers: [] };
-      if (tree === null) return empty;
-      const items = levelItems(tree, open, tg);
-      const made = layoutLevel(items, tg, tree, open, gateAnglesFor(tree, open, fn), Math.max(1, budget));
-      cache.set(k, made);
-      return made;
-    };
-    return fn;
-  }, [tree, tg, budget]);
+  /* 2026-11-04 (Prompt 13) — DIE EINE LANDSCHAFT: feste Plätze (aus dem Worker; ein verschachtelter Krajobraz hier gerechnet). */
+  const world = useMemo((): WorldLayout | null => {
+    if (tree === null) return null;
+    if (nest !== null) return worldLayout(tree, tg);
+    return computed?.world ?? null;
+  }, [tree, nest, tg, computed]);
 
   const goalKey = `landscape:${viewKey}`;
   const [localGoal, setLocalGoal] = useState<string | null>(null);
@@ -513,19 +491,13 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return out;
   }, [cards, gauge, tg, learner]);
 
-  /* Das offene Gebiet: aus der Adresse — gibt es es nicht (mehr), die oberste Ebene; beim ersten Öffnen der nächste Schritt. */
-  const openRaw = keep.focus[0] ?? null;
-  const open = tree !== null && openRaw !== null && tree.regions.has(openRaw) ? openRaw : null;
-  /* Beim Öffnen beim nächsten Schritt — und ihm folgen (der Stand kommt nach und nach), bis der Lernende selbst geht. */
-  const follow = useRef(!keep.started);
-  const nav = (focus: readonly string[], chosenToo: string | null = null) => { follow.current = false; keep.setFocus(focus, chosenToo); };
-  useEffect(() => {
-    if (!follow.current || tree === null || !standFits || next === null) return;
-    const leaf = tree.leafOf[next.t];
-    if (leaf !== null && leaf !== undefined && leaf !== (keep.focus[0] ?? null)) keep.setFocus([leaf], null, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree, standFits, next]);
-  const layout = layoutFor(open);
+  /*
+    2026-11-04 (Prompt 13) — WAS DAS BILD GERADE FÜLLT (die Brotkrumen folgen dem Zoom) und was gezeigt werden soll (ein
+    Gebiet, ein Thema, „Ganze Karte").
+  */
+  const [viewChain, setViewChain] = useState<readonly string[]>([]);
+  const [flashT, setFlashT] = useState<number | null>(null);
+  useEffect(() => { if (flashT === null) return undefined; const id = window.setTimeout(() => setFlashT(null), 1600); return () => window.clearTimeout(id); }, [flashT]);
 
   /* Die Farbe: der Abschnitt (die ersten acht, in der Reihenfolge des Autors); ein Gebiet: der häufigste darin. */
   const colourOf = useMemo(() => {
@@ -569,10 +541,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
 
   const [note, setNote] = useState<string | null>(null);
   const [said, setSaid] = useState('');
-  const [command, setCommand] = useState<MapCommand | null>(null);
+  const [command, setCommand] = useState<WorldCommand | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  /* Wann zuletzt in ein Gebiet gezoomt wurde (der zweite Klick eines Doppelklicks wählt drinnen nichts). */
-  const enteredAt = useRef(0);
 
   /* -- Lernen ------------------------------------------------------------------------------------------- */
   const planFrom = async (graph: Graph): Promise<Plan | null> => {
@@ -611,7 +581,6 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     const plan = readPlan(list, { mode: 'temporal', order: 'general', pick: 'next', stackSize: 20, endWhenDone: true });
     setRunning({ key: `review:${id}:${Date.now()}`, source: { plan, cards, title: `${W.reviewFirstWhat}: ${labelOf(id)}` }, then: nextUp, origin: id });
   };
-  const lockNames = (id: string): string[] => lockCards(gauge, lib.prerequisites(), id, cards).map((g) => g.entry);
   const lockCount = (id: string): number => lockCards(gauge, lib.prerequisites(), id, cards).reduce((s, g) => s + g.cards.length, 0);
   const storyUnit = (id: string): Flow | undefined => (gauge.testing.has(id) ? undefined : storyOf(id));
   const openStory = (flow: Flow, review: boolean) => {
@@ -625,13 +594,14 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     origin, goal: goalSteps.length > 0 ? goalSteps : null, label: labelOf, openTopic,
     others: () => setRunning(null), back: () => setRunning(null)
   });
-  /* Ein Thema zeigen: in sein Gebiet, gewählt, die Karte bei ihm. */
+  /* Ein Thema zeigen: die Karte gleitet zu ihm, es leuchtet kurz auf (gewählt bleibt, was gewählt war). */
   const showTopic = (id: string) => {
     const t = topicIndex.get(id);
-    const leaf = t === undefined || tree === null ? null : tree.leafOf[t] ?? null;
-    if (leaf !== null && leaf !== open) nav([leaf], id); else { follow.current = false; setChosen(id); }
-    setCommand({ kind: 'focus', at: Date.now() });
+    if (t === undefined) return;
+    setFlashT(t);
+    setCommand({ kind: 'topic', key: String(t), at: Date.now() });
   };
+  const selectTopic = (id: string) => { setChosen(id); showTopic(id); };
 
   /* Die Namen und Wünsche des Besitzers speichern (im Widok: sie gelten für jeden, der ihn sieht). */
   const viewDoc = lib.docs('view').find((d) => d.id === viewKey);
@@ -643,108 +613,49 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     void lib.saveDoc('view', { ...data, landscape: { ...ls, regions: patch(was) } }, viewDoc.id).catch((e: unknown) => setNote(e instanceof Error ? e.message : String(e)));
   };
 
-  /* -- Die Felder der offenen Ebene ---------------------------------------------------------------------- */
-  const nextItem = next === null ? -1 : layout.items.findIndex((it) => it.topics.includes(next.t));
-  const goalT = goal === null ? undefined : topicIndex.get(goal);
-  const aggregate = (it: LevelItem) => {
-    let learned = 0; let due = 0; let ready = 0; let lockedReady = 0; let minSteps = Number.POSITIVE_INFINITY; let known = 0; let total = 0;
-    for (const t of it.topics) {
-      const i = infoOf(t);
-      known += i.known;
-      total += i.total;
-      if (i.band === 'known' || i.band === 'due') { learned += 1; if (i.band === 'due') due += 1; continue; }
-      if (i.band === 'ring') { if (i.locked) lockedReady += 1; else ready += 1; }
-      if (i.band !== null) minSteps = Math.min(minSteps, i.steps);
+  /* -- 2026-11-04 (Prompt 13): was jedes Thema auf der einen Karte zeigt ---------------------------------- */
+  /* Die Farbe eines Themas: die seines obersten Gebiets (benachbarte Gebiete verschieden); ohne Gebiete: sein Abschnitt. */
+  const topSubject = useMemo(() => { const m = new Map<string, number>(); (world?.top ?? []).forEach((k, i) => m.set(k, i % 8)); return m; }, [world]);
+  const worldTopics = useMemo((): WorldTopic[] => tg.graph.ids.map((id, t) => {
+    const info = infoOf(t);
+    const band = info.band ?? 'mountain';
+    const topKey = world?.chain[t]?.[0];
+    return { id, label: tg.graph.labels[t], steps: info.steps, band, subject: topKey !== undefined ? topSubject.get(topKey) ?? -1 : colourOf([t]), glow: band === 'ring' && !info.locked, sign: band === 'ring' && info.locked ? 'first' : band === 'due' ? 'due' : null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [tg, stand, state, world, topSubject, colourOf]);
+  /* Je Gebiet: wie viel darin gekonnt ist und was jetzt geht. */
+  const regionStats = useMemo(() => {
+    const m = new Map<string, { all: number; known: number; ready: number }>();
+    for (const r of world?.regions.values() ?? []) {
+      let known = 0; let ready = 0;
+      for (const x of r.topics) { const b = worldTopics[x]?.band; if (b === 'known' || b === 'due') known += 1; else if (b === 'ring') ready += 1; }
+      m.set(r.key, { all: r.topics.length, known, ready });
     }
-    const all = it.topics.length;
-    const band: LsBand = learned === all ? (due > 0 ? 'due' : 'known') : ready + lockedReady > 0 ? 'ring' : 'mountain';
-    return { learned, due, ready, lockedReady, steps: learned === all ? 0 : Number.isFinite(minSteps) ? minSteps : 1, band, share: total === 0 ? learned / Math.max(1, all) : known / total, all };
-  };
-  const fields: MapField[] = layout.items.map((it, i) => {
-    const p = layout.place[i];
-    const subject = colourOf(it.topics);
-    if (it.kind === 'topic') {
-      const t = it.topics[0];
-      const info = infoOf(t);
-      const band = info.band ?? 'mountain';
-      const sign = band === 'ring' && info.locked ? 'first' as const : band === 'due' ? 'due' as const : null;
-      return {
-        key: it.key, kind: 'topic', label: it.label, title: `${it.label}: ${stateWords(band, info.steps, info.locked)}`, x: p.x, y: p.y, steps: info.steps, band, sign, subject,
-        share: info.total === 0 ? (band === 'known' ? 1 : 0) : info.known / info.total, glow: band === 'ring' && !info.locked, conquered: false, home: i === nextItem,
-        badge: goal === it.key && goalOpen.length > 0 ? goalOpen.length : null, startable: band !== 'mountain'
-      };
-    }
-    const a = aggregate(it);
-    const sign = a.ready === 0 && a.lockedReady > 0 ? 'first' as const : a.due > 0 ? 'due' as const : null;
-    /*
-      2026-11-04 (Prompt 12) — DAS INNERE: auf der Fläche des Gebiets jedes Thema als eigene Säule (eigene Höhe, eigene
-      Farbe) — oder je Teilgebiet / für das Ganze eine Skizze: das Niedrigste, das Höchste und das Lernbare.
-    */
-    const mine = layout.cells[i] ?? [];
-    const cells: MapCell[] = [];
-    const byUnit = new Map<number, typeof mine[number][]>();
-    for (const c of mine) { const list = byUnit.get(c.unit) ?? []; list.push(c); byUnit.set(c.unit, list); }
-    const partOf = [...byUnit.keys()];
-    /* Der Rand: die äusseren Kanten in der Reihenfolge des Umrisses — der erste Teil davon hell (so viel ist gelernt). */
-    const bound = boundaryOf(mine);
-    const rims = new Map<number, { k: number; lit: boolean }[]>();
-    bound.edges.forEach((loop, li) => loop.forEach((e, j) => {
-      const list = rims.get(e.cell) ?? [];
-      list.push({ k: e.k, lit: li === 0 && !(a.learned === a.all) && j < Math.round(a.share * loop.length) });
-      rims.set(e.cell, list);
-    }));
-    for (const [u, list] of byUnit) {
-      const unit = layout.units[u];
-      const topics = unit.mode === 'topics' ? unit.order : sketchOf(unit.topics, (t) => infoOf(t).steps, (t) => infoOf(t).band === 'ring', list.length);
-      list.forEach((c, k) => {
-        const t = topics[k];
-        if (t === undefined) return;
-        const info = infoOf(t);
-        const band = info.band ?? 'mountain';
-        cells.push({ key: tg.graph.ids[t], x: c.x, y: c.y, steps: info.steps, band, subject, glow: band === 'ring' && !info.locked, home: next !== null && next.t === t, part: partOf.indexOf(u), rim: rims.get(mine.indexOf(c)) ?? [] });
-      });
-    }
-    const state2 = a.learned === a.all ? T.conquered(it.label) : a.ready > 0 ? `${a.ready} ${W.ready}` : a.lockedReady > 0 ? T.nextFirst : T.nextAway(a.steps);
-    return {
-      key: it.key, kind: 'region', label: it.label, title: `${it.label} · ${T.themen(a.all)} · ${state2}`, x: p.x, y: p.y, steps: a.steps, band: a.band, sign, subject,
-      share: a.share, glow: a.ready > 0, conquered: a.learned === a.all, home: i === nextItem, cells,
-      outline: bound.loops, parts: byUnit.size > 1 ? [...byUnit.values()].map((list) => outlineOf(list)) : [],
-      badge: goalT !== undefined && it.topics.includes(goalT) && goalOpen.length > 0 ? goalOpen.length : null
-    };
-  });
-  const gates: MapGate[] = layout.gates.map((g) => ({ key: g.key, label: g.label, x: g.x, y: g.y, before: g.before, after: g.after }));
-  const ground = useMemo(() => groundOf(layout), [layout]);
-  /* Erobert: neu seit dem letzten Mal? */
-  const wonNow = fields.filter((f) => f.conquered).map((f) => f.key).sort().join('|');
+    return m;
+  }, [world, worldTopics]);
+  const conquered = useMemo(() => new Set([...regionStats].filter(([, s]) => s.all > 0 && s.known === s.all).map(([k]) => k)), [regionStats]);
+  /* Erobert: neu seit dem letzten Mal? (die obersten Gebiete) */
+  const wonNow = (world?.top ?? []).filter((k) => conquered.has(k)).sort().join('|');
   useEffect(() => {
-    if (!standFits || tree === null) return;
+    if (!standFits || world === null) return;
     let had: string[] = [];
     let first = false;
     try { const raw = localStorage.getItem(wonKey); if (raw === null) first = true; else had = JSON.parse(raw) as string[]; } catch { first = true; }
-    const now = fields.filter((f) => f.conquered && f.kind === 'region').map((f) => f.key);
+    const now = world.top.filter((k) => conquered.has(k));
     const fresh2 = now.filter((k) => !had.includes(k));
-    if (fresh2.length > 0 && !first) setWon(fields.find((f) => f.key === fresh2[0])?.label ?? null);
+    if (fresh2.length > 0 && !first) setWon(tree?.regions.get(fresh2[0])?.name ?? null);
     try { localStorage.setItem(wonKey, JSON.stringify([...new Set([...had, ...now])].slice(-400))); } catch { /* ohne Speicher */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wonNow, standFits]);
-
-  /* Der Weg auf dieser Ebene: jedes Thema der Liste auf sein Feld hier (ein Gebiet nimmt alle seine), doppelte zusammen. */
+  /* Was ein Thema öffnet (die Kanten umgekehrt). */
+  const opensOf = useMemo(() => { const out: number[][] = tg.graph.ids.map(() => []); tg.graph.needs.forEach((list, u) => { for (const p of list) out[p]?.push(u); }); return out; }, [tg]);
+  const chosenT = chosenId === null ? null : topicIndex.get(chosenId) ?? null;
+  const links = chosenT === null ? null : { needs: tg.graph.needs[chosenT] ?? [], opens: opensOf[chosenT] ?? [] };
+  /* Der Weg auf der Karte: zum gewählten Thema, sonst zum Ziel. */
   const routeIds: readonly string[] | null = routeShown !== null && routeOf !== null && routeOf.id === routeShown ? routeOf.list.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; })
     : goal !== null && goalOpen.length > 0 ? goalOpen : null;
-  const mapRoute = useMemo((): MapRoute | null => {
-    if (routeIds === null || routeIds.length === 0) return null;
-    const owner = new Map<number, string>();
-    layout.items.forEach((it) => { for (const t of it.topics) owner.set(t, it.key); });
-    /* Im Relief eines Gebiets steht ein Thema als eigene Säule: der Weg geht über sie. */
-    const drawnHere = new Set(fields.flatMap((f) => (f.cells ?? []).map((c) => c.key)));
-    const keyOf = (id: string) => { if (drawnHere.has(id)) return id; const t = topicIndex.get(id); return t === undefined ? undefined : owner.get(t); };
-    const long = routeIds.length > 8;
-    const drawn = long ? [...routeIds.slice(0, 5), routeIds[routeIds.length - 1]] : [...routeIds];
-    const keys: string[] = [];
-    for (const id of drawn) { const k = keyOf(id); if (k !== undefined && keys[keys.length - 1] !== k) keys.push(k); }
-    const rest = long ? [...new Set(routeIds.slice(5, -1).map(keyOf).filter((k): k is string => k !== undefined && !keys.includes(k)))] : [];
-    return { keys, rest };
-  }, [routeIds, layout, topicIndex, fields]);
+  const routeT = routeIds === null ? null : routeIds.map((x) => topicIndex.get(x)).filter((x): x is number => x !== undefined);
+  const regionName = useMemo(() => (key: string) => tree?.regions.get(key)?.name ?? key, [tree]);
 
   /* Immer in einer Hülle, deren Breite gemessen wird. */
   const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
@@ -831,14 +742,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   if (tree === null || !standFits || boxWidth === 0) return host(<p className="cg-muted" data-landscape-wait="">{W.wait}</p>);
   if (tg.graph.ids.length === 0) return host(<p className="cg-muted" data-landscape-empty="">{W.empty}</p>);
 
-  /* -- Navigation ---------------------------------------------------------------------------------------- */
-  const path = regionPath(tree, open);
-  const goUp = () => { const parent = open === null ? null : tree.regions.get(open)?.parent ?? null; nav(parent === null ? [] : [parent]); };
-  const enter = (key: string) => { enteredAt.current = Date.now(); nav([key]); setSaid(`${T.goIn}: ${tree.regions.get(key)?.name ?? ''}`); };
-  /*
-    2026-11-04 (Prompt 12) — EIN KLICK: ein Gebiet (mehr als eines darin) — hineinzoomen; ein Thema — wählen (Weg, Stand,
-    Knöpfe daneben); noch einmal auf das gewählte — beginnen, wenn es geht.
-  */
+  /* -- Navigation: eine Karte, die Brotkrumen folgen dem Zoom ----------------------------------------------- */
+  const here = viewChain.length === 0 ? null : tree.regions.get(viewChain[viewChain.length - 1]) ?? null;
+  const zoomTo = (key: string | null) => { setCommand(key === null ? { kind: 'fit', at: Date.now() } : { kind: 'region', key, at: Date.now() }); };
+  const toMe = () => { if (next === null) { zoomTo(null); return; } showTopic(tg.graph.ids[next.t]); };
+  const whole = () => zoomTo(null);
   const startTopic = (id: string) => {
     const i = infoById(id);
     const flow = storyUnit(id);
@@ -847,234 +755,186 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (i.band === 'ring') learnEntry(id);
     else if (i.band === 'due' || i.band === 'known') learnEntry(id, i.band !== 'known');
   };
-  const choose = (key: string) => {
-    if (Date.now() - enteredAt.current < 450) return;
-    const f = fields.find((x) => x.key === key);
-    if (f === undefined) return;
-    if (f.kind === 'region') { enter(key); return; }
-    follow.current = false;
-    if (chosen === key) { if (learner !== null && f.startable === true) startTopic(key); return; }
-    setChosen(key);
+  /* Ein Thema auf der Karte: gewählt; noch einmal auf das gewählte — beginnen, wenn es geht. */
+  const pick = (t: number) => {
+    const id = tg.graph.ids[t];
+    if (chosenId === id) { if (learner !== null && infoOf(t).band !== 'mountain') startTopic(id); return; }
+    setChosen(id);
   };
-  const toMe = () => {
-    if (next === null) { setCommand({ kind: 'fit', at: Date.now() }); return; }
-    const leaf = tree.leafOf[next.t] ?? null;
-    if (leaf !== null && leaf !== open) nav([leaf]); else setChosen(null);
-    setCommand({ kind: 'focus', at: Date.now() });
-  };
-  const whole = () => { if (open !== null) nav([]); else follow.current = false; setCommand({ kind: 'fit', at: Date.now() }); };
 
-  /* -- Was die Seitenleiste zeigt ------------------------------------------------------------------------- */
+  /* -- Die Zeile über der Karte: zuerst das eigene Land ----------------------------------------------------- */
   const wide = !compact && boxWidth >= 860;
   const mapWidth = wide ? Math.max(320, boxWidth - 352) : boxWidth;
   const nextName = next === null ? null : tg.graph.labels[next.t];
-  const nextHere = nextItem >= 0 ? layout.items[nextItem] : null;
-  const regionsHere = layout.items.filter((it) => it.kind === 'region');
-  const conqueredHere = fields.filter((f) => f.kind === 'region' && f.conquered).length;
-  const knownHere = fields.filter((f) => f.kind === 'topic' && (f.band === 'known' || f.band === 'due')).length;
+  const landCount = worldTopics.filter((x) => x.band === 'known' || x.band === 'due').length;
+  const readyCount = worldTopics.filter((x) => x.band === 'ring').length;
+  const tops = world?.top ?? [];
+  const wonCount = tops.filter((k) => conquered.has(k)).length;
   const nextLine = (
-    <div className="cg-ls-next" data-landscape-next={next === null ? '' : tg.graph.ids[next.t]} data-landscape-due={dueCards.length}>
-      <p>
-        {next === null ? T.nothingNext : (
-          <>
-            <strong>{T.nextIs}:</strong>{' '}
-            {nextHere !== null && nextHere.kind === 'region' ? <>{nextHere.label} ({T.nextReady})</> : <><TexText text={nextName ?? ''} /> ({next.first ? T.nextFirst : T.nextReady})</>}
-          </>
-        )}
-        {dueCards.length > 0 && <span className="cg-muted"> · {T.dueCards(dueCards.length)}</span>}
-      </p>
+    <div className="cg-ls-next" data-landscape-next={next === null ? '' : tg.graph.ids[next.t]} data-landscape-due={dueCards.length} data-landscape-land={landCount}>
+      <p data-landscape-summary="">{T.summary(landCount, wonCount, tops.length, readyCount, dueCards.length)}</p>
       <div className="wk-actions">
-        {next !== null && learner !== null && (nextHere !== null && nextHere.kind === 'region'
-          ? <button type="button" className="wk-btn" onClick={() => enter(nextHere.key)} data-landscape-next-go="">{T.goIn}: {nextHere.label}</button>
-          : next.first
-            ? <button type="button" className="wk-btn" onClick={() => reviewFirst(tg.graph.ids[next.t])} data-landscape-next-go="first">{W.reviewFirst(lockCount(tg.graph.ids[next.t]))}</button>
-            : <button type="button" className="wk-btn" onClick={() => { const id = tg.graph.ids[next.t]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }} data-landscape-next-go="learn">{T.learnIt(nextName ?? '')}</button>)}
-        {next !== null && nextHere === null && <button type="button" className="wk-btn wk-btn-line" onClick={toMe} data-landscape-to-me="">{T.toMe}</button>}
+        {next !== null && learner !== null && (next.first
+          ? <button type="button" className="wk-btn" onClick={() => reviewFirst(tg.graph.ids[next.t])} data-landscape-next-go="first">{W.reviewFirst(lockCount(tg.graph.ids[next.t]))}</button>
+          : <button type="button" className="wk-btn" onClick={() => { const id = tg.graph.ids[next.t]; const flow = storyUnit(id); if (flow !== undefined) openStory(flow, false); else learnEntry(id); }} data-landscape-next-go="learn">{T.learnIt(nextName ?? '')}</button>)}
         {dueCards.length > 0 && learner !== null && <button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(T.dueCards(dueCards.length), dueCards)} data-landscape-review-due={dueCards.length}>{T.reviewDue(dueCards.length)}</button>}
       </div>
     </div>
   );
-  const chosenField = chosenId === null ? undefined : fields.find((f) => f.key === chosenId);
-  const topicPanel = chosenId !== null ? (
-    <TopicPanel id={chosenId} info={infoById(chosenId)} route={routeOf !== null && routeOf.id === chosenId ? routeOf.list : null} goal={goal}
-      story={(() => { const flow = storyUnit(chosenId); return flow === undefined ? null : { stage: stageOf(flow), open: (review: boolean) => openStory(flow, review) }; })()}
-      unitSize={unitTopics(chosenId).length} canLearn={learner !== null} note={note} lockNames={lockNames} lockCount={lockCount} bandOf={bandOf}
-      unlocks={(tg.graph.ids.map((x, u) => ((tg.graph.needs[u] ?? []).includes(topicIndex.get(chosenId)!) ? x : null)).filter((x): x is string => x !== null))}
-      questions={[...new Set(cards.filter((c) => c.template === undefined && (c.about ?? []).includes(chosenId)).map((c) => c.entity ?? c.question))]}
-      routeShown={routeShown === chosenId} onRoute={(on) => setRouteShown(on ? chosenId : null)}
-      onLearn={learnEntry} onReview={(id, band) => learnEntry(id, band !== 'known')} onReviewFirst={(id) => { const flow = storyUnit(id); reviewFirst(id, flow === undefined ? undefined : () => openStory(flow, false)); }}
-      onGoal={(id, on) => { setGoal(on ? id : null); setSaid(on ? W.goalSet(labelOf(id)) : W.goalCleared); }} onUnit={(id) => keep.setUnit(id)} onShow={showTopic}
-      onClose={() => setChosen(null)} {...(onOpen === undefined ? {} : { onOpen })}
-      move={writes && nest === null && tree.levels > 0 ? {
-        options: [...tree.regions.values()].filter((r) => r.level === 1).map((r) => ({ key: r.key, name: r.name })).sort((a, b) => a.name.localeCompare(b.name, lang)),
-        current: tree.leafOf[topicIndex.get(chosenId)!] ?? null,
-        onMove: (key) => saveEdits((was) => ({ ...was, moves: { ...(was.moves ?? {}), [chosenId]: key } }))
-      } : null} />
-  ) : null;
-  const here = open === null ? null : tree.regions.get(open) ?? null;
-  const parentLayout = open === null ? null : layoutFor(tree.regions.get(open)?.parent ?? null);
-  const at = parentLayout === null || open === null ? -1 : parentLayout.items.findIndex((it) => it.key === open);
-  const opensNext = at < 0 || parentLayout === null ? [] : parentLayout.edges.filter(([a]) => a === at).map(([, b]) => parentLayout.items[b]);
-  const needsBefore = at < 0 || parentLayout === null ? [] : parentLayout.edges.filter(([, b]) => b === at).map(([a]) => parentLayout.items[a]);
-  const dueHere = here === null ? [] : dueCards.filter((c) => cardEntities(c).some((e) => { const t = topicIndex.get(e); return t !== undefined && here.topics.includes(t); }));
-  /* 2026-11-04 (Prompt 12) — „Als Nächstes" im Gebiet: JEDES jetzt lernbare Thema (erst die freien, dann „erst wiederholen"). */
-  const readyHere = (here === null ? tg.graph.ids.map((_, t) => t) : here.topics)
-    .filter((t) => infoOf(t).band === 'ring')
+
+  /* -- Das kurze Panel eines Themas ----------------------------------------------------------------------- */
+  const chosenInfo = chosenId === null ? null : infoById(chosenId);
+  const topicPanel = chosenId !== null && chosenT !== null && chosenInfo !== null ? (() => {
+    const list = routeOf !== null && routeOf.id === chosenId ? routeOf.list : null;
+    /* Was noch fehlt, in der Reihenfolge des Lernens — was jetzt geht zuerst. */
+    const missingAll = list === null ? [] : list.filter((x) => x !== chosenId && bandOf(x) !== 'known' && bandOf(x) !== 'due');
+    const missing = [...missingAll.filter((x) => bandOf(x) === 'ring'), ...missingAll.filter((x) => bandOf(x) !== 'ring')];
+    const flow = storyUnit(chosenId);
+    const story = flow === undefined ? null : (() => {
+      const sp = storyPath(chosenId);
+      if (sp === null) return { parts: 0, done: 0, stage: stageOf(flow) };
+      const counted = sp.model.nodes.filter(countsAsStep);
+      return { parts: counted.length, done: counted.filter((nd) => sp.marks.state[sp.model.index.get(nd.id) ?? -1] === 'done').length, stage: stageOf(flow) };
+    })();
+    const leaf = world?.chain[chosenT]?.[world.chain[chosenT].length - 1];
+    const leafRegion = leaf === undefined ? undefined : tree.regions.get(leaf);
+    const leafStats = leaf === undefined ? undefined : regionStats.get(leaf);
+    const dueHereN = dueCards.filter((c) => cardEntities(c).includes(chosenId)).length;
+    return (
+      <TopicPanel id={chosenId} info={chosenInfo} missing={missing} missingKnown={list !== null} opens={opensOf[chosenT].map((u) => tg.graph.ids[u])} story={story} dueCount={dueHereN}
+        region={leafRegion === undefined || leafStats === undefined ? null : { name: leafRegion.name, all: leafStats.all, known: leafStats.known, key: leafRegion.key }}
+        canLearn={learner !== null} note={note} lockCount={lockCount} bandOf={bandOf} stepsOf={(x) => infoById(x).steps}
+        onLearnNow={(x) => { const i = infoById(x); if (i.band === 'ring' && i.locked) reviewFirst(x); else learnEntry(x); }}
+        onStart={() => startTopic(chosenId)}
+        onLead={() => { setGoal(chosenId); setSaid(W.goalSet(labelOf(chosenId))); const firstReady = missing.find((x) => bandOf(x) === 'ring'); if (firstReady !== undefined && learner !== null) { const i = infoById(firstReady); if (i.locked) reviewFirst(firstReady); else learnEntry(firstReady); } }}
+        onShow={showTopic} onPath={() => keep.setUnit(chosenId)} onClose={() => setChosen(null)} onRegion={(k) => zoomTo(k)}
+        owner={writes ? {
+          ...(onOpen === undefined ? {} : { open: () => onOpen(chosenId) }),
+          ...(nest === null && tree.levels > 0 ? {
+            move: {
+              options: [...tree.regions.values()].filter((r) => r.level === 1).map((r) => ({ key: r.key, name: r.name })).sort((a, b) => a.name.localeCompare(b.name, lang)),
+              current: tree.leafOf[chosenT] ?? null,
+              onMove: (key: string) => saveEdits((was) => ({ ...was, moves: { ...(was.moves ?? {}), [chosenId]: key } }))
+            }
+          } : {}),
+          ...(leafRegion !== undefined && nest === null ? { rename: { name: leafRegion.name, onSave: (name: string) => saveEdits((was) => ({ ...was, names: { ...(was.names ?? {}), [leafRegion.key]: { name, topics: leafRegion.topics.map((x) => tg.graph.ids[x]) } } })) } } : {})
+        } : null} />
+    );
+  })() : null;
+
+  /* -- Das Gebiet, das das Bild füllt (oder die ganze Karte) ------------------------------------------------- */
+  const hereTopics = here === null ? tg.graph.ids.map((_, x) => x) : here.topics;
+  const hereStats = here === null ? { all: hereTopics.length, known: landCount } : regionStats.get(here.key) ?? { all: hereTopics.length, known: 0 };
+  /* „Als Nächstes" im Gebiet: JEDES jetzt lernbare Thema (erst die freien, dann „erst wiederholen"). */
+  const readyHere = hereTopics.filter((x) => infoOf(x).band === 'ring')
     .sort((a, b) => Number(infoOf(a).locked) - Number(infoOf(b).locked) || depthOfTopic[a] - depthOfTopic[b] || (tg.graph.rank?.[a] ?? a) - (tg.graph.rank?.[b] ?? b));
+  const dueHere = here === null ? dueCards : dueCards.filter((c) => cardEntities(c).some((e) => { const x = topicIndex.get(e); return x !== undefined && here.topics.includes(x); }));
   const regionPanel = (
-    <section className="cg-ls-region" data-landscape-region={open ?? ''}>
+    <section className="cg-ls-region" data-landscape-region={here?.key ?? ''}>
       <div className="cg-row-between">
-        <p className="cg-ls-qtitle"><strong>{here === null ? (baseName || T.wholeMap) : here.name}</strong></p>
-        {writes && here !== null && nest === null && editing !== open && <button type="button" className="wk-link-btn" onClick={() => setEditing(open)} data-landscape-rename="">{T.rename}</button>}
+        <p className="cg-ls-qtitle"><strong>{here === null ? (baseName || T.wholeMap) : here.name}</strong>{here !== null && conquered.has(here.key) && <> <FlagIcon /></>}</p>
+        {writes && here !== null && nest === null && editing !== here.key && <button type="button" className="wk-link-btn" onClick={() => setEditing(here.key)} data-landscape-rename="">{T.rename}</button>}
       </div>
-      {editing !== null && editing === open && here !== null && (
-        <RenameBox name={here.name} onSave={(name) => { saveEdits((was) => ({ ...was, names: { ...(was.names ?? {}), [here.key]: { name, topics: here.topics.map((t) => tg.graph.ids[t]) } } })); setEditing(null); }} onCancel={() => setEditing(null)} />
+      {editing !== null && here !== null && editing === here.key && (
+        <RenameBox name={here.name} onSave={(name) => { saveEdits((was) => ({ ...was, names: { ...(was.names ?? {}), [here.key]: { name, topics: here.topics.map((x) => tg.graph.ids[x]) } } })); setEditing(null); }} onCancel={() => setEditing(null)} />
       )}
-      <p className="cg-muted cg-ls-numbers" data-landscape-region-topics={here?.topics.length ?? tg.graph.ids.length}>
-        {T.inRegion(here?.topics.length ?? tg.graph.ids.length)}
-        {regionsHere.length > 0 ? <> · <span data-landscape-tally={`${conqueredHere}/${regionsHere.length}`}>{T.tally(conqueredHere, regionsHere.length)}</span></> : <> · {T.knownOf(knownHere, layout.items.length)}</>}
-      </p>
+      <p className="cg-muted cg-ls-numbers" data-landscape-region-topics={hereStats.all}>{T.knownOf(hereStats.known, hereStats.all)}</p>
       {readyHere.length > 0 && (
         <div data-landscape-ready-list={readyHere.length}>
           <p className="cg-ls-qh">{T.nextHere} — {T.nextList(readyHere.length)}</p>
           <ul className="cg-ls-qlist is-scroll">
-            {readyHere.slice(0, 12).map((t) => {
-              const id = tg.graph.ids[t];
+            {readyHere.slice(0, 10).map((x) => {
+              const id = tg.graph.ids[x];
               return (
                 <li key={id}>
-                  <button type="button" className="cg-ref" onClick={() => showTopic(id)} data-landscape-ready={id}><TexText text={entityNameTex(lib, id)} /></button>
-                  {infoOf(t).locked && <span className="cg-muted"> · {T.nextFirst}</span>}
+                  <button type="button" className="cg-ref" onClick={() => selectTopic(id)} data-landscape-ready={id}><TexText text={entityNameTex(lib, id)} /></button>
+                  {infoOf(x).locked && <span className="cg-muted"> · {T.nextFirst}</span>}
                 </li>
               );
             })}
           </ul>
-          {readyHere.length > 12 && <p className="cg-muted">{T.more(readyHere.length - 12)}</p>}
+          {readyHere.length > 10 && <p className="cg-muted">{T.moreN(readyHere.length - 10)}</p>}
         </div>
       )}
-      {needsBefore.length > 0 && <p className="cg-muted"><span className="cg-ls-qh">{T.comesFrom}</span> {needsBefore.map((it) => it.label).join(' · ')}</p>}
-      {opensNext.length > 0 && <p className="cg-muted" data-landscape-opens={opensNext.length}><span className="cg-ls-qh">{T.opens}</span> {opensNext.map((it) => it.label).join(' · ')}</p>}
-      {dueHere.length > 0 && learner !== null && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(`${W.review}: ${here?.name ?? ''}`, dueHere)} data-landscape-region-review={dueHere.length}>{T.reviewDue(dueHere.length)}</button></div>}
+      {dueHere.length > 0 && learner !== null && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(W.review + ": " + (here?.name ?? baseName), dueHere)} data-landscape-region-review={dueHere.length}>{T.reviewDue(dueHere.length)}</button></div>}
     </section>
   );
-  /* Die Ścieżka des gewählten Themas: dieselben Themen wie die Liste (von unten), darüber, was es öffnet; eine eigene Erzählung: ihre. */
-  const pathPanel = (() => {
-    if (chosenId === null || routeShown !== chosenId) return null;
-    const story = storyPath(chosenId);
-    if (story !== null) {
-      return (
-        <section className="cg-ls-pathpanel" data-landscape-pathpanel="story">
-          <p className="cg-muted">{T.storyHere}</p>
-          <PathMap model={story.model} marks={story.marks} size="full" words={W} title={`${W.pathTitle}: ${W.story}`} name={(id) => <TexText text={story.model.nodes[story.model.index.get(id) ?? -1]?.label ?? id} />} />
-        </section>
-      );
-    }
-    const list = routeOf !== null && routeOf.id === chosenId ? routeOf.list : [chosenId];
-    const unlocks = tg.graph.ids.filter((_, u) => (tg.graph.needs[u] ?? []).includes(topicIndex.get(chosenId)!)).slice(0, 6);
-    const items = [...list, ...unlocks.filter((x) => !list.includes(x))].map((id) => ({ id, label: labelOf(id) }));
-    const model = pathOfEntries(items, lib.prerequisites(), true);
-    const firstOpen = list.find((x) => { const b = bandOf(x); return b === 'ring'; }) ?? null;
-    return (
-      <section className="cg-ls-pathpanel" data-landscape-pathpanel="route" data-landscape-path-topics={list.length}>
-        <PathMap model={model} marks={pathMarks(model, gaugeKnow(gauge), firstOpen)} size="full" words={W} noun="topics" title={T.routeTitle} name={(id) => <TexText text={entityNameTex(lib, id)} />}
-          actions={(id, st) => (learner !== null ? <div className="wk-actions"><button type="button" className="wk-btn" onClick={() => learnEntry(id, st !== 'done')} data-path-learn={id}>{st === 'done' ? W.review : W.start}</button></div> : null)} />
-      </section>
-    );
-  })();
-  /* Die Legende sagt nur, was gerade im Bild ist (im Nahen weniger). */
-  const legend = (fore: number, visible: ReadonlySet<string>) => {
-    const seen = fields.filter((f) => visible.has(f.key));
-    const has = (p: (f: MapField) => boolean) => seen.some(p);
-    return (
-      <Legend fore={fore} show={{
-        glow: has((f) => f.glow), haze: has((f) => f.steps >= 3), due: has((f) => f.sign === 'due'), first: has((f) => f.sign === 'first'), route: mapRoute !== null,
-        badge: has((f) => f.badge != null), ring: has((f) => f.kind === 'region'), flag: has((f) => f.conquered), gate: gates.length > 0, home: has((f) => f.home)
-      }} folded={compact || !wide} />
-    );
-  };
+  /* Die Legende sagt nur, was gerade gilt. */
+  const legend = () => (
+    <Legend show={{ due: worldTopics.some((x) => x.sign === 'due'), first: worldTopics.some((x) => x.sign === 'first'), land: landCount > 0, glow: readyCount > 0, flag: conquered.size > 0, links: links !== null }} folded={compact || !wide} />
+  );
 
   return host(
-    <div className={`cg-ls${compact ? ' is-compact' : ''}${wide ? ' has-side' : ''}`} data-landscape={fields.length} data-landscape-levels={tree.levels} data-landscape-level={path.length}
-      data-landscape-ring={fields.filter((f) => f.glow).length} data-landscape-worker={client?.inWorker === true ? '1' : '0'} data-landscape-ms={stand?.ms.toFixed(1) ?? ''}>
+    <div className={`cg-ls${compact ? ' is-compact' : ''}${wide ? ' has-side' : ''}`} data-landscape={tg.graph.ids.length} data-landscape-levels={tree.levels} data-landscape-level={viewChain.length}
+      data-landscape-ring={readyCount} data-landscape-worker={client?.inWorker === true ? '1' : '0'} data-landscape-ms={stand?.ms.toFixed(1) ?? ''} data-landscape-world-ms={world?.ms.toFixed(0) ?? ''}>
       {(busy || fresh.pending) && <p className="cg-ls-busy" role="status" data-landscape-busy="">{W.computing}</p>}
       <div className="cg-ls-head">
         <div className="cg-ls-headrow">
-          <nav className="cg-ls-crumbs" aria-label={W.whereAmI} data-landscape-crumbs={path.length}>
-            <button type="button" className="wk-link-btn" disabled={open === null} onClick={() => nav([])} data-landscape-up="">{baseName || T.wholeMap}</button>
-            {path.map((key, i) => (
+          <nav className="cg-ls-crumbs" aria-label={W.whereAmI} data-landscape-crumbs={viewChain.length}>
+            <button type="button" className="wk-link-btn" disabled={viewChain.length === 0} onClick={whole} data-landscape-up="">{T.wholeMap}</button>
+            {viewChain.map((key, i) => (
               <span key={key} className="cg-ls-crumb">
                 <span aria-hidden>›</span>
-                {i === path.length - 1 ? <strong>{tree.regions.get(key)?.name ?? key}</strong> : <button type="button" className="wk-link-btn" onClick={() => nav([key])}>{tree.regions.get(key)?.name ?? key}</button>}
+                {i === viewChain.length - 1 ? <strong>{tree.regions.get(key)?.name ?? key}</strong> : <button type="button" className="wk-link-btn" onClick={() => zoomTo(key)}>{tree.regions.get(key)?.name ?? key}</button>}
               </span>
             ))}
           </nav>
           <div className="wk-actions">
             <button type="button" className="wk-btn wk-btn-line" onClick={toMe} data-landscape-me="">{T.toMe}</button>
             <button type="button" className="wk-btn wk-btn-line" onClick={whole} data-landscape-whole="">{T.wholeMap}</button>
-            {open !== null && <button type="button" className="wk-link-btn" onClick={goUp} data-landscape-goup="">{T.up}</button>}
           </div>
         </div>
         {nextLine}
-        {regionsHere.length > 0 && <p className="cg-ls-tally" data-landscape-tally-top={`${conqueredHere}/${regionsHere.length}`}>{T.tally(conqueredHere, regionsHere.length)}</p>}
         {won !== null && <p className="wk-note cg-ls-conquered" role="status" data-landscape-won={won}>{T.conquered(won)} <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setWon(null)}>×</button></p>}
         {goalDone !== null && <p className="wk-note" role="status" data-landscape-goal-done={goalDone}>{W.goalDone(labelOf(goalDone))} <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={() => setGoalDone(null)}>×</button></p>}
         {goal !== null && (
           <p className="cg-ls-goal" data-landscape-goal={goal} data-landscape-goal-steps={goalOpen.length}>
             <span>{W.goal}: <strong><TexText text={entityNameTex(lib, goal)} /></strong> — {T.toGoal(goalOpen.length)}</span>
-            <button type="button" className="wk-link-btn" onClick={() => showTopic(goal)}>{W.show}</button>
+            <button type="button" className="wk-link-btn" onClick={() => selectTopic(goal)}>{W.show}</button>
             <button type="button" className="wk-link-btn" onClick={() => setGoal(null)} data-landscape-goal-clear="">{W.clearGoal}</button>
           </p>
         )}
       </div>
-      {query.trim() !== '' && <SearchHits query={query} ids={tg.graph.ids} bandOf={bandOf} label={labelOf} goal={goal} onShow={showTopic} onGoal={(id) => { setGoal(id); setSaid(W.goalSet(labelOf(id))); }} />}
+      {query.trim() !== '' && <SearchHits query={query} ids={tg.graph.ids} bandOf={bandOf} label={labelOf} goal={goal} onShow={selectTopic} onGoal={(id) => { setGoal(id); setSaid(W.goalSet(labelOf(id))); }} />}
       <div className="cg-ls-body">
         <div className="cg-ls-main">
-          <RegionMap levelKey={`${treeKey}:${open ?? ''}:${budget}`} depth={path.length} fields={fields} gates={gates} ground={ground} route={mapRoute} chosen={chosenId} next={nextHere?.key ?? null}
-            focus={nextHere?.key ?? chosenId} width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner?.holder ?? 'me'}`} canUp={open !== null}
-            command={command} onChoose={choose} onGate={(key) => nav([key])} onUp={goUp} onBackground={() => setChosen(null)} legend={legend} />
-          {!wide && chosenField !== undefined && topicPanel !== null && (
-            <SheetBox label={chosenField.label} questKey={chosenField.key}>{topicPanel}</SheetBox>
+          {world !== null && (
+            <WorldMap world={world} topics={worldTopics} regionName={regionName} conquered={conquered} chosen={chosenT} flash={flashT} home={next?.t ?? null} links={links} route={routeT}
+              width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner?.holder ?? 'me'}`} command={command}
+              onPickTopic={pick} onView={setViewChain} onBackground={() => setChosen(null)} legend={legend} />
           )}
+          {!wide && topicPanel !== null && chosenId !== null && <SheetBox label={labelOf(chosenId)} questKey={chosenId}>{topicPanel}</SheetBox>}
           {!wide && regionPanel}
-          {!wide && pathPanel}
         </div>
         {wide && (
           <aside className="cg-ls-side" aria-label={W.goal} data-landscape-side="">
-            <div ref={setSideEl} className="cg-ls-side-pick">
-              {topicPanel !== null && <div className="cg-ls-quest is-side" role="region" aria-label={chosenField?.label ?? ''} data-landscape-quest={chosenId ?? ''}>{topicPanel}</div>}
-            </div>
-            {pathPanel}
+            {topicPanel !== null && <div className="cg-ls-quest is-side" role="region" aria-label={chosenId === null ? '' : labelOf(chosenId)} data-landscape-quest={chosenId ?? ''}>{topicPanel}</div>}
             {regionPanel}
-            {chosenId === null && <p className="cg-muted cg-ls-side-hint">{W.chooseField}</p>}
           </aside>
         )}
       </div>
-      {sideEl === null ? null : null}
       {more}
       <p className="cg-sr" aria-live="polite">{said}</p>
-      {!compact && <FieldList fields={fields} onChoose={choose} />}
+      {!compact && <TopicList topics={worldTopics} onChoose={(x) => selectTopic(tg.graph.ids[x])} />}
     </div>
   );
 }
 
-/* -- Die Legende: nur, was auf der Karte ist; im Engen zu „Legende" gefaltet ----------------------------------- */
+/* -- Die Legende: nur, was gerade gilt; im Engen zu „Legende" gefaltet ------------------------------------------ */
 
-function Legend({ fore, show, folded }: { fore: number; folded: boolean; show: Readonly<Record<'glow' | 'haze' | 'due' | 'first' | 'route' | 'badge' | 'ring' | 'flag' | 'gate' | 'home', boolean>> }) {
+function Legend({ show, folded }: { folded: boolean; show: Readonly<Record<'due' | 'first' | 'land' | 'glow' | 'flag' | 'links', boolean>> }) {
   const [open, setOpen] = useState(!folded);
   useEffect(() => { setOpen(!folded); }, [folded]);
   const body = (
     <ul className="cg-ls-legend" data-landscape-legend="">
-      <li><span className="cg-ls-legend-tones" aria-hidden><i /><i /><i /><i /></span>{T.legendColour}</li>
+      <li><span className="cg-ls-legend-tones" aria-hidden><i /><i /><i /><i /></span>{T.legendRegion}</li>
+      {show.land && <li data-landscape-legend-mark="land"><span className="cg-ls-legend-land" aria-hidden />{T.legendLand}</li>}
       <li data-landscape-legend-height=""><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path d="M-11,6 L-5,6 L-5,2 L1,2 L1,-2 L7,-2 L7,-6 L11,-6" /></svg>{T.legendHeight}</li>
       {show.glow && <li data-landscape-legend-mark="glow"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><polygon className="cg-ls-legend-glow" points="-8,0 -4,-5 4,-5 8,0 4,5 -4,5" /></svg>{T.legendGlow}</li>}
-      {show.haze && <li data-landscape-legend-mark="haze"><span className="cg-ls-legend-tones is-haze" aria-hidden><i /><i /><i /></span>{T.legendHaze}</li>}
-      {show.first && <li data-landscape-legend-mark="first"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="first" r={8} fore={fore} /></svg>{T.legendFirst}</li>}
-      {show.due && <li data-landscape-legend-mark="repeat"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="due" r={8} fore={fore} /></svg>{T.legendDue}</li>}
-      {show.route && <li data-landscape-legend-mark="route"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path className="cg-rm-routeline" d="M-10,5 L-2,-1 L6,3 L10,-5" /><circle className="cg-ls-legend-step" cx={-10} cy={5} r={3} /></svg>{T.legendRoute}</li>}
-      {show.badge && <li data-landscape-legend-mark="badge"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><rect className="cg-ls-legend-badge" x={-9} y={-6} width={18} height={12} rx={6} /></svg>{T.legendBadge}</li>}
-      {show.ring && <li data-landscape-legend-mark="ring"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><g className="cg-rm-area is-s0"><path className="cg-rm-area-fill" d="M-10,0 L-5,-6 L5,-6 L10,0 L5,6 L-5,6 Z" /><path className="cg-rm-area-edge" d="M-10,0 L-5,-6 L5,-6 L10,0 L5,6 L-5,6 Z" /><path className="cg-rm-area-ring" d="M-10,0 L-5,-6 L5,-6 L10,0" /></g></svg>{T.legendArea}</li>}
-      {show.flag && <li data-landscape-legend-mark="flag"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><g className="cg-ls-flagmark"><path d="M-2,7 V-7 L5,-4.5 L-2,-2" /></g></svg>{T.legendFlag}</li>}
-      {show.gate && <li data-landscape-legend-mark="gate"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><polygon className="cg-rm-gate-face" points="-8,0 -4,-5 4,-5 8,0 4,5 -4,5" /><polygon className="cg-rm-gate-door" points="-4,0 -2,-2.5 2,-2.5 4,0 2,2.5 -2,2.5" /></svg>{T.legendGate}</li>}
-      {show.home && <li data-landscape-legend-mark="home"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><g className="cg-ls-meicon"><circle cx={0} cy={-3.5} r={2.2} /><path d="M-3.5,6 Q0,-2 3.5,6 Z" /></g></svg>{T.legendHome}</li>}
+      {show.first && <li data-landscape-legend-mark="first"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="first" r={8} /></svg>{T.legendFirst}</li>}
+      {show.due && <li data-landscape-legend-mark="repeat"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="due" r={8} /></svg>{T.legendDue}</li>}
+      {show.flag && <li data-landscape-legend-mark="flag"><FlagIcon size={14} />{T.legendFlag}</li>}
+      {show.links && <li data-landscape-legend-mark="links"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path className="cg-ls-legend-needs" d="M-10,4 Q-4,-6 2,2" /><path className="cg-ls-legend-opens" d="M2,2 Q6,-4 11,-2" /></svg>{T.legendNeeds} · {T.legendOpens}</li>}
     </ul>
   );
   if (!folded) return <div className="cg-ls-legendbox">{body}</div>;
@@ -1086,125 +946,99 @@ function Legend({ fore, show, folded }: { fore: number; folded: boolean; show: R
   );
 }
 
-/* -- Das gewählte Thema ---------------------------------------------------------------------------------------- */
+/* -- Das gewählte Thema: kurz und zum Handeln ------------------------------------------------------------------- */
 
-function ProgressRing({ known, total }: { known: number; total: number }) {
-  const r = 15;
-  const share = total === 0 ? 0 : known / total;
-  return (
-    <svg className="cg-ls-qring" width={40} height={40} viewBox="-20 -20 40 40" aria-hidden>
-      <circle className="cg-ls-progress-bg" r={r} />
-      <circle className="cg-ls-progress-on" r={r} strokeDasharray={`${(2 * Math.PI * r * share).toFixed(1)} ${(2 * Math.PI * r).toFixed(1)}`} transform="rotate(-90)" />
-      <text y={4} textAnchor="middle" fontSize={10}>{Math.round(share * 100)}%</text>
-    </svg>
-  );
-}
-
-function TopicPanel({ id, info, route, goal, story, unitSize, canLearn, note, lockNames, lockCount, bandOf, unlocks, questions, routeShown, onRoute, onLearn, onReview, onReviewFirst, onGoal, onUnit, onShow, onClose, onOpen, move }: {
+function TopicPanel({ id, info, missing, missingKnown, opens, story, dueCount, region, canLearn, note, lockCount, bandOf, stepsOf, onLearnNow, onStart, onLead, onShow, onPath, onClose, onRegion, owner }: {
   id: string;
   info: TopicInfo;
-  /** Die Themen bis hierher (dieses zuletzt) — `null`: noch unterwegs. */
-  route: readonly string[] | null;
-  goal: string | null;
-  story: { readonly stage: StoryStage; readonly open: (review: boolean) => void } | null;
-  unitSize: number;
+  /** Was noch fehlt (in der Reihenfolge des Lernens, was jetzt geht zuerst). */
+  missing: readonly string[];
+  /** Der Weg ist gerechnet (sonst steht die Liste noch aus). */
+  missingKnown: boolean;
+  opens: readonly string[];
+  story: { readonly parts: number; readonly done: number; readonly stage: StoryStage } | null;
+  dueCount: number;
+  region: { readonly key: string; readonly name: string; readonly all: number; readonly known: number } | null;
   canLearn: boolean;
   note: string | null;
-  lockNames: (id: string) => readonly string[];
   lockCount: (id: string) => number;
   bandOf: (id: string) => LsBand | null;
-  unlocks: readonly string[];
-  questions: readonly string[];
-  routeShown: boolean;
-  onRoute: (on: boolean) => void;
-  onLearn: (id: string) => void;
-  onReview: (id: string, band: LsBand) => void;
-  onReviewFirst: (id: string) => void;
-  onGoal: (id: string, on: boolean) => void;
-  onUnit: (id: string) => void;
+  stepsOf: (id: string) => number;
+  onLearnNow: (id: string) => void;
+  onStart: () => void;
+  onLead: () => void;
   onShow: (id: string) => void;
+  onPath: () => void;
   onClose: () => void;
-  onOpen?: (id: string) => void;
-  move: { readonly options: readonly { readonly key: string; readonly name: string }[]; readonly current: string | null; readonly onMove: (key: string) => void } | null;
+  onRegion: (key: string) => void;
+  owner: { readonly open?: () => void; readonly move?: { readonly options: readonly { readonly key: string; readonly name: string }[]; readonly current: string | null; readonly onMove: (key: string) => void }; readonly rename?: { readonly name: string; readonly onSave: (name: string) => void } } | null;
 }) {
   const { lib } = useCtx();
+  const [renaming, setRenaming] = useState(false);
   const band = info.band ?? 'mountain';
-  const open = band === 'ring' || band === 'mountain';
-  const list = route === null ? null : route.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; });
-  const themen = list === null ? null : list.length;
-  const link = (x: string) => <button type="button" className="cg-ref" onClick={() => onShow(x)} data-landscape-next-item={x}><TexText text={entityNameTex(lib, x)} /></button>;
+  /* Der Stand in einem Satz. */
+  const sentence = band === 'known' ? T.stKnown : band === 'due' ? T.stDue(Math.max(1, dueCount)) : band === 'ring' ? (info.locked ? T.stLocked(lockCount(id)) : T.stReady) : T.stMissing(Math.max(1, missing.length));
+  const rowState = (x: string) => { const b = bandOf(x); return b === 'ring' ? T.rowReady : T.rowMissing(Math.max(1, stepsOf(x) - 1)); };
   return (
     <div className="cg-ls-q" data-landscape-topic={id}>
-      <div className="cg-ls-qhead" data-landscape-quest-head="">
-        <div className="cg-ls-qtop">
-          <p className="cg-ls-qtitle"><strong><TexText text={entityNameTex(lib, id)} /></strong></p>
-          <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={onClose} data-landscape-quest-close="">×</button>
-        </div>
-        <div className="cg-ls-qrow">
-          {info.total > 0 && <ProgressRing known={info.known} total={info.total} />}
-          <p className="cg-ls-qstate" data-landscape-state={band}>
-            {story !== null && story.stage === 'review' ? T.storyStage('review') : stateWords(band, info.steps, info.locked)}
-          </p>
-        </div>
-        {open && <p className="cg-muted cg-ls-numbers" data-landscape-numbers={`${info.steps}/${themen ?? ''}`}>{themen === null ? T.stufen(info.steps) : T.numbers(info.steps, themen)}</p>}
-        {story !== null && <p className="cg-muted" data-landscape-story-stage={story.stage}>{T.storyHere}</p>}
-        <div className="wk-actions">
-          {canLearn && story !== null && band !== 'mountain' && !(band === 'ring' && info.locked) && <button type="button" className="wk-btn" onClick={() => story.open(story.stage === 'review')} data-landscape-story={story.stage}>{T.storyButton(story.stage)}</button>}
-          {canLearn && story === null && band === 'ring' && !info.locked && <button type="button" className="wk-btn" onClick={() => onLearn(id)} data-landscape-learn="">{W.start}</button>}
-          {canLearn && band === 'ring' && info.locked && <button type="button" className="wk-btn" onClick={() => onReviewFirst(id)} data-landscape-review-first="">{W.reviewFirst(lockCount(id))}</button>}
-          {canLearn && story === null && (band === 'due' || band === 'known') && <button type="button" className={band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={() => onReview(id, band)} data-landscape-review="">{W.review}</button>}
-          {band === 'mountain' && <button type="button" className="wk-btn" onClick={() => onGoal(id, goal !== id)} data-landscape-set-goal="">{goal === id ? W.clearGoal : W.setGoal}</button>}
-          {open && <button type="button" className="wk-btn wk-btn-line" onClick={() => onRoute(!routeShown)} aria-pressed={routeShown} data-landscape-show-route="">{routeShown ? T.hideRoute : T.showRoute}</button>}
-          {unitSize > 1 && <button type="button" className="wk-link-btn" onClick={() => onUnit(id)} data-landscape-unit={id}>{T.inSection(unitSize)}</button>}
-          {onOpen !== undefined && <button type="button" className="wk-link-btn cg-ls-qopen" onClick={() => onOpen(id)} data-landscape-open="">{W.openEntry}</button>}
-        </div>
-        {!canLearn && band !== 'mountain' && <p className="cg-muted">{W.canLearnNote}</p>}
-        {info.locked && lockNames(id).length > 0 && (
-          <div data-landscape-review-first-list="">
-            <p className="cg-ls-qh">{W.reviewFirstWhat}</p>
-            <ul className="cg-ls-qlist is-scroll">{lockNames(id).map((x) => <li key={x}>{link(x)}</li>)}</ul>
-          </div>
-        )}
-        {note !== null && <p className="wk-note" role="status">{note}</p>}
-      </div>
-      {((list !== null && list.length > 1) || unlocks.length > 0 || questions.length > 0 || move !== null) && (
-        <div className="cg-ls-qbody">
-          {list !== null && list.length > 1 && (
-            <div className="cg-ls-route" data-landscape-route={list.length}>
-              <p className="cg-ls-qh">{goal === id ? T.routeHead(list.length) : T.routeHere(list.length)}</p>
-              <ol className="cg-ls-qlist is-scroll cg-ls-goalsteps">
-                {list.map((x, k) => (
-                  <li key={x} className={k === 0 ? 'is-next' : ''} data-landscape-route-step={k + 1}>
-                    <span className="cg-ls-goaltick" aria-hidden>{k + 1}</span>
-                    {x === id ? <strong><TexText text={entityNameTex(lib, x)} /></strong> : link(x)}
-                  </li>
-                ))}
-              </ol>
-              {list.length > 8 && routeShown && <p className="cg-muted" data-landscape-route-more={list.length - 6}>{T.more(list.length - 6)}</p>}
+      <div className="cg-ls-qtop">
+        <p className="cg-ls-qtitle"><strong><TexText text={entityNameTex(lib, id)} /></strong></p>
+        {owner !== null && (
+          <details className="cg-ls-more" data-landscape-owner="">
+            <summary aria-label={T.ownerTools} title={T.ownerTools}>⋯</summary>
+            <div className="cg-ls-more-body">
+              {owner.open !== undefined && <button type="button" className="wk-link-btn" onClick={owner.open} data-landscape-open="">{W.openEntry}</button>}
+              {owner.rename !== undefined && (renaming
+                ? <RenameBox name={owner.rename.name} onSave={(name) => { owner.rename!.onSave(name); setRenaming(false); }} onCancel={() => setRenaming(false)} />
+                : <button type="button" className="wk-link-btn" onClick={() => setRenaming(true)} data-landscape-rename-region="">{T.rename}: {owner.rename.name}</button>)}
+              {owner.move !== undefined && owner.move.options.length > 1 && (
+                <label className="wk-field" data-landscape-move="">
+                  <span>{T.moveTo}</span>
+                  <select value={owner.move.current ?? ''} onChange={(e) => { if (e.target.value !== '') owner.move!.onMove(e.target.value); }}>
+                    {owner.move.options.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
+                  </select>
+                </label>
+              )}
             </div>
-          )}
-          {unlocks.length > 0 && (
-            <>
-              <p className="cg-ls-qh">{W.unlocks}</p>
-              <ul className="cg-ls-qlist is-scroll" data-landscape-unlocks={unlocks.length}>{unlocks.map((x) => <li key={x}>{link(x)}</li>)}</ul>
-            </>
-          )}
-          {questions.length > 0 && (
-            <details data-landscape-questions={questions.length}>
-              <summary className="cg-ls-qh">{T.questionsIn} ({questions.length})</summary>
-              <ul className="cg-ls-qlist is-scroll">{questions.map((x) => <li key={x}><TexText text={entityNameTex(lib, x)} /></li>)}</ul>
-            </details>
-          )}
-          {move !== null && move.options.length > 1 && (
-            <label className="wk-field" data-landscape-move="">
-              <span>{T.moveTo}</span>
-              <select value={move.current ?? ''} onChange={(e) => { if (e.target.value !== '') move.onMove(e.target.value); }}>
-                {move.options.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
-              </select>
-            </label>
-          )}
+          </details>
+        )}
+        <button type="button" className="cg-ls-qclose" aria-label={W.close} onClick={onClose} data-landscape-quest-close="">×</button>
+      </div>
+      <p className="cg-ls-qstate" data-landscape-state={band}>{sentence}</p>
+      {band === 'mountain' && missingKnown && missing.length > 0 && (
+        <div data-landscape-missing={missing.length}>
+          <p className="cg-ls-qh">{T.needFirst}</p>
+          <ul className="cg-ls-need">
+            {missing.slice(0, 5).map((x) => (
+              <li key={x} className={bandOf(x) === 'ring' ? 'is-ready' : ''} data-landscape-missing-item={x}>
+                <button type="button" className="cg-ref" onClick={() => onShow(x)}><TexText text={entityNameTex(lib, x)} /></button>
+                <span className="cg-muted">{rowState(x)}</span>
+                {canLearn && bandOf(x) === 'ring' && <button type="button" className="wk-btn wk-btn-line is-small" onClick={() => onLearnNow(x)} data-landscape-learn-now={x}>{T.learnNow}</button>}
+              </li>
+            ))}
+          </ul>
+          {missing.length > 5 && <p className="cg-muted">{T.moreN(missing.length - 5)}</p>}
         </div>
       )}
+      {canLearn && (
+        <div className="wk-actions">
+          {band === 'mountain' && <button type="button" className="wk-btn" onClick={onLead} data-landscape-lead="">{T.leadMe}</button>}
+          {band === 'ring' && <button type="button" className="wk-btn" onClick={onStart} data-landscape-learn="">{info.locked ? W.reviewFirst(lockCount(id)) : story !== null ? T.storyButton(story.stage) : T.startIt}</button>}
+          {(band === 'due' || band === 'known') && <button type="button" className={band === 'due' ? 'wk-btn' : 'wk-btn wk-btn-line'} onClick={onStart} data-landscape-review="">{story !== null && band === 'known' ? T.storyButton(story.stage) : T.reviewIt}</button>}
+        </div>
+      )}
+      {!canLearn && band !== 'mountain' && <p className="cg-muted">{W.canLearnNote}</p>}
+      {note !== null && <p className="wk-note" role="status">{note}</p>}
+      {opens.length > 0 && (
+        <details className="cg-ls-opens" data-landscape-unlocks={opens.length}>
+          <summary>{T.opensNext(opens.length)}</summary>
+          <ul className="cg-ls-qlist is-scroll">{opens.map((x) => <li key={x}><button type="button" className="cg-ref" onClick={() => onShow(x)}><TexText text={entityNameTex(lib, x)} /></button></li>)}</ul>
+        </details>
+      )}
+      {story !== null && (
+        <p className="cg-muted cg-ls-storyline" data-landscape-story={story.stage}>{T.storyLine(story.parts, story.done)} · <button type="button" className="wk-link-btn" onClick={onPath} data-landscape-show-path="">{T.showPath}</button></p>
+      )}
+      {region !== null && <p className="cg-muted cg-ls-regionline"><button type="button" className="wk-link-btn" onClick={() => onRegion(region.key)} data-landscape-topic-region={region.key}>{T.regionLine(region.name, region.all, region.known)}</button></p>}
     </div>
   );
 }
@@ -1220,22 +1054,22 @@ function RenameBox({ name, onSave, onCancel }: { name: string; onSave: (name: st
   );
 }
 
-/** Dieselben Felder als Liste — für Vorleser, und für wer lieber liest als schaut. */
-function FieldList({ fields, onChoose }: { fields: readonly MapField[]; onChoose: (key: string) => void }) {
+/** Dieselben Themen als Liste — für Vorleser, und für wer lieber liest als schaut. */
+function TopicList({ topics, onChoose }: { topics: readonly WorldTopic[]; onChoose: (t: number) => void }) {
   const groups: { band: LsBand; title: string }[] = [
     { band: 'ring', title: W.listBands[0] }, { band: 'due', title: W.listBands[1] },
     { band: 'mountain', title: W.listBands[2] }, { band: 'known', title: W.listBands[3] }
   ];
   return (
     <details className="cg-ls-list" data-landscape-list="">
-      <summary>{W.asList(fields.length)}</summary>
+      <summary>{W.asList(topics.length)}</summary>
       {groups.map((g) => {
-        const of = fields.filter((f) => f.band === g.band).sort((a, b) => a.steps - b.steps || a.label.localeCompare(b.label));
+        const of = topics.map((x, i) => ({ x, i })).filter(({ x }) => x.band === g.band).sort((a, b) => a.x.steps - b.x.steps || a.x.label.localeCompare(b.x.label)).slice(0, 400);
         if (of.length === 0) return null;
         return (
           <section key={g.band}>
             <h5>{g.title} <span className="cg-muted">({of.length})</span></h5>
-            <ul>{of.map((f) => <li key={f.key}><button type="button" className="cg-ref" onClick={() => onChoose(f.key)}>{f.title}</button></li>)}</ul>
+            <ul>{of.map(({ x, i }) => <li key={x.id}><button type="button" className="cg-ref" onClick={() => onChoose(i)}>{x.label}</button></li>)}</ul>
           </section>
         );
       })}
