@@ -406,9 +406,9 @@
 .cg-wm-canvas:active { cursor: grabbing; }
 .cg-wm-over { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .cg-wm-label {
-  position: absolute; transform: translate(-50%, -50%); padding: 0.05rem 0.4rem; border-radius: var(--wk-radius-sm);
+  position: absolute; box-sizing: border-box; transform: translate(-50%, -50%); padding: 0.05rem 0.4rem; border-radius: var(--wk-radius-sm);
   font-size: var(--wk-text-xs); line-height: 1.25; text-align: center; color: var(--wk-ink); opacity: 0; transition: opacity 0.25s ease;
-  overflow-wrap: anywhere; display: inline-flex; align-items: center; gap: 0.2rem; white-space: normal;
+  overflow-wrap: anywhere; display: flex; justify-content: center; align-items: center; gap: 0.2rem; white-space: normal;
 }
 .cg-wm-label.is-region { font-weight: 600; background: color-mix(in oklab, var(--wk-surface) 78%, transparent); }
 .cg-wm-label.is-topic { color: var(--wk-ink); text-shadow: 0 0 3px var(--wk-surface), 0 0 2px var(--wk-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -435,3 +435,4 @@
 .cg-ls-storyline, .cg-ls-regionline { margin: 0; }
 .cg-ls-q .cg-ls-qtop { display: flex; align-items: center; gap: var(--wk-space-2); }
 .cg-wm-stage { position: relative; }
+.cg-wm-label.is-region.is-shown { pointer-events: auto; cursor: zoom-in; }

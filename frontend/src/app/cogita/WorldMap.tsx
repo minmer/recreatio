@@ -622,6 +622,9 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   }, [cam, screen]);
 
   const measured = useRef(new Map<string, [number, number]>());
+  /* Neu gemessene Namen: einmal neu verteilen (sonst blieben Schätzungen stehen, bis die Kamera sich bewegt). */
+  const [measureTick, setMeasureTick] = useState(0);
+  const measureSoon = useRef(0);
   /* -- Namen: Gebiete nach dem Zoom, nah die Themen ------------------------------------------------------------- */
   const labels = useMemo(() => {
     const list: LabelCandidate[] = [];
@@ -650,7 +653,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     /* Die wirkliche Grösse (gemessen, sobald ein Name einmal stand) gilt vor der Schätzung. */
     return placeLabels(list.map((l) => { const m = measured.current.get(`${l.key}|${l.text}`); return m === undefined ? l : { ...l, w: Math.max(l.w, m[0]), h: Math.max(l.h, m[1]) }; }), width, height);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered]);
+  }, [world, cam, proj, screen, regionName, topics, chosen, width, height, conquered, measureTick]);
 
   /* Zeichen auf Feldern, mit denen etwas zu tun ist (erst näher). */
   const signs = useMemo(() => {
@@ -667,7 +670,7 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
   }, [px, n, topics, screen, width, height]);
 
   const tip = useRef<HTMLDivElement>(null);
-  const hovered = hoverTopic !== null ? { title: topics[hoverTopic]?.label ?? '', hint: hoverTopic === chosen ? T.hintStart : T.hintSelect } : hoverRegion !== null ? { title: regionName(hoverRegion), hint: T.hintZoom } : null;
+  const hovered = hoverTopic !== null ? { title: topics[hoverTopic]?.label ?? '', hint: hoverTopic === chosen ? (topics[hoverTopic]?.band === 'mountain' ? '' : T.hintStart) : T.hintSelect } : hoverRegion !== null ? { title: regionName(hoverRegion), hint: T.hintZoom } : null;
   const visible = new Set<string>();
   for (const l of labels) if (l.shown && l.key.startsWith('r:')) visible.add(l.key.slice(2));
   const rotNow = ((Math.round(cam.rot / 60) * 60) % 360 + 360) % 360;
@@ -685,7 +688,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
           const rk = isRegion ? l.key.slice(2) : null;
           return (
             <span key={l.key} className={`cg-wm-label${isRegion ? ' is-region' : ' is-topic'}${l.shown ? ' is-shown' : ''}`} data-wm-label={l.key} data-wm-box={[l.x - l.w / 2, l.y - l.h / 2, l.w, l.h].map((v) => v.toFixed(0)).join(',')}
-              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.maxWidth = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
+              onClick={rk === null ? undefined : () => { const c = regionCam(rk); if (c !== null) glide(c); }}
+              ref={(el) => { if (el !== null) { const sk = `${l.key}|${l.text}`; if (!measured.current.has(sk) && el.offsetWidth > 0) { measured.current.set(sk, [el.offsetWidth, el.offsetHeight]); if (measureSoon.current === 0) measureSoon.current = window.setTimeout(() => { measureSoon.current = 0; setMeasureTick((x) => x + 1); }, 60); } el.style.left = `${l.x.toFixed(1)}px`; el.style.top = `${l.y.toFixed(1)}px`; el.style.width = `${l.w.toFixed(0)}px`; el.style.opacity = l.shown ? String(Math.min(1, l.alpha)) : '0'; } }}>
               {rk !== null && conquered.has(rk) && <FlagIcon />}{l.text}
             </span>
           );
