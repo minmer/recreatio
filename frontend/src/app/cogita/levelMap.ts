@@ -152,16 +152,21 @@ export function levelItems(tree: RegionTree, open: string | null, tg: TopicGraph
 }
 
 export interface LevelPlace {
+  /** Der erste Platz des Feldes (bei einem Gebiet: wo seine Fläche beginnt, neben dem, worauf es baut). */
   readonly q: number;
   readonly r: number;
+  /** Die Mitte des Feldes (bei einem Gebiet: die Mitte seiner Fläche). */
   readonly x: number;
   readonly y: number;
+  /** Der Ring des ersten Platzes (Abstand vom Lernenden). */
   readonly ring: number;
   /** Winkel im Fächer: 0 links, 180 rechts (Tore auch darunter: −180 … 360). */
   readonly angle: number;
+  /** Die Reihenfolge, in der gelegt wurde — eine gültige Reihenfolge des Lernens auf dieser Karte. */
+  readonly order: number;
 }
 
-export interface LevelGate extends LevelPlace {
+export interface LevelGate extends Omit<LevelPlace, 'order'> {
   /** Das verbundene Gebiet (auf der Ebene, auf der es neben diesem steht). */
   readonly key: string;
   readonly label: string;
@@ -170,6 +175,34 @@ export interface LevelGate extends LevelPlace {
   readonly after: boolean;
   readonly weight: number;
 }
+
+/** Ein Platz auf der Karte, der zu einem Feld gehört (ein Gebiet hat viele: seine Fläche). */
+export interface LevelCell {
+  readonly q: number;
+  readonly r: number;
+  readonly x: number;
+  readonly y: number;
+  /** Das Stück des Feldes (`LevelLayout.units`), zu dem der Platz gehört. */
+  readonly unit: number;
+}
+
+/**
+ * EIN STÜCK EINER FLÄCHE: ein Gebiet ganz — oder eines seiner Teilgebiete, wenn nicht jedes Thema eine eigene Säule
+ * bekommt. `topics`: jedes Thema eine Säule (in der Reihenfolge `order`: das Niedrigste zuerst, am Anfang der Fläche);
+ * `sketch`: `size` Säulen stehen für das Höchste, das Niedrigste und das Lernbare darin (`sketchOf`).
+ */
+export interface LevelUnit {
+  readonly item: number;
+  readonly key: string;
+  readonly label: string;
+  readonly topics: readonly number[];
+  readonly size: number;
+  readonly mode: 'topics' | 'sketch';
+  readonly order: readonly number[];
+}
+
+/** Wie ein Gebiet sein Inneres zeigt: jedes Thema · seine Teilgebiete mit ihrem Relief · eine kleine Skizze. */
+export type LevelTier = 'single' | 'topics' | 'parts' | 'sketch';
 
 export interface LevelLayout {
   readonly open: string | null;
@@ -181,48 +214,100 @@ export interface LevelLayout {
   readonly gates: readonly LevelGate[];
   /** Kanten zu Toren: [Feld, Tor, Tor davor?]. */
   readonly gateEdges: readonly (readonly [number, number, boolean])[];
-  /** Der äusserste Ring der Felder. */
+  /** Der äusserste Ring der Plätze. */
   readonly rings: number;
-}
-
-/** Die Plätze eines Ringes im Fächer (obere Hälfte, y ≥ 0), von links nach rechts. */
-function fanSlots(ring: number): { q: number; r: number; x: number; y: number; angle: number }[] {
-  if (ring === 0) return [{ q: 0, r: 0, x: 0, y: 0, angle: 90 }];
-  const out: { q: number; r: number; x: number; y: number; angle: number }[] = [];
-  for (let q = -ring; q <= ring; q += 1) {
-    for (let r = -ring; r <= ring; r += 1) {
-      if (hexDistance(0, 0, q, r) !== ring) continue;
-      const c = hexCenter(q, r);
-      if (c.y < -1e-9) continue;
-      out.push({ q, r, x: c.x, y: c.y, angle: (Math.atan2(c.y, -c.x) * 180) / Math.PI });
-    }
-  }
-  return out.sort((a, b) => a.angle - b.angle || a.q - b.q);
-}
-
-/** Die Plätze eines ganzen Ringes (für Tore, auch vor dem Lernenden). */
-function fullRing(ring: number): { q: number; r: number; x: number; y: number; angle: number }[] {
-  const out: { q: number; r: number; x: number; y: number; angle: number }[] = [];
-  for (let q = -ring; q <= ring; q += 1) {
-    for (let r = -ring; r <= ring; r += 1) {
-      if (hexDistance(0, 0, q, r) !== ring) continue;
-      const c = hexCenter(q, r);
-      let angle = (Math.atan2(c.y, -c.x) * 180) / Math.PI;
-      if (angle < -90) angle += 360;
-      out.push({ q, r, x: c.x, y: c.y, angle });
-    }
-  }
-  return out;
+  /** Je Feld seine Plätze (in der Reihenfolge, in der die Fläche wuchs; ein Thema: einer). */
+  readonly cells: readonly (readonly LevelCell[])[];
+  readonly units: readonly LevelUnit[];
+  readonly tiers: readonly LevelTier[];
 }
 
 const angleGap = (a: number, b: number): number => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+const fanAngle = (x: number, y: number): number => (Math.atan2(y, -x) * 180) / Math.PI;
+const cellKey = (q: number, r: number): number => (q + 4096) * 8192 + (r + 4096);
+const NEIGHBOURS: readonly (readonly [number, number])[] = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+/** Im Fächer: vor dem Lernenden nichts (y ≥ 0). */
+const inFan = (q: number, r: number): boolean => r + q / 2 >= -1e-9;
 
 /**
- * DIE LAGE EINER EBENE — nur aus der Struktur (für jeden Lernenden dieselbe): Tiefe → Ring, Winkel beim Mittel der
- * Voraussetzungen (und der Tore, mit denen ein Feld verbunden ist), dann Nachbarn tauschen, wenn die Kanten kürzer werden.
- * `gateAngles`: je verbundenem Gebiet seine Richtung (aus der Karte darüber).
+ * WIE VIELE PLÄTZE JEDES GEBIET BEKOMMT (`budget`: so viele Säulen passen auf die Karte): passen alle Themen, steht jedes
+ * Thema als eigene Säule (Teilgebiete als eigene Stücke darin); sonst je Gebiet sein Anteil — für Teilgebiete, die damit
+ * noch je drei Säulen bekommen, ihr eigenes Relief, sonst eine kleine Skizze. Nie eine einzige Säule für ein Gebiet.
  */
-export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: RegionTree | null, open: string | null, gateAngles: ReadonlyMap<string, number> = new Map()): LevelLayout {
+export function unitsOf(items: readonly LevelItem[], tree: RegionTree | null, budget: number, tg: TopicGraph): { units: LevelUnit[]; tiers: LevelTier[] } {
+  const whole = globalDepth(tg);
+  const rank = (t: number) => tg.graph.rank?.[t] ?? t;
+  const ordered = (topics: readonly number[]) => [...topics].sort((a, b) => whole[a] - whole[b] || rank(a) - rank(b) || a - b);
+  const units: LevelUnit[] = [];
+  const tiers: LevelTier[] = [];
+  const total = items.reduce((s, it) => s + (it.kind === 'region' ? it.topics.length : 1), 0);
+  const all = total <= budget;
+  items.forEach((it, i) => {
+    if (it.kind === 'topic' || budget <= 0) {
+      units.push({ item: i, key: it.key, label: it.label, topics: it.topics, size: 1, mode: 'topics', order: ordered(it.topics) });
+      tiers.push('single');
+      return;
+    }
+    const region = tree?.regions.get(it.key);
+    const kids = region !== undefined && region.level > 1 ? region.children.map((k) => tree!.regions.get(k)).filter((r): r is NonNullable<typeof r> => r !== undefined && r.topics.length > 0) : [];
+    const share = all ? it.topics.length : Math.max(4, Math.round((budget * it.topics.length) / Math.max(1, total)));
+    if (all || it.topics.length <= share) {
+      if (kids.length > 1) for (const k of kids) units.push({ item: i, key: k.key, label: k.name, topics: k.topics, size: k.topics.length, mode: 'topics', order: ordered(k.topics) });
+      else units.push({ item: i, key: it.key, label: it.label, topics: it.topics, size: it.topics.length, mode: 'topics', order: ordered(it.topics) });
+      tiers.push('topics');
+      return;
+    }
+    if (kids.length > 1 && share >= 3 * kids.length) {
+      for (const k of kids) {
+        const b = Math.max(3, Math.round((share * k.topics.length) / it.topics.length));
+        const fits = k.topics.length <= b;
+        units.push({ item: i, key: k.key, label: k.name, topics: k.topics, size: fits ? k.topics.length : b, mode: fits ? 'topics' : 'sketch', order: ordered(k.topics) });
+      }
+      tiers.push('parts');
+      return;
+    }
+    units.push({ item: i, key: it.key, label: it.label, topics: it.topics, size: share, mode: 'sketch', order: ordered(it.topics) });
+    tiers.push('sketch');
+  });
+  return { units, tiers };
+}
+
+/**
+ * DIE SKIZZE EINES STÜCKS: `size` Themen, die für das Ganze stehen — das Niedrigste, das Höchste, was jetzt lernbar ist
+ * (bis zu einem Drittel), dazwischen gleichmässig nach der Höhe. In der Reihenfolge der Höhe (die Fläche steigt von ihrem
+ * Anfang an).
+ */
+export function sketchOf(topics: readonly number[], steps: (t: number) => number, ready: (t: number) => boolean, size: number): number[] {
+  if (topics.length <= size) return [...topics].sort((a, b) => steps(a) - steps(b) || a - b);
+  const byHeight = [...topics].sort((a, b) => steps(a) - steps(b) || a - b);
+  const pick = new Set<number>([byHeight[0], byHeight[byHeight.length - 1]]);
+  for (const t of byHeight) { if (pick.size >= Math.max(2, Math.ceil(size / 3)) + 1) break; if (ready(t)) pick.add(t); }
+  for (let k = 0; pick.size < size && k < size * 4; k += 1) {
+    const at = Math.round(((k % size) + 0.5) * (byHeight.length - 1) / size);
+    let j = at;
+    while (j < byHeight.length && pick.has(byHeight[j])) j += 1;
+    if (j < byHeight.length) pick.add(byHeight[j]);
+  }
+  for (const t of byHeight) { if (pick.size >= size) break; pick.add(t); }
+  return [...pick].sort((a, b) => steps(a) - steps(b) || a - b);
+}
+
+/**
+ * DIE LAGE EINER EBENE — nur aus der Struktur (für jeden Lernenden dieselbe), Stück für Stück in einer gültigen
+ * Reihenfolge des Lernens gelegt:
+ * <code>
+ *   Anfang     das erste Feld beim Lernenden (unten in der Mitte), weitere Anfänge daneben
+ *   Nachbarn   jedes Stück beginnt direkt neben dem, worauf es baut (Teilgebiete eines Gebiets nebeneinander), auf dem
+ *              niedrigsten freien Ring, nie weiter innen als seine Voraussetzungen — so windet sich eine Kette um den
+ *              Anfang (Schlange im Fächer), statt als gerade Treppe davonzulaufen; die Karte bleibt kompakt und rund
+ *   Richtungen jeder Zweig bekommt einen Sektor des Fächers nach seiner Grösse (wie ein Baum von der Mitte aus): Zweige
+ *              laufen in verschiedene Richtungen, wie Täler in verschiedene Berge
+ *   Fläche     ein Gebiet wächst um seinen ersten Platz, das Niedrigste zuerst — das Relief steigt von dort, wo man herkommt
+ * </code>
+ * `gateAngles`: je verbundenem Gebiet seine Richtung (aus der Karte darüber). `budget`: so viele Säulen passen auf die
+ * Karte (0: jedes Feld ein Platz).
+ */
+export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: RegionTree | null, open: string | null, gateAngles: ReadonlyMap<string, number> = new Map(), budget = 0): LevelLayout {
   const g = tg.graph;
   const n = items.length;
   /* Wem gehört welches Thema auf dieser Ebene? */
@@ -251,8 +336,7 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
   }
   const edges = [...weights.entries()].map(([k, w]) => { const [a, b] = k.split('>').map(Number); return [a, b, w] as const; }).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const prereqs: number[][] = Array.from({ length: n }, () => []);
-  const builds: number[][] = Array.from({ length: n }, () => []);
-  for (const [a, b] of edges) { prereqs[b].push(a); builds[a].push(b); }
+  for (const [a, b] of edges) prereqs[b].push(a);
   /* Die Tiefe: die längste Kette darunter (Kreise auf einer Ebene gibt es nicht — sicherheitshalber begrenzt). */
   const depth = new Array<number>(n).fill(-1);
   const busy = new Uint8Array(n);
@@ -268,8 +352,8 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
   };
   for (let i = 0; i < n; i += 1) depthOf(i);
   /*
-    Eine Karte von Themen: der Ring nach der Tiefe im GANZEN Graphen (der Rang unter den Tiefen dieser Karte) — ein Thema, das
-    in seinem Gebiet vorn steht, aber lange Ketten von draussen braucht, stünde sonst als hoher Berg vor den niedrigen. Die
+    Eine Karte von Themen: die Tiefe im GANZEN Graphen (der Rang unter den Tiefen dieser Karte) — ein Thema, das in seinem
+    Gebiet vorn steht, aber lange Ketten von draussen braucht, stünde sonst als hoher Berg vor den niedrigen. Die
     Reihenfolge bleibt: eine Voraussetzung ist im ganzen Graphen immer weniger tief als, was auf ihr baut.
   */
   if (n > 0 && items.every((it) => it.kind === 'topic')) {
@@ -303,24 +387,6 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
       gateOf.set(key, had);
     }
   }
-
-  /* Die Ringe: Tiefe d → Ring d (ein Anfang: in der Mitte), mehrere Anfänge: Ring d + 1; ein voller Ring schiebt weiter. */
-  const starts = depth.filter((d) => d === 0).length;
-  const order = items.map((_, i) => i).sort((a, b) => depth[a] - depth[b] || items[a].rank - items[b].rank || a - b);
-  const ringOf = new Array<number>(n).fill(0);
-  {
-    let ring = starts > 1 ? 1 : 0;
-    let used = 0;
-    let lastDepth = 0;
-    for (const i of order) {
-      if (depth[i] !== lastDepth) { ring += 1; used = 0; lastDepth = depth[i]; }
-      while (used >= fanSlots(ring).length) { ring += 1; used = 0; }
-      ringOf[i] = ring;
-      used += 1;
-    }
-  }
-  const rings = n === 0 ? 0 : Math.max(...ringOf);
-  /* Die Richtung jedes Tores: aus der Karte darüber — sonst (ohne sie) gleichmässig, die davor links, die danach rechts. */
   const gateKeys = [...gateOf.keys()].sort((a, b) => (gateOf.get(b)!.weight - gateOf.get(a)!.weight) || (a < b ? -1 : 1));
   const gateAngle = new Map<string, number>();
   gateKeys.forEach((k, j) => {
@@ -329,85 +395,197 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
     const info = gateOf.get(k)!;
     gateAngle.set(k, info.before && !info.after ? -30 - 20 * j : info.after && !info.before ? 210 + 20 * j : 90 + (j % 2 === 0 ? 1 : -1) * 30 * Math.ceil(j / 2));
   });
-  /* Ein Winkel im Fächer für ein Tor (das Tor selbst darf darunter liegen, ein Feld steht zu ihm hin). */
-  const toFan = (a: number): number => {
-    let x = ((a % 360) + 360) % 360;
-    if (x > 270) x -= 360;
-    return Math.max(0, Math.min(180, x));
-  };
+  const toFan = (a: number): number => { let x = ((a % 360) + 360) % 360; if (x > 270) x -= 360; return Math.max(0, Math.min(180, x)); };
+  const pulls: number[][] = Array.from({ length: n }, () => []);
+  for (const [item, key] of gateEdgesRaw) pulls[item].push(toFan(gateAngle.get(key) ?? 90));
 
-  const place: (LevelPlace | null)[] = new Array(n).fill(null);
-  const taken = new Set<string>();
-  const ringItems = new Map<number, number[]>();
-  for (let i = 0; i < n; i += 1) { const list = ringItems.get(ringOf[i]) ?? []; list.push(i); ringItems.set(ringOf[i], list); }
-  const groupAngles = new Map<string, number[]>();
-  for (let ring = 0; ring <= rings; ring += 1) {
-    const here = ringItems.get(ring) ?? [];
-    const slots = fanSlots(ring);
-    /* Wer schon viel Platziertes darunter hat, wählt zuerst. */
-    const placedPre = (i: number) => prereqs[i].filter((p) => place[p] !== null).length;
-    here.sort((a, b) => placedPre(b) - placedPre(a) || items[a].rank - items[b].rank || a - b);
-    const free = () => slots.filter((s) => !taken.has(`${s.q},${s.r}`));
-    here.forEach((i, k) => {
-      const targets: { a: number; w: number }[] = [];
-      for (const p of prereqs[i]) { const pl = place[p]; if (pl !== null) targets.push({ a: pl.angle, w: weights.get(`${p}>${i}`) ?? 1 }); }
-      for (const [item, key] of gateEdgesRaw) if (item === i) targets.push({ a: toFan(gateAngle.get(key) ?? 90), w: 2 });
-      let target: number;
-      if (targets.length > 0) {
-        const sw = targets.reduce((s, x) => s + x.w, 0);
-        target = targets.reduce((s, x) => s + x.a * x.w, 0) / sw;
-      } else {
-        const same = groupAngles.get(items[i].group);
-        target = same !== undefined && same.length > 0 && items[i].group !== '' ? same.reduce((s, x) => s + x, 0) / same.length : here.length <= 1 ? 90 : (180 * (k + 0.5)) / here.length;
-      }
-      const options = free();
-      let best = options[0];
-      let gap = Number.POSITIVE_INFINITY;
-      for (const s of options) { const d = Math.abs(s.angle - target); if (d < gap - 1e-9) { gap = d; best = s; } }
-      if (best === undefined) return;
-      taken.add(`${best.q},${best.r}`);
-      place[i] = { q: best.q, r: best.r, x: best.x, y: best.y, ring, angle: best.angle };
-      if (items[i].group !== '') { const list = groupAngles.get(items[i].group) ?? []; list.push(best.angle); groupAngles.set(items[i].group, list); }
-    });
-  }
-  /*
-    Die Tore am Rand: dicht um die Felder (zwei Sechsecke von ihnen weg), in ihrer Richtung von der Mitte der Felder aus —
-    nicht auf einem Ring um den Lernenden (das machte eine Ebene mit Toren davor doppelt so hoch).
-  */
-  const gateRing = rings + 2;
-  const placedItems = place.filter((p): p is LevelPlace => p !== null);
-  const midX = placedItems.reduce((s, p) => s + p.x, 0) / Math.max(1, placedItems.length);
-  const midY = placedItems.reduce((s, p) => s + p.y, 0) / Math.max(1, placedItems.length);
-  const around = (away: number): { q: number; r: number; x: number; y: number; angle: number }[] => {
-    if (placedItems.length === 0) return fullRing(gateRing);
-    const qs = placedItems.map((p) => p.q);
-    const rs = placedItems.map((p) => p.r);
-    const out: { q: number; r: number; x: number; y: number; angle: number }[] = [];
-    for (let q = Math.min(...qs) - away - 1; q <= Math.max(...qs) + away + 1; q += 1) {
-      for (let r = Math.min(...rs) - away - 1; r <= Math.max(...rs) + away + 1; r += 1) {
-        let near = Number.POSITIVE_INFINITY;
-        for (const p of placedItems) near = Math.min(near, hexDistance(p.q, p.r, q, r));
-        if (near !== away) continue;
-        const c = hexCenter(q, r);
-        let angle = (Math.atan2(c.y - midY, -(c.x - midX)) * 180) / Math.PI;
-        if (angle < -90) angle += 360;
-        out.push({ q, r, x: c.x, y: c.y, angle });
-      }
-    }
-    return out;
+  /* Die Stücke (ein Thema: eins; ein Gebiet: seine Fläche) und ihre Kanten. */
+  const { units, tiers } = unitsOf(items, tree, budget, tg);
+  const unitOfTopic = new Map<number, number>();
+  units.forEach((u, k) => { for (const t of u.topics) unitOfTopic.set(t, k); });
+  const unitNeeds = units.map((u, k) => {
+    const w = new Map<number, number>();
+    for (const t of u.topics) for (const p of g.needs[t] ?? []) { const v = unitOfTopic.get(p); if (v !== undefined && v !== k) w.set(v, (w.get(v) ?? 0) + 1); }
+    return w;
+  });
+  /* Die Tiefe eines Stücks unter den Stücken seines Feldes (Teilgebiete der Reihe nach). */
+  const unitDepth = new Array<number>(units.length).fill(-1);
+  const ubusy = new Uint8Array(units.length);
+  const unitDepthOf = (k: number): number => {
+    if (unitDepth[k] >= 0) return unitDepth[k];
+    if (ubusy[k] === 1) return 0;
+    ubusy[k] = 1;
+    let d = 0;
+    for (const v of unitNeeds[k].keys()) if (units[v].item === units[k].item) d = Math.max(d, unitDepthOf(v) + 1);
+    ubusy[k] = 0;
+    unitDepth[k] = d;
+    return d;
   };
-  const gateSlots = [...around(2), ...around(3)];
+  units.forEach((_, k) => unitDepthOf(k));
+  const rankOfUnit = (k: number) => Math.min(...units[k].topics.map((t) => g.rank?.[t] ?? t));
+
+  /* Die Sektoren: ein Baum von der Mitte aus (je Feld seine stärkste Voraussetzung), jeder Zweig nach seiner Grösse. */
+  const itemSize = items.map((_, i) => units.filter((u) => u.item === i).reduce((s, u) => s + u.size, 0));
+  const parent = items.map((_, i) => {
+    let best = -1;
+    let bw = -1;
+    for (const p of prereqs[i]) { const w = weights.get(`${p}>${i}`) ?? 1; if (w > bw || (w === bw && depth[p] > depth[best])) { bw = w; best = p; } }
+    return best;
+  });
+  const kidsOf: number[][] = Array.from({ length: n }, () => []);
+  parent.forEach((p, i) => { if (p >= 0) kidsOf[p].push(i); });
+  const byRank = (a: number, b: number) => items[a].rank - items[b].rank || a - b;
+  const subtree = new Array<number>(n).fill(0);
+  const sizeOf = (i: number, guard = 0): number => { if (subtree[i] > 0 || guard > n) return subtree[i]; subtree[i] = itemSize[i] + kidsOf[i].reduce((s, c) => s + sizeOf(c, guard + 1), 0); return subtree[i]; };
+  const sector: [number, number][] = items.map(() => [0, 180]);
+  const share = (list: number[], a0: number, a1: number, guard: number) => {
+    if (guard > n) return;
+    const sorted = [...list].sort(byRank);
+    const sum = sorted.reduce((s, c) => s + sizeOf(c), 0);
+    let at = a0;
+    for (const c of sorted) {
+      const w = ((a1 - a0) * sizeOf(c)) / Math.max(1, sum);
+      sector[c] = [at, at + w];
+      share(kidsOf[c], at, at + w, guard + 1);
+      at += w;
+    }
+  };
+  share(items.map((_, i) => i).filter((i) => parent[i] < 0), 0, 180, 0);
+
+  /* Die Reihenfolge: Feld für Feld nach der Tiefe (dann der Autor), im Feld seine Stücke nach ihrer Tiefe. */
+  const itemOrder = items.map((_, i) => i).sort((a, b) => depth[a] - depth[b] || items[a].rank - items[b].rank || a - b);
+  const unitOrder: number[] = [];
+  for (const i of itemOrder) {
+    const mine = units.map((_, k) => k).filter((k) => units[k].item === i);
+    mine.sort((a, b) => unitDepth[a] - unitDepth[b] || rankOfUnit(a) - rankOfUnit(b) || a - b);
+    unitOrder.push(...mine);
+  }
+
+  /* Legen: Stück für Stück an den besten freien Rand, dann um diesen Platz wachsen. */
+  const taken = new Map<number, number>();
+  const frontier = new Set<number>();
+  const unitCells: { q: number; r: number }[][] = units.map(() => []);
+  const ringOf = (q: number, r: number) => hexDistance(0, 0, q, r);
+  const angleAt = (q: number, r: number) => { const c = hexCenter(q, r); return fanAngle(c.x, c.y); };
+  const sectorPen = (k: number, q: number, r: number) => {
+    const ring = ringOf(q, r);
+    if (ring <= 1) return 0;
+    const [a0, a1] = sector[units[k].item];
+    const a = angleAt(q, r);
+    return (Math.max(0, a0 - a, a - a1) / 20) * Math.min(1, ring / 3);
+  };
+  const distTo = (q: number, r: number, cells: readonly { q: number; r: number }[]) => { let d = Number.POSITIVE_INFINITY; for (const c of cells) d = Math.min(d, hexDistance(q, r, c.q, c.r)); return d; };
+  const take = (k: number, q: number, r: number) => {
+    const key = cellKey(q, r);
+    taken.set(key, k);
+    frontier.delete(key);
+    unitCells[k].push({ q, r });
+    for (const [dq, dr] of NEIGHBOURS) { const a = q + dq; const b = r + dr; const nk = cellKey(a, b); if (inFan(a, b) && !taken.has(nk)) frontier.add(nk); }
+  };
+  const decode = (key: number): [number, number] => [Math.floor(key / 8192) - 4096, (key % 8192) - 4096];
+  const anchorRing = new Array<number>(units.length).fill(0);
+  /* Wie viele noch ungelegte Stücke auf jedes Stück bauen. */
+  const waiting = new Array<number>(units.length).fill(0);
+  unitNeeds.forEach((w) => { for (const v of w.keys()) waiting[v] += 1; });
+  const itemRing = new Array<number>(n).fill(-1);
+  for (const k of unitOrder) {
+    const u = units[k];
+    const needs = [...unitNeeds[k].entries()].filter(([v]) => unitCells[v].length > 0);
+    const siblings = units.map((_, v) => v).filter((v) => v !== k && units[v].item === u.item && unitCells[v].length > 0);
+    /* Nie weiter innen als, worauf es baut. */
+    /* Nie weiter innen als, worauf es baut — das erste Stück eines Feldes auch nicht als die Felder, auf die es baut. */
+    const first = siblings.length === 0;
+    let minRing = needs.reduce((m, [v]) => Math.max(m, anchorRing[v]), 0);
+    if (first) for (const p of prereqs[u.item]) if (itemRing[p] >= 0) minRing = Math.max(minRing, itemRing[p]);
+    let options = taken.size === 0 ? [cellKey(0, 0)] : [...frontier];
+    /* Ein weiteres Stück desselben Gebiets: direkt an seine Geschwister (die Fläche bleibt eins). */
+    if (!first) {
+      const touching = options.filter((key) => { const [q, r] = decode(key); return siblings.some((v) => distTo(q, r, unitCells[v]) <= 1); });
+      if (touching.length > 0) options = touching;
+    }
+    const outward = options.filter((key) => { const [q, r] = decode(key); return ringOf(q, r) >= minRing; });
+    if (outward.length > 0) options = outward;
+    let best = options[0];
+    let score = Number.POSITIVE_INFINITY;
+    for (const key of options) {
+      const [q, r] = decode(key);
+      let s = ringOf(q, r) + 1.5 * sectorPen(k, q, r) + angleAt(q, r) * 1e-4;
+      for (const [v, w] of needs) s += 4 * w * Math.max(0, distTo(q, r, unitCells[v]) - 1);
+      for (const v of siblings) s += 6 * Math.max(0, distTo(q, r, unitCells[v]) - 1);
+      for (const a of pulls[u.item]) if (ringOf(q, r) >= 2) s += (0.6 * angleGap(angleAt(q, r), a)) / 45;
+      if (s < score - 1e-9) { score = s; best = key; }
+    }
+    const [aq, ar] = decode(best);
+    for (const v of unitNeeds[k].keys()) waiting[v] -= 1;
+    anchorRing[k] = ringOf(aq, ar);
+    if (first) itemRing[u.item] = anchorRing[k];
+    take(k, aq, ar);
+    /* Wachsen: kompakt um den ersten Platz, im eigenen Sektor. */
+    const local = new Set<number>();
+    const addAround = (q: number, r: number) => { for (const [dq, dr] of NEIGHBOURS) { const a = q + dq; const b = r + dr; const nk = cellKey(a, b); if (inFan(a, b) && !taken.has(nk)) local.add(nk); } };
+    addAround(aq, ar);
+    while (unitCells[k].length < u.size && local.size > 0) {
+      let pick = -1;
+      let ps = Number.POSITIVE_INFINITY;
+      for (const key of local) {
+        if (taken.has(key)) continue;
+        const [q, r] = decode(key);
+        /* Den Rand eines Stücks, auf das noch etwas bauen wird, frei lassen (sonst bliebe dafür kein Platz daneben). */
+        let crowd = 0;
+        for (const [dq, dr] of NEIGHBOURS) { const v = taken.get(cellKey(q + dq, r + dr)); if (v !== undefined && v !== k && waiting[v] > 0) crowd += 1; }
+        const s = hexDistance(q, r, aq, ar) + 0.3 * ringOf(q, r) + 0.8 * sectorPen(k, q, r) + 0.9 * crowd + angleAt(q, r) * 1e-4;
+        if (s < ps - 1e-9) { ps = s; pick = key; }
+      }
+      if (pick < 0) break;
+      local.delete(pick);
+      const [q, r] = decode(pick);
+      take(k, q, r);
+      addAround(q, r);
+    }
+  }
+
+  /* Die Plätze je Feld, sein erster Platz und seine Mitte. */
+  const cells: LevelCell[][] = items.map(() => []);
+  for (const k of unitOrder) for (const c of unitCells[k]) { const p = hexCenter(c.q, c.r); cells[units[k].item].push({ q: c.q, r: c.r, x: p.x, y: p.y, unit: k }); }
+  const orderOfItem = new Map(itemOrder.map((i, k) => [i, k] as const));
+  const place: LevelPlace[] = items.map((_, i) => {
+    const list = cells[i];
+    const first = list[0] ?? { q: 0, r: 0, x: 0, y: 0 };
+    const x = list.reduce((s, c) => s + c.x, 0) / Math.max(1, list.length);
+    const y = list.reduce((s, c) => s + c.y, 0) / Math.max(1, list.length);
+    return { q: first.q, r: first.r, x, y, ring: ringOf(first.q, first.r), angle: fanAngle(x, y), order: orderOfItem.get(i) ?? i };
+  });
+  const allCells = cells.flat();
+  const rings = allCells.length === 0 ? 0 : Math.max(...allCells.map((c) => ringOf(c.q, c.r)));
+
+  /*
+    Die Tore am Rand: dicht um die Felder (zwei, drei Plätze von ihnen weg), in ihrer Richtung von der Mitte der Felder aus.
+  */
+  const near = distanceField(allCells, 3, () => true);
+  const midX = allCells.reduce((s, p) => s + p.x, 0) / Math.max(1, allCells.length);
+  const midY = allCells.reduce((s, p) => s + p.y, 0) / Math.max(1, allCells.length);
+  const gateSlots: { q: number; r: number; x: number; y: number; angle: number }[] = [];
+  for (const [key, d] of near) {
+    if (d !== 2 && d !== 3) continue;
+    const [q, r] = decode(key);
+    const c = hexCenter(q, r);
+    let angle = fanAngle(c.x - midX, c.y - midY);
+    if (angle < -90) angle += 360;
+    gateSlots.push({ q, r, x: c.x, y: c.y, angle });
+  }
+  gateSlots.sort((a, b) => a.q - b.q || a.r - b.r);
+  if (gateSlots.length === 0) gateSlots.push({ q: 0, r: 3, ...hexCenter(0, 3), angle: 90 });
   const gateTaken = new Set<string>();
   const placedGates: { q: number; r: number }[] = [];
   const gates: LevelGate[] = gateKeys.map((key) => {
     const a = gateAngle.get(key)!;
-    /* Tore mit Abstand (drei Sechsecke — Platz für ihre Namen); geht das nicht mehr, ein freier Platz. */
+    /* Tore mit Abstand (drei Plätze — Platz für ihre Namen); geht das nicht mehr, ein freier Platz. */
     const pick = (spread: number) => {
       let best: (typeof gateSlots)[number] | null = null;
       let gap = Number.POSITIVE_INFINITY;
       for (const s of gateSlots) {
         if (gateTaken.has(`${s.q},${s.r}`) || placedGates.some((p) => hexDistance(p.q, p.r, s.q, s.r) < spread)) continue;
-        const d = angleGap(s.angle, a);
+        const d = angleGap(s.angle, a) + (near.get(cellKey(s.q, s.r)) === 3 ? 4 : 0);
         if (d < gap) { gap = d; best = s; }
       }
       return best;
@@ -416,52 +594,90 @@ export function layoutLevel(items: readonly LevelItem[], tg: TopicGraph, tree: R
     gateTaken.add(`${best.q},${best.r}`);
     placedGates.push(best);
     const info = gateOf.get(key)!;
-    return { key, label: info.label, before: info.before, after: info.after, weight: info.weight, q: best.q, r: best.r, x: best.x, y: best.y, ring: gateRing, angle: best.angle };
+    return { key, label: info.label, before: info.before, after: info.after, weight: info.weight, q: best.q, r: best.r, x: best.x, y: best.y, ring: ringOf(best.q, best.r), angle: best.angle };
   });
   const gateIndex = new Map(gates.map((x, j) => [x.key, j] as const));
   const gateEdges = gateEdgesRaw.map(([i, key, before]) => [i, gateIndex.get(key)!, before] as const);
+  return { open, items, place, edges, depth, gates, gateEdges, rings, cells, units, tiers };
+}
 
-  /* Zwei, drei Durchgänge: Nachbarn im Ring tauschen (oder auf einen freien Nachbarplatz rücken), wenn die Kanten kürzer werden. */
-  const pos = place.map((p) => p!);
-  const cost = (i: number, at: LevelPlace): number => {
-    let s = 0;
-    for (const p of prereqs[i]) s += hexDistance(at.q, at.r, pos[p].q, pos[p].r) * (weights.get(`${p}>${i}`) ?? 1);
-    for (const c of builds[i]) s += hexDistance(at.q, at.r, pos[c].q, pos[c].r) * (weights.get(`${i}>${c}`) ?? 1);
-    for (const [item, gate] of gateEdges) if (item === i) s += hexDistance(at.q, at.r, gates[gate].q, gates[gate].r) * 0.5;
-    return s;
-  };
-  for (let pass = 0; pass < 3; pass += 1) {
-    let changed = false;
-    for (let ring = 0; ring <= rings; ring += 1) {
-      const slots = fanSlots(ring);
-      const at = new Map<string, number>();
-      for (let i = 0; i < n; i += 1) if (pos[i].ring === ring) at.set(`${pos[i].q},${pos[i].r}`, i);
-      for (let s = 0; s + 1 < slots.length; s += 1) {
-        const ka = `${slots[s].q},${slots[s].r}`;
-        const kb = `${slots[s + 1].q},${slots[s + 1].r}`;
-        const a = at.get(ka);
-        const b = at.get(kb);
-        if (a === undefined && b === undefined) continue;
-        const pa: LevelPlace = { ...slots[s], ring };
-        const pb: LevelPlace = { ...slots[s + 1], ring };
-        const before = (a === undefined ? 0 : cost(a, pa)) + (b === undefined ? 0 : cost(b, pb));
-        if (a !== undefined) pos[a] = pb;
-        if (b !== undefined) pos[b] = pa;
-        const after = (a === undefined ? 0 : cost(a, pb)) + (b === undefined ? 0 : cost(b, pa));
-        if (after < before - 1e-9) {
-          if (a !== undefined) at.set(kb, a); else at.delete(kb);
-          if (b !== undefined) at.set(ka, b); else at.delete(ka);
-          changed = true;
-        } else {
-          if (a !== undefined) pos[a] = pa;
-          if (b !== undefined) pos[b] = pb;
-        }
+/** Je Platz bis `limit` Schritte von den gegebenen weg sein Abstand (0: sie selbst) — Breitensuche, nur wo `ok`. */
+function distanceField(from: readonly { readonly q: number; readonly r: number }[], limit: number, ok: (q: number, r: number) => boolean): Map<number, number> {
+  const out = new Map<number, number>();
+  let wave: [number, number][] = [];
+  for (const c of from) { const k = cellKey(c.q, c.r); if (!out.has(k)) { out.set(k, 0); wave.push([c.q, c.r]); } }
+  for (let d = 1; d <= limit; d += 1) {
+    const next: [number, number][] = [];
+    for (const [q, r] of wave) {
+      for (const [dq, dr] of NEIGHBOURS) {
+        const a = q + dq;
+        const b = r + dr;
+        const k = cellKey(a, b);
+        if (out.has(k) || !ok(a, b)) continue;
+        out.set(k, d);
+        next.push([a, b]);
       }
     }
-    if (!changed) break;
+    wave = next;
   }
-  return { open, items, place: pos, edges, depth, gates, gateEdges, rings };
+  return out;
 }
+
+/**
+ * DER UMRISS EINER FLÄCHE: die Kanten der Plätze, die an keinen anderen Platz derselben Menge stossen, zu geschlossenen
+ * Linien verbunden (Bodeneinheiten; die grösste zuerst). Eine Fläche mit Loch hat zwei.
+ */
+export function outlineOf(cells: readonly { readonly q: number; readonly r: number }[]): [number, number][][] {
+  return boundaryOf(cells).loops;
+}
+
+/**
+ * Der Umriss mit seinen Kanten: je Linie die Punkte und, in derselben Reihenfolge, welche Kante welches Platzes sie ist
+ * (`cell`: Index in `cells`, `k`: Kante k von Ecke k zu Ecke k+1).
+ */
+export function boundaryOf(cells: readonly { readonly q: number; readonly r: number }[]): { loops: [number, number][][]; edges: { cell: number; k: number }[][] } {
+  const set = new Set(cells.map((c) => cellKey(c.q, c.r)));
+  /* Ecke k einer Kachel liegt bei 60·k Grad; die Kante k (Ecke k → k+1) stösst an den Nachbarn bei 60·k + 30 Grad. */
+  const dirOfEdge: readonly (readonly [number, number])[] = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+  const pt = (x: number, y: number) => `${Math.round(x * 1000)},${Math.round(y * 1000)}`;
+  const next = new Map<string, { to: string; x: number; y: number; cell: number; k: number }>();
+  const coords = new Map<string, [number, number]>();
+  for (const [ci, c] of cells.entries()) {
+    const m = hexCenter(c.q, c.r);
+    for (let k = 0; k < 6; k += 1) {
+      const [dq, dr] = dirOfEdge[k];
+      if (set.has(cellKey(c.q + dq, c.r + dr))) continue;
+      const a = HEX_CORNERS[k];
+      const b = HEX_CORNERS[(k + 1) % 6];
+      const ka = pt(m.x + a[0], m.y + a[1]);
+      const kb = pt(m.x + b[0], m.y + b[1]);
+      coords.set(ka, [m.x + a[0], m.y + a[1]]);
+      coords.set(kb, [m.x + b[0], m.y + b[1]]);
+      next.set(ka, { to: kb, x: m.x + b[0], y: m.y + b[1], cell: ci, k });
+    }
+  }
+  const found: { loop: [number, number][]; edges: { cell: number; k: number }[] }[] = [];
+  const used = new Set<string>();
+  for (const start of next.keys()) {
+    if (used.has(start)) continue;
+    const loop: [number, number][] = [];
+    const edges: { cell: number; k: number }[] = [];
+    let at = start;
+    for (let guard = 0; guard < 100000 && !used.has(at); guard += 1) {
+      used.add(at);
+      loop.push(coords.get(at)!);
+      const e = next.get(at);
+      if (e === undefined) break;
+      edges.push({ cell: e.cell, k: e.k });
+      at = e.to;
+    }
+    if (loop.length >= 3) found.push({ loop, edges });
+  }
+  const area = (l: readonly [number, number][]) => Math.abs(l.reduce((s, [x, y], i) => { const [x2, y2] = l[(i + 1) % l.length]; return s + x * y2 - x2 * y; }, 0)) / 2;
+  found.sort((a, b) => area(b.loop) - area(a.loop));
+  return { loops: found.map((x) => x.loop), edges: found.map((x) => x.edges) };
+}
+
 
 /**
  * DIE RICHTUNG DER TORE eines offenen Gebiets: je Gebiet, das neben einem seiner Vorfahren steht, der Winkel von dort zu
@@ -492,9 +708,9 @@ export function gateAnglesFor(tree: RegionTree, open: string | null, layoutOf: (
 
 /**
  * DIE REIHENFOLGE EINES WEGES (die Liste Schritt für Schritt und die Linie auf jeder Karte): Gebiet für Gebiet von oben nach
- * unten — auf jeder Ebene nach der Tiefe auf ihrer Karte (ihrem Ring), bei gleicher Tiefe nach dem Winkel (so läuft die Linie
- * im Ring in einer Richtung), im Gebiet die Themen ebenso. Weil jede Ebene keine Kreise hat, bleibt das eine gültige
- * Reihenfolge des Lernens; die Linie läuft auf jeder Karte nach aussen, ohne Zickzack.
+ * unten — auf jeder Ebene in der Reihenfolge, in der ihre Karte gelegt wurde (nach der Tiefe; die Schlange einer Kette
+ * entlang), im Gebiet die Themen ebenso. Weil jede Ebene keine Kreise hat, bleibt das eine gültige Reihenfolge des Lernens;
+ * die Linie folgt auf jeder Karte den Nachbarn.
  */
 export function routeOrder(tree: RegionTree | null, tg: TopicGraph, layoutOf: (open: string | null) => LevelLayout, topics: readonly number[]): number[] {
   const keyOf = (t: number): number[] => {
@@ -504,8 +720,7 @@ export function routeOrder(tree: RegionTree | null, tg: TopicGraph, layoutOf: (o
     for (const key of [...chain, tg.graph.ids[t]]) {
       const layout = layoutOf(open);
       const i = layout.items.findIndex((it) => it.key === key);
-      /* Der Ring (er wächst mit der Tiefe, auch wenn ein voller Ring überläuft), dann der Winkel. */
-      if (i < 0) { out.push(0, 0); } else { out.push(layout.place[i].ring, layout.place[i].angle); }
+      out.push(i < 0 ? 0 : layout.place[i].order);
       open = key;
     }
     return out;
@@ -628,10 +843,32 @@ function inside(poly: readonly (readonly [number, number])[], x: number, y: numb
   return true;
 }
 
-/** Wie viel der Fläche jedes Feldes zu sehen ist (die Säulen davor decken). */
-export function visibility(fields: readonly ViewField[], lifts: readonly number[], fore: number, step: number): number[] {
-  const sil = fields.map((f, i) => silhouette(f, lifts[i], fore, step));
-  return fields.map((f, i) => {
+/**
+ * Wie viel der Fläche jedes Feldes zu sehen ist (die Säulen davor decken). Gesucht wird nur unter den Säulen, die nahe
+ * genug davor stehen und hoch genug sind, um die Fläche zu erreichen (nach x geordnet) — so bleibt es auch für eine Karte
+ * mit Hunderten kleiner Säulen schnell. `floor`: sobald ein Feld darunter fällt, aufhören (`null`).
+ */
+export function visibility(fields: readonly ViewField[], lifts: readonly number[], fore: number, step: number, floor: number | null = null): number[] | null {
+  const n = fields.length;
+  const byX = fields.map((_, i) => i).sort((a, b) => fields[a].x - fields[b].x);
+  const xs = byX.map((i) => fields[i].x);
+  const sil: ([number, number][] | undefined)[] = new Array(n);
+  const silOf = (j: number) => sil[j] ?? (sil[j] = silhouette(fields[j], lifts[j], fore, step));
+  const out = new Array<number>(n);
+  for (let i = 0; i < n; i += 1) {
+    const f = fields[i];
+    /* Wer davor steht und so hoch reicht. */
+    let lo = 0;
+    let hi = n;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (xs[m] < f.x - 1.2) lo = m + 1; else hi = m; }
+    const near: number[] = [];
+    for (let k = lo; k < n && xs[k] <= f.x + 1.2; k += 1) {
+      const j = byX[k];
+      if (j === i || fields[j].y >= f.y - 1e-9) continue;
+      if ((f.y - fields[j].y) * fore >= (lifts[j] - lifts[i]) * step + fore + 1e-9) continue;
+      near.push(j);
+    }
+    if (near.length === 0) { out[i] = 1; continue; }
     const cx = f.x;
     const cy = -f.y * fore - lifts[i] * step;
     let seen = 0;
@@ -639,33 +876,39 @@ export function visibility(fields: readonly ViewField[], lifts: readonly number[
       const px = cx + sx;
       const py = cy - sy * fore;
       let covered = false;
-      for (let j = 0; j < fields.length && !covered; j += 1) {
-        if (j === i || fields[j].y >= f.y - 1e-9) continue;
-        if (Math.abs(fields[j].x - f.x) > 1.2) continue;
-        if (inside(sil[j], px, py)) covered = true;
-      }
+      for (let k = 0; k < near.length && !covered; k += 1) if (inside(silOf(near[k]), px, py)) covered = true;
       if (!covered) seen += 1;
     }
-    return seen / SAMPLES.length;
-  });
+    out[i] = seen / SAMPLES.length;
+    if (floor !== null && out[i] < floor) return null;
+  }
+  return out;
 }
+const seenAll = (fields: readonly ViewField[], lifts: readonly number[], fore: number, step: number) => visibility(fields, lifts, fore, step) ?? fields.map(() => 0);
 
 /**
  * DER EINE SCHRITT EINER ANSICHT: die grösste Schrittweite (höchstens `maxStep`), bei der jede Fläche mindestens zur
  * Hälfte zu sehen ist — für alle Felder dieselbe. Reicht das nicht bis `minStep` (6 px je Schritt bei normalem Zoom), erst
  * steiler von oben (`TILTS`); dann nur die Säulen direkt vor einem verdeckten WICHTIGEN Feld kürzen; nie flacher als
- * `minStep`, nie eine Höhe gestaucht.
+ * `minStep`, nie eine Höhe gestaucht. Viele Felder (eine Karte mit Gebieten und ihrem Relief): halbiert statt gezählt.
  */
 export function viewScale(fields: readonly ViewField[], options: { readonly minStep: number; readonly maxStep: number }): ViewScale {
   const lifts = fields.map((f) => Math.max(0, f.steps));
   const minStep = Math.max(1e-3, options.minStep);
   const maxStep = Math.max(minStep, options.maxStep);
-  const ok = (fore: number, step: number) => visibility(fields, lifts, fore, step).every((v) => v >= 0.5 - 1e-9);
+  const ok = (fore: number, step: number) => visibility(fields, lifts, fore, step, 0.5 - 1e-9) !== null;
   /* Die Kandidaten von oben nach unten (die Sichtbarkeit fällt nicht streng mit der Höhe — darum gezählt, nicht halbiert). */
   const candidates: number[] = [];
   for (let s = maxStep; s > minStep; s *= 0.9) candidates.push(s);
   candidates.push(minStep);
   for (const fore of TILTS) {
+    if (fields.length > 60) {
+      if (!ok(fore, minStep)) continue;
+      let lo = 0;
+      let hi = candidates.length - 1;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (ok(fore, candidates[m])) hi = m; else lo = m + 1; }
+      return finish(fields, lifts, fore, candidates[lo], false);
+    }
     for (const step of candidates) {
       if (ok(fore, step)) return finish(fields, lifts, fore, step, false);
     }
@@ -683,7 +926,7 @@ function finish(fields: readonly ViewField[], lifts: readonly number[], fore: nu
     */
     let all = false;
     for (let pass = 0; pass < 40; pass += 1) {
-      const vis = visibility(fields, drawn, fore, step);
+      const vis = seenAll(fields, drawn, fore, step);
       let changed = false;
       fields.forEach((f, i) => {
         if ((!f.important && !all) || vis[i] >= 0.5) return;
@@ -700,25 +943,36 @@ function finish(fields: readonly ViewField[], lifts: readonly number[], fore: nu
       if (!changed) { if (all) break; all = true; }
     }
   }
-  return { fore, step, drawn, cut, visible: visibility(fields, drawn, fore, step) };
+  return { fore, step, drawn, cut, visible: seenAll(fields, drawn, fore, step) };
+}
+
+/**
+ * DIE SPANNE DER STUFE einer Ansicht (Bodeneinheiten je Schritt): `footprint` px je Bodeneinheit bei „Ganze Karte".
+ * Themen: nie flacher als 6 px je Schritt, die höchste Säule etwa so hoch wie die Karte tief. Gebiete (ein Überblick mit
+ * ihrem Relief): flacher — die höchste Säule etwa ein Drittel der Tiefe, damit hinten nichts hinter Türmen verschwindet;
+ * dieselbe Stufe für alle, die Höhen bleiben im Verhältnis.
+ */
+export function stepRange(columns: readonly { readonly y: number; readonly steps: number }[], footprint: number, regional: boolean): { minStep: number; maxStep: number } {
+  const tallest = Math.max(1, ...columns.map((c) => c.steps));
+  const depthSpan = columns.length === 0 ? 1 : Math.max(...columns.map((c) => c.y)) - Math.min(...columns.map((c) => c.y));
+  const maxStep = regional ? Math.min(0.3, (0.8 + depthSpan * 0.32) / tallest) : Math.min(0.3, (2.2 + depthSpan * 0.6) / tallest);
+  return { maxStep, minStep: regional ? Math.min(6 / footprint, maxStep * 0.3) : 6 / footprint };
 }
 
 /* -- Boden und die Gebiete aus den Daten (verschachtelt, `nest`) --------------------------------------------------- */
 
-/** Der Boden einer Ebene: die freien Plätze des Fächers bis einen Ring hinter dem äussersten (Land, kein Wissen). */
+/** Der Boden einer Ebene: die freien Plätze des Fächers dicht bei den Feldern und Toren (ein Platz Land um sie) — kein Wissen. */
 export function groundOf(layout: LevelLayout): { x: number; y: number }[] {
-  const all = [...layout.place, ...layout.gates];
-  const used = new Set(all.map((p) => `${p.q},${p.r}`));
+  const used = [...layout.cells.flat(), ...layout.gates];
+  const near = distanceField(used, 1, inFan);
   const out: { x: number; y: number }[] = [];
-  /* Nur der Boden nahe bei den Feldern (ein Ring Land um sie, und der Platz des Lernenden) — keine leere Ebene. */
-  for (let ring = 0; ring <= layout.rings + 1; ring += 1) {
-    for (const s of fanSlots(ring)) {
-      if (used.has(`${s.q},${s.r}`)) continue;
-      if (ring !== 0 && !all.some((p) => hexDistance(p.q, p.r, s.q, s.r) <= 1)) continue;
-      out.push({ x: s.x, y: s.y });
-    }
+  for (const [key, d] of near) {
+    if (d !== 1) continue;
+    const q = Math.floor(key / 8192) - 4096;
+    const r = (key % 8192) - 4096;
+    out.push(hexCenter(q, r));
   }
-  return out;
+  return out.sort((a, b) => a.y - b.y || a.x - b.x);
 }
 
 /** Was ein Baum aus den Daten hergibt (`landscapeNest.ts` readNest). */

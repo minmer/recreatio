@@ -46,8 +46,8 @@ import { TexText } from '../ui/tex/Tex';
 import { baseLang, words, type Words } from './lang';
 import { skipStep } from './flowAsk';
 import { landscapeWords, type LandscapeWords } from './landscapeWords';
-import { gateAnglesFor, groundOf, layoutLevel, levelItems, nestAsRegions, regionPath, topicGraphOf, type LevelItem, type LevelLayout, type TopicGraph } from './levelMap';
-import { RegionMap, SignIcon, type MapCommand, type MapField, type MapGate, type MapRoute } from './RegionMap';
+import { gateAnglesFor, groundOf, layoutLevel, levelItems, boundaryOf, nestAsRegions, outlineOf, regionPath, sketchOf, topicGraphOf, type LevelItem, type LevelLayout, type TopicGraph } from './levelMap';
+import { RegionMap, SignIcon, type MapCell, type MapCommand, type MapField, type MapGate, type MapRoute } from './RegionMap';
 import type { RegionTree } from './regions';
 import './landscape.css';
 
@@ -405,6 +405,11 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nest, tg, computed, edits, lang]);
 
+  /*
+    2026-11-04 (Prompt 12) — wie viele Säulen eine Karte von Gebieten trägt (nach der Breite, in Stufen — so bleibt die Lage
+    beim Ändern der Breite stehen): passen alle Themen, steht jedes; sonst Teilgebiete oder eine Skizze je Gebiet.
+  */
+  const budget = boxWidth === 0 ? 0 : boxWidth < 560 ? 220 : boxWidth < 900 ? 380 : 600;
   /* Eine Ebene (gemerkt je Baum): ihre Felder und Tore, aus der Struktur. */
   const layoutFor = useMemo(() => {
     const cache = new Map<string, LevelLayout>();
@@ -412,15 +417,15 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       const k = open ?? '';
       const had = cache.get(k);
       if (had !== undefined) return had;
-      const empty: LevelLayout = { open, items: [], place: [], edges: [], depth: [], gates: [], gateEdges: [], rings: 0 };
+      const empty: LevelLayout = { open, items: [], place: [], edges: [], depth: [], gates: [], gateEdges: [], rings: 0, cells: [], units: [], tiers: [] };
       if (tree === null) return empty;
       const items = levelItems(tree, open, tg);
-      const made = layoutLevel(items, tg, tree, open, gateAnglesFor(tree, open, fn));
+      const made = layoutLevel(items, tg, tree, open, gateAnglesFor(tree, open, fn), Math.max(1, budget));
       cache.set(k, made);
       return made;
     };
     return fn;
-  }, [tree, tg]);
+  }, [tree, tg, budget]);
 
   const goalKey = `landscape:${viewKey}`;
   const [localGoal, setLocalGoal] = useState<string | null>(null);
@@ -554,7 +559,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chosenId, client, stand]);
-  useEffect(() => { setRouteShown(null); }, [chosenId]);
+  /* 2026-11-04 (Prompt 12) — ein gewähltes Thema zeigt seinen Weg gleich (auf der Karte und daneben). */
+  useEffect(() => { setRouteShown(chosenId); }, [chosenId]);
   const goalOpen = goalSteps.filter((x) => { const b = bandOf(x); return b !== 'known' && b !== 'due'; });
 
   /* Erobertes: einmal gesagt, wenn es neu ist. */
@@ -565,6 +571,8 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const [said, setSaid] = useState('');
   const [command, setCommand] = useState<MapCommand | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  /* Wann zuletzt in ein Gebiet gezoomt wurde (der zweite Klick eines Doppelklicks wählt drinnen nichts). */
+  const enteredAt = useRef(0);
 
   /* -- Lernen ------------------------------------------------------------------------------------------- */
   const planFrom = async (graph: Graph): Promise<Plan | null> => {
@@ -663,26 +671,44 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       return {
         key: it.key, kind: 'topic', label: it.label, title: `${it.label}: ${stateWords(band, info.steps, info.locked)}`, x: p.x, y: p.y, steps: info.steps, band, sign, subject,
         share: info.total === 0 ? (band === 'known' ? 1 : 0) : info.known / info.total, glow: band === 'ring' && !info.locked, conquered: false, home: i === nextItem,
-        badge: goal === it.key && goalOpen.length > 0 ? goalOpen.length : null
+        badge: goal === it.key && goalOpen.length > 0 ? goalOpen.length : null, startable: band !== 'mountain'
       };
     }
     const a = aggregate(it);
     const sign = a.ready === 0 && a.lockedReady > 0 ? 'first' as const : a.due > 0 ? 'due' as const : null;
-    /* Eine leise Vorschau der Ebene darunter: wo ihre Felder stehen und wie weit sie sind. */
-    const inner = layoutFor(it.key);
-    let r = 0;
-    const cx = inner.place.reduce((s, q) => s + q.x, 0) / Math.max(1, inner.place.length);
-    const cy = inner.place.reduce((s, q) => s + q.y, 0) / Math.max(1, inner.place.length);
-    for (const q of inner.place) r = Math.max(r, Math.hypot(q.x - cx, q.y - cy));
-    const preview = inner.items.length <= 24 ? inner.items.map((sub, j) => {
-      const q = inner.place[j];
-      const b = sub.kind === 'topic' ? infoOf(sub.topics[0]).band ?? 'mountain' : aggregate(sub).band;
-      return { x: r === 0 ? 0 : (q.x - cx) / r, y: r === 0 ? 0 : -(q.y - cy) / r, band: b };
-    }) : [];
+    /*
+      2026-11-04 (Prompt 12) — DAS INNERE: auf der Fläche des Gebiets jedes Thema als eigene Säule (eigene Höhe, eigene
+      Farbe) — oder je Teilgebiet / für das Ganze eine Skizze: das Niedrigste, das Höchste und das Lernbare.
+    */
+    const mine = layout.cells[i] ?? [];
+    const cells: MapCell[] = [];
+    const byUnit = new Map<number, typeof mine[number][]>();
+    for (const c of mine) { const list = byUnit.get(c.unit) ?? []; list.push(c); byUnit.set(c.unit, list); }
+    const partOf = [...byUnit.keys()];
+    /* Der Rand: die äusseren Kanten in der Reihenfolge des Umrisses — der erste Teil davon hell (so viel ist gelernt). */
+    const bound = boundaryOf(mine);
+    const rims = new Map<number, { k: number; lit: boolean }[]>();
+    bound.edges.forEach((loop, li) => loop.forEach((e, j) => {
+      const list = rims.get(e.cell) ?? [];
+      list.push({ k: e.k, lit: li === 0 && !(a.learned === a.all) && j < Math.round(a.share * loop.length) });
+      rims.set(e.cell, list);
+    }));
+    for (const [u, list] of byUnit) {
+      const unit = layout.units[u];
+      const topics = unit.mode === 'topics' ? unit.order : sketchOf(unit.topics, (t) => infoOf(t).steps, (t) => infoOf(t).band === 'ring', list.length);
+      list.forEach((c, k) => {
+        const t = topics[k];
+        if (t === undefined) return;
+        const info = infoOf(t);
+        const band = info.band ?? 'mountain';
+        cells.push({ key: tg.graph.ids[t], x: c.x, y: c.y, steps: info.steps, band, subject: colourOf([t]), glow: band === 'ring' && !info.locked, home: next !== null && next.t === t, part: partOf.indexOf(u), rim: rims.get(mine.indexOf(c)) ?? [] });
+      });
+    }
     const state2 = a.learned === a.all ? T.conquered(it.label) : a.ready > 0 ? `${a.ready} ${W.ready}` : a.lockedReady > 0 ? T.nextFirst : T.nextAway(a.steps);
     return {
       key: it.key, kind: 'region', label: it.label, title: `${it.label} · ${T.themen(a.all)} · ${state2}`, x: p.x, y: p.y, steps: a.steps, band: a.band, sign, subject,
-      share: a.share, glow: a.ready > 0, conquered: a.learned === a.all, home: i === nextItem, preview,
+      share: a.share, glow: a.ready > 0, conquered: a.learned === a.all, home: i === nextItem, cells,
+      outline: bound.loops, parts: byUnit.size > 1 ? [...byUnit.values()].map((list) => outlineOf(list)) : [],
       badge: goalT !== undefined && it.topics.includes(goalT) && goalOpen.length > 0 ? goalOpen.length : null
     };
   });
@@ -709,14 +735,16 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
     if (routeIds === null || routeIds.length === 0) return null;
     const owner = new Map<number, string>();
     layout.items.forEach((it) => { for (const t of it.topics) owner.set(t, it.key); });
-    const keyOf = (id: string) => { const t = topicIndex.get(id); return t === undefined ? undefined : owner.get(t); };
+    /* Im Relief eines Gebiets steht ein Thema als eigene Säule: der Weg geht über sie. */
+    const drawnHere = new Set(fields.flatMap((f) => (f.cells ?? []).map((c) => c.key)));
+    const keyOf = (id: string) => { if (drawnHere.has(id)) return id; const t = topicIndex.get(id); return t === undefined ? undefined : owner.get(t); };
     const long = routeIds.length > 8;
     const drawn = long ? [...routeIds.slice(0, 5), routeIds[routeIds.length - 1]] : [...routeIds];
     const keys: string[] = [];
     for (const id of drawn) { const k = keyOf(id); if (k !== undefined && keys[keys.length - 1] !== k) keys.push(k); }
     const rest = long ? [...new Set(routeIds.slice(5, -1).map(keyOf).filter((k): k is string => k !== undefined && !keys.includes(k)))] : [];
     return { keys, rest };
-  }, [routeIds, layout, topicIndex]);
+  }, [routeIds, layout, topicIndex, fields]);
 
   /* Immer in einer Hülle, deren Breite gemessen wird. */
   const host = (body: ReactNode) => <div ref={boxRef} className="cg-ls-host">{body}</div>;
@@ -806,13 +834,27 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   /* -- Navigation ---------------------------------------------------------------------------------------- */
   const path = regionPath(tree, open);
   const goUp = () => { const parent = open === null ? null : tree.regions.get(open)?.parent ?? null; nav(parent === null ? [] : [parent]); };
-  const enter = (key: string) => { nav([key]); setSaid(T.goIn); };
+  const enter = (key: string) => { enteredAt.current = Date.now(); nav([key]); setSaid(`${T.goIn}: ${tree.regions.get(key)?.name ?? ''}`); };
+  /*
+    2026-11-04 (Prompt 12) — EIN KLICK: ein Gebiet (mehr als eines darin) — hineinzoomen; ein Thema — wählen (Weg, Stand,
+    Knöpfe daneben); noch einmal auf das gewählte — beginnen, wenn es geht.
+  */
+  const startTopic = (id: string) => {
+    const i = infoById(id);
+    const flow = storyUnit(id);
+    if (i.band === 'ring' && i.locked) { reviewFirst(id, flow === undefined ? undefined : () => openStory(flow, false)); return; }
+    if (flow !== undefined && i.band !== 'mountain') { openStory(flow, stageOf(flow) === 'review'); return; }
+    if (i.band === 'ring') learnEntry(id);
+    else if (i.band === 'due' || i.band === 'known') learnEntry(id, i.band !== 'known');
+  };
   const choose = (key: string) => {
+    if (Date.now() - enteredAt.current < 450) return;
     const f = fields.find((x) => x.key === key);
     if (f === undefined) return;
     if (f.kind === 'region') { enter(key); return; }
     follow.current = false;
-    setChosen(chosen === key ? null : key);
+    if (chosen === key) { if (learner !== null && f.startable === true) startTopic(key); return; }
+    setChosen(key);
   };
   const toMe = () => {
     if (next === null) { setCommand({ kind: 'fit', at: Date.now() }); return; }
@@ -875,6 +917,10 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
   const opensNext = at < 0 || parentLayout === null ? [] : parentLayout.edges.filter(([a]) => a === at).map(([, b]) => parentLayout.items[b]);
   const needsBefore = at < 0 || parentLayout === null ? [] : parentLayout.edges.filter(([, b]) => b === at).map(([a]) => parentLayout.items[a]);
   const dueHere = here === null ? [] : dueCards.filter((c) => cardEntities(c).some((e) => { const t = topicIndex.get(e); return t !== undefined && here.topics.includes(t); }));
+  /* 2026-11-04 (Prompt 12) — „Als Nächstes" im Gebiet: JEDES jetzt lernbare Thema (erst die freien, dann „erst wiederholen"). */
+  const readyHere = (here === null ? tg.graph.ids.map((_, t) => t) : here.topics)
+    .filter((t) => infoOf(t).band === 'ring')
+    .sort((a, b) => Number(infoOf(a).locked) - Number(infoOf(b).locked) || depthOfTopic[a] - depthOfTopic[b] || (tg.graph.rank?.[a] ?? a) - (tg.graph.rank?.[b] ?? b));
   const regionPanel = (
     <section className="cg-ls-region" data-landscape-region={open ?? ''}>
       <div className="cg-row-between">
@@ -888,6 +934,23 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
         {T.inRegion(here?.topics.length ?? tg.graph.ids.length)}
         {regionsHere.length > 0 ? <> · <span data-landscape-tally={`${conqueredHere}/${regionsHere.length}`}>{T.tally(conqueredHere, regionsHere.length)}</span></> : <> · {T.knownOf(knownHere, layout.items.length)}</>}
       </p>
+      {readyHere.length > 0 && (
+        <div data-landscape-ready-list={readyHere.length}>
+          <p className="cg-ls-qh">{T.nextHere} — {T.nextList(readyHere.length)}</p>
+          <ul className="cg-ls-qlist is-scroll">
+            {readyHere.slice(0, 12).map((t) => {
+              const id = tg.graph.ids[t];
+              return (
+                <li key={id}>
+                  <button type="button" className="cg-ref" onClick={() => showTopic(id)} data-landscape-ready={id}><TexText text={entityNameTex(lib, id)} /></button>
+                  {infoOf(t).locked && <span className="cg-muted"> · {T.nextFirst}</span>}
+                </li>
+              );
+            })}
+          </ul>
+          {readyHere.length > 12 && <p className="cg-muted">{T.more(readyHere.length - 12)}</p>}
+        </div>
+      )}
       {needsBefore.length > 0 && <p className="cg-muted"><span className="cg-ls-qh">{T.comesFrom}</span> {needsBefore.map((it) => it.label).join(' · ')}</p>}
       {opensNext.length > 0 && <p className="cg-muted" data-landscape-opens={opensNext.length}><span className="cg-ls-qh">{T.opens}</span> {opensNext.map((it) => it.label).join(' · ')}</p>}
       {dueHere.length > 0 && learner !== null && <div className="wk-actions"><button type="button" className="wk-btn wk-btn-line" onClick={() => reviewCards(`${W.review}: ${here?.name ?? ''}`, dueHere)} data-landscape-region-review={dueHere.length}>{T.reviewDue(dueHere.length)}</button></div>}
@@ -965,7 +1028,7 @@ export function LandscapeView({ view, cards, learner, onOpen, compact = false, r
       {query.trim() !== '' && <SearchHits query={query} ids={tg.graph.ids} bandOf={bandOf} label={labelOf} goal={goal} onShow={showTopic} onGoal={(id) => { setGoal(id); setSaid(W.goalSet(labelOf(id))); }} />}
       <div className="cg-ls-body">
         <div className="cg-ls-main">
-          <RegionMap levelKey={`${treeKey}:${open ?? ''}`} fields={fields} gates={gates} ground={ground} route={mapRoute} chosen={chosenId} next={nextHere?.key ?? null}
+          <RegionMap levelKey={`${treeKey}:${open ?? ''}:${budget}`} depth={path.length} fields={fields} gates={gates} ground={ground} route={mapRoute} chosen={chosenId} next={nextHere?.key ?? null}
             focus={nextHere?.key ?? chosenId} width={mapWidth} compact={compact} T={T} memoryKey={`${lib.libraryId}:${viewKey}:${learner?.holder ?? 'me'}`} canUp={open !== null}
             command={command} onChoose={choose} onGate={(key) => nav([key])} onUp={goUp} onBackground={() => setChosen(null)} legend={legend} />
           {!wide && chosenField !== undefined && topicPanel !== null && (
@@ -1008,7 +1071,7 @@ function Legend({ fore, show, folded }: { fore: number; folded: boolean; show: R
       {show.due && <li data-landscape-legend-mark="repeat"><svg className="cg-ls-legend-sign" viewBox="-10 -10 20 20" aria-hidden><SignIcon kind="due" r={8} fore={fore} /></svg>{T.legendDue}</li>}
       {show.route && <li data-landscape-legend-mark="route"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path className="cg-rm-routeline" d="M-10,5 L-2,-1 L6,3 L10,-5" /><circle className="cg-ls-legend-step" cx={-10} cy={5} r={3} /></svg>{T.legendRoute}</li>}
       {show.badge && <li data-landscape-legend-mark="badge"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><rect className="cg-ls-legend-badge" x={-9} y={-6} width={18} height={12} rx={6} /></svg>{T.legendBadge}</li>}
-      {show.ring && <li data-landscape-legend-mark="ring"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><ellipse className="cg-rm-ring" rx={7} ry={4} /></svg>{T.legendRing}</li>}
+      {show.ring && <li data-landscape-legend-mark="ring"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><g className="cg-rm-area is-s0"><path className="cg-rm-area-fill" d="M-10,0 L-5,-6 L5,-6 L10,0 L5,6 L-5,6 Z" /><path className="cg-rm-area-edge" d="M-10,0 L-5,-6 L5,-6 L10,0 L5,6 L-5,6 Z" /><path className="cg-rm-area-ring" d="M-10,0 L-5,-6 L5,-6 L10,0" /></g></svg>{T.legendArea}</li>}
       {show.flag && <li data-landscape-legend-mark="flag"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><g className="cg-ls-flagmark"><path d="M-2,7 V-7 L5,-4.5 L-2,-2" /></g></svg>{T.legendFlag}</li>}
       {show.gate && <li data-landscape-legend-mark="gate"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><polygon className="cg-rm-gate-face" points="-8,0 -4,-5 4,-5 8,0 4,5 -4,5" /><polygon className="cg-rm-gate-door" points="-4,0 -2,-2.5 2,-2.5 4,0 2,2.5 -2,2.5" /></svg>{T.legendGate}</li>}
       {show.home && <li data-landscape-legend-mark="home"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><g className="cg-ls-meicon"><circle cx={0} cy={-3.5} r={2.2} /><path d="M-3.5,6 Q0,-2 3.5,6 Z" /></g></svg>{T.legendHome}</li>}

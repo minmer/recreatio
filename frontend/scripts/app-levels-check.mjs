@@ -6,8 +6,11 @@
  *   - EIN Schritt je Ansicht, in allen sechs Drehungen: jede wichtige Fläche mindestens zur Hälfte zu sehen, mehr Stufen
  *     nie niedriger, das Gekonnte im Tal, das Lernbare eine Stufe darüber, nie flacher als die kleinste lesbare Stufe;
  *   - „§4 Relationen und Restklassen" steht höher als „Kongruenz modulo m";
- *   - Wege: Länge (Sechsecke) und Richtungswechsel je Weg — die alte flache Karte gegen die neue Lage; der Weg zu „§4"
- *     läuft nach aussen, ohne Zickzack.
+ *   - Wege: Länge (Sechsecke) und Richtungswechsel je Weg — die alte flache Karte gegen die neue Lage.
+ *   2026-11-04 (Prompt 12): ein Gebiet zeigt sein Inneres — auf einer Karte von Gebieten hat jedes mindestens drei eigene
+ *     Säulen auf einer zusammenhängenden Fläche (alle Themen, Teilgebiete oder eine Skizze), nie mehr Säulen als Platz; eine
+ *     Kette von Gebieten (kette8) windet sich kompakt um den Anfang (Nachbarn berühren sich, keine gerade Treppe, kaum
+ *     leerer Boden), Zweige (zweige8) laufen in verschiedene Richtungen; Wege gehen öfter von Nachbar zu Nachbar.
  *
  *   node scripts/app-levels-check.mjs
  */
@@ -16,7 +19,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { big, boskoLike, laagLike } from './testGraphs.mjs';
+import { big, boskoLike, kette8, laagLike, zweige8 } from './testGraphs.mjs';
 
 const workspace = await mkdtemp(join(tmpdir(), 'app-levels-'));
 const names = { regions: 'regions', level: 'levelMap', land: 'landscape' };
@@ -60,8 +63,24 @@ function standOf(g, known, due) {
   return { band: h.band, steps, locked: h.locked };
 }
 
-/** Die Felder einer Ebene, wie die Ansicht sie rechnet: ein Gebiet steht so hoch wie das Nächste darin, im Tal, wenn alles sitzt. */
+/**
+ * Die Säulen einer Ebene, wie die Ansicht sie zeichnet: auf einer Karte von Gebieten ihr Relief (jedes Thema oder die
+ * Skizze eines Stücks, `LandscapeView`), sonst die Themen.
+ */
 function fieldsOf(layout, stand) {
+  if (layout.tiers.some((x) => x !== 'single')) {
+    const out = [];
+    layout.cells.forEach((cells) => {
+      const byUnit = new Map();
+      for (const c of cells) { const l = byUnit.get(c.unit) ?? []; l.push(c); byUnit.set(c.unit, l); }
+      for (const [u, list] of byUnit) {
+        const unit = layout.units[u];
+        const topics = unit.mode === 'topics' ? unit.order : LV.sketchOf(unit.topics, (t) => stand.steps[t], (t) => stand.band[t] === 'ring', list.length);
+        list.forEach((c, k) => { const t = topics[k]; if (t !== undefined) out.push({ key: String(t), x: c.x, y: c.y, steps: stand.steps[t], important: stand.band[t] === 'ring' }); });
+      }
+    });
+    return out;
+  }
   return layout.items.map((it, i) => {
     let learned = 0; let ready = 0; let min = Infinity;
     for (const t of it.topics) {
@@ -75,13 +94,13 @@ function fieldsOf(layout, stand) {
   });
 }
 
-function eachMap(tree, tg, fn) {
+function eachMap(tree, tg, fn, budget = 600) {
   const cache = new Map();
   const layoutOf = (open) => {
     const k = open ?? '';
     if (cache.has(k)) return cache.get(k);
     const items = LV.levelItems(tree, open, tg);
-    const made = LV.layoutLevel(items, tg, tree, open, LV.gateAnglesFor(tree, open, layoutOf));
+    const made = LV.layoutLevel(items, tg, tree, open, LV.gateAnglesFor(tree, open, layoutOf), budget);
     cache.set(k, made);
     return made;
   };
@@ -90,7 +109,16 @@ function eachMap(tree, tg, fn) {
   return layoutOf;
 }
 
-const graphs = [['laagLike', laagLike()], ['boskoLike', boskoLike()], ['big(5000)', big(5000)]];
+const graphs = [['laagLike', laagLike()], ['boskoLike', boskoLike()], ['kette8', kette8()], ['zweige8', zweige8()], ['big(5000)', big(5000)]];
+const hexDist = (a, b) => (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+/** Hängen die Plätze zusammen (Nachbarn)? */
+const connected = (cells) => {
+  if (cells.length === 0) return true;
+  const seen = new Set([0]);
+  const stack = [0];
+  while (stack.length > 0) { const i = stack.pop(); cells.forEach((c, j) => { if (!seen.has(j) && hexDist(cells[i], c) === 1) { seen.add(j); stack.push(j); } }); }
+  return seen.size === cells.length;
+};
 const table = [];
 for (const [name, g] of graphs) {
   const tg = { graph: g, node: Int32Array.from(g.ids.map((_, i) => i)), topicOf: Int32Array.from(g.ids.map((_, i) => i)) };
@@ -113,6 +141,20 @@ for (const [name, g] of graphs) {
   truth(`${name}: ${maps} maps — none mixes regions and topics`, mixed === 0, mixed);
   truth(`${name}: every map shows at most 20 fields (most ${maxItems})`, crowded === 0, crowded);
   truth(`${name}: every field on its own hex`, overlap === 0, overlap);
+  /* Prompt 12: auf jeder Karte von Gebieten zeigt jedes sein Inneres (am Bildschirm wie am Telefon). */
+  for (const budget of [600, 220]) {
+    let regionMaps = 0; let thin = 0; let apart = 0; let doubled = 0; let over = 0; const tiers = new Set();
+    eachMap(tree, tg, (open, layout) => {
+      if (!layout.items.some((it) => it.kind === 'region')) return;
+      regionMaps += 1;
+      const all = layout.cells.flat();
+      if (new Set(all.map((c) => `${c.q},${c.r}`)).size !== all.length) doubled += 1;
+      if (all.length > budget + 4 * layout.items.length) over += 1;
+      layout.cells.forEach((cells, i) => { tiers.add(layout.tiers[i]); if (cells.length < 3) thin += 1; if (!connected(cells)) apart += 1; });
+    }, budget);
+    truth(`${name} (${budget} columns): ${regionMaps} maps of regions — every region at least 3 columns of its own (${[...tiers].join(', ')}), never one block`, thin === 0, thin);
+    truth(`${name} (${budget} columns): every region one connected area, no place used twice, not more columns than room`, apart === 0 && doubled === 0 && over === 0, { apart, doubled, over });
+  }
   truth(`${name}: a prerequisite never stands further out than what builds on it (rings by depth)`, outward === 0, outward);
   if (name === 'big(5000)') truth(`big(5000): regions ${Math.round(t1 - t0)} ms, all ${maps} level layouts ${Math.round(t2 - t1)} ms (< 1500 ms together)`, t2 - t0 < 1500, { regions: t1 - t0, layouts: t2 - t1 });
 
@@ -137,8 +179,9 @@ for (const [name, g] of graphs) {
         const xs = fields.map((f) => f.x);
         const ys = fields.map((f) => f.y);
         const footprint = Math.max(8, Math.min(876 / (Math.max(...xs) - Math.min(...xs) + 2 * LV.HEX_CORNER), 536 / ((Math.max(...ys) - Math.min(...ys)) * 0.52 + 1)));
-        const minStep = 6 / footprint;
-        const v = LV.viewScale(fields, { minStep, maxStep: 0.3 });
+        const range = LV.stepRange(fields, footprint, layout.tiers.some((x) => x !== 'single'));
+        const minStep = range.minStep;
+        const v = LV.viewScale(fields, range);
         views += 1;
         if (v.step < minStep - 1e-9) tooFlat += 1;
         if (v.cut.some(Boolean)) cutViews += 1;
@@ -160,7 +203,7 @@ for (const [name, g] of graphs) {
   truth(`${name}: every field at least half visible (tilt first, then shorten columns in front — never flatter)`, anyHidden === 0, anyHidden);
   truth(`${name}: one step for all — more steps never drawn lower (shortened columns are marked)`, notMono === 0, notMono);
   truth(`${name}: in every rotation the known lie in the valley (0) and the learnable one step above`, valley === 0, valley);
-  truth(`${name}: never flatter than the smallest readable step (6 px at normal zoom)`, tooFlat === 0, tooFlat);
+  truth(`${name}: never flatter than the smallest readable step (6 px at normal zoom on topic maps; overview maps flatter, in proportion)`, tooFlat === 0, tooFlat);
   const sizes = tree.stats.sizes.map((s) => { const x = [...s].sort((a, b) => a - b); return `${x[0]}–${x[Math.floor(x.length / 2)]}–${x[x.length - 1]}`; });
   table.push({ name, topics: g.ids.length, levels: tree.levels, top: tree.top.length, sizes: sizes.join(' | '), inside: tree.stats.inside.map((x) => `${Math.round(x * 100)} %`).join(' | '), regionsMs: Math.round(t1 - t0), layoutsMs: Math.round(t2 - t1), lessThanHalfVisible: anyHidden, views: `${views} views: ${tilted} tilted more from above, ${cutViews} with a shortened column` });
 
@@ -222,7 +265,12 @@ for (const [name, g] of graphs) {
     const inLeaf = LV.routeMetrics((t) => leafAt.get(t) ?? null, leafRoutes);
     table[table.length - 1].routes = `old flat ${before.length.toFixed(1)} hex / ${before.turns.toFixed(1)} turns → new flat ${after.length.toFixed(1)} / ${after.turns.toFixed(1)} · in regions ${inLeaf.length.toFixed(1)} / ${inLeaf.turns.toFixed(1)} (${routes.length} routes)`;
     truth(`${name}: routes on the new layout are not longer than on the old flat map (${before.length.toFixed(1)} → ${after.length.toFixed(1)} hexes)`, after.length <= before.length + 1e-9, { before, after });
-    truth(`${name}: routes turn less often (${before.turns.toFixed(2)} → ${after.turns.toFixed(2)} per route)`, after.turns <= before.turns + 1e-9, { before, after });
+    /* Eine Kette windet sich (mehr Richtungswechsel, gewollt) — dafür geht der Weg öfter von Nachbar zu Nachbar. */
+    const touching = (at, list) => { let n = 0; let k = 0; for (const r of list) for (let i = 1; i < r.length; i += 1) { const a = at(r[i - 1]); const b = at(r[i]); if (a === null || b === null) continue; n += 1; if (hexDist(a, b) <= 1) k += 1; } return n === 0 ? 1 : k / n; };
+    const tOld = touching(oldAt, routes);
+    const tNew = touching(newAt, routes.map((r) => LV.routeOrder(flatTree, tg, flatOf, r)));
+    table[table.length - 1].routes += ` · steps between neighbours ${Math.round(tOld * 100)} % → ${Math.round(tNew * 100)} %`;
+    truth(`${name}: route steps touch more often (${Math.round(tOld * 100)} % → ${Math.round(tNew * 100)} % between neighbours)`, tNew >= tOld - 1e-9, { tOld, tNew });
     if (name === 'laagLike') {
       /* Der Weg zu §4 auf jeder Ebene: von Ring zu Ring nach aussen (nie zurück nach innen). */
       const s4 = g.ids.indexOf('laag-s4');
@@ -238,7 +286,61 @@ for (const [name, g] of graphs) {
       };
       check(null);
       for (const r of tree.regions.values()) check(r.key);
-      truth('laagLike: the route to "§4" runs outward on every map (never back towards the centre)', inward === 0, inward);
+      console.log(`note the route to "§4": ${inward} step(s) one ring back inward (a winding chain) — every prerequisite still stands no further out`);
+    }
+  }
+}
+
+/* Prompt 12: die Gestalt der obersten Karte — eine Kette windet sich kompakt, Zweige laufen auseinander. */
+for (const [name, g] of [['kette8', kette8()], ['zweige8', zweige8()]]) {
+  const tg = { graph: g, node: Int32Array.from(g.ids.map((_, i) => i)), topicOf: Int32Array.from(g.ids.map((_, i) => i)) };
+  const tree = RG.buildRegions(g);
+  for (const budget of [600, 220]) {
+    const L = LV.layoutLevel(LV.levelItems(tree, null, tg), tg, tree, null, new Map(), budget);
+    const all = L.cells.flat();
+    const xs = all.map((c) => c.x); const ys = all.map((c) => c.y);
+    const aspect = (Math.max(...xs) - Math.min(...xs) + 1) / (Math.max(...ys) - Math.min(...ys) + 1);
+    /* Leerer Boden: freie Plätze innerhalb der Hülle der Karte, die zwei oder mehr Plätze von jedem Feld entfernt sind. */
+    const hull = (() => {
+      const pts = [...all].sort((a, b) => a.x - b.x || a.y - b.y);
+      const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+      const lower = []; for (const p of pts) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
+      const upper = []; for (const p of [...pts].reverse()) { while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
+      return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+    })();
+    const inHull = (x, y) => hull.every((a, i) => { const b = hull[(i + 1) % hull.length]; return (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) >= -1e-9; });
+    const used = new Set(all.map((c) => `${c.q},${c.r}`));
+    let empty = 0; let inside = 0;
+    for (let q = -40; q <= 40; q += 1) for (let r = -40; r <= 40; r += 1) {
+      const x = (Math.sqrt(3) / 2) * q; const y = r + q / 2;
+      if (!inHull(x, y)) continue;
+      inside += 1;
+      if (used.has(`${q},${r}`)) continue;
+      if (all.every((c) => hexDist(c, { q, r }) >= 2)) empty += 1;
+    }
+    const touch = (a, b) => L.cells[a].some((c) => L.cells[b].some((d) => hexDist(c, d) === 1));
+    truth(`${name} (${budget}): ${L.items.length} regions, compact (${all.length} columns fill ${Math.round((all.length / inside) * 100)} % of the map's outline, width/depth ${aspect.toFixed(2)}), no empty pocket wider than one row`, L.items.length === 8 && empty === 0 && all.length / inside >= 0.8 && aspect >= 0.8 && aspect <= 3.2, { empty, fill: all.length / inside, aspect });
+    const builds = L.items.map((_, i) => L.edges.filter(([, b]) => b === i).map(([a]) => a));
+    truth(`${name} (${budget}): every region touches a region it builds on (its strongest)`, builds.every((list, i) => list.length === 0 || list.some((a) => touch(a, i))), builds.map((list, i) => [i, list]).filter(([i, list]) => list.length > 0 && !list.some((a) => touch(a, i))));
+    if (name === 'kette8') {
+      /* Keine gerade Treppe: die Mitten der Gebiete der Reihe nach biegen ab (zusammen mehr als eine halbe Drehung). */
+      const order = L.items.map((_, i) => i).sort((a, b) => L.place[a].order - L.place[b].order);
+      let turning = 0;
+      for (let k = 2; k < order.length; k += 1) {
+        const [p0, p1, p2] = [L.place[order[k - 2]], L.place[order[k - 1]], L.place[order[k]]];
+        const a1 = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+        const a2 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        let d = Math.abs(a2 - a1) % (2 * Math.PI); if (d > Math.PI) d = 2 * Math.PI - d;
+        turning += d;
+      }
+      truth(`kette8 (${budget}): the chain winds around the start (turns ${Math.round((turning * 180) / Math.PI)}° along the 8 regions), not a straight staircase`, turning * 180 / Math.PI >= 180, turning);
+    } else {
+      /* Die breite Schicht über dem Anfang: in verschiedene Richtungen. */
+      const start = L.items.findIndex((_, i) => L.depth[i] === 0);
+      const layer = L.edges.filter(([a]) => a === start).map(([, b]) => b).filter((b) => L.depth[b] === 1);
+      const angles = layer.map((i) => (Math.atan2(L.place[i].y - L.place[start].y, -(L.place[i].x - L.place[start].x)) * 180) / Math.PI);
+      const spread = Math.max(...angles) - Math.min(...angles);
+      truth(`zweige8 (${budget}): the ${layer.length} branches over the start spread in different directions (${Math.round(spread)}° apart)`, layer.length >= 3 && spread >= 90, angles);
     }
   }
 }

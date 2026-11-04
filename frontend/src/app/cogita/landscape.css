@@ -359,3 +359,34 @@
 .cg-ls-numbers { font-variant-numeric: tabular-nums; }
 .cg-ls-pathpanel { display: grid; gap: var(--wk-space-2); }
 .cg-ls-rename { display: flex; flex-wrap: wrap; gap: var(--wk-space-1); align-items: center; }
+
+/*
+ * 2026-11-04 (Prompt 12) — EIN GEBIET ZEIGT SEIN INNERES: eine leicht erhabene Fläche mit weichem Rand in seiner Farbe, darauf
+ * seine Themen als kleine Säulen (dieselben Farben wie eine Ebene tiefer); der helle Teil des Randes: so viel ist gelernt;
+ * das Schild mit dem ganzen Namen. Ein Tippen zoomt hinein (Zeiger „zoom-in"), ein Thema wird gewählt.
+ */
+.cg-rm-relief polygon, .cg-rm-relief path, .cg-rm-area path, .cg-rm-part { vector-effect: non-scaling-stroke; }
+.cg-rm-col.is-cell { cursor: zoom-in; }
+.cg-rm-col.is-cell .cg-rm-face { stroke-width: 0.6; transition: none; }
+.cg-rm-col.is-cell .cg-rm-side { stroke-width: 0.4; }
+.cg-rm-col.is-cell.is-glow .cg-rm-face { filter: none; stroke: var(--cg-ls-glow); stroke-width: 1.6; }
+.cg-rm-area { cursor: zoom-in; }
+.cg-rm-area-fill { fill: color-mix(in oklab, var(--ls-c) 22%, var(--cg-ls-floor)); }
+.cg-rm-area-edge { fill: none; stroke: color-mix(in oklab, var(--ls-c) 70%, var(--cg-ls-floor)); stroke-width: 5; stroke-linejoin: round; opacity: 0.55; }
+.cg-rm-area-ring { fill: none; stroke: var(--wk-accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.cg-rm-area.is-glow .cg-rm-area-edge { opacity: 0.8; }
+.cg-rm-area.is-conquered .cg-rm-area-edge { stroke: var(--cg-ls-warm); opacity: 0.9; }
+.cg-rm-area.is-conquered .cg-rm-area-fill { fill: color-mix(in oklab, var(--cg-ls-warm) 26%, var(--cg-ls-floor)); }
+.cg-rm-area.is-hover .cg-rm-area-edge { stroke: var(--wk-ink); opacity: 0.9; }
+.cg-rm-area.is-route-rest .cg-rm-area-edge { stroke: var(--cg-ls-route); }
+.cg-rm-part { fill: none; stroke: color-mix(in oklab, var(--wk-ink) 40%, transparent); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+.cg-rm-label { cursor: zoom-in; outline: none; }
+.cg-rm-label-box { fill: color-mix(in oklab, var(--wk-surface) 92%, transparent); stroke: color-mix(in oklab, var(--ls-c) 75%, var(--wk-ink)); stroke-width: 1.2; }
+.cg-rm-label-text { fill: var(--wk-ink); font-size: var(--wk-text-xs); }
+.cg-rm-label.is-home .cg-rm-label-text { font-weight: 700; }
+.cg-rm-label.is-conquered .cg-rm-label-box { stroke: var(--cg-ls-warm); stroke-width: 2; }
+.cg-rm-label.is-hover .cg-rm-label-box, .cg-rm-label:focus-visible .cg-rm-label-box { stroke: var(--wk-accent); stroke-width: 2.4; }
+.cg-rm-tip { white-space: normal; }
+.cg-rm-rim { fill: none; stroke: color-mix(in oklab, var(--ls-c) 80%, var(--wk-ink)); stroke-width: 1.6; stroke-linecap: round; pointer-events: none; }
+.cg-rm-rim.is-lit { stroke: var(--wk-accent); stroke-width: 2.4; }
+.cg-rm-col.is-conquered .cg-rm-rim { stroke: var(--cg-ls-warm); stroke-width: 2.2; }

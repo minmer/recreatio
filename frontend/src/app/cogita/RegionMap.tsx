@@ -1,19 +1,41 @@
 /**
- * 2026-11-04 (Prompt 11) — DIE KARTE EINER EBENE DES KRAJOBRAZ: eine Handvoll Säulen (Gebiete oder Themen, nie gemischt),
- * senkrecht ohne Fluchtpunkt, EIN Schritt für alle (`levelMap.ts` viewScale), ziehen, Rad, zwei Finger, „+"/„−", sanftes
- * Ausrollen bis zum Rand; „Zu mir", „Ganze Karte", 60°. Was weit weg ist, verblasst; was jetzt geht, hat einen hellen Rand;
- * höchstens EIN Zeichen je Feld (erst wiederholen > zu wiederholen), klein, hell, auf der Fläche liegend — erst, wenn das
- * Feld gross genug ist (das gewählte und der nächste Schritt immer). Namen erst im Nahen. Tore am Rand führen hinaus.
+ * 2026-11-04 (Prompt 11) — DIE KARTE EINER EBENE DES KRAJOBRAZ: Gebiete oder Themen (nie gemischt), senkrecht ohne
+ * Fluchtpunkt, EIN Schritt für alle (`levelMap.ts` viewScale), ziehen, Rad, zwei Finger, „+"/„−", sanftes Ausrollen bis
+ * zum Rand; „Zu mir", „Ganze Karte", 60°. Was weit weg ist, verblasst; was jetzt geht, hat einen hellen Rand; höchstens
+ * EIN Zeichen je Feld (erst wiederholen > zu wiederholen), klein, hell, auf der Fläche liegend. Tore am Rand führen hinaus.
  * Passt sich seinem Behälter an (Breite gemessen), nicht dem Fenster.
+ *
+ * 2026-11-04 (Prompt 12) — EIN GEBIET ZEIGT SEIN INNERES: keine Säule, sondern eine umrandete, leicht erhabene Fläche in
+ * seiner Farbe, auf der seine Themen als eigene kleine Säulen stehen (eigene Höhe, eigene Farbe — wie eine Ebene tiefer);
+ * ist es zu gross, seine Teilgebiete ebenso (je ein Umriss mit Relief) oder eine kleine Skizze (`levelMap.ts` unitsOf).
+ * Der Rand trägt den Fortschritt (der helle Teil: so viel ist gelernt) und das Eroberte; der Name steht ganz auf einem
+ * Schild neben der Fläche (zwei Zeilen, nie gekürzt). Ein Tippen auf ein Gebiet zoomt hinein, auf ein Thema wählt es.
+ * Das Relief liegt in Weltmassen in einer Gruppe, die nur verschoben wird — so bleiben Hunderte Säulen beim Ziehen flüssig.
  */
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
 import type { LsBand } from './landscape';
-import { HEX_CORNER, HEX_CORNERS, HEX_FLOOR, rotated, viewScale } from './levelMap';
+import { HEX_CORNER, HEX_CORNERS, HEX_FLOOR, rotated, stepRange, viewScale } from './levelMap';
 import type { LandscapeWords } from './landscapeWords';
 
 export type SignKind = 'first' | 'due';
+
+/** Eine Säule im Inneren eines Gebiets (ein Thema — oder eines, das in der Skizze für mehrere steht). */
+export interface MapCell {
+  readonly key: string;
+  readonly x: number;
+  readonly y: number;
+  readonly steps: number;
+  readonly band: LsBand;
+  readonly subject: number;
+  readonly glow: boolean;
+  readonly home: boolean;
+  /** Das Stück der Fläche (Teilgebiet), zu dem es gehört. */
+  readonly part: number;
+  /** Seine Kanten am Rand des Gebiets (k: von Ecke k zu Ecke k+1, ungedreht); `lit`: im hellen Teil (so viel ist gelernt). */
+  readonly rim?: readonly { readonly k: number; readonly lit: boolean }[];
+}
 
 export interface MapField {
   readonly key: string;
@@ -29,7 +51,7 @@ export interface MapField {
   readonly sign: SignKind | null;
   /** Die Farbe (der Abschnitt, 0–7; −1 grau). */
   readonly subject: number;
-  /** Wie viel davon sitzt (0–1): die Tiefe der Farbe, bei einem Gebiet sein Ring. */
+  /** Wie viel davon sitzt (0–1): die Tiefe der Farbe, bei einem Gebiet der helle Teil seines Randes. */
   readonly share: number;
   /** Jetzt lernbar (ein Thema auf dem Ring, ein Gebiet mit Lernbarem). */
   readonly glow: boolean;
@@ -37,10 +59,15 @@ export interface MapField {
   readonly conquered: boolean;
   /** Hier steht der Lernende (sein nächster Schritt liegt hier). */
   readonly home: boolean;
-  /** Eine leise Vorschau der Ebene darunter (Lage −1…1). */
-  readonly preview?: readonly { readonly x: number; readonly y: number; readonly band: LsBand }[];
   /** Am Ziel: so viele Themen bis dorthin. */
   readonly badge?: number | null;
+  /** Ein Thema, das ein zweites Tippen beginnt. */
+  readonly startable?: boolean;
+  /** Ein Gebiet: seine Säulen (das Relief) … */
+  readonly cells?: readonly MapCell[];
+  /** … sein Umriss (Bodeneinheiten, geschlossene Linien) und die Umrisse seiner Teilgebiete. */
+  readonly outline?: readonly (readonly (readonly [number, number])[])[];
+  readonly parts?: readonly (readonly (readonly (readonly [number, number])[])[])[];
 }
 
 export interface MapGate {
@@ -53,7 +80,7 @@ export interface MapGate {
 }
 
 export interface MapRoute {
-  /** Die gezeichneten Schritte in der Reihenfolge der Liste (der erste ist „als Nächstes", der letzte das Ziel). */
+  /** Die gezeichneten Schritte in der Reihenfolge der Liste (Felder, oder Themen im Relief eines Gebiets). */
   readonly keys: readonly string[];
   /** Felder des Weges, die nicht als Linie kommen (ein langer Weg: nur ihr Umriss). */
   readonly rest: readonly string[];
@@ -65,6 +92,9 @@ export interface MapCommand {
 }
 
 interface Cam { s: number; cx: number; cy: number }
+
+/** Wie hoch die Fläche eines Gebiets über dem Boden liegt (Bodeneinheiten): „leicht erhaben". */
+const PLATE = 0.1;
 
 /* -- Kamera und Drehung, gemerkt je Lernendem, Baza und Ebene ------------------------------------------------------ */
 
@@ -135,13 +165,56 @@ function MeIcon({ x, y, h }: { x: number; y: number; h: number }) {
   );
 }
 
+/* -- Schilder: der ganze Name, höchstens zwei Zeilen (breiter statt gekürzt) ----------------------------------------- */
+
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+let measureFont = '';
+/** Wie breit ein Text auf dem Schild ist (px) — mit der Schrift der Seite gemessen, sonst geschätzt. */
+function textWidth(text: string, bold: boolean): number {
+  if (measureCtx === undefined) {
+    try {
+      measureCtx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+      const root = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement);
+      const px = root === null ? 16 : parseFloat(root.fontSize) || 16;
+      const body = typeof document === 'undefined' || document.body === null ? null : getComputedStyle(document.body);
+      measureFont = `${px * 0.75}px ${body?.fontFamily ?? root?.fontFamily ?? 'sans-serif'}`;
+    } catch { measureCtx = null; }
+  }
+  if (measureCtx === null || measureCtx === undefined) return text.length * (bold ? 7.2 : 6.8);
+  measureCtx.font = `${bold ? '700 ' : ''}${measureFont}`;
+  /* Ein wenig Luft: die Schrift im Bild kann breiter laufen als gemessen. */
+  return measureCtx.measureText(text).width * 1.08 + 2;
+}
+
+/** Der Name in Zeilen von höchstens `max` px — wird es mehr als zwei, wird die Zeile breiter (nie gekürzt). */
+function wrapName(name: string, max: number, bold: boolean): { lines: string[]; width: number } {
+  const words = name.split(/\s+/).filter((w) => w !== '');
+  const lay = (limit: number): string[] => {
+    const lines: string[] = [];
+    let line = '';
+    for (const w of words) {
+      const next = line === '' ? w : `${line} ${w}`;
+      if (line !== '' && textWidth(next, bold) > limit) { lines.push(line); line = w; } else line = next;
+    }
+    if (line !== '') lines.push(line);
+    return lines;
+  };
+  let limit = max;
+  let lines = lay(limit);
+  for (let k = 0; k < 12 && lines.length > 2; k += 1) { limit *= 1.18; lines = lay(limit); }
+  return { lines, width: Math.max(...lines.map((l) => textWidth(l, bold)), 10) };
+}
+
 /* -- Die Karte ------------------------------------------------------------------------------------------------- */
 
 const MIN_SIGN = 12;
 const NAME_AT = 104;
+const LINE_H = 14;
 
-export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next, focus, width, compact, T, memoryKey, canUp, command, onChoose, onGate, onUp, onBackground, legend }: {
+export function RegionMap({ levelKey, depth, fields, gates, ground, route, chosen, next, focus, width, compact, T, memoryKey, canUp, command, onChoose, onGate, onUp, onBackground, legend }: {
   levelKey: string;
+  /** Wie tief die Ebene liegt (0 oben): hinein wird gezoomt, hinauf hinaus. */
+  depth: number;
   fields: readonly MapField[];
   gates: readonly MapGate[];
   ground: readonly { readonly x: number; readonly y: number }[];
@@ -166,62 +239,92 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
   const [rot, setRot] = useState(kept.rot);
   const height = Math.round(Math.max(300, Math.min(compact ? 420 : 680, width * (width < 520 ? 1 : 0.62))));
   const pid = useId().replace(/:/g, '');
+  const regional = fields.some((f) => f.cells !== undefined && f.cells.length > 0);
 
-  /* Die Mitte des Fächers: um sie wird gedreht. */
+  /* Die Mitte: um sie wird gedreht (bei Gebieten die Mitte aller Säulen). */
   const centre = useMemo(() => {
-    if (fields.length === 0) return { x: 0, y: 0 };
-    return { x: fields.reduce((s, f) => s + f.x, 0) / fields.length, y: fields.reduce((s, f) => s + f.y, 0) / fields.length };
-  }, [fields]);
+    const pts: { x: number; y: number }[] = regional ? fields.flatMap((f) => f.cells ?? []) : [...fields];
+    if (pts.length === 0) return { x: 0, y: 0 };
+    return { x: pts.reduce((s, f) => s + f.x, 0) / pts.length, y: pts.reduce((s, f) => s + f.y, 0) / pts.length };
+  }, [fields, regional]);
   const turnedFields = useMemo(() => rotated(fields, rot, centre.x, centre.y), [fields, rot, centre]);
   const turnedGates = useMemo(() => rotated(gates, rot, centre.x, centre.y), [gates, rot, centre]);
   const turnedGround = useMemo(() => rotated(ground, rot, centre.x, centre.y), [ground, rot, centre]);
-  const important = (f: MapField) => f.glow || f.sign !== null || f.key === chosen || f.key === next;
+  /* Die Säulen, die gemessen und gezeichnet werden: Themen — oder das Relief jedes Gebiets. */
+  const columns = useMemo(() => {
+    const out: { key: string; owner: number; x: number; y: number; steps: number; important: boolean; cell: MapCell | null }[] = [];
+    turnedFields.forEach((f, i) => {
+      if (f.cells !== undefined && f.cells.length > 0) {
+        for (const c of rotated(f.cells, rot, centre.x, centre.y)) out.push({ key: c.key, owner: i, x: c.x, y: c.y, steps: c.steps, important: c.glow || c.home, cell: c });
+      } else if (!regional) out.push({ key: f.key, owner: i, x: f.x, y: f.y, steps: f.steps, important: f.glow || f.sign !== null || f.key === chosen || f.key === next, cell: null });
+    });
+    return out;
+  }, [turnedFields, rot, centre, regional, chosen, next]);
+  const turnedOutlines = useMemo(() => turnedFields.map((f) => ({
+    outline: (f.outline ?? []).map((loop) => rotated(loop.map(([x, y]) => ({ x, y })), rot, centre.x, centre.y)),
+    parts: (f.parts ?? []).map((loops) => loops.map((loop) => rotated(loop.map(([x, y]) => ({ x, y })), rot, centre.x, centre.y)))
+  })), [turnedFields, rot, centre]);
   /* Der Fussabdruck am Boden: wie gross eine Bodeneinheit bei „Ganze Karte" etwa wird (für die kleinste lesbare Stufe). */
   const footprint = useMemo(() => {
-    const xs = [...turnedFields, ...turnedGates].map((f) => f.x);
-    const ys = [...turnedFields, ...turnedGates].map((f) => f.y);
+    const pts = [...columns, ...turnedGates];
+    const xs = pts.map((f) => f.x);
+    const ys = pts.map((f) => f.y);
     const spanX = (xs.length === 0 ? 1 : Math.max(...xs) - Math.min(...xs)) + 2 * HEX_CORNER;
     const spanY = (ys.length === 0 ? 1 : Math.max(...ys) - Math.min(...ys)) * 0.52 + 1;
     return Math.max(8, Math.min((width - 24) / spanX, (height - 24) / spanY));
-  }, [turnedFields, turnedGates, width, height]);
-  /*
-    Die grösste Stufe, die es gibt: so, dass die höchste Säule nicht weit über die Karte hinauswächst (ein Faktor für ALLE
-    Felder — eine Karte mit drei Türmen wird sonst ein Hochhaus); nie unter die kleinste lesbare Stufe.
-  */
-  const tallest = Math.max(1, ...turnedFields.map((f) => f.steps));
-  const depthSpan = turnedFields.length === 0 ? 1 : Math.max(...turnedFields.map((f) => f.y)) - Math.min(...turnedFields.map((f) => f.y));
-  const scale = useMemo(() => viewScale(turnedFields.map((f) => ({ x: f.x, y: f.y, steps: f.steps, important: important(f) })), { minStep: 6 / footprint, maxStep: Math.min(0.3, (2.2 + depthSpan * 0.6) / tallest) }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [turnedFields, footprint, chosen, next, tallest, depthSpan]);
+  }, [columns, turnedGates, width, height]);
+  /* Die Stufe: eine für alle (`levelMap.ts` stepRange — bei Gebieten flacher, ein Überblick). */
+  const scale = useMemo(() => viewScale(columns, stepRange(columns, footprint, regional)), [columns, footprint, regional]);
   const { fore, step } = scale;
+  const plate = regional ? PLATE : 0;
 
   /* Wo alles in der Welt liegt (Bodeneinheiten; y nach unten). */
   const world = useMemo(() => {
     const faceH = HEX_CORNERS[1][1] * fore;
-    const cols = turnedFields.map((f, i) => {
+    const cols = columns.map((c, i) => {
       const lift = scale.drawn[i];
-      const bx = f.x;
-      const by = -f.y * fore;
-      return { f, i, bx, by, ty: by - lift * step, lift };
+      const bx = c.x;
+      const by = -c.y * fore;
+      return { c, i, bx, by, ty: by - plate - lift * step, lift };
     });
     let x0 = Number.POSITIVE_INFINITY; let x1 = Number.NEGATIVE_INFINITY; let y0 = Number.POSITIVE_INFINITY; let y1 = Number.NEGATIVE_INFINITY;
     for (const c of cols) { x0 = Math.min(x0, c.bx - HEX_CORNER); x1 = Math.max(x1, c.bx + HEX_CORNER); y0 = Math.min(y0, c.ty - faceH - 0.25); y1 = Math.max(y1, c.by + faceH + HEX_FLOOR); }
     for (const g of [...turnedGates, ...turnedGround]) { const by = -g.y * fore; x0 = Math.min(x0, g.x - HEX_CORNER); x1 = Math.max(x1, g.x + HEX_CORNER); y0 = Math.min(y0, by - faceH - 0.3); y1 = Math.max(y1, by + faceH + 0.05); }
     if (!Number.isFinite(x0)) { x0 = -1; x1 = 1; y0 = -1; y1 = 1; }
-    return { cols, faceH, x0, x1, y0, y1 };
-  }, [turnedFields, turnedGates, turnedGround, scale, fore, step]);
+    /* Über einem Gebiet Platz für sein Schild. */
+    if (regional) y0 -= 1.2;
+    /* Je Feld seine Mitte (ein Gebiet: die Mitte seiner Säulen, oben auf ihnen). */
+    const hubs = turnedFields.map((f, i) => {
+      const mine = cols.filter((c) => c.c.owner === i);
+      if (mine.length === 0) return { x: f.x, top: -f.y * fore, base: -f.y * fore, x0: f.x, x1: f.x, y0: -f.y * fore, y1: -f.y * fore };
+      const xs = mine.map((c) => c.bx);
+      return {
+        x: xs.reduce((s, v) => s + v, 0) / xs.length,
+        top: mine.reduce((s, c) => s + c.ty, 0) / mine.length,
+        base: mine.reduce((s, c) => s + c.by, 0) / mine.length,
+        x0: Math.min(...xs) - HEX_CORNER, x1: Math.max(...xs) + HEX_CORNER,
+        y0: Math.min(...mine.map((c) => c.ty)) - faceH, y1: Math.max(...mine.map((c) => c.by)) + faceH + HEX_FLOOR
+      };
+    });
+    return { cols, faceH, x0, x1, y0, y1, hubs };
+  }, [columns, turnedFields, turnedGates, turnedGround, scale, fore, step, plate]);
+  const colByKey = useMemo(() => new Map(world.cols.map((c) => [c.c.key, c] as const)), [world]);
   const fitCam = (): Cam => {
     const s = Math.max(4, Math.min((width - 24) / Math.max(0.5, world.x1 - world.x0), (height - 24) / Math.max(0.5, world.y1 - world.y0)));
     return { s, cx: (world.x0 + world.x1) / 2, cy: (world.y0 + world.y1) / 2 };
   };
   const focusCam = (key: string | null): Cam => {
     const fit = fitCam();
-    const col = key === null ? undefined : world.cols.find((c) => c.f.key === key);
-    if (col === undefined) return fit;
+    /* Gebiete: die ganze Ebene (die Flächen sind gross genug), ausser das Relief wäre zu klein zum Lesen. */
+    if (regional && 2 * HEX_CORNER * fit.s >= 12) return fit;
+    const i = key === null ? -1 : turnedFields.findIndex((f) => f.key === key);
+    const col = key === null ? undefined : colByKey.get(key);
+    const hub = i >= 0 ? world.hubs[i] : col === undefined ? null : { x: col.bx, top: col.ty, base: col.by };
+    if (hub === null) return fit;
     /* Ist die ganze Ebene schon gross genug zum Lesen, bleibt sie ganz im Bild; sonst nah genug für Namen und Zeichen. */
-    if (2 * HEX_CORNER * fit.s >= 40) return fit;
-    const s = Math.max(fit.s, Math.min(fit.s * 1.8, 84 / (2 * HEX_CORNER)));
-    return clampCam({ s, cx: col.bx, cy: (col.ty + col.by) / 2 });
+    if (!regional && 2 * HEX_CORNER * fit.s >= 40) return fit;
+    const s = Math.max(fit.s, Math.min(fit.s * 1.8, (regional ? 30 : 84) / (2 * HEX_CORNER)));
+    return clampCam({ s, cx: hub.x, cy: (hub.top + hub.base) / 2 });
   };
   const sMin = () => fitCam().s * 0.7;
   const sMax = () => Math.max(fitCam().s * 6, 320 / (2 * HEX_CORNER));
@@ -234,17 +337,45 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
   /* Solange der Lernende die Kamera nicht selbst bewegt hat, folgt sie der Karte (die Höhen kommen nach, die Breite ändert sich). */
   const auto = useRef(kept.cams[levelKey] === undefined);
   const setCam = (c: Cam, byHand = true) => { camRef.current = c; setCamNow(c); if (byHand) { auto.current = false; kept.cams[levelKey] = c; } };
-  /* Eine andere Ebene: ihre gemerkte Kamera, sonst beim nächsten Schritt (nah) — sonst das Ganze. */
+
+  /* -- Bewegung: ziehen (mit Ausrollen), zwei Finger, Rad, Knöpfe — sanft ------------------------------------- */
+  const frame = useRef(0);
+  const stop = () => { if (frame.current !== 0) { cancelAnimationFrame(frame.current); frame.current = 0; } };
+  useEffect(() => stop, []);
+  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+  const glide = (to: Cam, byHand = true, from: Cam = camRef.current, ms = 260) => {
+    stop();
+    const target = clampCam(to);
+    if (reduced) { setCam(target, byHand); return; }
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      const e = 1 - (1 - k) ** 3;
+      setCam({ s: from.s * (target.s / from.s) ** e, cx: from.cx + (target.cx - from.cx) * e, cy: from.cy + (target.cy - from.cy) * e }, byHand && k >= 1);
+      frame.current = k < 1 ? requestAnimationFrame(tick) : 0;
+    };
+    frame.current = requestAnimationFrame(tick);
+  };
+
+  /* Eine andere Ebene: ihre gemerkte Kamera, sonst beim nächsten Schritt — und dorthin sanft (hinein: aus der Ferne näher, hinauf: umgekehrt). */
   const seenLevel = useRef(levelKey);
+  const seenDepth = useRef(depth);
   useLayoutEffect(() => {
     if (seenLevel.current === levelKey) return;
     seenLevel.current = levelKey;
+    const deeper = depth > seenDepth.current;
+    const higher = depth < seenDepth.current;
+    seenDepth.current = depth;
     auto.current = kept.cams[levelKey] === undefined;
-    setCam(kept.cams[levelKey] ?? focusCam(focus), false);
+    const target = kept.cams[levelKey] ?? focusCam(focus);
+    if (reduced || (!deeper && !higher)) { setCam(target, false); return; }
+    const from = { ...target, s: target.s * (deeper ? 0.55 : 1.9) };
+    setCam(from, false);
+    glide(target, false, from, 320);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelKey]);
   /* Neue Breite oder andere Höhen: die Kamera bleibt im Land — und folgt ihr, solange niemand sie bewegt hat. */
-  useEffect(() => { setCam(auto.current ? focusCam(focus) : clampCam(camRef.current), false); }, [width, world]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (frame.current !== 0) return; setCam(auto.current ? focusCam(focus) : clampCam(camRef.current), false); }, [width, world]); // eslint-disable-line react-hooks/exhaustive-deps
   /* „Ganze Karte", „Zu mir" von aussen. */
   const seenCommand = useRef<number>(command?.at ?? 0);
   useEffect(() => {
@@ -256,25 +387,6 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
   useEffect(() => { kept.rot = rot; keepSoon(memoryKey); }, [rot, kept, memoryKey]);
   useEffect(() => () => keepSoon(memoryKey), [memoryKey]);
 
-  /* -- Bewegung: ziehen (mit Ausrollen), zwei Finger, Rad, Knöpfe — sanft ------------------------------------- */
-  const frame = useRef(0);
-  const stop = () => { if (frame.current !== 0) { cancelAnimationFrame(frame.current); frame.current = 0; } };
-  useEffect(() => stop, []);
-  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-  const glide = (to: Cam) => {
-    stop();
-    const target = clampCam(to);
-    if (reduced) { setCam(target); return; }
-    const from = camRef.current;
-    const t0 = performance.now();
-    const tick = (t: number) => {
-      const k = Math.min(1, (t - t0) / 260);
-      const e = 1 - (1 - k) ** 3;
-      setCam({ s: from.s * (target.s / from.s) ** e, cx: from.cx + (target.cx - from.cx) * e, cy: from.cy + (target.cy - from.cy) * e });
-      frame.current = k < 1 ? requestAnimationFrame(tick) : 0;
-    };
-    frame.current = requestAnimationFrame(tick);
-  };
   const zoomAt = (factor: number, sx: number, sy: number) => {
     const c = camRef.current;
     const s = Math.max(sMin(), Math.min(sMax(), c.s * factor));
@@ -300,6 +412,11 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
     el.addEventListener('wheel', wheel, { passive: false });
     return () => el.removeEventListener('wheel', wheel);
   });
+  /** Was unter dem Zeiger liegt: ein Feld (auch ein Gebiet über eine seiner Säulen), ein Tor. */
+  const targetOf = (el: Element | null): { key: string | null; gate: string | null } => {
+    const hit = el?.closest?.('[data-ls-key],[data-ls-in],[data-ls-gate]') ?? null;
+    return { key: hit?.getAttribute('data-ls-key') ?? hit?.getAttribute('data-ls-in') ?? null, gate: hit?.getAttribute('data-ls-gate') ?? null };
+  };
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<{ x: number; y: number; cam: Cam; moved: boolean; vx: number; vy: number; t: number; pinch: { d: number; s: number } | null; target: Element | null } | null>(null);
   const down = (e: ReactPointerEvent<SVGSVGElement>) => {
@@ -313,7 +430,16 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
       drag.current = { ...drag.current, moved: true, pinch: { d: Math.hypot(a.x - b.x, a.y - b.y), s: camRef.current.s } };
     }
   };
+  const tip = useRef<HTMLDivElement>(null);
+  const tipAt = useRef<[number, number]>([0, 0]);
   const move = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === 'mouse' && drag.current === null) {
+      const [x, y] = local(e);
+      tipAt.current = [x, y];
+      if (tip.current !== null) { tip.current.style.left = `${Math.round(x)}px`; tip.current.style.top = `${Math.round(y - 14)}px`; }
+      const k = targetOf(e.target as Element).key;
+      if (k !== hover) setHover(k);
+    }
     if (!pointers.current.has(e.pointerId) || drag.current === null) return;
     const [x, y] = local(e);
     const was = pointers.current.get(e.pointerId)!;
@@ -343,10 +469,8 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
     if (d === null) return;
     if (!d.moved) {
       /* Gefangen ist der Zeiger beim Bild: was getroffen wurde, sagt der Anfang. */
-      const el = d.target?.closest?.('[data-ls-key],[data-ls-gate]');
-      const key = el?.getAttribute('data-ls-key');
-      const gate = el?.getAttribute('data-ls-gate');
-      if (key != null) onChoose(key); else if (gate != null) onGate(gate); else onBackground();
+      const { key, gate } = targetOf(d.target);
+      if (key !== null) onChoose(key); else if (gate !== null) onGate(gate); else onBackground();
       return;
     }
     /* Ausrollen: die Geschwindigkeit nimmt ab, am Rand hält die Karte. */
@@ -358,10 +482,10 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
       const dt = Math.min(40, t - last);
       last = t;
       const c = camRef.current;
-      const next = clampCam({ s: c.s, cx: c.cx - (vx * dt) / c.s, cy: c.cy - (vy * dt) / c.s });
-      if (Math.abs(next.cx - (c.cx - (vx * dt) / c.s)) > 1e-6) vx = 0;
-      if (Math.abs(next.cy - (c.cy - (vy * dt) / c.s)) > 1e-6) vy = 0;
-      setCam(next);
+      const nextCam = clampCam({ s: c.s, cx: c.cx - (vx * dt) / c.s, cy: c.cy - (vy * dt) / c.s });
+      if (Math.abs(nextCam.cx - (c.cx - (vx * dt) / c.s)) > 1e-6) vx = 0;
+      if (Math.abs(nextCam.cy - (c.cy - (vy * dt) / c.s)) > 1e-6) vy = 0;
+      setCam(nextCam);
       const k = 0.92 ** (dt / 16);
       vx *= k;
       vy *= k;
@@ -386,9 +510,83 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
   const far = (steps: number) => (steps >= 12 ? 4 : steps >= 8 ? 3 : steps >= 5 ? 2 : steps >= 3 ? 1 : 0);
   const routeIndex = new Map((route?.keys ?? []).map((k, i) => [k, i] as const));
   const restSet = new Set(route?.rest ?? []);
-  /* Von hinten nach vorn: Tore und Felder zusammen. */
+  const subject = (s: number) => (s >= 0 && s < 8 ? s : 'x');
+  const [hover, setHover] = useState<string | null>(null);
+
+  /*
+    Das Relief der Gebiete in Weltmassen (nur die Gruppe wird verschoben und gezoomt): von hinten nach vorn, jede Säule auf
+    der leicht erhabenen Fläche ihres Gebiets.
+  */
+  const relief = useMemo(() => {
+    if (!regional) return null;
+    const W = (x: number, y: number) => `${x.toFixed(3)},${y.toFixed(3)}`;
+    const wface = (x: number, y: number) => HEX_CORNERS.map(([cx, cy]) => W(x + cx, y - cy * fore)).join(' ');
+    const wsides = (x: number, top: number, base: number) => [[3, 4], [4, 5], [5, 0]].map(([a, b]) => [
+      W(x + HEX_CORNERS[a][0], base - HEX_CORNERS[a][1] * fore + HEX_FLOOR), W(x + HEX_CORNERS[b][0], base - HEX_CORNERS[b][1] * fore + HEX_FLOOR),
+      W(x + HEX_CORNERS[b][0], top - HEX_CORNERS[b][1] * fore), W(x + HEX_CORNERS[a][0], top - HEX_CORNERS[a][1] * fore)
+    ].join(' '));
+    const sorted = [...world.cols].sort((a, b) => b.c.y - a.c.y);
+    return sorted.map((col) => {
+      const c = col.c.cell!;
+      const owner = turnedFields[col.c.owner];
+      const cut = scale.cut[col.i];
+      const cls = `cg-rm-col is-cell is-${c.band} is-s${subject(c.subject)}${c.glow ? ' is-glow' : ''}${owner.conquered ? ' is-conquered' : ''}${far(c.steps) > 0 ? ` is-far${far(c.steps)}` : ''}${cut ? ' is-cut' : ''}`;
+      return (
+        <g key={`${owner.key}:${c.key}`} className={cls} data-ls-in={owner.key} data-ls-cell={c.key} data-ls-band={c.band} data-ls-steps={c.steps} data-ls-drawn={scale.drawn[col.i]} data-ls-visible={scale.visible[col.i].toFixed(2)}>
+          {wsides(col.bx, col.ty, col.by).map((p, j) => <polygon key={j} className={`cg-rm-side is-${['l', 'f', 'r'][j]}`} points={p} />)}
+          <polygon className="cg-rm-face" points={wface(col.bx, col.ty)} />
+          {cut && <polygon className="cg-rm-cutface" points={wface(col.bx, col.ty)} fill={`url(#${pid}-cut)`} data-ls-cut="" />}
+          {/* Der Rand des Gebiets oben auf seinen äusseren Säulen: in seiner Farbe, der helle Teil — so viel ist gelernt. */}
+          {(c.rim ?? []).length > 0 && [false, true].map((lit) => {
+            const d = (c.rim ?? []).filter((e) => e.lit === lit).map((e) => { const a = HEX_CORNERS[(e.k + rot) % 6]; const b2 = HEX_CORNERS[(e.k + 1 + rot) % 6]; return `M${W(col.bx + a[0] * 0.94, col.ty - a[1] * fore * 0.94)}L${W(col.bx + b2[0] * 0.94, col.ty - b2[1] * fore * 0.94)}`; }).join('');
+            return d === '' ? null : <path key={lit ? 'lit' : 'rim'} className={lit ? 'cg-rm-rim is-lit' : 'cg-rm-rim'} d={d} />;
+          })}
+        </g>
+      );
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regional, world, scale, fore, turnedFields, pid, rot]);
+
+  /* Die Schilder der Gebiete: der ganze Name, neben (über, unter) der Fläche, ohne einander zu decken. */
+  const labels = useMemo(() => {
+    if (!regional) return [];
+    const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
+    const order = turnedFields.map((f, i) => ({ f, i })).filter(({ f }) => f.kind === 'region')
+      .sort((a, b) => Number(b.f.home) - Number(a.f.home) || (b.f.cells?.length ?? 0) - (a.f.cells?.length ?? 0));
+    const out: { key: string; i: number; x: number; y: number; w: number; h: number; lines: string[]; icon: boolean }[] = [];
+    for (const { f, i } of order) {
+      const hub = world.hubs[i];
+      const wide = (hub.x1 - hub.x0) * cam.s;
+      const icon = f.sign !== null || f.conquered;
+      const { lines, width: tw } = wrapName(f.label, Math.max(96, Math.min(220, wide * 1.1)), f.home);
+      const w = tw + 14 + (icon ? 16 : 0);
+      const h = lines.length * LINE_H + 6;
+      const mid = sx(hub.x);
+      const top = sy(hub.y0);
+      const bottom = sy(hub.y1);
+      const centre = (top + bottom) / 2;
+      const tries: [number, number][] = [[mid, top - 4 - h / 2], [mid, bottom + 4 + h / 2], [mid - w / 2, top - 4 - h / 2], [mid + w / 2, top - 4 - h / 2], [mid, centre], [mid - w / 2, bottom + 4 + h / 2], [mid + w / 2, bottom + 4 + h / 2], [mid, top + h / 2 + 2]];
+      let best: { x: number; y: number; over: number } | null = null;
+      for (const [x0, y0] of tries) {
+        const x = Math.max(w / 2 + 2, Math.min(width - w / 2 - 2, x0));
+        const y = Math.max(h / 2 + 2, Math.min(height - h / 2 - 2, y0));
+        const box = { x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2 };
+        let over = 0;
+        for (const p of placed) over += Math.max(0, Math.min(p.x1, box.x1) - Math.max(p.x0, box.x0)) * Math.max(0, Math.min(p.y1, box.y1) - Math.max(p.y0, box.y0));
+        if (best === null || over < best.over - 1e-6) best = { x, y, over };
+        if (over === 0) break;
+      }
+      const b = best!;
+      placed.push({ x0: b.x - w / 2 - 2, x1: b.x + w / 2 + 2, y0: b.y - h / 2 - 2, y1: b.y + h / 2 + 2 });
+      out.push({ key: f.key, i, x: b.x, y: b.y, w, h, lines, icon });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regional, turnedFields, world, cam, width, height]);
+
+  /* Von hinten nach vorn: Tore und Felder zusammen (die Themen einer Themen-Ebene). */
   const order = [
-    ...world.cols.map((c) => ({ kind: 'field' as const, y: turnedFields[c.i].y, c })),
+    ...(regional ? [] : world.cols.map((c) => ({ kind: 'field' as const, y: c.c.y, c }))),
     ...turnedGates.map((g, j) => ({ kind: 'gate' as const, y: g.y, j }))
   ].sort((a, b) => b.y - a.y);
 
@@ -400,52 +598,62 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
     return plain.length > fit ? `${plain.slice(0, fit - 1)}…` : plain;
   };
 
-  const [hover, setHover] = useState<string | null>(null);
-  const hovered = hover === null ? undefined : world.cols.find((c) => c.f.key === hover);
-  const tip = useRef<HTMLDivElement>(null);
+  const hoveredField = hover === null ? undefined : fields.find((f) => f.key === hover) ?? (() => { const c = colByKey.get(hover); return c === undefined ? undefined : turnedFields[c.c.owner]; })();
+  const hint = (f: MapField) => (f.kind === 'region' ? T.hintZoom : f.key === chosen ? (f.startable === true ? T.hintStart : '') : T.hintSelect);
   useLayoutEffect(() => {
     const el = tip.current;
-    if (el === null || hovered === undefined) return;
-    el.style.left = `${Math.round(sx(hovered.bx))}px`;
-    el.style.top = `${Math.round(sy(hovered.ty - world.faceH) - 8)}px`;
+    if (el === null) return;
+    el.style.left = `${Math.round(tipAt.current[0])}px`;
+    el.style.top = `${Math.round(tipAt.current[1] - 14)}px`;
   });
 
+  /* Tastatur: Pfeile von Feld zu Feld (die Schilder der Gebiete, die Säulen der Themen), Eingabe wählt. */
+  const hubOf = (key: string) => { const i = turnedFields.findIndex((f) => f.key === key); return i < 0 ? null : { x: sx(world.hubs[i].x), y: sy(world.hubs[i].top) }; };
   const keys = (e: KeyboardEvent<SVGSVGElement>) => {
     if (e.key === '+' || e.key === '=') { e.preventDefault(); glide({ ...camRef.current, s: camRef.current.s * 1.4 }); return; }
     if (e.key === '-') { e.preventDefault(); if (camRef.current.s <= fitCam().s * 1.01 && canUp) onUp(); else glide({ ...camRef.current, s: camRef.current.s / 1.4 }); return; }
     if (e.key === 'Escape' || e.key === 'Backspace') { if (canUp) { e.preventDefault(); onUp(); } return; }
     const el = (e.target as Element).closest('[data-ls-key]');
-    const at = el === null ? undefined : world.cols.find((c) => c.f.key === el.getAttribute('data-ls-key'));
-    if (at === undefined) return;
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChoose(at.f.key); return; }
+    const key = el?.getAttribute('data-ls-key') ?? null;
+    if (key === null) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChoose(key); return; }
     const dirs: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
     const d = dirs[e.key];
-    if (d === undefined) return;
+    const at = hubOf(key);
+    if (d === undefined || at === null) return;
     e.preventDefault();
-    let best: (typeof world.cols)[number] | undefined;
+    let best: string | null = null;
     let score = Number.POSITIVE_INFINITY;
-    for (const c of world.cols) {
-      if (c === at) continue;
-      const dx = sx(c.bx) - sx(at.bx);
-      const dy = sy(c.ty) - sy(at.ty);
+    for (const f of turnedFields) {
+      if (f.key === key) continue;
+      const h = hubOf(f.key);
+      if (h === null) continue;
+      const dx = h.x - at.x;
+      const dy = h.y - at.y;
       const along = dx * d[0] + dy * d[1];
       if (along <= 4) continue;
       const s = along + Math.abs(dx * d[1] - dy * d[0]) * 2;
-      if (s < score) { score = s; best = c; }
+      if (s < score) { score = s; best = f.key; }
     }
-    if (best !== undefined) svg.current?.querySelector<SVGGElement>(`[data-ls-key="${CSS.escape(best.f.key)}"]`)?.focus();
+    if (best !== null) svg.current?.querySelector<SVGGElement>(`[data-ls-key="${CSS.escape(best)}"]`)?.focus();
   };
 
-  const routePts = (route?.keys ?? []).map((k) => world.cols.find((c) => c.f.key === k)).filter((c): c is (typeof world.cols)[number] => c !== undefined);
-  const subject = (f: MapField) => (f.subject >= 0 && f.subject < 8 ? f.subject : 'x');
-  const shareStep = (f: MapField) => Math.min(4, Math.floor(f.share * 5));
+  /* Der Weg: Themen im Relief bei ihrer Säule, sonst das Feld. */
+  const routePts = (route?.keys ?? []).map((k) => {
+    const col = colByKey.get(k);
+    if (col !== undefined) return { key: k, x: col.bx, y: col.ty - world.faceH * 0.55 };
+    const i = turnedFields.findIndex((f) => f.key === k);
+    return i < 0 ? null : { key: k, x: world.hubs[i].x, y: world.hubs[i].top - world.faceH * 0.55 };
+  }).filter((p): p is { key: string; x: number; y: number } => p !== null);
+  const homeCol = regional ? world.cols.find((c) => c.c.cell?.home === true) : undefined;
+  const loopPath = (loops: readonly (readonly { x: number; y: number }[])[], lift: number) => loops.map((l) => `M${l.map((p) => P(p.x, -p.y * fore - lift)).join('L')}Z`).join('');
 
   return (
-    <div className={`cg-rm${compact ? ' is-compact' : ''}`} data-rm-level={levelKey} data-rm-fore={fore.toFixed(2)} data-rm-step={step.toFixed(4)} data-rm-scale={cam.s.toFixed(2)}
-      data-rm-cut={scale.cut.filter(Boolean).length} data-rm-world={[world.x0, world.x1, world.y0, world.y1].map((v) => v.toFixed(2)).join(',')} data-rm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(2)).join(',')} data-rm-auto={auto.current ? '1' : '0'} data-rm-signs={showSigns ? '1' : '0'} data-rm-names={showNames ? '1' : '0'} data-rm-rot={rot}>
+    <div className={`cg-rm${compact ? ' is-compact' : ''}${regional ? ' is-regional' : ''}`} data-rm-level={levelKey} data-rm-fore={fore.toFixed(2)} data-rm-step={step.toFixed(4)} data-rm-scale={cam.s.toFixed(2)}
+      data-rm-cut={scale.cut.filter(Boolean).length} data-rm-world={[world.x0, world.x1, world.y0, world.y1].map((v) => v.toFixed(2)).join(',')} data-rm-cam={[cam.s, cam.cx, cam.cy].map((v) => v.toFixed(2)).join(',')}
+      data-rm-auto={auto.current ? '1' : '0'} data-rm-signs={showSigns ? '1' : '0'} data-rm-names={showNames ? '1' : '0'} data-rm-rot={rot} data-rm-cells={regional ? world.cols.length : 0}>
       <svg ref={svg} className="cg-rm-svg" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="group" aria-label={T.mapLabel} tabIndex={-1}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={keys}
-        onPointerOver={(e) => { if (e.pointerType !== 'mouse') return; const k = (e.target as Element).closest?.('[data-ls-key]')?.getAttribute('data-ls-key'); setHover(k ?? null); }}
         onPointerLeave={() => setHover(null)} data-landscape-svg="">
         <defs>
           <pattern id={`${pid}-cut`} width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -456,6 +664,18 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
         <g className="cg-rm-ground" aria-hidden>
           {turnedGround.map((g, i) => <polygon key={i} points={face(g.x, -g.y * fore)} />)}
         </g>
+        {/* Die Flächen der Gebiete: ein weicher Rand in ihrer Farbe; der helle Teil des Randes — so viel ist gelernt. */}
+        {regional && turnedFields.map((f, i) => {
+          const o = turnedOutlines[i];
+          if (o.outline.length === 0) return null;
+          const d = loopPath(o.outline, 0);
+          return (
+            <g key={`area:${f.key}`} className={`cg-rm-area is-s${subject(f.subject)}${f.conquered ? ' is-conquered' : ''}${f.glow ? ' is-glow' : ''}${hover === f.key ? ' is-hover' : ''}${restSet.has(f.key) ? ' is-route-rest' : ''}`} data-ls-in={f.key} data-ls-area={f.key}>
+              <path className="cg-rm-area-fill" d={d} />
+              <path className="cg-rm-area-edge" d={d} />
+            </g>
+          );
+        })}
         {order.map((o) => {
           if (o.kind === 'gate') {
             const g = turnedGates[o.j];
@@ -469,14 +689,13 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
             );
           }
           const { c } = o;
-          const f = c.f;
+          const f = turnedFields[c.c.owner];
           const cut = scale.cut[c.i];
-          const cls = `cg-rm-col is-${f.band} is-s${subject(f)}${f.kind === 'region' ? ' is-region' : ''}${f.glow ? ' is-glow' : ''}${f.conquered ? ' is-conquered' : ''}`
-            + `${far(f.steps) > 0 ? ` is-far${far(f.steps)}` : ''}${f.kind === 'region' && f.band !== 'known' && f.band !== 'due' ? ` is-k${shareStep(f)}` : ''}`
+          const cls = `cg-rm-col is-${f.band} is-s${subject(f.subject)}${f.glow ? ' is-glow' : ''}`
+            + `${far(f.steps) > 0 ? ` is-far${far(f.steps)}` : ''}`
             + `${f.key === chosen ? ' is-on' : ''}${f.key === hover ? ' is-hover' : ''}${routeIndex.has(f.key) ? ' is-route' : ''}${restSet.has(f.key) ? ' is-route-rest' : ''}${cut ? ' is-cut' : ''}`;
           const cx = sx(c.bx);
           const cy = sy(c.ty);
-          const ring = f.kind === 'region' && f.share > 0 && f.band !== 'known' && f.band !== 'due';
           const signShown = f.sign !== null && (showSigns || f.key === chosen || f.key === next);
           return (
             <g key={f.key} className={cls} data-ls-key={f.key} data-ls-field={f.key} data-ls-band={f.band} data-ls-kind={f.kind} data-ls-steps={f.steps} data-ls-drawn={scale.drawn[c.i]}
@@ -485,21 +704,7 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
               {sides(c.bx, c.ty, c.by).map((p, j) => <polygon key={j} className={`cg-rm-side is-${['l', 'f', 'r'][j]}`} points={p} />)}
               <polygon className="cg-rm-face" points={face(c.bx, c.ty)} />
               {cut && <polygon className="cg-rm-cutface" points={face(c.bx, c.ty)} fill={`url(#${pid}-cut)`} data-ls-cut="" />}
-              {f.kind === 'region' && <polygon className="cg-rm-plateau" points={face(c.bx, c.ty, 0.62)} />}
-              {ring && (() => {
-                const r = HEX_CORNER * 0.78 * cam.s;
-                const k = Math.max(0.02, Math.min(1, f.share));
-                const pts: string[] = [];
-                for (let a = 0; a <= 48; a += 1) { const t = -Math.PI / 2 + (a / 48) * k * 2 * Math.PI; pts.push(`${(cx + Math.cos(t) * r).toFixed(1)},${(cy + Math.sin(t) * r * fore).toFixed(1)}`); }
-                return <polyline className="cg-rm-ring" points={pts.join(' ')} data-ls-ring={f.share.toFixed(2)} />;
-              })()}
-              {f.preview !== undefined && f.preview.length > 0 && topWidth >= 84 && !signShown && (
-                <g className="cg-rm-preview" aria-hidden>
-                  {f.preview.map((p, j) => <circle key={j} className={`is-${p.band}`} cx={cx + p.x * HEX_CORNER * 0.42 * cam.s} cy={cy + p.y * HEX_CORNER * 0.42 * cam.s * fore} r={Math.max(1.2, topWidth / 70)} />)}
-                </g>
-              )}
               {signShown && <SignIcon kind={f.sign!} r={Math.max(MIN_SIGN / 2, signR)} fore={fore} x={cx} y={cy} />}
-              {f.conquered && !signShown && topWidth >= 30 && <FlagIcon x={cx + HEX_CORNER * 0.35 * cam.s} y={cy - HEX_CORNERS[1][1] * fore * 0.2 * cam.s} h={Math.max(8, topWidth * 0.22)} />}
               {f.home && <MeIcon x={cx - HEX_CORNER * 0.42 * cam.s} y={cy + HEX_CORNERS[1][1] * fore * 0.35 * cam.s} h={Math.max(9, topWidth * 0.24)} />}
               {(() => {
                 const name = nameOf(f);
@@ -510,40 +715,75 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
             </g>
           );
         })}
+        {regional && (
+          <g className="cg-rm-relief" transform={`translate(${(width / 2 - cam.cx * cam.s).toFixed(2)},${(height / 2 - cam.cy * cam.s).toFixed(2)}) scale(${cam.s.toFixed(4)})`} data-ls-relief={world.cols.length}>
+            {relief}
+          </g>
+        )}
+        {/* Die Teilgebiete: ein feiner Umriss auf der Fläche (über dem Relief, ganz leise). */}
+        {regional && cam.s * 2 * HEX_CORNER >= 14 && turnedFields.map((f, i) => (turnedOutlines[i].parts.length > 1 ? (
+          <path key={`parts:${f.key}`} className="cg-rm-part" d={turnedOutlines[i].parts.map((loops) => loopPath(loops, plate)).join('')} aria-hidden />
+        ) : null))}
         {/* Der Weg: EINE Linie in der Reihenfolge der Liste, Schritt 1 hervorgehoben. */}
         {routePts.length > 0 && (
           <g className="cg-rm-route" aria-hidden data-ls-route={routePts.length}>
-            {routePts.length > 1 && <polyline className="cg-rm-routeline" points={routePts.map((c) => P(c.bx, c.ty - world.faceH * 0.55)).join(' ')} />}
+            {routePts.length > 1 && <polyline className="cg-rm-routeline" points={routePts.map((c) => P(c.x, c.y)).join(' ')} />}
             {routePts.map((c, k) => {
               const first = k === 0 && routePts.length > 1;
               const goal = k === routePts.length - 1;
-              const r = first ? 7 : 5.5;
+              const r = first ? 7 : regional ? 4.5 : 5.5;
               return (
-                <g key={c.f.key} className={`cg-rm-step${first ? ' is-first' : ''}${goal ? ' is-goal' : ''}`} data-ls-route-step={k + 1}>
+                <g key={`${c.key}:${k}`} className={`cg-rm-step${first ? ' is-first' : ''}${goal ? ' is-goal' : ''}`} data-ls-route-step={k + 1}>
                   {/* Hinten auf der Fläche (das Zeichen in ihrer Mitte bleibt frei). */}
-                  <circle cx={sx(c.bx)} cy={sy(c.ty - world.faceH * 0.55)} r={r} />
-                  {topWidth >= 40 && !goal && <text x={sx(c.bx)} y={sy(c.ty - world.faceH * 0.55) + 3.5} textAnchor="middle">{k + 1}</text>}
+                  <circle cx={sx(c.x)} cy={sy(c.y)} r={r} />
+                  {topWidth >= 40 && !goal && <text x={sx(c.x)} y={sy(c.y) + 3.5} textAnchor="middle">{k + 1}</text>}
                 </g>
               );
             })}
           </g>
         )}
+        {homeCol !== undefined && <MeIcon x={sx(homeCol.bx)} y={sy(homeCol.ty) + 2} h={Math.max(11, topWidth * 0.5)} />}
         {/* Die Zahl am Ziel: so viele Themen bis dorthin (die Legende sagt es). */}
-        {world.cols.filter((c) => c.f.badge != null && c.f.badge > 0).map((c) => (
-          <g key={`badge:${c.f.key}`} className="cg-rm-badge" aria-hidden data-ls-badge={c.f.badge}>
-            <rect x={sx(c.bx) + HEX_CORNER * 0.5 * cam.s} y={sy(c.ty - world.faceH) - 18} width={String(c.f.badge).length * 7 + 10} height={16} rx={8} />
-            <text x={sx(c.bx) + HEX_CORNER * 0.5 * cam.s + (String(c.f.badge).length * 7 + 10) / 2} y={sy(c.ty - world.faceH) - 6} textAnchor="middle">{c.f.badge}</text>
-          </g>
-        ))}
+        {turnedFields.map((f, i) => {
+          if (f.badge == null || f.badge <= 0) return null;
+          const hub = world.hubs[i];
+          const x = sx(regional ? hub.x1 - HEX_CORNER : hub.x + HEX_CORNER * 0.5);
+          const y = sy(regional ? hub.y0 : hub.top - world.faceH) - 18;
+          const w = String(f.badge).length * 7 + 10;
+          return (
+            <g key={`badge:${f.key}`} className="cg-rm-badge" aria-hidden data-ls-badge={f.badge}>
+              <rect x={x} y={y} width={w} height={16} rx={8} />
+              <text x={x + w / 2} y={y + 12} textAnchor="middle">{f.badge}</text>
+            </g>
+          );
+        })}
+        {/* Die Schilder der Gebiete: ein Tippen zoomt hinein. */}
+        {labels.map((l) => {
+          const f = turnedFields[l.i];
+          const x0 = l.x - l.w / 2;
+          const y0 = l.y - l.h / 2;
+          const textX = x0 + 7 + (l.icon ? 16 : 0);
+          return (
+            <g key={`label:${l.key}`} className={`cg-rm-label is-s${subject(f.subject)}${f.home ? ' is-home' : ''}${f.conquered ? ' is-conquered' : ''}${hover === f.key ? ' is-hover' : ''}`} data-ls-key={f.key} data-ls-field={f.key} data-ls-kind="region"
+              data-ls-band={f.band} data-ls-steps={f.steps} data-ls-cells={f.cells?.length ?? 0} data-ls-share={f.share.toFixed(2)} data-ls-label={l.lines.join(' ')}
+              data-ls-box={[x0, y0, l.w, l.h].map((v) => v.toFixed(1)).join(',')} tabIndex={0} role="button" aria-label={`${f.title} — ${T.hintZoom}`}>
+              <rect className="cg-rm-label-box" x={x0} y={y0} width={l.w} height={l.h} rx={l.h / 2 > 10 ? 8 : l.h / 2} />
+              {l.icon && (f.sign !== null ? <SignIcon kind={f.sign} r={6.5} x={x0 + 13} y={l.y} /> : <FlagIcon x={x0 + 10} y={l.y + 6} h={12} />)}
+              <text className="cg-rm-label-text" x={textX} y={y0 + 3 + LINE_H * 0.78}>
+                {l.lines.map((line, k) => <tspan key={k} x={textX} dy={k === 0 ? 0 : LINE_H}>{line}</tspan>)}
+              </text>
+            </g>
+          );
+        })}
         {(() => {
           /* Die Namen der Tore: ohne einander zu decken (sonst nur beim Zeigen, als Hinweis). */
-          if (topWidth < 40) return null;
-          const placed: { x0: number; x1: number; y0: number; y1: number }[] = [];
+          if (topWidth < (regional ? 14 : 40)) return null;
+          const placed: { x0: number; x1: number; y0: number; y1: number }[] = labels.map((l) => ({ x0: l.x - l.w / 2, x1: l.x + l.w / 2, y0: l.y - l.h / 2, y1: l.y + l.h / 2 }));
           return turnedGates.map((g) => {
-            const text = g.label.length > 24 ? `${g.label.slice(0, 22)}…` : g.label;
+            const text = g.label;
             const x = sx(g.x);
             const y = sy(-g.y * fore) - world.faceH * cam.s - 6;
-            const w = text.length * 6.4 + 8;
+            const w = textWidth(text, false) + 8;
             const box = { x0: x - w / 2, x1: x + w / 2, y0: y - 12, y1: y + 3 };
             if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) return null;
             placed.push(box);
@@ -551,7 +791,11 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
           });
         })()}
       </svg>
-      {hovered !== undefined && <div ref={tip} className="cg-rm-tip" role="tooltip" data-landscape-tip="">{hovered.f.title}</div>}
+      {hoveredField !== undefined && (
+        <div ref={tip} className="cg-rm-tip" role="tooltip" data-landscape-tip="">
+          {hoveredField.title}{hint(hoveredField) === '' ? '' : <> · <strong>{hint(hoveredField)}</strong></>}
+        </div>
+      )}
       <div className="cg-rm-tools" role="group" aria-label={T.mapLabel}>
         <button type="button" className="cg-rm-tool" onClick={() => glide({ ...camRef.current, s: camRef.current.s * 1.5 })} aria-label={T.zoomIn} title={T.zoomIn} data-rm-zoom="in">+</button>
         <button type="button" className="cg-rm-tool" onClick={() => { if (camRef.current.s <= fitCam().s * 1.01 && canUp) onUp(); else glide({ ...camRef.current, s: camRef.current.s / 1.5 }); }} aria-label={T.zoomOut} title={T.zoomOut} data-rm-zoom="out">−</button>
@@ -559,7 +803,7 @@ export function RegionMap({ levelKey, fields, gates, ground, route, chosen, next
           <svg viewBox="-8 -8 16 16" aria-hidden><path d="M5.2,-2.6 A6,6 0 1 0 6,1.4 M5.2,-2.6 L1.6,-3.2 M5.2,-2.6 L5.8,0.8" /></svg>
         </button>
       </div>
-      {legend(fore, new Set(world.cols.filter((c) => { const x = sx(c.bx); const y = sy(c.ty); return x > -20 && x < width + 20 && y > -20 && y < height + 20; }).map((c) => c.f.key)))}
+      {legend(fore, new Set(world.cols.filter((c) => { const x = sx(c.bx); const y = sy(c.ty); return x > -20 && x < width + 20 && y > -20 && y < height + 20; }).map((c) => turnedFields[c.c.owner].key)))}
     </div>
   );
 }

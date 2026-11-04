@@ -311,3 +311,46 @@ export function parallelLike(n = 416, seed = 416) {
   });
   return assemble(topics, { sections });
 }
+
+/*
+ * 2026-11-04 (Prompt 12) — ACHT GEBIETE: Bazy mit 8 Abschnitten zu 5–12 Themen, innen kleine Ketten mit Gabeln.
+ *   kette8()   jeder Abschnitt baut auf den vorigen (eine Kette von Gebieten — wie Bosko heute)
+ *   zweige8()  ein Anfang, darauf eine breite flache Schicht von vier Abschnitten, auf drei davon je ein tieferer
+ */
+const SECTIONS8 = ['Początki w Becchi', 'Szkoła w Chieri i seminarium', 'Pierwsze oratorium wędrowne', 'Sanktuarium, kolegium i oratorium w Turynie',
+  'Salezjanie: reguła i pierwsze śluby', 'Dzieło wychodzi w świat: pierwsze misje', 'Córki Maryi Wspomożycielki', 'Ostatnie lata i dziedzictwo'];
+const SIZES8 = [6, 9, 7, 11, 8, 5, 10, 8];
+
+function section8(rnd, s, size, topics, base) {
+  const first = topics.length;
+  for (let k = 0; k < size; k += 1) {
+    const needs = [];
+    /* Innen: eine Kette mit Gabeln (Tiefe 3–5). */
+    if (k > 0) needs.push(first + Math.max(0, k - 1 - (rnd() < 0.35 ? 1 : 0)));
+    if (k > 1 && rnd() < 0.7) needs.push(first + rnd.int(0, k - 2));
+    if (k > 2 && rnd() < 0.5) needs.push(first + rnd.int(0, k - 3));
+    if (k === 0) needs.push(...base);
+    topics.push({ id: `${base.length === 0 && s === 0 ? 'a' : 's'}${s}-${k}`, label: `${SECTIONS8[s].split(/[ :,]/)[0]} ${k + 1}`, name: SECTIONS8[s], needs });
+  }
+  /* Was der nächste braucht: die letzten zwei. */
+  return [topics.length - 1];
+}
+
+export function kette8(seed = 8) {
+  const rnd = random(seed);
+  const topics = [];
+  let exits = [];
+  SIZES8.forEach((size, s) => { exits = section8(rnd, s, size, topics, exits); });
+  return assemble(topics, { sections: SECTIONS8, sizes: SIZES8 });
+}
+
+export function zweige8(seed = 9) {
+  const rnd = random(seed);
+  const topics = [];
+  const start = section8(rnd, 0, SIZES8[0], topics, []);
+  const layer = [1, 2, 3, 4].map((s) => section8(rnd, s, SIZES8[s], topics, start));
+  section8(rnd, 5, SIZES8[5], topics, layer[0]);
+  section8(rnd, 6, SIZES8[6], topics, layer[1]);
+  section8(rnd, 7, SIZES8[7], topics, [...layer[2].slice(0, 1), ...layer[3].slice(0, 1)]);
+  return assemble(topics, { sections: SECTIONS8, sizes: SIZES8 });
+}

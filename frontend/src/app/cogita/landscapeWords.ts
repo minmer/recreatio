@@ -56,6 +56,13 @@ export function landscapeWords(lang: Lang) {
     zoomOut: L('Oddal', 'Verkleinern', 'Zoom out'),
     up: L('Wyżej', 'Hinauf', 'Up'),
     rotate: L('Obróć o 60°', 'Um 60° drehen', 'Rotate by 60°'),
+    /* 2026-11-04 (Prompt 12) — was ein Klick tut (Hinweis beim Zeigen), was als Nächstes geht */
+    hintZoom: L('przybliż', 'hineinzoomen', 'zoom in'),
+    hintSelect: L('wybierz', 'auswählen', 'select'),
+    hintStart: L('zacznij (kliknij jeszcze raz)', 'starten (noch einmal klicken)', 'start (click again)'),
+    nextHere: L('Dalej tutaj', 'Als Nächstes hier', 'Next here'),
+    nextList: (n: number) => L(`${themen(n)} gotowych do nauki`, `${themen(n)} jetzt lernbar`, `${themen(n)} learnable now`),
+    legendArea: L('obszar: obrys w jego kolorze, na nim jego tematy; jasna część obrysu — tyle już umiesz', 'Gebiet: Umriss in seiner Farbe, darauf seine Themen; der helle Teil des Randes — so viel kannst du', 'region: outline in its colour with its topics on it; the light part of the edge — how much you know'),
     legend: L('Legenda', 'Legende', 'Legend'),
     mapLabel: L('Krajobraz wiedzy — dolina: umiesz; jeden stopień wyżej: możesz się uczyć teraz; wyżej: tyle tematów jeszcze brakuje.', 'Landschaft des Wissens — Tal: kannst du; eine Stufe höher: jetzt lernbar; höher: so viele Themen fehlen noch.', 'Map of knowledge — valley: known; one level up: learnable now; higher: that many topics still missing.'),
     /* Legende */
