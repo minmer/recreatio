@@ -87,6 +87,8 @@ export interface CogitaSettings {
   readonly joinPage?: string;
   /** 0110 — worauf diese Baza wiedzy verweist: Bibliotheken und andere Bazy wiedzy, auch in anderen Bereichen. */
   readonly sources: readonly SourceRef[];
+  /** 2026-11-04 — in welcher Sprache die Nauka dieser Baza spricht (`lang.ts`); fehlt sie: aus ihren Worten erkannt. */
+  readonly language?: 'pl' | 'de' | 'en';
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -115,7 +117,8 @@ export function readSettings(raw: unknown): CogitaSettings {
     dependencies,
     offline: strings(d.offline),
     ...(str(d.joinPage).trim() === '' ? {} : { joinPage: str(d.joinPage).trim().replace(/^#?\/+/, '') }),
-    sources: readSources(d.sources)
+    sources: readSources(d.sources),
+    ...(d.language === 'pl' || d.language === 'de' || d.language === 'en' ? { language: d.language } : {})
   };
 }
 

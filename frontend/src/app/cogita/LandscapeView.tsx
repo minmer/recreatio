@@ -29,7 +29,7 @@ import { createPortal } from 'react-dom';
 import type { Card } from './cardBasics';
 import { gaugeFromMarks, withFlows } from './knowing';
 import { learnerFlows, reviewStart, STORY_BUTTON, storyStage, type StoryStage } from './flowFacts';
-import { BAND_CODE, LS_BAND_LABEL, LS_BAND_MARK, LS_FORE, LS_SHRINK, LS_TILE, type LsBand, type LsBands, type LsField, type LsInput, type LsLand, type LsLayout, type LsRun, type LsState } from './landscape';
+import { BAND_CODE, LS_FORE, LS_SHRINK, LS_TILE, type LsBand, type LsBands, type LsField, type LsInput, type LsLand, type LsLayout, type LsRun, type LsState } from './landscape';
 import { landscapeClient, type LandscapeClient } from './landscapeClient';
 import { landscapeInput, landscapeState, lockCards } from './landscapeData';
 import { cellEdges, hexRoutes, segmentKey } from './landscapeDraw';
@@ -52,6 +52,7 @@ import type { Graph } from './graph';
 import { entityNameTex, useCtx } from './ui';
 import { needsKnowing, viewList, withKnowing, type ViewDoc } from './views';
 import { TexText } from '../ui/tex/Tex';
+import { baseLang, words, type Words } from './lang';
 import './landscape.css';
 
 /* -- Die Zeichnung ------------------------------------------------------------------------------------------------ */
@@ -99,13 +100,20 @@ const inCamera = (layout: LsLayout, c: LsLand): boolean => {
 };
 
 /** Die Grösse des Bildes: die Kamera (das ganze Land, im Zoom der Fokus) passt in die Breite; die Höhe folgt. */
-function geometryOf(layout: LsLayout, width: number, compact: boolean): Geo {
+function geometryOf(layout: LsLayout, width: number, compact: boolean, room = 640): Geo {
   const cam = layout.camera;
   const spanX = Math.max(3, cam.x1 - cam.x0 + 2 * CORNER);
   /* 2026-11-03 — eine Ebene mit wenigen Feldern (verschachtelt) darf größer stehen. */
   const few = layout.land.length <= 12;
   const u = Math.max(5, Math.min(compact ? (few ? 40 : 30) : few ? 92 : layout.path.length > 0 ? 46 : 58, (width - 12) / spanX));
-  const t = u * LS_TILE;
+  /*
+    2026-11-04 — JEDER SCHRITT GLEICH HOCH, OHNE DECKEL: die höchste Säule bestimmt, wie hoch ein Schritt sein darf, damit
+    die ganze Karte in den Raum passt (`room`) — verkleinert wird die Schrittweite, nie ein Berg gestaucht.
+  */
+  let tall = 1;
+  for (const c of layout.land) if (c.field !== null) tall = Math.max(tall, c.lift);
+  const flatPart = Math.max(1, cam.y1 - cam.y0) * u * LS_FORE + 2 * FACE_HALF * u + 80;
+  const t = Math.min(u * LS_TILE, Math.max(1.2, (room - flatPart) / tall));
   /* Über dem Land: die höchste Säule am oberen Rand und darüber Platz für die Namen der Bereiche. */
   let above = FACE_HALF * u;
   const zoomed = layout.path.length > 0;
@@ -122,7 +130,12 @@ function geometryOf(layout: LsLayout, width: number, compact: boolean): Geo {
 
 /* -- Worte -------------------------------------------------------------------------------------------------------- */
 
-const steps = (n: number): string => `${n} ${n === 1 ? 'krok' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'kroki' : 'kroków'}`;
+/**
+ * 2026-11-04 — DIE WORTE DER BAZA (`lang.ts`): gesetzt am Anfang jeder Zeichnung des Krajobraz — alles darunter (die Liste, die
+ * Seitenleiste, die Legende) zeichnet im selben Durchgang und spricht dieselbe Sprache.
+ */
+let W: Words = words('pl');
+const steps = (n: number): string => W.steps(n);
 
 /** 2026-11-03 (Prompt 5) — wo der Lernende in einer Erzählung steht, in Worten. */
 const STORY_WORDS: Readonly<Record<StoryStage, string>> = {
@@ -131,39 +144,30 @@ const STORY_WORDS: Readonly<Record<StoryStage, string>> = {
 
 /** Der Stand eines Feldes in Worten (D): gotowe do nauki, 2 kroki dalej, do powtórki, umiesz. */
 function stateWords(f: Pick<LsField, 'band' | 'missing' | 'locked'>): string {
-  if (f.band === 'ring') return f.locked ? 'gotowe do nauki — najpierw powtórka' : 'gotowe do nauki';
-  if (f.band === 'mountain') return `${steps(Math.max(1, f.missing))} dalej`;
-  if (f.band === 'due') return 'do powtórki';
-  return 'umiesz';
-}
-
-/** Das Zeichen eines Feldes: einzeln ● ◑ ○ ▲n, ein Feld „+N" sein Band mit seiner Zahl („○ 12", „▲ 45"; das Tal zählt Gelerntes und zu Wiederholendes). */
-function markOf(f: LsField): string {
-  if (f.kind === 'area') {
-    const n = f.band === 'ring' ? f.ring : f.band === 'due' ? f.due : f.band === 'mountain' ? f.mountain : f.known + f.due;
-    return `${LS_BAND_MARK[f.band]} ${n}`;
-  }
-  return f.band === 'mountain' ? `▲${Math.max(1, f.missing)}` : LS_BAND_MARK[f.band];
+  if (f.band === 'ring') return f.locked ? `${W.ready} — ${W.reviewFirstState}` : W.ready;
+  if (f.band === 'mountain') return W.away(Math.max(1, f.missing));
+  if (f.band === 'due') return W.due;
+  return W.youKnow;
 }
 
 /** 2026-11-03 — der Stand einer Gruppe (eines Knotens) in Worten. */
 function groupWords(f: LsField): string {
-  if (f.band === 'known') return 'Umiesz wszystko w środku.';
-  if (f.band === 'due') return `Umiesz wszystko w środku — ${f.due} do powtórki.`;
-  if (f.band === 'ring') return f.locked ? 'Najpierw powtórka tego, co było wcześniej.' : `${f.ring} do nauki teraz${f.due > 0 ? `, ${f.due} do powtórki` : ''}.`;
-  return `Najbliższe w środku: ${steps(Math.max(1, f.missing))} dalej.`;
+  if (f.band === 'known') return `${W.known} — 100 %`;
+  if (f.band === 'due') return `${W.known} · ${f.due} ${W.due}`;
+  if (f.band === 'ring') return f.locked ? W.reviewFirstState : `${f.ring} ${W.ready}${f.due > 0 ? ` · ${f.due} ${W.due}` : ''}`;
+  return W.away(Math.max(1, f.missing));
 }
 
 /** Wie ein Feld sich ansagt (Vorleser, Liste). */
 function fieldWords(f: LsField): string {
   if (f.kind === 'area') {
     const parts = [
-      f.ring > 0 ? `${f.ring} gotowe do nauki` : '', f.due > 0 ? `${f.due} do powtórki` : '', f.known > 0 ? `${f.known} umiem` : '',
-      f.mountain > 0 ? `${f.mountain} za górami (najbliższy ${steps(Math.max(1, f.missing))} dalej)` : ''
+      f.ring > 0 ? `${f.ring} ${W.ready}` : '', f.due > 0 ? `${f.due} ${W.due}` : '', f.known > 0 ? `${f.known} ${W.known}` : '',
+      f.mountain > 0 ? `${f.mountain} ${W.behind} (${W.away(Math.max(1, f.missing))})` : ''
     ].filter(Boolean).join(', ');
-    return `${f.label} · ${f.count}: ${parts}${f.goal ? ' · cel w środku' : ''}${f.route > 0 ? ` · ${f.route} kroków drogi w środku` : ''}`;
+    return `${f.label} · ${f.count}: ${parts}${f.goal ? ` · ${W.goal}` : ''}`;
   }
-  return `${f.label}: ${stateWords(f)}${f.goal ? ' · cel' : ''}${f.next ? ' · następny krok do celu' : ''}${f.route > 0 ? ' · na drodze do celu' : ''}`;
+  return `${f.label}: ${stateWords(f)}${f.goal ? ` · ${W.goal}` : ''}${f.next ? ` · ${W.nextStep}` : ''}`;
 }
 
 /* -- Wege (C) ------------------------------------------------------------------------------------------------------ */
@@ -763,8 +767,8 @@ function TopBar({ layout, focus, onFocus, nested = false, goalLabel, nextLabel, 
   const mixed = new Set(focus);
   return (
     <div className="cg-ls-top">
-      <nav className="cg-ls-crumbs" aria-label="Gdzie jesteś w krajobrazie">
-        <button type="button" className="wk-link-btn" disabled={layout.path.length === 0 && focus.length === 0} onClick={() => onFocus([])} data-landscape-up="">Całość</button>
+      <nav className="cg-ls-crumbs" aria-label={W.whereAmI}>
+        <button type="button" className="wk-link-btn" disabled={layout.path.length === 0 && focus.length === 0} onClick={() => onFocus([])} data-landscape-up="">{W.whole}</button>
         {layout.path.map((p, i) => (
           <span key={p.value} className="cg-ls-crumb">
             <span aria-hidden>›</span>
@@ -773,10 +777,10 @@ function TopBar({ layout, focus, onFocus, nested = false, goalLabel, nextLabel, 
         ))}
       </nav>
       <p className="cg-ls-sum" data-landscape-counts={`${c.known}/${c.due}/${c.ring}/${c.mountain}`}>
-        <span><span aria-hidden>{LS_BAND_MARK.ring}</span> gotowe do nauki <strong>{c.ring}</strong></span>
-        <span><span aria-hidden>{LS_BAND_MARK.due}</span> do powtórki <strong>{c.due}</strong></span>
-        <span><span aria-hidden>{LS_BAND_MARK.known}</span> umiem <strong>{c.known}</strong></span>
-        <span><span aria-hidden>{LS_BAND_MARK.mountain}</span> za górami <strong>{c.mountain}</strong></span>
+        <span>{W.ready} <strong>{c.ring}</strong></span>
+        <span>{W.due} <strong>{c.due}</strong></span>
+        <span>{W.known} <strong>{c.known}</strong></span>
+        <span>{W.behind} <strong>{c.mountain}</strong></span>
       </p>
       {layout.sectors.length > 1 && (
         <ul className="cg-ls-areas" aria-label="Obszary">
@@ -799,10 +803,10 @@ function TopBar({ layout, focus, onFocus, nested = false, goalLabel, nextLabel, 
       {layout.goal !== null && goalLabel !== null && (
         <p className="cg-ls-goal" data-landscape-goal={layout.goal.id} data-landscape-goal-steps={layout.goal.steps}>
           <span className="cg-ls-flag" aria-hidden>⚑</span>
-          <span>Cel: <strong>{goalLabel}</strong> — {layout.goal.steps === 0 ? (layout.goal.open ? 'możesz zacząć od razu' : 'osiągnięty') : `brakuje ${steps(layout.goal.steps)}`}
-            {layout.goal.next.length > 0 && layout.goal.steps > 0 && <> · następny krok: <strong>{nextLabel(layout.goal.next[0])}</strong></>}</span>
-          <button type="button" className="wk-link-btn" onClick={onShowGoal}>Pokaż</button>
-          <button type="button" className="wk-link-btn" onClick={onClearGoal} data-landscape-goal-clear="">Usuń cel</button>
+          <span>{W.goal}: <strong>{goalLabel}</strong> — {layout.goal.steps === 0 ? (layout.goal.open ? W.goalNow : W.goalReached) : W.goalMissing(layout.goal.steps)}
+            {layout.goal.next.length > 0 && layout.goal.steps > 0 && <> · {W.nextStep}: <strong>{nextLabel(layout.goal.next[0])}</strong></>}</span>
+          <button type="button" className="wk-link-btn" onClick={onShowGoal}>{W.show}</button>
+          <button type="button" className="wk-link-btn" onClick={onClearGoal} data-landscape-goal-clear="">{W.clearGoal}</button>
         </p>
       )}
     </div>
@@ -812,7 +816,7 @@ function TopBar({ layout, focus, onFocus, nested = false, goalLabel, nextLabel, 
 /* -- Das Bild ---------------------------------------------------------------------------------------------------- */
 
 /** Die Kante eines Gebiets: die Seiten seiner Zellen, an denen eine fremde liegt — auf ihren Flächen. */
-function outlineOf(layout: LsLayout, geo: Geo, cells: readonly number[]): string {
+function outlineOf(layout: LsLayout, geo: Geo, cells: readonly number[], rot = 0): string {
   const inside = new Set(cells.map((i) => `${layout.land[i].q},${layout.land[i].r}`));
   const parts: string[] = [];
   for (const i of cells) {
@@ -821,7 +825,7 @@ function outlineOf(layout: LsLayout, geo: Geo, cells: readonly number[]): string
     for (let k = 0; k < 6; k += 1) {
       const [dq, dr] = EDGE_NB[k];
       if (inside.has(`${c.q + dq},${c.r + dr}`)) continue;
-      parts.push(sideOf(geo, cx, cy, k));
+      parts.push(sideOf(geo, cx, cy, (k + rot) % 6));
     }
   }
   return parts.join('');
@@ -857,19 +861,40 @@ function repeatPath(cx: number, cy: number, r: number): string {
     + `M${(x0 - h * 0.15).toFixed(1)},${(y0 - h).toFixed(1)}L${x0.toFixed(1)},${y0.toFixed(1)}L${(x0 - h).toFixed(1)},${(y0 + h * 0.15).toFixed(1)}`;
 }
 
-/** Das Schloss (erst eine Powtórka), Mitte (0, 0), Grösse s. */
-const lockPath = (s: number): string => `M${-s * 0.42},${-s * 0.1} h${s * 0.84} v${s * 0.66} h${-s * 0.84} z M${-s * 0.24},${-s * 0.1} v${-s * 0.22} a${s * 0.24},${s * 0.24} 0 0 1 ${s * 0.48},0 v${s * 0.22}`;
+/**
+ * 2026-11-04 — „ERST WIEDERHOLEN, DANN WEITER" statt eines Schlosses (ein Schloss sagt „verboten"; das Feld wartet nur auf
+ * eine Powtórka): der Pfeil im Kreis — wiederholen — mit einem Pfeil nach oben in der Mitte — dann weiter. Das Zeichen
+ * „do powtórki" ist der Pfeil im Kreis allein. Mitte (0, 0), Halbmesser r.
+ */
+const firstPath = (r: number): string => `${repeatPath(0, 0, r)}M0,${(r * 0.5).toFixed(1)}V${(-r * 0.5).toFixed(1)}M${(-r * 0.32).toFixed(1)},${(-r * 0.18).toFixed(1)}L0,${(-r * 0.5).toFixed(1)}L${(r * 0.32).toFixed(1)},${(-r * 0.18).toFixed(1)}`;
+
+/** 2026-11-04 — die Karte um k·60° gedreht (um den Lernenden): dieselben Zellen, ein anderer Blickwinkel. */
+function turned(layout: LsLayout, k: number): LsLayout {
+  if (k % 6 === 0) return layout;
+  const a = (k * Math.PI) / 3;
+  const ca = Math.cos(a);
+  const sa = Math.sin(a);
+  const rot = <T extends { readonly x: number; readonly y: number }>(o: T): T => ({ ...o, x: o.x * ca - o.y * sa, y: o.x * sa + o.y * ca });
+  const c = layout.camera;
+  const corners = [[c.x0, c.y0], [c.x1, c.y0], [c.x0, c.y1], [c.x1, c.y1]].map(([x, y]) => rot({ x, y }));
+  return {
+    ...layout, land: layout.land.map(rot), fields: layout.fields.map(rot),
+    camera: { x0: Math.min(...corners.map((p) => p.x), -1), x1: Math.max(...corners.map((p) => p.x), 1), y0: Math.min(...corners.map((p) => p.y), -0.6), y1: Math.max(...corners.map((p) => p.y), 1) }
+  };
+}
 
 /**
  * 2026-11-03 — DIE LEGENDE, immer zu sehen: Farbe, Höhe und die zwei Zeichen, je eine Zeile — mehr steht auf der Karte nicht.
  */
-function Legend() {
+function Legend({ goal, ghost }: { goal: boolean; ghost: boolean }) {
   return (
     <ul className="cg-ls-legend" data-landscape-legend="">
-      <li><span className="cg-ls-legend-tones" aria-hidden><i /><i /><i /><i /></span>Kolor: im głębszy, tym lepiej znane — najjaśniejsze jest nowe</li>
-      <li><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path d="M-11,5 L-5,5 L-5,1 L1,1 L1,-3 L7,-3 L7,-7 L11,-7" /></svg>Wysokość: dolina — umiesz, równina — możesz się uczyć teraz, góry — tyle kroków dalej</li>
-      <li><svg className="cg-ls-legend-icon is-repeat" viewBox="-8 -8 16 16" aria-hidden><path d={repeatPath(0, 0, 5)} /></svg>do powtórki</li>
-      <li><svg className="cg-ls-legend-icon is-lock" viewBox="-8 -8 16 16" aria-hidden><path d={lockPath(14)} /></svg>najpierw powtórz to, co było wcześniej</li>
+      <li><span className="cg-ls-legend-tones" aria-hidden><i /><i /><i /><i /></span>{W.legendColour}</li>
+      <li data-landscape-legend-height=""><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path d="M-11,6 L-5,6 L-5,2 L1,2 L1,-2 L7,-2 L7,-6 L11,-6" /></svg>{W.legendHeight}</li>
+      <li data-landscape-legend-mark="repeat"><svg className="cg-ls-legend-icon is-mark" viewBox="-8 -8 16 16" aria-hidden><path className="cg-ls-mark" d={repeatPath(0, 0, 5)} /></svg>{W.legendDue}</li>
+      <li data-landscape-legend-mark="first"><svg className="cg-ls-legend-icon is-mark" viewBox="-8 -8 16 16" aria-hidden><path className="cg-ls-mark" d={firstPath(5.5)} /></svg>{W.legendFirst}</li>
+      {goal && <li data-landscape-legend-mark="goal"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><path className="cg-ls-goalline" d="M-10,5 L-2,-1 L6,3 L10,-5" /><circle className="cg-ls-goalstep" cx={-2} cy={-1} r={2.4} /></svg>{W.legendGoal}</li>}
+      {ghost && <li data-landscape-legend-mark="ghost"><svg className="cg-ls-legend-icon" viewBox="-12 -8 24 16" aria-hidden><polygon className="cg-ls-ghost" points="-8,0 -4,-5 4,-5 8,0 4,5 -4,5" /></svg>{W.legendSeeThrough}</li>}
     </ul>
   );
 }
@@ -886,8 +911,12 @@ function HoverTip({ x, y, text }: { x: number; y: number; text: string }) {
   return <div ref={ref} className="cg-ls-tip" role="tooltip" data-landscape-tip="">{text}</div>;
 }
 
-function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, client, onZoom, quest }: {
+function LandscapeMap({ layout: flatLayout, ids, chosen, onChoose, onClose, compact, width, client, onZoom, quest, panel = null, goalRoute = null }: {
   layout: LsLayout;
+  /** 2026-11-04 — wohin die Einzelheiten des gewählten Feldes kommen (die Seitenleiste); `null`: das Blatt am unteren Rand. */
+  panel?: HTMLElement | null;
+  /** 2026-11-04 — der Weg zum Ziel (seine Schritte in der Reihenfolge des Lernens), als EINE Linie gezeichnet. */
+  goalRoute?: readonly string[] | null;
   ids: readonly string[];
   chosen: string | null;
   onChoose: (f: LsField) => void;
@@ -898,7 +927,11 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
   onZoom: (value: string) => void;
   quest: (f: LsField, tools: QuestTools) => ReactNode;
 }) {
-  const geo = useMemo(() => geometryOf(layout, width, compact), [layout, width, compact]);
+  /* 2026-11-04 — die Karte in 60°-Schritten drehen (ein anderer Blick, wenn hohe Säulen etwas verdecken). */
+  const [rot, setRot] = useState(0);
+  const layout = useMemo(() => turned(flatLayout, rot), [flatLayout, rot]);
+  const room = typeof window === 'undefined' ? 640 : Math.round(window.innerHeight * (compact ? 0.45 : 0.72));
+  const geo = useMemo(() => geometryOf(layout, width, compact, room), [layout, width, compact, room]);
   const svg = useRef<SVGSVGElement>(null);
   const byKey = useMemo(() => new Map(layout.fields.map((f) => [f.key, f] as const)), [layout]);
   const indexOf = useMemo(() => new Map(ids.map((id, i) => [id, i] as const)), [ids]);
@@ -926,7 +959,32 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
     void client.route(id).then((r) => { if (alive && r !== null) setRoute({ id, steps: r.steps }); }, () => undefined);
     return () => { alive = false; };
   }, [picked?.key, picked?.band, client]); // eslint-disable-line react-hooks/exhaustive-deps
-  const routeOn = route !== null && picked !== undefined && route.id === picked.id && (hovered === undefined || hovered.key === picked.key) && peek === null;
+  const routeOn = false && route !== null && picked !== undefined && route.id === picked.id && (hovered === undefined || hovered.key === picked.key) && peek === null;
+  /*
+    2026-11-04 — DER WEG ALS EINE LINIE: die Schritte in der Reihenfolge des Lernens (Voraussetzungen zuerst), innerhalb einer
+    Stufe der nächste zum vorigen zuerst — so läuft die Linie ohne unnötige Kreuzungen durch die nummerierten Schritte. Für
+    das Ziel immer, für einen gewählten Berg (Vorschau seines Weges) solange er gewählt ist.
+  */
+  const lineIds = useMemo((): string[] | null => {
+    const levels: (readonly string[])[] | null = route !== null && picked !== undefined && route.id === picked.id ? [...route.steps, [route.id]]
+      : goalRoute !== null && goalRoute.length > 0 ? goalRoute.map((id) => [id]) : null;
+    if (levels === null) return null;
+    const pos = (id: string) => { const v = indexOf.get(id); const i = v === undefined ? -1 : layout.cellOf[v]; return i === undefined || i < 0 ? null : layout.land[i]; };
+    const out: string[] = [];
+    let at: { x: number; y: number } = { x: 0, y: 0 };
+    for (const level of levels) {
+      const rest = level.filter((id) => pos(id) !== null);
+      while (rest.length > 0) {
+        let best = 0;
+        let d = Number.POSITIVE_INFINITY;
+        rest.forEach((id, k) => { const c = pos(id)!; const dd = (c.x - at.x) ** 2 + (c.y - at.y) ** 2; if (dd < d) { d = dd; best = k; } });
+        const [id] = rest.splice(best, 1);
+        out.push(id);
+        at = pos(id)!;
+      }
+    }
+    return out;
+  }, [route, picked?.id, goalRoute, layout, indexOf]); // eslint-disable-line react-hooks/exhaustive-deps
   const pathTarget = peek ?? (focusField?.kind === 'entry' ? focusField.id! : null);
   const paths = useMemo(() => { const v = pathTarget === null ? undefined : indexOf.get(pathTarget); return v === undefined ? null : pathsOf(layout, v); }, [pathTarget, layout, indexOf]);
   const stepCount = route?.steps.length ?? 0;
@@ -943,7 +1001,7 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
   const centre = (i: number): [number, number] => { const c = layout.land[i]; return screenOf(geo, c.x, c.y, zoomed && !c.inScope ? 0 : c.lift); };
   /* DIE WEGE ALS EIN GRAPH AUF DEM RASTER (Prompt 3): jede Kante zwischen zwei Feldern einmal, über benachbarte Zellen. */
   const drawn = useMemo(() => {
-    if (paths === null) return null;
+    if (paths === null || (lineIds !== null && picked !== undefined && picked.band === 'mountain' && hovered === undefined)) return null;
     const cellOfNode = (v: number) => layout.cellOf[v] ?? -1;
     const nodes: ReadonlySet<number> = routeOn ? routeNodes : paths.nodes;
     const down = cellEdges(paths.down.filter(([a, b]) => !routeOn || (nodes.has(a) && nodes.has(b))).map(([a, b]) => [cellOfNode(a), cellOfNode(b)] as const));
@@ -959,7 +1017,7 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
       up: all.segments.filter(([a, b]) => !downKeys.has(segmentKey(a, b))),
       edges: down.length + up.length
     };
-  }, [paths, routeOn, routeNodes, layout, zoomed]);
+  }, [paths, routeOn, routeNodes, layout, zoomed, lineIds, picked?.band, hovered]); // eslint-disable-line react-hooks/exhaustive-deps
   const segPath = (segs: readonly (readonly [number, number])[]): string => segs.map(([a, b]) => { const p = centre(a); const q = centre(b); return `M${p[0].toFixed(1)},${p[1].toFixed(1)}L${q[0].toFixed(1)},${q[1].toFixed(1)}`; }).join('');
 
   const me = useMemo(() => {
@@ -996,7 +1054,7 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
     const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') { setPeek(null); onClose(); } };
     const outside = (e: PointerEvent) => {
       const t = e.target as Element | null;
-      if (t?.closest?.('.cg-ls-quest') || t?.closest?.('[data-ls-owner],[data-ls-field]')) return;
+      if (t?.closest?.('.cg-ls-quest') || t?.closest?.('.cg-ls-side') || t?.closest?.('[data-ls-owner],[data-ls-field]') || t?.closest?.('.cg-ls-rotate')) return;
       setPeek(null);
       onClose();
     };
@@ -1038,6 +1096,39 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
   const focusIn = (e: { target: EventTarget | null }) => { const f = ownerOf(e.target); if (f !== undefined) { clear(); setHover(f.key); } };
   const focusOut = () => { clear(); setHover(null); };
 
+  /*
+    2026-11-04 — NICHTS WICHTIGES HINTER BERGEN: ein Feld, an dem der Lernende handeln kann (jetzt lernbar, zu wiederholen,
+    gewählt, der nächste Schritt zum Ziel), dessen Fläche von Säulen davor verdeckt ist, zeigt seine Fläche als Umriss durch
+    sie hindurch (und bleibt antippbar: die Felder liegen über dem Land). Ist es gewählt oder gezeigt, werden genau die
+    Säulen davor zu Umrissen (Röntgen) — nichts sonst wird blasser.
+  */
+  const occlusion = useMemo(() => {
+    const hidden = new Map<string, number[]>();
+    const half = CORNER * geo.u;
+    const faceHalf = FACE_HALF * geo.u;
+    const nextIds = new Set(layout.goal?.next ?? []);
+    for (const fl of layout.fields) {
+      const important = fl.band === 'ring' || fl.due > 0 || fl.key === chosen || (fl.id !== undefined && nextIds.has(fl.id)) || fl.key === hover;
+      if (!important) continue;
+      const own = new Set(fl.cells);
+      const fc = layout.land[fl.cells[0]];
+      if (fc === undefined) continue;
+      const [fx, fy] = screenOf(geo, fc.x, fc.y, fc.lift);
+      const front: number[] = [];
+      layout.land.forEach((c, j) => {
+        if (own.has(j) || c.field === null || c.y >= fc.y - 1e-6) return;
+        const [cx] = screenOf(geo, c.x, c.y, 0);
+        if (Math.abs(cx - fx) > half * 1.6) return;
+        const topY = screenOf(geo, c.x, c.y, c.lift)[1] - faceHalf;
+        const bottomY = screenOf(geo, c.x, c.y, FLOOR)[1] + faceHalf;
+        const overlap = Math.min(fy + faceHalf, bottomY) - Math.max(fy - faceHalf, topY);
+        if (overlap > faceHalf * 0.5) front.push(j);
+      });
+      if (front.length > 0) hidden.set(fl.key, front);
+    }
+    return hidden;
+  }, [layout, geo, chosen, hover]);
+  const xray = new Set([...(occlusion.get(hover ?? '') ?? []), ...(occlusion.get(chosen ?? '') ?? [])]);
   /* Hervorgehoben (nie wird etwas anderes blasser): das gezeigte Feld, und ist ein Weg zu sehen, seine Felder. */
   const hoverCells = new Set(hovered?.cells ?? []);
   const routeCells = new Set(routeOn ? [...routeNodes].map((v) => layout.cellOf[v]).filter((i) => i >= 0) : []);
@@ -1057,14 +1148,14 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
         onKeyDown={move} onPointerOver={enter} onPointerOut={leave} onClick={click} onFocus={focusIn} onBlur={focusOut} data-landscape-svg="">
         {/* Das Land: jede Zelle ein Eintrag oder ein Knoten (keine leeren Zellen), von hinten nach vorn; die Höhe ist der Stand. */}
         <g className="cg-ls-land">
-          {layout.land.map((c, i) => {
+          {layout.land.map((c, i) => [c, i] as const).sort((a, b) => b[0].y - a[0].y || a[0].x - b[0].x).map(([c, i]) => {
             if (c.field === null || (zoomed && !inCamera(layout, c))) return null;
             const flat = zoomed && !c.inScope;
             const shape = prism(geo, c.x, c.y, c.lift, flat);
             const subject = c.subject >= 0 && c.subject < 8 ? c.subject : 'x';
             const k = shareStep(c);
             return (
-              <g key={`${c.q},${c.r}`} className={`cg-ls-cell is-${c.band ?? 'mountain'} is-s${subject} is-h${shade(c)}${c.group === true ? ' is-group' : ''}${k > 0 ? ` is-k${k}` : ''}${c.inScope ? '' : ' is-out'}${hoverCells.has(i) ? ' is-hover' : ''}${routeCells.has(i) ? ' is-route' : ''}${motion ? '' : ' is-still'}`}
+              <g key={`${c.q},${c.r}`} className={`cg-ls-cell is-${c.band ?? 'mountain'} is-s${subject} is-h${shade(c)}${c.group === true ? ' is-group' : ''}${k > 0 ? ` is-k${k}` : ''}${c.inScope ? '' : ' is-out'}${hoverCells.has(i) ? ' is-hover' : ''}${routeCells.has(i) ? ' is-route' : ''}${xray.has(i) ? ' is-xray' : ''}${motion ? '' : ' is-still'}`}
                 data-ls-cell={`${c.q},${c.r}`} data-ls-ci={i} data-ls-owner={c.field} data-ls-lift={Number(c.lift.toFixed(3))}>
                 {shape.sides.map((side, j) => <polygon key={j} className={`cg-ls-side is-${['l', 'f', 'r'][j]}`} points={side} />)}
                 <polygon className="cg-ls-face" points={shape.top} />
@@ -1073,8 +1164,23 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
           })}
         </g>
         {/* Das gewählte Feld: seine Kante deutlich, über allem; das gezeigte etwas leiser. */}
-        {hovered !== undefined && hovered.key !== chosen && <path className="cg-ls-outline is-hover" aria-hidden d={outlineOf(layout, geo, hovered.cells)} />}
-        {picked !== undefined && <path className="cg-ls-outline is-on" aria-hidden d={outlineOf(layout, geo, picked.cells)} data-ls-chosen-outline={picked.key} />}
+        {/* Verdeckte wichtige Felder: ihre Fläche als Umriss durch die Säulen davor. */}
+        <g className="cg-ls-ghosts" aria-hidden data-ls-hidden={occlusion.size}>
+          {[...occlusion.keys()].map((key) => { const fl = byKey.get(key); if (fl === undefined) return null; const c = layout.land[fl.cells[0]]; return <polygon key={key} className="cg-ls-ghost" points={prism(geo, c.x, c.y, c.lift).top} data-ls-ghost={key} />; })}
+        </g>
+        {hovered !== undefined && hovered.key !== chosen && <path className="cg-ls-outline is-hover" aria-hidden d={outlineOf(layout, geo, hovered.cells, rot)} />}
+        {picked !== undefined && <path className="cg-ls-outline is-on" aria-hidden d={outlineOf(layout, geo, picked.cells, rot)} data-ls-chosen-outline={picked.key} />}
+        {/* Der Weg zum Ziel (oder des gewählten Berges): eine Linie durch die Schritte, der nächste hervorgehoben. */}
+        {lineIds !== null && lineIds.length > 0 && (() => {
+          const pts2 = lineIds.map((id) => { const v = indexOf.get(id); const i = v === undefined ? -1 : layout.cellOf[v]; return i >= 0 ? centre(i) : null; }).filter((p): p is [number, number] => p !== null);
+          const nextSet = new Set(layout.goal?.next ?? []);
+          return (
+            <g className="cg-ls-goalroute" aria-hidden data-ls-goal-line={lineIds.length}>
+              <path className="cg-ls-goalline" d={`M${pts2.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L')}`} />
+              {lineIds.map((id, k) => { const p = pts2[k]; if (p === undefined) return null; const isNext = nextSet.has(id); return <circle key={id} className={`cg-ls-goalstep${isNext ? ' is-next' : ''}`} cx={p[0]} cy={p[1]} r={isNext ? 5 : 3} data-ls-goal-step={k + 1} />; })}
+            </g>
+          );
+        })()}
         {/* Die Wege (C): EIN Graph — hinab bis zum Ring und ins Tal (ein Berg: sein Weg), und wohin es führt. */}
         {drawn !== null && (
           <g className="cg-ls-paths" aria-hidden data-ls-paths={drawn.edges} data-ls-segs={drawn.down.length + drawn.up.length}
@@ -1088,7 +1194,7 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
           Kreis (do powtórki) und das Schloss (najpierw powtórz). Ein Knoten trägt dazu seinen Ring (gewusste / alle Karten).
         */}
         <g className="cg-ls-marks">
-          {layout.fields.map((f) => {
+          {[...layout.fields].sort((a, b) => b.y - a.y || a.x - b.x).map((f) => {
             const [x, y] = screenOf(geo, f.x, f.y, f.lift);
             const ring = f.kind === 'area' && f.progress !== undefined && f.progress.total > 0;
             const r = Math.max(4, s * 0.92);
@@ -1107,8 +1213,12 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
                     <circle className="cg-ls-progress-on" r={r} strokeDasharray={`${(2 * Math.PI * r * share).toFixed(1)} ${(2 * Math.PI * r).toFixed(1)}`} transform="rotate(-90)" />
                   </g>
                 )}
-                {f.locked && <path className="cg-ls-lock" d={lockPath(s)} data-ls-marker="lock" />}
-                {f.due > 0 && !f.locked && <path className="cg-ls-repeat" d={repeatPath(c * 0.42, -s * 0.38, Math.max(2.2, s * 0.36))} data-ls-marker="repeat" />}
+                {/* 2026-11-04 — die Zeichen: in der Mitte der Fläche, alle gleich (ein schwarzer Umriss auf der Farbe des Feldes). */}
+                {f.locked && <path className="cg-ls-mark" d={firstPath(Math.max(3, s * 0.55))} data-ls-marker="first" />}
+                {f.due > 0 && !f.locked && <path className="cg-ls-mark" d={repeatPath(0, 0, Math.max(3, s * 0.55))} data-ls-marker="repeat" />}
+                {lineIds !== null && f.id !== undefined && chosen === f.key && lineIds.includes(f.id) && (
+                  <g className="cg-ls-stepno" data-ls-step-number={lineIds.indexOf(f.id) + 1}><circle cx={c * 0.9} cy={-s * 1.1} r={Math.max(7, s * 0.5)} /><text x={c * 0.9} y={-s * 1.1 + 3.5} textAnchor="middle">{lineIds.indexOf(f.id) + 1}</text></g>
+                )}
               </g>
             );
           })}
@@ -1121,9 +1231,14 @@ function LandscapeMap({ layout, ids, chosen, onChoose, onClose, compact, width, 
       </svg>
       {leftRims.length > 0 && <div className="cg-ls-rims is-left">{leftRims.map((o) => <Rim key={o.value} rim={o} side="left" onZoom={onZoom} />)}</div>}
       {rightRims.length > 0 && <div className="cg-ls-rims is-right">{rightRims.map((o) => <Rim key={o.value} rim={o} side="right" onZoom={onZoom} />)}</div>}
-      {tipAt !== null && hovered !== undefined && <HoverTip x={tipAt[0]} y={tipAt[1] - s - 6} text={hovered.label} />}
-      {picked !== undefined && anchor !== null && (
-        <QuestBox svg={svg} geoWidth={geo.width} geoHeight={geo.height} at={{ x: anchor[0], y: anchor[1], half: s + 4, halfW: CORNER * geo.u + 4 }} sheet={sheet} label={picked.label} questKey={picked.key}
+      <button type="button" className="cg-ls-rotate" onClick={() => setRot((r) => (r + 1) % 6)} aria-label={W.rotate} title={W.rotate} data-landscape-rotate={rot}>⟳ 60°</button>
+      {tipAt !== null && hovered !== undefined && <HoverTip x={tipAt[0]} y={tipAt[1] - s - 6} text={`${hovered.label}${lineIds !== null && hovered.id !== undefined && lineIds.includes(hovered.id) ? ` · ${lineIds.indexOf(hovered.id) + 1}/${lineIds.length}` : ''}`} />}
+      {picked !== undefined && panel !== null && createPortal(
+        <div className="cg-ls-quest is-side" role="region" aria-label={picked.label} data-landscape-quest={picked.key}>{quest(picked, { route: route !== null && route.id === picked.id ? route.steps : null, onHover: setPeek, close: onClose })}</div>,
+        panel
+      )}
+      {picked !== undefined && anchor !== null && panel === null && (
+        <QuestBox svg={svg} geoWidth={geo.width} geoHeight={geo.height} at={{ x: anchor[0], y: anchor[1], half: s + 4, halfW: CORNER * geo.u + 4 }} sheet={sheet || true} label={picked.label} questKey={picked.key}
           avoid={[...routeCells].map(centre)} avoidLine={drawn === null ? [] : [...drawn.down, ...drawn.up].flatMap(([a, b]) => { const p = centre(a); const q = centre(b); return [p, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2] as [number, number]]; })}>
           {quest(picked, { route: route !== null && route.id === picked.id ? route.steps : null, onHover: setPeek, close: onClose })}
         </QuestBox>
@@ -1286,12 +1401,12 @@ function Quest({ field: f, goal, canLearn, note, label, lockCount, paths, onLear
 /** Dieselben Felder als Liste — für Vorleser, und für wer lieber liest als schaut. */
 function FieldList({ layout, onChoose }: { layout: LsLayout; onChoose: (f: LsField) => void }) {
   const groups: { band: LsBand; title: string }[] = [
-    { band: 'ring', title: 'Gotowe do nauki' }, { band: 'due', title: 'Do powtórki' },
-    { band: 'mountain', title: 'Za górami (tyle kroków brakuje)' }, { band: 'known', title: 'Umiem' }
+    { band: 'ring', title: W.listBands[0] }, { band: 'due', title: W.listBands[1] },
+    { band: 'mountain', title: W.listBands[2] }, { band: 'known', title: W.listBands[3] }
   ];
   return (
     <details className="cg-ls-list" data-landscape-list="">
-      <summary>Krajobraz jako lista ({layout.fields.length} pól)</summary>
+      <summary>{W.asList(layout.fields.length)}</summary>
       {groups.map((g) => {
         const of = layout.fields.filter((f) => f.band === g.band).sort((a, b) => (g.band === 'mountain' ? a.missing - b.missing : 0) || a.angle - b.angle);
         if (of.length === 0) return null;

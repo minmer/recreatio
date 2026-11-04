@@ -86,8 +86,8 @@ check('decay: A at exactly 0.1 is still learned (height 0, band due)', (() => { 
 check('decay: A below 0.1 counts missing again (B one step behind)', H(chain, { A: 0.09 }), { A: 0, B: 1, C: 2 });
 
 const diamond = graphOf({ A: [], B: ['A'], C: ['A'], D: ['B', 'C'] });
-check('shared prerequisite counted once: D = |{A, B, C}| = 3, not 4', H(diamond).D, 3);
-check('diamond with A known: D = 2 (B and C)', H(diamond, { A: 1 }).D, 2);
+check('2026-11-04 steps = the longest chain of unknown prerequisites: D after A → B (or C) → D is 2 steps (not 3 topics)', H(diamond).D, 2);
+check('diamond with A known: D = 1 step (B and C side by side)', H(diamond, { A: 1 }).D, 1);
 
 const transparent = graphOf({ A: [], X: ['A'], Y: ['X'] }, { cardless: ['X'] });
 check('an entry without cards is transparent: Y = 1 (A), X has no field', H(transparent), { A: 0, X: null, Y: 1 });
@@ -221,7 +221,9 @@ const polarOf = (c) => ({ rho: Math.hypot(c.x, c.y), angle: (Math.atan2(c.y, -c.
   /* Die Höhen: das Tal versenkt und flach, die Ebene 0, ein Berg nach seinen Schritten — an derselben Stelle. */
   const lifts = runLayout(W, { alg0: 1.2, alg1: 0.5 }, { budget: 200 }).run.layout;
   const liftOf = (id) => lifts.land[lifts.cellOf[W.ids.indexOf(id)]].lift;
-  check('heights: known and due sink (flat), the next step is level ground, mountains rise with their steps', [liftOf('alg0'), liftOf('alg1'), liftOf('alg2'), liftOf('alg4') > liftOf('alg3'), liftOf('alg3') > 0], [-0.55, -0.55, 0, true, true]);
+  check('heights: known and due sink (flat), the next step is level ground, mountains rise with their steps', [liftOf('alg0'), liftOf('alg1'), liftOf('alg2'), liftOf('alg4') > liftOf('alg3'), liftOf('alg3') > 0], [0, 0, 1, true, true]);
+  check('2026-11-04 equal steps: a field 10 steps away stands exactly ten times as high above the learnable level as one 1 step away', (L.liftOf('mountain', 10) - L.liftOf('ring', 0)) / (L.liftOf('mountain', 1) - L.liftOf('ring', 0)), 10);
+  check('… no cap: 84 steps stand 84 steps above the learnable level', L.liftOf('mountain', 84) - L.liftOf('ring', 0), 84);
   check('learning lowers a field where it stands', [mapOf(lifts, W) === mapOf(a, W), liftOf('alg0') < a.land[a.cellOf[W.ids.indexOf('alg0')]].lift], [true, true]);
   check('due for review is a marker, the field does not move', [lifts.fields.find((f) => f.id === 'alg1')?.band, lifts.land[lifts.cellOf[W.ids.indexOf('alg1')]].due], ['due', true]);
 
@@ -472,10 +474,10 @@ function bandWorld() {
   check('nest: … and a mountain stands higher than a ring field', hist.lift > top.fields.find((f) => f.label === 'Matematyka').lift, true);
   const all = Object.fromEntries(N.nestSubtree(tree, id('Fizyka'), input.ids).map((x) => [x, 1.4]));
   const phys = levelOf({ ...k1, ...all }, null).fields.find((f) => f.label === 'Fizyka');
-  check('nest: everything inside known → the group sinks into the valley', [phys.band, phys.lift < 0], ['known', true]);
+  check('nest: everything inside known → the group sinks into the valley', [phys.band, phys.lift === 0], ['known', true]);
   const half = { ...all, [id('Prędkość')]: 0.5 };
   const physDue = levelOf({ ...k1, ...half }, null).fields.find((f) => f.label === 'Fizyka');
-  check('nest: learned but one due → deep in the valley with the repeat marker (due > 0)', [physDue.band, physDue.lift < 0, physDue.due], ['due', true, 1]);
+  check('nest: learned but one due → deep in the valley with the repeat marker (due > 0)', [physDue.band, physDue.lift === 0, physDue.due], ['due', true, 1]);
   /* Sperre: alles, was darin dran wäre, braucht erst eine Powtórka. */
   const weakK = { [id('Liczby naturalne')]: 0.5 };
   const liczby = levelOf(weakK, 'Liczby', [id('Liczby naturalne')]);

@@ -288,8 +288,13 @@ export function buildGraph(input: Pick<LsInput, 'needs' | 'learnable'> & { reado
 export interface LsHeights {
   /** Je Knoten die Höhe (NaN: ohne Karten — kein Feld). */
   readonly height: Float64Array;
-  /** Je Knoten: wie viele Schritte fehlen (0 im Tal und auf dem Ring). */
+  /**
+   * Je Knoten: wie viele Schritte fehlen (0 im Tal und auf dem Ring) — 2026-11-04: die LÄNGSTE Kette noch nicht
+   * gelernter Voraussetzungen davor (jeder Schritt gleich hoch).
+   */
   readonly missing: Int32Array;
+  /** 2026-11-04 — je Knoten: wie viele verschiedene, noch nicht gelernte Einträge davor liegen (alles, was zu lernen ist). */
+  readonly topics: Int32Array;
   readonly band: readonly (LsBand | null)[];
   /** Je Knoten: ein Ring-Eintrag, dessen Kette davor beantwortete, schwache Karten hat. */
   readonly locked: Uint8Array;
@@ -342,8 +347,17 @@ export function heightsOf(g: LsGraph, state: LsState): LsHeights {
     for (let w = 0; w < g.words; w += 1) { const x = g.closure[base + w] & mask[w]; if (x !== 0) sum += pop32(x); }
     missingComp[c] = sum;
   }
+  /* 2026-11-04 — die längste Kette noch offener Komponenten davor (in topologischer Reihenfolge; ohne Karten durchsichtig). */
+  const chainComp = new Int32Array(count);
+  for (let i = 0; i < count; i += 1) {
+    const c = g.order[i];
+    let d = 0;
+    for (const p of g.parents[c]) d = Math.max(d, chainComp[p] + (open[p] === 1 ? 1 : 0));
+    chainComp[c] = d;
+  }
   const height = new Float64Array(n);
   const missing = new Int32Array(n);
+  const topics = new Int32Array(n);
   const band: (LsBand | null)[] = new Array(n).fill(null);
   const locked = new Uint8Array(n);
   for (let v = 0; v < n; v += 1) {
@@ -355,7 +369,8 @@ export function heightsOf(g: LsGraph, state: LsState): LsHeights {
       continue;
     }
     const c = g.comp[v];
-    const m = missingComp[c];
+    const m = missingComp[c] === 0 ? 0 : Math.max(1, chainComp[c]);
+    topics[v] = missingComp[c];
     missing[v] = m;
     height[v] = m;
     band[v] = m === 0 ? 'ring' : 'mountain';
@@ -364,7 +379,7 @@ export function heightsOf(g: LsGraph, state: LsState): LsHeights {
       if (weakBefore[c] === 1 || own) locked[v] = 1;
     }
   }
-  return { height, missing, band, locked, open };
+  return { height, missing, topics, band, locked, open };
 }
 
 /* -- Wege --------------------------------------------------------------------------------------------------------- */
@@ -1017,6 +1032,8 @@ export interface LsField {
   readonly count: number;
   readonly height: number;
   readonly missing: number;
+  /** 2026-11-04 — ein Eintrag: wie viele verschiedene Themen davor noch zu lernen sind (die Schritte zählt `missing`). */
+  readonly topics?: number;
   readonly band: LsBand;
   readonly locked: boolean;
   readonly subject: number;
@@ -1112,9 +1129,14 @@ export function bandShares(raw?: Partial<LsBands>): LsBands {
 
 /** Wie hoch eine Zelle gezeichnet wird (Kacheln): das Tal versenkt und flach, der Ring eben, ein Berg nach seinen Schritten. */
 export function liftOf(band: LsBand | null, missing: number): number {
-  if (band === 'known' || band === 'due') return -0.55;
-  if (band === 'ring') return 0;
-  if (band === 'mountain') return 0.22 + 0.13 * Math.min(9, Math.max(1, missing));
+  /*
+    2026-11-04 — DIE HÖHE IN GLEICHEN SCHRITTEN, ohne Deckel: im Tal 0, was jetzt lernbar ist, einen Schritt darüber, ein
+    Feld n Schritte weiter n Schritte über dem Lernbaren. Damit es ins Bild passt, wird die Schrittweite verkleinert,
+    nie die Berge gestaucht (`LandscapeView`: geometryOf).
+  */
+  if (band === 'known' || band === 'due') return 0;
+  if (band === 'ring') return 1;
+  if (band === 'mountain') return 1 + Math.max(1, missing);
   return 0;
 }
 
@@ -1369,7 +1391,7 @@ export function layoutOf(input: LsInput, g: LsGraph, h: LsHeights, options: LsOp
     const unlocks = unlocksOf(v);
     const progress = progressOf([v]);
     fields.push({
-      key: input.ids[v], kind: 'entry', id: input.ids[v], label: label(v), count: 1, height: h.height[v], missing: h.missing[v], band: b,
+      key: input.ids[v], kind: 'entry', id: input.ids[v], label: label(v), count: 1, height: h.height[v], missing: h.missing[v], topics: h.topics[v], band: b,
       locked: h.locked[v] === 1, subject: dir.subject[v], area: dir.centre[v] === 1 ? -1 : dir.top[v], q: c.q, r: c.r, x: c.x, y: c.y,
       angle: polarOf(ci).angle, row: Math.round(polarOf(ci).rho), lift: lift[ci], route: onRoute[v], next: nextStep[v] === 1, goal: v === goalIndex,
       due: b === 'due' ? 1 : 0, ring: b === 'ring' ? 1 : 0, known: b === 'known' ? 1 : 0, mountain: b === 'mountain' ? 1 : 0, edge: false, cells: [ci],
