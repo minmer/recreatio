@@ -320,6 +320,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     wenn sich Zoom, Winkel oder Daten ändern oder der Rand erreicht ist. So bleibt eine Baza mit 5 000 Themen flüssig.
   */
   const cache = useRef<{ canvas: HTMLCanvasElement; cam: WorldCam; sig: string; margin: number } | null>(null);
+  const lastChange = useRef(0);
+  const idleRepaint = useRef(0);
   const dataTick = useRef(0);
   const dataSig = useMemo(() => { dataTick.current += 1; return dataTick.current; }, [topics, chosen, flash, links, route, home, hoverRegion, palette, world]); // eslint-disable-line react-hooks/exhaustive-deps
   const paint = () => {
@@ -335,6 +337,18 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     const sig = [cam.s.toFixed(4), cam.rot.toFixed(3), cam.fore.toFixed(4), dataSig, width, height, step].join('|');
     let c = cache.current;
     let dx = 0; let dy = 0;
+    /*
+      2026-11-04 (Prompt 14) — Drehen, Neigen, Zoomen ändern das Bild in jedem Schritt: dann direkt ins sichtbare Bild (das
+      grosse mit Rand neu zu zeichnen kostete je Schritt das Vierfache); ruht die Kamera, wird das grosse wieder gebaut.
+    */
+    if (c !== null && c.sig !== sig && performance.now() - lastChange.current < 260) {
+      lastChange.current = performance.now();
+      draw(ctx, dpr);
+      if (idleRepaint.current !== 0) window.clearTimeout(idleRepaint.current);
+      idleRepaint.current = window.setTimeout(() => { idleRepaint.current = 0; lastChange.current = 0; paint(); const c2 = canvas.current?.getContext('2d'); if (c2 != null) drawInfo(c2, Math.min(2, window.devicePixelRatio || 1)); }, 280);
+      return;
+    }
+    if (c === null || c.sig !== sig) lastChange.current = performance.now();
     if (c !== null && c.sig === sig) {
       const [ox, oy] = toScreen(proj, c.cam.cx, c.cam.cy);
       dx = ox - width / 2; dy = oy - height / 2;
@@ -364,6 +378,8 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
     steil: nichts. Auf das sichtbare Bild gezeichnet (nicht ins verschobene).
   */
   const fontFamily = useRef('');
+  const fitCache = useRef(new Map<string, ReturnType<typeof fitInfo>>());
+  useEffect(() => { fitCache.current.clear(); }, [topics]);
   const drawInfo = (ctx: CanvasRenderingContext2D, dpr: number) => {
     let drawn = 0;
     let inside = 0;
@@ -384,7 +400,10 @@ export function WorldMap({ world, topics, regionName, conquered, chosen, flash, 
       const t = topics[i];
       if (t === undefined) continue;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const fit = fitInfo(t.label, t.todo, deep ? t.detail : null, r, measure);
+      /* Gemessen wird einmal je Thema, Grösse und Ebene (beim Drehen und Ziehen ändert sich nur die Lage). */
+      const fk = `${i}|${Math.round(r)}|${deep ? 1 : 0}|${t.todo}`;
+      let fit = fitCache.current.get(fk);
+      if (fit === undefined) { fit = fitInfo(t.label, t.todo, deep ? t.detail : null, r, measure); if (fitCache.current.size > 6000) fitCache.current.clear(); fitCache.current.set(fk, fit); }
       drawn += 1;
       if (x >= 0 && x <= width && y >= 0 && y <= height) inside += 1;
       /* Auf die Fläche: drehen wie die Kachel, die Tiefe stauchen wie die Neigung. */
