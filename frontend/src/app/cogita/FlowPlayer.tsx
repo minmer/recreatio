@@ -172,6 +172,8 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
   const W = words(content.lang ?? 'pl');
   /* Wie viele Fragen diese Erzählung schon gestellt hat (für den Balken); was eben gefragt wurde (für den Przerywnik). */
   const [askedHere, setAskedHere] = useState(0);
+  /* Jeder Schritt weiter ist ein neuer Besuch: dieselbe Frage wieder ist eine neue Karte (nicht die alte Rückmeldung). */
+  const [visit, setVisit] = useState(0);
   const [lastAsked, setLastAsked] = useState<{ readonly key: string; readonly wrong: boolean } | null>(null);
   const [spacerDone, setSpacerDone] = useState<string | null>(null);
 
@@ -220,6 +222,7 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
 
   const go = (exit?: string) => {
     setAnsweredOn(null);
+    setVisit((v) => v + 1);
     setState((s) => {
       const next = advance(currentFlow, s, exit, ctx);
       const lines = linesNow(flow, next, facts(next));
@@ -446,13 +449,15 @@ export function FlowPlayer({ flow: given, content, learner, onClose, jumpTo, onA
         if (card === null) return <><p className="wk-hint">Tego pytania tu nie ma.</p><Next onNext={() => go('right')} /></>;
         const left = questionsLeft(currentFlow, current.id, content.card, marksOf).left;
         /* Dieselbe Frage wie eben, nach einer falschen Antwort: erst ein Przerywnik (eine gekonnte), dann sie wieder. */
-        const spacer = marksOf !== null && lastAsked !== null && lastAsked.key === card.key && lastAsked.wrong && spacerDone !== card.key
+        /* Nur beim Wiederkommen — nicht, solange die Rückmeldung zur eben falschen Antwort steht. */
+        const back = answeredOn === null || answeredOn.step === `spacer:${current.id}`;
+        const spacer = back && marksOf !== null && lastAsked !== null && lastAsked.key === card.key && lastAsked.wrong && spacerDone !== card.key
           ? pickSpacer(card, cardsInFlow(currentFlow, content.card), content.cards ?? [], marksOf) : null;
         const shown = spacer ?? card;
         return (
           <>
             <AskHead W={W} left={left} done={askedHere} card={shown} spacer={spacer !== null} marks={marksOf} topic={(id) => content.label?.(id) ?? content.entity(id)?.label ?? id} story={flow.name} />
-            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}`} card={shown}
+            <CardFace key={`${shown.key}:${spacer !== null ? 's' : 'q'}:${visit}`} card={shown}
               onAnswered={(outcome, given) => {
                 /* Ein Przerywnik ändert den Plan nur, wenn er falsch beantwortet wird. */
                 if (spacer !== null) { if (!outcome.correct) learner?.record(shown, outcome.correctness, { via: flow.id }); setAnsweredOn({ step: `spacer:${current.id}`, correct: outcome.correct }); return; }
